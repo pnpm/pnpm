@@ -91,6 +91,7 @@ describe('access command', () => {
       method: 'POST',
       path: /^\/-\/package\/@pnpm%2[Ff]test\/access$/,
       body: JSON.stringify({ access: 'public' }),
+      headers: { 'npm-command': 'access' },
     }).reply(200, { ok: true })
 
     const result = await access.handler({

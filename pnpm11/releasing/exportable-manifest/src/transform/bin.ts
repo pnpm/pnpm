@@ -17,7 +17,6 @@ export function transformBin<Manifest extends Input> (manifest: Manifest): Outpu
 
 /**
  * The property `"bin"` of a `package.json` could be either an object or a string.
- * This function normalizes either forms into an object.
  */
 export function normalizeBinObject (pkgName: string, bin: string | Record<string, string>): Record<string, string> {
   if (typeof bin === 'object') return bin

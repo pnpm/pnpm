@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.packlist",
-  "version": "1100.0.4",
+  "version": "1100.0.14",
   "description": "Get a list of the files to add from a directory into an npm package",
   "keywords": [
     "pnpm",
@@ -25,11 +25,13 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     "test": "pn compile"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "is-subdir": "catalog:",
     "npm-packlist": "catalog:"
   },

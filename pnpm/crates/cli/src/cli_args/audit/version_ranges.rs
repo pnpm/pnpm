@@ -1,6 +1,10 @@
 //! Semver questions the audit asks of advisory ranges.
 
-use super::{Range, RangeSpecStyle, Version};
+use super::{
+    Range,
+    RangeSpecStyle,
+    Version,
+};
 
 pub(crate) fn satisfies_safe(version: &str, range: &str) -> bool {
     let Ok(version) = version.parse::<Version>() else { return false };
@@ -12,9 +16,12 @@ pub(crate) fn satisfies_including_prerelease(version: &Version, range: &Range) -
     if version.satisfies(range) {
         return true;
     }
-    range.to_string().split("||").any(|comparators| {
-        comparators.split_whitespace().all(|comparator| comparator_matches(version, comparator))
-    })
+    range
+        .to_string()
+        .split("||")
+        .any(|comparators| {
+            comparators.split_whitespace().all(|comparator| comparator_matches(version, comparator))
+        })
 }
 
 pub(crate) fn comparator_matches(version: &Version, comparator: &str) -> bool {
@@ -33,12 +40,12 @@ pub(crate) fn comparator_matches(version: &Version, comparator: &str) -> bool {
 }
 
 pub(crate) fn comparator_operator_and_version(comparator: &str) -> (&str, &str) {
-    for operator in [">=", "<=", ">", "<"] {
+    for operator in [">=", "<=", ">", "<", "=", "^", "~"] {
         if let Some(version) = comparator.strip_prefix(operator) {
-            return (operator, version);
+            return (operator, version.trim());
         }
     }
-    ("", comparator)
+    ("", comparator.trim())
 }
 
 pub(crate) fn infer_patched_versions(vulnerable_range: &str) -> Option<String> {
@@ -81,11 +88,27 @@ pub(crate) fn last_upper_bound(input: &str) -> Option<(&str, &str)> {
 pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> String {
     patched
         .strip_prefix(">=")
-        .and_then(|version| version.trim().parse::<Version>().ok())
-        .map_or_else(|| patched.to_string(), |version| format!("{}{version}", style.range_prefix()))
+        .map(str::trim)
+        .map(str::parse::<Version>)
+        .and_then(Result::ok)
+        .map(|version| format!("{}{version}", style.range_prefix()))
+        .unwrap_or_else(|| patched.to_string())
 }
 
-/// [`patched_range_for_style`] at pnpm's default caret style.
-pub(crate) fn caret_range_for_patched(patched: &str) -> String {
-    patched_range_for_style(patched, RangeSpecStyle::Major)
+pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {
+    let sub = sub.trim();
+    let dom = dom.trim();
+    if sub.is_empty() || dom.is_empty() {
+        return false;
+    }
+    pnpm_semver_include_prerelease::is_semver_subset(sub, dom)
+}
+
+pub(crate) fn min_version_from_range(range_str: &str) -> Option<Version> {
+    range_str
+        .trim()
+        .parse::<Range>()
+        .ok()
+        .and_then(|r| r.min_version())
+        .or_else(|| range_str.trim().parse::<Version>().ok())
 }

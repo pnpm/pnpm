@@ -14,7 +14,20 @@ Based on `debian:stable-slim` with the pnpm standalone binary. Node.js is **not*
 | --------------------- | ----------------------------------------------------------------------- |
 | `<version>`           | Exact, immutable (e.g. `11.0.0`). Includes prereleases.                 |
 | `<major>`             | Tracks the latest stable release within that major (e.g. `11`).         |
-| `latest`              | Most recent stable pnpm release. Not updated for prereleases.           |
+| `latest`              | Highest stable pnpm version. Not updated for prereleases.               |
+| `<version>-alpine`, `<major>-alpine`, `alpine` | The same, based on Alpine Linux with the musl build of pnpm. |
+
+## Alpine variant
+
+The `-alpine` tags are based on `alpine:3.24` and contain the musl build of pnpm in `/opt/pnpm`. They are published for pnpm 12 and later.
+
+To add pnpm to an existing image, such as `node:<version>-alpine`, copy the whole directory. The `dist` directory next to the binary holds the bundled `node-gyp`:
+
+```dockerfile
+FROM node:24-alpine
+COPY --from=ghcr.io/pnpm/pnpm:12-alpine /opt/pnpm /opt/pnpm
+RUN for bin in pnpm pn pnpx pnx; do ln -s "/opt/pnpm/$bin" "/usr/local/bin/$bin"; done
+```
 
 ## Supported platforms
 
@@ -70,6 +83,8 @@ docker buildx build \
   -t pnpm-test ./docker
 docker run --rm pnpm-test pnpm --version
 ```
+
+For the Alpine image, checksum `pnpm-linux-x64-musl.tar.gz` instead and pass `-f docker/Dockerfile.alpine`.
 
 ## Release
 

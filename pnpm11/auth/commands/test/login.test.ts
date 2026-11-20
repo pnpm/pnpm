@@ -63,6 +63,7 @@ const createMockResponse = (init: {
     },
     headers: init.headers ?? {
       get: name => {
+        if (name === 'npm-notice') return null
         throw new Error(`Unexpected call to headers.get: ${name}`)
       },
     },
@@ -81,6 +82,40 @@ const createMockContext = (overrides?: MockContextOverrides): LoginContext => ({
     ...overrides?.process,
   },
 })
+
+const NOTICE_HEADERS: LoginFetchResponse['headers'] = {
+  get: name => name === 'npm-notice' ? 'Enter the code \u001b[31m1234-5678\u001b[0m' : null,
+}
+
+const OTP_CHALLENGE_HEADERS: LoginFetchResponse['headers'] = {
+  get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null,
+}
+
+interface CredentialAnswers {
+  username: string
+  email: string
+  password: string
+  otp?: string
+}
+
+function createCredentialsEnquirer (answers: CredentialAnswers): LoginContext['enquirer'] {
+  const inputAnswers: Record<string, string | undefined> = {
+    'Username:': answers.username,
+    'Email (this IS public):': answers.email,
+    'This operation requires a one-time password.\nEnter OTP:': answers.otp,
+  }
+  return {
+    input: async (opts: { message: string }): Promise<string> => {
+      const answer = inputAnswers[opts.message]
+      if (answer == null) throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
+      return answer
+    },
+    password: async (opts: { message: string }): Promise<string> => {
+      if (opts.message === 'Password:') return answers.password
+      throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
+    },
+  }
+}
 
 describe('login', () => {
   it('should throw in non-interactive terminal when the registry does not support web login', async () => {
@@ -194,6 +229,39 @@ describe('login', () => {
       '//example.com/npm/:_authToken': 'web-auth-token-123',
     })
     expect(globalInfo.mock.calls).toEqual([
+      [expect.stringContaining('https://example.com/auth/login')],
+      ['Press ENTER to open the URL in your browser.'],
+    ])
+  })
+
+  it('should print the sanitized npm-notice of the web login response before the login URL', async () => {
+    const globalInfo = jest.fn()
+    const context = createMockContext({
+      globalInfo,
+      readIniFile: async () => ({}),
+      writeIniFile: async () => {},
+      fetch: async url => {
+        if (url === 'https://example.com/-/v1/login') {
+          return createMockResponse({
+            ok: true,
+            status: 202,
+            json: {
+              loginUrl: 'https://example.com/auth/login',
+              doneUrl: 'https://example.com/auth/done',
+            },
+            headers: NOTICE_HEADERS,
+          })
+        }
+        if (url === 'https://example.com/auth/done') {
+          return createMockResponse({ ok: true, status: 200, json: { token: 'web-auth-token-123' } })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+    })
+    const opts = { configDir: '/custom/config', dir: '/mock', authConfig: {}, registry: 'https://example.com/' }
+    await login({ context, opts })
+    expect(globalInfo.mock.calls).toEqual([
+      ['Enter the code [31m1234-5678[0m'],
       [expect.stringContaining('https://example.com/auth/login')],
       ['Press ENTER to open the URL in your browser.'],
     ])
@@ -526,6 +594,64 @@ describe('login', () => {
     expect(globalInfo.mock.calls).toEqual([['Logged in as john']])
   })
 
+  // https://github.com/pnpm/pnpm/issues/12055
+  it('should log in to an existing user in classic login by sending the credentials as basic auth', async () => {
+    const globalInfo = jest.fn()
+    let savedSettings: Record<string, unknown> = {}
+    const context = createMockContext({
+      globalInfo,
+      readIniFile: async () => ({}),
+      writeIniFile: async (_configPath, settings) => {
+        savedSettings = settings
+      },
+      fetch: async (url, init) => {
+        if (url === 'https://example.org/-/v1/login') {
+          return createMockResponse({ ok: false, status: 404, text: 'Not Found' })
+        }
+        if (url === 'https://example.org/-/user/org.couchdb.user:john') {
+          expect(init?.redirect).toBe('manual')
+          if (init?.headers?.authorization !== `Basic ${Buffer.from('john:secret', 'utf8').toString('base64')}`) {
+            return createMockResponse({ ok: false, status: 409, text: '{"error":"username is already registered"}' })
+          }
+          return createMockResponse({ ok: true, status: 201, json: { ok: true, token: 'existing-user-token' } })
+        }
+        throw new Error(`Unexpected call to fetch: ${url}`)
+      },
+      enquirer: createCredentialsEnquirer({ username: 'john', email: 'john@example.com', password: 'secret' }),
+    })
+    const opts = { configDir: '/other/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
+    const result = await login({ context, opts })
+    expect(result).toBe('Logged in on https://example.org/')
+    expect(savedSettings).toStrictEqual({
+      '//example.org/:_authToken': 'existing-user-token',
+    })
+    expect(globalInfo.mock.calls).toEqual([['Logged in as john']])
+  })
+
+  it.each([307, 308])('does not forward classic login credentials after HTTP %s redirect', async status => {
+    const fetchedUrls: string[] = []
+    const context = createMockContext({
+      fetch: async (url, init) => {
+        fetchedUrls.push(url)
+        if (url === 'https://example.org/-/v1/login') {
+          return createMockResponse({ ok: false, status: 404, text: 'Not Found' })
+        }
+        expect(url).toBe('https://example.org/-/user/org.couchdb.user:john')
+        expect(init?.redirect).toBe('manual')
+        return createMockResponse({ ok: false, status, text: 'Redirected' })
+      },
+      enquirer: createCredentialsEnquirer({ username: 'john', email: 'john@example.com', password: 'secret' }),
+    })
+    await expect(login({
+      context,
+      opts: { configDir: '/other/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' },
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_LOGIN_FAILED', httpStatus: status })
+    expect(fetchedUrls).toStrictEqual([
+      'https://example.org/-/v1/login',
+      'https://example.org/-/user/org.couchdb.user:john',
+    ])
+  })
+
   it('should handle classic OTP challenge during login', async () => {
     let putCallCount = 0
     const globalInfo = jest.fn()
@@ -549,7 +675,7 @@ describe('login', () => {
               status: 401,
               json: { error: 'otp required' },
               text: 'OTP required',
-              headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
+              headers: OTP_CHALLENGE_HEADERS,
             })
           }
           expect(options?.headers?.['npm-otp']).toBe('999999')
@@ -561,18 +687,7 @@ describe('login', () => {
         }
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
-      enquirer: {
-        input: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Username:') return 'alice'
-          if (opts.message === 'Email (this IS public):') return 'alice@example.com'
-          if (opts.message === 'This operation requires a one-time password.\nEnter OTP:') return '999999'
-          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
-        },
-        password: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Password:') return 'pass'
-          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
-        },
-      },
+      enquirer: createCredentialsEnquirer({ username: 'alice', email: 'alice@example.com', password: 'pass', otp: '999999' }),
     })
     const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
@@ -607,7 +722,7 @@ describe('login', () => {
                 authUrl: 'https://example.org/auth/web',
                 doneUrl: 'https://example.org/auth/web/done',
               }),
-              headers: { get: (name: string) => name === 'www-authenticate' ? 'OTP otp' : null },
+              headers: OTP_CHALLENGE_HEADERS,
             })
           }
           expect(options?.headers?.['npm-otp']).toBe('web-tok')
@@ -627,17 +742,7 @@ describe('login', () => {
         }
         throw new Error(`Unexpected call to fetch: ${url}`)
       },
-      enquirer: {
-        input: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Username:') return 'bob'
-          if (opts.message === 'Email (this IS public):') return 'bob@example.com'
-          throw new Error(`Unexpected call to enquirer.input: ${opts.message}`)
-        },
-        password: async (opts: { message: string }): Promise<string> => {
-          if (opts.message === 'Password:') return 'pass'
-          throw new Error(`Unexpected call to enquirer.password: ${opts.message}`)
-        },
-      },
+      enquirer: createCredentialsEnquirer({ username: 'bob', email: 'bob@example.com', password: 'pass' }),
     })
     const opts = { configDir: '/otp/config', dir: '/mock', authConfig: {}, registry: 'https://example.org' }
     const result = await login({ context, opts })
@@ -933,7 +1038,8 @@ describe('login', () => {
     const context = createMockContext({
       globalInfo,
       readIniFile: async () => {
-        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+        // StackBlitz WebContainers throw fs errors that are not native errors.
+        throw Object.assign(Object.create(Error.prototype) as Error, { code: 'ENOENT', message: 'ENOENT: no such file or directory' })
       },
       writeIniFile: async (_configPath, settings) => {
         savedSettings = settings

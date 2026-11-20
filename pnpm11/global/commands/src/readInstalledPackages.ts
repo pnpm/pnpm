@@ -1,7 +1,7 @@
 import path from 'node:path'
 
-import { isValidGlobalDependencyAlias } from '@pnpm/global.packages'
-import { readPackageJsonFromDir, readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
+import { readGlobalGroupDependencies } from '@pnpm/global.packages'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
 
 export interface InstalledGroupPackage {
@@ -11,8 +11,7 @@ export interface InstalledGroupPackage {
 }
 
 export async function readInstalledPackages (installDir: string): Promise<InstalledGroupPackage[]> {
-  const pkgJson = readPackageJsonFromDirRawSync(installDir)
-  const depNames = Object.keys(pkgJson.dependencies ?? {}).filter(isValidGlobalDependencyAlias)
+  const depNames = Object.keys(readGlobalGroupDependencies(installDir))
   const manifests = await Promise.all(
     depNames.map((depName) => readPackageJsonFromDir(path.join(installDir, 'node_modules', depName)))
   )

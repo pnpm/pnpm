@@ -1,3 +1,10 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { findPnpmEntryScript, findPnpmExecutable, realpathOrUndefined } from './selfEntry.js'
+
+export { isPnpxExecutable } from './selfEntry.js'
+
 const defaultManifest = {
   name: process.env.npm_package_name != null && process.env.npm_package_name !== ''
     ? process.env.npm_package_name
@@ -18,20 +25,84 @@ export const packageManager = {
   version: pkgJson.version,
 }
 
+/**
+ * The command that re-invokes the pnpm running now, so a child runs the same
+ * version: the executable for the `@pnpm/exe` single-file build, and
+ * `node <entry>` for every other install method. Either is pnpm's own even
+ * when this process runs as `pnpx`. Falls back to whichever pnpm is on `PATH`
+ * when this process is not running pnpm.
+ */
+export function resolvePnpmSelfCommand (): string[] {
+  if (detectIfCurrentPkgIsExecutable()) return [findPnpmExecutable(process.execPath)]
+  const entryScript = findSelfEntryScript()
+  return entryScript == null ? ['pnpm'] : [process.execPath, entryScript]
+}
+
+/**
+ * The file that runs the pnpm running now, as scripts expect it in
+ * `npm_execpath`: the `@pnpm/exe` executable, or pnpm's entry script. Returns
+ * `undefined` when this process is not running pnpm.
+ */
+export function resolvePnpmExecPath (): string | undefined {
+  if (detectIfCurrentPkgIsExecutable()) return findPnpmExecutable(process.execPath)
+  return findSelfEntryScript()
+}
+
 export function detectIfCurrentPkgIsExecutable (_proc?: unknown): boolean {
   try {
     // require() is available here because esbuild injects a createRequire shim
     // via the banner in pnpm/bundle.ts. node:sea is not available as an ESM
     // import, so require() is the correct approach.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- node:sea cannot be imported as ESM, see above
     return require('node:sea').isSea()
   } catch {
     return false
   }
 }
 
+let selfEntryScript: { value: string | undefined } | undefined
+
+/**
+ * Neither `process.argv[1]` nor this module moves while the process runs, and
+ * lifecycle scripts ask once per script, so the answer is looked up once.
+ */
+function findSelfEntryScript (): string | undefined {
+  selfEntryScript ??= { value: findPnpmEntryScript(process.argv[1], import.meta.filename) }
+  return selfEntryScript.value
+}
+
 export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boolean {
   return env.COREPACK_ROOT != null
+}
+
+/**
+ * The Homebrew formula (`pnpm`, `pnpm@11`, ...) that installed the pnpm
+ * running now, or `undefined` when Homebrew did not install it.
+ */
+export function findHomebrewFormula (): string | undefined {
+  const selfPath = detectIfCurrentPkgIsExecutable() ? process.execPath : import.meta.filename
+  const realPath = realpathOrUndefined(selfPath)
+  return realPath == null ? undefined : homebrewFormulaOf(realPath)
+}
+
+/**
+ * The Homebrew formula whose keg holds `realPath`. A keg is
+ * `<cellar>/<formula>/<version>/`, and Homebrew writes `INSTALL_RECEIPT.json`
+ * into every keg it installs.
+ */
+export function homebrewFormulaOf (realPath: string): string | undefined {
+  for (let keg = path.dirname(realPath); keg !== path.dirname(keg); keg = path.dirname(keg)) {
+    const formulaDir = path.dirname(keg)
+    const formula = path.basename(formulaDir)
+    if (
+      path.basename(path.dirname(formulaDir)) === 'Cellar' &&
+      (formula === 'pnpm' || formula.startsWith('pnpm@')) &&
+      fs.existsSync(path.join(keg, 'INSTALL_RECEIPT.json'))
+    ) {
+      return formula
+    }
+  }
+  return undefined
 }
 
 /**

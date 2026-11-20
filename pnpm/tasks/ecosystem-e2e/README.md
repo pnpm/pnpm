@@ -63,9 +63,79 @@ Append a `Stack` to `STACKS` in `src/stacks.rs`. Pin the generator to a major
 version — an unpinned `@latest` turns an upstream framework release into a red
 cell that looks like a pnpm/pacquet regression. Bump pins deliberately.
 
+## WebContainers
+
+`webcontainer/` installs a small project with the pnpm CLI bundle inside a
+StackBlitz WebContainer, booted in headless Chromium. WebContainers run
+Node.js in the browser with their own `fs` and `node:sqlite`, which differ from
+Node.js in ways no local test reproduces. The default mode tests the TypeScript
+CLI bundle: install without a lockfile, repeat install, offline reinstall from
+the store, `add`, `remove`, and `list`.
+
+From the repo root, with the bundle built (`pnpm --filter pnpm run compile`):
+
+```sh
+pnpm --filter @pnpm-private/ecosystem-e2e-webcontainer exec playwright-core install --only-shell chromium
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs
+```
+
+The Rust CLI runs through the WebAssembly runtime. Test the `@pnpm/wasm`
+package with `--wasm-package`. This mode installs the package locally and
+globally with npm, exercises all four bin aliases and local `npx` dispatch,
+then runs the CLI workflows:
+
+```sh
+pnpm pack:pnpm:wasm
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package target/pnpm-wasm.tgz
+```
+
+The workflows cover update, lockfile-only and frozen/offline installs,
+configuration, command failures, `dlx`, `create`, workspace scripts and bins,
+interactive build approval, rebuild, pack, and a Vite build. Expected failures
+assert their exit status and diagnostic. These are representative workflow
+tests, not a claim that every command or native dependency works in a browser.
+
+### Rust WASM host probe
+
+The v12 WebContainer port is tracked in
+[pnpm/tasks#63](https://github.com/pnpm/tasks/issues/63). The capability probe
+runs a Rust WASI module and Node host checks in a real WebContainer without
+building or running the TypeScript CLI:
+
+```sh
+rustup target add wasm32-wasip1
+rustc --target wasm32-wasip1 pnpm/tasks/ecosystem-e2e/webcontainer/wasm-probe.rs -o /tmp/pnpm-wasm-probe.wasm
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-probe /tmp/pnpm-wasm-probe.wasm
+```
+
+It asserts WASI file reads/writes, rename and hardlinks, and checks that Node
+sees the same files. It also asserts Node symlinks, randomness, workers,
+child process exit status and registry HTTP streaming. Rust thread/process
+results and missing Node SQLite methods are reported as capability evidence;
+their absence does not fail the probe. When the SQLite methods exist, the
+probe verifies persistence across reopening the database.
+
+A successful probe does **not** mean pnpm v12 can install packages in
+WebContainers. It establishes the host capabilities needed to implement that
+port. Native CLI code and build configuration are unaffected.
+
+The threaded runtime probe exercises Tokio, Rayon, cross-thread file
+descriptors and the Rust-to-Node HTTP/process bridge. Build it before testing:
+
+```sh
+rustup target add wasm32-wasip1-threads
+pnpm build:wasm-runtime-probe
+node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-runtime target/wasm-runtime-probe/wasm32-wasip1-threads/debug/pnpm-wasm-runtime-probe.wasm
+```
+
+The [runtime guide](../../wasm/README.md) describes its host contract and
+validation boundaries.
+
 ## CI
 
 `.github/workflows/ecosystem-e2e.yml` runs the grid on a daily cron (one job
 per stack) against this repo's built pnpm bundle and a freshly built pacquet.
 A red cell is something to investigate, not a merge blocker — hence cron, not
 per-PR.
+The `webcontainer` job in the same workflow runs the WebContainer test
+against the same bundle.

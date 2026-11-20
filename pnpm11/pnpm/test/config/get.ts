@@ -4,6 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { prepare } from '@pnpm/prepare'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import PATH_NAME from 'path-name'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from '../utils/index.js'
@@ -28,7 +29,7 @@ test('pnpm config get reads npm options but ignores other settings from .npmrc',
   ].join('\n'))
 
   // `config get @<scope>:registry` reports the merged (normalized) URL —
-  // the same one `pnpm publish` and the resolvers use — see #11492.
+  // the same one `pnpm publish` and the resolvers use — see pnpm/pnpm#11492.
   {
     const { stdout } = execPnpmSync(['config', 'get', '@my-org:registry'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('https://my-org.registry.example.com/')
@@ -289,6 +290,42 @@ test('pnpm config get shows settings from global config.yaml', () => {
   expect(configGet('packages')).toBe('undefined')
   expect(configGet('packageExtensions')).toBe('undefined')
   expect(configGet('package-extensions')).toBe('undefined')
+})
+
+// https://github.com/pnpm/pnpm/issues/16598
+test('pnpm config get --global and --location=global read only the global config', () => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { nodeLinker: 'hoisted' })
+  fs.writeFileSync('.npmrc', '//project.test/:_authToken=project-token\n')
+
+  const XDG_CONFIG_HOME = path.resolve('.config')
+  fs.mkdirSync(path.join(XDG_CONFIG_HOME, 'pnpm'), { recursive: true })
+  writeYamlFileSync(path.join(XDG_CONFIG_HOME, 'pnpm/config.yaml'), { dlxCacheMaxAge: 1234 })
+  // Reading the global config does not need the global bin directory in PATH.
+  const PNPM_HOME = path.resolve('pnpm-home')
+  // The global packages' manifest configures global installs, not the global config.
+  fs.mkdirSync(path.join(PNPM_HOME, 'global/v11'), { recursive: true })
+  writeYamlFileSync(path.join(PNPM_HOME, 'global/v11/pnpm-workspace.yaml'), { nodeLinker: 'isolated' })
+  const env = { XDG_CONFIG_HOME, PNPM_HOME, [PATH_NAME]: path.resolve('bin') }
+  const pnpm = (args: string[]) =>
+    execPnpmSync(args, { expectSuccess: true, env }).stdout.toString().trim()
+
+  expect(pnpm(['config', 'get', 'nodeLinker'])).toBe('hoisted')
+  expect(pnpm(['config', 'get', 'nodeLinker', '--global'])).toBe('undefined')
+  expect(pnpm(['config', 'get', 'nodeLinker', '--location=global'])).toBe('undefined')
+  expect(pnpm(['get', 'nodeLinker', '--location=global'])).toBe('undefined')
+  expect(pnpm(['config', 'get', 'nodeLinker', '--global', '--location=project'])).toBe('hoisted')
+  expect(pnpm(['config', 'get', 'dlxCacheMaxAge', '--location=global'])).toBe('1234')
+  expect(pnpm(['config', 'get', '//project.test/:_authToken'])).toBe('project-token')
+  expect(pnpm(['config', 'get', '//project.test/:_authToken', '--global'])).toBe('undefined')
+  expect(pnpm(['config', 'get', '//project.test/:_authToken', '--location=global'])).toBe('undefined')
+
+  for (const scope of ['--global', '--location=global']) {
+    const list = JSON.parse(pnpm(['config', 'list', scope]))
+    expect(list).not.toHaveProperty('nodeLinker')
+    expect(list).not.toHaveProperty(['//project.test/:_authToken'])
+    expect(list).toHaveProperty('dlxCacheMaxAge', 1234)
+  }
 })
 
 test('the path from "config get globalconfig" is the file that pnpm actually reads global settings from', () => {

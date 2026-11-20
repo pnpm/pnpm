@@ -47,6 +47,49 @@ jest.unstable_mockModule('../lib/getPkgInfo.js', () => {
 const { findDependencyLicenses } = await import('@pnpm/deps.compliance.license-scanner')
 
 describe('licences', () => {
+  test('findDependencyLicenses() leaves out a devDependency that only satisfies an optional peer when devDependencies are excluded', async () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { abc: '1.0.0(peer-a@1.0.0)(peer-c@1.0.0)' },
+          devDependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+          specifiers: { abc: '1.0.0', 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+          peerDependencies: { 'peer-a': '^1.0.0', 'peer-c': '^1.0.0' },
+          peerDependenciesMeta: { 'peer-c': { optional: true } },
+          resolution: { integrity: 'abc-integrity' },
+        },
+        ['peer-a@1.0.0' as DepPath]: { resolution: { integrity: 'peer-a-integrity' } },
+        ['peer-c@1.0.0' as DepPath]: { resolution: { integrity: 'peer-c-integrity' } },
+      },
+    }
+    const findLicenses = async (include?: { dependencies: boolean, devDependencies: boolean, optionalDependencies: boolean }) => findDependencyLicenses({
+      include,
+      lockfileDir: '/opt/pnpm',
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: '/.pnpm',
+      registriesByScope: {} as RegistriesByScope,
+      wantedLockfile: lockfile,
+      storeDir: tmpStoreDir,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const prodOnly = await findLicenses({ dependencies: true, devDependencies: false, optionalDependencies: true })
+    expect(prodOnly.map(({ name }) => name).sort()).toStrictEqual(['abc', 'peer-a'])
+
+    const all = await findLicenses()
+    expect(all.map(({ name, belongsTo }) => [name, belongsTo]).sort()).toStrictEqual([
+      ['abc', 'dependencies'],
+      ['peer-a', 'dependencies'],
+      ['peer-c', 'devDependencies'],
+    ])
+  })
+
   test('findDependencyLicenses()', async () => {
     const lockfile: LockfileObject = {
       importers: {
@@ -410,5 +453,51 @@ describe('licences', () => {
     expect(licensePackages).toHaveLength(2)
     expect(new Set(licensePackages.map((pkg) => pkg.registryName))).toStrictEqual(new Set([undefined, 'work']))
     expect(new Set(licensePackages.map((pkg) => pkg.name))).toStrictEqual(new Set(['foo']))
+  })
+
+  test('findDependencyLicenses reports runtimes downloaded through devEngines (pnpm/pnpm#14172)', async () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            foo: '1.0.0',
+          },
+          devDependencies: {
+            node: 'runtime:24.19.0',
+          },
+          specifiers: {
+            foo: '^1.0.0',
+            node: 'runtime:^24.14.1',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['foo@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'foo-integrity',
+          },
+        },
+        ['node@runtime:24.19.0' as DepPath]: {
+          resolution: {
+            type: 'variations',
+            variants: [],
+          },
+          version: '24.19.0',
+        },
+      },
+    }
+
+    const licensePackages = await findDependencyLicenses({
+      lockfileDir: '/opt/pnpm',
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: '/.pnpm',
+      registriesByScope: {} as RegistriesByScope,
+      wantedLockfile: lockfile,
+      storeDir: tmpStoreDir,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    expect(licensePackages.map((pkg) => pkg.name)).toStrictEqual(['foo', 'node'])
   })
 })

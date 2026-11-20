@@ -4,56 +4,40 @@
 //! length/case-shortening branch of the depPath-to-filename encoding:
 //! the lockfile and registry helpers both need to apply the same
 //! shortening after their own pre-escape step. Keeping the helpers in
-//! one place avoids duplicating the sha2 dependency in every consumer
-//! (lockfile, registry, store-dir).
+//! one place avoids duplicating the sha2 dependency in every consumer.
 
 use base64::{
     Engine as _,
-    engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD},
+    engine::general_purpose::STANDARD as BASE64,
 };
-use sha2::{Digest, Sha256};
-use ssri::{Algorithm, Integrity};
-use std::{io, path::Path};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
+use std::{
+    io,
+    path::Path,
+};
 
-/// Build the registry-relative path for a complete, canonical sha512 SRI.
-///
-/// Integrity-addressed registry tarballs accept exactly one sha512 hash. The
-/// digest must decode to all 64 bytes and round-trip through canonical padded
-/// base64 before it is rendered as unpadded base64url in the request path.
+/// Whether `integrity` is a single complete, canonical 64-byte `sha512` hash.
 #[must_use]
-pub fn integrity_addressed_tarball_path(integrity: &Integrity) -> Option<String> {
-    let [hash] = integrity.hashes.as_slice() else { return None };
-    if hash.algorithm != Algorithm::Sha512 {
-        return None;
+pub fn has_complete_sha512_digest(integrity: &Integrity) -> bool {
+    let [hash] = integrity.hashes.as_slice() else { return false };
+    if hash.algorithm != Algorithm::Sha512 || hash.digest.len() != 88 {
+        return false;
     }
-    if hash.digest.len() != 88 {
-        return None;
-    }
-    let digest = BASE64.decode(&hash.digest).ok()?;
-    if digest.len() != 64 || BASE64.encode(&digest) != hash.digest {
-        return None;
-    }
-    Some(format!("-/tarballs/sha512/{}", URL_SAFE_NO_PAD.encode(digest)))
-}
-
-/// Parse the digest segment of an integrity-addressed sha512 tarball path.
-#[must_use]
-pub fn integrity_addressed_tarball_integrity(digest: &str) -> Option<Integrity> {
-    if digest.len() != 86 {
-        return None;
-    }
-    let bytes = URL_SAFE_NO_PAD.decode(digest).ok()?;
-    if bytes.len() != 64 || URL_SAFE_NO_PAD.encode(&bytes) != digest {
-        return None;
-    }
-    format!("sha512-{}", BASE64.encode(bytes)).parse().ok()
+    let Ok(digest) = BASE64.decode(&hash.digest) else { return false };
+    digest.len() == 64 && BASE64.encode(&digest) == hash.digest
 }
 
 /// Compute the `sha256-<base64>` digest of `input`.
 ///
-/// Produces `` `sha256-${base64}` ``. This is the shape pnpm writes for
-/// `pnpmfileChecksum` and (via the object hasher)
-/// `packageExtensionsChecksum`.
+/// This is the shape pnpm writes for `pnpmfileChecksum` and (via the
+/// object hasher) `packageExtensionsChecksum`.
 #[must_use]
 pub fn create_hash(input: &str) -> String {
     let digest = Sha256::digest(input.as_bytes());
@@ -104,7 +88,7 @@ pub fn create_hex_hash_from_file(path: &Path) -> io::Result<String> {
 /// Compute the sha256 hex digest of `input` and truncate to the first
 /// 32 hex characters (16 bytes of entropy).
 ///
-/// The truncation is part of the on-disk contract — anything written
+/// The truncation is part of the on-disk contract; anything written
 /// into a path with this hash (project-registry slugs, virtual-store
 /// dirnames that overflowed `virtualStoreDirMaxLength`, etc.) must use
 /// the same 32-char length so pacquet and pnpm produce the same
@@ -125,11 +109,11 @@ pub fn create_short_hash(input: &str) -> String {
 /// [`create_short_hash`] of the full `filename`. Names that already
 /// start with `file+` are exempt from the case check.
 ///
-/// `max_length` is `Modules.virtual_store_dir_max_length` (default
-/// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
+/// `max_length` is `Modules.virtual_store_dir_max_length` (see
+/// `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
 ///
 /// The caller is responsible for pre-escaping the source string (parens
-/// → underscores, scoped-name slashes → `+`, etc) — this helper only
+/// → underscores, scoped-name slashes → `+`, etc); this helper only
 /// applies the final length/case decision so the escape rules can stay
 /// where the structured input lives.
 #[must_use]
@@ -140,12 +124,24 @@ pub fn shorten_virtual_store_name(filename: String, max_length: usize) -> String
     if !needs_shortening {
         return filename;
     }
+    hash_suffix_virtual_store_name(&filename, &filename, max_length)
+}
+
+/// The shortened form of [`shorten_virtual_store_name`], applied
+/// unconditionally: the first `max_length - 33` bytes of `filename`
+/// followed by `_` and the [`create_short_hash`] of `hash_input`.
+#[must_use]
+pub fn hash_suffix_virtual_store_name(
+    filename: &str,
+    hash_input: &str,
+    max_length: usize,
+) -> String {
     let cap = max_length.saturating_sub(33);
     let mut boundary = cap.min(filename.len());
     while !filename.is_char_boundary(boundary) {
         boundary -= 1;
     }
-    let hash = create_short_hash(&filename);
+    let hash = create_short_hash(hash_input);
     format!("{}_{}", &filename[..boundary], hash)
 }
 

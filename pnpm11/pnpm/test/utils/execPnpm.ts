@@ -64,11 +64,14 @@ export async function execPnpm (
 export function spawnPnpm (
   args: string[],
   opts?: {
+    /** Start pnpm in a session of its own, without the test's terminal. */
+    detached?: boolean
     env?: Record<string, string>
     storeDir?: string
   }
 ): NodeChildProcess {
   return crossSpawn.spawn(process.execPath, [pnpmBinLocation, ...args], {
+    detached: opts?.detached ?? false,
     env: {
       ...createEnv(opts),
       ...opts?.env,
@@ -188,17 +191,28 @@ export function execPnpmSync (
     stdio: opts?.stdio ?? 'pipe',
     timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
   })
-  if (execResult.error) throw execResult.error
-  if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}`)
+  // A timed-out process keeps the output it printed before it was killed,
+  // which is what shows where it stalled.
+  if (execResult.error) {
+    execResult.error.message += describeOutput(execResult)
+    throw execResult.error
+  }
+  if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}${describeOutput(execResult)}`)
   if (execResult.status !== 0 && opts?.expectSuccess) {
-    const stdout = execResult.stdout?.toString().split('\n').map(line => `\t${line}`).join('\n')
-    const stderr = execResult.stderr?.toString().split('\n').map(line => `\t${line}`).join('\n')
-    let message = `Process exits with code ${execResult.status}`
-    if (stdout.trim()) message += `\nSTDOUT:\n${stdout}`
-    if (stderr.trim()) message += `\nSTDOUT:\n${stderr}`
-    throw new Error(message)
+    throw new Error(`Process exits with code ${execResult.status}${describeOutput(execResult)}`)
   }
   return execResult as ChildProcess
+}
+
+function describeOutput (execResult: { stdout?: Buffer | string | null, stderr?: Buffer | string | null }): string {
+  let description = ''
+  for (const [label, output] of [['STDOUT', execResult.stdout], ['STDERR', execResult.stderr]] as const) {
+    const text = output?.toString() ?? ''
+    if (text) {
+      description += `\n${label}:\n${text.split('\n').map(line => `\t${line}`).join('\n')}`
+    }
+  }
+  return description
 }
 
 export function execPnpxSync (
@@ -220,7 +234,7 @@ export function execPnpxSync (
   return execResult as ChildProcess
 }
 
-function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault[] }): NodeJS.ProcessEnv {
+export function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault[] }): NodeJS.ProcessEnv {
   let workspaceManifest: Record<string, unknown> | undefined
   try {
     workspaceManifest = readYamlFileSync('pnpm-workspace.yaml')
@@ -255,7 +269,7 @@ function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault
     pnpm_config_fetch_retries: fallback('fetchRetries', '4'),
     pnpm_config_hoist: fallback('hoist', 'true'),
     pnpm_config_minimum_release_age: '0',
-    pnpm_config_registry: fallback('registry', `http://localhost:${REGISTRY_MOCK_PORT}/`),
+    pnpm_config_registry: fallback('registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`),
     pnpm_config_silent: 'true',
     pnpm_config_store_dir: opts?.storeDir ?? fallback('storeDir', '../store'),
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)

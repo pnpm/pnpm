@@ -1,10 +1,38 @@
 import type { DeprecationLog, StageLog } from '@pnpm/core-loggers'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import chalk from 'chalk'
 import * as Rx from 'rxjs'
 import { buffer, filter, map, switchMap } from 'rxjs/operators'
 
 import { formatWarn } from './utils/formatWarn.js'
-import { zoomOut } from './utils/zooming.js'
+import { autozoom } from './utils/zooming.js'
+
+/**
+ * `name@version` as the warning prints it.
+ *
+ * Both halves come from the resolved manifest, which a git or tarball
+ * dependency writes itself, so neither is a validated npm package name.
+ */
+function pkgLabel (log: DeprecationLog): string {
+  return sanitizeInline(`${log.pkgName}@${log.pkgVersion}`)
+}
+
+/**
+ * What to move to, when the resolver found a version that is not deprecated.
+ *
+ * The version is pnpm's own reading of the packument rather than anything the
+ * publisher wrote, so unlike the notice it is safe to print. Empty when every
+ * published version is deprecated, or when the resolution came from the
+ * lockfile and no packument was fetched.
+ */
+function alternativeHint (log: DeprecationLog): string {
+  const alternative = log.nonDeprecatedAlternative
+  if (alternative == null) return ''
+  const version = sanitizeInline(alternative.version)
+  return alternative.outsideDeclaredRange
+    ? `. ${version} is not deprecated, outside the range you declared.`
+    : `. ${version} is not deprecated.`
+}
 
 export function reportDeprecations (
   log$: {
@@ -23,13 +51,9 @@ export function reportDeprecations (
   return Rx.merge(
     deprecatedDirectDeps$.pipe(
       map((log) => {
-        if (!opts.isRecursive && log.prefix === opts.cwd) {
-          return Rx.of({
-            msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
-          })
-        }
+        const line = formatWarn(`${chalk.red('deprecated')} ${pkgLabel(log)}${alternativeHint(log)}`)
         return Rx.of({
-          msg: zoomOut(opts.cwd, log.prefix, formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}`)),
+          msg: autozoom(opts.cwd, log.prefix, line, { zoomOutCurrent: opts.isRecursive }),
         })
       })
     ),
@@ -38,7 +62,7 @@ export function reportDeprecations (
       switchMap(deprecatedSubdeps => {
         if (deprecatedSubdeps.length > 0) {
           return Rx.of(Rx.of({
-            msg: formatWarn(`${chalk.red(`${deprecatedSubdeps.length} deprecated subdependencies found:`)} ${deprecatedSubdeps.map(log => `${log.pkgName}@${log.pkgVersion}`).sort().join(', ')}`),
+            msg: formatWarn(`${chalk.red(`${deprecatedSubdeps.length} deprecated subdependencies found:`)} ${deprecatedSubdeps.map(pkgLabel).sort().join(', ')}`),
           }))
         }
         return Rx.EMPTY

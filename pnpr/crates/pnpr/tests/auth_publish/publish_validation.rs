@@ -1,0 +1,1128 @@
+use super::{
+    BASE64,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    add_user_and_get_token,
+    body_bytes,
+    body_json,
+    json,
+    npm_tgz,
+    npm_tgz_with,
+    publish_doc,
+    put_json,
+    router,
+    sha1_hex,
+    sri_sha512,
+    static_config,
+};
+use base64::Engine;
+
+#[tokio::test]
+async fn publish_rejects_a_non_semver_version_key_before_storing_anything() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+    for (name, invalid_version) in [("mypkg", "banana"), ("mypkg2", "01.0.0")] {
+        let mut body = publish_doc(name, "1.0.0", b"tarball-bytes");
+        let mut version = body["versions"]
+            .as_object_mut()
+            .unwrap()
+            .remove("1.0.0")
+            .unwrap();
+        version["version"] = json!(invalid_version);
+        body["versions"][invalid_version] = version;
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::put(format!("/npm/{name}"))
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains(invalid_version), "{reason}");
+        assert!(reason.contains("semver"), "{reason}");
+        assert!(
+            pnpr_fixtures::read_hosted_document(tmp.path(), "", pnpr_storage::Ecosystem::Npm, name)
+                .is_none(),
+        );
+    }
+}
+
+#[tokio::test]
+async fn publish_rejects_a_non_semver_manifest_version_before_storing_anything() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+    for (name, manifest_version) in [
+        ("mypkg", Some(json!("banana"))),
+        ("mypkg2", Some(json!("01.0.0"))),
+        ("mypkg3", Some(json!(null))),
+        ("mypkg4", Some(json!(1))),
+        ("mypkg5", None),
+    ] {
+        let mut body = publish_doc(name, "1.0.0", b"tarball-bytes");
+        if let Some(manifest_version) = manifest_version {
+            body["versions"]["1.0.0"]["version"] = manifest_version;
+        } else {
+            body["versions"]["1.0.0"]
+                .as_object_mut()
+                .unwrap()
+                .remove("version");
+        }
+        let response = app
+            .clone()
+            .oneshot(
+                Request::put(format!("/npm/{name}"))
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains("semver"), "{reason}");
+        assert!(
+            pnpr_fixtures::read_hosted_document(tmp.path(), "", pnpr_storage::Ecosystem::Npm, name)
+                .is_none(),
+        );
+    }
+}
+
+#[tokio::test]
+async fn publish_accepts_a_valid_prerelease_version() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let body = publish_doc("mypkg", "1.0.0-beta.2", b"tarball-bytes");
+
+    let response = app
+        .oneshot(
+            Request::put("/npm/mypkg")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn anonymous_publish_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let body = publish_doc("anon-test", "1.0.0", b"tarball-bytes");
+    let response = app
+        .oneshot(put_json("/npm/anon-test", body))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn republishing_an_existing_version_is_rejected_with_conflict() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let publish = |bytes: &[u8]| {
+        let body = serde_json::to_vec(&publish_doc("mypkg", "1.0.0", bytes)).unwrap();
+        Request::put("/npm/mypkg")
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(body))
+            .unwrap()
+    };
+
+    let first = app
+        .clone()
+        .oneshot(publish(b"original-bytes"))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    // Re-publishing the same version with different bytes must be refused.
+    let second = app
+        .clone()
+        .oneshot(publish(b"backdoored-bytes"))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+
+    // The originally published tarball must be untouched on disk.
+    let on_disk = crate::storage::hosted_file(&storage, "mypkg", "mypkg-1.0.0.tgz").unwrap();
+    assert_eq!(on_disk, npm_tgz("mypkg", "1.0.0", b"original-bytes"));
+}
+
+#[tokio::test]
+async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    // Publish 1.0.0 normally.
+    let first = Request::put("/npm/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(first)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    // Publish 1.0.1 (with its own attachment) but smuggle a modified 1.0.0
+    // entry into `versions` with no matching attachment. The conflict check
+    // must still reject it because 1.0.0 is already hosted.
+    let mut body = publish_doc("mypkg", "1.0.1", b"new-bytes");
+    body["versions"]["1.0.0"] = json!({
+        "name": "mypkg",
+        "version": "1.0.0",
+        "dist": { "tarball": "http://example.test/mypkg/-/mypkg-1.0.0.tgz", "integrity": "sha512-EVIL" },
+    });
+    let smuggle = Request::put("/npm/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.oneshot(smuggle).await
+            .unwrap()
+            .status(),
+        StatusCode::CONFLICT,
+    );
+}
+
+#[tokio::test]
+async fn update_packument_rejects_tampering_with_a_published_version_integrity() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let publish = Request::put("/npm/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
+    assert!(original_integrity.is_string(), "published version should carry an integrity");
+
+    // Point the already-published version at a bogus integrity and PUT it back
+    // through the partial-unpublish endpoint.
+    packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    );
+    let tamper = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(tamper)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
+
+    let after = app
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
+}
+
+#[tokio::test]
+async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let publish = Request::put("/npm/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
+    // A non-object dist would skip the integrity-restore path and strip the hash,
+    // so it must be rejected rather than silently persisted.
+    packument["versions"]["1.0.0"]["dist"] = json!(null);
+    let request = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
+
+    let after = app
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
+}
+
+#[tokio::test]
+async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let publish = Request::put("/npm/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_tarball = packument["versions"]["1.0.0"]["dist"]["tarball"].clone();
+
+    // Repoint the published version at a different tarball basename. The version
+    // keeps its immutable integrity, so this would make clients fetch bytes that
+    // can't match it (or 404); it must be rejected, not persisted.
+    packument["versions"]["1.0.0"]["dist"]["tarball"] =
+        json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
+    let tamper = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(tamper)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
+
+    let after = app
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"]["1.0.0"]["dist"]["tarball"], original_tarball);
+}
+
+#[tokio::test]
+async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let publish = Request::put("/npm/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_versions = packument["versions"].clone();
+
+    // Add a new version whose tarball basename collides with 1.0.0's. A duplicate
+    // basename makes expected_tarball_dist fail closed (502), so the addition must
+    // be rejected, even with an otherwise-valid integrity.
+    packument["versions"]["9.9.9"] = json!({
+        "name": "mypkg",
+        "version": "9.9.9",
+        "dist": {
+            "tarball": "http://example.test/mypkg/-/mypkg-1.0.0.tgz",
+            "integrity": packument["versions"]["1.0.0"]["dist"]["integrity"].clone(),
+        },
+    });
+    let request = Request::put(format!("/npm/mypkg/-rev/{}", packument["_rev"].as_str().unwrap()))
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
+
+    let after = app
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"], original_versions);
+}
+
+#[tokio::test]
+async fn update_packument_protects_a_published_tarball_with_a_basenameless_url() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let publish = Request::put("/npm/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(publish)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    // Serve the stored dist.tarball as a basename-less URL (ends in `/`),
+    // which rewrite_tarball_urls serves under the version-derived canonical
+    // name, so the served basename is still well-defined and must stay
+    // pinned. A store never rewrites a version it accepted, so the package
+    // is moved into a store that holds it that way.
+    let mut stored: Value = serde_json::from_slice(
+        &pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "mypkg")
+            .unwrap(),
+    )
+    .unwrap();
+    stored["versions"]["1.0.0"]["dist"]["tarball"] = json!("http://localhost:4873/mypkg/-/");
+    let moved = TempDir::new().unwrap();
+    pnpr_storage::layout::write_local_layout_marker(moved.path()).unwrap();
+    let tarball = crate::storage::hosted_file(&storage, "mypkg", "mypkg-1.0.0.tgz").unwrap();
+    pnpr_fixtures::write_hosted_file(
+        moved.path(),
+        ("", pnpr_storage::Ecosystem::Npm),
+        ("mypkg", "1.0.0"),
+        "mypkg-1.0.0.tgz",
+        &tarball,
+    );
+    pnpr_fixtures::write_hosted_document(
+        moved.path(),
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        "mypkg",
+        &serde_json::to_vec(&stored).unwrap(),
+    );
+    let app = router(static_config(moved.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let get = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let served = body_json(get.into_body()).await;
+    let mut tampered = stored.clone();
+    tampered["versions"]["1.0.0"]["dist"]["tarball"] =
+        json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
+    let request = Request::put(format!("/npm/mypkg/-rev/{}", served["_rev"].as_str().unwrap()))
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&tampered).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.oneshot(request).await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
+}
+
+#[tokio::test]
+async fn update_packument_rejects_seeding_a_package_with_no_published_packument() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    // PUT to the unpublish route with no prior publish would seed an authoritative
+    // version that publish can never overwrite, so it must be rejected.
+    let body = publish_doc("ghost", "1.0.0", b"bytes");
+    let request = Request::put("/npm/ghost/-rev/anything")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.oneshot(request).await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST,
+    );
+
+    assert!(
+        pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "ghost")
+            .is_none(),
+    );
+}
+
+#[tokio::test]
+async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
+    // A metadata-only re-PUT (no attachment, unchanged integrity) is allowed
+    // for `deprecated`, but must not be able to rewrite resolution-relevant
+    // fields of an already-hosted version, that would change what clients
+    // install without changing the tarball.
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let manifest = json!({
+        "name": "mypkg",
+        "version": "1.0.0",
+        "dependencies": { "lodash": "^4.0.0" },
+    });
+    let mut publish_body = publish_doc("mypkg", "1.0.0", &npm_tgz_with(&manifest, b"original"));
+    publish_body["versions"]["1.0.0"]["dependencies"] = json!({ "lodash": "^4.0.0" });
+    let first = Request::put("/npm/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&publish_body).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(first)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    let hosted = body_json(
+        app.clone()
+            .oneshot(
+                Request::get("/npm/mypkg")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let body = json!({
+        "_rev": hosted["_rev"],
+        "_id": "mypkg",
+        "name": "mypkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dependencies": { "left-pad": "1.0.0" },
+                "dist": hosted["versions"]["1.0.0"]["dist"].clone(),
+            }
+        }
+    });
+    let tamper = Request::put("/npm/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    // The PUT is accepted (integrity unchanged) but the dependency change is
+    // not applied: the published version's metadata is immutable.
+    assert_eq!(
+        app.clone()
+            .oneshot(tamper)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+    let after = body_json(
+        app.oneshot(
+            Request::get("/npm/mypkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .into_body(),
+    )
+    .await;
+    assert_eq!(after["versions"]["1.0.0"]["dependencies"], json!({ "lodash": "^4.0.0" }));
+}
+
+/// Published packages are the source of truth: they live in the
+/// authoritative `storage` root, never in the disposable proxy cache,
+/// and survive a full wipe of that cache.
+#[tokio::test]
+async fn published_package_survives_wiping_the_proxy_cache() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let bytes = &npm_tgz("durable-pkg", "1.0.0", b"durable-tarball-bytes");
+    let body = publish_doc("durable-pkg", "1.0.0", bytes);
+    let request = Request::put("/npm/durable-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+
+    // The artifacts land in the authoritative root, not the cache.
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "durable-pkg"
+        )
+        .is_some(),
+    );
+    assert!(
+        crate::storage::hosted_file(&storage, "durable-pkg", "durable-pkg-1.0.0.tgz").is_some(),
+    );
+    assert!(
+        !storage.join(".pnpr-cache/durable-pkg").exists(),
+        "published package must not be written into the disposable proxy cache",
+    );
+
+    // Blow away the entire proxy cache, the way an operator reclaiming
+    // disk (or a fresh container on an ephemeral cache volume) would.
+    let cache_root = storage.join(".pnpr-cache");
+    std::fs::create_dir_all(&cache_root).unwrap();
+    std::fs::remove_dir_all(&cache_root).unwrap();
+
+    // The package is still served, tarball and all.
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/durable-pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let served = body_json(response.into_body()).await;
+    assert_eq!(served["versions"]["1.0.0"]["version"], "1.0.0");
+
+    let response = app
+        .oneshot(
+            Request::get("/npm/durable-pkg/-/durable-pkg-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, *bytes);
+}
+
+#[tokio::test]
+async fn publish_rejects_body_name_that_doesnt_match_url() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let body = publish_doc("other-name", "1.0.0", b"x");
+    let request = Request::put("/npm/url-name")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn publish_rejects_tarball_that_doesnt_match_package() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let bytes = b"tarball-bytes";
+    let mut body = publish_doc("foo", "1.0.0", bytes);
+    // Override _attachments to use a filename for a different package
+    body["_attachments"] = json!({
+        "bar-1.0.0.tgz": {
+            "content_type": "application/octet-stream",
+            "data": BASE64.encode(bytes),
+            "length": bytes.len()
+        }
+    });
+    let request = Request::put("/npm/foo")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let bytes = b"actual-bytes";
+    let mut body = publish_doc("bad-pkg", "1.0.0", bytes);
+    // Swap the integrity for one computed over different bytes, the
+    // body keeps the original bytes, so the server's recomputed hash
+    // won't match.
+    body["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"different-bytes"));
+
+    let request = Request::put("/npm/bad-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(
+        body_text.contains("EINTEGRITY"),
+        "error body should carry EINTEGRITY code: {body_text}",
+    );
+
+    // Neither the packument nor the tarball should have been written.
+    assert!(
+        pnpr_fixtures::read_hosted_document(&storage, "", pnpr_storage::Ecosystem::Npm, "bad-pkg")
+            .is_none(),
+        "packument must not be written when integrity check fails",
+    );
+    assert!(
+        crate::storage::hosted_file(&storage, "bad-pkg", "bad-pkg-1.0.0.tgz").is_none(),
+        "tarball must not be written when integrity check fails",
+    );
+}
+
+#[tokio::test]
+async fn publish_rejects_shasum_mismatch() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let bytes = b"shasum-test-bytes";
+    let mut body = publish_doc("shasum-pkg", "1.0.0", bytes);
+    // Keep integrity valid but corrupt the legacy shasum.
+    body["versions"]["1.0.0"]["dist"]["shasum"] = json!("0000000000000000000000000000000000000000");
+
+    let request = Request::put("/npm/shasum-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(
+        body_text.contains("EINTEGRITY"),
+        "shasum mismatch must surface EINTEGRITY: {body_text}",
+    );
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "shasum-pkg"
+        )
+        .is_none(),
+    );
+}
+
+#[tokio::test]
+async fn publish_rejects_missing_integrity_field() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let bytes = b"no-integrity-bytes";
+    let mut body = publish_doc("no-int-pkg", "1.0.0", bytes);
+    body["versions"]["1.0.0"]["dist"]
+        .as_object_mut()
+        .unwrap()
+        .remove("integrity");
+
+    let request = Request::put("/npm/no-int-pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(
+        body_text.contains("EINTEGRITY") && body_text.contains("integrity"),
+        "missing integrity must surface a clear EINTEGRITY message: {body_text}",
+    );
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "no-int-pkg"
+        )
+        .is_none(),
+    );
+}
+
+/// Real npm clients send one attachment per publish, but the
+/// handler is written to iterate N: if the M-th attachment fails
+/// integrity, every already-written tmp file from the earlier
+/// attachments must be cleaned up so a rejected publish leaves no
+/// on-disk artifact. This pins down the `cleanup_tmp_slots` path,
+/// without it, a regression that no-op'd the cleanup would leak
+/// `*.tmp.*` files for every successful attachment before the bad
+/// one.
+#[tokio::test]
+async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let bytes_v1 = b"valid-first-attachment";
+    let bytes_v2 = b"second-attachment";
+    let body = json!({
+        "_id": "multi-attach",
+        "name": "multi-attach",
+        "dist-tags": { "latest": "2.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "multi-attach", "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://localhost:4873/multi-attach/-/multi-attach-1.0.0.tgz",
+                    "shasum": sha1_hex(bytes_v1),
+                    "integrity": sri_sha512(bytes_v1),
+                }
+            },
+            "2.0.0": {
+                "name": "multi-attach", "version": "2.0.0",
+                "dist": {
+                    "tarball": "http://localhost:4873/multi-attach/-/multi-attach-2.0.0.tgz",
+                    "shasum": sha1_hex(bytes_v2),
+                    "integrity": sri_sha512(b"WRONG-BYTES-FOR-2.0.0"),
+                }
+            }
+        },
+        "_attachments": {
+            "multi-attach-1.0.0.tgz": {
+                "content_type": "application/octet-stream",
+                "data": BASE64.encode(bytes_v1),
+                "length": bytes_v1.len(),
+            },
+            "multi-attach-2.0.0.tgz": {
+                "content_type": "application/octet-stream",
+                "data": BASE64.encode(bytes_v2),
+                "length": bytes_v2.len(),
+            },
+        }
+    });
+    let request = Request::put("/npm/multi-attach")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // Nothing of it is stored: no archive, no `.tmp.*` leftovers, no
+    // document.
+    let npm = pnpr_storage::Ecosystem::Npm;
+    let files = crate::storage::namespace_files(&storage, "", npm);
+    assert!(files.is_empty(), "expected no artifacts after rejected publish, found: {files:?}");
+    assert!(pnpr_fixtures::read_hosted_document(&storage, "", npm, "multi-attach").is_none());
+}
+
+/// `anonymous-npm-registry-client`'s `distTags.add` URL-encodes the
+/// `/` in scoped names: `@scope/pkg` → `@scope%2Fpkg` in the URL.
+/// axum's `Path` extractor percent-decodes path segments, so the
+/// handler sees the decoded value verbatim and never needs to decode
+/// again. This regression test pins that down: if someone reintroduces
+/// a manual `urldecode`, the `@scope/pkg`
+/// `CanonicalPackageName::parse` would still pass but a future bug-fix that
+/// changes the decoder could break percent-encoded scoped paths.
+#[tokio::test]
+async fn dist_tag_set_works_with_url_encoded_scoped_path() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    // Publish @scope/pkg@1.0.0 (literal slash in the URL, pnpm
+    // publish uses this form), then set a dist-tag using the
+    // npm-client-style `%2F` encoding to verify the decoded path
+    // reaches the handler.
+    let body = publish_doc("@scope/pkg", "1.0.0", b"v1");
+    let request = Request::put("/npm/@scope/pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    app.clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+
+    let request = Request::put("/npm/-/package/@scope%2Fpkg/dist-tags/beta")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Fetch via the encoded form too; both should round-trip cleanly.
+    let tags = app
+        .oneshot(
+            Request::get("/npm/-/package/@scope%2Fpkg/dist-tags")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(tags.status(), StatusCode::OK);
+    let tags_body = body_json(tags.into_body()).await;
+    assert_eq!(tags_body["beta"], "1.0.0");
+    assert_eq!(tags_body["latest"], "1.0.0");
+}
+
+#[tokio::test]
+async fn publish_supports_scoped_packages() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
+
+    let bytes = b"scoped-tarball";
+    let body = publish_doc("@scope/pkg", "1.0.0", bytes);
+    let request = Request::put("/npm/@scope/pkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    assert!(
+        pnpr_fixtures::read_hosted_document(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "@scope/pkg"
+        )
+        .is_some(),
+    );
+    assert!(crate::storage::hosted_file(&storage, "@scope/pkg", "pkg-1.0.0.tgz").is_some());
+
+    // And we can read it back.
+    let response = app
+        .oneshot(
+            Request::get("/npm/@scope/pkg")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn unpublish_rejects_invalid_versions() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "publisher", "secret123").await;
+    for name in ["widgets", "@example/widgets"] {
+        let archive = npm_tgz(name, "1.0.0", b"module.exports = 1");
+        let mut request = put_json(&format!("/npm/{name}"), publish_doc(name, "1.0.0", &archive));
+        request
+            .headers_mut()
+            .insert("Authorization", format!("Bearer {token}").parse().unwrap());
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+    }
+    for path in [
+        "/npm/widgets@not-a-version",
+        "/npm/widgets@not-a-version+r1",
+        "/npm/@example/widgets@not-a-version+r1",
+        "/npm/@example/widgets@not-a-version",
+        "/npm/widgets/-/widgets-not-a-version.tgz",
+        "/npm/@example/widgets/-/widgets-not-a-version.tgz",
+        "/npm/widgets@01.0.0/-rev/1",
+        "/npm/@example/widgets@01.0.0/-rev/1",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::delete(path)
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
+        let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+        assert!(reason.contains("not valid semver"), "{reason}");
+    }
+    for path in ["/npm/widgets@1.0.0+r1", "/npm/@example/widgets@1.0.0+r1"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::delete(path)
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
+    }
+}

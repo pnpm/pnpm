@@ -10,8 +10,7 @@ import { getPatchedDependency } from '../src/getPatchedDependency.js'
 
 // Regression test: when the only installed version of the patched package is
 // git-hosted, getPatchedDependency must return the parsed dependency (which
-// carries `alias`), not the options object. It previously spread `opts`, which
-// dropped the package name and leaked unrelated option fields into the result.
+// carries `alias`), not the options object.
 test('getPatchedDependency preserves the alias for a single git-hosted version', async () => {
   const lockfileDir = fs.realpathSync(temporaryDirectory())
   const gitTarballUrl =

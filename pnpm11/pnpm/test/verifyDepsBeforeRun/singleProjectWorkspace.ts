@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import { STORE_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
@@ -10,6 +11,31 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
+
+test('only repeat install acts on trustLockfile drift', async () => {
+  const manifest: ProjectManifest = {
+    name: 'root',
+    private: true,
+    dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+    scripts: { hello: 'echo hello from script' },
+  }
+  const project = prepare(manifest)
+
+  const policy = '--config.minimum-release-age=1'
+  await execPnpm([policy, 'install', '--trust-lockfile'])
+  const original = loadWorkspaceState(process.cwd())
+  expect(original?.settings.trustLockfile).toBe(true)
+
+  project.writePackageJson({ ...manifest, description: 'edited' })
+  const run = execPnpmSync([...CONFIG, policy, 'run', 'hello'], { expectSuccess: true })
+  expect(run.stdout.toString()).toContain('hello from script')
+  const refreshed = loadWorkspaceState(process.cwd())
+  expect(refreshed?.settings.trustLockfile).toBe(true)
+  expect(refreshed?.validation?.manifests).not.toEqual(original?.validation?.manifests)
+
+  const install = execPnpmSync([policy, 'install', '--reporter=ndjson'], { expectSuccess: true })
+  expect(install.stdout.toString()).toContain('"name":"pnpm:lockfile-verification"')
+})
 
 test('single dependency', async () => {
   const manifest: ProjectManifest = {
@@ -45,14 +71,22 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from script')
   }
 
-  project.writePackageJson(manifest)
+  fs.writeFileSync('package.json', fs.readFileSync('package.json'))
 
-  // should be able to execute a script after the mtime of the manifest change but the content doesn't
+  // a manifest rewritten with the content it was installed with needs no check
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
-    expect(stdout.toString()).not.toContain('The manifest file is not newer than the lockfile. Exiting check.')
-    expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
+    expect(stdout.toString()).toContain('No manifest files or lockfiles were modified since the last validation. Exiting check.')
+  }
+
+  project.writePackageJson({ ...manifest, description: 'edited' })
+
+  // a manifest edit the lockfile still satisfies is checked once
+  {
+    const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from script')
+    expect(stdout.toString()).toContain('Some manifest files or lockfiles were modified since the last validation. Continuing check.')
   }
 
   project.writePackageJson({
@@ -68,8 +102,8 @@ test('single dependency', async () => {
     const { status, stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
-    expect(stdout.toString()).not.toContain('The manifest file is not newer than the lockfile. Exiting check.')
-    expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
+    expect(stdout.toString()).not.toContain('No manifest files or lockfiles were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).toContain('Some manifest files or lockfiles were modified since the last validation. Continuing check.')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -78,8 +112,8 @@ test('single dependency', async () => {
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
-    expect(stdout.toString()).toContain('The manifest file is not newer than the lockfile. Exiting check.')
-    expect(stdout.toString()).not.toContain('The manifest is newer than the lockfile. Continuing check.')
+    expect(stdout.toString()).toContain('No manifest files or lockfiles were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).not.toContain('Some manifest files or lockfiles were modified since the last validation. Continuing check.')
   }
 
   project.writePackageJson({
@@ -160,11 +194,11 @@ test('no dependencies', async () => {
 
   prepare(manifest)
 
-  // attempting to execute a script without the lockfile should fail
+  // a never-installed workspace with nothing to install runs the script
   {
-    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
-    expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from script')
+    expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -178,6 +212,27 @@ test('no dependencies', async () => {
     const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
   }
+})
+
+// https://github.com/pnpm/pnpm/issues/17560
+test('a version bump of the project runs the script without an install', async () => {
+  const manifest: ProjectManifest = {
+    name: 'root',
+    version: '1.0.0',
+    private: true,
+    scripts: {
+      start: 'echo hello from script',
+    },
+  }
+
+  const project = prepare(manifest)
+  writeYamlFileSync('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'error' })
+  await execPnpm(['install'])
+
+  project.writePackageJson({ ...manifest, version: '1.0.1' })
+
+  const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+  expect(stdout.toString()).toContain('hello from script')
 })
 
 test('nested `pnpm run` should not check for mutated manifest', async () => {
@@ -251,4 +306,69 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     expect(stdout.toString()).toContain('manifest mutated')
     expect(stdout.toString()).toContain('hello from the nested script')
   }
+})
+
+// https://github.com/pnpm/pnpm/issues/15173
+test('a failed install before the script is reported as a warning and the script still runs', async () => {
+  prepare({
+    name: 'root',
+    private: true,
+    dependencies: {
+      '@pnpm.e2e/this-package-does-not-exist': '1.0.0',
+    },
+    scripts: {
+      start: 'echo hello from script',
+    },
+  })
+
+  const { stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=install', 'start'], { expectSuccess: true })
+  const output = stdout.toString() + stderr.toString()
+  expect(output).toContain('The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile.')
+  expect(output).toContain('hello from script')
+})
+
+test('the install started before a script writes the lockfile to a --config.lockfile-dir outside the project', async () => {
+  prepare({ name: 'root', private: true })
+  const projectDir = path.resolve('project')
+  fs.mkdirSync(projectDir)
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({
+    name: 'project',
+    private: true,
+    dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+    scripts: {
+      start: 'echo hello from script',
+    },
+  }))
+
+  const { stdout } = execPnpmSync([
+    '--config.verify-deps-before-run=install',
+    '--config.lockfile-dir=..',
+    'start',
+  ], { cwd: projectDir, expectSuccess: true })
+
+  expect(stdout.toString()).toContain('hello from script')
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
+  expect(fs.existsSync(path.join(projectDir, 'pnpm-lock.yaml'))).toBe(false)
+})
+
+test('a script runs after a storeDir change, and the next install recreates node_modules', async () => {
+  prepare({
+    name: 'root',
+    private: true,
+    dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+    scripts: { start: 'echo hello from script' },
+  })
+  await execPnpm(['install'])
+  const recordedStoreDir = loadWorkspaceState(process.cwd())?.settings.storeDir
+  expect(recordedStoreDir).toBeDefined()
+
+  const { stdout } = execPnpmSync([...CONFIG, '--store-dir=../other-store', 'start'], { expectSuccess: true })
+  expect(stdout.toString()).toContain('hello from script')
+  expect(loadWorkspaceState(process.cwd())?.settings.storeDir).toBe(recordedStoreDir)
+
+  await execPnpm(['install', '--store-dir=../other-store', '--config.confirm-modules-purge=false'])
+  const modules = JSON.parse(fs.readFileSync('node_modules/.modules.yaml', 'utf8')) as { storeDir: string }
+  expect(modules.storeDir).toBe(path.resolve('../other-store', STORE_VERSION))
 })

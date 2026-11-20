@@ -1,12 +1,125 @@
+use super::{
+    BadPeerIssue,
+    IssuesByProjects,
+    MissingPeerIssue,
+    ParentPkg,
+    PeerIssues,
+    filter::parse_allowed_versions,
+    filter_peer_issues,
+    intersect_multiple_ranges,
+    linked::LinkRoots,
+    merge_missing_peers,
+    ranges::normalize_version_str,
+    render::format_range,
+    satisfies,
+};
+use pnpm_config::PeerDependencyRules;
 use std::collections::BTreeMap;
 
-use pnpm_config::PeerDependencyRules;
+#[test]
+fn tarball_peer_versions_use_metadata_through_aliases_and_peer_suffixes() {
+    for (reference, key) in [
+        ("file:provider.tgz", "provider@file:provider.tgz"),
+        ("actual@file:provider.tgz(other@1.0.0)", "actual@file:provider.tgz"),
+    ] {
+        for version in ["1.0.0", "2.0.0"] {
+            let lockfile = serde_json::from_value(serde_json::json!({
+                "lockfileVersion": "9.0",
+                "importers": { ".": { "dependencies": {
+                    "consumer": { "specifier": "1.0.0", "version": "1.0.0" },
+                } } },
+                "packages": {
+                    "consumer@1.0.0": {
+                        "resolution": { "integrity": "sha512-consumer" },
+                        "peerDependencies": { "provider": "^1.0.0" },
+                    },
+                    key: { "resolution": { "tarball": "file:provider.tgz" }, "version": version },
+                },
+                "snapshots": { "consumer@1.0.0": { "dependencies": { "provider": reference } } },
+            }))
+            .expect("parse lockfile");
+            let report = super::peer_issues_for_lockfile(
+                &lockfile,
+                std::path::Path::new("."),
+                &[".".to_string()],
+                &PeerDependencyRules::default(),
+                None,
+                true,
+                &super::ProjectManifests::new(),
+            )
+            .expect("inspect peers");
+            if version == "1.0.0" {
+                assert!(
+                    report.is_none(),
+                    "unexpected peer report: {:?}",
+                    report.as_ref().map(super::PeerIssuesReport::issues),
+                );
+            } else {
+                let report = report.expect("incompatible peer must be reported");
+                assert_eq!(report.issues()["."].bad["provider"][0].found_version, version);
+            }
+        }
+    }
+}
 
-use super::{
-    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, canonical_path_within,
-    filter_peer_issues, format_range, intersect_multiple_ranges, merge_missing_peers,
-    normalize_version_str, parse_allowed_versions, satisfies,
-};
+#[test]
+fn remote_tarball_peer_versions_of_linked_packages_use_metadata() {
+    let tarball = "https://example.com/provider.tgz";
+    for version in ["1.0.0", "2.0.0"] {
+        let temp = tempfile::tempdir().unwrap();
+        let lib_dir = temp.path().join("packages/lib");
+        std::fs::create_dir_all(&lib_dir).unwrap();
+        std::fs::create_dir_all(temp.path().join("packages/app")).unwrap();
+        std::fs::write(
+            lib_dir.join("package.json"),
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "provider": "^1.0.0" },
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let lockfile = serde_json::from_value(serde_json::json!({
+            "lockfileVersion": "9.0",
+            "importers": {
+                "packages/app": { "dependencies": {
+                    "lib": { "specifier": "workspace:*", "version": "link:../lib" },
+                    "provider": { "specifier": tarball, "version": tarball },
+                } },
+                "packages/lib": {},
+            },
+            "packages": {
+                format!("provider@{tarball}"): {
+                    "resolution": { "integrity": "sha512-provider", "tarball": tarball },
+                    "version": version,
+                },
+            },
+            "snapshots": { format!("provider@{tarball}"): {} },
+        }))
+        .expect("parse lockfile");
+        let report = super::peer_issues_for_lockfile(
+            &lockfile,
+            temp.path(),
+            &["packages/app".to_string()],
+            &PeerDependencyRules::default(),
+            None,
+            true,
+            &super::ProjectManifests::new(),
+        )
+        .expect("inspect peers");
+        if version == "1.0.0" {
+            assert!(
+                report.is_none(),
+                "unexpected peer report: {:?}",
+                report.as_ref().map(super::PeerIssuesReport::issues),
+            );
+        } else {
+            let report = report.expect("incompatible peer must be reported");
+            assert_eq!(report.issues()["packages/app"].bad["provider"][0].found_version, version);
+        }
+    }
+}
 
 fn have_common_version(version_ranges: &[String]) -> bool {
     intersect_multiple_ranges(version_ranges).is_some()
@@ -69,6 +182,32 @@ fn test_satisfies_prerelease_matches_include_prerelease() {
     }
 }
 
+/// A version left partial after `<=` is an X-Range, so the bound rises
+/// to the first version the range leaves out: `<=16` reaches every 16.x.
+/// Values checked against `semver.satisfies(v, r, { includePrerelease:
+/// true, loose: true })`.
+#[test]
+fn test_satisfies_partial_upper_bound_covers_the_omitted_component() {
+    let cases = [
+        (">=0.11 <=3", "3.0.1", true),
+        ("<=16", "16.0.0", true),
+        ("<=16", "16.8.2", true),
+        ("<=16", "17.0.0", false),
+        ("<=16", "16.1.0-rc.1", true),
+        ("<=2.0", "2.0.0", true),
+        ("<=2.0", "2.0.5", true),
+        ("<=2.0", "2.1.0", false),
+        ("<=1.2.x", "1.2.9", true),
+        ("<=1.2.x", "1.3.0", false),
+        // A fully spelled-out bound stays exact.
+        ("<=1.2.3", "1.2.3", true),
+        ("<=1.2.3", "1.2.4", false),
+    ];
+    for (range, version, expected) in cases {
+        assert_eq!(satisfies(version, range), expected, "{version} against {range}");
+    }
+}
+
 #[test]
 fn test_satisfies_non_semver() {
     assert!(satisfies("custom-tag", "custom-tag"));
@@ -102,6 +241,72 @@ fn test_intersect_multiple_ranges_exact() {
     assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some("16.1.0"));
 }
 
+/// Every range here is `>=1.0.0` in disguise. Without dropping the
+/// covered intervals after each step, the union doubles per range and
+/// exhausts memory long before the last one.
+#[test]
+fn intersecting_overlapping_alternatives_stays_bounded() {
+    let version_ranges: Vec<String> = (0..30)
+        .map(|minor| format!(">=1.0.0 || ^1.{minor}.0"))
+        .collect();
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0"));
+}
+
+#[test]
+fn intersecting_long_nested_unions_stays_bounded() {
+    let nested_union = (0..1000)
+        .map(|patch| format!(">=1.0.{patch}"))
+        .collect::<Vec<_>>()
+        .join(" || ");
+    let version_ranges = vec![nested_union.clone(), nested_union];
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0"));
+}
+
+/// Staggered alternatives overlap without covering each other, so only
+/// merging them keeps the next step from pairing every one with every
+/// alternative of the other range.
+#[test]
+fn intersecting_staggered_unions_stays_bounded() {
+    let staggered_union = |offset: u32| {
+        (0..10_000)
+            .map(|patch| format!(">=1.0.{patch} <2.0.{}", patch + offset))
+            .collect::<Vec<_>>()
+            .join(" || ")
+    };
+    let version_ranges = vec![staggered_union(0), staggered_union(1)];
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0 <2.0.9999"));
+}
+
+#[test]
+fn intersecting_long_disjoint_unions_keeps_the_shared_versions() {
+    let exact_versions = |step: usize| {
+        (0..10_000)
+            .step_by(step)
+            .map(|patch| format!("1.0.{patch}"))
+            .collect::<Vec<_>>()
+            .join(" || ")
+    };
+    let version_ranges = vec![exact_versions(2), exact_versions(3)];
+    let intersection = intersect_multiple_ranges(&version_ranges).expect("shared versions");
+    let expected = exact_versions(6);
+    assert_eq!(intersection, expected);
+}
+
+#[test]
+fn test_intersect_sorts_and_merges_alternatives() {
+    let version_ranges = vec!["^2.0.0 || ^1.2.0 || >=1.0.0 <1.5.0".to_string(), "*".to_string()];
+    assert_eq!(
+        intersect_multiple_ranges(&version_ranges).as_deref(),
+        Some(">=1.0.0 <2.0.0 || >=2.0.0 <3.0.0"),
+    );
+}
+
+#[test]
+fn test_intersect_drops_covered_alternatives() {
+    let version_ranges = vec!["^1.0.0 || ^1.2.0".to_string(), "*".to_string()];
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.0.0 <2.0.0"));
+}
+
 /// A range that leaves `minor` or `patch` unpinned reaches the next
 /// level up, the way npm's own comparators do. Values checked against
 /// `new semver.Range(r).range`, which is what pnpm's
@@ -124,14 +329,17 @@ fn test_intersect_widens_partial_versions_like_npm() {
         (vec!["~1", "2.0.0"], None),
     ];
     for (ranges, expected) in cases {
-        let ranges: Vec<String> = ranges.into_iter().map(ToString::to_string).collect();
+        let ranges: Vec<String> = ranges
+            .into_iter()
+            .map(ToString::to_string)
+            .collect();
         let actual = intersect_multiple_ranges(&ranges);
         assert_eq!(actual.as_deref(), expected, "ranges: {ranges:?}");
     }
 }
 
-/// A `-0` the user wrote out is honored where it decides anything —
-/// matching — and dropped where pnpm drops it: `semver-range-intersect`
+/// A `-0` the user wrote out is honored where it decides anything
+/// (matching) and dropped where pnpm drops it: `semver-range-intersect`
 /// renders `intersect("<2.0.0-0", ">=1.0.0")` as `>=1.0.0 <2.0.0`, so
 /// rendering the suffix here would be the divergence, not hiding it.
 #[test]
@@ -209,6 +417,22 @@ fn test_merge_missing_peers_same_range() {
     let result = merge_missing_peers(&missing);
     assert!(result.conflicts.is_empty());
     assert_eq!(result.intersections.len(), 1);
+}
+
+#[test]
+fn merging_many_consumers_of_one_peer_stays_bounded() {
+    let issues: Vec<MissingPeerIssue> = (0..40)
+        .map(|index| MissingPeerIssue {
+            parents: vec![ParentPkg { name: format!("consumer-{index}"), version: "1.0.0".into() }],
+            optional: false,
+            wanted_range: if index % 2 == 0 { ">=1.0.0 || ^1.0.0" } else { "^1.0.0 || >=1.1.0" }
+                .to_string(),
+        })
+        .collect();
+    let missing = BTreeMap::from([("peer".to_string(), issues)]);
+    let result = merge_missing_peers(&missing);
+    assert!(result.conflicts.is_empty());
+    assert_eq!(result.intersections["peer"], ">=1.0.0");
 }
 
 #[test]
@@ -535,30 +759,232 @@ fn test_path_is_within() {
     let sub = base.join("foo");
     std::fs::create_dir(&sub).unwrap();
 
-    assert!(canonical_path_within(&sub, base).is_some());
-    assert!(canonical_path_within(base, base).is_some());
+    let roots = LinkRoots::same(base);
+    assert!(roots.canonical_target(&sub).is_some());
+    assert!(roots.canonical_target(base).is_some());
+
+    let sibling = base.join("sibling");
+    std::fs::create_dir(&sibling).unwrap();
+    assert!(LinkRoots::same(&sub).canonical_target(&sibling).is_none());
+    assert!(LinkRoots::new(&sub, Some(base)).canonical_target(&sibling).is_some());
 
     let outside = base.join("../bar");
-    assert!(canonical_path_within(&outside, base).is_none());
+    assert!(roots.canonical_target(&outside).is_none());
 
     let absolute_outside = std::path::Path::new("/etc");
-    assert!(canonical_path_within(absolute_outside, base).is_none());
+    assert!(roots.canonical_target(absolute_outside).is_none());
 }
 
 #[cfg(unix)]
 #[test]
-fn canonical_containment_keeps_the_root_used_for_importer_ids() {
+fn linked_packages_share_targets_reached_through_a_symlinked_root() {
     let temp = tempfile::tempdir().unwrap();
     let real_root = temp.path().join("real");
-    let project = real_root.join("packages/lib");
-    std::fs::create_dir_all(&project).unwrap();
+    for dir in ["packages/lib", "packages/app", "packages/web"] {
+        std::fs::create_dir_all(real_root.join(dir)).unwrap();
+    }
     let linked_root = temp.path().join("linked");
     std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
 
-    let canonical = canonical_path_within(&linked_root.join("packages/lib"), &linked_root).unwrap();
+    let no_manifests = super::ProjectManifests::new();
+    let roots = super::LinkRoots::same(&linked_root);
+    let mut linked_packages = super::LinkedPackages::new(&roots, &no_manifests, None, None);
+    for importer in ["packages/app", "packages/web"] {
+        assert!(
+            linked_packages
+                .resolve(&linked_root.join(importer), "../lib")
+                .is_some(),
+        );
+    }
 
+    assert_eq!(linked_packages.by_target.len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn linked_packages_resolve_targets_through_symlinks_like_the_filesystem() {
+    let temp = tempfile::tempdir().unwrap();
+    let real_root = temp.path().join("real");
+    for dir in ["packages/lib", "packages/app", "apps/app", "apps/lib"] {
+        std::fs::create_dir_all(real_root.join(dir)).unwrap();
+    }
+    std::os::unix::fs::symlink("../apps/app", real_root.join("packages/alias")).unwrap();
+    let linked_root = temp.path().join("linked");
+    std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
+    let absolute = real_root.join("packages/lib");
+
+    for lockfile_dir in [linked_root, dunce::canonicalize(&real_root).unwrap()] {
+        let no_manifests = super::ProjectManifests::new();
+        let roots = super::LinkRoots::same(&lockfile_dir);
+        let mut linked_packages = super::LinkedPackages::new(&roots, &no_manifests, None, None);
+        let mut importer_id = |importer: &str, link_target: &str| {
+            linked_packages
+                .resolve(&lockfile_dir.join(importer), link_target)
+                .map(|linked| linked.importer_id.clone())
+        };
+
+        // Importer IDs come from the canonical root, and `..` leaves an
+        // importer reached through a symlink from where that importer really
+        // is. An absolute target does not depend on the importer's directory.
+        assert_eq!(importer_id("packages/app", "../lib").as_deref(), Some("packages/lib"));
+        assert_eq!(importer_id("packages/alias", "../lib").as_deref(), Some("apps/lib"));
+        assert_eq!(
+            importer_id("missing", absolute.to_str().unwrap()).as_deref(),
+            Some("packages/lib"),
+        );
+    }
+}
+
+#[test]
+fn snapshot_peer_versions_use_named_registry_semver() {
+    for (reference, expected) in [
+        ("work:5.1.7", "5.1.7"),
+        ("work:5.1.7(other@1.0.0)", "5.1.7"),
+        ("@work/adapter@work:5.1.7", "5.1.7"),
+        ("work:5.2.0-beta.1", "5.2.0-beta.1"),
+        ("5.1.7", "5.1.7"),
+        ("file:5.1.7", "file:5.1.7"),
+        ("https://example.com/5.1.7", "https://example.com/5.1.7"),
+    ] {
+        let dep_ref = reference.parse().unwrap();
+        assert_eq!(
+            crate::snapshot::resolved_snapshot_version(
+                &dep_ref,
+                &"peer".parse().unwrap(),
+                &std::collections::HashMap::new(),
+                &super::LinkRoots::same(std::path::Path::new(".")),
+            ),
+            Some(expected.to_string()),
+            "{reference}",
+        );
+    }
+}
+
+fn missing_react_issues() -> PeerIssues {
+    PeerIssues {
+        bad: BTreeMap::new(),
+        missing: BTreeMap::from([(
+            "react".to_string(),
+            vec![MissingPeerIssue {
+                parents: vec![ParentPkg {
+                    name: "@my-org/package-a".to_string(),
+                    version: "3.1.4".to_string(),
+                }],
+                optional: false,
+                wanted_range: ">=18.2.0".to_string(),
+            }],
+        )]),
+        conflicts: Vec::new(),
+        intersections: BTreeMap::from([("react".to_string(), ">=18.2.0".to_string())]),
+    }
+}
+
+/// pnpm/pnpm#15351
+#[test]
+fn render_names_the_project_of_each_issue() {
+    let issues: IssuesByProjects = BTreeMap::from([
+        ("apps/web".to_string(), missing_react_issues()),
+        ("apps/docs".to_string(), missing_react_issues()),
+    ]);
+    let rendered = super::render_peer_issues(&issues);
     assert_eq!(
-        pnpm_workspace::importer_id_from_root_dir(&canonical.base, &canonical.path),
-        "packages/lib",
+        rendered,
+        "\
+apps/docs
+  ✕ missing peer react
+    Wanted:
+      >=18.2.0:
+        @my-org/package-a@3.1.4
+
+apps/web
+  ✕ missing peer react
+    Wanted:
+      >=18.2.0:
+        @my-org/package-a@3.1.4",
     );
+}
+
+#[test]
+fn render_skips_projects_without_reportable_issues() {
+    let mut unreported = missing_react_issues();
+    unreported.intersections.clear();
+    let issues: IssuesByProjects = BTreeMap::from([
+        (".".to_string(), unreported),
+        ("apps/web".to_string(), missing_react_issues()),
+    ]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with("apps/web\n  ✕ missing peer react"), "{rendered}");
+    assert!(!rendered.contains("\n.\n") && !rendered.starts_with(".\n"), "{rendered}");
+}
+
+#[test]
+fn render_names_the_root_project_when_other_projects_are_listed() {
+    let issues: IssuesByProjects = BTreeMap::from([
+        (".".to_string(), missing_react_issues()),
+        (
+            "apps/web".to_string(),
+            PeerIssues { intersections: BTreeMap::new(), ..missing_react_issues() },
+        ),
+    ]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with(".\n  ✕ missing peer react"), "{rendered}");
+    assert!(!rendered.contains("apps/web"), "{rendered}");
+}
+
+#[test]
+fn render_strips_control_characters_from_the_project_heading() {
+    let issues: IssuesByProjects =
+        BTreeMap::from([("apps/\u{1b}[2J\n-web\u{202e}".to_string(), missing_react_issues())]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with("apps/[2J-web\n"), "{rendered:?}");
+}
+
+#[test]
+fn render_omits_the_heading_when_only_the_root_project_has_issues() {
+    let issues: IssuesByProjects = BTreeMap::from([(".".to_string(), missing_react_issues())]);
+    let rendered = super::render_peer_issues(&issues);
+    assert!(rendered.starts_with("✕ missing peer react\n  Wanted:"), "{rendered}");
+}
+
+#[test]
+fn undeclared_required_peers_respect_ancestor_providers_and_optional_metadata() {
+    let mut value = serde_json::json!({
+        "lockfileVersion": "9.0",
+        "importers": { ".": { "dependencies": {
+            "parent": { "specifier": "1.0.0", "version": "1.0.0" }
+        } } },
+        "packages": {
+            "parent@1.0.0": { "resolution": { "integrity": "sha512-parent" } },
+            "consumer@1.0.0": {
+                "resolution": { "integrity": "sha512-consumer" },
+                "peerDependencies": { "provider": "^1.0.0" }
+            },
+            "provider@1.0.0": { "resolution": { "integrity": "sha512-provider" } }
+        },
+        "snapshots": {
+            "parent@1.0.0": { "dependencies": { "consumer": "1.0.0" } },
+            "consumer@1.0.0": { "dependencies": { "provider": "1.0.0" } },
+            "provider@1.0.0": {}
+        }
+    });
+    let check = |value: &serde_json::Value| {
+        let lockfile = serde_json::from_value(value.clone()).expect("parse lockfile");
+        super::UndeclaredPeerInspector::new(&lockfile, std::path::Path::new("."))
+            .check(".", crate::WorkspaceRootScope::Exclude)
+    };
+    let warnings = check(&value);
+    assert_eq!(warnings.len(), 1);
+    assert_eq!(warnings[0].peer, "provider");
+    value["snapshots"]["parent@1.0.0"]["dependencies"]["provider"] = "1.0.0".into();
+    assert!(check(&value).is_empty());
+    value["snapshots"]["parent@1.0.0"]["dependencies"]
+        .as_object_mut()
+        .unwrap()
+        .remove("provider");
+    value["packages"]["consumer@1.0.0"]["peerDependenciesMeta"] =
+        serde_json::json!({"provider": {"optional": true}});
+    assert!(check(&value).is_empty());
+    value["packages"]["consumer@1.0.0"]["peerDependenciesMeta"] = serde_json::json!({});
+    value["packages"]["consumer@1.0.0"]["peerDependencies"]["provider"] = "^2.0.0".into();
+    assert!(check(&value).is_empty());
 }

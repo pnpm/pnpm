@@ -10,7 +10,22 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../config/parse-overrides"
+    },
+    {
       "path": "../../core/types"
+    },
+    {
+      "path": "../../hooks/read-package-hook"
     },
     {
       "path": "../../resolving/npm-resolver"

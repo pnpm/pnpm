@@ -1,10 +1,6 @@
 //! `pacquet whoami` resolves the default registry's auth token from config
 //! and prints the username returned by `GET <registry>-/whoami`.
 //!
-//! Covers the success path, the unauthenticated path, a registry that rejects
-//! the request, and preservation of a registry path prefix, plus a guard that
-//! control characters in a registry-provided username are stripped.
-//!
 //! The registry is a `mockito` server the spawned `pacquet` connects to
 //! over loopback. Credentials are supplied through `--npmrc-auth-file`,
 //! which replaces the developer's real `~/.npmrc`, so the unauthenticated
@@ -15,7 +11,10 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -24,7 +23,7 @@ fn pacquet_at(workspace: &Path) -> Command {
 }
 
 /// The nerf-darted `.npmrc` auth-key prefix (`//host:port/path/`) for a
-/// registry URL — its scheme dropped and a single trailing slash kept.
+/// registry URL; its scheme dropped and a single trailing slash kept.
 fn nerf(registry: &str) -> String {
     let without_scheme = registry
         .strip_prefix("http://")
@@ -39,6 +38,7 @@ fn nerf(registry: &str) -> String {
 fn configure(root: &Path, workspace: &Path, registry: &str, auth_token: Option<&str>) -> PathBuf {
     fs::write(workspace.join(".npmrc"), format!("registry={registry}\n"))
         .expect("write project .npmrc");
+    fs::write(workspace.join("package.json"), "{}").expect("write project package.json");
     let auth_file = root.join("auth-npmrc");
     let contents = match auth_token {
         Some(token) => format!("{}:_authToken={token}\n", nerf(registry)),
@@ -93,7 +93,11 @@ fn strips_control_characters_from_the_username() {
     let bel = char::from(0x07);
     let username = format!("al{esc}[31mice{bel}");
     let body = serde_json::json!({ "username": username }).to_string();
-    let mock = server.mock("GET", "/-/whoami").with_status(200).with_body(body).create();
+    let mock = server
+        .mock("GET", "/-/whoami")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
 
     let output = run_whoami(&workspace, &auth_file);
@@ -138,7 +142,11 @@ fn fails_when_the_registry_rejects_the_request() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock = server.mock("GET", "/-/whoami").with_status(401).with_body("{}").create();
+    let mock = server
+        .mock("GET", "/-/whoami")
+        .with_status(401)
+        .with_body("{}")
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
 
     let output = run_whoami(&workspace, &auth_file);
@@ -179,5 +187,44 @@ fn preserves_a_registry_path_prefix() {
         String::from_utf8_lossy(&output.stderr),
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "alice");
+    drop((root, server));
+}
+
+#[test]
+fn overrides_registry_with_flag() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    let mock = server
+        .mock("GET", "/-/whoami")
+        .match_header("authorization", "Bearer flag-token")
+        .with_status(200)
+        .with_body(r#"{"username":"bob"}"#)
+        .create();
+    fs::write(workspace.join(".npmrc"), "registry=http://127.0.0.1:1/\n")
+        .expect("write project .npmrc");
+    let auth_file = root.path().join("auth-npmrc");
+    let contents = format!(
+        "{}:_authToken=flag-token\n//127.0.0.1:1/:_authToken=wrong-token\n",
+        nerf(&registry),
+    );
+    fs::write(&auth_file, contents).expect("write auth .npmrc");
+
+    let output = pacquet_at(&workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_arg("whoami")
+        .with_arg("--registry")
+        .with_arg(&registry)
+        .output()
+        .expect("spawn pacquet whoami");
+
+    mock.assert();
+    assert!(
+        output.status.success(),
+        "whoami with --registry must succeed (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "bob");
     drop((root, server));
 }

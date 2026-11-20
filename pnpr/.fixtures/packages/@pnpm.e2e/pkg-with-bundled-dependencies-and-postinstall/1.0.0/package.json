@@ -1,0 +1,14 @@
+{
+  "name": "@pnpm.e2e/pkg-with-bundled-dependencies-and-postinstall",
+  "version": "1.0.0",
+  "scripts": {
+    "prepublishOnly": "pnpm install --ignore-scripts --node-linker=hoisted --no-lockfile",
+    "postinstall": "node postinstall.js"
+  },
+  "bundledDependencies": [
+    "@pnpm.e2e/hello-world-js-bin"
+  ],
+  "dependencies": {
+    "@pnpm.e2e/hello-world-js-bin": "1.0.0"
+  }
+}

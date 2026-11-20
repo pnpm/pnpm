@@ -1,0 +1,254 @@
+use std::sync::Arc;
+
+/// A single token in an access list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AccessToken {
+    /// `$all`: anyone, authenticated or not.
+    All,
+    /// `$authenticated`: any caller carrying valid Bearer or Basic
+    /// credentials.
+    Authenticated,
+    /// `$anonymous`: only callers *without* valid credentials.
+    Anonymous,
+    /// `$owners`: package owners / maintainers.
+    Owners,
+    /// An immutable account ID. Teams use the explicit `team:` form.
+    User(String),
+    /// `team:<id>`: the members of the team with that ID.
+    Team(String),
+}
+
+/// Only the `$`-sigiled spellings are built-ins; any other token is an
+/// account ID, which can only *narrow* access, so this stays infallible.
+/// Near-miss spellings (verdaccio's `@all`/bare aliases, an unknown
+/// `$...`) and `team:` references are handled where the graph document is
+/// read (`AccessSpec` in the config module). A programmatic caller passing
+/// one of those spellings just gets a username that matches nobody.
+impl AccessToken {
+    /// The token an access list entry or a grant subject spells, `team:<id>`
+    /// included. A malformed entry is an account ID nobody has; the config
+    /// crate validates entries where they are written.
+    #[must_use]
+    pub fn parse(entry: &str) -> Self {
+        match entry.strip_prefix("team:") {
+            Some(id) => Self::Team(id.to_string()),
+            None => Self::from(entry),
+        }
+    }
+}
+
+impl From<&str> for AccessToken {
+    fn from(token: &str) -> Self {
+        match token {
+            "$all" => AccessToken::All,
+            "$authenticated" => AccessToken::Authenticated,
+            "$anonymous" => AccessToken::Anonymous,
+            "$owners" => AccessToken::Owners,
+            name => AccessToken::User(name.to_string()),
+        }
+    }
+}
+
+/// One `access` / `publish` permission: the set of tokens that satisfy
+/// it. An empty list admits no one (an explicit `unpublish: []`).
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct AccessList(Vec<AccessToken>);
+
+impl AccessList {
+    /// Build from already-resolved tokens.
+    #[must_use]
+    pub fn new(tokens: Vec<AccessToken>) -> Self {
+        Self(tokens)
+    }
+
+    /// Build from individual built-in or account-ID tokens (e.g. the
+    /// elements of a YAML sequence). Each string is one token, taken
+    /// verbatim; `team:` references cannot be built this way.
+    pub fn from_tokens<Tokens, Token>(tokens: Tokens) -> Self
+    where
+        Tokens: IntoIterator<Item = Token>,
+        Token: AsRef<str>,
+    {
+        Self(
+            tokens
+                .into_iter()
+                .map(|token| AccessToken::from(token.as_ref()))
+                .collect(),
+        )
+    }
+
+    /// Whether `identity` satisfies any token in the list.
+    #[must_use]
+    pub fn allows(&self, identity: &Identity) -> bool {
+        self.0
+            .iter()
+            .any(|token| identity.satisfies(token))
+    }
+
+    /// Whether `identity` satisfies any token in the list, given whether the
+    /// caller is a package maintainer/owner (or admin).
+    #[must_use]
+    pub fn allows_with_context(&self, identity: &Identity, is_owner: bool) -> bool {
+        self.0
+            .iter()
+            .any(|token| identity.satisfies_with_context(token, is_owner))
+    }
+
+    /// Whether the list holds the `$owners` token.
+    #[must_use]
+    pub fn references_owners(&self) -> bool {
+        self.0
+            .iter()
+            .any(|token| matches!(token, AccessToken::Owners))
+    }
+
+    pub(crate) fn tokens(&self) -> &[AccessToken] {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+    /// Whether the list holds a `team:<team>` token.
+    #[must_use]
+    pub fn references_team(&self, team: &str) -> bool {
+        self.0
+            .iter()
+            .any(|token| matches!(token, AccessToken::Team(id) if id == team))
+    }
+
+    /// Whether the access list admits every caller regardless of identity.
+    #[must_use]
+    pub fn admits_every_identity(&self) -> bool {
+        let mut has_anon = false;
+        let mut has_auth = false;
+        for token in &self.0 {
+            match token {
+                AccessToken::All => return true,
+                AccessToken::Anonymous => has_anon = true,
+                AccessToken::Authenticated => has_auth = true,
+                _ => {}
+            }
+        }
+        has_anon && has_auth
+    }
+}
+
+/// The resolved caller identity an [`AccessList`] is evaluated against: the
+/// authenticated account ID and login name (or their absence), and the IDs of
+/// the teams the caller belongs to as the request arrives.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Identity {
+    /// No valid credentials were presented.
+    Anonymous,
+    /// Authenticated as `username`.
+    User { id: String, username: String, teams: Arc<[String]> },
+}
+
+impl Identity {
+    #[must_use]
+    pub fn user(user_id: impl Into<String>) -> Self {
+        Self::member(user_id, Vec::new())
+    }
+
+    /// A user in the teams with the IDs `teams`.
+    #[must_use]
+    pub fn member(user_id: impl Into<String>, teams: Vec<String>) -> Self {
+        let id = user_id.into();
+        Self::account_member(id.clone(), id, teams)
+    }
+
+    /// Construct an authenticated account with a separate display name.
+    #[must_use]
+    pub fn account(id: impl Into<String>, username: impl Into<String>) -> Self {
+        Self::account_member(id, username, Vec::new())
+    }
+
+    #[must_use]
+    pub fn account_member(
+        id: impl Into<String>,
+        username: impl Into<String>,
+        teams: Vec<String>,
+    ) -> Self {
+        Self::User { id: id.into(), username: username.into(), teams: teams.into() }
+    }
+
+    /// The IDs of the teams the caller belongs to.
+    #[must_use]
+    pub fn teams(&self) -> &[String] {
+        match self {
+            Self::User { teams, .. } => teams,
+            Self::Anonymous => &[],
+        }
+    }
+
+    #[must_use]
+    pub fn user_id(&self) -> Option<&str> {
+        match self {
+            Self::User { id, .. } => Some(id),
+            Self::Anonymous => None,
+        }
+    }
+
+    #[must_use]
+    pub fn is_authenticated(&self) -> bool {
+        matches!(self, Identity::User { .. })
+    }
+
+    #[must_use]
+    pub fn username(&self) -> Option<&str> {
+        match self {
+            Self::Anonymous => None,
+            Self::User { username, .. } => Some(username),
+        }
+    }
+
+    /// Whether the caller is one of the callers `token` names, given
+    /// whether it owns the package in question.
+    pub(crate) fn matches(&self, token: &AccessToken, is_owner: bool) -> bool {
+        self.satisfies_with_context(token, is_owner)
+    }
+
+    fn satisfies(&self, token: &AccessToken) -> bool {
+        self.satisfies_with_context(token, false)
+    }
+
+    fn satisfies_with_context(&self, token: &AccessToken, is_owner: bool) -> bool {
+        match (token, self) {
+            (AccessToken::All, _) => true,
+            (AccessToken::Authenticated, Identity::User { .. }) => true,
+            (AccessToken::Anonymous, Identity::Anonymous) => true,
+            (AccessToken::Owners, Identity::User { .. }) => is_owner,
+            (AccessToken::User(id), Identity::User { id: user_id, .. }) => id == user_id,
+            (AccessToken::Team(team), Identity::User { teams, .. }) => teams.contains(team),
+            _ => false,
+        }
+    }
+}
+
+/// The token as it is written in an access list.
+impl std::fmt::Display for AccessToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AccessToken::All => formatter.write_str("$all"),
+            AccessToken::Authenticated => formatter.write_str("$authenticated"),
+            AccessToken::Anonymous => formatter.write_str("$anonymous"),
+            AccessToken::Owners => formatter.write_str("$owners"),
+            AccessToken::User(name) => formatter.write_str(name),
+            AccessToken::Team(id) => write!(formatter, "team:{id}"),
+        }
+    }
+}
+
+impl AccessList {
+    /// The tokens as they are written in an access list.
+    #[must_use]
+    pub fn token_strings(&self) -> Vec<String> {
+        self.0
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    }
+}

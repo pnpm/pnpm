@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/own-bin-created-by-preinstall",
+  "version": "1.0.0",
+  "bin": {
+    "own-bin-created-by-preinstall": "bin/cli.js"
+  },
+  "scripts": {
+    "preinstall": "node create-bin.js"
+  }
+}

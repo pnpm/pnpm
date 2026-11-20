@@ -1,88 +1,72 @@
 use std::{
+    collections::HashSet,
     env,
-    ffi::{OsStr, OsString},
-    path::{self, Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        self,
+        Path,
+        PathBuf,
+    },
 };
-
-/// Controls whether the dir containing the current `node` interpreter
-/// is appended to PATH. Tri-state, corresponding to the
-/// `scriptsPrependNodePath: boolean | 'warn-only'` config setting.
-///
-/// `pnpm-config` mirrors this enum with its own yaml-deserializable
-/// type and converts to this one at the call site, so the executor
-/// crate stays free of serde and Config wiring.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum ScriptsPrependNodePath {
-    /// `scriptsPrependNodePath: true` — always prepend.
-    Always,
-    /// `scriptsPrependNodePath: false` (or `null`) — never prepend.
-    #[default]
-    Never,
-    /// `scriptsPrependNodePath: 'warn-only'` — emit a warning if the
-    /// node in PATH differs from `process.execPath`, but do not
-    /// prepend.
-    WarnOnly,
-}
 
 /// Build the `PATH` env value for a lifecycle script spawn.
 ///
 /// Order, highest-priority first:
-/// 1. The wd's own `<wd>/node_modules/.bin`,
+/// 1. The wd's own bin directory: `wd_bin_dir` when the caller knows
+///    where `modulesDir` put it, and `<wd>/node_modules/.bin` otherwise,
 /// 2. Each ancestor `node_modules/.bin` walking back up through the
-///    `node_modules/` segments of `wd`,
+///    `node_modules/` segments of `wd`. These are dependency slots, whose
+///    own dependencies are installed under `node_modules` whatever
+///    `modulesDir` says, so `wd_bin_dir` does not apply to them,
 /// 3. The bundled `node-gyp-bin` directory (when supplied),
 /// 4. `extra_bin_paths` (caller-supplied),
-/// 5. `dirname(node_execpath)` when `scripts_prepend_node_path` is
-///    [`Always`](ScriptsPrependNodePath::Always),
-/// 6. `original_path` (typically the inherited system PATH).
+/// 5. `original_path` (typically the inherited system PATH), minus the
+///    entries already listed above.
 #[must_use]
 pub fn extend_path(
     wd: &Path,
+    wd_bin_dir: Option<&Path>,
     original_path: Option<&OsString>,
     node_gyp_bin: Option<&Path>,
     extra_bin_paths: &[PathBuf],
-    scripts_prepend_node_path: ScriptsPrependNodePath,
-    node_execpath: Option<&Path>,
 ) -> OsString {
     let mut path_arr: Vec<PathBuf> = Vec::new();
 
-    // 1+2. Walk the wd's node_modules ancestors, deepest first.
-    for bin in ancestor_node_modules_bins(wd) {
-        path_arr.push(bin);
+    // Walk the wd's node_modules ancestors, deepest first. The first
+    // entry is the wd's own, which `wd_bin_dir` overrides.
+    let mut ancestors = ancestor_node_modules_bins(wd);
+    if let Some(bin) = wd_bin_dir
+        && let Some(own) = ancestors.first_mut()
+    {
+        *own = bin.to_path_buf();
     }
+    path_arr.extend(ancestors);
 
-    // 3. Bundled node-gyp-bin.
     if let Some(p) = node_gyp_bin {
         path_arr.push(p.to_path_buf());
     }
 
-    // 4. Caller-supplied extra paths.
     path_arr.extend_from_slice(extra_bin_paths);
 
-    // 5. dirname(node) when scriptsPrependNodePath is `Always`.
-    //    `WarnOnly` only emits a warning; the actual prepend is gated
-    //    on the setting being `true`. We omit the warn-emission here;
-    //    the caller (with reporter context) is a better place for it.
-    if scripts_prepend_node_path == ScriptsPrependNodePath::Always
-        && let Some(node) = node_execpath
-        && let Some(parent) = node.parent()
-    {
-        path_arr.push(parent.to_path_buf());
-    }
-
-    // 6. originalPath at the end.
-    let mut joined: Vec<PathBuf> = path_arr;
     if let Some(orig) = original_path {
-        for p in env::split_paths(orig) {
-            joined.push(p);
-        }
+        let added: HashSet<OsString> = path_arr
+            .iter()
+            .map(|entry| entry.as_os_str())
+            .map(OsStr::to_os_string)
+            .collect();
+        path_arr.extend(
+            pnpm_fs::split_paths(orig).filter(|entry| !added.contains(entry.as_os_str())),
+        );
     }
 
-    join_paths_lossy(&joined)
+    join_paths_lossy(&path_arr)
 }
 
 /// Join `paths` with the platform PATH separator (`;` on Windows,
-/// `:` elsewhere) by plain string concatenation — no validation. If a
+/// `:` elsewhere) by plain string concatenation, no validation. If a
 /// path component itself contains the separator the spawned shell sees
 /// an embedded entry; `std::env::join_paths` would instead have erred
 /// and dropped the entire computed PATH in that case.
@@ -117,13 +101,17 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     // relative paths anchor against the process cwd, and an empty head
     // (which happens when `wd` starts with `node_modules/`) means
     // "use cwd". This anchoring makes the result cwd-dependent when the
-    // caller passes a relative wd — pacquet's production call sites
+    // caller passes a relative wd, pacquet's production call sites
     // always pass an absolute pkg_root, so the dependency is a
     // non-issue in practice.
     let mut acc = if head.is_empty() {
         env::current_dir().unwrap_or_else(|_| PathBuf::new())
     } else {
-        let head_path = PathBuf::from(head);
+        let head_path = if cfg!(windows) {
+            PathBuf::from(head.replace('/', r"\"))
+        } else {
+            PathBuf::from(head)
+        };
         path::absolute(&head_path).unwrap_or(head_path)
     };
 
@@ -135,12 +123,11 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     // `${acc}/node_modules/.bin` is the deepest one (the wd itself).
     for pp in tail {
         bins.push(acc.join("node_modules").join(".bin"));
-        acc = acc.join("node_modules").join(pp);
+        acc.push("node_modules");
+        pnpm_fs::push_slash_separated_path(&mut acc, pp);
     }
     bins.push(acc.join("node_modules").join(".bin"));
 
-    // The deepest .bin must end up first; collect in the natural order
-    // then reverse.
     bins.reverse();
     bins
 }

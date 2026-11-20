@@ -1,15 +1,21 @@
 //! Normalizes the two surface forms `pnpm-workspace.yaml` supports for
-//! defining the default catalog — `catalog:` at the top level vs.
-//! `catalogs.default` nested under the named catalogs — into the
+//! defining the default catalog, `catalog:` at the top level vs.
+//! `catalogs.default` nested under the named catalogs, into the
 //! single flat [`Catalogs`] map every resolver consumer expects.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_catalogs_types::{
+    Catalogs,
+    DEFAULT_CATALOG_NAME,
+};
 use pnpm_workspace::WorkspaceManifest;
 
 /// Raised when the workspace manifest defines the default catalog
-/// twice — once via the top-level `catalog:` shorthand and once via
+/// twice, once via the top-level `catalog:` shorthand and once via
 /// the explicit `catalogs.default` key.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -32,10 +38,8 @@ pub fn get_catalogs_from_workspace_manifest(
 
     check_default_catalog_is_defined_once(manifest)?;
 
-    // `catalogs` is applied after writing `default`, so an explicit
-    // `catalogs.default` overrides the (already-validated to be absent)
-    // `catalog` field. With `catalog`/`catalogs.default` mutually
-    // exclusive only one branch ever populates the key.
+    // With `catalog`/`catalogs.default` mutually exclusive only one
+    // branch ever populates the key.
     let mut catalogs = Catalogs::new();
     if let Some(default) = &manifest.catalog {
         catalogs.insert(DEFAULT_CATALOG_NAME.to_string(), default.clone());
@@ -55,7 +59,9 @@ pub fn check_default_catalog_is_defined_once(
     manifest: &WorkspaceManifest,
 ) -> Result<(), InvalidCatalogsConfigurationError> {
     if manifest.catalog.is_some()
-        && manifest.catalogs.as_ref().is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME))
+        && manifest.catalogs
+            .as_ref()
+            .is_some_and(|c| c.contains_key(DEFAULT_CATALOG_NAME))
     {
         return Err(InvalidCatalogsConfigurationError::DefaultDefinedMultipleTimes);
     }

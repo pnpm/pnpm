@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-require('../lib/bin')
+import {} from '../lib/bin.js'

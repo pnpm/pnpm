@@ -60,9 +60,30 @@ export interface ConfigContext {
   prodOnlySelectedProjectDirs?: ProjectRootDir[]
   rootProjectManifest?: ProjectManifest
   rootProjectManifestDir: string
+  /**
+   * The manifest that declares the engine pins pnpm acts on: the
+   * `packageManager` field, `devEngines.packageManager`, and the runtimes
+   * under `devEngines.runtime` / `engines.runtime`.
+   *
+   * The workspace root's manifest, which is the same object as
+   * `rootProjectManifest` unless `lockfileDir` moved the root project
+   * directory off the workspace root. The pins belong to the workspace the
+   * contributor is working in, not to whichever directory the lockfile was
+   * pointed at.
+   */
+  enginePinManifest?: ProjectManifest
+  /**
+   * `true` when `nodeVersion` was not configured and was taken from the
+   * `devEngines.runtime` / `engines.runtime` of the engine pin manifest.
+   */
+  nodeVersionFromEnginesRuntime?: boolean
 
   // -- CLI metadata --
   cliOptions: Record<string, any> // eslint-disable-line
+  /** The `--config.<key>=<value>` options as given, forwarded to a child pnpm the command spawns. */
+  rawCliConfig?: Record<string, unknown>
+  /** Raw `lockfileDir` anchored to its source directory so `clean` can step symlink parents safely. */
+  rawLockfileDir?: string
   /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
   explicitlySetKeys: Set<string>
   packageManager: {
@@ -134,6 +155,7 @@ export interface Config extends OptionsFromRootManifest {
   shellEmulator?: boolean
   scriptsPrependNodePath?: boolean | 'warn-only'
   force?: boolean
+  forceIgnoresPlatform?: boolean
   depth?: number
   engineStrict?: boolean
   nodeVersion?: string
@@ -183,6 +205,7 @@ export interface Config extends OptionsFromRootManifest {
   cert?: string | string[]
   key?: string
   ca?: string | string[]
+  cafile?: string
   strictSsl?: boolean
 
   userAgent?: string
@@ -223,6 +246,11 @@ export interface Config extends OptionsFromRootManifest {
   workspaceConcurrency: number
   workspaceDir?: string
   workspacePackagePatterns?: string[]
+  /**
+   * The `modulesDir` that `packageConfigs` sets for a project, keyed by
+   * project name. Derived from `packageConfigs`.
+   */
+  modulesDirsByProjectName?: Record<string, string>
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
   catalogPrune?: boolean
@@ -336,9 +364,11 @@ export interface Config extends OptionsFromRootManifest {
   minimumReleaseAgeStrict?: boolean
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
+  maxTarballUnpackedSize?: number
   trustLockfile?: boolean
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: string[]
+  trustPolicyExcludePrune?: boolean
   trustPolicyIgnoreAfter?: number
   auditLevel?: 'info' | 'low' | 'moderate' | 'high' | 'critical'
 

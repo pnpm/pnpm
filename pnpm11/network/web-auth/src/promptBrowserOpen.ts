@@ -42,7 +42,7 @@ export async function promptBrowserOpen ({
   }
 
   // The authUrl comes from an untrusted registry response, so only allow
-  // http(s) URLs through to `open()`.
+  // HTTP and HTTPS URLs through to `open()`.
   let canonicalUrl: string
   try {
     const parsed = new URL(authUrl)

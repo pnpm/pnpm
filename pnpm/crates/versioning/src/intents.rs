@@ -1,14 +1,24 @@
 use std::{
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use derive_more::Display;
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use crate::{error::VersioningError, human_id::random_human_id, settings::ReleaseBumpType};
+use crate::{
+    error::VersioningError,
+    human_id::random_human_id,
+    settings::ReleaseBumpType,
+};
 
 /// The directory holding change-intent files, shared with changesets.
 pub const CHANGES_DIR: &str = ".changeset";
@@ -71,8 +81,15 @@ pub fn parse_change_intent(
         .split('\n')
         .map(|line| line.strip_suffix('\r').unwrap_or(line))
         .collect();
-    let closing_index = if lines.first().is_some_and(|line| line.trim() == "---") {
-        lines.iter().skip(1).position(|line| line.trim() == "---").map(|index| index + 1)
+    let closing_index = if lines
+        .first()
+        .is_some_and(|line| line.trim() == "---")
+    {
+        lines
+            .iter()
+            .skip(1)
+            .position(|line| line.trim() == "---")
+            .map(|index| index + 1)
     } else {
         None
     };
@@ -80,36 +97,34 @@ pub fn parse_change_intent(
         return Err(VersioningError::NoFrontmatter { file_path: file_path.to_path_buf() });
     };
 
-    let frontmatter_text = lines[1..closing_index].join("\n");
-    let frontmatter: IndexMap<String, String> = if frontmatter_text.trim().is_empty() {
-        IndexMap::new()
-    } else {
-        serde_saphyr::from_str(&frontmatter_text).map_err(|err| {
-            VersioningError::InvalidFrontmatter {
-                file_path: file_path.to_path_buf(),
-                message: err.to_string(),
-            }
-        })?
-    };
-
-    let mut releases = IndexMap::new();
-    for (pkg_name, bump_type) in frontmatter {
-        let Some(parsed) = IntentBumpType::parse(&bump_type) else {
-            return Err(VersioningError::InvalidBumpType {
-                file_path: file_path.to_path_buf(),
-                pkg_name,
-                bump_type,
-            });
-        };
-        releases.insert(pkg_name, parsed);
-    }
+    let frontmatter = parse_intent_frontmatter(&lines[1..closing_index].join("\n"), file_path)?;
+    let releases = parse_intent_releases(frontmatter, file_path)?;
 
     Ok(ChangeIntent {
         id: id.to_string(),
         file_path: file_path.to_path_buf(),
         releases,
-        summary: lines[closing_index + 1..].join("\n").trim().to_string(),
+        summary: lines[closing_index + 1..]
+            .join("\n")
+            .trim()
+            .to_string(),
     })
+}
+
+fn parse_intent_frontmatter(
+    frontmatter_text: &str,
+    file_path: &Path,
+) -> Result<IndexMap<String, String>, VersioningError> {
+    if frontmatter_text.trim().is_empty() {
+        return Ok(IndexMap::new());
+    }
+
+    serde_saphyr::from_str::<Option<IndexMap<String, String>>>(frontmatter_text)
+        .map_err(|err| VersioningError::InvalidFrontmatter {
+            file_path: file_path.to_path_buf(),
+            message: err.to_string(),
+        })
+        .map(Option::unwrap_or_default)
 }
 
 pub fn read_change_intents(workspace_dir: &Path) -> Result<Vec<ChangeIntent>, VersioningError> {
@@ -124,7 +139,10 @@ pub fn read_change_intents(workspace_dir: &Path) -> Result<Vec<ChangeIntent>, Ve
     for entry in entries {
         let entry =
             entry.map_err(|source| VersioningError::Read { path: changes_dir.clone(), source })?;
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = entry
+            .file_name()
+            .to_string_lossy()
+            .into_owned();
         if name.ends_with(".md") && !name.eq_ignore_ascii_case("readme.md") {
             file_names.push(name);
         }
@@ -153,7 +171,10 @@ pub fn write_change_intent(
         .map_err(|source| VersioningError::Write { path: changes_dir.clone(), source })?;
 
     let mut id = random_human_id();
-    while changes_dir.join(format!("{id}.md")).exists() {
+    while changes_dir
+        .join(format!("{id}.md"))
+        .exists()
+    {
         id = random_human_id();
     }
 
@@ -174,6 +195,24 @@ pub fn format_change_intent(releases: &IndexMap<String, IntentBumpType>, summary
         })
         .collect();
     format!("---\n{}\n---\n\n{}\n", frontmatter_lines.join("\n"), summary.trim())
+}
+
+fn parse_intent_releases(
+    frontmatter: IndexMap<String, String>,
+    file_path: &Path,
+) -> Result<IndexMap<String, IntentBumpType>, VersioningError> {
+    let mut releases = IndexMap::new();
+    for (pkg_name, bump_type) in frontmatter {
+        let Some(parsed) = IntentBumpType::parse(&bump_type) else {
+            return Err(VersioningError::InvalidBumpType {
+                file_path: file_path.to_path_buf(),
+                pkg_name,
+                bump_type,
+            });
+        };
+        releases.insert(pkg_name, parsed);
+    }
+    Ok(releases)
 }
 
 #[cfg(test)]

@@ -6,9 +6,9 @@ import type { DepPath, ProjectId } from '@pnpm/types'
 import yaml from 'js-yaml'
 import { temporaryDirectory } from 'tempy'
 
-jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn(), getBranchesContainingHead: jest.fn(() => Promise.resolve([])) }))
 
-const { getCurrentBranch } = await import('@pnpm/network.git-utils')
+const { getBranchesContainingHead, getCurrentBranch } = await import('@pnpm/network.git-utils')
 const {
   existsNonEmptyWantedLockfile,
   readCurrentLockfile,
@@ -48,6 +48,55 @@ test('readWantedLockfile()', async () => {
       wantedVersions: ['3'],
     })
   ).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
+})
+
+test('readWantedLockfile() reads dependency entries with YAML merge keys', async () => {
+  const projectPath = temporaryDirectory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), `
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo: &dependency
+        specifier: ^1.0.0
+        version: 1.0.0
+      bar:
+        <<: *dependency
+        version: 1.1.0
+`)
+
+  const lockfile = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
+
+  expect(lockfile?.importers['.' as ProjectId]).toMatchObject({
+    specifiers: { foo: '^1.0.0', bar: '^1.0.0' },
+    dependencies: { foo: '1.0.0', bar: '1.1.0' },
+  })
+})
+
+test('readWantedLockfile() reports the incompatible and supported lockfile versions', async () => {
+  const projectPath = temporaryDirectory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'lockfileVersion: \'6.0\'\nimporters:\n  .:\n    specifiers: {}\n')
+
+  const error = await readWantedLockfile(projectPath, {
+    ignoreIncompatible: false,
+    wantedVersions: ['9.0'],
+  }).catch((err: unknown) => err)
+
+  expect(error).toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
+  expect((error as Error).message).toBe(`Lockfile ${path.join(projectPath, 'pnpm-lock.yaml')} not compatible with current pnpm: it was generated with lockfileVersion 6.0, but the current pnpm version supports lockfileVersion 9.x`)
+})
+
+test('readWantedLockfile() keeps the legacy message when the lockfile has no lockfileVersion', async () => {
+  const projectPath = temporaryDirectory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'importers:\n  .:\n    specifiers: {}\n')
+
+  const error = await readWantedLockfile(projectPath, {
+    ignoreIncompatible: false,
+    wantedVersions: ['9.0'],
+  }).catch((err: unknown) => err)
+
+  expect(error).toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
+  expect((error as Error).message).toBe(`Lockfile ${path.join(projectPath, 'pnpm-lock.yaml')} not compatible with current pnpm`)
 })
 
 test('readWantedLockfile() does not include lockfile content in parse errors', async () => {
@@ -235,6 +284,36 @@ test('existsNonEmptyWantedLockfile()', async () => {
   expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(true)
 })
 
+test('existsNonEmptyWantedLockfile() on a branch counts only the branch lockfile', async () => {
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('feature'))
+  const projectPath = temporaryDirectory()
+  await writeFile(path.join(projectPath, 'pnpm-lock.yaml'), 'lockfileVersion: \'9.0\'\n')
+
+  expect(await existsNonEmptyWantedLockfile(projectPath, { useGitBranchLockfile: true })).toBe(false)
+
+  await writeFile(path.join(projectPath, 'pnpm-lock.feature.yaml'), 'lockfileVersion: \'9.0\'\n')
+
+  expect(await existsNonEmptyWantedLockfile(projectPath, { useGitBranchLockfile: true })).toBe(true)
+})
+
+test('existsNonEmptyWantedLockfile() on a detached HEAD counts the candidates and the shared lockfile', async () => {
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(null))
+  jest.mocked(getBranchesContainingHead).mockReturnValue(Promise.resolve(['feature']))
+  const projectPath = temporaryDirectory()
+
+  expect(await existsNonEmptyWantedLockfile(projectPath, { useGitBranchLockfile: true })).toBe(false)
+
+  await writeFile(path.join(projectPath, 'pnpm-lock.feature.yaml'), 'lockfileVersion: \'9.0\'\n')
+
+  expect(await existsNonEmptyWantedLockfile(projectPath, { useGitBranchLockfile: true })).toBe(true)
+
+  const sharedOnlyPath = temporaryDirectory()
+  await writeFile(path.join(sharedOnlyPath, 'pnpm-lock.yaml'), 'lockfileVersion: \'9.0\'\n')
+
+  expect(await existsNonEmptyWantedLockfile(sharedOnlyPath, { useGitBranchLockfile: true })).toBe(true)
+  jest.mocked(getBranchesContainingHead).mockReturnValue(Promise.resolve([]))
+})
+
 test('readWantedLockfile() when useGitBranchLockfile', async () => {
   jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('branch'))
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
@@ -337,4 +416,23 @@ test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
   const lockfile = await readWantedLockfile(path.join('fixtures', '7'), { ignoreIncompatible: false })
   expect(lockfile?.importers).toEqual(wantedLockfile.importers)
   expect(lockfile?.packages).toEqual(wantedLockfile.packages)
+})
+
+test('readWantedLockfile preserves a __proto__ importer when merging branch lockfiles', async () => {
+  const dir = temporaryDirectory()
+  const branch = JSON.parse('{"lockfileVersion":"9.0","importers":{"__proto__":{"dependencies":{"foo":{"specifier":"link:../foo","version":"link:../foo"}}}}}')
+  await writeFile(path.join(dir, 'pnpm-lock.yaml'), yaml.dump({ lockfileVersion: '9.0', importers: {} }))
+  await writeFile(path.join(dir, 'pnpm-lock.branch.yaml'), yaml.dump(branch))
+
+  const lockfile = await readWantedLockfile(dir, {
+    ignoreIncompatible: false,
+    mergeGitBranchLockfiles: true,
+  })
+
+  expect(Object.hasOwn(lockfile!.importers, '__proto__')).toBe(true)
+  expect(Object.getPrototypeOf(lockfile!.importers)).toBe(Object.prototype)
+  expect(lockfile!.importers['__proto__' as ProjectId]).toStrictEqual({
+    specifiers: { foo: 'link:../foo' },
+    dependencies: { foo: 'link:../foo' },
+  })
 })

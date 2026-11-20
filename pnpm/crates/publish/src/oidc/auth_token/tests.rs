@@ -1,6 +1,15 @@
-use super::{AuthTokenError, fetch_auth_token};
+use super::{
+    AuthTokenError,
+    fetch_auth_token,
+};
 use crate::{
-    capabilities::{OidcFetch, OidcFetchError, OidcMethod, OidcRequest, OidcResponse},
+    capabilities::{
+        OidcFetch,
+        OidcFetchError,
+        OidcMethod,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
 };
 use pretty_assertions::assert_eq;
@@ -35,6 +44,31 @@ async fn posts_to_escaped_exchange_endpoint_and_returns_token() {
             .await
             .unwrap();
     assert_eq!(token, "registry-token");
+}
+
+#[tokio::test]
+async fn preserves_registry_path_with_or_without_trailing_slash() {
+    oidc_fetch!(Sys, |request: OidcRequest<'_>| {
+        assert_eq!(
+            request.url,
+            "https://registry.example/npm/private/-/npm/v1/oidc/token/exchange/package/@scope%2fpkg"
+        );
+        Ok(OidcResponse { ok: true, status: 200, body: r#"{"token":"registry-token"}"#.to_owned() })
+    });
+
+    for registry in
+        ["https://registry.example/npm/private", "https://registry.example/npm/private/"]
+    {
+        let token = fetch_auth_token::<Sys>(
+            "id-token",
+            "@scope/pkg",
+            registry,
+            &OidcHttpOptions::default(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(token, "registry-token");
+    }
 }
 
 #[tokio::test]

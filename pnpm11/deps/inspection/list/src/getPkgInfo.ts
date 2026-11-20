@@ -22,7 +22,7 @@ export async function getPkgInfo (pkg: PkgData): Promise<PkgInfo> {
   try {
     manifest = await readPkg(path.join(pkg.path, 'package.json'))
   } catch {
-    // This will probably never happen
+    // This is not expected to happen
     manifest = {
       description: '[Could not find additional info about this dependency]',
     }

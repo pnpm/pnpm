@@ -61,6 +61,43 @@ export type PnpmVersionLookup = (bareSpecifier: string) => Promise<ResolvedPnpmV
  * error it is instead of being mistaken for a failed lookup.
  */
 export function prepareResolvePnpmVersion (opts: ResolvePnpmVersionOptions): PnpmVersionLookup {
+  // The running version is already on this machine, so hiding it behind the
+  // maturity cutoff protects nothing — it only makes a dist-tag that points
+  // at it fall back to an older release, downgrading the user (pnpm/pnpm#13883).
+  return createPnpmVersionLookup({
+    ...opts,
+    minimumReleaseAgeExclude: [
+      ...opts.minimumReleaseAgeExclude ?? [],
+      `${packageManager.name}@${packageManager.version}`,
+    ],
+  })
+}
+
+/**
+ * The pnpm version to record for a range pin that the running pnpm
+ * satisfies.
+ *
+ * The running pnpm was installed without the project's settings, so nothing
+ * has held it to the project's `minimumReleaseAge`. Every other contributor
+ * switches to the recorded version under that cutoff, so an immature running
+ * version gives way to the newest mature version in `range`
+ * (pnpm/pnpm#16431). When `range` has no mature version, the running version
+ * is kept: no switch could pick a better one.
+ */
+export async function maturePnpmVersionForRange (
+  opts: ResolvePnpmVersionOptions,
+  range: string
+): Promise<string> {
+  if (!opts.minimumReleaseAge) return packageManager.version
+  // The running pnpm is already executing, so only its age is in question.
+  const running = await createPnpmVersionLookup({ ...opts, trustPolicy: undefined })(packageManager.version)
+  if (running != null && running.policyViolation == null) return running.version
+  const fallback = await createPnpmVersionLookup(opts)(range)
+  if (fallback != null && fallback.policyViolation == null) return fallback.version
+  return packageManager.version
+}
+
+function createPnpmVersionLookup (opts: ResolvePnpmVersionOptions): PnpmVersionLookup {
   // `minimumReleaseAge` is not part of `shouldFetchFullMetadata` because the
   // resolver upgrades abbreviated metadata to full on demand for the
   // maturity check, so it isn't requested up front here.
@@ -72,16 +109,7 @@ export function prepareResolvePnpmVersion (opts: ResolvePnpmVersionOptions): Pnp
     filterMetadata: fullMetadata,
     ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
   })
-  // The running version is already on this machine, so hiding it behind the
-  // maturity cutoff protects nothing — it only makes a dist-tag that points
-  // at it fall back to an older release, downgrading the user (pnpm/pnpm#13883).
-  const { publishedBy, publishedByExclude } = getPublishedByPolicy({
-    ...opts,
-    minimumReleaseAgeExclude: [
-      ...opts.minimumReleaseAgeExclude ?? [],
-      `${packageManager.name}@${packageManager.version}`,
-    ],
-  })
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
   const trustPolicyExclude = opts.trustPolicyExclude
     ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
     : undefined

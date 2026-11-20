@@ -1,512 +1,308 @@
+pub(super) mod revisions;
+
+pub(super) use dist_tags::{
+    get_dist_tags,
+    remove_dist_tag,
+    set_dist_tag,
+};
+pub(super) use unpublish::{
+    delete_package,
+    delete_tarball,
+};
+
+mod dist_tags;
+mod immutability;
+mod maintainers;
+mod unpublish;
+mod version_removal;
+
 use axum::{
     body::Body,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use serde_json::{Value, json};
+use serde_json::Value;
 
+use immutability::{
+    enforce_published_version_immutability,
+    submitted_packument,
+};
+use maintainers::update_package_maintainers;
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{PACKUMENT_WRITE_RETRIES, PackumentUpdate, PackumentWrite, publish::now_iso};
-
-use pnpr_upstream::tarball_basename;
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    DocumentWrite,
+    HostedDocumentVersion,
+    database::validate_document_dist_tags,
+    wait_after_document_write_conflict,
+};
 
 use super::{
-    Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,
-    load_packument_for_read, not_found, resolve_write_target,
+    Action,
+    AppState,
+    RegistrySource,
+    WriteTarget,
+    authorize_against_packument,
+    authorize_package,
+    hosted_storage,
+    parse_json_body,
+    resolve_write_target,
 };
 
-/// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —
-/// overwrite the on-disk packument with the client-supplied body. pnpm uses
-/// this in the partial-unpublish flow: it fetches the packument, removes the
-/// unpublished version from `versions` / `dist-tags`, then PUTs the result
-/// back. We strip any `_attachments` so we don't persist base64 payloads
-/// alongside the manifest, and run
-/// [`enforce_published_version_immutability`] so the body can't tamper with
-/// a published version's `dist` or smuggle in a new one — everything else in
-/// the body is trusted verbatim, the same trust verdaccio extends.
+/// Apply a partial unpublish based on its revision, or an owner update.
 pub(super) async fn update_packument(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
-    raw_name: &str,
+    (raw_name, revision): (&str, &str),
     body: &[u8],
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
-        Ok(n) => n,
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
+        Ok(name) => name,
         Err(err) => return err.into_response(),
     };
     let target = match resolve_write_target(state, identity, registry, &name) {
         Ok(target) => target,
         Err(err) => return err.into_response(),
     };
-    let source = RegistrySource::Hosted(target.source.clone());
-    for action in [Action::Publish, Action::Unpublish] {
-        if let Err(err) = authorize(state, identity, &source, name.as_str(), action) {
-            return err.into_response();
-        }
-    }
-    let org = target.org;
-    let storage = hosted_storage(state, Some(&org));
-    let mut packument: Value = match serde_json::from_slice(body) {
-        Ok(v) => v,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    // The write destination is the URL package name; a mismatched body name
-    // would otherwise land under the URL package and persist an inconsistent
-    // manifest.
-    if let Some(body_name) = packument.get("name").and_then(Value::as_str)
-        && body_name != name.as_str()
-    {
-        return RegistryError::BadRequest {
-            reason: format!(
-                "packument name {body_name:?} does not match the URL package {:?}",
-                name.as_str(),
-            ),
-        }
-        .into_response();
-    }
-    if let Some(obj) = packument.as_object_mut() {
-        obj.remove("_attachments");
-        obj.remove("_rev");
-        obj.remove("_revisions");
-    }
-    // Serialize the write against this instance's other same-package
-    // packument writers (publish / dist-tag), so the client-supplied
-    // rewrite can't interleave with a concurrent merge.
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    let hosted_packument = match storage.read_hosted_packument_for_update(&name).await {
-        Ok(Some(packument)) => packument,
-        Ok(None) => {
-            return RegistryError::BadRequest {
-                reason: format!(
-                    "cannot update {:?}: it has no published packument to unpublish from",
-                    name.as_str(),
-                ),
-            }
-            .into_response();
-        }
+    let incoming_val: Value = match parse_json_body(body) {
+        Ok(val) => val,
         Err(err) => return err.into_response(),
     };
-    let hosted: Value = match serde_json::from_slice(&hosted_packument.bytes) {
-        Ok(value) => value,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    if let Some(err) = enforce_published_version_immutability(&hosted, &name, &mut packument) {
-        return err.into_response();
+    if incoming_val.get("maintainers").is_some() && incoming_val.get("versions").is_none() {
+        return update_package_maintainers(state, identity, &target, (&name, &incoming_val)).await;
     }
-    let bytes = match serde_json::to_vec_pretty(&packument) {
-        Ok(b) => b,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
+    rewrite_packument(state, identity, &target, (&name, revision, &incoming_val)).await
+}
+
+fn prepare_packument_rewrite(
+    mut hosted: Value,
+    tar_integrities: &std::collections::BTreeMap<String, pnpr_storage::DerivedTar>,
+    name: &CanonicalPackageName,
+    packument: &mut Value,
+) -> Result<Vec<String>, Response> {
+    if let Some(format_version) = hosted.get("formatVersion").and_then(Value::as_u64)
+        && format_version > u64::from(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION)
+    {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: name.as_str().to_string(),
+            format_version: format_version as u32,
+            supported_version: pnpr_storage::publish::PACKUMENT_FORMAT_VERSION,
+        }
+        .into_response());
+    }
+    revisions::check(name, &hosted, packument.get("_rev").and_then(Value::as_str))
+        .map_err(IntoResponse::into_response)?;
+    packument
+        .as_object_mut()
+        .expect("submitted packument is an object")
+        .remove("_rev");
+    super::tar_registry::overlay_verified_tar_stats(&mut hosted, tar_integrities);
+    super::restore_tgz_integrities(&hosted, tar_integrities, packument);
+    if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
+        return Err(err.into_response());
+    }
+    preserve_existing_maintainers(&hosted, packument);
+    if let Some(packument_obj) = packument.as_object_mut() {
+        packument_obj.insert(
+            "formatVersion".to_string(),
+            serde_json::json!(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION),
+        );
+    }
+    validate_document_dist_tags(&hosted, packument).map_err(IntoResponse::into_response)?;
+    Ok(detect_removed_versions(&hosted, packument))
+}
+
+/// Serialize against other same-package writers so the rewrite cannot
+/// interleave with a concurrent publish or dist-tag merge.
+async fn rewrite_packument(
+    state: &AppState,
+    identity: &Identity,
+    target: &WriteTarget,
+    (name, revision, incoming_val): (&CanonicalPackageName, &str, &Value),
+) -> Response {
+    let _packument_guard = state.inner.locks.packages.lock(name.as_str()).await;
+    for attempt in 0..DOCUMENT_WRITE_RETRIES {
+        match try_rewrite_packument(state, identity, target, (name, revision, incoming_val)).await {
+            Ok(Some(response)) => return response,
+            Ok(None) if attempt + 1 < DOCUMENT_WRITE_RETRIES => {
+                wait_after_document_write_conflict(attempt).await;
+            }
+            Ok(None) => {}
+            Err(response) => return response,
+        }
+    }
+    RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }.into_response()
+}
+
+async fn try_rewrite_packument(
+    state: &AppState,
+    identity: &Identity,
+    target: &WriteTarget,
+    (name, revision, incoming_val): (&CanonicalPackageName, &str, &Value),
+) -> Result<Option<Response>, Response> {
+    let (hosted, version) = read_packument_for_rewrite(state, identity, target, name).await?;
+    let mut packument = submitted_packument(incoming_val.clone(), (name, revision))
+        .map_err(IntoResponse::into_response)?;
+    let storage = hosted_storage(state, Some(&target.namespace));
+    let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
+    let removed = prepare_packument_rewrite(hosted, &tar_integrities, name, &mut packument)?;
+    let bytes = serde_json::to_vec_pretty(&packument)
+        .map_err(RegistryError::Json)
+        .map_err(axum::response::IntoResponse::into_response)?;
+    let unpublished = unpublished_blobs(&storage, name, &removed).await;
     match storage
-        .write_hosted_packument_if_current(&name, &bytes, Some(&hosted_packument.version))
+        .write_hosted_document_if_current(name, &bytes, Some(&version), identity.user_id())
         .await
+        .map_err(IntoResponse::into_response)?
     {
-        Ok(PackumentWrite::Written) => {}
-        Ok(PackumentWrite::Conflict) => {
-            return RegistryError::PackumentWriteConflict { package: name.as_str().to_string() }
-                .into_response();
+        DocumentWrite::Written => {
+            reclaim_unpublished_blobs(&storage, name, unpublished).await;
+            log_packument_update(identity, name, &target.source);
+            Ok(Some(ok_created()))
         }
-        Err(err) => return err.into_response(),
+        DocumentWrite::Conflict => Ok(None),
     }
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    Response::builder()
-        .status(StatusCode::CREATED)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
 }
 
-/// Hold a published version's security-critical `dist` fields immutable across
-/// the partial-unpublish `PUT`, which otherwise persists the body verbatim.
-/// [`super::expected_tarball_dist`] resolves a tarball request to a version by
-/// `dist.tarball` basename and verifies the bytes against that version's string
-/// `dist.integrity`, so letting either drift — while the bytes on disk stay put —
-/// breaks installs of that version (`EINTEGRITY`, or a 404/502 redirect).
-///
-/// For each version in the body, given a hosted packument: changing the
-/// `dist.integrity` or `dist.tarball` basename of an already-published version is
-/// rejected; omitting either is repaired from the hosted value (the round-trip
-/// drops them on retained versions); and a version not already published is
-/// rejected — this endpoint only removes versions, and an added entry could
-/// collide a basename or seed a tarball-less one. A `PUT` to a package with no
-/// hosted packument is rejected outright (nothing to unpublish, and the write
-/// would seed versions that publish can never overwrite).
-///
-/// Returns the rejection, or `None` when the body is acceptable (after any
-/// restores). Must hold the package lock so a concurrent publish can't race it.
-fn enforce_published_version_immutability(
-    hosted: &Value,
-    name: &PackageName,
-    incoming: &mut Value,
-) -> Option<RegistryError> {
-    // None (no versions to enforce) means "accept", not "error" here.
-    let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
-    let hosted_versions = hosted.get("versions").and_then(Value::as_object);
-    // Fields to re-insert after the scan; deferred because the scan borrows
-    // `incoming` and the restore mutates it.
-    let mut restore: Vec<(String, &'static str, Value)> = Vec::new();
-    for (version, manifest) in incoming_versions {
-        let Some(existing) = hosted_versions.and_then(|versions| versions.get(version)) else {
-            return Some(RegistryError::BadRequest {
-                reason: format!(
-                    "version {version:?} is not in the published package; this endpoint removes versions, it does not add them",
-                ),
-            });
-        };
-        // A present dist.integrity must be a string; a non-string would slip past
-        // the string-only checks below.
-        let incoming_integrity = match manifest.get("dist").and_then(|dist| dist.get("integrity")) {
-            None => None,
-            Some(Value::String(value)) => Some(value.as_str()),
-            Some(_) => {
-                return Some(RegistryError::BadRequest {
-                    reason: format!("dist.integrity for version {version:?} must be a string"),
-                });
-            }
-        };
-        let existing_dist = existing.get("dist");
-        let existing_integrity =
-            existing_dist.and_then(|dist| dist.get("integrity")).and_then(Value::as_str);
-        match (existing_integrity, incoming_integrity) {
-            (Some(stored), Some(submitted)) if stored != submitted => {
-                return Some(RegistryError::BadRequest {
-                    reason: format!(
-                        "dist.integrity for the published version {version:?} is immutable",
-                    ),
-                });
-            }
-            (Some(stored), None) => {
-                if let Some(err) = require_object_dist(manifest, version) {
-                    return Some(err);
-                }
-                restore.push((version.clone(), "integrity", Value::String(stored.to_string())));
-            }
-            _ => {}
-        }
-        // Compare basenames, not URLs: the round-trip carries the rewritten URL
-        // (see [`rewrite_tarball_urls`]) while the hosted side keeps the original,
-        // and [`served_tarball_basename`] applies the same version-derived
-        // fallback so a basename-less stored URL is still pinned.
-        let existing_tarball = existing_dist.and_then(|dist| dist.get("tarball"));
-        if let Some(stored_basename) = served_tarball_basename(existing, name) {
-            let incoming_basename = manifest
-                .get("dist")
-                .and_then(|dist| dist.get("tarball"))
-                .and_then(Value::as_str)
-                .and_then(tarball_basename);
-            match incoming_basename {
-                Some(submitted) if submitted != stored_basename => {
-                    return Some(RegistryError::BadRequest {
-                        reason: format!(
-                            "dist.tarball for the published version {version:?} is immutable",
-                        ),
-                    });
-                }
-                Some(_) => {}
-                None => {
-                    if let Some(err) = require_object_dist(manifest, version) {
-                        return Some(err);
-                    }
-                    let stored = existing_tarball.cloned().unwrap_or(Value::Null);
-                    restore.push((version.clone(), "tarball", stored));
-                }
-            }
-        }
-    }
-    for (version, key, value) in restore {
-        if let Some(dist) = incoming
-            .get_mut("versions")
-            .and_then(|versions| versions.get_mut(&version))
-            .and_then(|manifest| manifest.get_mut("dist"))
-            .and_then(Value::as_object_mut)
-        {
-            dist.insert(key.to_string(), value);
-        }
-    }
-    None
-}
-
-/// The tarball basename a version is actually served under, mirroring
-/// [`pnpr_upstream::rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
-/// one, otherwise the version-derived canonical name the rewrite falls back to.
-/// Returns `None` when the manifest carries no string `dist.tarball` to serve.
-fn served_tarball_basename(manifest: &Value, pkg: &PackageName) -> Option<String> {
-    let url = manifest.get("dist").and_then(|dist| dist.get("tarball")).and_then(Value::as_str)?;
-    if let Some(basename) = tarball_basename(url) {
-        return Some(basename.to_owned());
-    }
-    let version = manifest.get("version").and_then(Value::as_str)?;
-    Some(pkg.tarball_name_for_version(version))
-}
-
-/// Reject a published version whose `dist` isn't an object: a restore needs an
-/// object to write into, so otherwise it would no-op and persist the version
-/// without the field — the stripping this guards against.
-fn require_object_dist(manifest: &Value, version: &str) -> Option<RegistryError> {
-    if manifest.get("dist").is_some_and(Value::is_object) {
-        return None;
-    }
-    Some(RegistryError::BadRequest {
-        reason: format!("dist for the published version {version:?} must be an object"),
-    })
-}
-
-/// `DELETE /:pkg/-rev/:rev` (path-less) or `DELETE /~<name>/:pkg/-rev/:rev`
-/// — remove the entire package directory, packument and all tarballs. Used
-/// by `pnpm unpublish --force`.
-pub(super) async fn delete_package(
+async fn read_packument_for_rewrite(
     state: &AppState,
     identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-) -> Response {
-    let name = match PackageName::parse(raw_name) {
-        Ok(n) => n,
-        Err(err) => return err.into_response(),
+    target: &WriteTarget,
+    name: &CanonicalPackageName,
+) -> Result<(Value, HostedDocumentVersion), Response> {
+    let registry_source = RegistrySource::Hosted(target.source.clone());
+    let Some((hosted, version)) =
+        read_authorized_packument(state, identity, (target, name), Action::Annotate)
+            .await
+            .map_err(IntoResponse::into_response)?
+    else {
+        authorize_package(
+            state,
+            identity,
+            &registry_source,
+            name.as_str(),
+            Action::Delete,
+            Some(&target.namespace),
+        )
+        .await
+        .map_err(IntoResponse::into_response)?;
+        return Err(no_published_packument(name).into_response());
     };
-    let target = match resolve_write_target(state, identity, registry, &name) {
-        Ok(target) => target,
-        Err(err) => return err.into_response(),
-    };
-    if let Err(err) = authorize(
+    authorize_against_packument(
         state,
         identity,
-        &RegistrySource::Hosted(target.source.clone()),
-        name.as_str(),
-        Action::Unpublish,
-    ) {
-        return err.into_response();
+        &registry_source,
+        (name.as_str(), &hosted),
+        Action::Delete,
+    )
+    .map_err(IntoResponse::into_response)?;
+    Ok((hosted, version))
+}
+
+pub(super) async fn read_authorized_packument(
+    state: &AppState,
+    identity: &Identity,
+    (target, name): (&WriteTarget, &CanonicalPackageName),
+    action: Action,
+) -> Result<Option<(Value, HostedDocumentVersion)>, RegistryError> {
+    let storage = hosted_storage(state, Some(&target.namespace));
+    let source = RegistrySource::Hosted(target.source.clone());
+    let Some(stored) = storage.read_hosted_document_for_update(name).await? else {
+        authorize_package(state, identity, &source, name.as_str(), action, Some(&target.namespace))
+            .await?;
+        return Ok(None);
+    };
+    let packument: Value = serde_json::from_slice(&stored.bytes)?;
+    authorize_against_packument(state, identity, &source, (name.as_str(), &packument), action)?;
+    Ok(Some((packument, stored.version)))
+}
+
+fn preserve_existing_maintainers(hosted: &Value, packument: &mut Value) {
+    let Some(obj) = packument.as_object_mut() else { return };
+    if let Some(existing) = hosted.get("maintainers") {
+        obj.insert("maintainers".to_string(), existing.clone());
+    } else {
+        obj.remove("maintainers");
     }
-    let org = target.org;
-    // Serialize against same-package publishers so a delete can't race a
-    // stage-and-commit and remove the package mid-write.
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    if let Err(err) = hosted_storage(state, Some(&org)).remove_package(&name).await {
-        return err.into_response();
+}
+
+fn detect_removed_versions(hosted: &Value, packument: &Value) -> Vec<String> {
+    let Some(hosted_versions) = hosted.get("versions").and_then(Value::as_object) else {
+        return Vec::new();
+    };
+    let incoming_versions = packument.get("versions").and_then(Value::as_object);
+    hosted_versions
+        .keys()
+        .filter(|version| incoming_versions.is_none_or(|inc| !inc.contains_key(*version)))
+        .cloned()
+        .collect()
+}
+
+/// The blobs the files of `removed_versions` are mapped to, read before the
+/// rewrite drops the versions and their mappings. A failure only warns: the
+/// blobs are then left for `pnpr gc`.
+async fn unpublished_blobs(
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+    removed_versions: &[String],
+) -> Vec<pnpr_storage::BlobId> {
+    match storage.version_blobs(name, removed_versions).await {
+        Ok(ids) => ids,
+        Err(err) => {
+            tracing::warn!(package = %name.as_str(), %err, "unpublished archives left for `pnpr gc`");
+            Vec::new()
+        }
     }
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
+}
+
+/// A rewrite that drops versions reclaims their archives too: a client that
+/// read the packument from a tar registry has no `dist.tarball` to send the
+/// follow-up tarball DELETE for. Bytes another file still maps stay. The
+/// versions are already unpublished, so an archive that fails to go is
+/// logged and left for `pnpr gc`.
+async fn reclaim_unpublished_blobs(
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+    ids: Vec<pnpr_storage::BlobId>,
+) {
+    if let Err(err) = storage.reclaim_blobs(ids).await {
+        tracing::warn!(package = %name.as_str(), %err, "unpublished archives left for `pnpr gc`");
+    }
+}
+
+fn log_packument_update(identity: &Identity, name: &CanonicalPackageName, source: &str) {
+    let actor = crate::audit::Actor::of(identity);
+    crate::audit!(
+        actor,
+        "package.update_packument",
+        package = %name.as_str(),
+        registry = %source,
+        "package packument updated",
+    );
+}
+
+fn no_published_packument(name: &CanonicalPackageName) -> RegistryError {
+    RegistryError::BadRequest {
+        reason: format!(
+            "cannot update {:?}: it has no published packument to unpublish from",
+            name.as_str(),
+        ),
+    }
+}
+
+fn ok_created() -> Response {
     Response::builder()
         .status(StatusCode::CREATED)
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
-}
-
-/// `DELETE /:pkg/-/:filename/-rev/:rev` — remove a single tarball
-/// file from the package directory. The partial-unpublish flow calls
-/// this after PUT'ing the modified packument back. Accept the
-/// libnpmpublish-style scoped filename as well as the canonical one
-/// by going through `canonicalize_tarball_name` first.
-pub(super) async fn delete_tarball(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-    filename: &str,
-) -> Response {
-    let name = match PackageName::parse(raw_name) {
-        Ok(n) => n,
-        Err(err) => return err.into_response(),
-    };
-    let canonical = match name.canonicalize_tarball_name(filename) {
-        Ok(c) => c,
-        Err(err) => return err.into_response(),
-    };
-    let target = match resolve_write_target(state, identity, registry, &name) {
-        Ok(target) => target,
-        Err(err) => return err.into_response(),
-    };
-    if let Err(err) = authorize(
-        state,
-        identity,
-        &RegistrySource::Hosted(target.source.clone()),
-        name.as_str(),
-        Action::Unpublish,
-    ) {
-        return err.into_response();
-    }
-    let org = target.org;
-    // Serialize against same-package publishers so a delete can't race a
-    // stage-and-commit and remove a tarball mid-write.
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    if let Err(err) = hosted_storage(state, Some(&org)).remove_tarball(&name, &canonical).await {
-        return err.into_response();
-    }
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    Response::builder()
-        .status(StatusCode::CREATED)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
-}
-
-/// `GET /-/package/:pkg/dist-tags` (path-less) or
-/// `GET /~<name>/-/package/:pkg/dist-tags` — return the packument's
-/// `dist-tags` object.
-pub(super) async fn get_dist_tags(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-) -> Response {
-    let name = match PackageName::parse(raw_name) {
-        Ok(n) => n,
-        Err(err) => return err.into_response(),
-    };
-    let bytes = match load_packument_for_read(state, identity, registry, &name).await {
-        Ok(Some(bytes)) => bytes,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
-    };
-    let packument: Value = match serde_json::from_slice(&bytes) {
-        Ok(v) => v,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    let mut tags = packument.get("dist-tags").cloned().unwrap_or_else(|| json!({}));
-    filter_osv_vulnerable_dist_tags(&mut tags, &packument, &name, state.inner.osv_index.as_ref());
-    let bytes = serde_json::to_vec(&tags).expect("dist-tags object serializes");
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
-}
-
-/// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or
-/// `PUT /~<name>/-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
-/// a JSON-encoded version string (e.g. `"1.0.0"`).
-pub(super) async fn set_dist_tag(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-    tag: &str,
-    body: &[u8],
-) -> Response {
-    let mut parsed_version: Option<String> = None;
-    update_dist_tag(state, identity, registry, raw_name, tag, move |tags| {
-        let version = if let Some(version) = parsed_version.as_ref() {
-            version.clone()
-        } else {
-            let version: String = serde_json::from_slice(body).map_err(RegistryError::Json)?;
-            parsed_version = Some(version.clone());
-            version
-        };
-        tags.insert(tag.to_string(), Value::String(version));
-        Ok(())
-    })
-    .await
-}
-
-pub(super) async fn remove_dist_tag(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-    tag: &str,
-) -> Response {
-    update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
-        tags.remove(tag);
-        Ok(())
-    })
-    .await
-}
-
-/// Shared "read packument, mutate dist-tags, write back" helper for
-/// add/remove. Returns 201 on success — verdaccio uses 201 for both
-/// add and remove and the anonymous-npm-registry-client tolerates
-/// 200 or 201, so we standardize on 201.
-async fn update_dist_tag<Mutate>(
-    state: &AppState,
-    identity: &Identity,
-    registry: Option<&str>,
-    raw_name: &str,
-    tag: &str,
-    mut mutate: Mutate,
-) -> Response
-where
-    Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
-{
-    let name = match PackageName::parse(raw_name) {
-        Ok(n) => n,
-        Err(err) => return err.into_response(),
-    };
-    // A dist-tag change is a write, so it routes to a hosted namespace like
-    // a publish — a name routed to an upstream is rejected — and the
-    // resolved registry's `publish` rule gates it.
-    let target = match resolve_write_target(state, identity, registry, &name) {
-        Ok(target) => target,
-        Err(err) => return err.into_response(),
-    };
-    if let Err(err) = authorize(
-        state,
-        identity,
-        &RegistrySource::Hosted(target.source.clone()),
-        name.as_str(),
-        Action::Publish,
-    ) {
-        return err.into_response();
-    }
-    let org = target.org;
-    let storage = hosted_storage(state, Some(&org));
-
-    // Serialize the read-modify-write against other same-package writers
-    // on this instance (held until this function returns).
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-
-    let _ = tag; // the tag name is captured by the `mutate` closure.
-    let outcome = storage
-        .update_hosted_packument_with_retry(&name, PACKUMENT_WRITE_RETRIES, |existing_bytes| {
-            // A hosted org has no upstream, so a dist-tag change starts from the
-            // org's own packument; a package it does not host can't be tagged.
-            let Some(bytes) = existing_bytes else {
-                return Ok(None);
-            };
-            let mut packument: Value = serde_json::from_slice(bytes)?;
-            let Some(packument_obj) = packument.as_object_mut() else {
-                return Err(RegistryError::BadRequest {
-                    reason: "stored packument is not an object".to_string(),
-                });
-            };
-            let tags_entry = packument_obj
-                .entry("dist-tags".to_string())
-                .or_insert_with(|| Value::Object(serde_json::Map::new()));
-            let Some(tags) = tags_entry.as_object_mut() else {
-                return Err(RegistryError::BadRequest {
-                    reason: "stored dist-tags is not an object".to_string(),
-                });
-            };
-            mutate(tags)?;
-            // Refresh `time.modified` so clients do not lag behind a
-            // dist-tag change when deciding packument freshness.
-            let time_entry = packument_obj
-                .entry("time".to_string())
-                .or_insert_with(|| Value::Object(serde_json::Map::new()));
-            let Some(time_obj) = time_entry.as_object_mut() else {
-                return Err(RegistryError::BadRequest {
-                    reason: "stored time is not an object".to_string(),
-                });
-            };
-            time_obj.insert("modified".to_string(), Value::String(now_iso()));
-            Ok(Some(serde_json::to_vec_pretty(&packument)?))
-        })
-        .await;
-    match outcome {
-        Ok(PackumentUpdate::Written) => {}
-        Ok(PackumentUpdate::NotFound) => return not_found(),
-        Err(err) => return err.into_response(),
-    }
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    Response::builder()
-        .status(StatusCode::CREATED)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
+        .body(Body::from(r#"{"ok":true}"#))
         .expect("static-shape response always builds")
 }

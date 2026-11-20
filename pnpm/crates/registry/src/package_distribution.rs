@@ -1,19 +1,36 @@
-use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+use pnpm_package_manifest::PackageBin;
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use ssri::Integrity;
 
 #[derive(Debug, Default, Clone, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror npm registry dist metadata."
+    )
+)]
 pub struct PackageDistribution {
     /// Subresource integrity for the version's tarball.
     ///
     /// Decoded strictly, unlike the advisory fields below: a registry
-    /// package with no usable integrity cannot be locked at all — the
-    /// snapshot builder rejects it — so softening the parse would only
+    /// package with no usable integrity cannot be locked at all (the
+    /// snapshot builder rejects it) so softening the parse would only
     /// move "pnpm cannot verify this tarball" to a later, quieter
     /// failure. An unparsable value fails the manifest, and so the
     /// version, on purpose.
     pub integrity: Option<Integrity>,
     pub shasum: Option<String>,
+    /// The tarball URL, or empty when the registry names none. A registry
+    /// with a declared URL layout may omit it, and the resolver then
+    /// rebuilds it from the package's identity.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub tarball: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<serde_json::Value>,
@@ -21,13 +38,13 @@ pub struct PackageDistribution {
     pub revisions: Option<serde_json::Value>,
     /// Number of files in the tarball, as the registry reports it.
     ///
-    /// Advisory: any integral, non-negative encoding decodes — `12`,
-    /// `12.0`, `"12"` — and anything else reads as "not reported".
+    /// Advisory: any integral, non-negative encoding decodes (`12`,
+    /// `12.0`, `"12"`) and anything else reads as "not reported".
     #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_advisory_count")]
     pub file_count: Option<usize>,
     /// Unpacked byte size of the tarball, as the registry reports it.
     /// Read only as an allocation hint by the tarball extractor, which
-    /// caps it — never trusted as fact.
+    /// caps it, never trusted as fact.
     ///
     /// Decoded as leniently as [`Self::file_count`].
     #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_advisory_count")]
@@ -49,6 +66,59 @@ pub struct PackageDistribution {
         skip_serializing_if = "Option::is_none"
     )]
     pub attestations: Option<AttestationsDist>,
+
+    /// Tarball-verified facts `pnpr` computes from the archive's own
+    /// bytes and attaches under `dist.pnpr`.
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pnpr: Option<PnprDistribution>,
+}
+
+/// Tarball-verified facts `pnpr` attaches to `dist.pnpr`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PnprDistribution {
+    /// The build-trigger verdict of `pnpm_tarball::tar_requires_build`.
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_strict_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub requires_build: Option<bool>,
+    /// Precalculated executable bin entries and their shebang runtimes.
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_pnpr_bins",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub bins: Option<BTreeMap<String, PackageBin>>,
+    /// How pnpr's own package document listed the version (see
+    /// [`crate::parse_install_v2`]); `None` for a version read from npm's
+    /// documents. Honored only for a registry declared `serverType: pnpr`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub install_v2: Option<InstallV2Entry>,
+}
+
+/// How an entry of pnpr's own package document gave a version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InstallV2Entry {
+    /// With its manifest and pnpr's facts about the archives.
+    Complete,
+    /// Only with what picking reads: the rest is in the version's release
+    /// record.
+    External,
+}
+
+impl PackageDistribution {
+    /// How pnpr's own package document listed the version, if it did.
+    #[must_use]
+    pub fn install_v2_entry(&self) -> Option<InstallV2Entry> {
+        self.pnpr.as_ref().and_then(|pnpr| pnpr.install_v2)
+    }
 }
 
 /// Container for the attestation evidence a version exposes on its

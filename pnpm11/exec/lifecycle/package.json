@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.lifecycle",
-  "version": "1100.1.15",
+  "version": "1100.1.30",
   "description": "Package lifecycle hook runner",
   "keywords": [
     "pnpm",
@@ -28,17 +28,17 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "compile": "tsgo --build && pn lint --fix",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.npm-lifecycle": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
-    "@pnpm/npm-lifecycle": "catalog:",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
@@ -46,8 +46,7 @@
     "@pnpm/workspace.task-scheduler": "workspace:*",
     "chalk": "catalog:",
     "is-windows": "catalog:",
-    "path-exists": "catalog:",
-    "shlex": "catalog:"
+    "path-exists": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

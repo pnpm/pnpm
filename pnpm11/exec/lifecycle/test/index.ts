@@ -7,6 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   makeNodePackageMapOption,
   makeNodeRequireOption,
+  makeProjectNodePathOption,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
@@ -20,8 +21,23 @@ import isWindows from 'is-windows'
 
 const skipOnWindows = isWindows() ? test.skip : test
 
-const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const testFixtures = fixtures(path.join(import.meta.dirname, 'fixtures'))
 const rootModulesDir = path.join(import.meta.dirname, '..', 'node_modules')
+
+skipOnWindows('makeProjectNodePathOption() puts the custom modules directory of a project with symlinked executables first on NODE_PATH', async () => {
+  const project = { modulesDir: '/project/vendor', rootDir: '/project' }
+  const opts = { preferSymlinkedExecutables: true, extraEnv: { NODE_PATH: '/project/vendor/.pnpm/node_modules' } }
+
+  expect(await makeProjectNodePathOption(project, opts)).toStrictEqual({
+    NODE_PATH: `/project/vendor${path.delimiter}/project/vendor/.pnpm/node_modules`,
+  })
+  expect(await makeProjectNodePathOption(project, { ...opts, extraEnv: { NODE_PATH: `/store/links/node_modules${path.delimiter}/project/vendor` } })).toStrictEqual({
+    NODE_PATH: `/project/vendor${path.delimiter}/store/links/node_modules`,
+  })
+  expect(await makeProjectNodePathOption(project, { ...opts, extendNodePath: false })).toStrictEqual({})
+  expect(await makeProjectNodePathOption(project, { ...opts, preferSymlinkedExecutables: false })).toStrictEqual({})
+  expect(await makeProjectNodePathOption({ ...project, modulesDir: '/project/node_modules' }, opts)).toStrictEqual({})
+})
 
 test('makeNodeRequireOption() preserves existing NODE_OPTIONS', () => {
   expect(makeNodeRequireOption('/project/.pnp.cjs', {
@@ -114,7 +130,7 @@ test('makeNodePackageMapOption() replaces an existing flag whose path contains a
 })
 
 test('runLifecycleHook()', async () => {
-  const pkgRoot = f.find('simple')
+  const pkgRoot = testFixtures.find('simple')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
@@ -129,7 +145,7 @@ test('runLifecycleHook()', async () => {
 })
 
 test('runLifecycleHook() escapes the args passed to the script', async () => {
-  const pkgRoot = f.find('escape-args')
+  const pkgRoot = testFixtures.find('escape-args')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('echo', pkg, {
     depPath: '/escape-args/1.0.0',
@@ -142,8 +158,72 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['Revert "feature (#1)"'])
 })
 
+const argsThatCmdInterprets = [
+  'C:\\Program Files\\tool\\',
+  '%PATH%',
+  'a b',
+  'a"b',
+  'tab\there',
+  '^&|<>()!',
+  '',
+  'ends with a backslash\\',
+]
+
+test.each([
+  ['a node script', 'node echo.js'],
+  ['a node_modules/.bin shim', 'record-args'],
+])('runLifecycleHook() passes the args unchanged to %s', async (_, script) => {
+  const pkgRoot = testFixtures.prepare('escape-args')
+  const binDir = path.join(pkgRoot, 'node_modules', '.bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  fs.writeFileSync(path.join(binDir, 'record-args'), '#!/bin/sh\nexec node "$(dirname "$0")/../../echo.js" "$@"\n', { mode: 0o755 })
+  fs.writeFileSync(path.join(binDir, 'record-args.cmd'), '@node "%~dp0\\..\\..\\echo.js" %*\r\n')
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+
+  await runLifecycleHook('echo', { ...pkg, scripts: { echo: script } }, {
+    depPath: '/escape-args/1.0.0',
+    pkgRoot,
+    rootModulesDir,
+    unsafePerm: true,
+    args: argsThatCmdInterprets,
+  })
+
+  const recorded = JSON.parse(await fs.promises.readFile(path.join(pkgRoot, 'output.json'), 'utf8'))
+  expect(recorded).toStrictEqual(argsThatCmdInterprets)
+})
+
+test('runLifecycleHook() preserves literal arguments with the shell emulator', async () => {
+  const pkgRoot = testFixtures.find('escape-args')
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+  await fs.promises.rm(path.join(pkgRoot, 'output.json'), { force: true })
+  const args = [
+    'C:\\Program Files\\tool\\',
+    '',
+    '\'it\'\'s\'',
+    'a"b',
+    '$PNPM_QUOTING_TEST',
+    '$(echo expanded)',
+    'a;b',
+    '*',
+    'line\nbreak',
+    '中文',
+  ]
+  await runLifecycleHook('echo', pkg, {
+    depPath: '/escape-args/1.0.0',
+    pkgRoot,
+    rootModulesDir,
+    unsafePerm: true,
+    shellEmulator: true,
+    extraEnv: { PNPM_QUOTING_TEST: 'expanded' },
+    args,
+  })
+
+  const recorded = JSON.parse(await fs.promises.readFile(path.join(pkgRoot, 'output.json'), 'utf8'))
+  expect(recorded).toStrictEqual(args)
+})
+
 test('runLifecycleHook() passes newline correctly', async () => {
-  const pkgRoot = f.find('escape-newline')
+  const pkgRoot = testFixtures.find('escape-newline')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('echo', pkg, {
     depPath: 'escape-newline@1.0.0',
@@ -154,12 +234,12 @@ test('runLifecycleHook() passes newline correctly', async () => {
   })
 
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual([
-    process.platform === 'win32' ? 'a\\nb != \'A\\\\nB\'' : 'a\nb != \'A\\nB\'',
+    process.platform === 'win32' ? 'a\\nb != \'A\\nB\'' : 'a\nb != \'A\\nB\'',
   ])
 })
 
 test('runLifecycleHook() does not set npm_config env vars but preserves user-defined ones', async () => {
-  const pkgRoot = f.find('inspect-npm-config-env')
+  const pkgRoot = testFixtures.prepare('inspect-npm-config-env')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   const prevPlatformArch = process.env.npm_config_platform_arch
@@ -183,7 +263,7 @@ test('runLifecycleHook() does not set npm_config env vars but preserves user-def
 })
 
 test('runPostinstallHooks()', async () => {
-  const pkgRoot = f.find('with-many-scripts')
+  const pkgRoot = testFixtures.prepare('with-many-scripts')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
@@ -197,7 +277,7 @@ test('runPostinstallHooks()', async () => {
 })
 
 test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {
-  const pkgRoot = f.find('without-script-start-serverjs')
+  const pkgRoot = testFixtures.find('without-script-start-serverjs')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
   await expect(
     runLifecycleHook('start', pkg, {
@@ -210,8 +290,35 @@ test('runLifecycleHook() should throw an error while missing script start or fil
   ).rejects.toThrow(new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js'))
 })
 
+test('runLifecycleHook() resolves server.js in pkgRoot when scripts.start is absent', async () => {
+  const pkgRoot = testFixtures.prepare('without-script-start-serverjs')
+  const marker = path.join(pkgRoot, 'server-ran.txt')
+  fs.writeFileSync(path.join(pkgRoot, 'server.js'), "require('node:fs').writeFileSync('server-ran.txt', 'ok')\n", 'utf8')
+  const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))
+  await runLifecycleHook('start', pkg, {
+    depPath: '/without-script-start-serverjs/1.0.0',
+    optional: false,
+    pkgRoot,
+    rootModulesDir,
+    unsafePerm: true,
+  })
+  expect(fs.readFileSync(marker, 'utf8')).toBe('ok')
+})
+
+test('gypfile: false does not trigger node-gyp rebuild', async () => {
+  const ranAScript = await runPostinstallHooks({
+    depPath: '/gyp-with-gypfile-false/1.0.0',
+    optional: false,
+    pkgRoot: testFixtures.find('gyp-with-gypfile-false'),
+    rootModulesDir,
+    unsafePerm: true,
+  })
+
+  expect(ranAScript).toBe(false)
+})
+
 test('preinstall script does not trigger node-gyp rebuild', async () => {
-  const pkgRoot = f.find('gyp-with-preinstall')
+  const pkgRoot = testFixtures.find('gyp-with-preinstall')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   await runPostinstallHooks({
     depPath: '/gyp-with-preinstall/1.0.0',

@@ -1,4 +1,7 @@
-use super::{UpdateArgs, UpdateDependencyOptions};
+use super::{
+    UpdateArgs,
+    UpdateDependencyOptions,
+};
 use clap::Parser;
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
@@ -16,7 +19,22 @@ fn update_args(args: &[&str]) -> UpdateArgs {
 }
 
 fn options(prod: bool, dev: bool, optional: bool, no_optional: bool) -> UpdateDependencyOptions {
-    UpdateDependencyOptions { prod, dev, optional, no_optional }
+    UpdateDependencyOptions { prod, dev, optional, no_optional, peer: false }
+}
+
+#[test]
+fn peer_is_opt_in() {
+    let mut options = options(false, false, false, false);
+    options.peer = true;
+    assert!(options.include_direct().contains(&DependencyGroup::Peer));
+}
+
+#[test]
+fn interactive_peer_is_rejected() {
+    let error = update_args(&["--interactive", "--peer"])
+        .check_interactive_peer_options()
+        .expect_err("interactive peer updates are not supported");
+    assert!(error.to_string().contains("--peer cannot be combined with --interactive"));
 }
 
 #[test]
@@ -101,11 +119,15 @@ fn workspace_option_is_checked_before_anything_is_read() {
     let workspace_root = std::path::Path::new("/workspace");
 
     assert_eq!(
-        update_args(&[]).check_workspace_option(Some(workspace_root)).expect("no flag"),
+        update_args(&[])
+            .check_workspace_option(Some(workspace_root))
+            .expect("no flag"),
         None,
     );
     assert_eq!(
-        update_args(&["--workspace"]).check_workspace_option(Some(workspace_root)).expect("linked"),
+        update_args(&["--workspace"])
+            .check_workspace_option(Some(workspace_root))
+            .expect("linked"),
         Some(workspace_root),
     );
 
@@ -118,6 +140,11 @@ fn workspace_option_is_checked_before_anything_is_read() {
         .check_workspace_option(Some(workspace_root))
         .expect_err("--workspace with --latest");
     assert_eq!(with_latest.to_string(), "Cannot use --latest with --workspace simultaneously");
+
+    let with_tag = update_args(&["--workspace", "--tag", "next"])
+        .check_workspace_option(Some(workspace_root))
+        .expect_err("--workspace with --tag");
+    assert_eq!(with_tag.to_string(), "Cannot use --tag with --workspace simultaneously");
 }
 
 #[test]
@@ -128,6 +155,23 @@ fn ignore_pnpmfile_flag_applies_to_config() {
 
     update_args(&["--ignore-pnpmfile"]).apply_cli_config(&mut config);
     assert!(config.ignore_pnpmfile, "flag present → config set");
+}
+
+#[test]
+fn ignore_scripts_flags_apply_to_config() {
+    let mut config = Config::default();
+    assert!(!config.ignore_scripts);
+
+    config.ignore_scripts = true;
+    update_args(&[]).apply_cli_config(&mut config);
+    assert!(config.ignore_scripts, "flags absent -> config unchanged");
+
+    config.ignore_scripts = false;
+    update_args(&["--ignore-scripts"]).apply_cli_config(&mut config);
+    assert!(config.ignore_scripts, "--ignore-scripts enables the setting");
+
+    update_args(&["--no-ignore-scripts"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_scripts, "--no-ignore-scripts disables the setting");
 }
 
 #[test]
@@ -142,12 +186,13 @@ fn pnpr_server_flag_applies_to_config() {
 #[test]
 fn patches_is_a_selectorless_update_mode() {
     let patches = update_args(&["--patches"]);
-    assert!(patches.patches);
+    assert!(patches.selection.patches);
     patches.check_patches_options().expect("standalone --patches");
 
     for args in [
         &["--patches", "foo"][..],
         &["--patches", "--latest"][..],
+        &["--patches", "--tag", "next"][..],
         &["--patches", "--interactive"][..],
         &["--patches", "--global"][..],
     ] {
@@ -155,9 +200,22 @@ fn patches_is_a_selectorless_update_mode() {
             update_args(args).check_patches_options().expect_err("--patches combination must fail");
         assert_eq!(
             error.to_string(),
-            "--patches cannot be combined with package selectors, --latest, --interactive, or --global",
+            "--patches cannot be combined with package selectors, --latest, --tag, --interactive, or --global",
         );
     }
+}
+
+#[test]
+fn tag_conflicts_with_latest() {
+    let result = UpdateArgsHarness::try_parse_from(["pacquet-test", "--latest", "--tag", "next"]);
+    assert!(result.is_err(), "--latest and --tag must conflict");
+}
+
+#[test]
+fn tag_parses_as_the_target_dist_tag() {
+    let args = update_args(&["--tag", "next"]);
+    assert_eq!(args.selection.tag.as_deref(), Some("next"));
+    assert!(!args.selection.latest);
 }
 
 #[test]
@@ -167,8 +225,34 @@ fn constrained_patch_refresh_stays_on_the_client() {
 
     assert!(update_args(&["--patches"]).can_delegate_patch_refresh(false, &all_groups));
     assert!(
+        update_args(&["--patches", "--depth", "Infinity"])
+            .can_delegate_patch_refresh(false, &all_groups),
+    );
+    assert!(
         !update_args(&["--patches", "--depth", "0"]).can_delegate_patch_refresh(false, &all_groups),
     );
     assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(true, &all_groups));
     assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(false, &prod_only));
+    assert!(
+        !update_args(&["--patches", "--no-optional"])
+            .can_delegate_patch_refresh(false, &all_groups),
+    );
+}
+
+#[test]
+fn long_requests_details_only_when_enabled() {
+    for (flags, expected) in
+        [(vec!["--interactive"], false), (vec!["--interactive", "--long"], true)]
+    {
+        let args = update_args(&flags);
+        let options = args.interactive_options(&[], false, &[]);
+        assert_eq!(options.details.shows_urls(), expected);
+    }
+}
+
+#[test]
+fn long_rejects_global_package_group_selection() {
+    let error = UpdateArgsHarness::try_parse_from(["pnpm", "--global", "--interactive", "--long"])
+        .expect_err("global selection has no package URL column");
+    assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
 }

@@ -1,48 +1,32 @@
 //! Error types for tarball download, verification, and extraction.
 
-use derive_more::{Display, Error, From};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 use miette::Diagnostic;
-use pnpm_network::redact_url_for_display;
-use pnpm_store_dir::{StoreIndexError, WriteCasFileError};
-use std::{error::Error as StdError, io, path::PathBuf};
+use pnpm_network::{
+    redact_url_for_display,
+    walk_reqwest_chain,
+};
+use pnpm_store_dir::{
+    StoreIndexError,
+    WriteCasFileError,
+};
+use std::{
+    error::Error as StdError,
+    io,
+    path::PathBuf,
+    sync::Arc,
+};
 use zune_inflate::errors::InflateDecodeErrors;
 
-/// Reqwest's own [`std::fmt::Display`] for a request-stage failure renders as
-/// `error sending request for url (URL): <inner>` only if it can find
-/// an inner source, and on some failure modes (e.g. the request was
-/// dropped before a connect was attempted) `inner` is `None` —
-/// leaving the user with the truly opaque `error sending request for
-/// url (URL)` and no clue about what actually failed.
-///
-/// [`walk_reqwest_chain`] walks `error.source()` itself and joins every
-/// stage's `Display` with `: ` so the rendered [`NetworkError`] always
-/// carries the leaf reason (e.g. `Connection refused (os error 61)`,
-/// `tls handshake eof`, `dns error: failed to lookup address`),
-/// regardless of which intermediate `reqwest` / `hyper` / `io::Error`
-/// happens to elide it.
-fn walk_reqwest_chain(error: &reqwest::Error) -> String {
-    let mut out = error.to_string();
-    let mut error: &dyn std::error::Error = error;
-    while let Some(src) = error.source() {
-        let frame = src.to_string();
-        // Skip empty or duplicate frames — hyper occasionally repeats
-        // the same message across two layers, and reqwest sometimes
-        // already includes the inner string in its top-level Display.
-        if !frame.is_empty() && !out.ends_with(&frame) {
-            out.push_str(": ");
-            out.push_str(&frame);
-        }
-        error = src;
-    }
-    out
-}
-
 /// Every URL below is rendered through [`redact_url_for_display`]: a
-/// tarball URL can carry inline `user:pass@` credentials — typed on the
-/// command line for `pnpm add <url>`, or declared in a manifest — and an
-/// error message ends up in terminal scrollback and CI logs. The field
-/// keeps the URL the request actually used; only the rendering is
-/// redacted.
+/// tarball URL can carry inline `user:pass@` credentials (typed on the
+/// command line for `pnpm add <url>`, or declared in a manifest) and an
+/// error message ends up in terminal scrollback and CI logs. Network
+/// errors also remove the request URL from the reqwest source chain.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Failed to fetch {}: {}", redact_url_for_display(url), walk_reqwest_chain(error))]
 pub struct NetworkError {
@@ -53,6 +37,12 @@ pub struct NetworkError {
     /// where the user just sees one line per wrapper.
     #[error(source)]
     pub error: reqwest::Error,
+}
+
+impl NetworkError {
+    pub(crate) fn new(url: &str, error: reqwest::Error) -> Self {
+        Self { url: redact_url_for_display(url), error: error.without_url() }
+    }
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -167,19 +157,12 @@ pub enum TarballError {
     #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
     TarballTooLarge { url: String, advertised_size: u64 },
 
-    /// A concurrent request for the same tarball URL went through
-    /// `run_with_mem_cache`, drove the network fetch, and failed.
-    /// This task was parked on the shared `Notify` waiting for the
-    /// download; on wake it sees [`crate::CacheValue::Failed`] and surfaces
-    /// this variant. The owner's original error stays with the
-    /// owner (it can't be cloned past `reqwest::Error`).
+    /// Another request for the same archive in the shared mem cache drove
+    /// the fetch and failed; see [`crate::CacheValue::Failed`]. `cause` is
+    /// that request's rendered error, whose URLs are already redacted.
     #[from(ignore)]
-    #[display(
-        "A concurrent fetch for {} failed; this request waited on the shared mem cache and inherits the failure",
-        redact_url_for_display(url)
-    )]
     #[diagnostic(code(ERR_PNPM_TARBALL_SIBLING_FETCH_FAILED))]
-    SiblingFetchFailed { url: String },
+    SiblingFetchFailed { cause: Arc<str> },
 
     /// Path-traversal rejection on a zip entry, carrying the
     /// `PATH_TRAVERSAL` error code: any entry whose path is absolute
@@ -205,13 +188,9 @@ pub enum TarballError {
         source: zip::result::ZipError,
     },
 
-    /// Per-entry I/O failure during zip extraction — `try_reserve`
+    /// Per-entry I/O failure during zip extraction, `try_reserve`
     /// for the entry's payload, the body read, or any other
-    /// [`std::io::Error`] surfaced from the zip iterator. Carries
-    /// the archive URL and the entry path that triggered the
-    /// failure so a corrupt archive is diagnosable from the user-
-    /// facing message; the underlying [`std::io::Error`] is
-    /// exposed as `source` for miette / `Error::source` walkers.
+    /// [`std::io::Error`] surfaced from the zip iterator.
     /// Kept separate from [`TarballError::ReadTarballEntries`] so
     /// the retry-classification path emits `ERR_PNPM_ZIP`
     /// rather than the tar-specific `ERR_PNPM_TARBALL_TAR`.
@@ -237,11 +216,11 @@ pub enum TarballError {
     /// the underlying network refusal propagate.
     ///
     /// `ERR_PNPM_NO_OFFLINE_TARBALL` is a pacquet-specific code;
-    /// the message shape follows pnpm's `ERR_PNPM_NO_OFFLINE_META`
-    /// — "Failed to resolve `<pkg>` in package mirror `<dir>`".
+    /// the message shape follows pnpm's `ERR_PNPM_NO_OFFLINE_META`.
     #[from(ignore)]
     #[display(
-        "Failed to fetch tarball for {package_id} from {url} in offline mode: snapshot not present in local store"
+        "Failed to fetch tarball for {package_id} from {} in offline mode: snapshot not present in local store",
+        redact_url_for_display(url)
     )]
     #[diagnostic(
         code(ERR_PNPM_NO_OFFLINE_TARBALL),
@@ -264,9 +243,65 @@ pub enum TarballError {
         )
     )]
     UnexpectedPkgContentInStore { hint: String },
+
+    /// The response declared a `Content-Encoding` that pnpm did not offer
+    /// in its `Accept-Encoding`.
+    #[from(ignore)]
+    #[display(
+        "{} was served with Content-Encoding {encoding:?}, which pnpm cannot decode",
+        redact_url_for_display(url)
+    )]
+    #[diagnostic(code(ERR_PNPM_TARBALL_CONTENT_ENCODING))]
+    UnsupportedContentEncoding { url: String, encoding: String },
+
+    /// The response's content coding did not decode, for example a zstd frame
+    /// whose window exceeds the 8 MiB limit.
+    #[from(ignore)]
+    #[display(
+        "Failed to decode the {encoding} content coding of {}: {reason}",
+        redact_url_for_display(url)
+    )]
+    #[diagnostic(code(ERR_PNPM_TARBALL_CONTENT_ENCODING))]
+    ContentDecode { url: String, encoding: &'static str, reason: String },
+
+    /// The decoded body is neither a gzip stream nor a tar archive, such as an
+    /// HTML page served with a success status.
+    #[from(ignore)]
+    #[display("The response is neither a gzip nor a tar archive")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_UNRECOGNIZED))]
+    UnrecognizedArchive,
+
+    /// A `.tgz` whose integrity names its tar does not decode in full, so
+    /// it has no tar to check. Every gzip member must decode cleanly, with
+    /// nothing after the tar's end-of-archive record.
+    #[from(ignore)]
+    #[display("{} does not decode to a complete tar: {reason}", redact_url_for_display(url))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_INCOMPLETE_TAR))]
+    IncompleteTar {
+        #[error(not(source))]
+        url: String,
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// The decoded archive overran the decoded-output budget before its
+    /// hash could be checked.
+    #[from(ignore)]
+    #[display("The archive is larger than pnpm accepts: {_0}")]
+    #[diagnostic(
+        code(ERR_PNPM_TARBALL_TOO_LARGE),
+        help(
+            "If the package is legitimately this large, raise the maxTarballUnpackedSize setting."
+        )
+    )]
+    ArchiveLimit(#[error(not(source))] crate::ArchiveLimit),
 }
 
 impl TarballError {
+    pub(crate) fn is_fetch_timeout(&self) -> bool {
+        matches!(self, TarballError::FetchTarball(network) if network.error.is_timeout())
+    }
+
     /// Preserve the status and error code custom fetchers use for fallback decisions.
     #[must_use]
     pub fn fetch_error_details(&self) -> FetchErrorDetails {
@@ -291,37 +326,50 @@ impl TarballError {
         if network.error.is_connect() {
             details.code = Some("ENETUNREACH".to_string());
         }
-
-        let mut source = network.error.source();
-        while let Some(error) = source {
-            // Only matches while this crate and `reqwest` resolve the same
-            // major `rustls`; a version split makes the downcast fail
-            // silently rather than break the build.
-            if error.is::<rustls::Error>() {
-                details.code = Some("ERR_TLS_HANDSHAKE".to_string());
-                return details;
-            }
-            if let Some(io_error) = error.downcast_ref::<io::Error>() {
-                let code = match io_error.kind() {
-                    io::ErrorKind::ConnectionRefused => Some("ECONNREFUSED"),
-                    io::ErrorKind::ConnectionReset => Some("ECONNRESET"),
-                    io::ErrorKind::ConnectionAborted => Some("ECONNABORTED"),
-                    io::ErrorKind::TimedOut => Some("ETIMEDOUT"),
-                    io::ErrorKind::BrokenPipe => Some("EPIPE"),
-                    _ => None,
-                };
-                if let Some(code) = code {
-                    details.code = Some(code.to_string());
-                }
-                // `io::Error::source()` skips its boxed error itself, which
-                // can be the rustls certificate or handshake failure.
-                if let Some(inner) = io_error.get_ref() {
-                    source = Some(inner);
-                    continue;
-                }
-            }
-            source = error.source();
+        if let Some(code) = transport_error_code(&network.error) {
+            details.code = Some(code);
         }
         details
+    }
+}
+
+/// The `errno`-style code a transport failure buried in the error chain
+/// carries, if any. The chain is walked because `reqwest` wraps the
+/// underlying TLS or I/O error several layers deep.
+fn transport_error_code(error: &reqwest::Error) -> Option<String> {
+    let mut code = None;
+    let mut source = error.source();
+    while let Some(error) = source {
+        // Only matches while this crate and `reqwest` resolve the same
+        // major `rustls`; a version split makes the downcast fail
+        // silently rather than break the build.
+        if error.is::<rustls::Error>() {
+            return Some("ERR_TLS_HANDSHAKE".to_string());
+        }
+        let Some(io_error) = error.downcast_ref::<io::Error>() else {
+            source = error.source();
+            continue;
+        };
+        if let Some(io_code) = io_error_code(io_error) {
+            code = Some(io_code.to_string());
+        }
+        // `io::Error::source()` skips its boxed error itself, which
+        // can be the rustls certificate or handshake failure.
+        source = match io_error.get_ref() {
+            Some(inner) => Some(inner),
+            None => error.source(),
+        };
+    }
+    code
+}
+
+fn io_error_code(error: &io::Error) -> Option<&'static str> {
+    match error.kind() {
+        io::ErrorKind::ConnectionRefused => Some("ECONNREFUSED"),
+        io::ErrorKind::ConnectionReset => Some("ECONNRESET"),
+        io::ErrorKind::ConnectionAborted => Some("ECONNABORTED"),
+        io::ErrorKind::TimedOut => Some("ETIMEDOUT"),
+        io::ErrorKind::BrokenPipe => Some("EPIPE"),
+        _ => None,
     }
 }

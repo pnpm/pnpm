@@ -23,43 +23,45 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['dist-tag', 'dist-tags']
 
+const HELP_DESCRIPTION_LISTS = [
+  {
+    title: 'Commands',
+
+    list: [
+      {
+        description: 'List all dist-tags for a package. Default if no subcommand is given.',
+        name: 'ls',
+      },
+      {
+        description: 'Add a dist-tag to a specific version of a package.',
+        name: 'add',
+      },
+      {
+        description: 'Remove a dist-tag from a package.',
+        name: 'rm',
+      },
+    ],
+  },
+  {
+    title: 'Options',
+
+    list: [
+      {
+        description: 'The base URL of the npm registry.',
+        name: '--registry <url>',
+      },
+      {
+        description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password.',
+        name: '--otp',
+      },
+    ],
+  },
+]
+
 export function help (): string {
   return renderHelp({
     description: 'Manages distribution tags for a package.',
-    descriptionLists: [
-      {
-        title: 'Commands',
-
-        list: [
-          {
-            description: 'List all dist-tags for a package. Default if no subcommand is given.',
-            name: 'ls',
-          },
-          {
-            description: 'Add a dist-tag to a specific version of a package.',
-            name: 'add',
-          },
-          {
-            description: 'Remove a dist-tag from a package.',
-            name: 'rm',
-          },
-        ],
-      },
-      {
-        title: 'Options',
-
-        list: [
-          {
-            description: 'The base URL of the npm registry.',
-            name: '--registry <url>',
-          },
-          {
-            description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password.',
-            name: '--otp',
-          },
-        ],
-      },
-    ],
+    descriptionLists: HELP_DESCRIPTION_LISTS,
     url: docsUrl('dist-tag'),
     usages: [
       'pnpm dist-tag ls [<package>]',
@@ -92,7 +94,6 @@ export async function handler (
   if (subcommand === 'ls' || subcommand === 'list') {
     return distTagLs(opts, params.slice(1))
   }
-  // Default: treat all params as arguments to ls
   return distTagLs(opts, params)
 }
 
@@ -182,7 +183,6 @@ async function distTagRm (
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const cliOtp = opts.cliOptions?.otp
 
-  // First check the tag exists
   const distTags = await fetchDistTags(packageName, registryUrl, fetchFromRegistry, authHeader)
   if (!(tag in distTags)) {
     throw new PnpmError('DIST_TAG_NOT_FOUND', `dist-tag "${tag}" is not set on package "${packageName}"`)
@@ -229,6 +229,7 @@ async function deleteDistTag ({
     method: 'DELETE',
     headers: {
       'npm-auth-type': authType,
+      'npm-command': 'dist-tag',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
   })

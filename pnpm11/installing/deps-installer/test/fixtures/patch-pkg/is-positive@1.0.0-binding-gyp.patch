@@ -1,0 +1,7 @@
+diff --git a/binding.gyp b/binding.gyp
+new file mode 100644
+index 0000000..d7ea4ac
+--- /dev/null
++++ b/binding.gyp
+@@ -0,0 +1 @@
++{ "targets": [] }

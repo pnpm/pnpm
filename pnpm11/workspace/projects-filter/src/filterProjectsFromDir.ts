@@ -1,3 +1,4 @@
+import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import type { SupportedArchitectures } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -9,6 +10,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
   projectSelectors: ProjectSelector[],
   opts?: {
     engineStrict?: boolean
+    modulesDir?: string
     linkWorkspacePackages?: boolean
     changedFilesIgnorePattern?: string[]
     supportedArchitectures?: SupportedArchitectures
@@ -17,6 +19,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)
   const allProjects = await findWorkspaceProjects(workspaceDir, {
     patterns: workspaceManifest == null ? undefined : workspaceManifest.packages ?? ['.'],
+    modulesDir: opts?.modulesDir,
     engineStrict: opts?.engineStrict,
     supportedArchitectures: opts?.supportedArchitectures ?? {
       os: ['current'],
@@ -28,6 +31,7 @@ export async function filterProjectsBySelectorObjectsFromDir (
     allProjects,
     projectSelectors,
     {
+      catalogs: getCatalogsFromWorkspaceManifest(workspaceManifest),
       linkWorkspacePackages: opts?.linkWorkspacePackages,
       workspaceDir,
       changedFilesIgnorePattern: opts?.changedFilesIgnorePattern,

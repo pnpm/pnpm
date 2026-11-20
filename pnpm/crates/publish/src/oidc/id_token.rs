@@ -1,14 +1,26 @@
 //! retrieve an OIDC id-token from the CI
 //! environment.
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
 use url::Url;
 
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+    },
     oidc::{
-        GitHubRequestTokenError, OidcHttpOptions, github_request_token, is_github_actions,
+        GitHubRequestTokenError,
+        OidcHttpOptions,
+        github_request_token,
+        is_github_actions,
+        provenance::id_token_payload,
         truthy_env,
     },
 };
@@ -30,6 +42,12 @@ where
     Reporter: self::Reporter,
 {
     if let Some(token) = truthy_env::<Sys>("NPM_ID_TOKEN") {
+        let audience = registry_audience(registry)?;
+        let payload = id_token_payload(&token)
+            .map_err(|_| GetIdTokenError::IdToken(IdTokenError::NpmIdTokenAudienceMismatch))?;
+        if !token_has_audience(&payload, &audience) {
+            return Err(IdTokenError::NpmIdTokenAudienceMismatch.into());
+        }
         return Ok(Some(token));
     }
 
@@ -37,10 +55,23 @@ where
         return Ok(None);
     }
 
-    let parsed_registry = Url::parse(registry).map_err(GetIdTokenError::InvalidRegistry)?;
-    let audience = format!("npm:{}", parsed_registry.host_str().unwrap_or_default());
-
+    let audience = registry_audience(registry)?;
     github_request_token::<Sys, Reporter>(&audience, options).await.map(Some).map_err(Into::into)
+}
+
+fn registry_audience(registry: &str) -> Result<String, GetIdTokenError> {
+    let parsed_registry = Url::parse(registry).map_err(GetIdTokenError::InvalidRegistry)?;
+    Ok(format!("npm:{}", parsed_registry.host_str().unwrap_or_default()))
+}
+
+fn token_has_audience(payload: &serde_json::Value, expected: &str) -> bool {
+    match payload.get("aud") {
+        Some(serde_json::Value::String(audience)) => audience == expected,
+        Some(serde_json::Value::Array(audiences)) => audiences
+            .iter()
+            .any(|audience| audience.as_str() == Some(expected)),
+        _ => false,
+    }
 }
 
 /// A skippable id-token error: surfaced as a warning by the publish flow,
@@ -48,6 +79,10 @@ where
 ///
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum IdTokenError {
+    #[display("NPM_ID_TOKEN is invalid or does not match the selected registry audience")]
+    #[diagnostic(code(ERR_PNPM_ID_TOKEN_REGISTRY_AUDIENCE_MISMATCH))]
+    NpmIdTokenAudienceMismatch,
+
     #[display("Incorrect permissions for idToken within GitHub Workflows")]
     #[diagnostic(code(ERR_PNPM_ID_TOKEN_GITHUB_WORKFLOW_INCORRECT_PERMISSIONS))]
     GitHubWorkflowIncorrectPermissions,
@@ -73,11 +108,9 @@ pub enum IdTokenError {
 /// code lets propagate past the `error instanceof IdTokenError` guard.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum GetIdTokenError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     IdToken(IdTokenError),
 
-    #[display("{_0}")]
     Fetch(OidcFetchError),
 
     #[display("invalid registry URL: {_0}")]

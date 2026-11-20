@@ -1,14 +1,27 @@
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_lockfile::{LoadLockfileError, LockfileFormError, SaveLockfileError};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_lockfile::{
+    LoadLockfileError,
+    LockfileFormError,
+    SaveLockfileError,
+};
 use pnpm_package_manager::ImportIndexedDirError;
 use pnpm_resolving_resolver_base::ResolveError;
 use pnpm_tarball::TarballError;
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::PathBuf,
+};
 
 /// Errors surfaced while resolving or installing configurational
 /// dependencies. The user-facing `code(...)` values mirror the
-/// `ERR_PNPM_*` codes pnpm's env-installer throws — they are part of
+/// `ERR_PNPM_*` codes pnpm's env-installer throws; they are part of
 /// the public contract (<https://pnpm.io/errors>).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -28,15 +41,12 @@ pub enum ConfigDepError {
     #[diagnostic(code(ERR_PNPM_CONFIG_DEP_OPTIONAL_NOT_EXACT))]
     OptionalNotExact { parent_name: String, subdep_name: String, spec: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_BAD_CONFIG_DEP))]
     BadConfigDep { message: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE))]
     FrozenLockfileOutdated { message: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_ENV_LOCKFILE_CORRUPTED))]
     EnvLockfileCorrupted { message: String },
 

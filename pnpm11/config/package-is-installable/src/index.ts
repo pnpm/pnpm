@@ -48,6 +48,34 @@ export function checkPackageInstallability (
   return checkPackage(pkgId, { engines: pkg.engines, ...effectivePlatform(pkg, options.optional) }, options)
 }
 
+export interface ForcedInstallabilityOptions {
+  engineStrict: boolean
+  /**
+   * Install every package the lockfile names, whatever its `os`, `cpu`,
+   * `libc` or `engines` say: the installability check is skipped entirely.
+   */
+  includeIncompatiblePackages: boolean
+}
+
+/**
+ * How `--force` changes the installability check. It lifts `engineStrict`,
+ * as npm's does, so an `engines` mismatch on a required package warns
+ * instead of failing. Under `forceIgnoresPlatform` (the default) it also
+ * skips the check altogether, so optional dependencies for other platforms
+ * are installed instead of skipped.
+ */
+export function installabilityUnderForce (opts: {
+  engineStrict?: boolean
+  force?: boolean
+  forceIgnoresPlatform?: boolean
+}): ForcedInstallabilityOptions {
+  const force = opts.force === true
+  return {
+    engineStrict: opts.engineStrict === true && !force,
+    includeIncompatiblePackages: force && opts.forceIgnoresPlatform !== false,
+  }
+}
+
 export function packageIsInstallable (
   pkgId: string,
   pkg: InstallabilityManifest,
@@ -63,11 +91,6 @@ export function packageIsInstallable (
   const warn = checkPackageInstallability(pkgId, pkg, options)
 
   if (warn == null) return true
-
-  installCheckLogger.warn({
-    message: warn.message,
-    prefix: options.lockfileDir,
-  })
 
   if (options.optional) {
     skippedOptionalDependencyLogger.debug({
@@ -86,6 +109,11 @@ export function packageIsInstallable (
 
   if (options.engineStrict) throw warn
 
+  installCheckLogger.warn({
+    message: warn.message,
+    prefix: options.lockfileDir,
+  })
+
   return null
 }
 
@@ -102,8 +130,8 @@ interface PlatformFields {
  * platform-specific binary the package name carries the same information, so
  * each missing field is filled from the name's tokens. A package that
  * declares no platform fields at all is treated as platform-specific only
- * when an operating system is recognized in its name — a generic name
- * segment (e.g. `arm` on its own) never marks it as such.
+ * when its name has an operating system and a cpu or libc token — a lone
+ * name segment (e.g. `arm` or `windows` on its own) never marks it as such.
  * https://github.com/pnpm/pnpm/issues/11702
  */
 function effectivePlatform (pkg: PlatformFields & { name: string }, optional: boolean): PlatformFields {
@@ -111,7 +139,8 @@ function effectivePlatform (pkg: PlatformFields & { name: string }, optional: bo
   const inferred = inferPlatformFromPackageName(pkg.name)
   if (inferred == null) return pkg
   const pkgDeclaresPlatform = pkg.os != null || pkg.cpu != null || pkg.libc != null
-  if (!pkgDeclaresPlatform && inferred.os == null) return pkg
+  const namesBinaryTarget = inferred.os != null && (inferred.cpu != null || inferred.libc != null)
+  if (!pkgDeclaresPlatform && !namesBinaryTarget) return pkg
   return {
     os: pkg.os ?? inferred.os,
     cpu: pkg.cpu ?? inferred.cpu,

@@ -65,7 +65,7 @@ async function recordChangeWithStdoutRows (stdoutRows: number | undefined): Prom
   const rows = Object.getOwnPropertyDescriptor(process.stdout, 'rows')
   Object.defineProperty(process.stdout, 'rows', { value: stdoutRows, configurable: true })
   try {
-    const output = await change.handler({ dir: workspaceDir, workspaceDir, allProjects } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const output = await change.handler({ dir: workspaceDir, workspaceDir, allProjects } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(output).toMatch(/Recorded change intent \.changeset\/.+\.md/)
   } finally {
     if (rows == null) {

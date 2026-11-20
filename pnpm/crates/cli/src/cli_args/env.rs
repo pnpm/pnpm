@@ -1,16 +1,31 @@
-//! `pacquet env` — the deprecated Node.js-only front end to
+//! `pacquet env`: the deprecated Node.js-only front end to
 //! [`super::runtime`], kept because pnpm still ships it.
 
-use super::{global::handle_global_add, registry_client::build_registry_client};
+use super::{
+    add::AddRequest,
+    global::handle_global_add,
+    registry_client::build_registry_client,
+};
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_config::Config;
+use pnpm_config::{
+    Config,
+    Tool,
+};
 use pnpm_engine_runtime_node_resolver::{
-    get_node_mirror, parse_node_specifier, resolve_node_versions_with_auth,
+    get_node_mirror,
+    parse_node_specifier,
+    resolve_node_versions_with_auth,
 };
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{Reporter, emit_global_warning};
+use pnpm_reporter::{
+    Reporter,
+    emit_global_warning,
+};
 use std::path::Path;
 
 /// Manage Node.js versions.
@@ -25,7 +40,7 @@ pub struct EnvArgs {
     #[clap(long, hide = true)]
     pub remote: bool,
 
-    /// Subcommand (`use`, `list`) and its arguments.
+    /// Subcommand (`use`, `list`, `remove`) and its arguments.
     pub params: Vec<String>,
 }
 
@@ -33,18 +48,24 @@ pub struct EnvArgs {
 const DEPRECATION_WARNING: &str =
     r#""pnpm env use" is deprecated. Use "pnpm runtime set node <version> -g" instead."#;
 
+const REMOVE_DEPRECATION_WARNING: &str =
+    r#""pnpm env remove" is deprecated. Use "pnpm remove -g node" instead."#;
+
 /// Errors raised by `pacquet env`.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum EnvError {
     #[display("Please specify the subcommand")]
-    #[diagnostic(code(ERR_PNPM_ENV_NO_SUBCOMMAND), help("Supported subcommands are: use, list"))]
+    #[diagnostic(
+        code(ERR_PNPM_ENV_NO_SUBCOMMAND),
+        help("Supported subcommands are: use, list, remove")
+    )]
     NoSubcommand,
 
     #[display("This subcommand is not known")]
     #[diagnostic(
         code(ERR_PNPM_ENV_UNKNOWN_SUBCOMMAND),
-        help("Supported subcommands are: use, list")
+        help("Supported subcommands are: use, list, remove")
     )]
     UnknownSubcommand,
 
@@ -63,25 +84,63 @@ pub enum EnvError {
     #[diagnostic(code(ERR_PNPM_NOT_IMPLEMENTED_YET))]
     LocalUseUnsupported,
 
-    #[display(r#""pnpm env use --global <version>" requires a Node.js version to be specified"#)]
+    #[display(
+        r#""pnpm env remove <version>" can only be used with the "--global" option currently"#
+    )]
+    #[diagnostic(code(ERR_PNPM_NOT_IMPLEMENTED_YET))]
+    LocalRemoveUnsupported,
+
+    #[display(
+        r#""pnpm env {subcommand} --global <version>" requires a Node.js version to be specified"#
+    )]
     #[diagnostic(code(ERR_PNPM_MISSING_NODE_VERSION))]
-    MissingNodeVersion,
+    MissingNodeVersion { subcommand: &'static str },
 }
 
 /// What [`EnvArgs`] resolved its parameters to.
 ///
-/// The two subcommands need different resources — the global config and
-/// the install pipeline versus a registry client — so parsing is split
+/// The subcommands need different resources (the global config and
+/// the install pipeline versus a registry client) so parsing is split
 /// from running and the dispatcher picks the path.
 #[derive(Debug)]
 pub enum EnvSubcommand {
     Use { package_name: String },
     List { version_spec: Option<String> },
+    Remove { versions: Vec<String> },
 }
 
 impl EnvArgs {
-    /// Classify the subcommand, applying the checks pnpm runs before it
-    /// dispatches.
+    fn parse_use<Reporter: self::Reporter>(&self) -> Result<EnvSubcommand, EnvError> {
+        emit_global_warning::<Reporter>(DEPRECATION_WARNING);
+        if !self.global {
+            return Err(EnvError::LocalUseUnsupported);
+        }
+        let version = self.params
+            .get(1)
+            .map(|version| version.trim())
+            .filter(|version| !version.is_empty())
+            .ok_or(EnvError::MissingNodeVersion { subcommand: "use" })?;
+        Ok(EnvSubcommand::Use { package_name: format!("node@runtime:{version}") })
+    }
+
+    fn parse_remove<Reporter: self::Reporter>(&self) -> Result<EnvSubcommand, EnvError> {
+        emit_global_warning::<Reporter>(REMOVE_DEPRECATION_WARNING);
+        if !self.global {
+            return Err(EnvError::LocalRemoveUnsupported);
+        }
+        let versions: Vec<String> = self.params
+            .iter()
+            .skip(1)
+            .map(|version| version.trim())
+            .map(std::string::ToString::to_string)
+            .filter(|version| !version.is_empty())
+            .collect();
+        if versions.is_empty() {
+            return Err(EnvError::MissingNodeVersion { subcommand: "remove" });
+        }
+        Ok(EnvSubcommand::Remove { versions })
+    }
+
     pub fn subcommand<Reporter: self::Reporter>(
         self,
         config: &Config,
@@ -89,26 +148,14 @@ impl EnvArgs {
         let Some(subcommand) = self.params.first() else {
             return Err(EnvError::NoSubcommand);
         };
-        if self.global && config.global_bin.is_none() {
+        if self.global && config.global_bin.is_none() && subcommand == "use" {
             return Err(EnvError::CannotManageNode);
         }
         match subcommand.as_str() {
-            "use" => {
-                emit_global_warning::<Reporter>(DEPRECATION_WARNING);
-                if !self.global {
-                    return Err(EnvError::LocalUseUnsupported);
-                }
-                let version = self
-                    .params
-                    .get(1)
-                    .map(|version| version.trim())
-                    .filter(|version| !version.is_empty())
-                    .ok_or(EnvError::MissingNodeVersion)?;
-                Ok(EnvSubcommand::Use { package_name: format!("node@runtime:{version}") })
-            }
+            "use" => self.parse_use::<Reporter>(),
+            "remove" | "rm" | "uninstall" | "un" => self.parse_remove::<Reporter>(),
             "list" | "ls" => Ok(EnvSubcommand::List {
-                version_spec: self
-                    .params
+                version_spec: self.params
                     .get(1)
                     .map(|spec| spec.trim())
                     .filter(|spec| !spec.is_empty())
@@ -126,9 +173,10 @@ impl EnvArgs {
         config: &'static Config,
         dir: &Path,
     ) -> miette::Result<()> {
+        let request = AddRequest::from(package_name.as_str());
         Box::pin(handle_global_add::<Reporter>(
             config,
-            std::slice::from_ref(&package_name),
+            std::slice::from_ref(&request),
             RangeSpecStyle::Major,
             config.supported_architectures.clone(),
             // A runtime install has no user packages, so no `--allow-build`.
@@ -141,14 +189,19 @@ impl EnvArgs {
     /// Oldest first, so the newest version ends up next to the prompt.
     ///
     /// An absent selector reads as the empty one, which the mirror
-    /// resolver treats as `latest` — a bare `pnpm env list` prints the
+    /// resolver treats as `latest`, a bare `pnpm env list` prints the
     /// newest version alone, not the whole index. Verified against the
     /// TypeScript CLI, which passes `''` rather than `undefined`.
     pub async fn run_list(version_spec: Option<String>, config: &Config) -> miette::Result<String> {
         let specifier = parse_node_specifier(version_spec.as_deref().unwrap_or_default())
             .map_err(miette::Report::new)?;
-        let mirror =
-            get_node_mirror(Some(&config.node_download_mirrors), &specifier.release_channel);
+        let channels = config.tool_channel_mirrors(Tool::Node);
+        let mirror = get_node_mirror(
+            config.tool_mirror(Tool::Node),
+            channels.get(&specifier.release_channel).map(String::as_str),
+            Some(&config.node_download_mirrors),
+            &specifier.release_channel,
+        );
         let http_client = build_registry_client(config)?;
         let mut versions = resolve_node_versions_with_auth(
             &http_client,
@@ -161,7 +214,17 @@ impl EnvArgs {
         versions.reverse();
         Ok(versions.join("\n"))
     }
+
+    pub async fn run_remove<Reporter: self::Reporter + 'static>(
+        versions: Vec<String>,
+        config: &'static Config,
+        dir: &Path,
+    ) -> miette::Result<()> {
+        remove::run_remove::<Reporter>(versions, config, dir).await
+    }
 }
+
+mod remove;
 
 #[cfg(test)]
 mod tests;

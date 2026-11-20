@@ -1,13 +1,25 @@
 use super::{
-    cleanup_after_diff, normalize_patches_dir_name, patch_target_from_state,
-    path_from_forward_slash, remove_dir_if_exists, write_patch_file_atomically,
+    cleanup_after_diff,
+    normalize_patches_dir_name,
+    patch_target_from_state,
+    path_from_forward_slash,
+    remove_dir_if_exists,
 };
 use crate::cli_args::patch_state::EditDirState;
-use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, PackageKey, PackageMetadata};
+use pnpm_lockfile::{
+    ComVer,
+    Lockfile,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+};
 use pnpm_package_manager::PkgFilesForDiff;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 use tempfile::tempdir;
 
 fn empty_lockfile() -> Lockfile {
@@ -29,8 +41,10 @@ fn empty_lockfile() -> Lockfile {
 }
 
 fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
-    let packages =
-        keys.iter().map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata())).collect();
+    let packages = keys
+        .iter()
+        .map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata()))
+        .collect();
     Lockfile { packages: Some(packages), ..empty_lockfile() }
 }
 
@@ -159,17 +173,6 @@ fn remove_dir_if_exists_reports_non_directory_cleanup_error() {
 
     assert!(path.is_file(), "cleanup errors are ignored but not fatal");
     assert_eq!(err.kind(), std::io::ErrorKind::NotADirectory);
-}
-
-#[test]
-fn patch_commit_atomic_writer_replaces_existing_patch_file() {
-    let tmp = tempdir().expect("temp dir");
-    let patch_file = tmp.path().join("pkg.patch");
-    std::fs::write(&patch_file, "old").expect("write old patch");
-
-    write_patch_file_atomically(&patch_file, b"new").expect("replace patch");
-
-    assert_eq!(std::fs::read_to_string(patch_file).expect("read patch"), "new");
 }
 
 #[test]

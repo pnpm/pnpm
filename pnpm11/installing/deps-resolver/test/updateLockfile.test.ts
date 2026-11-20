@@ -5,6 +5,7 @@ import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.pruner'
 import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 
 import type { DependenciesGraph } from '../lib/index.js'
+import type { PeerDependencies, PeerSet } from '../lib/resolutionTypes.js'
 import { updateLockfile } from '../lib/updateLockfile.js'
 
 const TARBALL_URL = 'https://cdn.sheetjs.com/xlsx-0.18.5/xlsx-0.18.5.tgz'
@@ -17,6 +18,7 @@ function tarballGraph (
   additionalInfo: {
     bundledDependencies?: readonly string[] | boolean
     bundleDependencies?: readonly string[] | boolean
+    engines?: Record<string, string> | string[]
   } = {}
 ): DependenciesGraph {
   return {
@@ -27,7 +29,7 @@ function tarballGraph (
       optional: false,
       children: {},
       optionalDependencies: new Set<string>(),
-      peerDependencies: {},
+      peers: peerSetOf({}),
       transitivePeerDependencies: new Set<string>(),
       additionalInfo,
       hasBin: false,
@@ -127,6 +129,33 @@ test('an unchanged resolution never loses its recorded deprecation to metadata d
   expect(lockfile.packages![DEP_PATH].deprecated).toBe('No longer maintained')
 })
 
+test('an unchanged resolution keeps its recorded deprecation over a differing message from stale metadata', () => {
+  const dependenciesGraph = tarballGraph({ tarball: TARBALL_URL, integrity: INTEGRITY })
+  dependenciesGraph[DEP_PATH].additionalInfo.deprecated = 'Old message'
+  const lockfile = updateLockfile({
+    dependenciesGraph,
+    lockfile: lockfileWith({
+      resolution: { tarball: TARBALL_URL, integrity: INTEGRITY },
+      deprecated: 'New message',
+    }),
+    prefix: '.',
+    registriesByScope: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].deprecated).toBe('New message')
+})
+
+test('an unchanged resolution without a recorded deprecation takes the served one', () => {
+  const dependenciesGraph = tarballGraph({ tarball: TARBALL_URL, integrity: INTEGRITY })
+  dependenciesGraph[DEP_PATH].additionalInfo.deprecated = 'No longer maintained'
+  const lockfile = updateLockfile({
+    dependenciesGraph,
+    lockfile: lockfileWith({ resolution: { tarball: TARBALL_URL, integrity: INTEGRITY } }),
+    prefix: '.',
+    registriesByScope: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].deprecated).toBe('No longer maintained')
+})
+
 test('a changed resolution takes the freshly served metadata', () => {
   const newIntegrity = 'sha512-CccCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcCcC=='
   const lockfile = updateLockfile({
@@ -140,3 +169,21 @@ test('a changed resolution takes the freshly served metadata', () => {
   })
   expect(lockfile.packages![DEP_PATH].deprecated).toBeUndefined()
 })
+
+test.each([
+  [{ node: '>=18', npm: '*' }, { node: '>=18' }],
+  [{ npm: '*' }, undefined],
+  [['node >= 0.2.0'], undefined],
+] as const)('records engines %p as %p', (engines, expected) => {
+  const lockfile = updateLockfile({
+    dependenciesGraph: tarballGraph({ tarball: TARBALL_URL }, { engines: engines as Record<string, string> | string[] }),
+    lockfile: lockfileWith({ resolution: { tarball: TARBALL_URL } }),
+    prefix: '.',
+    registriesByScope: REGISTRIES,
+  })
+  expect(lockfile.packages![DEP_PATH].engines).toStrictEqual(expected)
+})
+
+function peerSetOf (peers: PeerDependencies): PeerSet {
+  return { declared: peers, taken: peers }
+}

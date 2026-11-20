@@ -1,3 +1,5 @@
+pub(crate) use pnpm_process as process;
+
 mod command;
 mod elf;
 mod filesystem;
@@ -29,16 +31,6 @@ impl Implementation {
 /// `Some(Implementation::Musl)` on Linux when the implementation
 /// can be determined, or `None` on non-Linux hosts or when all
 /// detection methods fail.
-///
-/// Detection order:
-/// 1. **ELF interpreter** — read `PT_INTERP` from `/proc/self/exe`.
-///    If the dynamic linker path contains `"/ld-musl-"` → musl;
-///    if it contains `"/ld-linux-"` → glibc.
-/// 2. **Filesystem** — read first 2048 bytes of `/usr/bin/ldd`.
-///    If content contains `"musl"` → musl; if it contains
-///    `"GNU C Library"` or `"GNU libc"` → glibc.
-/// 3. **Command** — run `getconf GNU_LIBC_VERSION`; if that
-///    fails, fall back to `ldd --version`.
 ///
 /// Methods are ordered by cost: the ELF interpreter check avoids
 /// spawning any process, the filesystem read avoids PATH lookup,
@@ -73,12 +65,17 @@ fn detect_implementation() -> Option<Implementation> {
 }
 
 /// Map `std::env::consts::OS` to Node's `process.platform` naming.
-/// Node uses `darwin` / `linux` / `win32` / `freebsd` / `openbsd` /
-/// `sunos` / `aix` / `android`. Rust uses `macos` / `linux` /
-/// `windows` / `freebsd` / `openbsd` / `solaris` / `aix` /
-/// `android`. Only `macos`, `windows`, and `solaris` differ.
+/// Only `macos`, `windows`, and `solaris` differ.
 #[must_use]
 pub fn host_platform() -> &'static str {
+    #[cfg(target_family = "wasm")]
+    {
+        static PLATFORM: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+            std::env::var("PNPM_WASM_PLATFORM").expect("WASI host must supply PNPM_WASM_PLATFORM")
+        });
+        &PLATFORM
+    }
+    #[cfg(not(target_family = "wasm"))]
     match std::env::consts::OS {
         "macos" => "darwin",
         "windows" => "win32",
@@ -88,15 +85,19 @@ pub fn host_platform() -> &'static str {
 }
 
 /// Map `std::env::consts::ARCH` to Node's `process.arch` naming.
-/// Node uses `x64` / `arm64` / `ia32` / `arm` / `s390x` / `ppc64`
-/// / `ppc64` (LE, same string) / `loong64` / `riscv64`. Rust uses
-/// `x86_64` / `aarch64` / `x86` / `arm` / `s390x` / `powerpc64` /
-/// `powerpc64le` / `loongarch64` / `riscv64`. Mappings below mirror
-/// what Node itself emits on each target — anything left as
-/// passthrough (e.g. `arm`, `s390x`, `riscv64`) already matches
-/// between the two naming schemes.
+/// Mappings below mirror what Node itself emits on each target;
+/// anything left as passthrough (e.g. `arm`, `s390x`, `riscv64`)
+/// already matches between the two naming schemes.
 #[must_use]
 pub fn host_arch() -> &'static str {
+    #[cfg(target_family = "wasm")]
+    {
+        static ARCH: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+            std::env::var("PNPM_WASM_ARCH").expect("WASI host must supply PNPM_WASM_ARCH")
+        });
+        &ARCH
+    }
+    #[cfg(not(target_family = "wasm"))]
     match std::env::consts::ARCH {
         "x86_64" => "x64",
         "aarch64" => "arm64",
@@ -107,6 +108,35 @@ pub fn host_arch() -> &'static str {
         "powerpc64" | "powerpc64le" => "ppc64",
         "loongarch64" => "loong64",
         other => other,
+    }
+}
+
+/// The architecture this build runs on, spelled as the Rust target
+/// triple of the machine spells it.
+///
+/// [`host_arch`] reports the name Node and a package manifest use, which
+/// is one name for both POWER endiannesses. Naming the platform the
+/// install runs on needs the two told apart, so that reads this instead.
+#[must_use]
+pub fn host_target_arch() -> &'static str {
+    #[cfg(target_family = "wasm")]
+    {
+        match host_arch() {
+            "x64" => "x86_64",
+            "arm64" => "aarch64",
+            "ia32" => "x86",
+            "ppc64" => match std::env::var("PNPM_WASM_ENDIANNESS").as_deref() {
+                Ok("BE") => "powerpc64",
+                Ok("LE") => "powerpc64le",
+                _ => panic!("WASI host must supply PNPM_WASM_ENDIANNESS for ppc64"),
+            },
+            "loong64" => "loongarch64",
+            other => other,
+        }
+    }
+    #[cfg(not(target_family = "wasm"))]
+    {
+        std::env::consts::ARCH
     }
 }
 

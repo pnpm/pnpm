@@ -1,17 +1,24 @@
-//! `pacquet login` / `pacquet adduser` — authenticate with an npm registry
-//! and record the token in the global `config.yaml`. The command logic lives in
+//! `pacquet login` / `pacquet adduser`: authenticate with an npm registry
+//! and record the token in `auth.ini`. The command logic lives in
 //! `pnpm-auth-commands`; this module is the thin CLI adapter that resolves
 //! config into [`LoginOptions`].
 
-use std::path::Path;
-
+use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
-use pnpm_auth_commands::login::{Host as AuthHost, LoginHost, LoginOptions, login};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::Diagnostic;
+use pnpm_auth_commands::login::{
+    Host as AuthHost,
+    LoginHost,
+    LoginOptions,
+    login,
+};
 use pnpm_config::Config;
-use pnpm_network::ThrottledClient;
 use pnpm_reporter::Reporter;
+use std::path::Path;
 
 /// Log in to an npm registry.
 #[derive(Debug, Args)]
@@ -32,7 +39,7 @@ pub enum LoginCliError {
     /// pacquet-specific guard: pnpm always resolves a `configDir`, but
     /// pacquet leaves [`Config::config_dir`] `None` when no home directory
     /// can be located, and `login` has nowhere to record the token without it.
-    #[display("Could not determine the pnpm config directory to locate config.yaml")]
+    #[display("Could not determine the pnpm config directory to locate auth.ini")]
     #[diagnostic(code(ERR_PNPM_NO_CONFIG_DIR))]
     NoConfigDir,
 }
@@ -40,13 +47,11 @@ pub enum LoginCliError {
 impl LoginArgs {
     pub async fn run<Reporter: self::Reporter>(self, config: &Config) -> miette::Result<()> {
         let message = self.execute::<AuthHost, Reporter>(config).await?;
-        println!("{message}");
+        pnpm_diagnostics::println!("{message}");
         Ok(())
     }
 
-    /// The testable core of [`run`](Self::run): guard the config directory,
-    /// build the registry HTTP client from `config`, and perform the login,
-    /// returning the success message. Generic over the capability host `Sys` so
+    /// The testable core of [`run`](Self::run). Generic over the capability host `Sys` so
     /// a test can drive it with a fake host over a mock registry and assert on
     /// the returned message; [`run`](Self::run) binds the production
     /// [`AuthHost`] and writes that message to stdout.
@@ -59,13 +64,7 @@ impl LoginArgs {
             return Err(LoginCliError::NoConfigDir.into());
         };
 
-        let http_client = ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .into_diagnostic()?;
+        let http_client = build_registry_client(config)?;
 
         let message =
             login::<Sys, Reporter>(&http_client, self.login_options(config, config_dir)).await?;
@@ -79,7 +78,9 @@ impl LoginArgs {
         LoginOptions {
             // `--registry` wins; otherwise the resolved registry, which already
             // folds in `.npmrc` and the npmjs default.
-            registry: self.registry.as_deref().or(Some(config.registry.as_str())),
+            registry: self.registry
+                .as_deref()
+                .or(Some(config.registry.as_str())),
             scope: self.scope.as_deref().or(config.scope.as_deref()),
             config_dir,
             fetch_retries: config.fetch_retries,

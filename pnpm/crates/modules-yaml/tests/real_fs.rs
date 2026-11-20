@@ -1,15 +1,26 @@
 //! Tests that exercise behavior branches by writing `.modules.yaml`
 //! files to a real `tempfile::tempdir()` and reading them back. These
 //! cover branches (e.g. a custom `virtualStoreDir`) that the install
-//! pipeline only reaches transitively; until that pipeline lands these
-//! direct unit tests guard the behavior.
+//! pipeline only reaches transitively.
 
 use indexmap::IndexSet;
 use pipe_trait::Pipe;
-use pnpm_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
+use pnpm_modules_yaml::{
+    DepPath,
+    Host,
+    Modules,
+    read_modules_manifest,
+    write_modules_manifest,
+};
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn manifest_from_json(value: Value) -> Modules {
     serde_json::from_value(value).expect("deserialize Modules fixture")
@@ -39,15 +50,18 @@ fn read_preserves_absolute_virtual_store_dir() {
 ///
 /// This is what [`crate::Install`]'s no-op short-circuit relies on:
 /// the recovered absolute path is compared byte-for-byte against
-/// `Config::effective_virtual_store_dir`, and an unnormalized join
+/// `Config::virtual_store_dir()`, and an unnormalized join
 /// (`<modules_dir>/../../...`) never matches the normalized config
-/// side — so the short-circuit silently misses every install whose
+/// side, so the short-circuit silently misses every install whose
 /// store lives outside the project.
 #[cfg(not(windows))]
 #[test]
 fn round_trip_recovers_normalized_absolute_for_non_descendant_store() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
-    let modules_dir = temp_dir.path().join("project").join("node_modules");
+    let modules_dir = temp_dir
+        .path()
+        .join("project")
+        .join("node_modules");
     let absolute_store = temp_dir.path().join(".pnpm-store");
     let manifest = manifest_from_json(json!({
         "layoutVersion": 5,
@@ -69,7 +83,10 @@ fn round_trip_recovers_normalized_absolute_for_non_descendant_store() {
 #[test]
 fn write_relativizes_non_descendant_virtual_store_dir() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
-    let modules_dir = temp_dir.path().join("project").join("node_modules");
+    let modules_dir = temp_dir
+        .path()
+        .join("project")
+        .join("node_modules");
     let sibling_store = temp_dir.path().join(".pnpm-store");
     let manifest = manifest_from_json(json!({
         "layoutVersion": 5,
@@ -147,7 +164,10 @@ fn dep_path_serializes_transparently() {
         "publicHoistPattern": [],
     }));
     assert_eq!(
-        manifest.hoisted_aliases.as_ref().and_then(|map| map.keys().next()),
+        manifest.hoisted_aliases
+            .as_ref()
+            .map(std::collections::BTreeMap::keys)
+            .and_then(|mut keys| keys.next()),
         Some(&DepPath::from("/accepts/1.3.7".to_string())),
     );
     let expected_ignored: IndexSet<DepPath> =
@@ -175,10 +195,7 @@ fn dep_path_serializes_transparently() {
 
 /// `hoistedLocations` is the per-depPath list of lockfile-relative
 /// directory paths that hoisted-module linking and rebuild consult to
-/// find where a package lives on disk. Pacquet has no consumer yet
-/// (the install pipeline still writes the field as `None`), so this
-/// test pins the schema-level round-trip until a real producer
-/// appears.
+/// find where a package lives on disk.
 #[test]
 fn hoisted_locations_round_trips() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
@@ -194,7 +211,10 @@ fn hoisted_locations_round_trips() {
         },
     }));
     assert_eq!(
-        manifest.hoisted_locations.as_ref().expect("present").get("/accepts/1.3.7"),
+        manifest.hoisted_locations
+            .as_ref()
+            .expect("present")
+            .get("/accepts/1.3.7"),
         Some(&vec!["node_modules/accepts".to_string()]),
     );
 
@@ -216,10 +236,8 @@ fn hoisted_locations_round_trips() {
     );
 }
 
-/// A manifest with no `hoistedLocations` (the only state pacquet
-/// writes today) must omit the field on disk rather than emit
-/// `hoistedLocations: null`. Pacquet relies on
-/// `skip_serializing_if = "Option::is_none"` for this.
+/// A manifest with no `hoistedLocations` must omit the field on disk
+/// rather than emit `hoistedLocations: null`.
 #[test]
 fn absent_hoisted_locations_is_omitted_on_write() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");

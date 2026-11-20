@@ -22,6 +22,8 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'storeDir'
 | 'pnpmHomeDir'
 > & Partial<Pick<Config,
+| 'globalDir'
+| 'globalPkgDir'
 | 'cacheDir'
 | 'configDir'
 // Fields needed to forward opts to add.handler for env use

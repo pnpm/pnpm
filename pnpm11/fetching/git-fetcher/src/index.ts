@@ -1,15 +1,16 @@
 import assert from 'node:assert'
+import fs from 'node:fs'
 import path from 'node:path'
 import { URL } from 'node:url'
-import util from 'node:util'
 
-import { PnpmError, redactAndSanitize, redactAndSanitizeMultiline } from '@pnpm/error'
+import { isError, PnpmError, redactAndSanitize, redactAndSanitizeMultiline } from '@pnpm/error'
 import { preparePackage } from '@pnpm/exec.prepare-package'
 import type { GitFetcher } from '@pnpm/fetching.fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
+import { nonInteractiveGitEnv, nonInteractiveGitSubmoduleEnv, safeGitEnv } from '@pnpm/network.git-utils'
 import { createGitHostedPkgId } from '@pnpm/resolving.git-resolver'
-import type { StoreIndex } from '@pnpm/store.index'
+import { gitHostedStoreIndexKey, type StoreIndex } from '@pnpm/store.index'
 import { addFilesFromDir } from '@pnpm/worker'
 import { rimraf } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
@@ -24,75 +25,155 @@ export interface CreateGitFetcherOptions {
 
 export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: GitFetcher } {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
-  const ignoreScripts = createOpts.ignoreScripts ?? false
+  return {
+    git: createGitFetcherFunction(createOpts, allowedHosts),
+  }
+}
 
-  const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
-    if (!isValidCommitHash(resolution.commit)) {
-      throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${resolution.commit}" for repository "${resolution.repo}". Expected a 40-character hexadecimal SHA.`)
-    }
+function createGitFetcherFunction (createOpts: CreateGitFetcherOptions, allowedHosts: Set<string>): GitFetcher {
+  return async (cafs, resolution, opts) => {
+    assertValidGitResolution(resolution.repo, resolution.commit)
     const tempLocation = await cafs.tempDir()
-    try {
-      if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
-        await execGit(['init'], { cwd: tempLocation })
-        await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
-        await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
-      } else {
-        await execGit(['clone', resolution.repo, tempLocation])
-      }
-    } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
-      throw gitFetchError(err, resolution.repo, opts.pkg?.name)
-    }
-    await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-    const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
-    if (receivedCommit.trim() !== resolution.commit) {
-      throw new PnpmError('GIT_CHECKOUT_FAILED', `received commit ${receivedCommit.trim()} does not match expected value ${resolution.commit}`)
-    }
-    let pkgDir: string
-    let requiresPrepare: boolean
-    try {
-      const prepareResult = await preparePackage({
-        allowBuild: opts.allowBuild,
-        ignoreScripts: createOpts.ignoreScripts,
-        pkgResolutionId: opts.pkgResolutionId ?? createGitHostedPkgId(resolution),
-        unsafePerm: createOpts.unsafePerm,
-        userAgent: createOpts.userAgent,
-      }, tempLocation, resolution.path ?? '')
-      pkgDir = prepareResult.pkgDir
-      requiresPrepare = prepareResult.shouldBeBuilt
-      if (ignoreScripts && prepareResult.shouldBeBuilt) {
-        globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
-      }
-    } catch (err: unknown) {
-      assert(util.types.isNativeError(err))
-      err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
-      throw err
-    }
+    await checkoutRepo({ allowedHosts, repo: resolution.repo, commit: resolution.commit, tempLocation, pkgName: opts.pkg?.name })
+
+    const { pkgDir, requiresPrepare, ignoredBuild } = await prepareFetchedPackage({
+      createOpts,
+      opts,
+      resolution,
+      tempLocation,
+    })
+
     // removing /.git to make directory integrity calculation faster
     await rimraf(path.join(tempLocation, '.git'))
     const files = await packlist(pkgDir)
-    // Important! We cannot remove the temp location at this stage.
-    // Even though we have the index of the package,
-    // the linking of files to the store is in progress.
-    return addFilesFromDir({
-      storeDir: cafs.storeDir,
-      storeIndex: createOpts.storeIndex,
-      dir: pkgDir,
-      files,
-      filesIndexFile: opts.filesIndexFile,
+    const filesIndexFile = resolveFilesIndexFile({
+      createOpts,
+      ignoredBuild,
+      opts,
       requiresPrepare,
-      readManifest: opts.readManifest,
-      pkg: opts.pkg,
+      resolution,
     })
-  }
 
-  return {
-    git: gitFetcher,
+    return {
+      filesIndexFile,
+      ...await addFilesFromDir({
+        storeDir: cafs.storeDir,
+        storeIndex: createOpts.storeIndex,
+        dir: pkgDir,
+        files,
+        filesIndexFile,
+        requiresPrepare,
+        readManifest: opts.readManifest,
+        pkg: opts.pkg,
+      }),
+      ignoredBuild,
+    }
   }
+}
+
+function assertValidGitResolution (repo: string, commit: string): void {
+  if (!isValidCommitHash(commit)) {
+    throw new PnpmError('INVALID_GIT_COMMIT', `Invalid git commit hash "${redactAndSanitize(commit)}" for repository "${redactAndSanitize(repo)}". Expected a 40-character hexadecimal SHA.`)
+  }
+  if (!isSafeRepoArg(repo)) {
+    throw new PnpmError('INVALID_GIT_REPOSITORY', `Invalid git repository "${redactAndSanitize(repo)}". A repository must not be empty, begin with '-', or contain a null byte.`)
+  }
+}
+
+function isSafeRepoArg (repo: string): boolean {
+  return repo.length > 0 && !repo.startsWith('-') && !repo.includes('\0')
 }
 
 function isValidCommitHash (commit: string): boolean {
   return /^[0-9a-f]{40}$/i.test(commit)
+}
+
+interface CheckoutRepoOpts {
+  allowedHosts: Set<string>
+  repo: string
+  commit: string
+  tempLocation: string
+  pkgName?: string
+}
+
+async function checkoutRepo ({ allowedHosts, repo, commit, tempLocation, pkgName }: CheckoutRepoOpts): Promise<void> {
+  try {
+    if (allowedHosts.size > 0 && shouldUseShallow(repo, allowedHosts)) {
+      await execGit(['init'], { cwd: tempLocation })
+      await execGit(['remote', 'add', 'origin', '--', repo], { cwd: tempLocation })
+      const env = await nonInteractiveGitEnv({ cwd: tempLocation })
+      await execGit(['fetch', '--depth', '1', 'origin', commit], { cwd: tempLocation, env })
+    } else {
+      await execGit(['clone', '--', repo, tempLocation], { env: await nonInteractiveGitEnv() })
+    }
+    await execGit(['checkout', commit], { cwd: tempLocation })
+    const receivedCommit = await execGit(['rev-parse', 'HEAD'], { cwd: tempLocation })
+    if (receivedCommit.trim() !== commit) {
+      throw new PnpmError('GIT_CHECKOUT_FAILED', `received commit ${receivedCommit.trim()} does not match expected value ${commit}`)
+    }
+    if (await hasGitSubmodules(tempLocation)) {
+      await execGit(['submodule', 'update', '--init', '--recursive', '--checkout'], {
+        cwd: tempLocation,
+        env: await nonInteractiveGitSubmoduleEnv({ cwd: tempLocation }),
+      })
+    }
+  } catch (err: unknown) {
+    assert(isError(err))
+    throw gitFetchError(err, repo, pkgName)
+  }
+}
+
+interface PrepareFetchedPkgOpts {
+  createOpts: CreateGitFetcherOptions
+  opts: Parameters<GitFetcher>[2]
+  resolution: Parameters<GitFetcher>[1]
+  tempLocation: string
+}
+
+interface PrepareFetchedPkgResult {
+  pkgDir: string
+  requiresPrepare: boolean
+  ignoredBuild: boolean
+}
+
+async function prepareFetchedPackage ({ createOpts, opts, resolution, tempLocation }: PrepareFetchedPkgOpts): Promise<PrepareFetchedPkgResult> {
+  try {
+    const prepareResult = await preparePackage({
+      allowBuild: opts.allowBuild,
+      ignoreScripts: createOpts.ignoreScripts,
+      pkgResolutionId: opts.pkgResolutionId ?? createGitHostedPkgId(resolution),
+      unsafePerm: createOpts.unsafePerm,
+      userAgent: createOpts.userAgent,
+    }, tempLocation, resolution.path ?? '')
+    const ignoredBuild = Boolean(prepareResult.ignoredBuild)
+    if (ignoredBuild) {
+      globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
+    }
+    return {
+      pkgDir: prepareResult.pkgDir,
+      requiresPrepare: prepareResult.shouldBeBuilt,
+      ignoredBuild,
+    }
+  } catch (err: unknown) {
+    assert(isError(err))
+    err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
+    throw err
+  }
+}
+
+interface ResolveFilesIndexFileOpts {
+  createOpts: CreateGitFetcherOptions
+  ignoredBuild: boolean
+  opts: Parameters<GitFetcher>[2]
+  requiresPrepare: boolean
+  resolution: Parameters<GitFetcher>[1]
+}
+
+function resolveFilesIndexFile ({ createOpts, ignoredBuild, opts, requiresPrepare, resolution }: ResolveFilesIndexFileOpts): string {
+  if (requiresPrepare && ((ignoredBuild && !createOpts.ignoreScripts) || (!ignoredBuild && opts.filesIndexFile.endsWith('\tnot-built')))) {
+    return gitHostedStoreIndexKey(opts.pkgResolutionId ?? createGitHostedPkgId(resolution), { built: !ignoredBuild })
+  }
+  return opts.filesIndexFile
 }
 
 /**
@@ -137,6 +218,10 @@ function sshRemediationHint (repo: string, pkgName?: string): string | undefined
   const host = sshRepoHost(repo)
   if (host == null) return undefined
   return `The lockfile records an SSH remote for this dependency, so fetching it needs an SSH key for ${redactAndSanitize(host)}.
+
+If git reported "Permission denied (publickey)", the host was reached and refused the key. Make sure ssh-agent has a key loaded:
+
+    ssh-add -l
 
 If its specifier does not ask for SSH (for example "github:owner/repo"), the lockfile entry was written before pnpm v11.21 and can be re-recorded over HTTPS:
 
@@ -186,8 +271,19 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-async function execGit (args: string[], opts?: object): Promise<string> {
+async function execGit (args: string[], opts?: { cwd?: string, env?: NodeJS.ProcessEnv }): Promise<string> {
   const fullArgs = prefixGitArgs().concat(args || [])
-  const { stdout } = await execa('git', fullArgs, opts)
+  const env = safeGitEnv(opts?.env)
+  const { stdout } = await execa('git', fullArgs, { ...opts, env })
   return stdout as string
+}
+
+async function hasGitSubmodules (location: string): Promise<boolean> {
+  try {
+    return (await fs.promises.stat(path.join(location, '.gitmodules'))).isFile()
+  } catch (err: unknown) {
+    assert(isError(err))
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw err
+  }
 }

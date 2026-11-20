@@ -1,28 +1,48 @@
-use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::Config;
-use pnpm_lockfile::MaybeLazyLockfile;
-use pnpm_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
-use pnpm_package_manager::{
-    Install, ProjectMutation, RebuildOptions, UpdateSeedPolicy, allow_build_key_from_ignored_build,
+use crate::{
+    State,
+    cli_args::pipelines::{
+        InstallFamilySelection,
+        installed_project_config,
+        project_names,
+        select_workspace_projects,
+    },
 };
-use pnpm_package_manifest::DependencyGroup;
+use clap::Args;
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::Config;
+use pnpm_modules_yaml::{
+    Host,
+    read_modules_layout,
+    read_modules_manifest,
+};
+use pnpm_package_manager::{
+    ProjectMutation,
+    RebuildOptions,
+    allow_build_key_from_ignored_build,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    project_manifest_path,
+};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
+    ScheduleGraphAsyncOptions,
+    TaskCompletion,
+    schedule_graph_async,
 };
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 
-use crate::{
-    State,
-    cli_args::pipelines::{InstallFamilySelection, select_workspace_projects},
-};
-
-/// `pacquet rebuild` — re-run the lifecycle scripts of installed
+/// `pnpm rebuild`: re-run the lifecycle scripts of installed
 /// dependencies.
 #[derive(Debug, Clone, Args)]
 pub struct RebuildArgs {
@@ -41,12 +61,12 @@ pub struct RebuildArgs {
 }
 
 impl RebuildArgs {
-    pub async fn run<Reporter: self::Reporter + 'static>(
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         workspace_selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
-        let selection = resolve_selection(&self.packages, self.pending, state.config)?;
+        let selection = resolve_selection(&self.packages, self.pending, &state)?;
         run_rebuild::<Reporter>(&state, selection, workspace_selection).await
     }
 
@@ -60,66 +80,80 @@ impl RebuildArgs {
     ) -> miette::Result<()> {
         let workspace_selection =
             select_workspace_projects(cfg, &prefix, &manifest_path, recursive_sort, false)?;
-        if workspace_selection.as_ref().is_some_and(|selection| selection.selected_dirs.is_empty())
+        if workspace_selection
+            .as_ref()
+            .is_some_and(|selection| selection.selected_dirs.is_empty())
         {
             return Ok(());
         }
         if !cfg.shares_one_lockfile()
             && let Some(workspace_selection) = workspace_selection
         {
-            let base_config = cfg.clone();
-            let concurrency =
-                usize::try_from(cfg.workspace_concurrency).unwrap_or(usize::MAX).max(1);
-            let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
-            let run_node = |project_dir: PathBuf| {
-                let args = self.clone();
-                let mut project_config = base_config.clone();
-                project_config.anchor_lockfile_paths(&project_dir);
-                let first_error = &first_error;
-                async move {
-                    let result = async {
-                        let project_config = Config::leak(project_config);
-                        let state =
-                            State::init(project_dir.join("package.json"), project_config, true)
-                                .wrap_err_with(|| {
-                                    format!(
-                                        "initialize the rebuild state for {}",
-                                        project_dir.display(),
-                                    )
-                                })?;
-                        Box::pin(args.run::<Reporter>(state, None)).await
-                    }
-                    .await;
-                    match result {
-                        Ok(()) => TaskCompletion::Passed,
-                        Err(error) => {
-                            first_error
-                                .lock()
-                                .expect("rebuild error lock is not poisoned")
-                                .get_or_insert(error);
-                            TaskCompletion::Failed
-                        }
-                    }
-                }
-            };
-            let on_node_skipped: fn(&PathBuf) = |_| {};
-            schedule_graph_async(
-                &workspace_selection.project_dependencies,
-                &ScheduleGraphAsyncOptions::new(concurrency, !no_bail, &run_node, &on_node_skipped)
-                    .continue_on_failure(no_bail),
-            )
-            .await;
-            if let Some(error) =
-                first_error.into_inner().expect("rebuild error lock is not poisoned")
-            {
-                return Err(error);
-            }
-            return Ok(());
+            return self.run_per_project::<Reporter>(cfg, workspace_selection, no_bail).await;
         }
 
-        let state =
-            State::init(manifest_path, cfg, true).wrap_err("initialize the rebuild state")?;
+        let cfg = installed_project_config(cfg, &manifest_path);
+        let state = State::init(manifest_path, cfg, true).wrap_err("initialize the rebuild state")?;
         Box::pin(self.run::<Reporter>(state, workspace_selection)).await
+    }
+
+    async fn rebuild_project<Reporter: self::Reporter + 'static>(
+        self,
+        project_config: Config,
+        project_dir: &Path,
+    ) -> miette::Result<()> {
+        let project_config = Config::leak(project_config);
+        let state = State::init(project_dir.join("package.json"), project_config, true)
+            .wrap_err_with(|| {
+                format!("initialize the rebuild state for {}", project_dir.display())
+            })?;
+        Box::pin(self.run::<Reporter>(state, None)).await
+    }
+
+    /// One rebuild per selected project, each against its own lockfile.
+    async fn run_per_project<Reporter: self::Reporter + 'static>(
+        self,
+        cfg: &'static Config,
+        workspace_selection: InstallFamilySelection,
+        no_bail: bool,
+    ) -> miette::Result<()> {
+        let base_config = cfg.clone();
+        let names = project_names(cfg, &workspace_selection.projects);
+        let concurrency = usize::try_from(cfg.workspace_concurrency).unwrap_or(usize::MAX).max(1);
+        let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
+        let run_node = |project_dir: PathBuf| {
+            let args = self.clone();
+            let mut project_config = base_config.clone();
+            project_config.anchor_dedicated_project(
+                &project_dir,
+                names.get(&project_dir).map(String::as_str),
+            );
+            let first_error = &first_error;
+            async move {
+                let result = args.rebuild_project::<Reporter>(project_config, &project_dir).await;
+                match result {
+                    Ok(()) => TaskCompletion::Passed,
+                    Err(error) => {
+                        first_error
+                            .lock()
+                            .expect("rebuild error lock is not poisoned")
+                            .get_or_insert(error);
+                        TaskCompletion::Failed
+                    }
+                }
+            }
+        };
+        let on_node_skipped: fn(&PathBuf) = |_| {};
+        schedule_graph_async(
+            &workspace_selection.project_dependencies,
+            &ScheduleGraphAsyncOptions::new(concurrency, !no_bail, &run_node, &on_node_skipped)
+                .continue_on_failure(no_bail),
+        )
+        .await;
+        if let Some(error) = first_error.into_inner().expect("rebuild error lock is not poisoned") {
+            return Err(error);
+        }
+        Ok(())
     }
 }
 
@@ -138,17 +172,16 @@ pub(crate) struct RebuildSelection {
 /// otherwise every build-needing package.
 ///
 /// A `pendingBuilds` record is a dep path for a dependency and an
-/// importer id for a workspace project, and both are plain strings on
-/// disk. They are told apart by whether the entry resolves to a
-/// directory with a manifest, which is what an importer id means —
-/// asking the string's shape instead would misread a workspace
-/// directory named `foo@1.0.0` as a dependency and then drop its debt
-/// without running anything.
+/// importer id for a project, and both are plain strings on disk. They
+/// are told apart by [`pending_entry_is_project`], asking the string's
+/// shape instead would misread a workspace directory named `foo@1.0.0`
+/// as a dependency and then drop its debt without running anything.
 fn resolve_selection(
     packages: &[String],
     pending: bool,
-    config: &Config,
+    state: &State,
 ) -> miette::Result<RebuildSelection> {
+    let config = state.config;
     if !packages.is_empty() {
         return Ok(RebuildSelection { names: Some(packages.to_vec()), projects: Vec::new() });
     }
@@ -159,18 +192,12 @@ fn resolve_selection(
     else {
         return Ok(RebuildSelection { names: Some(Vec::new()), projects: Vec::new() });
     };
-    // `.modules.yaml` sits in the root `node_modules`, so its importer
-    // ids are relative to that directory's parent.
-    let lockfile_dir = config.modules_dir.parent().unwrap_or(&config.modules_dir);
-    // An importer id is always a relative path; a dep path can be
-    // absolute-looking (`/lodash@1.0.0`), and Rust's `Path::join`
-    // replaces the base on an absolute component, so probe only for
-    // relative entries — an absolute one is a dependency by construction.
-    let is_project = |entry: &String| {
-        !Path::new(entry).is_absolute() && lockfile_dir.join(entry).join("package.json").is_file()
-    };
-    let (projects, dep_paths): (Vec<&String>, Vec<&String>) =
-        modules.pending_builds.iter().partition(|entry| is_project(entry));
+    let lockfile_dir = config.modules_dir_anchor().unwrap_or(&config.modules_dir);
+    let active_importer_id = state.active_importer_id();
+    let (projects, dep_paths): (Vec<&String>, Vec<&String>) = modules
+        .pending_builds
+        .iter()
+        .partition(|entry| pending_entry_is_project(lockfile_dir, &active_importer_id, entry));
     Ok(RebuildSelection {
         names: Some(
             dep_paths
@@ -180,6 +207,20 @@ fn resolve_selection(
         ),
         projects: projects.into_iter().cloned().collect(),
     })
+}
+
+/// Whether a `pendingBuilds` entry is an importer id: the active project,
+/// whose manifest may still be the in-memory scaffold of a project that
+/// has none on disk, or a directory with a manifest.
+///
+/// An importer id is always a relative path; a dep path can be
+/// absolute-looking (`/lodash@1.0.0`), and Rust's `Path::join` replaces
+/// the base on an absolute component, so only a relative entry is
+/// probed, an absolute one is a dependency by construction.
+fn pending_entry_is_project(lockfile_dir: &Path, active_importer_id: &str, entry: &str) -> bool {
+    !Path::new(entry).is_absolute()
+        && (entry == active_importer_id
+            || project_manifest_path(&lockfile_dir.join(entry)).is_file())
 }
 
 /// Drive a forced rebuild of the selected packages (or every build-needing
@@ -192,73 +233,31 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
     workspace_selection: Option<InstallFamilySelection>,
 ) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
-    let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-        state;
-
     let rebuild = RebuildOptions {
-        selected_names: selection.names.map(|names| names.into_iter().collect::<HashSet<_>>()),
+        selected_names: selection.names
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect::<HashSet<_>>),
         pending_projects: selection.projects,
+        check_lockfile_patches_only: false,
+        skip_if_has_side_effects_cache: false,
     };
 
-    let dependency_groups = rebuild_dependency_groups(config)?;
-
-    let install = Install {
-        tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-        http_client,
-        http_client_arc: std::sync::Arc::clone(http_client),
-        config,
-        manifest,
-        emit_initial_manifest: true,
-        lockfile: MaybeLazyLockfile::Lazy(lockfile),
-        lockfile_path: Some(&lockfile_path),
-        // Reuse exactly the dependency groups the current `node_modules`
-        // was materialized with, so a rebuild never widens the installed
-        // set (see [`rebuild_dependency_groups`]).
-        dependency_groups,
-        frozen_lockfile: true,
-        prefer_frozen_lockfile: None,
-        ignore_manifest_check: false,
-        skip_runtimes: config.skip_runtimes,
-        trust_lockfile: config.trust_lockfile,
-        update_checksums: false,
-        // `rebuild` re-runs dependency build scripts. The root
-        // project's own lifecycle scripts run only for the importers
-        // `--pending` names (see `RebuildOptions::pending_projects`).
-        mutation: ProjectMutation::NoInstall,
-        installs_only: true,
-        resolved_packages,
-        supported_architectures: config.supported_architectures.clone(),
-        node_linker: config.node_linker,
-        lockfile_only: false,
-        dry_run: false,
-        persist_policy_excludes: false,
-        update_seed_policy: UpdateSeedPolicy::KeepAll,
-        preferred_versions_override: None,
-        auth_override: None,
-        resolution_observer: None,
-        peer_issues_sink: None,
-        deps_requiring_build_sink: None,
-        catalogs_override: None,
-        disable_optimistic_repeat_install: false,
-        pnpmfile_hook_override: None,
-        workspace_projects_override: None,
-    };
+    let dependency_groups = rebuild_dependency_groups(state.config)?;
+    let mut install = state.install(dependency_groups);
+    install.lockfile_policy.frozen = true;
+    install.execution.mutation = ProjectMutation::NoInstall;
+    install.context.lockfile_path = Some(&lockfile_path);
     match workspace_selection.as_ref() {
         Some(selection) => {
-            install
-                .run_selected_rebuild::<Reporter>(
-                    pnpm_package_manager::WorkspaceInstallSelection {
-                        all_projects: &selection.projects,
-                        project_dependencies: &selection.project_dependencies,
-                        ordered_dirs: &selection.ordered_dirs,
-                        selected_dirs: selection.selected_dirs.as_ref(),
-                        install_dirs: selection.selected_dirs.as_ref(),
-                        active_manifest_is_standin: selection.active_manifest_is_standin,
-                        workspace_cycles: pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
-                    },
-                    rebuild,
-                )
-                .await
+            install.run_selected_rebuild::<Reporter>(
+                pnpm_package_manager::WorkspaceInstallSelection {
+                    install_dirs: selection.selected_dirs.as_ref(),
+                    workspace_cycles: pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
+                    ..super::install::workspace_install_selection(selection)
+                },
+                rebuild,
+            )
+            .await
         }
         None => install.run_rebuild::<Reporter>(rebuild).await,
     }
@@ -270,11 +269,11 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
 /// The dependency groups the current `node_modules` was materialized with,
 /// read from `.modules.yaml`'s `included`. A rebuild must keep the
 /// installed set unchanged, so it reuses exactly these groups rather than
-/// widening to all of them — otherwise a `--prod` / `--no-optional`
+/// widening to all of them; otherwise a `--prod` / `--no-optional`
 /// install would have its excluded dev/optional dependencies fetched and
 /// their lifecycle scripts run. Falls back to every group when there is no
 /// `.modules.yaml`, or when it records no included groups (a legacy
-/// manifest written before `included` existed, or a corrupt one) — neither
+/// manifest written before `included` existed, or a corrupt one); neither
 /// is a recorded "include nothing" intent to preserve.
 fn rebuild_dependency_groups(config: &Config) -> miette::Result<Vec<DependencyGroup>> {
     const ALL: [DependencyGroup; 3] =

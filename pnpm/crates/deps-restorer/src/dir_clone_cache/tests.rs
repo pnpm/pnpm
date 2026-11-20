@@ -1,8 +1,24 @@
-use super::DirCloneCache;
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+use super::{
+    DirCloneCache,
+    retires_dir_clone,
+};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
+use pnpm_fs::LinkFailure;
 
 #[test]
-fn eligible_only_for_isolated_clone_capable_local_virtual_store() {
+fn a_failed_clone_retires_the_cache_only_when_the_volume_is_at_fault() {
+    for failure in LinkFailure::ALL {
+        let retires = matches!(failure, LinkFailure::CrossDevice | LinkFailure::Unsupported);
+        assert_eq!(retires_dir_clone(&failure.sample_error()), retires, "{failure:?}");
+    }
+}
+
+#[test]
+fn eligible_for_clone_capable_local_materialization() {
     let mut config = Config { enable_global_virtual_store: false, ..Config::default() };
     for method in
         [PackageImportMethod::Auto, PackageImportMethod::Clone, PackageImportMethod::CloneOrCopy]
@@ -13,7 +29,11 @@ fn eligible_only_for_isolated_clone_capable_local_virtual_store() {
             cfg!(target_os = "macos"),
             "clone-capable method {method:?} must be eligible exactly on macOS",
         );
-        assert!(!DirCloneCache::eligible(&config, NodeLinker::Hoisted));
+        assert_eq!(
+            DirCloneCache::eligible(&config, NodeLinker::Hoisted),
+            cfg!(target_os = "macos"),
+            "the hoisted linker clones into `node_modules` with {method:?}",
+        );
     }
     for method in [PackageImportMethod::Hardlink, PackageImportMethod::Copy] {
         config.package_import_method = method;
@@ -30,13 +50,39 @@ fn eligible_only_for_isolated_clone_capable_local_virtual_store() {
     );
 }
 
+#[test]
+fn not_eligible_when_deploy_uses_the_virtual_store_as_the_global_store() {
+    let config = Config { enable_global_virtual_store: false, ..Config::default() };
+    let config = Config { global_virtual_store_dir: config.install_state_dir.clone(), ..config };
+    assert!(
+        !DirCloneCache::eligible(&config, NodeLinker::Isolated),
+        "deploy installs must not populate the shared materialization cache",
+    );
+}
+
 #[cfg(target_os = "macos")]
 mod macos {
-    use super::{Config, DirCloneCache, NodeLinker, PackageImportMethod};
+    use super::{
+        Config,
+        DirCloneCache,
+        NodeLinker,
+        PackageImportMethod,
+    };
     use crate::dir_clone_cache::EngineNameSource;
-    use pnpm_lockfile::{PackageKey, SnapshotEntry};
-    use pnpm_reporter::{LogEvent, Reporter};
-    use std::{collections::HashMap, fs, path::PathBuf, sync::atomic::AtomicU8};
+    use pnpm_lockfile::{
+        PackageKey,
+        SnapshotEntry,
+    };
+    use pnpm_reporter::{
+        LogEvent,
+        Reporter,
+    };
+    use std::{
+        collections::HashMap,
+        fs,
+        path::PathBuf,
+        sync::atomic::AtomicU8,
+    };
     use tempfile::tempdir;
 
     struct NullReporter;
@@ -48,22 +94,22 @@ mod macos {
         HashMap::from([(key.clone(), SnapshotEntry::default())])
     }
 
-    /// Build a cache whose canonical root is `links_root`, with
+    /// Build a cache whose canonical root is `cache_root`, with
     /// `snapshots` so the layout precomputes their hashed slots. The
-    /// virtual-store dir is pinned next to the links root so the
-    /// capability probe in `build` clones within one volume — the
+    /// virtual-store dir is pinned next to the cache root so the
+    /// capability probe in `build` clones within one volume, the
     /// default would point at the crate's working directory, which may
     /// live on another volume than the temp root.
     fn cache_for_snapshots<'a>(
-        links_root: &std::path::Path,
+        cache_root: &std::path::Path,
         snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
         engine: EngineNameSource,
     ) -> DirCloneCache<'a> {
         let config = Config {
             enable_global_virtual_store: false,
             package_import_method: PackageImportMethod::Clone,
-            global_virtual_store_dir: links_root.to_path_buf(),
-            virtual_store_dir: links_root.with_file_name("probe-virtual-store"),
+            store_dir: pnpm_store_dir::StoreDir::new(cache_root.parent().unwrap()),
+            install_state_dir: cache_root.with_file_name("probe-virtual-store"),
             ..Config::default()
         };
         DirCloneCache::build(
@@ -92,13 +138,13 @@ mod macos {
         let lib_blob = store.join("lib-blob");
         fs::write(&manifest_blob, br#"{"name":"foo"}"#).expect("write manifest blob");
         fs::write(&lib_blob, b"module.exports = 1").expect("write lib blob");
-        let cas_paths: HashMap<String, PathBuf> = HashMap::from([
-            ("package.json".to_string(), manifest_blob),
-            ("lib/index.js".to_string(), lib_blob.clone()),
+        let cas_paths: pnpm_fs::CasPaths = HashMap::from([
+            ("package.json".to_string(), manifest_blob.into()),
+            ("lib/index.js".to_string(), lib_blob.clone().into()),
         ]);
 
         let key: PackageKey = "foo@1.0.0".parse().expect("valid snapshot key");
-        let links_root = dir.path().join("links");
+        let cache_root = pnpm_store_dir::StoreDir::new(dir.path()).dir_clone_cache();
         let snapshots = one_snapshot(&key);
         let engine_slot = std::sync::Arc::new(std::sync::OnceLock::new());
         let probe = std::thread::spawn({
@@ -109,7 +155,7 @@ mod macos {
             }
         });
         let cache = cache_for_snapshots(
-            &links_root,
+            &cache_root,
             &snapshots,
             EngineNameSource::Pending(std::sync::Arc::clone(&engine_slot)),
         );
@@ -132,19 +178,20 @@ mod macos {
             b"module.exports = 1",
         );
 
-        let canonical_manifests = walk_files(&links_root)
+        let canonical_manifests = walk_files(&cache_root)
             .into_iter()
             .filter(|path| path.ends_with("node_modules/foo/package.json"))
             .count();
         assert_eq!(canonical_manifests, 1, "one canonical slot for the one snapshot");
         let expected_slot = crate::VirtualStoreLayout::global(
-            links_root.clone(),
+            cache_root.clone(),
             Config::default().virtual_store_dir_max_length as usize,
             Some("node-22"),
             Some(&snapshots),
             None,
+            crate::BuildGating { policy: None, runs_builds: true },
             None,
-            None,
+            &crate::host_platform_selector(),
         )
         .hashed_slot_dir(&key)
         .expect("hashed slot for the one snapshot");
@@ -181,7 +228,7 @@ mod macos {
         let key: PackageKey = "foo@1.0.0".parse().expect("valid snapshot key");
         let snapshots = one_snapshot(&key);
         let cache = cache_for_snapshots(
-            &dir.path().join("links"),
+            &pnpm_store_dir::StoreDir::new(dir.path()).dir_clone_cache(),
             &snapshots,
             EngineNameSource::Ready(None),
         );
@@ -206,7 +253,7 @@ mod macos {
         let other: PackageKey = "bar@2.0.0".parse().expect("valid snapshot key");
         let snapshots = one_snapshot(&key);
         let cache = cache_for_snapshots(
-            &dir.path().join("links"),
+            &pnpm_store_dir::StoreDir::new(dir.path()).dir_clone_cache(),
             &snapshots,
             EngineNameSource::Ready(None),
         );

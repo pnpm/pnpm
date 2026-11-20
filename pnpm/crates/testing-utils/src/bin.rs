@@ -1,7 +1,15 @@
-use crate::{command_env::CommandTestExt, registry::TestRegistry};
+use crate::{
+    command_env::CommandTestExt,
+    registry::TestRegistry,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use std::{fs, path::PathBuf, process::Command};
+use pnpr_fixtures::RemovedVersionField;
+use std::{
+    fs,
+    path::PathBuf,
+    process::Command,
+};
 use tempfile::TempDir;
 use text_block_macros::text_block_fnl;
 
@@ -18,6 +26,17 @@ pub struct CommandTempCwd<NpmrcInfo> {
     pub workspace: PathBuf,
     /// Optional info regarding the creation of `.npmrc`.
     pub npmrc_info: NpmrcInfo,
+}
+
+/// Read `PNPM_V11_BUNDLE` from the environment, ignoring empty values, and
+/// resolve it to an absolute path.
+#[must_use]
+pub fn read_v11_bundle_path() -> Option<std::ffi::OsString> {
+    std::env::var_os("PNPM_V11_BUNDLE")
+        .filter(|path| !path.is_empty())
+        .map(|bundle| {
+            std::path::absolute(bundle).expect("resolve the pnpm v11 bundle path").into_os_string()
+        })
 }
 
 impl CommandTempCwd<()> {
@@ -39,7 +58,12 @@ impl CommandTempCwd<()> {
             .expect("find the pnpm binary")
             .with_current_dir(&workspace)
             .without_ambient_pnpm_config();
-        let pnpm = Command::new("pnpm").with_current_dir(&workspace).without_ambient_pnpm_config();
+        let pnpm = match read_v11_bundle_path() {
+            Some(bundle) => Command::new("node").with_arg(bundle),
+            None => Command::new("pnpm"),
+        }
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config();
         CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info: () }
     }
 }
@@ -53,14 +77,14 @@ pub struct AddMockedRegistry {
     pub store_dir: PathBuf,
     /// Absolute path to the cache directory as defined by the `.npmrc` file.
     pub cache_dir: PathBuf,
-    /// Handle to the mocked registry this test uses — the process-scoped
+    /// Handle to the mocked registry this test uses, the process-scoped
     /// instance, or one of the test's own.
     pub mock_instance: TestRegistry,
 }
 
 impl AddMockedRegistry {
     /// Move `tag` to `version` on the mocked registry, the way the JS
-    /// harness's `addDistTag` does — the setup behind every upstream test
+    /// harness's `addDistTag` does, the setup behind every upstream test
     /// where a newer version is published after the install.
     ///
     /// The packument the last command cached goes with it, so the next one
@@ -69,6 +93,10 @@ impl AddMockedRegistry {
     /// its own, and not what any of these tests are about.
     pub fn set_dist_tag(&self, package: &str, version: &str, tag: &str) {
         self.mock_instance.set_dist_tag(package, version, tag);
+        self.drop_cached_metadata();
+    }
+
+    fn drop_cached_metadata(&self) {
         if self.cache_dir.exists() {
             fs::remove_dir_all(&self.cache_dir).expect("drop the cached registry metadata");
         }
@@ -113,7 +141,39 @@ impl CommandTempCwd<()> {
     /// any other test seeing the change.
     #[must_use]
     pub fn add_mocked_registry_with_own_storage(self) -> CommandTempCwd<AddMockedRegistry> {
-        let mock_instance = TestRegistry::start_with_own_storage(self.root.path());
+        self.add_mocked_registry_with_own_storage_without_fields(&[])
+    }
+
+    /// Like [`Self::add_mocked_registry_with_own_storage`], over registry
+    /// metadata that leaves out `removed_fields` while the tarballs keep
+    /// them.
+    #[must_use]
+    pub fn add_mocked_registry_with_own_storage_without_fields(
+        self,
+        removed_fields: &[RemovedVersionField<'_>],
+    ) -> CommandTempCwd<AddMockedRegistry> {
+        let mock_instance =
+            TestRegistry::start_with_own_storage_without_fields(self.root.path(), removed_fields);
+        self.write_registry_config(mock_instance)
+    }
+
+    /// Like [`Self::add_mocked_registry_with_own_storage`], over a registry
+    /// that records the requests it answers, see
+    /// [`TestRegistry::take_requests`].
+    #[must_use]
+    pub fn add_recording_mocked_registry(self) -> CommandTempCwd<AddMockedRegistry> {
+        self.add_recording_mocked_registry_without_fields(&[])
+    }
+
+    /// Like [`Self::add_recording_mocked_registry`], over registry metadata
+    /// that leaves out `removed_fields` while the tarballs keep them.
+    #[must_use]
+    pub fn add_recording_mocked_registry_without_fields(
+        self,
+        removed_fields: &[RemovedVersionField<'_>],
+    ) -> CommandTempCwd<AddMockedRegistry> {
+        let mock_instance =
+            TestRegistry::start_recording_with_own_storage(self.root.path(), removed_fields);
         self.write_registry_config(mock_instance)
     }
 
@@ -125,7 +185,12 @@ impl CommandTempCwd<()> {
         let mock_instance = if substitutions.is_empty() {
             TestRegistry::start()
         } else {
-            TestRegistry::start_over_built_storage(self.root.path(), substitutions, static_registry)
+            TestRegistry::start_over_built_storage(
+                self.root.path(),
+                substitutions,
+                &[],
+                static_registry,
+            )
         };
         self.write_registry_config(mock_instance)
     }
@@ -150,7 +215,7 @@ impl CommandTempCwd<()> {
         // has set in their global pnpm config (`~/.config/pnpm/config.yaml`
         // on Linux/macOS-with-XDG, `~/Library/Preferences/pnpm/config.yaml`
         // on macOS by default). Tests that exercise GVS explicitly
-        // override this — see `enable_gvs_in_workspace_yaml` in
+        // override this; see `enable_gvs_in_workspace_yaml` in
         // `pnpm/crates/cli/tests/_utils.rs`.
         let workspace_yaml = self.workspace.join("pnpm-workspace.yaml");
         let workspace_yaml_text = text_block_fnl! {
@@ -161,7 +226,13 @@ impl CommandTempCwd<()> {
         fs::write(&workspace_yaml, workspace_yaml_text).expect("write to pnpm-workspace.yaml");
 
         let npmrc_info = AddMockedRegistry { npmrc_path, store_dir, cache_dir, mock_instance };
-        let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info: () } = self;
+        let CommandTempCwd {
+            pacquet,
+            pnpm,
+            root,
+            workspace,
+            npmrc_info: (),
+        } = self;
         CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info }
     }
 }

@@ -1,7 +1,7 @@
 import { expect, jest, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { ResolveLatestDispatcher } from '@pnpm/installing.client'
-import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
+import type { DependenciesField, DepPath, PackageManifest, ProjectId } from '@pnpm/types'
 
 import { outdated } from '../lib/outdated.js'
 
@@ -21,21 +21,31 @@ function makeResolveLatest (getLatest: ManifestGetter): ResolveLatestDispatcher 
       const latestManifest = await getLatest(alias)
       return { latestManifest: latestManifest ?? undefined }
     }
-    if (
-      bareSpecifier?.startsWith('http://') || bareSpecifier?.startsWith('https://') ||
-      bareSpecifier?.startsWith('github:') || bareSpecifier?.startsWith('git+') || bareSpecifier?.startsWith('git:')
-    ) {
+    if (isRemoteOrGitSpecifier(bareSpecifier)) {
       return {}
     }
-    let pkgName = alias ?? ''
-    if (bareSpecifier?.startsWith('npm:')) {
-      const inner = bareSpecifier.slice(4)
-      const atIdx = inner.lastIndexOf('@')
-      pkgName = (atIdx > 0 ? inner.slice(0, atIdx) : inner) || pkgName
-    }
+    const pkgName = extractPackageNameFromSpecifier(alias, bareSpecifier)
     const latestManifest = await getLatest(pkgName)
     return { latestManifest: latestManifest ?? undefined }
   }
+}
+
+function isRemoteOrGitSpecifier (bareSpecifier?: string): boolean {
+  if (!bareSpecifier) return false
+  return (
+    bareSpecifier.startsWith('http://') || bareSpecifier.startsWith('https://') ||
+    bareSpecifier.startsWith('github:') || bareSpecifier.startsWith('git+') || bareSpecifier.startsWith('git:')
+  )
+}
+
+function extractPackageNameFromSpecifier (alias: string | undefined, bareSpecifier?: string): string {
+  let pkgName = alias ?? ''
+  if (bareSpecifier?.startsWith('npm:')) {
+    const inner = bareSpecifier.slice(4)
+    const atIdx = inner.lastIndexOf('@')
+    pkgName = (atIdx > 0 ? inner.slice(0, atIdx) : inner) || pkgName
+  }
+  return pkgName
 }
 
 async function getLatestManifest (packageName: string): Promise<PackageManifest | null> {
@@ -61,6 +71,118 @@ async function getLatestManifest (packageName: string): Promise<PackageManifest 
 }
 
 const resolveLatest = makeResolveLatest(getLatestManifest)
+
+test('outdated() includes peer-only dependencies when requested', async () => {
+  const importer = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    specifiers: {
+      'is-positive': '^1.0.0',
+    },
+  }
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    include: {
+      dependencies: false,
+      devDependencies: false,
+      optionalDependencies: false,
+      peerDependencies: true,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'peer-only-project',
+      peerDependencies: {
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+  })
+
+  expect(outdatedPkgs).toStrictEqual([{
+    alias: 'is-positive',
+    belongsTo: 'peerDependencies',
+    current: '1.0.0',
+    latestManifest: {
+      name: 'is-positive',
+      version: '3.1.0',
+    },
+    packageName: 'is-positive',
+    wanted: '1.0.0',
+    workspace: 'peer-only-project',
+  }])
+})
+
+test.each<DependenciesField>([
+  'devDependencies',
+  'optionalDependencies',
+])('outdated() uses the peer range and the installed %s version for a shared alias', async (dependencyType) => {
+  const resolveLatest = jest.fn<ResolveLatestDispatcher>(async ({ wantedDependency }) => {
+    expect(wantedDependency).toStrictEqual({
+      alias: 'is-positive',
+      bareSpecifier: '^1.0.0',
+    })
+    return {
+      latestManifest: {
+        name: 'is-positive',
+        version: '1.1.0',
+      },
+    }
+  })
+  const importer = {
+    [dependencyType]: {
+      'is-positive': '1.0.0',
+    },
+    specifiers: {
+      'is-positive': '^1.0.0',
+    },
+  }
+
+  const outdatedPkgs = await outdated({
+    compatible: true,
+    currentLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    include: {
+      dependencies: false,
+      devDependencies: false,
+      optionalDependencies: false,
+      peerDependencies: true,
+    },
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      [dependencyType]: {
+        'is-positive': '^3.0.0',
+      },
+      peerDependencies: {
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: { ['.' as ProjectId]: importer },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+  })
+
+  expect(outdatedPkgs).toHaveLength(1)
+  expect(outdatedPkgs[0]).toMatchObject({
+    alias: 'is-positive',
+    belongsTo: 'peerDependencies',
+    wanted: '1.0.0',
+  })
+  expect(resolveLatest).toHaveBeenCalledTimes(1)
+})
 
 test('outdated() skips dependencies resolved from local refs', async () => {
   const resolveLatest = jest.fn<ResolveLatestDispatcher>(async () => {
@@ -1050,15 +1172,15 @@ test('outdated() lists outdated runtimes (node, deno, bun)', async () => {
     packages: {
       ['node@runtime:22.0.0' as DepPath]: {
         version: '22.0.0',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
       ['deno@runtime:2.4.2' as DepPath]: {
         version: '2.4.2',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
       ['bun@runtime:1.1.40' as DepPath]: {
         version: '1.1.40',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
     },
   }
@@ -1130,7 +1252,7 @@ test('outdated() runtime in --compatible mode resolves within the declared range
     packages: {
       ['node@runtime:22.0.0' as DepPath]: {
         version: '22.0.0',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
     },
   }
@@ -1178,7 +1300,7 @@ test('outdated() does not list runtime that is already up to date', async () => 
     packages: {
       ['node@runtime:22.0.0' as DepPath]: {
         version: '22.0.0',
-        resolution: { type: 'variations', variants: [] } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        resolution: { type: 'variations' as const, variants: [] },
       },
     },
   }

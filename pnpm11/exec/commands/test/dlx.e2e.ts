@@ -1,10 +1,13 @@
 import fs from 'node:fs'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
+import { overrideTty } from '@pnpm/testing.command-defaults'
 
-import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
+import { createTarballBuffer, DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 const {
   getSystemNodeVersion: originalGetSystemNodeVersion,
@@ -290,6 +293,37 @@ test('dlx with cache', async () => {
   jest.mocked(systemNodeVersion.getSystemNodeVersion).mockImplementation(originalGetSystemNodeVersion)
 })
 
+test('dlx does not reuse the cache across Node.js major versions', async () => {
+  prepareEmpty()
+
+  const spy = jest.mocked(add.handler)
+  const runDlx = async (nodeVersion: string) => {
+    jest.mocked(systemNodeVersion.getSystemNodeVersion).mockReturnValue(nodeVersion)
+    spy.mockClear()
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['shx@0.3.4', 'touch', 'foo'])
+  }
+
+  try {
+    await runDlx('v22.1.0')
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    await runDlx('v22.2.0')
+    expect(spy).not.toHaveBeenCalled()
+
+    await runDlx('v24.0.0')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toHaveLength(2)
+  } finally {
+    jest.mocked(systemNodeVersion.getSystemNodeVersion).mockImplementation(originalGetSystemNodeVersion)
+  }
+})
+
 test('dlx does not reuse expired cache', async () => {
   prepareEmpty()
 
@@ -441,6 +475,29 @@ test('dlx does not error on ignored builds in non-interactive mode', async () =>
   expect(fs.existsSync(path.join(dlxCacheDir, 'package.json'))).toBe(true)
 })
 
+test('dlx skips automatic approve-builds prompt in CI even when stdin is a TTY', async () => {
+  prepareEmpty()
+  const restoreTty = overrideTty(true)
+  const approveBuildsSpy = jest.fn(approveBuilds.handler)
+  try {
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      ci: true,
+      enableGlobalVirtualStore: false,
+      strictDepBuilds: true,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuildsSpy })
+  } finally {
+    restoreTty()
+  }
+  expect(approveBuildsSpy).not.toHaveBeenCalled()
+  const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+  expect(fs.existsSync(path.join(dlxCacheDir, 'package.json'))).toBe(true)
+})
+
 // Regression test for https://github.com/pnpm/pnpm/issues/11444.
 //
 // `PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS=1` lets the test drive the
@@ -448,21 +505,33 @@ test('dlx does not error on ignored builds in non-interactive mode', async () =>
 // forwards `all: true` to approve-builds, which approves every pending
 // build without prompting and re-runs install. The build artifacts must
 // end up in the dlx cache.
-test('dlx prompts to approve ignored builds when invoked with a commands map', async () => {
+test.each(['fresh', 'cached', 'missing-lockfile', 'disabled-lockfile'])('dlx prompts to approve ignored builds with cache state: %s', async (cacheState) => {
   prepareEmpty()
+
+  const opts = {
+    ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
+    strictDepBuilds: true,
+    useLockfile: cacheState !== 'disabled-lockfile',
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }
+  if (cacheState === 'cached' || cacheState === 'missing-lockfile') {
+    await dlx.handler(opts, ['@pnpm.e2e/has-bin-and-needs-build'])
+  }
+
+  if (cacheState === 'missing-lockfile') {
+    const cachedDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+    fs.unlinkSync(path.join(cachedDir, 'pnpm-lock.yaml'))
+    fs.unlinkSync(path.join(cachedDir, 'node_modules/.pnpm/lock.yaml'))
+  }
 
   const prevAutoApprove = process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
   process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS = '1'
   try {
-    await dlx.handler({
-      ...DEFAULT_OPTS,
-      enableGlobalVirtualStore: false,
-      strictDepBuilds: true,
-      dir: path.resolve('project'),
-      storeDir: path.resolve('store'),
-      cacheDir: path.resolve('cache'),
-      dlxCacheMaxAge: Infinity,
-    }, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuilds.handler })
+    await dlx.handler(opts, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuilds.handler })
   } finally {
     if (prevAutoApprove === undefined) {
       delete process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
@@ -531,4 +600,301 @@ test('dlx with catalog', async () => {
   }, ['shx@catalog:'])
 
   verifyDlxCache(createCacheKey('shx@0.3.4'))
+})
+
+test('dlx --allow-build=!pkg denies build scripts and rejects empty negated selectors', async () => {
+  prepareEmpty()
+
+  await expect(
+    dlx.handler({
+      ...DEFAULT_OPTS,
+      allowBuild: ['!'],
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+    }, ['shx@0.3.4', 'echo', 'hi'])
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_ALLOW_BUILD_MISSING_PACKAGE' })
+
+  const marker = path.resolve('postinstall-ran')
+  const demoPkgDir = path.resolve('demo-pkg')
+  fs.mkdirSync(demoPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(demoPkgDir, 'package.json'), JSON.stringify({
+    name: 'demo-pkg',
+    version: '1.0.0',
+    bin: { 'demo-pkg': 'bin.js' },
+    scripts: {
+      postinstall: `node -e "require('fs').writeFileSync(${JSON.stringify(marker)}, 'ran')"`,
+    },
+  }))
+  fs.writeFileSync(path.join(demoPkgDir, 'bin.js'), '#!/usr/bin/env node\nrequire("fs").writeFileSync("bin-ran", "ok")\n', { mode: 0o755 })
+
+  const prevAutoApprove = process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
+  process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS = '1'
+  try {
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      enableGlobalVirtualStore: false,
+      allowBuild: ['!demo-pkg'],
+      argv: { original: ['dlx', '--allow-build', '!demo-pkg', demoPkgDir, '--allow-build'] },
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, [demoPkgDir, '--allow-build'], { 'approve-builds': approveBuilds.handler })
+
+    expect(fs.existsSync('bin-ran')).toBe(true)
+    expect(fs.existsSync(marker)).toBe(false)
+
+    const allowBuild = ['!@pnpm.e2e/install-script-example']
+    await dlx.handler({
+      ...DEFAULT_OPTS,
+      enableGlobalVirtualStore: false,
+      allowBuild,
+      dir: path.resolve('project'),
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }, ['@pnpm.e2e/has-bin-and-needs-build'], { 'approve-builds': approveBuilds.handler })
+
+    const dlxCacheDir = path.resolve('cache', 'dlx', dlx.createCacheKey({
+      packages: ['@pnpm.e2e/has-bin-and-needs-build@1.0.0'],
+      allowBuild,
+      registriesByScope: DEFAULT_OPTS.registriesByScope,
+      supportedArchitectures: DEFAULT_OPTS.supportedArchitectures,
+    }), 'pkg')
+    const approvedSibling = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+    const deniedDep = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
+    expect(fs.existsSync(path.join(approvedSibling, 'generated-by-postinstall.js'))).toBe(true)
+    expect(fs.existsSync(path.join(deniedDep, 'generated-by-install.js'))).toBe(false)
+  } finally {
+    if (prevAutoApprove === undefined) {
+      delete process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS
+    } else {
+      process.env.PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS = prevAutoApprove
+    }
+  }
+})
+
+test('dlx does not reuse a cached install when overrides or minimumReleaseAge change', async () => {
+  prepareEmpty()
+
+  const spy = jest.mocked(add.handler)
+  spy.mockClear()
+  const baseOpts = {
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }
+
+  await dlx.handler(baseOpts, ['shx@0.3.4', 'touch', 'clean-run'])
+  expect(spy).toHaveBeenCalledTimes(1)
+  spy.mockClear()
+
+  await dlx.handler({
+    ...baseOpts,
+    overrides: { shelljs: '0.8.5' },
+  }, ['shx@0.3.4', 'touch', 'override-run'])
+  expect(spy).toHaveBeenCalledTimes(1)
+  spy.mockClear()
+
+  await dlx.handler({
+    ...baseOpts,
+    overrides: { shelljs: 'catalog:' },
+    catalogs: { default: { shelljs: '0.8.5' } },
+  }, ['shx@0.3.4', 'touch', 'catalog-same-run'])
+  expect(spy).not.toHaveBeenCalled()
+
+  await dlx.handler({
+    ...baseOpts,
+    overrides: { shelljs: 'catalog:' },
+    catalogs: { default: { shelljs: '0.8.4' } },
+  }, ['shx@0.3.4', 'touch', 'catalog-diff-run'])
+  expect(spy).toHaveBeenCalledTimes(1)
+  spy.mockClear()
+
+  await dlx.handler({
+    ...baseOpts,
+    minimumReleaseAge: 60,
+  }, ['shx@0.3.4', 'touch', 'age-run'])
+  expect(spy).toHaveBeenCalledTimes(1)
+  spy.mockClear()
+
+  await dlx.handler(baseOpts, ['shx@0.3.4', 'touch', 'clean-hit'])
+  expect(spy).not.toHaveBeenCalled()
+  expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toHaveLength(4)
+})
+
+test('dlx runs postinstall on direct tarball URLs and keys the cache by ignoreScripts', async () => {
+  prepareEmpty()
+
+  const tarball = createTarballBuffer([
+    ['package/package.json', JSON.stringify({
+      name: 'dlx-url-tool',
+      version: '1.0.0',
+      bin: { 'dlx-url-tool': 'bin.js' },
+      scripts: {
+        postinstall: 'node -e "if (process.env.FAIL_DLX_RECOVERY_BUILD === \'1\') process.exit(1); require(\'fs\').writeFileSync(\'built.txt\', \'ok\')"',
+      },
+    })],
+    ['package/bin.js', [
+      '#!/usr/bin/env node',
+      'const fs = require("fs")',
+      'const path = require("path")',
+      'const ok = fs.existsSync(path.join(__dirname, "built.txt"))',
+      'fs.writeFileSync(process.argv[2], ok ? "BUILT_OK" : "MISSING_BUILD")',
+    ].join('\n')],
+  ])
+
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/octet-stream' })
+    res.end(tarball)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as AddressInfo).port
+  const tarballUrl = `http://127.0.0.1:${port}/dlx-url-tool.tgz`
+
+  try {
+    const projectDir = path.resolve('project')
+    fs.mkdirSync(projectDir, { recursive: true })
+    const baseOpts = {
+      ...DEFAULT_OPTS,
+      dir: projectDir,
+      storeDir: path.resolve('store'),
+      cacheDir: path.resolve('cache'),
+      dlxCacheMaxAge: Infinity,
+    }
+
+    const ignoredOut = path.join(projectDir, 'ignored.txt')
+    await dlx.handler({ ...baseOpts, ignoreScripts: true }, [tarballUrl, ignoredOut])
+    expect(fs.readFileSync(ignoredOut, 'utf8')).toBe('MISSING_BUILD')
+
+    const deniedOut = path.join(projectDir, 'denied.txt')
+    await dlx.handler({ ...baseOpts, allowBuild: ['!dlx-url-tool'] }, [tarballUrl, deniedOut])
+    expect(fs.readFileSync(deniedOut, 'utf8')).toBe('MISSING_BUILD')
+
+    const builtOut = path.join(projectDir, 'built.txt')
+    await dlx.handler(baseOpts, [tarballUrl, builtOut])
+    expect(fs.readFileSync(builtOut, 'utf8')).toBe('BUILT_OK')
+
+    expect(fs.readdirSync(path.resolve('cache', 'dlx'))).toHaveLength(3)
+
+    const hitCacheDir = path.resolve('cache-hit')
+    const hitOpts = {
+      ...baseOpts,
+      cacheDir: hitCacheDir,
+      enableGlobalVirtualStore: false,
+    }
+    const initialHitOut = path.join(projectDir, 'hit-initial.txt')
+    await dlx.handler(hitOpts, [tarballUrl, initialHitOut])
+    expect(fs.readFileSync(initialHitOut, 'utf8')).toBe('BUILT_OK')
+
+    const cachedEntry = path.join(hitCacheDir, 'dlx', fs.readdirSync(path.join(hitCacheDir, 'dlx'))[0], 'pkg')
+    const cachedPkgReal = fs.realpathSync(path.join(cachedEntry, 'node_modules/dlx-url-tool'))
+    fs.rmSync(path.join(cachedPkgReal, 'built.txt'))
+    const modulesYamlPath = path.join(cachedEntry, 'node_modules/.modules.yaml')
+    const modulesRaw = JSON.parse(fs.readFileSync(modulesYamlPath, 'utf8')) as Record<string, unknown>
+    modulesRaw.ignoredBuilds = [`dlx-url-tool@${tarballUrl}`]
+    fs.writeFileSync(modulesYamlPath, JSON.stringify(modulesRaw, null, 2))
+
+    process.env.FAIL_DLX_RECOVERY_BUILD = '1'
+    try {
+      await expect(dlx.handler(hitOpts, [tarballUrl, path.join(projectDir, 'hit-failed.txt')])).rejects.toThrow()
+    } finally {
+      delete process.env.FAIL_DLX_RECOVERY_BUILD
+    }
+
+    const recoveredHitOut = path.join(projectDir, 'hit-recovered.txt')
+    await dlx.handler(hitOpts, [tarballUrl, recoveredHitOut])
+    expect(fs.readFileSync(recoveredHitOut, 'utf8')).toBe('BUILT_OK')
+    const recoveredModules = JSON.parse(fs.readFileSync(modulesYamlPath, 'utf8')) as {
+      ignoredBuilds?: string[]
+      allowBuilds?: Record<string, boolean | string>
+      pendingBuilds?: string[]
+    }
+    expect(recoveredModules.ignoredBuilds).toBeUndefined()
+    expect(recoveredModules.allowBuilds?.[`dlx-url-tool@${tarballUrl}`]).toBe(true)
+    expect(recoveredModules.pendingBuilds ?? []).toHaveLength(0)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
+test('dlx does not turn an aliased registry package into a package-wide build approval', async () => {
+  prepareEmpty()
+
+  const cacheDir = path.resolve('cache')
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    enableGlobalVirtualStore: false,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir,
+    dlxCacheMaxAge: Infinity,
+    package: [
+      'my-alias@npm:@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+      'shx@0.3.4',
+    ],
+  }, ['shx', 'touch', 'aliased-ran'])
+
+  expect(fs.existsSync('aliased-ran')).toBe(true)
+  const cachedPkg = path.join(
+    cacheDir,
+    'dlx',
+    fs.readdirSync(path.join(cacheDir, 'dlx'))[0],
+    'pkg/node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  expect(fs.existsSync(cachedPkg)).toBe(false)
+})
+
+test('dlx resolves relative local directory and tarball specs against invocation dir', async () => {
+  prepareEmpty()
+
+  const writeLocalCli = (pkgDir: string, message: string): void => {
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+      name: 'local-cli',
+      version: '1.0.0',
+      bin: { 'local-cli': 'bin.js' },
+    }))
+    fs.writeFileSync(
+      path.join(pkgDir, 'bin.js'),
+      `#!/usr/bin/env node\nrequire("fs").writeFileSync("out.txt", ${JSON.stringify(message)})\n`,
+      { mode: 0o755 }
+    )
+  }
+
+  const dirA = path.resolve('dir-a')
+  const dirB = path.resolve('dir-b')
+  writeLocalCli(path.join(dirA, 'pkg'), 'from-a')
+  writeLocalCli(path.join(dirB, 'pkg'), 'from-b')
+
+  fs.writeFileSync(path.join(dirA, 'dlx-tool.tgz'), createTarballBuffer([
+    ['package/package.json', JSON.stringify({
+      name: 'tarball-cli',
+      version: '1.0.0',
+      bin: { 'tarball-cli': 'bin.js' },
+    })],
+    ['package/bin.js', '#!/usr/bin/env node\nrequire("fs").writeFileSync("tgz-out.txt", "from-tarball")\n'],
+  ]))
+
+  const baseOpts = {
+    ...DEFAULT_OPTS,
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }
+
+  await dlx.handler({ ...baseOpts, dir: dirA, cliOptions: { dir: dirA } }, ['./pkg'])
+  expect(fs.readFileSync(path.join(dirA, 'out.txt'), 'utf8')).toBe('from-a')
+
+  await dlx.handler({ ...baseOpts, dir: dirB, cliOptions: { dir: dirB } }, ['./pkg'])
+  expect(fs.readFileSync(path.join(dirB, 'out.txt'), 'utf8')).toBe('from-b')
+
+  await dlx.handler({ ...baseOpts, dir: dirB, cliOptions: { dir: dirB } }, ['../dir-a/pkg'])
+  expect(fs.readFileSync(path.join(dirB, 'out.txt'), 'utf8')).toBe('from-a')
+
+  await dlx.handler({ ...baseOpts, dir: dirA, cliOptions: { dir: dirA } }, ['./dlx-tool.tgz'])
+  expect(fs.readFileSync(path.join(dirA, 'tgz-out.txt'), 'utf8')).toBe('from-tarball')
 })

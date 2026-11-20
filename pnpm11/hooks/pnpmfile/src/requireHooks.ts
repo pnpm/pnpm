@@ -11,15 +11,16 @@ import { pathAbsolute } from 'path-absolute'
 import type { HookContext, Hooks } from './Hooks.js'
 import { type Finders, type Pnpmfile, requirePnpmfile } from './requirePnpmfile.js'
 
-// eslint-disable-next-line
-type Cook<T extends (...args: any[]) => any> = (
-  arg: Parameters<T>[0],
-  // eslint-disable-next-line
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- a constraint matching every function type needs any parameters
+type Cook<Hook extends (...args: any[]) => any> = (
+  arg: Parameters<Hook>[0],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the cooked hook forwards whatever extra arguments the caller passes
   ...otherArgs: any[]
-) => ReturnType<T>
+) => ReturnType<Hook>
 
 interface PnpmfileEntry {
   path: string
+  fallbackPath?: string
   includeInChecksum: boolean
   optional?: boolean
 }
@@ -50,7 +51,7 @@ export interface CookedHooks {
    * `pnpmfileChecksum` comparisons, so nothing downstream may treat the
    * checksum as proof the hooks are unchanged.
    */
-  hasUntrackedReadPackageHook?: boolean
+  untrackedPnpmfileReadPackageHook?: boolean
 }
 
 export interface RequireHooksResult {
@@ -67,36 +68,30 @@ export async function requireHooks (
     tryLoadDefaultPnpmfile?: boolean
   }
 ): Promise<RequireHooksResult> {
+  const pnpmfiles = buildPnpmfileEntries(opts)
+  const entries = await loadAllPnpmfiles(pnpmfiles, prefix)
+  const mergedFinders = mergeFinders(entries)
+  const cookedHooks = cookHooks(entries, prefix)
+  attachCustomResolversAndFetchers(entries, cookedHooks)
+
+  return {
+    hooks: cookedHooks,
+    finders: mergedFinders,
+    resolvedPnpmfilePaths: entries.map(({ file }) => file),
+  }
+}
+
+function buildPnpmfileEntries (opts: {
+  globalPnpmfile?: string
+  pnpmfiles?: string[]
+  tryLoadDefaultPnpmfile?: boolean
+}): PnpmfileEntry[] {
   const pnpmfiles: PnpmfileEntry[] = []
   if (opts.globalPnpmfile) {
     pnpmfiles.push({
       path: opts.globalPnpmfile,
       includeInChecksum: false,
     })
-  }
-  const entries: PnpmfileEntryLoaded[] = []
-  const loadedFiles: string[] = []
-  if (opts.tryLoadDefaultPnpmfile) {
-    // Prefer .pnpmfile.mjs over .pnpmfile.cjs. Only load one.
-    const mjsPath = pathAbsolute('.pnpmfile.mjs', prefix)
-    const mjsResult = await requirePnpmfile(mjsPath, prefix)
-    if (mjsResult != null) {
-      loadedFiles.push(mjsPath)
-      entries.push({
-        file: mjsPath,
-        includeInChecksum: true,
-        hooks: mjsResult.pnpmfileModule?.hooks,
-        finders: mjsResult.pnpmfileModule?.finders,
-        resolvers: mjsResult.pnpmfileModule?.resolvers,
-        fetchers: mjsResult.pnpmfileModule?.fetchers,
-      })
-    } else {
-      pnpmfiles.push({
-        path: '.pnpmfile.cjs',
-        includeInChecksum: true,
-        optional: true,
-      })
-    }
   }
   if (opts.pnpmfiles) {
     for (const pnpmfile of opts.pnpmfiles) {
@@ -106,28 +101,81 @@ export async function requireHooks (
       })
     }
   }
-  await Promise.all(pnpmfiles.map(async ({ path, includeInChecksum, optional }) => {
-    const file = pathAbsolute(path, prefix)
-    if (!loadedFiles.includes(file)) {
-      loadedFiles.push(file)
-      const requirePnpmfileResult = await requirePnpmfile(file, prefix)
-      if (requirePnpmfileResult != null) {
-        entries.push({
-          file,
-          includeInChecksum,
-          hooks: requirePnpmfileResult.pnpmfileModule?.hooks,
-          finders: requirePnpmfileResult.pnpmfileModule?.finders,
-          resolvers: requirePnpmfileResult.pnpmfileModule?.resolvers,
-          fetchers: requirePnpmfileResult.pnpmfileModule?.fetchers,
-        })
-      } else if (!optional) {
-        throw new PnpmError('PNPMFILE_NOT_FOUND', `pnpmfile at "${file}" is not found`)
-      }
-    }
-  }))
+  if (opts.tryLoadDefaultPnpmfile) {
+    pnpmfiles.push({
+      path: '.pnpmfile.mjs',
+      fallbackPath: '.pnpmfile.cjs',
+      includeInChecksum: true,
+      optional: true,
+    })
+  }
+  return pnpmfiles
+}
 
+async function loadAllPnpmfiles (pnpmfiles: PnpmfileEntry[], prefix: string): Promise<PnpmfileEntryLoaded[]> {
+  const entries: PnpmfileEntryLoaded[] = []
+  for (const { path: pnpmPath, fallbackPath, includeInChecksum, optional } of pnpmfiles) {
+    // eslint-disable-next-line no-await-in-loop -- pnpmfiles must load sequentially to preserve order
+    await loadPnpmfileCandidate({ pnpmPath, fallbackPath, includeInChecksum, optional }, prefix, entries)
+  }
+  return entries
+}
+
+async function loadPnpmfileCandidate (
+  spec: { pnpmPath: string, fallbackPath?: string, includeInChecksum: boolean, optional?: boolean },
+  prefix: string,
+  entries: PnpmfileEntryLoaded[]
+): Promise<void> {
+  const candidates = spec.fallbackPath == null ? [spec.pnpmPath] : [spec.pnpmPath, spec.fallbackPath]
+  for (const candidate of candidates) {
+    const file = pathAbsolute(candidate, prefix)
+    const loadedEntry = entries.find((entry) => entry.file === file)
+    if (loadedEntry != null) {
+      loadedEntry.includeInChecksum ||= spec.includeInChecksum
+      return
+    }
+    const result = await requirePnpmfile(file, prefix) // eslint-disable-line no-await-in-loop -- pnpmfiles must load in order
+    if (result != null) {
+      entries.push({
+        file,
+        includeInChecksum: spec.includeInChecksum,
+        hooks: result.pnpmfileModule?.hooks,
+        finders: result.pnpmfileModule?.finders,
+        resolvers: result.pnpmfileModule?.resolvers,
+        fetchers: result.pnpmfileModule?.fetchers,
+      })
+      return
+    }
+    if (candidate === (spec.fallbackPath ?? spec.pnpmPath) && !spec.optional) {
+      throw new PnpmError('PNPMFILE_NOT_FOUND', `pnpmfile at "${file}" is not found`)
+    }
+  }
+}
+
+function mergeFinders (entries: PnpmfileEntryLoaded[]): Finders {
   const mergedFinders: Finders = {}
-  const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'beforePacking' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
+  const finderProviders: Record<string, string> = {}
+  for (const { file, finders } of entries) {
+    if (!finders) continue
+    for (const [finderName, finder] of Object.entries(finders)) {
+      if (mergedFinders[finderName] != null) {
+        const firstDefinedIn = finderProviders[finderName]
+        throw new PnpmError(
+          'DUPLICATE_FINDER',
+          `Finder "${finderName}" defined in both ${firstDefinedIn} and ${file}`
+        )
+      }
+      mergedFinders[finderName] = finder
+      finderProviders[finderName] = file
+    }
+  }
+  return mergedFinders
+}
+
+type RequiredCookedHooks = CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'beforePacking' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>>
+
+function cookHooks (entries: PnpmfileEntryLoaded[], prefix: string): CookedHooks {
+  const cookedHooks: RequiredCookedHooks = {
     readPackage: [],
     beforePacking: [],
     preResolution: [],
@@ -136,123 +184,119 @@ export async function requireHooks (
     updateConfig: [],
   }
 
-  cookedHooks.hasUntrackedReadPackageHook = entries.some(
-    (entry) => entry.hooks?.readPackage != null && !entry.includeInChecksum
-  )
-  // calculate combined checksum for all included files
+  if (entries.some((entry) => !entry.includeInChecksum)) {
+    cookedHooks.untrackedPnpmfileReadPackageHook = entries.some(
+      (entry) => entry.hooks?.readPackage != null && !entry.includeInChecksum
+    )
+  }
   if (entries.some((entry) => entry.hooks != null)) {
-    cookedHooks.calculatePnpmfileChecksum = async () => {
-      const filesToIncludeInHash: string[] = []
-      for (const { includeInChecksum, file } of entries) {
-        if (includeInChecksum) {
-          filesToIncludeInHash.push(file)
-        }
-      }
-      filesToIncludeInHash.sort()
-      return createHashFromMultipleFiles(filesToIncludeInHash)
-    }
+    cookedHooks.calculatePnpmfileChecksum = () => computePnpmfilesChecksum(entries)
   }
 
   let importProvider: string | undefined
-  const finderProviders: Record<string, string> = {}
+  for (const { hooks, file } of entries) {
+    importProvider = applyEntryHooks(hooks ?? {}, file, prefix, cookedHooks, importProvider)
+  }
+  return cookedHooks
+}
 
-  // process hooks in order
-  for (const { hooks, file, finders } of entries) {
-    if (finders != null) {
-      for (const [finderName, finder] of Object.entries(finders)) {
-        if (mergedFinders[finderName] != null) {
-          const firstDefinedIn = finderProviders[finderName]
-          throw new PnpmError(
-            'DUPLICATE_FINDER',
-            `Finder "${finderName}" defined in both ${firstDefinedIn} and ${file}`
-          )
-        }
-        mergedFinders[finderName] = finder
-        finderProviders[finderName] = file
-      }
-    }
-    const fileHooks: Hooks = hooks ?? {}
-
-    // readPackage
-    if (fileHooks.readPackage) {
-      const fn = fileHooks.readPackage
-      const context = createReadPackageHookContext(file, prefix, 'readPackage')
-      cookedHooks.readPackage.push(<Pkg extends BaseManifest>(pkg: Pkg, _dir?: string) => fn(pkg, context))
-    }
-
-    // beforePacking
-    if (fileHooks.beforePacking) {
-      const fn = fileHooks.beforePacking
-      const context = createReadPackageHookContext(file, prefix, 'beforePacking')
-      cookedHooks.beforePacking.push(<Pkg extends BaseManifest>(pkg: Pkg, dir: string) => fn(pkg, dir, context))
-    }
-
-    // afterAllResolved
-    if (fileHooks.afterAllResolved) {
-      const fn = fileHooks.afterAllResolved
-      const context = createReadPackageHookContext(file, prefix, 'afterAllResolved')
-      cookedHooks.afterAllResolved.push((lockfile) => fn(lockfile, context))
-    }
-
-    // filterLog
-    if (fileHooks.filterLog) {
-      cookedHooks.filterLog.push(fileHooks.filterLog)
-    }
-
-    // updateConfig
-    if (fileHooks.updateConfig) {
-      const updateConfig = fileHooks.updateConfig
-      cookedHooks.updateConfig.push((config: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-        const updated = updateConfig(config)
-        if (updated == null) {
-          throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
-        }
-        return updated
-      })
-    }
-
-    // preResolution
-    if (fileHooks.preResolution) {
-      const preRes = fileHooks.preResolution
-      cookedHooks.preResolution.push((ctx: PreResolutionHookContext) => preRes(ctx, createPreResolutionHookLogger(prefix)))
-    }
-
-    // importPackage: only one allowed
-    if (fileHooks.importPackage) {
-      if (importProvider) {
-        throw new PnpmError(
-          'MULTIPLE_IMPORT_PACKAGE',
-          `importPackage hook defined in both ${importProvider} and ${file}`
-        )
-      }
-      importProvider = file
-      cookedHooks.importPackage = fileHooks.importPackage
-      globalWarn(
-        `The "importPackage" hook (defined in ${redactAndSanitize(file)}) is deprecated and will be removed in the next major version of pnpm. ` +
-        'It keeps working until then, but it opts the installation out of the parallel package importer, making it slower.'
-      )
+async function computePnpmfilesChecksum (entries: PnpmfileEntryLoaded[]): Promise<string> {
+  const filesToIncludeInHash: string[] = []
+  for (const { includeInChecksum, file } of entries) {
+    if (includeInChecksum) {
+      filesToIncludeInHash.push(file)
     }
   }
+  filesToIncludeInHash.sort()
+  return createHashFromMultipleFiles(filesToIncludeInHash)
+}
 
-  // Process top-level resolvers and fetchers exports
+function applyEntryHooks (
+  fileHooks: Hooks,
+  file: string,
+  prefix: string,
+  cookedHooks: RequiredCookedHooks,
+  importProvider: string | undefined
+): string | undefined {
+  if (fileHooks.readPackage) {
+    const fn = fileHooks.readPackage
+    const context = createReadPackageHookContext(file, prefix, 'readPackage')
+    cookedHooks.readPackage.push(<Pkg extends BaseManifest>(pkg: Pkg, _dir?: string) => fn(pkg, context))
+  }
+  if (fileHooks.beforePacking) {
+    const fn = fileHooks.beforePacking
+    const context = createReadPackageHookContext(file, prefix, 'beforePacking')
+    cookedHooks.beforePacking.push(<Pkg extends BaseManifest>(pkg: Pkg, dir: string) => fn(pkg, dir, context))
+  }
+  if (fileHooks.afterAllResolved) {
+    const context = createReadPackageHookContext(file, prefix, 'afterAllResolved')
+    cookedHooks.afterAllResolved.push(createCookedAfterAllResolved(fileHooks.afterAllResolved, context))
+  }
+  if (fileHooks.filterLog) {
+    cookedHooks.filterLog.push(fileHooks.filterLog)
+  }
+  if (fileHooks.updateConfig) {
+    cookedHooks.updateConfig.push(createCookedUpdateConfig(fileHooks.updateConfig))
+  }
+  if (fileHooks.preResolution) {
+    const preRes = fileHooks.preResolution
+    cookedHooks.preResolution.push((ctx: PreResolutionHookContext) => preRes(ctx, createPreResolutionHookLogger(prefix)))
+  }
+  return applyImportPackageHook(fileHooks, file, cookedHooks, importProvider)
+}
+
+function createCookedUpdateConfig (updateConfig: NonNullable<Hooks['updateConfig']>): Cook<Required<Hooks>['updateConfig']> {
+  return (config: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any -- the config object comes from a user pnpmfile and has no fixed shape
+    const updated = updateConfig(config)
+    return isPromiseLike(updated) ? Promise.resolve(updated).then(assertConfigIsDefined) : assertConfigIsDefined(updated)
+  }
+}
+
+function createCookedAfterAllResolved (
+  afterAllResolved: NonNullable<Hooks['afterAllResolved']>,
+  context: HookContext
+): Cook<Required<Hooks>['afterAllResolved']> {
+  return (lockfile) => {
+    const updated = afterAllResolved(lockfile, context)
+    return isPromiseLike<LockfileObject>(updated) ? Promise.resolve(updated).then(assertAfterAllResolvedReturn) : assertAfterAllResolvedReturn(updated)
+  }
+}
+
+function isPromiseLike<Value> (value: unknown): value is PromiseLike<Value> {
+  return value != null && (typeof value === 'object' || typeof value === 'function') && typeof (value as PromiseLike<Value>).then === 'function'
+}
+
+function applyImportPackageHook (
+  fileHooks: Hooks,
+  file: string,
+  cookedHooks: CookedHooks,
+  importProvider: string | undefined
+): string | undefined {
+  if (!fileHooks.importPackage) return importProvider
+  if (importProvider) {
+    throw new PnpmError(
+      'MULTIPLE_IMPORT_PACKAGE',
+      `importPackage hook defined in both ${importProvider} and ${file}`
+    )
+  }
+  cookedHooks.importPackage = fileHooks.importPackage
+  globalWarn(
+    `The "importPackage" hook (defined in ${redactAndSanitize(file)}) is deprecated and will be removed in the next major version of pnpm. ` +
+    'It keeps working until then, but it opts the installation out of the parallel package importer, making it slower.'
+  )
+  return file
+}
+
+function attachCustomResolversAndFetchers (entries: PnpmfileEntryLoaded[], cookedHooks: CookedHooks): void {
   for (const { resolvers, fetchers } of entries) {
-    // Custom resolvers: merge all
     if (resolvers) {
       cookedHooks.customResolvers = cookedHooks.customResolvers ?? []
       cookedHooks.customResolvers.push(...resolvers)
     }
-
-    // Custom fetchers: merge all
     if (fetchers) {
       cookedHooks.customFetchers = cookedHooks.customFetchers ?? []
       cookedHooks.customFetchers.push(...fetchers)
     }
-  }
-
-  return {
-    hooks: cookedHooks,
-    finders: mergedFinders,
-    resolvedPnpmfilePaths: entries.map(({ file }) => file),
   }
 }
 
@@ -269,10 +313,30 @@ function createPreResolutionHookLogger (prefix: string): PreResolutionHookLogger
   const from = 'pnpmfile'
   return {
     info: (message: string) => {
-      hookLogger.info({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      hookLogger.info({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the logger info and warn signatures accept only message and prefix, but the reporter reads hook and from too
     },
     warn: (message: string) => {
-      hookLogger.warn({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      hookLogger.warn({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the logger info and warn signatures accept only message and prefix, but the reporter reads hook and from too
     },
   }
+}
+
+function assertConfigIsDefined<Config> (config: Config): Config {
+  if (config == null) {
+    throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
+  }
+  if (typeof config !== 'object' || Array.isArray(config)) {
+    throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook did not return a config object')
+  }
+  return config
+}
+
+function assertAfterAllResolvedReturn<Lockfile> (lockfile: Lockfile): Lockfile {
+  if (lockfile == null) {
+    throw new PnpmError('BAD_AFTER_ALL_RESOLVED_RETURN', 'The afterAllResolved hook returned undefined')
+  }
+  if (typeof lockfile !== 'object' || Array.isArray(lockfile)) {
+    throw new PnpmError('BAD_AFTER_ALL_RESOLVED_RETURN', 'The afterAllResolved hook did not return a lockfile object')
+  }
+  return lockfile
 }

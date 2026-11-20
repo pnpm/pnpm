@@ -1,8 +1,12 @@
-use chrono::{DateTime, Utc};
-use pnpm_config::version_policy::create_package_version_policy;
+use jiff::Timestamp;
 use pnpm_registry::Package;
+use pnpm_version_policy::create_package_version_policy;
 
-use super::{TrustCheckOptions, TrustViolation, fail_if_trust_downgraded};
+use super::{
+    TrustCheckOptions,
+    TrustViolation,
+    fail_if_trust_downgraded,
+};
 
 #[derive(Clone, Copy)]
 enum Evidence {
@@ -49,8 +53,10 @@ fn version_json(name: &str, version: &str, evidence: Evidence) -> serde_json::Va
 }
 
 fn make_package(name: &str, versions: &[(&str, &str, Evidence)]) -> Package {
-    let versions_json: serde_json::Map<String, serde_json::Value> =
-        versions.iter().map(|(v, _, ev)| ((*v).to_string(), version_json(name, v, *ev))).collect();
+    let versions_json: serde_json::Map<String, serde_json::Value> = versions
+        .iter()
+        .map(|(v, _, ev)| ((*v).to_string(), version_json(name, v, *ev)))
+        .collect();
     let time_json: serde_json::Map<String, serde_json::Value> = versions
         .iter()
         .map(|(v, t, _)| ((*v).to_string(), serde_json::Value::String((*t).to_string())))
@@ -64,8 +70,8 @@ fn make_package(name: &str, versions: &[(&str, &str, Evidence)]) -> Package {
     serde_json::from_value(body).expect("deserialize fixture Package")
 }
 
-fn now_at(date: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(date).expect("parse RFC3339").with_timezone(&Utc)
+fn now_at(date: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(date).expect("parse RFC3339")
 }
 
 #[test]
@@ -357,7 +363,7 @@ fn prior_version_missing_time_does_not_mask_trust_history() {
 }
 
 /// A prior version whose manifest fragment does not decode fails the
-/// check closed (`TrustCheckFailed`) instead of being skipped — the
+/// check closed (`TrustCheckFailed`) instead of being skipped, the
 /// skipped fragment could be the strongest prior evidence, and
 /// passing without it would let a downgrade through undetected.
 #[test]
@@ -370,7 +376,7 @@ fn undecodable_prior_version_fails_closed() {
             "1.1.0": "2025-02-01T00:00:00.000Z",
         },
         "versions": {
-            "1.0.0": { "corrupt": "fragment" },
+            "1.0.0": { "dist": "not-an-object" },
             "1.1.0": version_json("acme", "1.1.0", Evidence::None),
         },
     });
@@ -380,11 +386,51 @@ fn undecodable_prior_version_fails_closed() {
     assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
 }
 
+#[test]
+fn compact_history_detects_trust_evidence_without_a_full_manifest() {
+    let body = serde_json::json!({
+        "name": "acme",
+        "dist-tags": {},
+        "time": {
+            "1.0.0": "2025-01-01T00:00:00.000Z",
+            "1.1.0": "2025-02-01T00:00:00.000Z",
+        },
+        "versions": {
+            "1.0.0": { "_npmUser": { "approver": { "name": "a", "email": "a@example.com" } } },
+            "1.1.0": version_json("acme", "1.1.0", Evidence::None),
+        },
+    });
+    let meta: Package = serde_json::from_value(body).expect("deserialize fixture Package");
+
+    assert!(meta.versions.get("1.0.0").is_none());
+    let error = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
+        .expect_err("the earlier staged publish must remain the trust baseline");
+    assert!(matches!(error, TrustViolation::TrustDowngrade { .. }), "got {error:?}");
+}
+
+#[test]
+fn compact_history_keeps_same_day_publish_order_for_trust_checks() {
+    let meta = make_package(
+        "acme",
+        &[
+            ("1.0.0", "2025-01-01T01:00:00.000Z", Evidence::StagedPublish),
+            ("1.1.0", "2025-01-01T20:00:00.000Z", Evidence::None),
+        ],
+    );
+    let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
+        .expect_err("same-day staged evidence must remain the trust baseline");
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+}
+
 mod ignore_missing_time_field {
     use pnpm_registry::Package;
 
     use super::{
-        Evidence, TrustCheckOptions, TrustViolation, fail_if_trust_downgraded, make_package,
+        Evidence,
+        TrustCheckOptions,
+        TrustViolation,
+        fail_if_trust_downgraded,
+        make_package,
     };
 
     /// A downgrade candidate (provenance → nothing) whose `time` map is
@@ -434,7 +480,10 @@ mod ignore_missing_time_field {
                 ("2.0.0", "2025-02-01T00:00:00.000Z", Evidence::None),
             ],
         );
-        meta.time.as_mut().expect("fixture builds a time map").remove("2.0.0");
+        meta.time
+            .as_mut()
+            .expect("fixture builds a time map")
+            .remove("2.0.0");
         let opts = TrustCheckOptions { ignore_missing_time_field: true, ..Default::default() };
         let err = fail_if_trust_downgraded(&meta, "2.0.0", &opts)
             .expect_err("a per-version hole is not a registry that omits the field");
@@ -463,8 +512,14 @@ mod ignore_missing_time_field {
 mod get_trust_evidence {
     use pnpm_registry::PackageVersion;
 
-    use super::{Evidence, version_json};
-    use crate::trust_checks::{TrustEvidence, get_trust_evidence};
+    use super::{
+        Evidence,
+        version_json,
+    };
+    use crate::trust_checks::{
+        TrustEvidence,
+        get_trust_evidence,
+    };
 
     fn parse(version: serde_json::Value) -> PackageVersion {
         serde_json::from_value(version).expect("deserialize fixture PackageVersion")
@@ -485,7 +540,7 @@ mod get_trust_evidence {
         assert!(matches!(
             get_trust_evidence(&parse(version)),
             Some(TrustEvidence::TrustedPublisher)
-        ));
+        ),);
     }
 
     #[test]
@@ -519,5 +574,104 @@ mod get_trust_evidence {
         let mut version = version_json("acme", "1.0.0", Evidence::None);
         version["_npmUser"] = serde_json::json!({ "name": "alice", "email": "alice@example.com" });
         assert!(get_trust_evidence(&parse(version)).is_none());
+    }
+}
+
+mod get_trust_evidence_compact {
+    use pnpm_registry::VersionTrustMetadata;
+
+    use crate::trust_checks::{
+        TrustEvidence,
+        get_trust_evidence_compact,
+    };
+
+    fn classify(version: serde_json::Value) -> Option<TrustEvidence> {
+        let metadata: VersionTrustMetadata =
+            serde_json::from_value(version).expect("deserialize trust metadata");
+        get_trust_evidence_compact(&metadata)
+    }
+
+    #[test]
+    fn provenance_is_lowest_rank() {
+        assert_eq!(
+            classify(serde_json::json!({
+                "dist": {"attestations": {"provenance": true}}
+            })),
+            Some(TrustEvidence::Provenance),
+        );
+    }
+
+    #[test]
+    fn trusted_publisher_requires_provenance() {
+        assert_eq!(
+            classify(serde_json::json!({
+                "_npmUser": {"trustedPublisher": true}
+            })),
+            None,
+        );
+        assert_eq!(
+            classify(serde_json::json!({
+                "_npmUser": {"trustedPublisher": true},
+                "dist": {"attestations": {"provenance": true}}
+            })),
+            Some(TrustEvidence::TrustedPublisher),
+        );
+    }
+
+    #[test]
+    fn approver_is_highest_rank() {
+        assert_eq!(
+            classify(serde_json::json!({
+                "_npmUser": {"approver": true},
+                "dist": {"attestations": {"provenance": true}}
+            })),
+            Some(TrustEvidence::StagedPublish),
+        );
+    }
+}
+
+/// pnpr's own package document gives every version published before its
+/// publish-time window the same time, `timesSince`.
+#[test]
+fn versions_published_at_the_same_time_are_ordered_by_semver() {
+    let document = serde_json::json!({
+        "name": "acme",
+        "distTags": { "latest": "2.0.0" },
+        "timesSince": "2025-01-01T00:00:00.000Z",
+        "versions": {
+            "1.0.0": { "trust": "trustedPublisher", "manifest": {} },
+            "1.1.0": { "manifest": {} },
+            "2.0.0": { "time": "2025-03-01T00:00:00.000Z", "trust": "trustedPublisher", "manifest": {} },
+        },
+    });
+    let meta = pnpm_registry::parse_install_v2(&document.to_string()).expect("parse");
+    let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
+        .expect_err("an older version without evidence is a downgrade");
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+    fail_if_trust_downgraded(&meta, "1.0.0", &TrustCheckOptions::default())
+        .expect("a later version published at the same time is not earlier");
+}
+
+/// The resolver hands out a version's manifest serialized from its
+/// [`pnpm_registry::PackageVersion`], so the manifest classification has to
+/// read the fields that serialization writes.
+#[test]
+fn manifest_evidence_matches_version_evidence() {
+    use super::{
+        TrustEvidence,
+        get_manifest_trust_evidence,
+        get_trust_evidence,
+    };
+    for (evidence, expected) in [
+        (Evidence::None, None),
+        (Evidence::Provenance, Some(TrustEvidence::Provenance)),
+        (Evidence::TrustedPublisher, Some(TrustEvidence::TrustedPublisher)),
+        (Evidence::StagedPublish, Some(TrustEvidence::StagedPublish)),
+    ] {
+        let version: pnpm_registry::PackageVersion =
+            serde_json::from_value(version_json("acme", "1.0.0", evidence)).expect("parse version");
+        let manifest = serde_json::to_value(&version).expect("serialize version");
+        assert_eq!(get_trust_evidence(&version), expected);
+        assert_eq!(get_manifest_trust_evidence(&manifest), expected);
     }
 }

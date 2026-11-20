@@ -7,35 +7,58 @@
 //! multiplexed by a monotonic request id so concurrent calls (the resolver
 //! resolves dependencies in parallel) can be in flight at once.
 //!
-//! Protocol — one JSON object per line:
+//! Protocol; one JSON object per line:
 //! - request:  `{"id": N, "hook": "readPackage", "payload": <value>}`
 //! - query:    `{"id": N, "query": "hasHooks"}`     (does the module export `hooks`?)
 //! - log:      `{"id": N, "log": "message"}`        (a `context.log(...)` call)
+//! - warning:  `{"id": N, "log": "message", "level": "warn"}` (a `preResolution` `logger.warn(...)`)
 //! - success:  `{"id": N, "ok": <value>}`
 //! - failure:  `{"id": N, "err": "message"}`
 
-use crate::{FetcherCallback, FetcherCallbackSender, HookError};
+use crate::{
+    FetcherCallback,
+    FetcherCallbackSender,
+    HookError,
+    IgnoredHook,
+    async_process::{
+        Child,
+        ChildStdin,
+        ChildStdout,
+        Command,
+    },
+    process::Stdio,
+};
+
 use serde_json::Value;
 use std::{
     collections::HashMap,
     path::Path,
-    process::Stdio,
     sync::{
-        Arc, Mutex as StdMutex,
-        atomic::{AtomicU64, Ordering},
+        Arc,
+        Mutex as StdMutex,
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, Command},
-    sync::{Mutex, Semaphore, oneshot},
-    time::{Duration, timeout},
+    io::AsyncWriteExt,
+    sync::{
+        Mutex,
+        Semaphore,
+        oneshot,
+    },
+    time::{
+        Duration,
+        timeout,
+    },
 };
 
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Floor for a `fetch` that was handed native tarball callbacks. Such a
-/// call is not waiting on the pnpmfile's own code — it is waiting on the
+/// call is not waiting on the pnpmfile's own code; it is waiting on the
 /// downloads and extractions the installer runs on its behalf, which a
 /// hook-sized budget would abort mid-archive.
 const CALLBACK_FETCH_TIMEOUT: Duration = Duration::from_mins(5);
@@ -45,7 +68,7 @@ const CALLBACK_FETCH_TIMEOUT: Duration = Duration::from_mins(5);
 /// Callers fan out far wider: the resolver runs `readPackage` once per
 /// resolved package, all at once, which on a large install is thousands
 /// of requests. One worker is one Node process, so writing them all at
-/// once buys no throughput — it only makes each request queue behind the
+/// once buys no throughput; it only makes each request queue behind the
 /// rest while its [`HOOK_TIMEOUT`] runs, until a batch of fast hooks
 /// fails the install on a timeout none of them caused.
 const MAX_IN_FLIGHT_REQUESTS: usize = 16;
@@ -73,10 +96,29 @@ pub struct FetcherCapabilities {
     pub fetch: bool,
 }
 
+/// Where a request's log lines go, by level.
+struct RequestLog {
+    info: LogFn,
+    warn: LogFn,
+}
+
+impl From<LogFn> for RequestLog {
+    fn from(log: LogFn) -> Self {
+        RequestLog { info: Arc::clone(&log), warn: log }
+    }
+}
+
 struct Pending {
-    log: LogFn,
-    done: oneshot::Sender<Result<Value, String>>,
+    log: RequestLog,
+    done: oneshot::Sender<Result<Value, WorkerError>>,
     callbacks: Option<FetcherCallbackSender>,
+}
+
+enum WorkerError {
+    Execution(String),
+    BadReadPackageResult(String),
+    ConfigIsUndefined(String),
+    BadAfterAllResolvedReturn(String),
 }
 
 /// Pending requests keyed by id. A `std` mutex (never held across an
@@ -85,10 +127,10 @@ struct Pending {
 type PendingMap = Arc<StdMutex<HashMap<u64, Pending>>>;
 
 /// Removes the pending entry on drop. Covers every exit from
-/// [`NodeWorker::request`] — send failure, timeout, and cancellation of
-/// the caller's future — so a request the worker never answers cannot
+/// [`NodeWorker::request`] (send failure, timeout, and cancellation of
+/// the caller's future) so a request the worker never answers cannot
 /// leak its entry. Removal is idempotent: a delivered reply has already
-/// removed the entry in [`dispatch_line`].
+/// removed the entry in [`dispatch::dispatch_line`].
 struct PendingEntryGuard {
     pending: PendingMap,
     id: u64,
@@ -96,7 +138,10 @@ struct PendingEntryGuard {
 
 impl Drop for PendingEntryGuard {
     fn drop(&mut self) {
-        self.pending.lock().unwrap().remove(&self.id);
+        self.pending
+            .lock()
+            .unwrap()
+            .remove(&self.id);
     }
 }
 
@@ -129,41 +174,30 @@ impl NodeWorker {
             |message: String| HookError::Execution { pnpmfile: pnpmfile.clone(), message };
 
         let file_escaped =
-            serde_json::to_string(&pnpmfile).map_err(|err| exec_err(err.to_string()))?;
-        let is_mjs = pnpmfile.ends_with(".mjs");
-        let runner = build_runner(is_mjs, &file_escaped);
+            serde_json::to_string(&pnpmfile).map_err(|err| err.to_string()).map_err(exec_err)?;
+        let runner = build_runner(&file_escaped);
 
-        // The runner itself is always CommonJS so it can `require('node:readline')`;
-        // an `.mjs` pnpmfile is loaded through dynamic `import()`, which works
-        // from CommonJS.
-        let mut child = Command::new("node")
+        let mut command = Command::new("node");
+        command
             .arg("--input-type")
             .arg("commonjs")
             .arg("-e")
             .arg(&runner)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .kill_on_drop(true)
+            .kill_on_drop(true);
+        #[cfg(target_vendor = "apple")]
+        inherited_descriptors::inherit_only_stdio(&mut command);
+        let mut child = command
             .spawn()
-            .map_err(|err| exec_err(err.to_string()))?;
+            .map_err(|err| err.to_string())
+            .map_err(exec_err)?;
 
         let stdin = Arc::new(Mutex::new(child.stdin.take().expect("worker stdin is piped")));
         let stdout = child.stdout.take().expect("worker stdout is piped");
 
         let pending: PendingMap = Arc::new(StdMutex::new(HashMap::new()));
-        let pending_reader = Arc::clone(&pending);
-        let stdin_reader = Arc::clone(&stdin);
-        tokio::spawn(async move {
-            let mut lines = BufReader::new(stdout).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                dispatch_line(&pending_reader, &stdin_reader, &line);
-            }
-            // The worker exited: fail every still-pending request so callers
-            // don't hang waiting for a response that will never arrive.
-            for (_, pending) in pending_reader.lock().unwrap().drain() {
-                let _ = pending.done.send(Err("pnpmfile worker exited".to_string()));
-            }
-        });
+        spawn_stdout_reader(stdout, Arc::clone(&pending), Arc::clone(&stdin));
 
         Ok(Arc::new(NodeWorker {
             pnpmfile,
@@ -183,6 +217,23 @@ impl NodeWorker {
     /// Run `hook` with `payload`, forwarding any `context.log(...)` to `log`.
     pub async fn call(&self, hook: &str, payload: Value, log: LogFn) -> Result<Value, HookError> {
         self.request(hook, serde_json::json!({ "hook": hook, "payload": payload }), log).await
+    }
+
+    /// Call the `preResolution` hook with `(ctx, logger)`. Returns
+    /// `{ wantedLockfile, currentLockfile }`: the objects `ctx` carried, as
+    /// the hook left them.
+    pub async fn call_pre_resolution(
+        &self,
+        ctx: Value,
+        logger: crate::PreResolutionHookLogger,
+    ) -> Result<Value, HookError> {
+        self.request_with_callbacks(
+            "preResolution",
+            serde_json::json!({ "hook": "preResolution", "payload": ctx }),
+            RequestLog { info: logger.info, warn: logger.warn },
+            None,
+        )
+        .await
     }
 
     /// Call the `beforePacking` hook with `(manifest, dir, context)`.
@@ -214,18 +265,41 @@ impl NodeWorker {
             .unwrap_or(false)
     }
 
-    /// Whether the loaded pnpmfile exports a callable `filterLog` hook.
-    pub async fn has_filter_log(&self) -> bool {
-        self.request(
-            "hasFilterLog",
-            serde_json::json!({ "query": "hasFilterLog" }),
-            Arc::new(|_| {}),
-        )
-        .await
-        .ok()
-        .as_ref()
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
+    /// The [`IgnoredHook`]s the loaded pnpmfile exports as callables. A
+    /// pnpmfile that fails to load defines none.
+    pub async fn ignored_hooks(&self) -> Vec<IgnoredHook> {
+        let names = IgnoredHook::ALL.map(IgnoredHook::export_name);
+        let query = serde_json::json!({ "query": "definedHooks", "names": names });
+        let Ok(Value::Array(defined)) = self.request("definedHooks", query, Arc::new(|_| {})).await
+        else {
+            return Vec::new();
+        };
+        IgnoredHook::named_in(&defined)
+    }
+
+    /// Whether the loaded pnpmfile exports a callable `readPackage` hook.
+    pub async fn has_read_package(&self) -> Result<bool, HookError> {
+        self.capability_query("hasReadPackage").await
+    }
+
+    /// Whether the loaded pnpmfile exports a callable `afterAllResolved` hook.
+    pub async fn has_after_all_resolved(&self) -> Result<bool, HookError> {
+        self.capability_query("hasAfterAllResolved").await
+    }
+
+    /// Whether the loaded pnpmfile exports a callable `preResolution` hook.
+    pub async fn has_pre_resolution(&self) -> Result<bool, HookError> {
+        self.capability_query("hasPreResolution").await
+    }
+
+    async fn capability_query(&self, query: &'static str) -> Result<bool, HookError> {
+        self.request(query, serde_json::json!({ "query": query }), Arc::new(|_| {}))
+            .await
+            .and_then(|value| {
+                value
+                    .as_bool()
+                    .ok_or_else(|| self.exec_err(format!("invalid {query} response")))
+            })
     }
 
     /// Call `method` on the custom resolver at `index` in the pnpmfile's
@@ -256,9 +330,12 @@ impl NodeWorker {
     /// implement, mirroring pnpm's optional-method checks
     /// (`if (!customResolver.canResolve || !customResolver.resolve) continue`).
     pub async fn get_resolver_capabilities(&self) -> Result<Vec<ResolverCapabilities>, HookError> {
-        let value = self
-            .request("resolvers", serde_json::json!({ "target": "resolvers" }), Arc::new(|_| {}))
-            .await?;
+        let value = self.request(
+            "resolvers",
+            serde_json::json!({ "target": "resolvers" }),
+            Arc::new(|_| {}),
+        )
+        .await?;
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
@@ -281,7 +358,7 @@ impl NodeWorker {
                 "payload": payload,
                 "callbacks": callbacks.is_some(),
             }),
-            log,
+            log.into(),
             callbacks,
         )
         .await
@@ -290,16 +367,16 @@ impl NodeWorker {
     /// Get the capabilities of every custom fetcher exported by the
     /// pnpmfile's `fetchers` array, in array order.
     pub async fn get_fetcher_capabilities(&self) -> Result<Vec<FetcherCapabilities>, HookError> {
-        let value = self
-            .request("fetchers", serde_json::json!({ "target": "fetchers" }), Arc::new(|_| {}))
-            .await?;
+        let value =
+            self.request("fetchers", serde_json::json!({ "target": "fetchers" }), Arc::new(|_| {}))
+                .await?;
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
     pub async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
-        let value = self
-            .request("finders", serde_json::json!({ "target": "finders" }), Arc::new(|_| {}))
-            .await?;
+        let value =
+            self.request("finders", serde_json::json!({ "target": "finders" }), Arc::new(|_| {}))
+                .await?;
         serde_json::from_value(value).map_err(|err| self.exec_err(err.to_string()))
     }
 
@@ -324,14 +401,14 @@ impl NodeWorker {
     /// first, so a request's timeout window covers only the time the
     /// worker had it, not the time its caller's fan-out spent queued.
     async fn request(&self, label: &str, body: Value, log: LogFn) -> Result<Value, HookError> {
-        self.request_with_callbacks(label, body, log, None).await
+        self.request_with_callbacks(label, body, log.into(), None).await
     }
 
     async fn request_with_callbacks(
         &self,
         label: &str,
         mut body: Value,
-        log: LogFn,
+        log: RequestLog,
         callbacks: Option<FetcherCallbackSender>,
     ) -> Result<Value, HookError> {
         let _in_flight = self.in_flight.acquire().await.expect("the semaphore is never closed");
@@ -339,280 +416,74 @@ impl NodeWorker {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
         let callback_timeout = label == "fetch" && callbacks.is_some();
-        self.pending.lock().unwrap().insert(id, Pending { log, done, callbacks });
+        // pnpm puts no time limit on `preResolution`, which may fetch or
+        // rewrite whole lockfiles.
+        let untimed = label == "preResolution";
+        self.pending
+            .lock()
+            .unwrap()
+            .insert(id, Pending { log, done, callbacks });
         let _pending_guard = PendingEntryGuard { pending: Arc::clone(&self.pending), id };
 
         body["id"] = serde_json::json!(id);
-        let mut line =
-            serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
+        let mut line = serde_json::to_string(&body).map_err(|err| self.exec_err(err.to_string()))?;
         line.push('\n');
         {
             let mut stdin = self.stdin.lock().await;
-            stdin.write_all(line.as_bytes()).await.map_err(|err| self.exec_err(err.to_string()))?;
-            stdin.flush().await.map_err(|err| self.exec_err(err.to_string()))?;
+            stdin
+                .write_all(line.as_bytes())
+                .await
+                .map_err(|err| self.exec_err(err.to_string()))?;
+            stdin
+                .flush()
+                .await
+                .map_err(|err| self.exec_err(err.to_string()))?;
         }
 
-        let request_timeout = if callback_timeout {
+        let request_timeout = if untimed {
+            Duration::MAX
+        } else if callback_timeout {
             self.request_timeout.max(CALLBACK_FETCH_TIMEOUT)
         } else {
             self.request_timeout
         };
         match timeout(request_timeout, rx).await {
             Ok(Ok(Ok(value))) => Ok(value),
-            Ok(Ok(Err(message))) => Err(self.exec_err(message)),
+            Ok(Ok(Err(err))) => Err(self.worker_err(err)),
             Ok(Err(_)) => Err(self.exec_err("pnpmfile worker dropped the response")),
             Err(_) => Err(HookError::Timeout(label.to_string(), request_timeout.as_secs())),
         }
     }
-}
 
-/// Route one line from the worker to its pending request: forward `log` lines
-/// to the call's logger (the entry stays until the result arrives) and resolve
-/// the call on `ok`/`err`.
-fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &str) {
-    let Ok(message) = serde_json::from_str::<Value>(line) else { return };
-    let Some(id) = message.get("id").and_then(Value::as_u64) else { return };
-
-    if let Some(log) = message.get("log").and_then(Value::as_str) {
-        let log_fn = pending.lock().unwrap().get(&id).map(|entry| Arc::clone(&entry.log));
-        if let Some(log_fn) = log_fn {
-            log_fn(log.to_string());
-        }
-        return;
-    }
-
-    if let Some(callback) = message.get("callback") {
-        let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
-        let Some(method) = callback.get("method").cloned() else { return };
-        let Ok(method) = serde_json::from_value(method) else { return };
-        let resolution = callback.get("resolution").cloned().unwrap_or(Value::Null);
-        let options = callback.get("options").cloned().unwrap_or(Value::Null);
-        let callbacks = pending.lock().unwrap().get(&id).and_then(|entry| entry.callbacks.clone());
-        let (response, receiver) = oneshot::channel();
-        if let Some(callbacks) = callbacks {
-            let _ = callbacks.send(FetcherCallback { method, resolution, options, response });
-        }
-        let stdin = Arc::clone(stdin);
-        tokio::spawn(async move {
-            let result = receiver.await.unwrap_or_else(|_| {
-                Err(serde_json::json!({
-                    "message": "built-in fetcher callback is unavailable",
-                    "code": "ERR_PNPM_FETCHER_CALLBACK_UNAVAILABLE",
-                }))
-            });
-            let reply = match result {
-                Ok(value) => serde_json::json!({ "callbackResponse": callback_id, "ok": value }),
-                Err(error) => {
-                    serde_json::json!({ "callbackResponse": callback_id, "err": error })
-                }
-            };
-            let Ok(mut line) = serde_json::to_string(&reply) else { return };
-            line.push('\n');
-            let mut stdin = stdin.lock().await;
-            if stdin.write_all(line.as_bytes()).await.is_ok() {
-                let _ = stdin.flush().await;
+    fn worker_err(&self, err: WorkerError) -> HookError {
+        match err {
+            WorkerError::Execution(message) => self.exec_err(message),
+            WorkerError::BadReadPackageResult(message) => {
+                HookError::BadReadPackageResult { message }
             }
-        });
-        return;
+            WorkerError::ConfigIsUndefined(message) => HookError::ConfigIsUndefined { message },
+            WorkerError::BadAfterAllResolvedReturn(message) => {
+                HookError::BadAfterAllResolvedReturn { message }
+            }
+        }
     }
-
-    let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
-    let result = match message.get("err").and_then(Value::as_str) {
-        Some(err) => Err(err.to_string()),
-        None => Ok(message.get("ok").cloned().unwrap_or(Value::Null)),
-    };
-    let _ = entry.done.send(result);
 }
 
 /// Build the worker's Node script. `file_escaped` is the JSON-encoded pnpmfile
-/// path; the worker loads it once and replays the `readPackage` validation and
-/// normalization that [`crate::node_runtime`] documents.
-fn build_runner(is_mjs: bool, file_escaped: &str) -> String {
-    let load = if is_mjs {
-        format!("mod = await import(pathToFileURL({file_escaped}).href);")
-    } else {
-        format!("mod = require({file_escaped});")
-    };
+/// path.
+fn build_runner(file_escaped: &str) -> String {
     format!(
-        r#"const readline = require('node:readline');
-const {{ pathToFileURL }} = require('node:url');
-let mod = null;
-let loadErr = null;
-let nextCallbackId = 0;
-const pendingCallbacks = new Map();
-async function ensureLoaded() {{
-  if (mod !== null || loadErr !== null) return;
-  try {{ {load} }} catch (err) {{ loadErr = err && err.stack ? err.stack : String(err); }}
-}}
-const rl = readline.createInterface({{ input: process.stdin }});
-rl.on('line', (line) => {{
-  let req;
-  try {{ req = JSON.parse(line); }} catch {{ return; }}
-  if (Object.prototype.hasOwnProperty.call(req, 'callbackResponse')) {{
-    const pending = pendingCallbacks.get(req.callbackResponse);
-    if (!pending) return;
-    pendingCallbacks.delete(req.callbackResponse);
-    if (req.err) {{
-      const error = Object.assign(new Error(req.err.message), req.err);
-      if (req.err.status != null) error.response = {{ status: req.err.status }};
-      pending.reject(error);
-    }} else {{
-      const result = req.ok;
-      if (result && result.filesMap && !(result.filesMap instanceof Map)) {{
-        result.filesMap = new Map(Object.entries(result.filesMap));
-      }}
-      pending.resolve(result);
-    }}
-    return;
-  }}
-  handle(req);
-}});
-async function handle(req) {{
-  const id = req.id;
-  const send = (obj) => process.stdout.write(JSON.stringify(Object.assign({{ id }}, obj)) + '\n');
-  await ensureLoaded();
-  if (loadErr !== null) {{ send({{ err: loadErr }}); return; }}
-  if (req.query === 'hasHooks') {{ send({{ ok: mod != null && mod.hooks != null }}); return; }}
-  if (req.query === 'hasFilterLog') {{
-    send({{ ok: mod != null && mod.hooks != null && typeof mod.hooks.filterLog === 'function' }});
-    return;
-  }}
-  try {{
-    const fn = mod && mod.hooks && mod.hooks[req.hook];
-    const context = {{ log: (m) => send({{ log: String(m) }}) }};
-    if (req.target === 'resolvers') {{
-      const resolvers = mod && mod.resolvers;
-      send({{ ok: (Array.isArray(resolvers) ? resolvers.map((resolver) => ({{
-        canResolve: typeof resolver.canResolve === 'function',
-        resolve: typeof resolver.resolve === 'function',
-        shouldRefreshResolution: typeof resolver.shouldRefreshResolution === 'function',
-      }})) : []) }});
-      return;
-    }}
-    if (req.target === 'resolver') {{
-      const resolvers = mod && mod.resolvers;
-      const resolver = Array.isArray(resolvers) ? resolvers[req.index] : null;
-      if (!resolver || typeof resolver[req.method] !== 'function') {{
-        send({{ ok: null }});
-        return;
-      }}
-      const args = req.payload || [];
-      const res = await resolver[req.method](...args);
-      send({{ ok: res === undefined ? null : res }});
-      return;
-    }}
-    if (req.target === 'fetchers') {{
-      const fetchers = mod && mod.fetchers;
-      send({{ ok: (Array.isArray(fetchers) ? fetchers.map((f) => ({{
-        canFetch: f != null && typeof f.canFetch === 'function',
-        fetch: f != null && typeof f.fetch === 'function',
-      }})) : []) }});
-      return;
-    }}
-    if (req.target === 'finders') {{
-      const finders = mod && mod.finders;
-      send({{ ok: (finders != null && typeof finders === 'object')
-        ? Object.keys(finders).filter((name) => typeof finders[name] === 'function')
-        : [] }});
-      return;
-    }}
-    if (req.target === 'finder') {{
-      const finders = mod && mod.finders;
-      const finder = (finders != null && typeof finders === 'object') ? finders[req.name] : null;
-      if (typeof finder !== 'function') {{
-        send({{ ok: false }});
-        return;
-      }}
-      const ctx = req.ctx || {{}};
-      const res = await finder({{
-        alias: ctx.alias,
-        name: ctx.name,
-        version: ctx.version,
-        readManifest: () => ctx.manifest,
-      }});
-      send({{ ok: res === undefined ? false : res }});
-      return;
-    }}
-    if (req.target === 'fetcher') {{
-      const fetchers = mod && mod.fetchers;
-      const fetcher = Array.isArray(fetchers) ? fetchers[req.index] : null;
-      if (!fetcher || typeof fetcher[req.method] !== 'function') {{
-        send({{ ok: null }});
-        return;
-      }}
-      const args = req.payload || [];
-      if (req.method === 'fetch' && req.callbacks) {{
-        const callNative = (method, resolution, options) => {{
-          const callbackId = nextCallbackId++;
-          return new Promise((resolve, reject) => {{
-            pendingCallbacks.set(callbackId, {{ resolve, reject }});
-            send({{ callback: {{ id: callbackId, method, resolution, options }} }});
-          }});
-        }};
-        const cafs = Object.freeze({{
-          ...(await callNative('cafsInfo')),
-          tempDir: () => callNative('tempDir'),
-        }});
-        const callBuiltin = (method, providedCafs, resolution, options) => {{
-          if (providedCafs !== cafs) {{
-            return Promise.reject(new Error('Built-in fetcher received an invalid CAFS handle'));
-          }}
-          return callNative(method, resolution, options);
-        }};
-        args[0] = cafs;
-        args[3] = Object.freeze({{
-          localTarball: (handle, resolution, options) =>
-            callBuiltin('localTarball', handle, resolution, options),
-          remoteTarball: (handle, resolution, options) =>
-            callBuiltin('remoteTarball', handle, resolution, options),
-        }});
-      }}
-      const res = await fetcher[req.method](...args);
-      if (req.method === 'canFetch') {{
-        send({{ ok: {{ value: res === undefined ? null : res, resolution: args[1] }} }});
-      }} else if (res && res.filesMap instanceof Map) {{
-        send({{ ok: {{ ...res, filesMap: Object.fromEntries(res.filesMap) }} }});
-      }} else {{
-        send({{ ok: res === undefined ? null : res }});
-      }}
-      return;
-    }}
-    if (req.hook === 'readPackage') {{
-      const pkg = req.payload;
-      if (typeof fn !== 'function') {{ send({{ ok: pkg }}); return; }}
-      pkg.dependencies = pkg.dependencies ?? {{}};
-      pkg.devDependencies = pkg.devDependencies ?? {{}};
-      pkg.optionalDependencies = pkg.optionalDependencies ?? {{}};
-      pkg.peerDependencies = pkg.peerDependencies ?? {{}};
-      const newPkg = await fn(pkg, context);
-      if (!newPkg) {{
-        throw new Error("readPackage hook did not return a package manifest object. Hook imported via " + {file_escaped});
-      }}
-      for (const dep of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {{
-        const v = newPkg[dep];
-        if (v != null && (typeof v !== "object" || Array.isArray(v))) {{
-          throw new Error("readPackage hook returned package manifest object's property '" + dep + "' must be an object. Hook imported via " + {file_escaped});
-        }}
-      }}
-      send({{ ok: newPkg }});
-    }} else if (req.hook === 'beforePacking') {{
-      if (typeof fn !== 'function') {{ send({{ ok: req.payload }}); return; }}
-      const newPkg = await fn(req.payload, req.dir, context);
-      send({{ ok: newPkg == null ? req.payload : newPkg }});
-    }} else if (req.hook === 'filterLog') {{
-      const res = (typeof fn === 'function') ? await fn(req.payload, context) : true;
-      send({{ ok: res }});
-    }} else {{
-      const res = (typeof fn === 'function') ? await fn(req.payload, context) : null;
-      send({{ ok: res === undefined ? null : res }});
-    }}
-  }} catch (err) {{
-    send({{ err: err && err.stack ? err.stack : String(err) }});
-  }}
-}}
-"#,
+        "{}\nconst pnpmfilePath = {file_escaped};\n{}",
+        crate::LOAD_PNPMFILE,
+        include_str!("worker.cjs"),
     )
 }
+
+mod dispatch;
+use dispatch::spawn_stdout_reader;
+
+#[cfg(target_vendor = "apple")]
+mod inherited_descriptors;
 
 #[cfg(test)]
 mod tests;

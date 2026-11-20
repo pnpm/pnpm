@@ -1,0 +1,123 @@
+---
+id: recursive
+title: pnpm -r, --recursive
+---
+
+Aliases: `m`, `multi`, `recursive`, `<command> -r`
+
+Runs a command in every project of a workspace, when used with the following commands:
+
+* `install`
+* `list`
+* `outdated`
+* `publish`
+* `pack`
+* `rebuild`
+* `remove`
+* `unlink`
+* `update`
+* `why`
+
+Runs a command in every project of a workspace, excluding the root project,
+when used with the following commands:
+
+* `exec`
+* `run`
+* `test`
+* `add`
+
+If you want the root project be included even when running scripts, set the [includeWorkspaceRoot] setting to `true`.
+
+Usage example:
+
+```sh
+pnpm -r publish
+```
+
+By default, recursive `run`, `exec`, and `test` execute projects in
+topological order: dependencies run before their dependents. Use `--no-sort`
+to disable graph ordering, or `--parallel` to start tasks without waiting for
+dependencies.
+
+## Options
+
+### --link-workspace-packages
+
+* Default: **false**
+* Type: **true, false, deep**
+
+Link locally available packages in workspaces of a monorepo into `node_modules`
+instead of re-downloading them from the registry. This emulates functionality
+similar to `yarn workspaces`.
+
+When this is set to deep, local packages can also be linked to subdependencies.
+
+Be advised that it is encouraged instead to use [`pnpm-workspace.yaml`] for this setting, to
+enforce the same behaviour in all environments. This option exists solely so you
+may override that if necessary.
+
+[`pnpm-workspace.yaml`]: ../workspaces.md#linkworkspacepackages
+
+### --workspace-concurrency
+
+* Default: **the smaller of 4 and the number of available CPU cores**
+* Type: **Number**
+
+Set the maximum number of tasks to run simultaneously. For unlimited concurrency
+use `Infinity`.
+
+In a container with a CPU quota, such as a Kubernetes CPU limit, the quota is the
+number of available CPU cores when it is smaller than the number of CPUs the
+container may run on. A fractional quota is rounded down, to at least 1.
+
+You can set the `workspace-concurrency` as `<= 0` and it will use the number of available CPU cores as: `max(1, (number of available CPU cores) - abs(workspace-concurrency))`
+
+### --[no-]bail
+
+* Default: **true**
+* Type: **Boolean**
+
+If true, stops when a task throws an error.
+
+With `--no-bail`, tasks that depend on a failed task are skipped and independent tasks keep running.
+This config does not affect the exit code: if any task fails, the command exits with a non-zero code.
+See [`--no-bail`](../workspace-task-orchestration.md#--no-bail).
+
+Example (run tests in every package, continue if tests fail in one of them):
+```sh
+pnpm -r --no-bail test
+```
+
+### --[no-]sort
+
+* Default: **true**
+* Type: **Boolean**
+
+When `true`, commands follow the workspace dependency graph. Recursive `run`
+also applies relationships from the [`tasks` setting]. Pass `--no-sort` to
+remove graph ordering. This also makes `tasks`, `--reverse`, and `--resume-from`
+inapplicable.
+
+Example:
+```sh
+pnpm -r --no-sort test
+```
+
+### --reverse
+
+* Default: **false**
+* Type: **boolean**
+
+When `true`, dependency edges are reversed. For recursive `run`, this reverses
+the resolved task graph, including relationships declared with `dependsOn`.
+
+```sh
+pnpm -r --reverse run clean
+```
+
+### --filter &lt;package_selector\>
+
+[Read more about filtering.](../filtering.md)
+
+[includeWorkspaceRoot]: ../workspaces.md#includeworkspaceroot
+[`tasks` setting]: ../workspace-task-orchestration.md

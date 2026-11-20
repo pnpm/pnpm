@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
@@ -6,18 +7,21 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test } from '@jest/
 import { AuditEndpointNotExistsError } from '@pnpm/deps.compliance.audit'
 import { audit } from '@pnpm/deps.compliance.commands'
 import { install } from '@pnpm/installing.commands'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import type { DepPath } from '@pnpm/types'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, DEFAULT_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
-const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
+const testFixtures = fixtures(path.join(import.meta.dirname, 'fixtures'))
 const SCOPED_AUDIT_REGISTRY = 'http://scope.audit.registry/'
 
 describe('plugin-commands-audit', () => {
-  const hasVulnerabilitiesDir = f.prepare('has-vulnerabilities')
-  const hasSignaturesDir = f.prepare('has-signatures')
+  const hasVulnerabilitiesDir = testFixtures.prepare('has-vulnerabilities')
+  const hasSignaturesDir = testFixtures.prepare('has-signatures')
   beforeAll(async () => {
     await install.handler({
       ...DEFAULT_OPTS,
@@ -220,6 +224,106 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toContain('audited 2 packages')
     expect(stripAnsi(output)).toContain('2 packages have verified registry signatures')
   })
+  test.each([
+    { integrity: undefined, envIntegrity: undefined },
+    { integrity: 'sha512-recorded-artifact', envIntegrity: undefined },
+    { integrity: 'sha512-registry-artifact', envIntegrity: 'sha512-config-artifact' },
+  ])('audit signatures cannot authenticate another artifact (%s)', async ({ integrity, envIntegrity }) => {
+    const dir = testFixtures.prepare('has-signatures')
+    fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), `lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      signed-pkg:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  signed-pkg@1.0.0:
+    resolution: ${integrity == null ? '{}' : `{integrity: ${integrity}}`}
+snapshots:
+  signed-pkg@1.0.0: {}
+`)
+    if (envIntegrity) {
+      const mainDocument = fs.readFileSync(path.join(dir, 'pnpm-lock.yaml'), 'utf8')
+      fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), `---
+lockfileVersion: '9.0'
+importers:
+  .:
+    configDependencies:
+      signed-pkg:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  signed-pkg@1.0.0:
+    resolution: {integrity: ${envIntegrity}}
+snapshots:
+  signed-pkg@1.0.0: {}
+---
+${mainDocument}`)
+    }
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(200, { versions: { '1.0.0': { dist: {
+        integrity: 'sha512-registry-artifact',
+        signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', 'sha512-registry-artifact') }],
+      } } } })
+    const { output, exitCode } = await audit.handler({ ...AUDIT_REGISTRY_OPTS, dir, json: true }, ['signatures'])
+    expect(exitCode).toBe(1)
+    expect(JSON.parse(output).verified).toBe(envIntegrity ? 1 : 0)
+    expect(JSON.parse(output).invalid).toHaveLength(1)
+  })
+
+  test('audit signatures skips tarball dependencies', async () => {
+    const dir = testFixtures.prepare('has-signatures')
+    fs.writeFileSync(path.join(dir, 'pnpm-lock.yaml'), `lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      signed-pkg:
+        specifier: 1.0.0
+        version: 1.0.0
+      forked-pkg:
+        specifier: https://example.com/forked-pkg.tgz
+        version: https://example.com/forked-pkg.tgz
+packages:
+  signed-pkg@1.0.0:
+    resolution: {integrity: sha512-test-integrity}
+  forked-pkg@https://example.com/forked-pkg.tgz:
+    resolution: {tarball: https://example.com/forked-pkg.tgz}
+    version: 1.0.0
+snapshots:
+  signed-pkg@1.0.0: {}
+  forked-pkg@https://example.com/forked-pkg.tgz: {}
+`)
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(200, { versions: { '1.0.0': { dist: {
+        integrity: 'sha512-test-integrity',
+        signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', 'sha512-test-integrity') }],
+      } } } })
+
+    const { output, exitCode } = await audit.handler({ ...AUDIT_REGISTRY_OPTS, dir, json: true }, ['signatures'])
+    expect(exitCode).toBe(0)
+    expect(JSON.parse(output)).toMatchObject({ audited: 1, verified: 1, invalid: [], missing: [] })
+  })
+
+  test('audit signatures throws on unresolvable lockfile dependency', async () => {
+    const dir = testFixtures.prepare('has-signatures')
+    const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
+    const lockfile = fs.readFileSync(lockfilePath, 'utf8')
+    fs.writeFileSync(lockfilePath, lockfile.replaceAll('signed-pkg@1.0.0', 'signed-pkg@1.99.99'))
+
+    await expect(audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir,
+      rootProjectManifestDir: dir,
+    }, ['signatures'])).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' })
+  })
+
 
   test('audit rejects unknown subcommands', async () => {
     await expect(audit.handler({
@@ -380,7 +484,7 @@ describe('plugin-commands-audit', () => {
   })
 
   test('audit: advisories in ignoreGhsas do not show up', async () => {
-    const tmp = f.prepare('has-vulnerabilities')
+    const tmp = testFixtures.prepare('has-vulnerabilities')
 
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -406,8 +510,118 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toMatchSnapshot()
   })
 
+  test('audit: summary is net of advisories suppressed by ignoreGhsas', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.INFO_VULN_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      auditConfig: {
+        ignoreGhsas: ['GHSA-info-info-info'],
+      },
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe('All found vulnerabilities were already reviewed and decided to be ignored\n1 ignored: 1 info\n')
+  })
+
+  test('audit: the summary counts the advisories it prints, not the registry metadata', async () => {
+    // The registry repeated one advisory id, which the report collapses into a
+    // single entry while its metadata counts the advisory twice.
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+        ],
+      })
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      auditConfig: {
+        ignoreGhsas: ['GHSA-info-info-info'],
+      },
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe('All found vulnerabilities were already reviewed and decided to be ignored\n1 ignored: 1 info\n')
+  })
+
+  test('audit: advisories outside ignoreGhsas stay counted in the summary', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+          {
+            id: 101,
+            url: 'https://github.com/advisories/GHSA-high-high-high',
+            title: 'something high',
+            severity: 'high',
+            vulnerable_versions: '*',
+          },
+        ],
+      })
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      auditConfig: {
+        ignoreGhsas: ['GHSA-info-info-info'],
+      },
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toBe(`┌─────────────────────┬────────────────────────────────────────────────────────┐
+│ high                │ something high                                         │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Package             │ axios                                                  │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Vulnerable versions │ *                                                      │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Patched versions    │ (unknown)                                              │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Paths               │ .>karma>log4js>axios                                   │
+│                     │                                                        │
+│                     │ .>axios                                                │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ More info           │ https://github.com/advisories/GHSA-high-high-high      │
+└─────────────────────┴────────────────────────────────────────────────────────┘
+1 vulnerabilities found
+Severity: 1 high
+1 ignored: 1 info`)
+  })
+
   test('audit: advisories in ignoreGhsas do not show up when JSON output is used', async () => {
-    const tmp = f.prepare('has-vulnerabilities')
+    const tmp = testFixtures.prepare('has-vulnerabilities')
 
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -465,6 +679,104 @@ describe('plugin-commands-audit', () => {
     expect(exitCode).toBe(0)
     expect(stripAnsi(output)).toBe(`1 vulnerabilities found
 Severity: 1 info`)
+  })
+})
+
+describe('audit in a workspace', () => {
+  beforeEach(async () => {
+    await setupMockAgent()
+  })
+  afterEach(async () => {
+    await teardownMockAgent()
+  })
+
+  async function auditedPackageNames (filter: string[]): Promise<string[]> {
+    const workspaceDir = testFixtures.prepare('workspace-has-vulnerabilities')
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
+      workspaceDir,
+      filter.map((namePattern) => ({ namePattern }))
+    )
+    let requestedPackageNames: string[] = []
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, ({ body }) => {
+        requestedPackageNames = Object.keys(JSON.parse(String(body)))
+        return {}
+      })
+    await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter,
+      selectedProjectsGraph,
+    })
+    return requestedPackageNames.sort()
+  }
+
+  test('audits only the dependencies of the projects selected by --filter', async () => {
+    expect(await auditedPackageNames(['workspace-audit-b'])).toStrictEqual(['minimist'])
+  })
+
+  test('audits every project without --filter', async () => {
+    expect(await auditedPackageNames([])).toStrictEqual(['lodash', 'minimist'])
+  })
+
+  test('audit signatures checks only the projects selected by --filter', async () => {
+    const workspaceDir = testFixtures.prepare('workspace-has-vulnerabilities')
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-b' }])
+    const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
+    const integrity = (lockfile!.packages!['minimist@1.2.0' as DepPath].resolution as { integrity: string }).integrity
+    const key = createSigningKey()
+    mockRegistryKey(AUDIT_REGISTRY, key)
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/minimist', method: 'GET' })
+      .reply(200, {
+        name: 'minimist',
+        time: { '1.2.0': '2023-01-01T00:00:00.000Z' },
+        versions: {
+          '1.2.0': {
+            dist: {
+              integrity,
+              signatures: [{ keyid: key.keyid, sig: key.sign('minimist@1.2.0', integrity) }],
+              tarball: `${AUDIT_REGISTRY}minimist/-/minimist-1.2.0.tgz`,
+            },
+            name: 'minimist',
+            version: '1.2.0',
+          },
+        },
+      })
+
+    const { output, exitCode } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter: ['workspace-audit-b'],
+      selectedProjectsGraph,
+    }, ['signatures'])
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toContain('audited 1 package')
+  })
+
+  test('fails when a selected project has no entry in the lockfile', async () => {
+    const workspaceDir = testFixtures.prepare('workspace-has-vulnerabilities')
+    fs.mkdirSync(path.join(workspaceDir, 'packages/c'))
+    fs.writeFileSync(path.join(workspaceDir, 'packages/c/package.json'), JSON.stringify({ name: 'workspace-audit-c', version: '1.0.0' }))
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'workspace-audit-c' }])
+
+    await expect(audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      dir: workspaceDir,
+      lockfileDir: workspaceDir,
+      workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      filter: ['workspace-audit-c'],
+      selectedProjectsGraph,
+    })).rejects.toMatchObject({ code: 'ERR_PNPM_AUDIT_MISSING_IMPORTERS' })
   })
 })
 

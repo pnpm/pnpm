@@ -7,14 +7,14 @@
 //! host-supplied JS callback: `read_package` forwards each manifest to the
 //! callback over a [`ThreadsafeFunction`] and awaits the transformed result.
 //!
-//! The callback receives `(manifest, resolvedDir?)` — `resolvedDir` is the
+//! The callback receives `(manifest, resolvedDir?)`, `resolvedDir` is the
 //! lockfile-root-relative directory when the manifest came from a directory
 //! resolution (an injected workspace project or a `file:` dependency), so the
 //! host can substitute a workspace project's raw manifest for its dependency
 //! instances. The `.pnpmfile.cjs` bridge does not receive it, matching pnpm's
 //! pnpmfile contract.
 //!
-//! The callback must be **synchronous** (return the manifest, not a promise) —
+//! The callback must be **synchronous** (return the manifest, not a promise).
 //! [`ThreadsafeFunction::call_async`] resolves the JS return value directly and
 //! does not await a returned promise. Bit's composed `readPackage` hook is
 //! synchronous.
@@ -22,13 +22,32 @@
 //! Only `read_package` is bridged; `after_all_resolved` returns
 //! [`serde_json::Value::Null`] (pacquet's "no hook, keep the lockfile
 //! unchanged" signal) and the remaining hooks are inert.
+//!
+//! The engine cannot fingerprint a JS callback, so both adapters report
+//! themselves as an untracked `readPackage` hook, which makes every install
+//! resolve again. [`ChecksummedHooks`] lets the host vouch for its hook with
+//! a checksum instead.
 
-use std::sync::Arc;
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 use async_trait::async_trait;
-use napi::{Status, bindgen_prelude::FnArgs, threadsafe_function::ThreadsafeFunction};
+use napi::{
+    Status,
+    bindgen_prelude::FnArgs,
+    threadsafe_function::ThreadsafeFunction,
+};
 use pnpm_hooks::{
-    HookContext, HookError, PnpmfileHooks, PreResolutionHookContext, PreResolutionHookLogger,
+    CustomFetcher,
+    CustomResolver,
+    HookContext,
+    HookError,
+    IgnoredHook,
+    PnpmfileHooks,
+    PreResolutionHookContext,
+    PreResolutionHookLogger,
     ReadPackageResult,
 };
 use serde_json::Value;
@@ -49,7 +68,7 @@ pub type HookSink = ThreadsafeFunction<
 /// A synchronous JS `(manifests, resolvedDirs) => manifests` batch callback
 /// (parallel arrays; `resolvedDirs[i]` is `null` for a non-directory
 /// resolution). The `@pnpm/napi` wrapper synthesizes it from the consumer's
-/// per-manifest hook, so one event-loop traversal serves a whole batch —
+/// per-manifest hook, so one event-loop traversal serves a whole batch,
 /// per-call threadsafe dispatch caps out at roughly one call per loop tick,
 /// which serialized a large install's resolution behind tens of thousands of
 /// ticks.
@@ -94,20 +113,29 @@ impl PnpmfileHooks for JsReadPackageHook {
         _lockfile: Value,
         _ctx: HookContext,
     ) -> Result<Value, HookError> {
-        // Null signals "no afterAllResolved hook" — the caller keeps the
+        // Null signals "no afterAllResolved hook", the caller keeps the
         // resolved lockfile unchanged.
         Ok(Value::Null)
     }
 
     async fn pre_resolution(
         &self,
-        _ctx: PreResolutionHookContext,
+        ctx: PreResolutionHookContext,
         _logger: PreResolutionHookLogger,
-    ) {
+    ) -> Result<PreResolutionHookContext, HookError> {
+        Ok(ctx)
     }
 
     async fn filter_log(&self, _log: Value, _ctx: HookContext) -> bool {
         true
+    }
+
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        Ok(true)
+    }
+
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(Some(true))
     }
 }
 
@@ -120,11 +148,14 @@ const MAX_HOOK_BATCH: usize = 256;
 /// of letting them queue an unbounded number of full manifests in RAM.
 const HOOK_QUEUE_CAPACITY: usize = MAX_HOOK_BATCH * 4;
 
+/// Where one batched `readPackage` call's result is delivered.
+type HookReply = tokio::sync::oneshot::Sender<Result<Value, String>>;
+
 /// One queued `readPackage` request awaiting a slot in the next batch.
 struct BatchHookRequest {
     manifest: Value,
     dir: Option<String>,
-    reply: tokio::sync::oneshot::Sender<Result<Value, String>>,
+    reply: HookReply,
 }
 
 /// [`PnpmfileHooks`] implementation that runs `readPackage` through a
@@ -154,8 +185,7 @@ impl JsBatchedReadPackageHook {
 
     fn ensure_driver(&self) {
         self.driver_started.call_once(|| {
-            let (rx, sink) = self
-                .driver_seed
+            let (rx, sink) = self.driver_seed
                 .lock()
                 .expect("driver seed lock")
                 .take()
@@ -172,42 +202,46 @@ async fn drive_hook_batches(
     while let Some(first) = rx.recv().await {
         let mut batch = vec![first];
         while batch.len() < MAX_HOOK_BATCH {
-            match rx.try_recv() {
-                Ok(request) => batch.push(request),
-                Err(_) => break,
-            }
+            let Ok(request) = rx.try_recv() else { break };
+            batch.push(request);
         }
-        let mut manifests = Vec::with_capacity(batch.len());
-        let mut dirs = Vec::with_capacity(batch.len());
-        let mut replies = Vec::with_capacity(batch.len());
-        for request in batch {
-            manifests.push(request.manifest);
-            dirs.push(request.dir);
-            replies.push(request.reply);
+        run_hook_batch(&sink, batch).await;
+    }
+}
+
+/// Call the hook once for the whole batch and hand each caller its own
+/// result. Every request is answered, so a failing batch surfaces as an
+/// error at each call site instead of leaving it waiting.
+async fn run_hook_batch(sink: &BatchHookSink, batch: Vec<BatchHookRequest>) {
+    let mut manifests = Vec::with_capacity(batch.len());
+    let mut dirs = Vec::with_capacity(batch.len());
+    let mut replies = Vec::with_capacity(batch.len());
+    for request in batch {
+        manifests.push(request.manifest);
+        dirs.push(request.dir);
+        replies.push(request.reply);
+    }
+
+    let results = match sink.call_async(FnArgs::from((manifests, dirs))).await {
+        Ok(results) if results.len() == replies.len() => results,
+        Ok(results) => {
+            let message = format!(
+                "batched readPackage hook returned {} manifests for {} inputs",
+                results.len(),
+                replies.len(),
+            );
+            return fail_replies(replies, &message);
         }
-        match sink.call_async(FnArgs::from((manifests, dirs))).await {
-            Ok(results) if results.len() == replies.len() => {
-                for (reply, result) in replies.into_iter().zip(results) {
-                    let _ = reply.send(Ok(result));
-                }
-            }
-            Ok(results) => {
-                let message = format!(
-                    "batched readPackage hook returned {} manifests for {} inputs",
-                    results.len(),
-                    replies.len(),
-                );
-                for reply in replies {
-                    let _ = reply.send(Err(message.clone()));
-                }
-            }
-            Err(error) => {
-                let message = error.to_string();
-                for reply in replies {
-                    let _ = reply.send(Err(message.clone()));
-                }
-            }
-        }
+        Err(error) => return fail_replies(replies, &error.to_string()),
+    };
+    for (reply, result) in replies.into_iter().zip(results) {
+        let _ = reply.send(Ok(result));
+    }
+}
+
+fn fail_replies(replies: Vec<HookReply>, message: &str) {
+    for reply in replies {
+        let _ = reply.send(Err(message.to_string()));
     }
 }
 
@@ -241,19 +275,138 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
         _lockfile: Value,
         _ctx: HookContext,
     ) -> Result<Value, HookError> {
-        // Null signals "no afterAllResolved hook" — the caller keeps the
+        // Null signals "no afterAllResolved hook", the caller keeps the
         // resolved lockfile unchanged.
         Ok(Value::Null)
     }
 
     async fn pre_resolution(
         &self,
-        _ctx: PreResolutionHookContext,
+        ctx: PreResolutionHookContext,
         _logger: PreResolutionHookLogger,
-    ) {
+    ) -> Result<PreResolutionHookContext, HookError> {
+        Ok(ctx)
     }
 
     async fn filter_log(&self, _log: Value, _ctx: HookContext) -> bool {
         true
+    }
+
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        Ok(true)
+    }
+
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(Some(true))
+    }
+}
+
+/// Records a host-supplied checksum as the `pnpmfileChecksum` of the hooks
+/// it wraps, the way a `.pnpmfile.cjs` is recorded by the hash of its
+/// content. The wrapped `readPackage` hook is therefore tracked: the
+/// lockfile is reused while the checksum stays the same and resolved again
+/// when it changes.
+pub struct ChecksummedHooks {
+    hooks: Arc<dyn PnpmfileHooks>,
+    checksum: String,
+}
+
+impl ChecksummedHooks {
+    /// Wraps `hooks` when the host gave a checksum. Without one, `hooks` stay
+    /// untracked.
+    pub fn wrap(
+        hooks: Option<Arc<dyn PnpmfileHooks>>,
+        checksum: Option<&str>,
+    ) -> Option<Arc<dyn PnpmfileHooks>> {
+        match (hooks, checksum) {
+            (Some(hooks), Some(checksum)) => {
+                Some(Arc::new(ChecksummedHooks { hooks, checksum: checksum.to_string() }))
+            }
+            (hooks, _) => hooks,
+        }
+    }
+}
+
+#[async_trait]
+impl PnpmfileHooks for ChecksummedHooks {
+    async fn read_package(
+        &self,
+        pkg: Value,
+        ctx: HookContext,
+    ) -> Result<ReadPackageResult, HookError> {
+        self.hooks.read_package(pkg, ctx).await
+    }
+
+    async fn after_all_resolved(
+        &self,
+        lockfile: Value,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        self.hooks.after_all_resolved(lockfile, ctx).await
+    }
+
+    async fn update_config(&self, config: Value, ctx: HookContext) -> Result<Value, HookError> {
+        self.hooks.update_config(config, ctx).await
+    }
+
+    async fn before_packing(
+        &self,
+        manifest: Value,
+        dir: &Path,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        self.hooks.before_packing(manifest, dir, ctx).await
+    }
+
+    async fn pre_resolution(
+        &self,
+        ctx: PreResolutionHookContext,
+        logger: PreResolutionHookLogger,
+    ) -> Result<PreResolutionHookContext, HookError> {
+        self.hooks.pre_resolution(ctx, logger).await
+    }
+
+    async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {
+        self.hooks.filter_log(log, ctx).await
+    }
+
+    async fn ignored_hooks(&self) -> Vec<IgnoredHook> {
+        self.hooks.ignored_hooks().await
+    }
+
+    async fn has_read_package(&self) -> Result<bool, HookError> {
+        self.hooks.has_read_package().await
+    }
+
+    async fn has_after_all_resolved(&self) -> Result<bool, HookError> {
+        self.hooks.has_after_all_resolved().await
+    }
+
+    async fn has_pre_resolution(&self) -> Result<bool, HookError> {
+        self.hooks.has_pre_resolution().await
+    }
+
+    async fn untracked_read_package_hook(&self) -> Result<Option<bool>, HookError> {
+        Ok(None)
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        Some(self.checksum.clone())
+    }
+
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
+        self.hooks.get_custom_resolvers().await
+    }
+
+    async fn get_custom_fetchers(&self) -> Result<Vec<Arc<dyn CustomFetcher>>, HookError> {
+        self.hooks.get_custom_fetchers().await
+    }
+
+    async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
+        self.hooks.get_finder_names().await
+    }
+
+    async fn run_finder(&self, finder_name: &str, ctx: Value) -> Result<Value, HookError> {
+        self.hooks.run_finder(finder_name, ctx).await
     }
 }

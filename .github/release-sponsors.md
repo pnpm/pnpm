@@ -27,6 +27,26 @@
         </a>
       </td>
     </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
+            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" alt="CodeRabbit" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://www.cloudflare.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/cloudflare.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/cloudflare_light.svg" />
+            <img src="https://pnpm.io/img/users/cloudflare.svg" width="160" alt="Cloudflare" />
+          </picture>
+        </a>
+      </td>
+    </tr>
   </tbody>
 </table>
 
@@ -68,15 +88,6 @@
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
-            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" alt="CodeRabbit" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
         <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
@@ -85,8 +96,6 @@
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://workleap.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
@@ -96,6 +105,8 @@
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://nx.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
           <picture>
@@ -106,7 +117,22 @@
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://latitude.so/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude"></a>
+        <a href="https://latitude.so/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/latitude.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/latitude_light.svg" />
+            <img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://syntax.fm/?utm_source=pnpm&utm_medium=release_notes" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/syntaxfm.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/syntaxfm_light.svg" />
+            <img src="https://pnpm.io/img/users/syntaxfm.svg" width="90" alt="Syntax" />
+          </picture>
+        </a>
       </td>
     </tr>
   </tbody>

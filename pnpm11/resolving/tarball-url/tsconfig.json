@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../core/types"
+      "path": "../../core/error"
     },
     {
-      "path": "../../crypto/integrity"
+      "path": "../../core/types"
     }
   ]
 }

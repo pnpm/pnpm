@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
+import type { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -9,24 +10,25 @@ import { hashObject } from '@pnpm/crypto.object-hasher'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { streamParser } from '@pnpm/logger'
 import { tempDir } from '@pnpm/prepare'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { getIntegrity } from '@pnpm/testing.registry-mock'
-import type { DepPath } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { testDefaults } from './utils/testDefaults.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 // Patches all @pnpm.e2e integrity values in lockfiles to match the current registry-mock.
 // This avoids hardcoding checksums in fixture lockfiles that go stale when registry-mock is updated.
 function prepareFixtureWithIntegrity (name: string): string {
-  const prefix = f.prepare(name)
+  const prefix = testFixtures.prepare(name)
   for (const lockfilePath of [
     path.join(prefix, 'pnpm-lock.yaml'),
     path.join(prefix, 'node_modules', '.pnpm', 'lock.yaml'),
@@ -52,7 +54,7 @@ afterAll(() => {
 })
 
 test('installing a simple project', async () => {
-  const prefix = f.prepare('simple')
+  const prefix = testFixtures.prepare('simple')
   const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({
@@ -123,7 +125,7 @@ test('installing a simple project', async () => {
 })
 
 test('installing only prod deps', async () => {
-  const prefix = f.prepare('simple')
+  const prefix = testFixtures.prepare('simple')
 
   await headlessInstall(await testDefaults({
     include: {
@@ -144,7 +146,7 @@ test('installing only prod deps', async () => {
 })
 
 test('installing only dev deps', async () => {
-  const prefix = f.prepare('simple')
+  const prefix = testFixtures.prepare('simple')
 
   await headlessInstall(await testDefaults({
     include: {
@@ -163,7 +165,7 @@ test('installing only dev deps', async () => {
 })
 
 test('installing with package manifest ignored', async () => {
-  const prefix = f.prepare('ignore-package-manifest')
+  const prefix = testFixtures.prepare('ignore-package-manifest')
   const opt = await testDefaults({
     projects: [],
     include: {
@@ -187,7 +189,7 @@ test('installing with package manifest ignored', async () => {
 })
 
 test('installing only prod package with package manifest ignored', async () => {
-  const prefix = f.prepare('ignore-package-manifest')
+  const prefix = testFixtures.prepare('ignore-package-manifest')
   const opt = await testDefaults({
     projects: [],
     include: {
@@ -211,7 +213,7 @@ test('installing only prod package with package manifest ignored', async () => {
 })
 
 test('installing only dev package with package manifest ignored', async () => {
-  const prefix = f.prepare('ignore-package-manifest')
+  const prefix = testFixtures.prepare('ignore-package-manifest')
   const opt = await testDefaults({
     projects: [],
     include: {
@@ -235,7 +237,7 @@ test('installing only dev package with package manifest ignored', async () => {
 })
 
 test('installing non-prod deps then all deps', async () => {
-  const prefix = f.prepare('prod-dep-is-dev-subdep')
+  const prefix = testFixtures.prepare('prod-dep-is-dev-subdep')
 
   await headlessInstall(await testDefaults({
     include: {
@@ -297,13 +299,14 @@ test('installing non-prod deps then all deps', async () => {
   }
 })
 
-test('installing only optional deps', async () => {
-  const prefix = f.prepare('simple')
+// https://github.com/pnpm/pnpm/issues/9678
+test('installing dev deps with optional deps included skips the project optional deps', async () => {
+  const prefix = testFixtures.prepare('simple')
 
   await headlessInstall(await testDefaults({
     include: {
       dependencies: false,
-      devDependencies: false,
+      devDependencies: true,
       optionalDependencies: true,
     },
     lockfileDir: prefix,
@@ -312,8 +315,8 @@ test('installing only optional deps', async () => {
   const project = assertProject(prefix)
   project.hasNot('is-positive')
   project.hasNot('rimraf')
-  project.hasNot('is-negative')
-  project.has('colors')
+  project.has('is-negative')
+  project.hasNot('colors')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1958
@@ -335,7 +338,7 @@ test('not installing optional deps', async () => {
 })
 
 test('skipping optional dependency if it cannot be fetched', async () => {
-  const prefix = f.prepare('has-nonexistent-optional-dep')
+  const prefix = testFixtures.prepare('has-nonexistent-optional-dep')
   const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({
@@ -354,6 +357,80 @@ test('skipping optional dependency if it cannot be fetched', async () => {
 
   expect(project.readCurrentLockfile()).toBeTruthy()
   expect(project.readModulesManifest()).toBeTruthy()
+})
+
+// https://github.com/pnpm/pnpm/issues/16514
+test('an optional dependency that fails the integrity check is skipped, unlinked, and reported', async () => {
+  const prefix = tempDir()
+  fs.writeFileSync(path.join(prefix, 'package.json'), JSON.stringify({
+    name: 'project',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '2.1.0' },
+    optionalDependencies: { 'is-positive': '1.0.0' },
+  }))
+  fs.writeFileSync(path.join(prefix, WANTED_LOCKFILE), `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      is-negative:
+        specifier: 2.1.0
+        version: 2.1.0
+    optionalDependencies:
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  is-negative@2.1.0:
+    resolution: {integrity: ${getIntegrity('is-negative', '2.1.0')}}
+
+  is-positive@1.0.0:
+    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}
+
+snapshots:
+
+  is-negative@2.1.0:
+    optionalDependencies:
+      is-positive: 1.0.0
+
+  is-positive@1.0.0:
+    optional: true
+`)
+  const reporter = jest.fn()
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    reporter,
+  }, {
+    retry: {
+      retries: 0,
+    },
+  }))
+
+  const project = assertProject(prefix)
+  project.has('is-negative')
+  expect(fs.existsSync(path.join(prefix, 'node_modules/is-positive'))).toBe(false)
+  expect(fs.lstatSync(path.join(prefix, 'node_modules/is-positive'), { throwIfNoEntry: false })).toBeUndefined()
+  expect(fs.lstatSync(path.join(prefix, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-positive'), { throwIfNoEntry: false })).toBeUndefined()
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:skipped-optional-dependency',
+    package: {
+      id: 'is-positive@1.0.0',
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+    prefix,
+    reason: 'fetch_failure',
+    details: expect.stringContaining('ERR_PNPM_TARBALL_INTEGRITY'),
+  }))
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:root',
+    added: expect.objectContaining({ name: 'is-positive' }),
+  }))
 })
 
 test('run pre/postinstall scripts', async () => {
@@ -390,13 +467,13 @@ test('run pre/postinstall scripts', async () => {
 })
 
 test('orphan packages are removed', async () => {
-  const projectDir = f.prepare('simple-with-more-deps')
+  const projectDir = testFixtures.prepare('simple-with-more-deps')
 
   await headlessInstall(await testDefaults({
     lockfileDir: projectDir,
   }))
 
-  const simpleDir = f.find('simple')
+  const simpleDir = testFixtures.find('simple')
   fs.copyFileSync(
     path.join(simpleDir, 'package.json'),
     path.join(projectDir, 'package.json')
@@ -432,13 +509,13 @@ test('available packages are used when node_modules is not clean', async () => {
   const destPackageJsonPath = path.join(projectDir, 'package.json')
   const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
-  const hasGlobDir = f.find('has-glob')
+  const hasGlobDir = testFixtures.find('has-glob')
   fs.copyFileSync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   fs.copyFileSync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headlessInstall(await testDefaults({ lockfileDir: projectDir }))
 
-  const hasGlobAndRimrafDir = f.find('has-glob-and-rimraf')
+  const hasGlobAndRimrafDir = testFixtures.find('has-glob-and-rimraf')
   fs.copyFileSync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fs.copyFileSync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
@@ -469,13 +546,13 @@ test('available packages are relinked during forced install', async () => {
   const destPackageJsonPath = path.join(projectDir, 'package.json')
   const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
-  const hasGlobDir = f.find('has-glob')
+  const hasGlobDir = testFixtures.find('has-glob')
   fs.copyFileSync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   fs.copyFileSync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headlessInstall(await testDefaults({ lockfileDir: projectDir }))
 
-  const hasGlobAndRimrafDir = f.find('has-glob-and-rimraf')
+  const hasGlobAndRimrafDir = testFixtures.find('has-glob-and-rimraf')
   fs.copyFileSync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fs.copyFileSync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
@@ -501,8 +578,8 @@ test('available packages are relinked during forced install', async () => {
 })
 
 test('installing local dependency', async () => {
-  let prefix = f.prepare('has-local-dep')
-  f.copy('tar-pkg-1.0.0.tgz', path.join(prefix, 'tar-pkg-1.0.0.tgz'))
+  let prefix = testFixtures.prepare('has-local-dep')
+  testFixtures.copy('tar-pkg-1.0.0.tgz', path.join(prefix, 'tar-pkg-1.0.0.tgz'))
   prefix = path.join(prefix, 'pkg')
   const reporter = jest.fn()
 
@@ -513,7 +590,7 @@ test('installing local dependency', async () => {
 })
 
 test('installing local directory dependency', async () => {
-  const prefix = f.prepare('has-local-dir-dep')
+  const prefix = testFixtures.prepare('has-local-dir-dep')
   const reporter = jest.fn()
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter }))
@@ -525,7 +602,7 @@ test('installing local directory dependency', async () => {
 test('installing using passed in lockfile files', async () => {
   const prefix = tempDir()
 
-  const simplePkgPath = f.find('simple')
+  const simplePkgPath = testFixtures.find('simple')
   fs.copyFileSync(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
   fs.copyFileSync(path.join(simplePkgPath, WANTED_LOCKFILE), path.join(prefix, WANTED_LOCKFILE))
 
@@ -545,7 +622,7 @@ test('installing using passed in lockfile files', async () => {
 })
 
 test('installation of a dependency that has a resolved peer in subdeps', async () => {
-  const prefix = f.prepare('resolved-peer-deps-in-subdeps')
+  const prefix = testFixtures.prepare('resolved-peer-deps-in-subdeps')
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix }))
 
@@ -622,6 +699,31 @@ test('installing with hoistPattern=*', async () => {
   expect(modules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'private' })
 })
 
+test('headless install preserves registry hoist links when the current lockfile is missing', async () => {
+  const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
+  await headlessInstall(await testDefaults({ lockfileDir: prefix, hoistPattern: ['*'] }))
+  const modules = await readModulesManifest(path.join(prefix, 'node_modules'))
+  const registryLink = path.join(prefix, 'node_modules/.pnpm/node_modules/balanced-match')
+  const target = fs.realpathSync(registryLink)
+  fs.unlinkSync(path.join(prefix, 'node_modules/.pnpm/lock.yaml'))
+
+  const unlink = jest.spyOn(fs.promises, 'unlink')
+  try {
+    await headlessInstall(await testDefaults({
+      lockfileDir: prefix,
+      hoistPattern: ['*'],
+      currentHoistPattern: ['*'],
+      hoistedDependencies: modules!.hoistedDependencies,
+    }))
+    expect(unlink).not.toHaveBeenCalledWith(registryLink)
+    expect(fs.realpathSync(registryLink)).toBe(target)
+    const updatedModules = await readModulesManifest(path.join(prefix, 'node_modules'))
+    expect(updatedModules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'private' })
+  } finally {
+    unlink.mockRestore()
+  }
+})
+
 test('installing with publicHoistPattern=*', async () => {
   const prefix = prepareFixtureWithIntegrity('simple-shamefully-flatten')
   const reporter = jest.fn()
@@ -684,8 +786,98 @@ test('installing with publicHoistPattern=*', async () => {
   expect(modules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'public' })
 })
 
+test.each(['renamed', 'removed'])('headless install removes a %s workspace project from the private hoist directory', async (change) => {
+  const prefix = tempDir()
+  const projectDir = path.join(prefix, 'project')
+  fs.mkdirSync(projectDir)
+  fs.writeFileSync(path.join(prefix, 'package.json'), JSON.stringify({ name: 'root', version: '1.0.0' }))
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'old-name', version: '1.0.0' }))
+  fs.writeFileSync(path.join(prefix, WANTED_LOCKFILE), [
+    "lockfileVersion: '9.0'",
+    'settings:',
+    '  autoInstallPeers: true',
+    '  excludeLinksFromLockfile: false',
+    'importers:',
+    '  .: {}',
+    '  project: {}',
+    '',
+  ].join('\n'))
+
+  const projects = [prefix, projectDir]
+  await headlessInstall(await testDefaults({
+    hoistWorkspacePackages: true,
+    lockfileDir: prefix,
+    projects,
+  }))
+  const privateHoistDir = path.join(prefix, 'node_modules/.pnpm/node_modules')
+  expect(fs.realpathSync(path.join(privateHoistDir, 'old-name'))).toBe(projectDir)
+
+  const wantedLockfile = (await readWantedLockfile(prefix, { ignoreIncompatible: false }))!
+  if (change === 'removed') {
+    fs.rmSync(projectDir, { recursive: true })
+    delete wantedLockfile.importers['project' as ProjectId]
+    projects.pop()
+  } else {
+    fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'new-name', version: '1.0.0' }))
+  }
+  const modules = await readModulesManifest(path.join(prefix, 'node_modules'))
+  await headlessInstall(await testDefaults({
+    hoistedDependencies: modules!.hoistedDependencies,
+    hoistWorkspacePackages: true,
+    lockfileDir: prefix,
+    projects,
+    wantedLockfile,
+  }))
+
+  expect(() => fs.lstatSync(path.join(privateHoistDir, 'old-name'))).toThrow(expect.objectContaining({ code: 'ENOENT' }))
+  if (change === 'renamed') {
+    expect(fs.realpathSync(path.join(privateHoistDir, 'new-name'))).toBe(projectDir)
+  }
+})
+
+test.each([
+  [0, true],
+  [-1, false],
+])('headless install with linkWorkspacePackagesDepth=%d relinks a workspace range excludeLinksFromLockfile left out: %s', async (linkWorkspacePackagesDepth, linked) => {
+  const prefix = tempDir()
+  const fooDir = path.join(prefix, 'foo')
+  const barDir = path.join(prefix, 'bar')
+  const fooManifest = { name: 'foo', version: '1.0.0' }
+  fs.mkdirSync(fooDir)
+  fs.mkdirSync(barDir)
+  fs.writeFileSync(path.join(prefix, 'package.json'), JSON.stringify({ name: 'root', version: '1.0.0' }))
+  fs.writeFileSync(path.join(fooDir, 'package.json'), JSON.stringify(fooManifest))
+  fs.writeFileSync(path.join(barDir, 'package.json'), JSON.stringify({ name: 'bar', version: '1.0.0', dependencies: { foo: '^1.0.0' } }))
+  fs.writeFileSync(path.join(prefix, WANTED_LOCKFILE), [
+    "lockfileVersion: '9.0'",
+    'settings:',
+    '  autoInstallPeers: true',
+    '  excludeLinksFromLockfile: true',
+    'importers:',
+    '  .: {}',
+    '  bar: {}',
+    '  foo: {}',
+    '',
+  ].join('\n'))
+
+  await headlessInstall(await testDefaults({
+    excludeLinksFromLockfile: true,
+    linkWorkspacePackagesDepth,
+    lockfileDir: prefix,
+    projects: [prefix, fooDir, barDir],
+    workspacePackages: new Map([['foo', new Map([['1.0.0', { rootDir: fooDir as ProjectRootDir, manifest: fooManifest }]])]]),
+  }))
+
+  const linkPath = path.join(barDir, 'node_modules/foo')
+  if (linked) {
+    expect(fs.realpathSync(linkPath)).toBe(fs.realpathSync(fooDir))
+  } else {
+    expect(fs.existsSync(linkPath)).toBe(false)
+  }
+})
+
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {
-  const lockfileDir = f.prepare('pkg-with-external-lockfile')
+  const lockfileDir = testFixtures.prepare('pkg-with-external-lockfile')
   const prefix = path.join(lockfileDir, 'pkg')
 
   await headlessInstall(await testDefaults({
@@ -722,7 +914,7 @@ test.each([['isolated'], ['hoisted']] as const)('using side effects cache with n
   storeIndexes.push(storeIndex)
   const cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
+  const sideEffectsKey = `${ENGINE_NAME};format=2;deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({
@@ -756,7 +948,7 @@ test.each([['isolated'], ['hoisted']] as const)('using side effects cache with n
 })
 
 test.skip('using side effects cache and hoistPattern=*', async () => {
-  const lockfileDir = f.prepare('side-effects-of-subdep')
+  const lockfileDir = testFixtures.prepare('side-effects-of-subdep')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
@@ -784,7 +976,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
 })
 
 test('installing in a workspace', async () => {
-  const workspaceFixture = f.prepare('workspace')
+  const workspaceFixture = testFixtures.prepare('workspace')
 
   const projects = [
     path.join(workspaceFixture, 'foo'),
@@ -814,7 +1006,7 @@ test('installing in a workspace', async () => {
 })
 
 test('does not write the PnP loader when virtualStoreOnly skips linking', async () => {
-  const prefix = f.prepare('simple')
+  const prefix = testFixtures.prepare('simple')
 
   await headlessInstall(await testDefaults({
     enablePnp: true,
@@ -831,7 +1023,7 @@ test('does not write the PnP loader when virtualStoreOnly skips linking', async 
 })
 
 test('installing with no symlinks but with PnP', async () => {
-  const prefix = f.prepare('simple')
+  const prefix = testFixtures.prepare('simple')
 
   await headlessInstall(await testDefaults({
     enablePnp: true,
@@ -839,7 +1031,7 @@ test('installing with no symlinks but with PnP', async () => {
     symlink: false,
   }))
 
-  expect([...fs.readdirSync(path.join(prefix, 'node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.package-map.json', '.pnpm'])
+  expect([...fs.readdirSync(path.join(prefix, 'node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
   expect([...fs.readdirSync(path.join(prefix, 'node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   const project = assertProject(prefix)
@@ -849,7 +1041,7 @@ test('installing with no symlinks but with PnP', async () => {
 })
 
 test('installing with no modules directory', async () => {
-  const prefix = f.prepare('simple')
+  const prefix = testFixtures.prepare('simple')
 
   await headlessInstall(await testDefaults({
     enableModulesDir: false,
@@ -860,7 +1052,7 @@ test('installing with no modules directory', async () => {
 })
 
 test('installing with no modules directory and a patched dependency', async () => {
-  const prefix = f.prepare('simple-with-patch')
+  const prefix = testFixtures.prepare('simple-with-patch')
 
   await headlessInstall(await testDefaults({
     enableModulesDir: false,
@@ -871,7 +1063,7 @@ test('installing with no modules directory and a patched dependency', async () =
 })
 
 test('installing with node-linker=hoisted', async () => {
-  const prefix = f.prepare('has-several-versions-of-same-pkg')
+  const prefix = testFixtures.prepare('has-several-versions-of-same-pkg')
 
   await headlessInstall(await testDefaults({
     enableModulesDir: false,
@@ -885,7 +1077,7 @@ test('installing with node-linker=hoisted', async () => {
 })
 
 test('installing in a workspace with node-linker=hoisted', async () => {
-  const prefix = f.prepare('workspace2')
+  const prefix = testFixtures.prepare('workspace2')
 
   await headlessInstall(await testDefaults({
     lockfileDir: prefix,
@@ -902,6 +1094,110 @@ test('installing in a workspace with node-linker=hoisted', async () => {
   expect(readPkgVersion(path.join(prefix, 'foo/node_modules/express'))).toBe('4.17.2')
   expect(readPkgVersion(path.join(prefix, 'node_modules/webpack'))).toBe('5.65.0')
   expect(readPkgVersion(path.join(prefix, 'node_modules/express'))).toBe('2.5.11')
+})
+
+// An install interrupted before the current lockfile and `.modules.yaml` are
+// written leaves nested copies on disk that no later install could see, because
+// the next run starts from an empty previous graph. They go to `.ignored`
+// rather than being deleted: pnpm has no record of installing them, so they may
+// hold work someone did by hand. See https://github.com/pnpm/pnpm/issues/13676
+test('installing in a workspace with node-linker=hoisted quarantines directories that the hoisting plan does not place', async () => {
+  const prefix = testFixtures.prepare('workspace2')
+
+  const orphans = [
+    { dir: path.join(prefix, 'node_modules/orphan'), ignored: path.join(prefix, 'node_modules/.ignored/orphan_1') },
+    { dir: path.join(prefix, 'foo/node_modules/orphan'), ignored: path.join(prefix, 'foo/node_modules/.ignored/orphan') },
+    { dir: path.join(prefix, 'bar/node_modules/@scope/orphan'), ignored: path.join(prefix, 'bar/node_modules/.ignored/@scope/orphan') },
+  ]
+  for (const { dir } of orphans) {
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'orphan', version: '1.0.0' }))
+    fs.writeFileSync(path.join(dir, 'hand-edit.js'), 'work someone did by hand')
+  }
+  // An earlier quarantined copy may hold hand edits too, so it is never overwritten.
+  const earlierQuarantine = path.join(prefix, 'node_modules/.ignored/orphan')
+  fs.mkdirSync(earlierQuarantine, { recursive: true })
+  fs.writeFileSync(path.join(earlierQuarantine, 'hand-edit.js'), 'earlier work')
+  const toolCache = path.join(prefix, 'foo/node_modules/.cache')
+  fs.mkdirSync(toolCache, { recursive: true })
+  // Not a package — no `package.json` — so not the linker's to remove, however
+  // little the hoisting plan has to say about it.
+  const buildOutput = path.join(prefix, 'foo/node_modules/build-output')
+  fs.mkdirSync(buildOutput, { recursive: true })
+  fs.writeFileSync(path.join(buildOutput, 'bundle.js'), '')
+  // `.ignored` is a write destination, so a symlink there would redirect the
+  // move out of the project.
+  const outsideIgnored = path.join(prefix, '../outside-ignored')
+  fs.mkdirSync(outsideIgnored, { recursive: true })
+  fs.symlinkSync(outsideIgnored, path.join(prefix, 'bar/node_modules/.ignored'), 'junction')
+  const linkedDep = path.join(prefix, 'foo/node_modules/linked-dep')
+  fs.symlinkSync(path.join(prefix, 'bar'), linkedDep, 'junction')
+  // A symlinked scope container would put every name under it outside the
+  // install root, where the scan must not follow.
+  const outsidePkg = path.join(prefix, '../outside/child')
+  fs.mkdirSync(outsidePkg, { recursive: true })
+  fs.symlinkSync(path.join(prefix, '../outside'), path.join(prefix, 'foo/node_modules/@scope'), 'junction')
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    nodeLinker: 'hoisted',
+    projects: [
+      path.join(prefix, 'foo'),
+      path.join(prefix, 'bar'),
+    ],
+  }))
+
+  for (const { dir, ignored } of orphans) {
+    if (dir.startsWith(path.join(prefix, 'bar'))) continue
+    expect(fs.existsSync(dir)).toBeFalsy()
+    expect(fs.readFileSync(path.join(ignored, 'hand-edit.js'), 'utf8')).toBe('work someone did by hand')
+  }
+  expect(fs.readFileSync(path.join(earlierQuarantine, 'hand-edit.js'), 'utf8')).toBe('earlier work')
+  // Nothing may travel through the symlinked `.ignored`, so bar's orphan stays put.
+  expect(fs.readdirSync(outsideIgnored)).toStrictEqual([])
+  expect(fs.existsSync(path.join(prefix, 'bar/node_modules/@scope/orphan'))).toBeTruthy()
+  expect(fs.existsSync(toolCache)).toBeTruthy()
+  expect(fs.existsSync(buildOutput)).toBeTruthy()
+  expect(fs.lstatSync(linkedDep).isSymbolicLink()).toBeTruthy()
+  expect(fs.existsSync(outsidePkg)).toBeTruthy()
+  expect(readPkgVersion(path.join(prefix, 'foo/node_modules/webpack'))).toBe('2.7.0')
+})
+
+test('installing in a workspace with node-linker=hoisted ignores traversal importers in currentLockfile', async () => {
+  const prefix = testFixtures.prepare('workspace2')
+  const outsideVictimPkg = path.join(prefix, '../victim/node_modules/express')
+  fs.mkdirSync(outsideVictimPkg, { recursive: true })
+  fs.writeFileSync(path.join(outsideVictimPkg, 'package.json'), JSON.stringify({ name: 'express', version: '4.17.2' }))
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    nodeLinker: 'hoisted',
+    projects: [
+      path.join(prefix, 'foo'),
+      path.join(prefix, 'bar'),
+    ],
+  }))
+
+  const currentLockfilePath = path.join(prefix, 'node_modules/.pnpm/lock.yaml')
+  const currentLockfileContent = fs.readFileSync(currentLockfilePath, 'utf8')
+  fs.writeFileSync(
+    currentLockfilePath,
+    currentLockfileContent.replace(
+      'importers:\n',
+      "importers:\n  '../victim':\n    dependencies:\n      express:\n        specifier: 4.17.2\n        version: 4.17.2\n"
+    )
+  )
+
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    nodeLinker: 'hoisted',
+    projects: [
+      path.join(prefix, 'foo'),
+      path.join(prefix, 'bar'),
+    ],
+  }))
+
+  expect(fs.existsSync(outsideVictimPkg)).toBe(true)
 })
 
 function readPkgVersion (dir: string): string {
@@ -941,7 +1237,7 @@ test('installing a package deeply installs all required dependencies', async () 
 // so this shape is valid pnpm output but the graph builder accessed
 // `pkgSnapshot.resolution` without guarding for undefined.
 test('headlessInstall: peer-variant snapshot without `resolution` does not crash', async () => {
-  const workspaceFixture = f.prepare('peer-variant-missing-resolution')
+  const workspaceFixture = testFixtures.prepare('peer-variant-missing-resolution')
   const projects = [
     workspaceFixture,
     path.join(workspaceFixture, 'packages', 'pkg-a'),
@@ -954,4 +1250,14 @@ test('headlessInstall: peer-variant snapshot without `resolution` does not crash
     lockfileDir: workspaceFixture,
     projects,
   }))
+})
+
+test('the reporter is detached when the headless installation fails', async () => {
+  const prefix = tempDir()
+  const reporter = jest.fn()
+  const opts = await testDefaults({ lockfileDir: prefix, reporter })
+
+  await expect(headlessInstall(opts)).rejects.toThrow(`Headless installation requires a ${WANTED_LOCKFILE} file`)
+
+  expect((streamParser as unknown as EventEmitter).listeners('data')).not.toContain(reporter)
 })

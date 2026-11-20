@@ -105,7 +105,7 @@ test('readLockfiles() throws on incompatible lockfile in CI when frozenLockfile 
     lockfileDir,
     registry: 'https://registry.npmjs.org/',
     useLockfile: true,
-    internalPnpmDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+    installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
   })).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE' })
 })
 
@@ -124,7 +124,63 @@ test('readLockfiles() throws on an empty wanted lockfile when frozenLockfile is 
     lockfileDir,
     registry: 'https://registry.npmjs.org/',
     useLockfile: true,
-    internalPnpmDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+    installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_BROKEN_LOCKFILE' })
+})
+
+// https://github.com/pnpm/pnpm/issues/16477
+test.each([
+  ['with', '---\n'],
+  ['without', ''],
+])('readLockfiles() reads a lockfile that records only the env document, %s the separator, as no wanted lockfile', async (_, separator) => {
+  const lockfileDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-get-context-'))
+  await fs.writeFile(path.join(lockfileDir, 'pnpm-lock.yaml'), `---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+
+packages: {}
+
+snapshots: {}
+
+${separator}`)
+
+  const context = await readLockfiles({
+    autoInstallPeers: true,
+    excludeLinksFromLockfile: false,
+    peersSuffixMaxLength: 1000,
+    ci: true,
+    force: false,
+    frozenLockfile: true,
+    projects: [{ id: '.' as ProjectId, manifest: {}, rootDir: lockfileDir as ProjectRootDir }],
+    lockfileDir,
+    registry: 'https://registry.npmjs.org/',
+    useLockfile: true,
+    installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+  })
+
+  expect(context.existsWantedLockfile).toBe(false)
+})
+
+test('readLockfiles() reports a lockfile whose only document does not parse as broken', async () => {
+  const lockfileDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-get-context-'))
+  await fs.writeFile(path.join(lockfileDir, 'pnpm-lock.yaml'), '---\nimporters: [\n  configDependencies:\n')
+
+  await expect(readLockfiles({
+    autoInstallPeers: true,
+    excludeLinksFromLockfile: false,
+    peersSuffixMaxLength: 1000,
+    ci: true,
+    force: false,
+    frozenLockfile: true,
+    projects: [{ id: '.' as ProjectId, manifest: {}, rootDir: lockfileDir as ProjectRootDir }],
+    lockfileDir,
+    registry: 'https://registry.npmjs.org/',
+    useLockfile: true,
+    installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
   })).rejects.toMatchObject({ code: 'ERR_PNPM_BROKEN_LOCKFILE' })
 })
 
@@ -143,8 +199,33 @@ test('readLockfiles() ignores incompatible lockfile in CI when frozenLockfile is
     lockfileDir,
     registry: 'https://registry.npmjs.org/',
     useLockfile: true,
-    internalPnpmDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+    installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
   })
 
   expect(context.existsWantedLockfile).toBe(false)
+})
+
+
+test('readLockfiles() preserves importer membership before adding empty entries', async () => {
+  const lockfileDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-get-context-'))
+  try {
+    await fs.writeFile(path.join(lockfileDir, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\nimporters:\n  existing: {}\n")
+    const context = await readLockfiles({
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+      peersSuffixMaxLength: 1000,
+      ci: false,
+      force: false,
+      frozenLockfile: false,
+      projects: ['existing', 'new'].map((id) => ({ id: id as ProjectId, manifest: {}, rootDir: lockfileDir as ProjectRootDir })),
+      lockfileDir,
+      registry: 'https://registry.npmjs.org/',
+      useLockfile: true,
+      installStateDir: path.join(lockfileDir, 'node_modules', '.pnpm'),
+    })
+    expect(context.originalImporterIds).toStrictEqual(new Set(['existing']))
+    expect(Object.keys(context.wantedLockfile.importers)).toStrictEqual(['existing', 'new'])
+  } finally {
+    await fs.rm(lockfileDir, { recursive: true, force: true })
+  }
 })

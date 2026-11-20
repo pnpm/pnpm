@@ -4,13 +4,25 @@
 //! [`StoreIndexWriter`].
 
 use crate::{
-    AddFilesFromDirError, CafsFileInfo, SideEffectsDiff, StoreDir, StoreIndexWriter,
-    add_files_from_dir,
+    AddFilesFromDirError,
+    BundledPackageDirs,
+    CafsFileInfo,
+    SideEffectsDiff,
+    StoreDir,
+    StoreIndexError,
+    StoreIndexWriter,
+    add_files_from_dir_with_bundled,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     path::Path,
 };
 
@@ -20,6 +32,8 @@ use std::{
 pub enum UploadError {
     #[diagnostic(transparent)]
     AddFilesFromDir(#[error(source)] AddFilesFromDirError),
+    #[diagnostic(transparent)]
+    StoreIndex(#[error(source)] StoreIndexError),
 }
 
 /// Digest algorithm pacquet writes into `PackageFilesIndex.algo`.
@@ -32,12 +46,13 @@ pub const HASH_ALGORITHM: &str = "sha512";
 ///
 /// The actual load-existing → apply-diff → write-back happens
 /// inside the writer task ([`StoreIndexWriter::queue_side_effects_upload`])
-/// so concurrent uploads for the same row stay commutative — a
-/// second upload to the same row builds on the first's mutation
-/// rather than racing against a stale read.
+/// so concurrent uploads for the same row stay commutative.
 ///
 /// Behaviour at the writer side:
 ///
+/// - Build output contains symlinks that cannot be recorded (see
+///   [`crate::add_files_from_dir()`]) → remove the matching cache entry and
+///   wait for persistence; read, write, or unavailable-writer errors propagate.
 /// - No base row at `files_index_file` → silent skip.
 /// - Existing row's `algo` differs from [`HASH_ALGORITHM`] → log
 ///   at `warn!` and skip (an algorithm mismatch is demoted to a
@@ -53,8 +68,20 @@ pub fn upload(
     side_effects_cache_key: &str,
     writer: &StoreIndexWriter,
 ) -> Result<(), UploadError> {
-    let added =
-        add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
+    let Some(bundled) = bundled_package_dirs(built_pkg_location, files_index_file, writer) else {
+        return Ok(());
+    };
+    let added = add_files_from_dir_with_bundled(store_dir, built_pkg_location, bundled)
+        .map_err(UploadError::AddFilesFromDir)?;
+    if added.has_unrecorded_symlinks {
+        writer
+            .queue_side_effects_invalidation(
+                files_index_file.to_string(),
+                side_effects_cache_key.to_string(),
+            )
+            .map_err(UploadError::StoreIndex)?;
+        return Ok(());
+    }
     writer.queue_side_effects_upload(
         files_index_file.to_string(),
         side_effects_cache_key.to_string(),
@@ -70,8 +97,20 @@ pub fn upload_with_diff(
     side_effects_cache_key: &str,
     writer: &StoreIndexWriter,
 ) -> Result<Option<SideEffectsDiff>, UploadError> {
-    let added =
-        add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
+    let Some(bundled) = bundled_package_dirs(built_pkg_location, files_index_file, writer) else {
+        return Ok(None);
+    };
+    let added = add_files_from_dir_with_bundled(store_dir, built_pkg_location, bundled)
+        .map_err(UploadError::AddFilesFromDir)?;
+    if added.has_unrecorded_symlinks {
+        writer
+            .queue_side_effects_invalidation(
+                files_index_file.to_string(),
+                side_effects_cache_key.to_string(),
+            )
+            .map_err(UploadError::StoreIndex)?;
+        return Ok(None);
+    }
     Ok(writer.queue_side_effects_upload_with_result(
         files_index_file.to_string(),
         side_effects_cache_key.to_string(),
@@ -79,14 +118,33 @@ pub fn upload_with_diff(
     ))
 }
 
-/// Set-difference over file digests + modes.
+/// The bundled dependencies the pristine row at `files_index_file` has
+/// files in. Read through `writer` so a row queued by the fetch that
+/// precedes the build is visible.
 ///
-/// `base`     — the pristine `PackageFilesIndex.files` map (pre-build).
-/// `current`  — the rehashed map produced by [`add_files_from_dir()`].
+/// `None` when the built package has a `node_modules` directory but the
+/// row cannot be read. A diff without its bundled files would record them
+/// as deleted, so the caller skips the upload.
+fn bundled_package_dirs(
+    built_pkg_location: &Path,
+    files_index_file: &str,
+    writer: &StoreIndexWriter,
+) -> Option<Option<BundledPackageDirs>> {
+    if !built_pkg_location.join("node_modules").is_dir() {
+        return Some(None);
+    }
+    let paths = writer.read_file_paths(files_index_file.to_string())?;
+    Some(BundledPackageDirs::from_files(paths.iter().map(String::as_str)))
+}
+
+/// Set-difference over file digests, and over modes where the host records them.
 ///
-/// Both fields of the returned [`SideEffectsDiff`] use `Option<…>` with
-/// `skip_serializing_if = is_none` (see `SideEffectsDiff`), so an empty
-/// side of the diff round-trips through msgpack the way pnpm expects.
+/// `base`: the pristine `PackageFilesIndex.files` map (pre-build).
+/// `current`, the rehashed map produced by [`crate::add_files_from_dir()`].
+///
+/// Off Unix [`crate::add_files_from_dir()`] reports a fixed mode, so a mode
+/// difference from `base` is not a change the build made. Those
+/// differences are ignored. A digest change is still recorded.
 pub fn calculate_diff(
     base: &HashMap<String, CafsFileInfo>,
     current: &HashMap<String, CafsFileInfo>,
@@ -99,14 +157,21 @@ pub fn calculate_diff(
     // separately by `SideEffectsDiff.added`'s sorted-map
     // serializer (see `serialize_sorted_map_opt` in `store_index.rs`),
     // since `HashMap` iteration on its own remains unordered.
-    let all_files: BTreeSet<&str> = base.keys().chain(current.keys()).map(String::as_str).collect();
+    let all_files: BTreeSet<&str> = base
+        .keys()
+        .chain(current.keys())
+        .map(String::as_str)
+        .collect();
     for file in all_files {
         match (base.get(file), current.get(file)) {
             (Some(_), None) => deleted.push(file.to_string()),
             (None, Some(now)) => {
                 added.insert(file.to_string(), clone_info(now));
             }
-            (Some(before), Some(now)) if before.digest != now.digest || before.mode != now.mode => {
+            (Some(before), Some(now))
+                if before.digest != now.digest
+                    || (cfg!(any(unix, target_os = "wasi")) && before.mode != now.mode) =>
+            {
                 added.insert(file.to_string(), clone_info(now));
             }
             _ => {}

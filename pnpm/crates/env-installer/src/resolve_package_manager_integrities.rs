@@ -1,31 +1,58 @@
 use crate::{
     ConfigDepError,
-    manifest_lockfile::{package_metadata, read_dependency_map},
+    manifest_lockfile::{
+        package_metadata,
+        read_dependency_map,
+    },
     options::ConfigDepsInstallOptions,
-    prune::prune_env_lockfile,
+    prune_env_lockfile,
     resolve_optional_subdeps::resolution_has_integrity,
-    verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile},
+    verify_env_lockfile::{
+        verify_env_lockfile,
+        write_verified_env_lockfile,
+    },
 };
+use pnpm_config::PNPM_VERSION;
 use pnpm_lockfile::{
-    EnvLockfile, LockfileResolution, PackageKey, PkgName, PkgVerPeer, RegistryResolution,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
+    EnvLockfile,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    PkgVerPeer,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TarballResolution,
 };
-use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, Resolver, WantedDependency};
-use std::{collections::HashMap, path::PathBuf};
+use pnpm_resolving_resolver_base::{
+    NoMatchingVersionError,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
+};
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::PathBuf,
+};
 
 const PACKAGE_MANAGER_DEPS_WITH_EXE: [&str; 2] = ["pnpm", "@pnpm/exe"];
 const PACKAGE_MANAGER_DEPS_PNPM_ONLY: [&str; 1] = ["pnpm"];
 const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 
-/// Resolve the closure of `package_manager_deps` — the packages a package
-/// manager is installed from — at `version`, record it in the env lockfile
+/// Resolve the closure of `package_manager_deps` (the packages a package
+/// manager is installed from) at `version`, record it in the env lockfile
 /// at `opts.root_dir`, and return that lockfile.
 ///
 /// `force_resync` skips the recorded-entries fast path, so entries that look
 /// up to date but are invalid (e.g. resolutions carrying tarball URLs
 /// written by an earlier pnpm) are discarded and re-resolved. Such entries
-/// already record the version the manifest pins — only pnpm's own reading of
-/// them is at stake — so under `opts.frozen_lockfile` the re-resolution
+/// already record the version the manifest pins (only pnpm's own reading of
+/// them is at stake) so under `opts.lockfile.frozen` the re-resolution
 /// happens in memory and the lockfile is left untouched, rather than failing
 /// a command the manifest and the lockfile agree on. Entries that do not
 /// record the pinned version are the case `--frozen-lockfile` exists for and
@@ -51,17 +78,61 @@ pub async fn resolve_package_manager_integrities(
     {
         return Ok(env_lockfile);
     }
-    let repair_in_memory = force_resync && opts.frozen_lockfile;
-    if opts.frozen_lockfile && !force_resync {
-        if pins_wanted_package_manager(&env_lockfile, version, package_manager_deps) {
-            return Ok(env_lockfile);
-        }
-        return Err(ConfigDepError::FrozenLockfileOutdated {
-            message: r#"Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date"#.to_string(),
-        });
+    let repair_in_memory = force_resync && opts.lockfile.frozen;
+    if opts.lockfile.frozen && !force_resync {
+        return frozen_lockfile_result(env_lockfile, version, package_manager_deps);
     }
 
-    let mut package_manager_dependencies = std::collections::BTreeMap::new();
+    let (package_manager_dependencies, mut resolved) =
+        resolve_direct_deps(package_manager_deps, wanted_specifier, version, resolver, opts).await?;
+    env_lockfile.root_importer_mut().package_manager_dependencies =
+        Some(package_manager_dependencies);
+
+    let mut seen = std::collections::HashSet::new();
+    while let Some(package) = resolved.pop() {
+        if !seen.insert(package.key.clone()) {
+            clear_optional(&mut env_lockfile, &package);
+            continue;
+        }
+        let children = record_package(&mut env_lockfile, package, resolver, opts).await?;
+        resolved.extend(children);
+    }
+
+    prune_env_lockfile(&mut env_lockfile);
+    if repair_in_memory {
+        verify_env_lockfile(&env_lockfile)?;
+    } else {
+        write_verified_env_lockfile(&env_lockfile, opts.root_dir, &opts.lockfile)?;
+    }
+    Ok(env_lockfile)
+}
+
+/// A lockfile that already pins the wanted package manager is accepted as
+/// is; anything else is the case `--frozen-lockfile` exists for.
+fn frozen_lockfile_result(
+    env_lockfile: EnvLockfile,
+    version: &str,
+    package_manager_deps: &[&str],
+) -> Result<EnvLockfile, ConfigDepError> {
+    if pins_wanted_package_manager(&env_lockfile, version, package_manager_deps) {
+        return Ok(env_lockfile);
+    }
+    Err(ConfigDepError::FrozenLockfileOutdated {
+        message: r#"Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date"#.to_string(),
+    })
+}
+
+/// Resolve every package-manager dependency at `version`, returning the
+/// importer entries to record and the packages whose own dependencies still
+/// have to be walked.
+async fn resolve_direct_deps(
+    package_manager_deps: &[&str],
+    wanted_specifier: &str,
+    version: &str,
+    resolver: &dyn Resolver,
+    opts: &ConfigDepsInstallOptions<'_>,
+) -> Result<(BTreeMap<String, SpecifierAndResolution>, Vec<EnvPackage>), ConfigDepError> {
+    let mut package_manager_dependencies = BTreeMap::new();
     let mut resolved = Vec::new();
     for name in package_manager_deps {
         let package = resolve_dep(name, version, false, resolver, opts).await?;
@@ -74,65 +145,71 @@ pub async fn resolve_package_manager_integrities(
         );
         resolved.push(package);
     }
+    Ok((package_manager_dependencies, resolved))
+}
 
-    env_lockfile.root_importer_mut().package_manager_dependencies =
-        Some(package_manager_dependencies);
+/// A package reached again as a non-optional dependency is not optional,
+/// whichever edge recorded it first.
+fn clear_optional(env_lockfile: &mut EnvLockfile, package: &EnvPackage) {
+    if !package.optional
+        && let Some(snapshot) = env_lockfile.snapshots.get_mut(&package.key)
+    {
+        snapshot.optional = false;
+    }
+}
 
-    let mut seen = std::collections::HashSet::new();
-    while let Some(package) = resolved.pop() {
-        if !seen.insert(package.key.clone()) {
-            if !package.optional
-                && let Some(snapshot) = env_lockfile.snapshots.get_mut(&package.key)
-            {
-                snapshot.optional = false;
-            }
-            continue;
-        }
-        let registry = opts.pick_registry(&package.name);
-        let mut metadata =
-            package_metadata(&package.name, &package.version, &package.result, registry, false)
-                .map_err(ConfigDepError::LockfileForm)?;
-        metadata.resolution = strip_registry_tarball_url(metadata.resolution);
-        env_lockfile.packages.insert(package.key.clone(), metadata);
+/// Record `package` and its dependency edges, returning the dependencies
+/// still to be walked.
+async fn record_package(
+    env_lockfile: &mut EnvLockfile,
+    package: EnvPackage,
+    resolver: &dyn Resolver,
+    opts: &ConfigDepsInstallOptions<'_>,
+) -> Result<Vec<EnvPackage>, ConfigDepError> {
+    let mut metadata = package_metadata(
+        &package.name,
+        &package.version,
+        &package.result,
+        opts.verification.tarball_url_options(&package.name),
+        false,
+    )
+    .map_err(ConfigDepError::LockfileForm)?;
+    metadata.resolution = strip_registry_tarball_url(metadata.resolution);
+    env_lockfile.packages.insert(package.key.clone(), metadata);
 
-        let manifest = package.result.manifest.as_deref();
-        let mut dependencies = HashMap::new();
-        for (alias, specifier) in read_dependency_map(manifest, "dependencies") {
-            let child = resolve_dep(&alias, &specifier, false, resolver, opts).await?;
-            dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
-            resolved.push(child);
-        }
+    let manifest = package.result.package.manifest.as_deref();
+    let mut children = Vec::new();
 
-        let mut optional_dependencies = HashMap::new();
-        for (alias, specifier) in read_dependency_map(manifest, "optionalDependencies") {
-            let child = resolve_dep(&alias, &specifier, true, resolver, opts).await?;
-            optional_dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
-            resolved.push(child);
-        }
-
-        env_lockfile.snapshots.insert(
-            package.key,
-            SnapshotEntry {
-                dependencies: (!dependencies.is_empty()).then_some(dependencies),
-                optional_dependencies: (!optional_dependencies.is_empty())
-                    .then_some(optional_dependencies),
-                optional: package.optional,
-                ..SnapshotEntry::default()
-            },
-        );
+    let mut dependencies = HashMap::new();
+    for (alias, specifier) in read_dependency_map(manifest, "dependencies") {
+        let child = resolve_dep(&alias, &specifier, false, resolver, opts).await?;
+        dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
+        children.push(child);
     }
 
-    prune_env_lockfile(&mut env_lockfile);
-    if repair_in_memory {
-        verify_env_lockfile(&env_lockfile)?;
-    } else {
-        write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
+    let mut optional_dependencies = HashMap::new();
+    for (alias, specifier) in read_dependency_map(manifest, "optionalDependencies") {
+        let child = resolve_dep(&alias, &specifier, true, resolver, opts).await?;
+        optional_dependencies.insert(snapshot_dep_name(&alias)?, child.snapshot_ref(&alias)?);
+        children.push(child);
     }
-    Ok(env_lockfile)
+
+    env_lockfile.snapshots.insert(
+        package.key,
+        SnapshotEntry {
+            dependencies: (!dependencies.is_empty()).then_some(dependencies),
+            optional_dependencies: (!optional_dependencies.is_empty()).then_some(
+                optional_dependencies,
+            ),
+            optional: package.optional,
+            ..SnapshotEntry::default()
+        },
+    );
+    Ok(children)
 }
 
 /// Rewrite a registry tarball resolution to integrity-only form, dropping
-/// tarball URLs a registry advertises on a host other than its own —
+/// tarball URLs a registry advertises on a host other than its own,
 /// load-balanced proxies and Artifactory-style mirrors do this, see
 /// <https://github.com/pnpm/pnpm/issues/13619>. The package-manager
 /// bootstrap never fetches a URL recorded in the lockfile: the download URL
@@ -155,6 +232,18 @@ fn strip_registry_tarball_url(resolution: LockfileResolution) -> LockfileResolut
     }
 }
 
+/// Whether `error` is the registry answering that `version`, the pnpm now
+/// running, is not among the versions it publishes.
+///
+/// Such a pin asks for no download, so this is no integrity left to record
+/// rather than a pin that cannot be satisfied: a mirror mid-sync, or a build
+/// that is never published.
+#[must_use]
+pub fn running_version_unpublished(error: &ConfigDepError, version: &str) -> bool {
+    version == PNPM_VERSION
+        && matches!(error, ConfigDepError::Resolve { error, .. } if error.is::<NoMatchingVersionError>())
+}
+
 #[must_use]
 pub fn is_package_manager_resolved(
     env_lockfile: &EnvLockfile,
@@ -169,33 +258,29 @@ pub fn is_package_manager_resolved(
     )
 }
 
-/// Whether the env lockfile already records what this pnpm would write for
-/// `pnpm_version`: the pinned packages under the specifier they were pinned
-/// from, and nothing besides them.
+/// Whether the env lockfile already pins `pnpm_version` under
+/// `wanted_specifier`, so there is nothing for this run to write.
 fn is_package_manager_resolved_with_deps(
     env_lockfile: &EnvLockfile,
     wanted_specifier: &str,
     pnpm_version: &str,
     package_manager_deps: &[&str],
 ) -> bool {
-    recorded_package_manager_deps(env_lockfile).is_some_and(|pm_deps| {
-        pm_deps.len() == package_manager_deps.len()
-            && pm_deps.values().all(|dep| dep.specifier == wanted_specifier)
-    }) && pins_wanted_package_manager(env_lockfile, pnpm_version, package_manager_deps)
+    recorded_package_manager_deps(env_lockfile)
+        .is_some_and(|pm_deps| {
+            pm_deps
+                .values()
+                .all(|dep| dep.specifier == wanted_specifier)
+        })
+        && pins_wanted_package_manager(env_lockfile, pnpm_version, package_manager_deps)
 }
 
 /// Whether the env lockfile pins the package manager the manifest asks for,
 /// even when it records more packages than this pnpm installs it from.
 ///
-/// A pnpm below 11.20.0 pins `@pnpm/exe` beside `pnpm` for a v12 version,
-/// because that is the set its own major is installed from. Such an entry
-/// pins the wanted version through the same integrity and cannot change
-/// which pnpm runs, so a frozen lockfile accepts it instead of failing a
-/// project whose lockfile a teammate's older pnpm last wrote. An entry
-/// pinning any other version, or one the lockfile carries no package to
-/// install from, is a lockfile that disagrees with the manifest, which is
-/// what the flag is for, and a writable install still rewrites the block to
-/// the packages this pnpm installs from.
+/// Every entry must pin the wanted version and have package and snapshot
+/// records. Compatible additional entries are retained to keep commands
+/// from repeatedly rewriting `pnpm-lock.yaml`.
 fn pins_wanted_package_manager(
     env_lockfile: &EnvLockfile,
     pnpm_version: &str,
@@ -204,18 +289,21 @@ fn pins_wanted_package_manager(
     let Some(pm_deps) = recorded_package_manager_deps(env_lockfile) else {
         return false;
     };
-    package_manager_deps.iter().all(|name| pm_deps.contains_key(*name))
-        && pm_deps.iter().all(|(name, dep)| {
-            dep.version == pnpm_version
-                && package_manager_entry_exists(env_lockfile, name, &dep.version)
-        })
+    package_manager_deps
+        .iter()
+        .all(|name| pm_deps.contains_key(*name))
+        && pm_deps
+            .iter()
+            .all(|(name, dep)| {
+                dep.version == pnpm_version
+                    && package_manager_entry_exists(env_lockfile, name, &dep.version)
+            })
 }
 
 fn recorded_package_manager_deps(
     env_lockfile: &EnvLockfile,
 ) -> Option<&std::collections::BTreeMap<String, SpecifierAndResolution>> {
-    env_lockfile
-        .importers
+    env_lockfile.importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.package_manager_dependencies.as_ref())
 }
@@ -259,8 +347,9 @@ struct EnvPackage {
 impl EnvPackage {
     fn snapshot_ref(&self, alias: &str) -> Result<SnapshotDepRef, ConfigDepError> {
         if alias == self.name {
-            let ver_peer =
-                self.version.parse::<PkgVerPeer>().map_err(|_| ConfigDepError::BadConfigDep {
+            let ver_peer = self.version
+                .parse::<PkgVerPeer>()
+                .map_err(|_| ConfigDepError::BadConfigDep {
                     message: format!(
                         "Resolved package manager dependency version {} is not valid",
                         self.version,
@@ -294,8 +383,11 @@ async fn resolve_dep(
         ..WantedDependency::default()
     };
     let resolve_opts = ResolveOptions {
-        project_dir: PathBuf::from(opts.root_dir),
-        lockfile_dir: PathBuf::from(opts.root_dir),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: PathBuf::from(opts.root_dir),
+            lockfile_dir: PathBuf::from(opts.root_dir),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let result = resolver
@@ -306,7 +398,8 @@ async fn resolve_dep(
     if !resolution_has_integrity(&result.resolution) {
         return Err(no_integrity(alias, specifier));
     }
-    let name_ver = result.name_ver.as_ref().ok_or_else(|| no_integrity(alias, specifier))?;
+    let name_ver =
+        result.package.name_ver.as_ref().ok_or_else(|| no_integrity(alias, specifier))?;
     let name = name_ver.name.to_string();
     let version = name_ver.suffix.to_string();
     let key = format!("{name}@{version}").parse::<PackageKey>().map_err(|_| {
@@ -328,7 +421,9 @@ fn no_integrity(alias: &str, specifier: &str) -> ConfigDepError {
 }
 
 fn snapshot_dep_name(alias: &str) -> Result<PkgName, ConfigDepError> {
-    alias.parse().map_err(|_| ConfigDepError::BadConfigDep {
-        message: format!("Resolved package manager dependency name {alias} is invalid"),
-    })
+    alias
+        .parse()
+        .map_err(|_| ConfigDepError::BadConfigDep {
+            message: format!("Resolved package manager dependency name {alias} is invalid"),
+        })
 }

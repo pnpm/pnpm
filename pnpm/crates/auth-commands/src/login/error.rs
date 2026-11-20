@@ -1,8 +1,17 @@
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::PathBuf,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_network_web_auth::{WebAuthTimeoutError, WithOtpError};
+use pnpm_network_web_auth::{
+    WebAuthTimeoutError,
+    WithOtpError,
+};
 use pnpm_workspace_manifest_writer::EditManifestFieldError;
 
 use super::classic_login::ClassicLoginOpError;
@@ -40,11 +49,9 @@ pub enum LoginError {
     #[diagnostic(code(ERR_PNPM_WEB_LOGIN_FAILED))]
     WebLoginFailed { status: u16, text: String },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     ClassicLogin(WithOtpError<ClassicLoginOpError>),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     WebAuthTimeout(WebAuthTimeoutError),
 
@@ -60,6 +67,22 @@ pub enum LoginError {
     Prompt {
         #[error(not(source))]
         reason: String,
+    },
+
+    #[display("Failed to read auth.ini at {}: {error}", path.display())]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_READ_AUTH_INI))]
+    ReadAuthIni {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to write auth.ini at {}: {error}", path.display())]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_WRITE_AUTH_INI))]
+    WriteAuthIni {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
     },
 
     #[display("Failed to read the global config file at {}: {error}", path.display())]
@@ -85,11 +108,9 @@ pub enum LoginError {
         reason: String,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     ParseConfigYaml(ParseConfigYamlError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     EditConfigYaml(EditManifestFieldError),
 }

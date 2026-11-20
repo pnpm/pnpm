@@ -7,22 +7,20 @@ import { silentReporter } from './silentReporter.js'
 
 export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
 
+export interface InitReporterOptions {
+  cmd: string | null
+  config: Config & ConfigContext
+  hideProgressPrefix?: boolean
+}
+
 export function initReporter (
   reporterType: ReporterType,
-  opts: {
-    cmd: string | null
-    config: Config & ConfigContext
-    hideProgressPrefix?: boolean
-  }
+  opts: InitReporterOptions
 ): void {
   switch (reporterType) {
     case 'default':
       initDefaultReporter({
-        useStderr: opts.config.useStderr,
-        context: {
-          argv: opts.cmd ? [opts.cmd] : [],
-          config: opts.config,
-        },
+        ...sharedDefaultReporterOptions(opts),
         reportingOptions: {
           appendOnly: false,
           logLevel: opts.config.loglevel as LogLevel,
@@ -32,16 +30,11 @@ export function initReporter (
           hideLifecyclePrefix: opts.config.reporterHidePrefix,
           hideProgressPrefix: opts.hideProgressPrefix,
         },
-        streamParser: streamParser as StreamParser<Log>,
       })
       return
     case 'append-only':
       initDefaultReporter({
-        useStderr: opts.config.useStderr,
-        context: {
-          argv: opts.cmd ? [opts.cmd] : [],
-          config: opts.config,
-        },
+        ...sharedDefaultReporterOptions(opts),
         reportingOptions: {
           appendOnly: true,
           aggregateOutput: opts.config.aggregateOutput,
@@ -50,7 +43,6 @@ export function initReporter (
           hideLifecyclePrefix: opts.config.reporterHidePrefix,
           hideProgressPrefix: opts.hideProgressPrefix,
         },
-        streamParser: streamParser as StreamParser<Log>,
       })
       return
     case 'ndjson':
@@ -58,5 +50,16 @@ export function initReporter (
       return
     case 'silent':
       silentReporter(streamParser)
+  }
+}
+
+function sharedDefaultReporterOptions (opts: InitReporterOptions) {
+  return {
+    useStderr: opts.config.useStderr,
+    context: {
+      argv: opts.cmd ? [opts.cmd] : [],
+      config: opts.config,
+    },
+    streamParser: streamParser as StreamParser<Log>,
   }
 }

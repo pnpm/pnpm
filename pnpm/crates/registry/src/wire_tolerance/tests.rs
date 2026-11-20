@@ -26,17 +26,14 @@ fn an_object_marker_keeps_its_body() {
         r#"{ "provenance": { "predicateType": "https://slsa.dev/provenance/v1" } }"#,
     );
 
-    let publisher = version
-        .npm_user
+    let publisher = version.npm_user
         .as_ref()
         .and_then(|user| user.trusted_publisher.as_ref())
         .expect("trustedPublisher present");
     assert_eq!(publisher.id.as_deref(), Some("github"));
     assert_eq!(publisher.oidc_config_id.as_deref(), Some("release"));
 
-    let provenance = version
-        .dist
-        .attestations
+    let provenance = version.dist.attestations
         .as_ref()
         .and_then(|att| att.provenance.as_ref())
         .expect("provenance present");
@@ -50,17 +47,14 @@ fn an_object_marker_keeps_its_body() {
 fn a_numeric_marker_still_counts_as_present() {
     let version = parse(r#"{ "trustedPublisher": 1 }"#, r#"{ "provenance": 1 }"#);
 
-    let publisher = version
-        .npm_user
+    let publisher = version.npm_user
         .as_ref()
         .and_then(|user| user.trusted_publisher.as_ref())
         .expect("trustedPublisher present");
     assert_eq!(publisher.id, None);
     assert_eq!(publisher.oidc_config_id, None);
 
-    let provenance = version
-        .dist
-        .attestations
+    let provenance = version.dist.attestations
         .as_ref()
         .and_then(|att| att.provenance.as_ref())
         .expect("provenance present");
@@ -113,8 +107,8 @@ fn a_falsy_marker_grants_no_evidence() {
     }
 }
 
-/// The marker's own `null` — as opposed to a missing or null container
-/// around it — is the shape that reaches the decoder, and it means the
+/// The marker's own `null` (as opposed to a missing or null container
+/// around it) is the shape that reaches the decoder, and it means the
 /// registry named the field to say it holds nothing.
 #[test]
 fn a_null_marker_stays_absent() {
@@ -192,8 +186,8 @@ fn an_advisory_count_accepts_every_numeric_encoding() {
     }
 }
 
-/// A count pnpm can't make sense of degrades to "not reported" — the
-/// same state an abbreviated packument leaves it in — rather than
+/// A count pnpm can't make sense of degrades to "not reported" (the
+/// same state an abbreviated packument leaves it in) rather than
 /// costing the version. Only the extractor's allocation hint reads it.
 #[test]
 fn an_unusable_advisory_count_degrades_to_absent() {
@@ -265,7 +259,7 @@ fn a_peer_optional_flag_counts_only_when_it_is_a_real_boolean() {
 
 /// `_npmUser` is a container, not a marker: everything pnpm reads lives
 /// inside it, so a registry sending a scalar in its place has supplied
-/// no publisher metadata — and must not thereby erase the version.
+/// no publisher metadata, and must not thereby erase the version.
 #[test]
 fn a_non_object_npm_user_decodes_as_absent() {
     for encoded in ["1", r#""alice <alice@example.com>""#, "[]", "true"] {
@@ -345,5 +339,40 @@ fn an_off_shape_peer_meta_entry_keeps_its_name_with_optional_unset() {
             version.peer_dependencies_meta.is_none(),
             "peerDependenciesMeta {encoded} has no entries",
         );
+    }
+}
+
+#[test]
+fn pnpr_bins_decode_when_valid_and_degrade_to_absent_when_invalid() {
+    let version = parse_with(
+        r#", "pnpr": { "requiresBuild": false, "bins": { "cli": { "path": "bin/cli.js", "prog": "node" } } }"#,
+        "",
+    );
+    let pnpr = version.dist.pnpr.as_ref().expect("pnpr present");
+    assert_eq!(pnpr.requires_build, Some(false));
+    let bins = pnpr.bins.as_ref().expect("bins present");
+    let cli = bins.get("cli").expect("cli bin present");
+    assert_eq!(cli.path, "bin/cli.js");
+    assert_eq!(cli.prog.as_deref(), Some("node"));
+
+    for bad_bins in [
+        "{}",
+        "[]",
+        r#"{ "../escape": { "path": "bin/cli.js" } }"#,
+        r#"{ "cli": { "path": "../escape.js" } }"#,
+        r#"{ "cli": { "path": "./bin/cli.js" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "prog": "node;rm" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "prog": "node -e" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "prog": "-e" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "prog": "node", "args": " ; rm -rf /" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "args": "-e" } }"#,
+    ] {
+        let version = parse_with(
+            &format!(r#", "pnpr": {{ "requiresBuild": false, "bins": {bad_bins} }}"#),
+            "",
+        );
+        let pnpr = version.dist.pnpr.as_ref().expect("pnpr record survives invalid bins");
+        assert_eq!(pnpr.requires_build, Some(false));
+        assert!(pnpr.bins.is_none(), "invalid bins {bad_bins} must degrade to None");
     }
 }

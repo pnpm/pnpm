@@ -10,8 +10,11 @@ export function filterImporter (
   return {
     dependencies: !include.dependencies ? {} : pickNonRuntime(importer.dependencies, skipRuntimes),
     devDependencies: !include.devDependencies ? {} : pickNonRuntime(importer.devDependencies, skipRuntimes),
-    optionalDependencies: !include.optionalDependencies ? {} : pickNonRuntime(importer.optionalDependencies, skipRuntimes),
+    optionalDependencies: !include.dependencies || !include.optionalDependencies ? {} : pickNonRuntime(importer.optionalDependencies, skipRuntimes),
     specifiers: pickNonRuntime(importer.specifiers, skipRuntimes),
+    ...(importer.publishDirectory ? { publishDirectory: importer.publishDirectory } : {}),
+    ...(importer.linkDirectory != null ? { linkDirectory: importer.linkDirectory } : {}),
+    ...(importer.dependenciesMeta ? { dependenciesMeta: importer.dependenciesMeta } : {}),
   }
 }
 

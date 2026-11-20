@@ -1,5 +1,12 @@
-use crate::parse_project_selector::{ProjectSelector, parse_project_selector};
-use std::path::{Path, PathBuf};
+use crate::parse_project_selector::{
+    ProjectSelector,
+    parse_project_selector,
+    rebase_project_selector,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const PREFIX: &str = "/prefix";
 
@@ -25,8 +32,11 @@ fn name_with_dependencies() {
     assert_eq!(
         parse("foo..."),
         ProjectSelector {
-            include_dependencies: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -37,8 +47,11 @@ fn name_with_dependents() {
     assert_eq!(
         parse("...foo"),
         ProjectSelector {
-            include_dependents: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -49,9 +62,12 @@ fn name_with_dependencies_and_dependents() {
     assert_eq!(
         parse("...foo..."),
         ProjectSelector {
-            include_dependencies: true,
-            include_dependents: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -62,9 +78,12 @@ fn name_with_dependencies_excluding_self() {
     assert_eq!(
         parse("foo^..."),
         ProjectSelector {
-            exclude_self: true,
-            include_dependencies: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self: true,
+                include_dependencies: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -75,9 +94,12 @@ fn name_with_dependents_excluding_self() {
     assert_eq!(
         parse("...^foo"),
         ProjectSelector {
-            exclude_self: true,
-            include_dependents: true,
             name_pattern: name("foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self: true,
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -101,8 +123,11 @@ fn dependents_of_brace_dir() {
     assert_eq!(
         parse("...{./foo}"),
         ProjectSelector {
-            include_dependents: true,
             parent_dir: dir("/prefix/foo"),
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -169,7 +194,10 @@ fn diff_with_dependencies() {
         parse("[master]..."),
         ProjectSelector {
             diff: Some("master".to_string()),
-            include_dependencies: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -181,7 +209,10 @@ fn diff_with_dependents() {
         parse("...[master]"),
         ProjectSelector {
             diff: Some("master".to_string()),
-            include_dependents: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -193,8 +224,11 @@ fn diff_with_dependencies_and_dependents() {
         parse("...[master]..."),
         ProjectSelector {
             diff: Some("master".to_string()),
-            include_dependencies: true,
-            include_dependents: true,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                include_dependents: true,
+                ..Default::default()
+            },
             ..Default::default()
         },
     );
@@ -248,7 +282,16 @@ fn unparsable_braces_fall_back_to_name() {
 
 #[test]
 fn triple_dots_reduces_to_dependencies_only() {
-    assert_eq!(parse("..."), ProjectSelector { include_dependencies: true, ..Default::default() });
+    assert_eq!(
+        parse("..."),
+        ProjectSelector {
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                include_dependencies: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
 }
 
 #[test]
@@ -259,4 +302,35 @@ fn empty_braces_fall_back_to_name() {
 #[test]
 fn dot_prefixed_name_is_not_a_location() {
     assert_eq!(parse(".foo"), ProjectSelector { name_pattern: name(".foo"), ..Default::default() });
+}
+
+#[test]
+fn rebase_project_selector_preserves_target_dir_and_modifiers() {
+    let from = Path::new("/ws");
+    let to = Path::new("/ws/packages/other");
+    let same = Path::new("/ws/packages/app");
+    for raw in [
+        "./packages/app",
+        "!./packages/app",
+        ".",
+        "{packages/*}",
+        "...^pattern{./packages/app}[main]...",
+        "app",
+        "[main]",
+    ] {
+        let rebased = rebase_project_selector(raw, from, to);
+        assert_eq!(parse_project_selector(&rebased, to), parse_project_selector(raw, from));
+        let rebased_same = rebase_project_selector(raw, from, same);
+        assert_eq!(parse_project_selector(&rebased_same, same), parse_project_selector(raw, from));
+    }
+    assert_eq!(rebase_project_selector("./packages/app", from, from), "./packages/app");
+    assert_eq!(rebase_project_selector("./packages/app", from, to), "../app");
+    assert_eq!(rebase_project_selector("./packages/app", from, same), ".");
+    assert_eq!(rebase_project_selector("./packages/app/sub", from, same), "./sub");
+    let abs = std::env::temp_dir();
+    assert_eq!(rebase_project_selector("./packages/app", Path::new("rel"), &abs), "./packages/app");
+    assert_eq!(
+        rebase_project_selector("{./packages/app}", Path::new("rel"), &abs),
+        "{./packages/app}",
+    );
 }

@@ -12,17 +12,35 @@
 //! importers' direct dependencies, follows each snapshot's `dependencies`
 //! (and `optionalDependencies`, unless they were excluded), and treats
 //! `skipped` keys as already visited so nothing behind them is retained.
-//! `link:` references resolve to no snapshot key and simply end that
-//! branch — they are workspace edges, not entries in the package graph.
+//! `link:` references resolve to no snapshot key and end that
+//! branch; they are workspace edges, not entries in the package graph.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{
+    HashMap,
+    HashSet,
+    VecDeque,
+};
 
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 
-use crate::{Lockfile, PackageKey, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap};
+use crate::{
+    Lockfile,
+    PackageKey,
+    PeerEdgeOptions,
+    PeerSatisfactionEdges,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+};
 
-/// Dependency groups a filter keeps — the same three flags the modules
+/// Dependency groups a filter keeps, the same three flags the modules
 /// manifest records, redeclared here so the lockfile crate does not depend
 /// on the modules-manifest crate for three booleans.
 #[derive(Debug, Clone, Copy)]
@@ -30,6 +48,21 @@ pub struct IncludedDependencies {
     pub dependencies: bool,
     pub dev_dependencies: bool,
     pub optional_dependencies: bool,
+}
+
+impl IncludedDependencies {
+    #[must_use]
+    pub fn excludes_a_group(self) -> bool {
+        !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
+    }
+
+    /// Whether a project's own `optionalDependencies` are included. They
+    /// install with its production dependencies, so `--dev` leaves them
+    /// out while it still installs the optional dependencies of packages.
+    #[must_use]
+    pub fn includes_project_optional_dependencies(self) -> bool {
+        self.dependencies && self.optional_dependencies
+    }
 }
 
 impl Default for IncludedDependencies {
@@ -48,7 +81,7 @@ pub struct FilterByImportersOptions {
     /// Dependency groups the listed importers keep. A group left out is
     /// emptied on those importers and its edges are not walked.
     pub include: IncludedDependencies,
-    /// Snapshot keys to treat as already visited — pnpm's `skipped` set,
+    /// Snapshot keys to treat as already visited, pnpm's `skipped` set,
     /// the optional dependencies this platform did not install. Neither
     /// they nor anything reachable only through them is retained.
     pub skipped: HashSet<PackageKey>,
@@ -56,6 +89,9 @@ pub struct FilterByImportersOptions {
     /// error. `false` drops the reference and keeps walking, which is what
     /// a caller inspecting a possibly-stale lockfile wants.
     pub fail_on_missing_dependencies: bool,
+    /// How the walk classifies the peer-satisfaction edges it skips while
+    /// `include` leaves a group out.
+    pub peer_edges: PeerEdgeOptions,
 }
 
 /// A dependency reference the lockfile resolves to nothing.
@@ -72,6 +108,11 @@ impl Lockfile {
         importer_ids: Vec<String>,
         options: &FilterByImportersOptions,
     ) -> Result<Lockfile, LockfileMissingDependencyError> {
+        let peer_edges = if options.include.excludes_a_group() {
+            PeerSatisfactionEdges::of_lockfile(self, options.peer_edges)
+        } else {
+            PeerSatisfactionEdges::default()
+        };
         let mut filtered = self.clone();
         // The walk starts at the *filtered* importers, so the seeds are
         // collected in the same pass that narrows them: a group `include`
@@ -80,42 +121,73 @@ impl Lockfile {
         for importer_id in importer_ids {
             let Some(importer) = filtered.importers.get_mut(&importer_id) else { continue };
             *importer = filter_importer(importer, options.include);
-            for group in [
-                importer.dependencies.as_ref(),
-                importer.dev_dependencies.as_ref(),
-                importer.optional_dependencies.as_ref(),
-            ]
-            .into_iter()
-            .flatten()
-            {
-                for (alias, spec) in group {
-                    if let Some(key) = spec.version.resolved_key(alias) {
-                        seeds.push_back(key);
-                    }
-                }
-            }
+            seeds.extend(importer_keys(importer));
         }
 
-        let reachable = collect_reachable(&filtered, seeds, options)?;
-        let reachable_metadata: HashSet<_> =
-            reachable.iter().map(PkgNameVerPeer::without_peer).collect();
+        let reachable = collect_reachable(&filtered, seeds, options, &peer_edges)?;
+        let reachable_metadata: HashSet<_> = reachable
+            .iter()
+            .map(PkgNameVerPeer::without_peer)
+            .collect();
         if let Some(snapshots) = filtered.snapshots.as_mut() {
             snapshots.retain(|key, _| reachable.contains(key));
+            peer_edges.prune_dangling(snapshots);
         }
         if let Some(packages) = filtered.packages.as_mut() {
             packages.retain(|key, _| reachable_metadata.contains(key));
         }
         Ok(filtered)
     }
+
+    /// Verifies that every dependency reference reachable from an importer
+    /// resolves to an entry in `snapshots`. Returns the first missing key.
+    pub fn verify_importer_snapshot_links(&self) -> Result<(), LockfileMissingDependencyError> {
+        self.reachable_snapshot_keys()
+            .map(|_| ())
+    }
+
+    /// Every snapshot reachable from any importer, including optional dependencies.
+    /// Returns the first dependency reference with no snapshot.
+    pub fn reachable_snapshot_keys(
+        &self,
+    ) -> Result<HashSet<PackageKey>, LockfileMissingDependencyError> {
+        let options = FilterByImportersOptions {
+            include: IncludedDependencies::default(),
+            skipped: HashSet::new(),
+            fail_on_missing_dependencies: true,
+            peer_edges: PeerEdgeOptions { resolve_peers_from_workspace_root: false },
+        };
+        let seeds = self.importers
+            .values()
+            .flat_map(importer_keys)
+            .collect();
+        collect_reachable(self, seeds, &options, &PeerSatisfactionEdges::default())
+    }
+}
+
+/// The snapshot keys a filtered importer's own dependencies resolve to.
+fn importer_keys(importer: &ProjectSnapshot) -> impl Iterator<Item = PackageKey> + '_ {
+    [
+        importer.dependencies.as_ref(),
+        importer.dev_dependencies.as_ref(),
+        importer.optional_dependencies.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    .flatten()
+    .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
 }
 
 /// Empty the dependency groups `include` excludes. The other fields of the
-/// importer entry (`dependenciesMeta`, `publishDirectory`) are dropped the
+/// importer entry (`dependenciesMeta`, `publishDirectory`, `linkDirectory`) are dropped the
 /// same way the TypeScript `filterImporter` drops them: the filtered
 /// lockfile describes a dependency closure, not a publishable project.
 fn filter_importer(importer: &ProjectSnapshot, include: IncludedDependencies) -> ProjectSnapshot {
     let pick = |group: Option<&ResolvedDependencyMap>, included: bool| {
-        included.then(|| group.cloned()).flatten().unwrap_or_default()
+        included
+            .then(|| group.cloned())
+            .flatten()
+            .unwrap_or_default()
     };
     ProjectSnapshot {
         specifiers: importer.specifiers.clone(),
@@ -123,10 +195,11 @@ fn filter_importer(importer: &ProjectSnapshot, include: IncludedDependencies) ->
         dev_dependencies: Some(pick(importer.dev_dependencies.as_ref(), include.dev_dependencies)),
         optional_dependencies: Some(pick(
             importer.optional_dependencies.as_ref(),
-            include.optional_dependencies,
+            include.includes_project_optional_dependencies(),
         )),
         dependencies_meta: None,
         publish_directory: None,
+        link_directory: None,
     }
 }
 
@@ -134,6 +207,7 @@ fn collect_reachable(
     lockfile: &Lockfile,
     mut queue: VecDeque<PackageKey>,
     options: &FilterByImportersOptions,
+    peer_edges: &PeerSatisfactionEdges,
 ) -> Result<HashSet<PackageKey>, LockfileMissingDependencyError> {
     let empty = HashMap::new();
     let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty);
@@ -153,24 +227,12 @@ fn collect_reachable(
             }
             continue;
         };
+        queue.extend(
+            peer_edges
+                .followed_entries(&key, snapshot, options.include.optional_dependencies)
+                .filter_map(|(alias, dep_ref)| dep_ref.resolve(alias)),
+        );
         reachable.insert(key);
-        for group in [
-            snapshot.dependencies.as_ref(),
-            options
-                .include
-                .optional_dependencies
-                .then_some(snapshot.optional_dependencies.as_ref())
-                .flatten(),
-        ]
-        .into_iter()
-        .flatten()
-        {
-            for (alias, dep_ref) in group {
-                if let Some(key) = dep_ref.resolve(alias) {
-                    queue.push_back(key);
-                }
-            }
-        }
     }
     Ok(reachable)
 }

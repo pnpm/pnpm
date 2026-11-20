@@ -60,7 +60,7 @@ async function expectExit (): Promise<void> {
     throw exited
   })
   try {
-    await expect(change.handler(opts as any, [])).rejects.toBe(exited) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await expect(change.handler(opts as any, [])).rejects.toBe(exited) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(exitSpy).toHaveBeenCalledWith(0)
   } finally {
     exitSpy.mockRestore()
@@ -86,5 +86,5 @@ it('change leaves without an error when the summary prompt is canceled', async (
 it('change rethrows a prompt failure that is not a cancellation', async () => {
   const failed = new Error('the terminal is not interactive')
   mockCheckbox.mockRejectedValue(failed)
-  await expect(change.handler(opts as any, [])).rejects.toBe(failed) // eslint-disable-line @typescript-eslint/no-explicit-any
+  await expect(change.handler(opts as any, [])).rejects.toBe(failed) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 })

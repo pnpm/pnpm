@@ -1,0 +1,13 @@
+diff --git a/lib/download.js b/lib/download.js
+index a9866d8a63a53e83ae58c4728f569d3c9567c225..941f58adc66a4f3a5050351641de75b472d152c5 100644
+--- a/lib/download.js
++++ b/lib/download.js
+@@ -1,4 +1,8 @@
+ const { Readable } = require('stream')
++// undici 7 reads the global File at load time, which Node.js 18 lacks.
++if (typeof globalThis.File === 'undefined') {
++  globalThis.File = require('buffer').File
++}
+ const { EnvHttpProxyAgent } = require('undici')
+ const { promises: fs } = require('graceful-fs')
+ const log = require('./log')

@@ -1,12 +1,27 @@
 use super::{
-    ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
-    full_resolution_required, importers_consuming_linked_peers,
-    include_transitive_optional_dependencies, is_partial_workspace_selection, update_reuse_scopes,
-    verify_merged_repair,
+    ImporterUpdateSeedPolicy,
+    UpdateSeedPolicy,
+    compute_package_extensions_checksum,
+    importers_consuming_linked_peers,
+    include_transitive_optional_dependencies,
+    is_partial_workspace_selection,
+    manifest_transforms::build_manifest_transforms,
 };
-use pnpm_config::{Config, PackageExtension};
+use crate::install_with_fresh_lockfile::{
+    persist::verify_merged_repair,
+    seed_policy::{
+        full_resolution_required,
+        update_reuse_scopes,
+    },
+};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{
+    Config,
+    PackageExtension,
+};
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::DependencyGroup;
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 
@@ -40,12 +55,13 @@ fn full_workspace_selection_keeps_resolution_prefetch_enabled() {
 
 #[test]
 fn partial_installs_keep_transitive_optional_dependencies() {
-    let prod_only = [DependencyGroup::Prod];
-    let with_optional = [DependencyGroup::Prod, DependencyGroup::Optional];
+    let without_optional =
+        IncludedDependencies { optional_dependencies: false, ..Default::default() };
+    let with_optional = IncludedDependencies { optional_dependencies: true, ..Default::default() };
 
-    assert!(include_transitive_optional_dependencies(false, &prod_only));
-    assert!(!include_transitive_optional_dependencies(true, &prod_only));
-    assert!(include_transitive_optional_dependencies(true, &with_optional));
+    assert!(include_transitive_optional_dependencies(false, without_optional));
+    assert!(!include_transitive_optional_dependencies(true, without_optional));
+    assert!(include_transitive_optional_dependencies(true, with_optional));
 }
 
 #[tokio::test]
@@ -55,8 +71,7 @@ async fn filtered_repair_verifies_the_merged_lockfile() {
     )
     .expect("parse lockfile");
 
-    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[])
-        .await
+    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[]).await
         .expect_err("the merged lockfile must pass structural verification");
     assert!(matches!(
         error,
@@ -66,9 +81,37 @@ async fn filtered_repair_verifies_the_merged_lockfile() {
     ));
 }
 
+#[test]
+fn builtin_compatibility_extensions_do_not_apply_to_importer_manifests() {
+    let dir = tempfile::tempdir().unwrap();
+    let manifest = PackageManifest::from_value(
+        dir.path().join("package.json"),
+        serde_json::json!({
+            "name": "vue-loader",
+            "version": "0.0.0",
+        }),
+    );
+    let importer_manifests = std::collections::BTreeMap::from([(".".to_string(), &manifest)]);
+
+    let config = config_with_extensions(&[("vue-loader", &[("test-dependency", "1.0.0")])]);
+    let transforms = build_manifest_transforms(
+        &config,
+        &Catalogs::default(),
+        dir.path(),
+        &importer_manifests,
+        false,
+        None,
+    )
+    .unwrap();
+    let effective_manifest = transforms.effective_importer_manifests.get(".").unwrap();
+
+    assert_eq!(effective_manifest.value()["dependencies"]["test-dependency"], "1.0.0");
+    assert_eq!(effective_manifest.value().get("peerDependencies"), None);
+}
+
 /// Ports `installing/.../packageExtensions.ts:103-153`
 /// `packageExtensionsChecksum does not change regardless of keys
-/// order` — two `Config::package_extensions` populated with the
+/// order`, two `Config::package_extensions` populated with the
 /// same selectors and entries in a different declared order must
 /// produce the same `sha256-…` lockfile checksum. Without the
 /// sorted-keys hash, the order-sensitive `IndexMap` iteration
@@ -104,8 +147,8 @@ fn compute_checksum_is_none_when_extensions_absent() {
 /// `Some({})` (an explicitly empty map) also collapses to `None`,
 /// mirroring pnpm's `if (!object || isEmpty(object)) return undefined`.
 /// Without the empty-map guard, an explicit `packageExtensions: {}`
-/// in pnpm-workspace.yaml — or an env-var-driven override clearing
-/// a parent layer — would hash to a checksum while pnpm omits the
+/// in pnpm-workspace.yaml (or an env-var-driven override clearing
+/// a parent layer) would hash to a checksum while pnpm omits the
 /// field, causing spurious drift on cross-tool installs.
 #[test]
 fn compute_checksum_is_none_for_explicit_empty_map() {
@@ -186,7 +229,10 @@ fn workspace_manifests(
 
 fn linked_peer_consumers(projects: &[(&str, serde_json::Value)]) -> Vec<String> {
     let owned = workspace_manifests(projects);
-    let borrowed = owned.iter().map(|(id, manifest)| (id.clone(), manifest)).collect();
+    let borrowed = owned
+        .iter()
+        .map(|(id, manifest)| (id.clone(), manifest))
+        .collect();
     let mut consumers: Vec<String> =
         importers_consuming_linked_peers(&borrowed, std::path::Path::new("/repo"))
             .into_iter()
@@ -196,7 +242,7 @@ fn linked_peer_consumers(projects: &[(&str, serde_json::Value)]) -> Vec<String> 
 }
 
 /// The candidate set stays empty when nothing in the workspace declares
-/// a peer — the case the report's cost is scoped for.
+/// a peer, the case the report's cost is scoped for.
 #[test]
 fn a_workspace_without_peer_declarations_adds_no_candidates() {
     assert_eq!(
@@ -362,4 +408,163 @@ fn a_link_to_a_non_project_target_is_treated_as_peer_declaring() {
         ),
     ]);
     assert_eq!(escaping, vec!["packages/app".to_string()]);
+}
+
+fn two_importer_lockfile() -> Lockfile {
+    serde_saphyr::from_str("lockfileVersion: '9.0'\nimporters:\n  .: {}\n  project-b: {}\n")
+        .expect("parse the lockfile")
+}
+
+fn drop_only(names: &[&str]) -> pnpm_resolving_deps_resolver::UpdateTargets {
+    names
+        .iter()
+        .map(|name| ((*name).to_string(), None))
+        .collect()
+}
+
+fn replaces(policy: &UpdateSeedPolicy, lockfile: &Lockfile, name: &str) -> Option<bool> {
+    let name: pnpm_lockfile::PkgName = name.parse().expect("parse the package name");
+    policy
+        .replaced_update_targets(lockfile, None)
+        .map(|is_replaced| {
+            is_replaced(pnpm_lockfile_verification::ReplacedCandidate {
+                name: &name,
+                version: "1.0.0",
+                registry_name: None,
+            })
+        })
+}
+
+#[test]
+fn replaced_update_targets_match_only_the_targets_of_every_importer() {
+    use pnpm_resolving_deps_resolver::UpdateDepth;
+
+    let lockfile = two_importer_lockfile();
+    let policy = UpdateSeedPolicy::ByImporter {
+        policies: std::collections::BTreeMap::from([
+            (".".to_string(), ImporterUpdateSeedPolicy::DropOnly(drop_only(&["foo", "bar"]))),
+            ("project-b".to_string(), ImporterUpdateSeedPolicy::DropOnly(drop_only(&["foo"]))),
+        ]),
+        max_depth: UpdateDepth::UNLIMITED,
+    };
+
+    assert_eq!(replaces(&policy, &lockfile, "foo"), Some(true));
+    assert_eq!(replaces(&policy, &lockfile, "bar"), Some(false));
+    assert_eq!(replaces(&policy, &lockfile, "baz"), Some(false));
+}
+
+#[test]
+fn replaced_update_targets_are_none_when_a_locked_version_may_survive() {
+    use pnpm_resolving_deps_resolver::UpdateDepth;
+
+    let lockfile = two_importer_lockfile();
+    let one_importer = UpdateSeedPolicy::ByImporter {
+        policies: std::collections::BTreeMap::from([(
+            ".".to_string(),
+            ImporterUpdateSeedPolicy::DropOnly(drop_only(&["foo"])),
+        )]),
+        max_depth: UpdateDepth::UNLIMITED,
+    };
+    assert_eq!(replaces(&one_importer, &lockfile, "foo"), None);
+
+    let depth_limited =
+        UpdateSeedPolicy::DropOnly { targets: drop_only(&["foo"]), max_depth: UpdateDepth::new(0) };
+    assert_eq!(replaces(&depth_limited, &lockfile, "foo"), None);
+
+    let unlimited = UpdateSeedPolicy::DropOnly {
+        targets: drop_only(&["foo"]),
+        max_depth: UpdateDepth::UNLIMITED,
+    };
+    let selected = std::collections::HashSet::from([".".to_string()]);
+    assert!(
+        unlimited
+            .replaced_update_targets(&lockfile, Some(&selected))
+            .is_none(),
+    );
+
+    assert_eq!(replaces(&UpdateSeedPolicy::KeepAll, &lockfile, "foo"), None);
+}
+
+#[test]
+fn replaced_fresh_lockfile_entries_match_moved_plain_keys_when_all_importers_resolve() {
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+importers:
+  .: {}
+  project-b: {}
+packages:
+  '@corp/moved@1.0.0':
+    resolution: {integrity: sha512-deadbeef}
+  '@corp/moved@legacy:1.0.0':
+    resolution: {integrity: sha512-beefdead}
+  '@other/kept@1.0.0':
+    resolution: {integrity: sha512-cafebabe}
+",
+    )
+    .expect("parse lockfile");
+    let mut config = pnpm_config::Config::new();
+    config.registries_by_scope.insert("@corp".to_string(), "https://new.corp.example/".to_string());
+    config.registries_by_scope.insert("@other".to_string(), "https://other.example/".to_string());
+    let locked_registries = std::collections::BTreeMap::from([
+        ("@corp".to_string(), "https://old.corp.example/".to_string()),
+        ("@other".to_string(), "https://other.example/".to_string()),
+    ]);
+
+    let partial = std::collections::HashSet::from([".".to_string()]);
+    assert!(
+        UpdateSeedPolicy::KeepAll
+            .replaced_fresh_lockfile_entries(
+                &lockfile,
+                Some(&partial),
+                &config,
+                Some(&locked_registries),
+            )
+            .is_none(),
+        "a filtered install leaves untouched importers' entries in place",
+    );
+
+    let is_replaced = UpdateSeedPolicy::KeepAll
+        .replaced_fresh_lockfile_entries(&lockfile, None, &config, Some(&locked_registries))
+        .expect("moved scope route produces a replacement predicate");
+    let moved_name: pnpm_lockfile::PkgName = "@corp/moved".parse().unwrap();
+    let kept_name: pnpm_lockfile::PkgName = "@other/kept".parse().unwrap();
+
+    assert!(is_replaced(pnpm_lockfile_verification::ReplacedCandidate {
+        name: &moved_name,
+        version: "1.0.0",
+        registry_name: None,
+    }));
+    assert!(!is_replaced(pnpm_lockfile_verification::ReplacedCandidate {
+        name: &moved_name,
+        version: "1.0.0",
+        registry_name: Some("legacy"),
+    }));
+    assert!(!is_replaced(pnpm_lockfile_verification::ReplacedCandidate {
+        name: &kept_name,
+        version: "1.0.0",
+        registry_name: None,
+    }));
+}
+
+#[test]
+fn deps_requiring_build_include_loaded_builds() {
+    let key = |name: &str| format!("{name}@1.0.0").parse::<pnpm_lockfile::PackageKey>().unwrap();
+    let output = crate::CreateVirtualStoreOutput {
+        package_manifests: std::collections::HashMap::default(),
+        package_bins: std::collections::HashMap::default(),
+        side_effects: pnpm_deps_restorer::SideEffectsOutput::default(),
+        requires_build_by_snapshot: [(key("materialized"), true), (key("plain"), false)].into(),
+        snapshot_placement: pnpm_deps_restorer::SnapshotPlacement {
+            materialized: vec![key("materialized"), key("plain")],
+            loaded: Some(Vec::new()),
+            loaded_builds: vec![key("loaded")],
+        },
+        fetch_failed: std::collections::HashSet::default(),
+        cas_paths_by_pkg_id: None,
+        cas_paths_by_snapshot: None,
+    };
+    let sink = crate::DepsRequiringBuildSink::default();
+    super::on_disk::publish_deps_requiring_build(Some(&sink), &output);
+    let published = sink.lock().unwrap().clone().unwrap();
+    assert_eq!(published.into_iter().collect::<Vec<_>>(), ["loaded@1.0.0", "materialized@1.0.0"]);
 }

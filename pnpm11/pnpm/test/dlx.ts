@@ -1,4 +1,6 @@
 import fs from 'node:fs'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import path from 'node:path'
 
 import { beforeAll, describe, expect, test } from '@jest/globals'
@@ -18,10 +20,14 @@ let registriesByScope: Record<string, string>
 beforeAll(async () => {
   const { config } = await getConfig({ cliOptions: {}, packageManager: { name: '', version: '' } })
   registriesByScope = config.registriesByScope
-  registriesByScope.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
+  registriesByScope.default = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 })
 
-const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registriesByScope })
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
+  packages,
+  registriesByScope,
+  blockExoticSubdeps: true,
+})
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 const skipOnWindows = process.platform === 'win32' ? test.skip : test
@@ -235,6 +241,25 @@ describe('catalogs inherited from pnpm-workspace.yaml', () => {
   })
 })
 
+test.each([
+  { flags: ['-C', '../target'], runDir: 'target' },
+  { flags: ['-w'], runDir: '.' },
+  { flags: [], runDir: 'invoker' },
+])('dlx runs the command in the directory selected by $flags', async ({ flags, runDir }) => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: [] })
+  fs.mkdirSync('invoker')
+  fs.mkdirSync('target')
+  const expectedDir = fs.realpathSync(runDir)
+
+  const result = execPnpmSync([...flags, 'dlx', 'shx@0.3.4', 'pwd'], {
+    cwd: path.resolve('invoker'),
+    expectSuccess: true,
+  })
+
+  expect(fs.realpathSync(result.stdout.toString().trim())).toBe(expectedDir)
+})
+
 test('dlx should work with pnpm_config_save_dev env variable', async () => {
   prepareEmpty()
   execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
@@ -276,10 +301,15 @@ testParallel('parallel dlx calls of the same package', async () => {
 
   // parallel dlx calls with cache
   await Promise.all(['abc', 'def', 'ghi'].map(
-    name => execPnpm(['dlx', 'shx@0.3.4', 'mkdir', name])
+    name => execPnpm([
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+      '--config.dlx-cache-max-age=Infinity',
+      'dlx', 'shx@0.3.4', 'mkdir', name])
   ))
 
   expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
+  expect(fs.existsSync(path.resolve('../cache'))).toBe(false)
   expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'))).sort()).toStrictEqual(cacheContentAfterFirstRun)
   expect(
     fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg'))
@@ -332,13 +362,15 @@ test('dlx creates cache and store prune cleans cache', async () => {
   ]
 
   // The git-hosted artifact has an untrusted package identity, so it has to
-  // be approved by its depPath; the registry shx is approved by name.
+  // be approved by its depPath. Approve both resolution shapes because the
+  // resolver falls back to a git clone when the GitHub visibility probe fails.
   const allowBuilds = [
     '--allow-build=shx',
     '--allow-build=shx@https://codeload.github.com/shelljs/shx/tar.gz/61aca968cd7afc712ca61a4fc4ec3201e3770dc7',
+    '--allow-build=shx@git+https://github.com/shelljs/shx.git#61aca968cd7afc712ca61a4fc4ec3201e3770dc7',
   ]
 
-  /* eslint-disable no-await-in-loop */
+  /* eslint-disable no-await-in-loop -- the commands share one dlx cache, so they run one at a time */
   for (const [cmd, args] of Object.entries(commands)) {
     await execPnpm([...settings, ...allowBuilds, 'dlx', cmd, ...args])
   }
@@ -406,12 +438,12 @@ test('dlx read registry from .npmrc in the current directory', async () => {
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 
   fs.writeFileSync('.npmrc', [
-    `registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
+    `registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     `//localhost:${REGISTRY_MOCK_PORT}/:_authToken=${data.token}`,
   ].join('\n'))
 
@@ -572,4 +604,77 @@ describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
       notInstalled,
     } as OptionalDepsInfo)
   })
+})
+
+test('dlx and create isolate local pnpmfile and ignoreScripts, key cache by --ignore-scripts, and build URL/relative tarballs', async () => {
+  prepareEmpty()
+
+  const srcPkgDir = path.resolve('src-url-tool')
+  fs.mkdirSync(srcPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(srcPkgDir, 'package.json'), JSON.stringify({
+    name: 'create-dlx-url-tool',
+    version: '1.0.0',
+    bin: { 'create-dlx-url-tool': 'bin.js' },
+    scripts: {
+      postinstall: 'node -e "require(\'fs\').writeFileSync(\'built.txt\', \'ok\')"',
+    },
+  }))
+  fs.writeFileSync(path.join(srcPkgDir, 'bin.js'), [
+    '#!/usr/bin/env node',
+    'const fs = require("fs")',
+    'const path = require("path")',
+    'const ok = fs.existsSync(path.join(__dirname, "built.txt"))',
+    'fs.writeFileSync(process.argv[2], ok ? "BUILT_OK" : "MISSING_BUILD")',
+  ].join('\n'), { mode: 0o755 })
+  execPnpmSync(['pack'], { cwd: srcPkgDir, expectSuccess: true })
+  const tarballBytes = fs.readFileSync(path.join(srcPkgDir, 'create-dlx-url-tool-1.0.0.tgz'))
+
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/octet-stream' })
+    res.end(tarballBytes)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as AddressInfo).port
+  const tarballUrl = `http://127.0.0.1:${port}/create-dlx-url-tool.tgz`
+
+  try {
+    const repoDir = path.resolve('untrusted-repo')
+    fs.mkdirSync(repoDir, { recursive: true })
+    const hookMarker = path.resolve('pwned-hook')
+    const hookBody = `require("fs").writeFileSync(${JSON.stringify(hookMarker)}, "ran"); module.exports = { hooks: {} }\n`
+    fs.writeFileSync(path.join(repoDir, '.pnpmfile.cjs'), hookBody)
+    fs.writeFileSync(path.join(repoDir, 'hook.cjs'), hookBody)
+    writeYamlFileSync(path.join(repoDir, 'pnpm-workspace.yaml'), {
+      packages: ['.'],
+      pnpmfile: './hook.cjs',
+      ignoreScripts: true,
+    })
+    fs.writeFileSync(path.join(repoDir, 'local-tool.tgz'), tarballBytes)
+
+    const cacheFlags = [
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+    ]
+    process.chdir(repoDir)
+
+    const skippedOut = path.join(repoDir, 'skipped.txt')
+    await execPnpm([...cacheFlags, '--ignore-scripts', 'dlx', tarballUrl, skippedOut])
+    expect(fs.readFileSync(skippedOut, 'utf8')).toBe('MISSING_BUILD')
+
+    const builtFromWsOut = path.join(repoDir, 'built-ws.txt')
+    await execPnpm([...cacheFlags, 'dlx', tarballUrl, builtFromWsOut])
+    expect(fs.readFileSync(builtFromWsOut, 'utf8')).toBe('BUILT_OK')
+
+    const builtLocalOut = path.join(repoDir, 'built-local.txt')
+    await execPnpm([...cacheFlags, 'dlx', './local-tool.tgz', builtLocalOut])
+    expect(fs.readFileSync(builtLocalOut, 'utf8')).toBe('BUILT_OK')
+
+    const builtCreateOut = path.join(repoDir, 'built-create.txt')
+    await execPnpm([...cacheFlags, 'create', `dlx-url-tool@${tarballUrl}`, builtCreateOut])
+    expect(fs.readFileSync(builtCreateOut, 'utf8')).toBe('BUILT_OK')
+
+    expect(fs.existsSync(hookMarker)).toBe(false)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
 })

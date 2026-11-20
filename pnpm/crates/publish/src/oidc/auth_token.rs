@@ -2,14 +2,25 @@
 //! token via the npm OIDC token-exchange endpoint.
 
 use pipe_trait::Pipe;
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::redact_url_credentials;
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_network::{
+    escaped_package_name,
+    normalize_registry_url,
+    redact_url_credentials,
+};
 use serde_json::Value;
 use url::Url;
 
 use crate::{
-    capabilities::{OidcFetch, OidcMethod, OidcRequest},
-    oidc::{OidcHttpOptions, escaped_package_name},
+    capabilities::{
+        OidcFetch,
+        OidcMethod,
+        OidcRequest,
+    },
+    oidc::OidcHttpOptions,
 };
 
 #[cfg(test)]
@@ -25,8 +36,8 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
     options: &OidcHttpOptions,
 ) -> Result<String, AuthTokenError> {
     let path =
-        format!("/-/npm/v1/oidc/token/exchange/package/{}", escaped_package_name(package_name));
-    let url = Url::parse(registry)
+        format!("-/npm/v1/oidc/token/exchange/package/{}", escaped_package_name(package_name));
+    let url = Url::parse(&normalize_registry_url(registry))
         .and_then(|base| base.join(&path))
         .map_err(|error| AuthTokenError::Fetch {
             error_source: error.to_string(),
@@ -49,18 +60,29 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
         registry: redact_url_credentials(registry),
     })?;
 
+    auth_token_from_response(&response, package_name, registry)
+}
+
+fn auth_token_from_response(
+    response: &crate::capabilities::OidcResponse,
+    package_name: &str,
+    registry: &str,
+) -> Result<String, AuthTokenError> {
     if !response.ok {
-        let message = response
-            .body
+        let message = response.body
             .pipe_as_ref(serde_json::from_str::<Value>)
             .ok()
-            .and_then(|json| json.get("body")?.get("message")?.as_str().map(str::to_owned))
+            .and_then(|json| {
+                json.get("body")?
+                    .get("message")?
+                    .as_str()
+                    .map(str::to_owned)
+            })
             .unwrap_or_else(|| "Unknown error".to_owned());
         return Err(AuthTokenError::Exchange { message, http_status: response.status });
     }
 
-    let json = response
-        .body
+    let json = response.body
         .pipe_as_ref(serde_json::from_str::<Value>)
         .map_err(|source| AuthTokenError::JsonInterrupted { source: source.to_string() })?;
 

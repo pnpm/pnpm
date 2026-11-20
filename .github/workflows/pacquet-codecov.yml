@@ -26,7 +26,7 @@ concurrency:
 jobs:
   coverage:
     name: Code Coverage
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     # Build the instrumented artifacts with line-tables-only debug info, as
     # `Rust CI / Test` does. Coverage regions live in the binary's own
     # `__llvm_covmap`/`__llvm_covfun` sections, so llvm-cov needs no DWARF at
@@ -38,6 +38,8 @@ jobs:
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      # Main only restores compiler cache entries that main wrote.
+      SCCACHE_SCOPE: ${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
     # A coverage run compiles the workspace from cold and then runs every
     # test; the healthy runtime is ~8 minutes. Without this a wedged job
     # would sit on the default 360-minute limit.
@@ -65,20 +67,49 @@ jobs:
         uses: $/.github/actions/rustup
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
           tool: cargo-llvm-cov
 
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+      - name: Install Python for ecosystem tests
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 #v7.1.0  v6
         with:
-          tool: cargo-nextest
+          python-version: '3.13'
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: cargo-nextest,sccache@0.17.0
+
+      # Same compiler cache as the Rust test jobs (see pacquet-ci.yml), in its own
+      # entries because instrumented builds hash differently.
+      - name: Use sccache
+        run: |
+          {
+            echo "SCCACHE_DAY=$(date -u +%Y-%m-%d)"
+            echo "SCCACHE_DIR=$RUNNER_TEMP/sccache"
+            echo "SCCACHE_CACHE_SIZE=2G"
+            echo "SCCACHE_IDLE_TIMEOUT=0"
+            echo "RUSTC_WRAPPER=sccache"
+            echo "CARGO_INCREMENTAL=0"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore sccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-cov-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
+          restore-keys: |
+            sccache-cov-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-
+            sccache-cov-v1-${{ runner.os }}-main-
+        timeout-minutes: 2
+        continue-on-error: true
 
       - name: Install llvm-tools-preview for llvm-cov
         run: rustup component add llvm-tools-preview
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
           install: false
 
@@ -93,7 +124,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
           tool: just
 
@@ -107,14 +138,27 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
 
-          env PNPM_CONFIG_CI=false cargo codecov --lcov --output-path lcov.info
+          env PNPM_CONFIG_CI=false PNPM_CONFIG_UPDATE_NOTIFIER=false cargo codecov --lcov --output-path lcov.info
+
+      - name: Stop sccache
+        if: ${{ !cancelled() }}
+        run: sccache --stop-server || true
+
+      - name: Save sccache
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/sccache
+          key: sccache-cov-v1-${{ runner.os }}-${{ env.SCCACHE_SCOPE }}-${{ env.SCCACHE_DAY }}
+        timeout-minutes: 3
+        continue-on-error: true
 
       - name: Report disk usage
         if: always()
         run: df -h /
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: codecov
           path: lcov.info
@@ -131,12 +175,12 @@ jobs:
           persist-credentials: false
 
       - name: Download coverage file
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: codecov
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true

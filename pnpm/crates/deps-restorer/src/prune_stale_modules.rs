@@ -1,8 +1,8 @@
 //! Reconcile an existing `node_modules` with the wanted lockfile before
 //! linking: the port of the removal half of pnpm's `modules-cleaner`
 //! `prune`. Removes direct-dependency links (and their bin shims) the
-//! wanted lockfile no longer records — or, under `dedupeDirectDeps`, that
-//! the workspace root now provides — unlinks hoisted aliases whose
+//! wanted lockfile no longer records (or, under `dedupeDirectDeps`, that
+//! the workspace root now provides) unlinks hoisted aliases whose
 //! owner snapshot disappeared, and emits the `pnpm:root` `removed` and
 //! `pnpm:stats` `removed` events pnpm emits from the same spot. Runs
 //! before the link passes so a follow-up hoist can claim the vacated
@@ -15,24 +15,49 @@
 //! like upstream's `pruneVirtualStore` gate.
 
 use crate::{
+    SkippedSnapshots,
     hoist::HoistedDependencies,
-    prune_direct_deps::{PruneDirectDepsError, confined_modules_dir, remove_direct_dep_link},
-    symlink_direct_dependencies::{importer_root_dir, validate_importer_id},
+    prune_direct_deps::{
+        PruneDirectDepsError,
+        UnlinkedDependency,
+        is_real_dir,
+        remove_direct_dep_link,
+    },
+    symlink_direct_dependencies::{
+        importer_root_dir,
+        link_target_dir,
+        validate_importer_id,
+    },
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
 use pnpm_modules_yaml::HoistKind;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    DependencyType, LogEvent, LogLevel, RemovedRoot, Reporter, RootLog, RootMessage,
+    DependencyType,
+    LogEvent,
+    LogLevel,
+    RemovedRoot,
+    Reporter,
+    RootLog,
+    RootMessage,
 };
 use std::{
-    collections::{HashMap, HashSet},
-    ffi::OsStr,
-    path::Path,
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Remove what a previous install materialized that the wanted lockfile
@@ -46,16 +71,17 @@ pub struct PruneStaleModules<'a> {
     /// selected importers on a filtered install).
     pub wanted_lockfile: &'a Lockfile,
     /// What the previous install materialized
-    /// (`<virtual_store_dir>/lock.yaml`).
+    /// (`<install_state_dir>/lock.yaml`).
     pub current_lockfile: &'a Lockfile,
     /// `hoistedDependencies` from the previous `.modules.yaml`; the
     /// only record of where hoist links were written, so orphan hoist
     /// cleanup is skipped without it.
     pub prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
-    /// Dependency groups this install materializes; a direct dep whose
+    pub wanted_hoisted_dependencies: Option<&'a HoistedDependencies>,
+    /// The direct dependencies this install links. A direct dep whose
     /// group is excluded is handled by
     /// [`crate::prune_direct_deps_excluded_by_groups`], not here.
-    pub included_groups: &'a [DependencyGroup],
+    pub linked: LinkedDirectDeps<'a>,
     /// `false` on a filtered install: the wanted lockfile then only
     /// covers the selected importers, so a global snapshot diff would
     /// misread every unselected importer's packages as orphans.
@@ -74,93 +100,313 @@ impl PruneStaleModules<'_> {
     /// `orphanPkgIds`), for the caller's single `pnpm:stats`
     /// `removed` emission. `0` when the orphan diff is skipped.
     pub fn run<Reporter: self::Reporter>(self) -> Result<u64, PruneDirectDepsError> {
-        let PruneStaleModules {
-            config,
-            workspace_root,
-            wanted_lockfile,
-            current_lockfile,
-            prior_hoisted_dependencies,
-            included_groups,
-            prune_orphans,
-        } = self;
+        StaleDirectDepLinks {
+            workspace_root: self.workspace_root,
+            modules_dirs: crate::ImporterModulesDirs::from_config(self.config, self.workspace_root),
+            wanted_lockfile: self.wanted_lockfile,
+            current_lockfile: self.current_lockfile,
+            linked: self.linked,
+            dedupe_direct_deps: self.config.dedupe_direct_deps,
+            reported: ReportedRemovals::DroppedOrUnlinked,
+        }
+        .unlink::<Reporter>()?;
 
-        let modules_dir_name: &OsStr =
-            config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+        if !self.prune_orphans {
+            return Ok(0);
+        }
+        self.prune_orphan_entries()
+    }
 
-        // `dedupeDirectDeps`'s removal half. The link pass only decides
-        // which links to *create*, so a sibling's link that an earlier
-        // install legitimately created has to be retired here once the
-        // root starts providing the same resolution — otherwise the
-        // layout would depend on install history rather than on the
-        // manifests. Pnpm folds the same condition into this diff.
-        let wanted_root_deps: Option<HashMap<&PkgName, &ImporterDepVersion>> =
-            config.dedupe_direct_deps.then(|| wanted_lockfile.importers.get(".")).flatten().map(
-                |root_snapshot| {
-                    direct_deps_of(root_snapshot, included_groups)
-                        .into_iter()
-                        .map(|(alias, spec, _)| (alias, &spec.version))
-                        .collect()
-                },
-            );
+    fn prune_orphan_entries(&self) -> Result<u64, PruneDirectDepsError> {
+        let removed = prune_orphan_snapshots(
+            self.config,
+            self.workspace_root,
+            self.wanted_lockfile,
+            self.current_lockfile,
+            self.prior_hoisted_dependencies,
+        )?;
+        prune_workspace_hoists(
+            &WorkspaceHoistDirs {
+                modules_dirs: &crate::ImporterModulesDirs::from_config(
+                    self.config,
+                    self.workspace_root,
+                ),
+                private: &self.config.install_state_dir.join("node_modules"),
+                public: &self.config.modules_dir,
+            },
+            self.current_lockfile,
+            self.prior_hoisted_dependencies,
+            self.wanted_hoisted_dependencies,
+        )?;
+        Ok(removed)
+    }
+}
 
-        for (importer_id, current_snapshot) in &current_lockfile.importers {
+/// The direct-dependency links a previous install wrote that the wanted
+/// lockfile no longer records at the same version, or that the workspace
+/// root now provides under `dedupeDirectDeps`. Both linkers write these
+/// links to the importer's modules directory, and both prune them here.
+pub(crate) struct StaleDirectDepLinks<'a> {
+    pub workspace_root: &'a Path,
+    pub modules_dirs: crate::ImporterModulesDirs,
+    pub wanted_lockfile: &'a Lockfile,
+    pub current_lockfile: &'a Lockfile,
+    pub linked: LinkedDirectDeps<'a>,
+    pub dedupe_direct_deps: bool,
+    pub reported: ReportedRemovals,
+}
+
+/// Which removals [`StaleDirectDepLinks::unlink`] reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReportedRemovals {
+    /// Every dependency the wanted lockfile no longer records, and every
+    /// link the pass removed. A link the root provides stays in the
+    /// lockfile, so only its removal is a change to report.
+    DroppedOrUnlinked,
+    /// The `link:` dependencies whose link the pass removed. The hoisted
+    /// linker reports its other removals from
+    /// [`crate::report_direct_dependency_changes`].
+    UnlinkedLinkDependencies,
+}
+
+impl ReportedRemovals {
+    fn includes(self, version: &ImporterDepVersion, still_wanted: bool, unlinked: bool) -> bool {
+        match self {
+            ReportedRemovals::DroppedOrUnlinked => unlinked || !still_wanted,
+            ReportedRemovals::UnlinkedLinkDependencies => {
+                unlinked && matches!(version, ImporterDepVersion::Link(_))
+            }
+        }
+    }
+}
+
+impl<'a> StaleDirectDepLinks<'a> {
+    /// Unlinks the stale links of every importer both lockfiles cover,
+    /// emitting a `pnpm:root` `removed` event through `Reporter` for each
+    /// one [`Self::reported`] selects.
+    pub(crate) fn unlink<Reporter: self::Reporter>(&self) -> Result<(), PruneDirectDepsError> {
+        let wanted_root_deps = self.wanted_root_deps();
+        for (importer_id, current_snapshot) in &self.current_lockfile.importers {
             // An importer the wanted lockfile doesn't cover was not
             // re-materialized; leave its links alone (the partial
             // install guard).
-            let Some(wanted_snapshot) = wanted_lockfile.importers.get(importer_id) else {
+            let Some(wanted_snapshot) = self.wanted_lockfile.importers.get(importer_id) else {
                 continue;
             };
             if validate_importer_id(importer_id).is_err() {
                 continue;
             }
-            let importer_dir = importer_root_dir(workspace_root, importer_id);
-            let modules_dir = importer_dir.join(modules_dir_name);
-            let Some(modules_dir) = confined_modules_dir(&modules_dir, workspace_root) else {
+            let importer_dir = importer_root_dir(self.workspace_root, importer_id);
+            let Some(modules_dir) =
+                self.modules_dirs.confined(&self.modules_dirs.of(&importer_dir))
+            else {
                 continue;
             };
-            let wanted_specs = direct_deps_of(wanted_snapshot, included_groups);
+            let wanted_specs = self.linked.of(wanted_snapshot);
             // Root is what the others dedupe *against*; it keeps every
             // link the wanted lockfile still records.
             let dedupe_against_root =
                 (importer_id != ".").then_some(wanted_root_deps.as_ref()).flatten();
-            let prefix = importer_dir.display().to_string();
-            for (alias, current_spec, group) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
-                let still_wanted = wanted_specs
-                    .iter()
-                    .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version);
-                let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
-                    root_deps.get(alias).is_some_and(|version| **version == current_spec.version)
-                });
-                if still_wanted && !deduped_by_root {
-                    continue;
-                }
-                remove_direct_dep_link(&modules_dir, &alias.to_string())?;
-                Reporter::emit(&LogEvent::Root(RootLog {
-                    level: LogLevel::Debug,
-                    message: RootMessage::Removed {
-                        prefix: prefix.clone(),
-                        removed: RemovedRoot {
-                            name: alias.to_string(),
-                            version: removed_version(current_spec),
-                            dependency_type: Some(dependency_type(group)),
-                        },
-                    },
-                }));
-            }
+            unlink_stale_direct_deps::<Reporter>(
+                &modules_dir,
+                &importer_dir,
+                current_snapshot,
+                &wanted_specs,
+                dedupe_against_root,
+                self.reported,
+            )?;
         }
+        Ok(())
+    }
 
-        if prune_orphans {
-            prune_orphan_snapshots(
-                config,
-                workspace_root,
-                wanted_lockfile,
-                current_lockfile,
-                prior_hoisted_dependencies,
-            )
-        } else {
-            Ok(0)
+    /// `dedupeDirectDeps`'s removal half. The link pass only decides
+    /// which links to *create*, so a sibling's link that an earlier
+    /// install legitimately created has to be retired once the root
+    /// starts providing the same resolution; otherwise the layout would
+    /// depend on install history rather than on the manifests. Pnpm
+    /// folds the same condition into this diff.
+    fn wanted_root_deps(&self) -> Option<RootDeps<'a>> {
+        let root_snapshot =
+            self.dedupe_direct_deps.then(|| self.wanted_lockfile.importers.get("."))??;
+        Some(RootDeps {
+            dir: importer_root_dir(self.workspace_root, "."),
+            versions: direct_deps_of(root_snapshot, self.linked.included_groups)
+                .into_iter()
+                .map(|(alias, spec, _)| (alias, &spec.version))
+                .collect(),
+        })
+    }
+}
+
+/// The workspace root's wanted direct dependencies, which the other
+/// importers dedupe against.
+struct RootDeps<'a> {
+    dir: PathBuf,
+    versions: HashMap<&'a PkgName, &'a ImporterDepVersion>,
+}
+
+impl RootDeps<'_> {
+    /// Whether the root resolves `alias` to what `version` resolves to in
+    /// the importer at `importer_dir`. A `link:` version is relative to
+    /// its importer, so links compare by the directory they point at, as
+    /// the link pass does.
+    fn provides(&self, alias: &PkgName, importer_dir: &Path, version: &ImporterDepVersion) -> bool {
+        let Some(root_version) = self.versions.get(alias) else { return false };
+        match (root_version, version) {
+            (ImporterDepVersion::Link(root_target), ImporterDepVersion::Link(target)) => {
+                link_target_dir(&self.dir, root_target) == link_target_dir(importer_dir, target)
+            }
+            _ => *root_version == version,
         }
     }
+}
+
+/// Which of an importer's direct dependencies an install links: those in
+/// its dependency groups that do not resolve to a skipped snapshot.
+#[derive(Debug, Clone, Copy)]
+pub struct LinkedDirectDeps<'a> {
+    pub included_groups: &'a [DependencyGroup],
+    /// The snapshots the install does not materialize. A link a previous
+    /// install created for one of them is stale.
+    pub skipped: &'a SkippedSnapshots,
+}
+
+impl<'a> LinkedDirectDeps<'a> {
+    fn of(
+        self,
+        snapshot: &'a ProjectSnapshot,
+    ) -> Vec<(&'a PkgName, &'a ResolvedDependencySpec, DependencyGroup)> {
+        direct_deps_of(snapshot, self.included_groups)
+            .into_iter()
+            .filter(|(alias, spec, _)| {
+                spec.version
+                    .resolved_key(alias)
+                    .is_none_or(|key| !self.skipped.contains(&key))
+            })
+            .collect()
+    }
+}
+
+/// Where [`prune_workspace_hoists`] looks for each kind of workspace
+/// hoist link. Both are confined by [`crate::ImporterModulesDirs::confined`].
+pub(crate) struct WorkspaceHoistDirs<'a> {
+    pub modules_dirs: &'a crate::ImporterModulesDirs,
+    pub private: &'a Path,
+    pub public: &'a Path,
+}
+
+/// Unlink the workspace-project hoists `prior_hoisted_dependencies`
+/// records that `wanted_hoisted_dependencies` does not. Entries keyed by
+/// a package of `current_lockfile` are regular hoists and stay.
+pub(crate) fn prune_workspace_hoists(
+    dirs: &WorkspaceHoistDirs<'_>,
+    current_lockfile: &Lockfile,
+    prior_hoisted_dependencies: Option<&HoistedDependencies>,
+    wanted_hoisted_dependencies: Option<&HoistedDependencies>,
+) -> Result<(), PruneDirectDepsError> {
+    let Some(prior) = prior_hoisted_dependencies else { return Ok(()) };
+    let private_dir = dirs.modules_dirs.confined(dirs.private);
+    let public_dir = dirs.modules_dirs.confined(dirs.public);
+    for (project_id, aliases) in prior {
+        if project_id
+            .parse()
+            .is_ok_and(|key| {
+                current_lockfile.packages
+                    .as_ref()
+                    .is_some_and(|packages| packages.contains_key(&key))
+            })
+        {
+            continue;
+        }
+        prune_workspace_project_hoists(
+            aliases,
+            wanted_hoisted_dependencies.and_then(|wanted| wanted.get(project_id)),
+            private_dir.as_deref(),
+            public_dir.as_deref(),
+        )?;
+    }
+    Ok(())
+}
+
+fn prune_workspace_project_hoists(
+    prior: &indexmap::IndexMap<String, HoistKind>,
+    wanted: Option<&indexmap::IndexMap<String, HoistKind>>,
+    private_dir: Option<&Path>,
+    public_dir: Option<&Path>,
+) -> Result<(), PruneDirectDepsError> {
+    for (alias, kind) in prior {
+        if wanted.is_some_and(|aliases| aliases.get(alias) == Some(kind)) {
+            continue;
+        }
+        let target_dir = match kind {
+            HoistKind::Private => private_dir,
+            HoistKind::Public => public_dir,
+        };
+        let Some(target_dir) = target_dir else { continue };
+        remove_direct_dep_link(target_dir, alias)?;
+        remove_emptied_scope_dir(target_dir, alias);
+    }
+    Ok(())
+}
+
+/// Remove the `@scope` directory of a scoped `alias` once its last link is
+/// gone. The removal fails, and keeps the directory, while other scoped
+/// packages are in it.
+pub(crate) fn remove_emptied_scope_dir(target_dir: &Path, alias: &str) {
+    let Some((scope, _)) = alias.split_once('/') else { return };
+    let scope_dir = target_dir.join(scope);
+    if is_real_dir(&scope_dir) {
+        let _ = std::fs::remove_dir(scope_dir);
+    }
+}
+
+/// Unlink every direct dep of one importer that the wanted lockfile no
+/// longer records at the same version, or that the root now provides.
+fn unlink_stale_direct_deps<Reporter: self::Reporter>(
+    modules_dir: &Path,
+    importer_dir: &Path,
+    current_snapshot: &ProjectSnapshot,
+    wanted_specs: &[(&PkgName, &ResolvedDependencySpec, DependencyGroup)],
+    dedupe_against_root: Option<&RootDeps<'_>>,
+    reported: ReportedRemovals,
+) -> Result<(), PruneDirectDepsError> {
+    for (alias, current_spec, group) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
+        let still_wanted = is_still_wanted(alias, current_spec, wanted_specs);
+        let deduped_by_root = dedupe_against_root.is_some_and(|root_deps| {
+            root_deps.provides(alias, importer_dir, &current_spec.version)
+        });
+        if still_wanted && !deduped_by_root {
+            continue;
+        }
+        let alias_name = alias.to_string();
+        let unlinked = remove_direct_dep_link(modules_dir, &alias_name)?;
+        remove_emptied_scope_dir(modules_dir, &alias_name);
+        if !reported.includes(&current_spec.version, still_wanted, unlinked.is_some()) {
+            continue;
+        }
+        Reporter::emit(&LogEvent::Root(RootLog {
+            level: LogLevel::Debug,
+            message: RootMessage::Removed {
+                prefix: importer_dir.display().to_string(),
+                removed: RemovedRoot {
+                    name: alias_name,
+                    version: removed_version(current_spec, unlinked),
+                    dependency_type: Some(dependency_type(group)),
+                },
+            },
+        }));
+    }
+    Ok(())
+}
+
+fn is_still_wanted(
+    alias: &PkgName,
+    current_spec: &ResolvedDependencySpec,
+    wanted_specs: &[(&PkgName, &ResolvedDependencySpec, DependencyGroup)],
+) -> bool {
+    wanted_specs
+        .iter()
+        .any(|(name, spec, _)| *name == alias && spec.version == current_spec.version)
 }
 
 /// Diff the snapshot key sets, unlink the hoisted aliases the orphans
@@ -175,49 +421,67 @@ fn prune_orphan_snapshots(
     let empty = HashMap::new();
     let current_snapshots = current_lockfile.snapshots.as_ref().unwrap_or(&empty);
     let wanted_snapshots = wanted_lockfile.snapshots.as_ref().unwrap_or(&empty);
-    let orphan_keys: Vec<_> =
-        current_snapshots.keys().filter(|key| !wanted_snapshots.contains_key(*key)).collect();
+    let orphan_keys: Vec<_> = current_snapshots
+        .keys()
+        .filter(|key| !wanted_snapshots.contains_key(*key))
+        .collect();
 
-    let orphan_pkg_ids: HashSet<String> =
-        orphan_keys.iter().map(|key| format!("{}@{}", key.name, key.suffix.version())).collect();
+    let orphan_pkg_ids: HashSet<String> = orphan_keys
+        .iter()
+        .map(|key| format!("{}@{}", key.name, key.suffix.version()))
+        .collect();
     let removed = orphan_pkg_ids.len() as u64;
 
     let Some(prior_hoisted) = prior_hoisted_dependencies else {
         return Ok(removed);
     };
     // Hoist links live in exactly two dirs; resolve + confine each once.
-    let private_dir = config.virtual_store_dir.join("node_modules");
-    let private_dir = confined_modules_dir(&private_dir, workspace_root);
-    let public_dir = confined_modules_dir(&config.modules_dir, workspace_root);
+    let private_dir = config.install_state_dir.join("node_modules");
+    let modules_dirs = crate::ImporterModulesDirs::from_config(config, workspace_root);
+    let private_dir = modules_dirs.confined(&private_dir);
+    let public_dir = modules_dirs.confined(&config.modules_dir);
     for key in orphan_keys {
         let Some(aliases) = prior_hoisted.get(&key.to_string()) else {
             continue;
         };
-        for (alias, kind) in aliases {
-            let target_dir = match kind {
-                HoistKind::Private => private_dir.as_deref(),
-                HoistKind::Public => public_dir.as_deref(),
-            };
-            // No `pnpm:root` event for hoist unlinks — pnpm removes
-            // these with `muteLogs: true`.
-            if let Some(target_dir) = target_dir {
-                remove_direct_dep_link(target_dir, alias)?;
-            }
-        }
+        unlink_hoisted_aliases(aliases, private_dir.as_deref(), public_dir.as_deref())?;
     }
     Ok(removed)
 }
 
+/// Unlink one orphan's hoisted aliases from whichever of the two hoist
+/// dirs owns them. No `pnpm:root` event for hoist unlinks, pnpm
+/// removes these with `muteLogs: true`.
+fn unlink_hoisted_aliases(
+    aliases: &indexmap::IndexMap<String, HoistKind>,
+    private_dir: Option<&Path>,
+    public_dir: Option<&Path>,
+) -> Result<(), PruneDirectDepsError> {
+    for (alias, kind) in aliases {
+        let target_dir = match kind {
+            HoistKind::Private => private_dir,
+            HoistKind::Public => public_dir,
+        };
+        if let Some(target_dir) = target_dir {
+            remove_direct_dep_link(target_dir, alias)?;
+        }
+    }
+    Ok(())
+}
+
 /// The `(alias, spec, group)` view of an importer snapshot, in the
 /// prod → dev → optional order pnpm merges the maps in.
-fn direct_deps_of<'a>(
+pub(crate) fn direct_deps_of<'a>(
     snapshot: &'a ProjectSnapshot,
     groups: &[DependencyGroup],
 ) -> Vec<(&'a PkgName, &'a ResolvedDependencySpec, DependencyGroup)> {
     let mut deps = Vec::new();
     let mut push = |map: &'a Option<ResolvedDependencyMap>, group: DependencyGroup| {
         if let Some(map) = map {
-            deps.extend(map.iter().map(move |(alias, spec)| (alias, spec, group)));
+            deps.extend(
+                map.iter()
+                    .map(move |(alias, spec)| (alias, spec, group)),
+            );
         }
     };
     for group in groups {
@@ -233,13 +497,17 @@ fn direct_deps_of<'a>(
     deps
 }
 
-/// Peer-free version string for the `pnpm:root` `removed` payload —
-/// the same wire formatting the `added` emit uses.
-fn removed_version(spec: &ResolvedDependencySpec) -> Option<String> {
+/// Peer-free version string for the `pnpm:root` `removed` payload,
+/// the same wire formatting the `added` emit uses. A `link:` dependency
+/// has no lockfile version, so it reports its unlinked package's.
+fn removed_version(
+    spec: &ResolvedDependencySpec,
+    unlinked: Option<UnlinkedDependency>,
+) -> Option<String> {
     match &spec.version {
         ImporterDepVersion::Regular(ver) => Some(ver.version().to_string()),
         ImporterDepVersion::Alias(alias) => Some(alias.suffix.version().to_string()),
-        ImporterDepVersion::Link(target) => Some(format!("link:{target}")),
+        ImporterDepVersion::Link(_) => unlinked?.version,
         ImporterDepVersion::File(target) => Some(format!("file:{target}")),
     }
 }

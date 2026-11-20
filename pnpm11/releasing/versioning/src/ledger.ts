@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import * as yaml from 'yaml'
 
 import { CHANGES_DIR } from './intents.js'
@@ -40,7 +39,7 @@ export async function readLedger (workspaceDir: string): Promise<Ledger> {
   try {
     content = await fs.readFile(ledgerPath, 'utf8')
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return {}
     }
     throw err
@@ -128,36 +127,53 @@ export function buildConsumptionIndex (
   for (const [key, entry] of Object.entries(ledger)) {
     const atIndex = key.lastIndexOf('@')
     if (atIndex <= 0) continue
-    const version = key.slice(atIndex + 1)
-    let dir: string
-    if (Array.isArray(entry)) {
-      const pkgName = key.slice(0, atIndex)
-      const dirs = resolveNameDirs(pkgName)
-      if (dirs.length === 0) continue
-      if (dirs.length > 1) {
-        throw new PnpmError(
-          'INVALID_VERSIONING_LEDGER',
-          `The ledger entry ${key} names ${pkgName}, which matches multiple workspace projects (${dirs.join(', ')}). Rewrite the entry with an explicit "dir".`
-        )
-      }
-      dir = dirs[0]
-    } else {
-      dir = normalizeProjectDir(entry.dir)
-    }
+    const dir = ledgerEntryDir(key, entry, resolveNameDirs)
+    if (dir == null) continue
     // Build metadata (after "+") may itself contain hyphens and never makes a
     // version a prerelease.
-    const isPrerelease = version.split('+')[0].includes('-')
-    const byDir = isPrerelease ? prereleaseIdsByDir : stableIdsByDir
-    let idSet = byDir.get(dir)
-    if (idSet == null) {
-      idSet = new Set()
-      byDir.set(dir, idSet)
-    }
-    for (const id of ledgerEntryIds(entry)) {
-      idSet.add(id)
-    }
+    const isPrerelease = key.slice(atIndex + 1).split('+')[0].includes('-')
+    addIdsToDir(isPrerelease ? prereleaseIdsByDir : stableIdsByDir, dir, ledgerEntryIds(entry))
   }
+  const consumptionByDir = combineConsumption(stableIdsByDir, prereleaseIdsByDir)
+  return (projectDir) => consumptionByDir.get(projectDir) ?? { allIds: new Set(), prereleaseOnlyIds: new Set() }
+}
 
+/**
+ * The project directory a ledger entry belongs to, or undefined when a bare
+ * id-list entry names a package that is no longer in the workspace.
+ */
+function ledgerEntryDir (
+  key: string,
+  entry: LedgerEntry,
+  resolveNameDirs: (pkgName: string) => string[]
+): string | undefined {
+  if (!Array.isArray(entry)) return normalizeProjectDir(entry.dir)
+  const pkgName = key.slice(0, key.lastIndexOf('@'))
+  const dirs = resolveNameDirs(pkgName)
+  if (dirs.length > 1) {
+    throw new PnpmError(
+      'INVALID_VERSIONING_LEDGER',
+      `The ledger entry ${key} names ${pkgName}, which matches multiple workspace projects (${dirs.join(', ')}). Rewrite the entry with an explicit "dir".`
+    )
+  }
+  return dirs[0]
+}
+
+function addIdsToDir (idsByDir: Map<string, Set<string>>, dir: string, ids: string[]): void {
+  let idSet = idsByDir.get(dir)
+  if (idSet == null) {
+    idSet = new Set()
+    idsByDir.set(dir, idSet)
+  }
+  for (const id of ids) {
+    idSet.add(id)
+  }
+}
+
+function combineConsumption (
+  stableIdsByDir: Map<string, Set<string>>,
+  prereleaseIdsByDir: Map<string, Set<string>>
+): Map<string, PackageConsumption> {
   const consumptionByDir = new Map<string, PackageConsumption>()
   for (const dir of new Set([...stableIdsByDir.keys(), ...prereleaseIdsByDir.keys()])) {
     const stableIds = stableIdsByDir.get(dir) ?? new Set()
@@ -167,7 +183,7 @@ export function buildConsumptionIndex (
       prereleaseOnlyIds: new Set([...prereleaseIds].filter((id) => !stableIds.has(id))),
     })
   }
-  return (projectDir) => consumptionByDir.get(projectDir) ?? { allIds: new Set(), prereleaseOnlyIds: new Set() }
+  return consumptionByDir
 }
 
 /**

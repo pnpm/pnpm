@@ -1,0 +1,90 @@
+//! How the benchmark launches a revision's mocks and pnpr server.
+use command_extra::CommandExtra;
+
+use super::{
+    PnprServerPaths,
+    RevisionMockRegistry,
+    registries_home::RegistriesHome,
+    server_config::pnpr_benchmark_public_url,
+};
+use crate::latency_proxy::LatencyProxy;
+use std::{
+    fs::File,
+    path::Path,
+    process::{
+        Child,
+        Command,
+        Stdio,
+    },
+};
+
+/// The origin a revision's mock advertises in its packuments. A cold mock
+/// whose registries live in the database may not proxy its warm origin on
+/// its own host, so every cold mock advertises `localhost` while the origin
+/// is reached at `127.0.0.1`. Revisions that read their registries from the
+/// config file get the same name, so both sides of a comparison resolve it.
+pub(super) fn served_revision_mock_origin(registry: &RevisionMockRegistry, cold: bool) -> String {
+    if !cold {
+        return registry.origin.clone();
+    }
+    let port = registry.listener
+        .local_addr()
+        .expect("revision mock proxy local addr")
+        .port();
+    format!("http://localhost:{port}")
+}
+
+pub(super) fn spawn_revision_mock(command: Command, bench_dir: &Path, cold: bool) -> Child {
+    let stdout = File::create(bench_dir.join("revision-mock.stdout.log"))
+        .expect("create revision mock stdout log");
+    let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
+        .expect("create revision mock stderr log");
+    command
+        .with_stdin(Stdio::null())
+        .with_stdout(stdout.into())
+        .with_stderr(stderr.into())
+        .spawn()
+        .expect(if cold { "spawn cold revision mock" } else { "spawn revision mock" })
+}
+
+/// The command that serves one benchmark's pnpr server. A server whose
+/// registries live in the database gets [`pnpr_benchmark_public_url`].
+pub(super) fn pnpr_server_command(paths: &PnprServerPaths<'_>) -> Command {
+    let command = Command::new(paths.binary)
+        .with_arg("--config")
+        .with_arg(paths.config)
+        .with_arg("--listen")
+        .with_arg(format!("127.0.0.1:{}", paths.port))
+        .with_arg("--storage")
+        .with_arg(paths.storage)
+        // The resolver resolves against the registry the client
+        // sends, caching packuments in its own store. A long TTL keeps
+        // those cached packuments authoritative across the run, the
+        // same value the registry-mock pins for the same reason.
+        .with_arg("--packument-ttl")
+        .with_arg("31536000");
+    if paths.registries.is_none() {
+        return command;
+    }
+    command
+        .with_arg("--public-url")
+        .with_arg(pnpr_benchmark_public_url(paths.port))
+}
+
+/// The `--public-url` of a cold mock's warm origin: the latency proxy in
+/// front of it, if any. The cold mock fetches the tarball URLs it
+/// advertises, and one whose registries live in the database may not reach
+/// its own `localhost` host, so the origin then names its address.
+pub(super) fn cold_origin_public_url(
+    latency_proxy: Option<&LatencyProxy>,
+    registries: RegistriesHome,
+    origin_port: u16,
+) -> Option<String> {
+    latency_proxy
+        .map(|proxy| format!("http://{}", proxy.addr))
+        .or_else(|| {
+            registries
+                .in_database()
+                .then(|| format!("http://127.0.0.1:{origin_port}"))
+        })
+}

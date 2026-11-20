@@ -7,12 +7,23 @@
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{
-    HoistKind, Host, LayoutVersion, Modules, read_modules_layout, read_modules_manifest,
+    HoistKind,
+    Host,
+    LayoutVersion,
+    Modules,
+    read_modules_layout,
+    read_modules_manifest,
     write_modules_manifest,
 };
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn manifest_from_json(value: Value) -> Modules {
     serde_json::from_value(value).expect("deserialize Modules fixture")
@@ -169,7 +180,10 @@ fn write_modules_manifest_preserves_hoisted_dependency_order() {
             ),
             ("a@1.0.0".to_string(), IndexMap::from([("a".to_string(), HoistKind::Private)])),
         ]),
-        virtual_store_dir: modules_dir.join(".pnpm").display().to_string(),
+        virtual_store_dir: modules_dir
+            .join(".pnpm")
+            .display()
+            .to_string(),
         ..Default::default()
     };
 
@@ -179,11 +193,17 @@ fn write_modules_manifest_preserves_hoisted_dependency_order() {
         .expect("manifest exists");
 
     assert_eq!(
-        written.hoisted_dependencies.keys().map(String::as_str).collect::<Vec<_>>(),
+        written.hoisted_dependencies
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         vec!["z@1.0.0", "a@1.0.0"],
     );
     assert_eq!(
-        written.hoisted_dependencies["z@1.0.0"].keys().map(String::as_str).collect::<Vec<_>>(),
+        written.hoisted_dependencies["z@1.0.0"]
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         vec!["z-alias", "a-alias"],
     );
 }
@@ -199,7 +219,10 @@ fn write_and_read_manifest_with_long_dependency_path() {
             dependency_path,
             IndexMap::from([("@scope/package".to_string(), HoistKind::Private)]),
         )]),
-        virtual_store_dir: modules_dir.join(".pnpm").display().to_string(),
+        virtual_store_dir: modules_dir
+            .join(".pnpm")
+            .display()
+            .to_string(),
         ..Default::default()
     };
 
@@ -248,12 +271,18 @@ fn yaml_fallback_keeps_depth_budget() {
         read_modules_layout::<Host>(modules_dir).map(drop),
     ] {
         let error = result.expect_err("excessive depth must be rejected");
-        assert!(error.to_string().to_lowercase().contains("depth"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .to_lowercase()
+                .contains("depth"),
+            "{error}",
+        );
     }
 }
 
 /// A `layoutVersion` naming a layout this build does not emit reads as
-/// `None` through both readers — the install rebuilds `node_modules`
+/// `None` through both readers, the install rebuilds `node_modules`
 /// rather than failing on a manifest it could otherwise read. `5.0` is
 /// the same number as `5` in JSON, so it is the same version here.
 #[test]

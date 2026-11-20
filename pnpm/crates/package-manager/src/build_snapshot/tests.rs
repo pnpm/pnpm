@@ -1,7 +1,19 @@
-use super::{BuildSnapshotError, build_package_snapshot, registry_package_key};
+use super::{
+    BuildSnapshotError,
+    build_package_snapshot,
+    registry_package_key,
+};
 use node_semver::Version;
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgVerPeer, TarballRevision};
-use pnpm_registry::{PackageDistribution, PackageVersion};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+    PkgVerPeer,
+    TarballRevision,
+};
+use pnpm_registry::{
+    PackageDistribution,
+    PackageVersion,
+};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::collections::HashMap;
@@ -24,6 +36,7 @@ fn make_package(name: &str, version: &str) -> PackageVersion {
             revisions: None,
             file_count: None,
             unpacked_size: None,
+            pnpr: None,
             attestations: None,
         },
         dependencies: None,
@@ -79,7 +92,12 @@ fn builds_snapshot_with_resolved_dependencies() {
     let deps = built.snapshot.dependencies.expect("dependencies should be populated");
     assert_eq!(deps.len(), 1);
     let react_key = PkgName::parse("react").unwrap();
-    assert_eq!(deps.get(&react_key).unwrap().to_string(), "17.0.2");
+    assert_eq!(
+        deps.get(&react_key)
+            .unwrap()
+            .to_string(),
+        "17.0.2",
+    );
 }
 
 #[test]
@@ -96,7 +114,7 @@ fn returns_error_when_integrity_is_missing() {
 #[test]
 fn returns_error_when_revision_is_invalid() {
     let mut pkg = make_package("broken", "1.0.0");
-    pkg.dist.revision = Some(serde_json::json!(0));
+    pkg.dist.revision = Some(serde_json::json!(9_007_199_254_740_992_u64));
 
     let err = build_package_snapshot(&pkg, &HashMap::new())
         .expect_err("should fail with an invalid revision");

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/testing.registry-mock",
-  "version": "1100.0.11",
+  "version": "1100.0.19",
   "private": true,
   "description": "Thin test helpers that talk to the mock npm registry — wraps registry-access.commands with REGISTRY_MOCK_PORT and REGISTRY_MOCK_CREDENTIALS baked in.",
   "keywords": [
@@ -29,7 +29,7 @@
     "prepublishOnly": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "compile": "tsgo --build && pn lint --fix"
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/network.fetch": "workspace:*",

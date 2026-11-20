@@ -10,15 +10,19 @@
 //! 4. Production callers turbofish [`Host`] explicitly.
 //!
 //! The seam covers only the final "write the tarball to disk" phase of
-//! [`crate::api`] — reading each packed file's bytes, measuring its
-//! size, creating the destination directory, and writing the archive.
+//! [`crate::api`], reading each packed file's bytes, inspecting file
+//! executability, measuring its size, creating the destination directory,
+//! and writing the archive.
 //! Manifest reading, the packlist walk, and bin resolution stay on real
 //! `std::fs` because real fixtures (a `tempfile::TempDir`) reach every
 //! branch they have; the write phase is where a portable
 //! `PermissionDenied` / `ENOSPC` test needs a fake.
 
 use std::{
-    io::{self, Write},
+    io::{
+        self,
+        Write,
+    },
     path::Path,
 };
 
@@ -26,6 +30,15 @@ use std::{
 /// bytes for each non-manifest tar entry.
 pub trait FsReadFile {
     fn read_file(path: &Path) -> io::Result<Vec<u8>>;
+}
+
+/// Query whether a source file is marked executable on disk.
+///
+/// Returns `Ok(true)` if the file is executable, `Ok(false)` if the file is
+/// not executable or missing (`io::ErrorKind::NotFound`), and `Err` if inspecting
+/// file metadata fails with any other error.
+pub trait FsIsExecutable {
+    fn is_executable(path: &Path) -> io::Result<bool>;
 }
 
 /// Return a file's size in bytes (`std::fs::metadata(path)?.len()`),
@@ -63,9 +76,31 @@ impl FsReadFile for Host {
     }
 }
 
+impl FsIsExecutable for Host {
+    fn is_executable(path: &Path) -> io::Result<bool> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            match std::fs::metadata(path) {
+                Ok(metadata) => {
+                    Ok(pnpm_fs::file_mode::is_executable(metadata.permissions().mode()))
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+                Err(error) => Err(error),
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = path;
+            Ok(false)
+        }
+    }
+}
+
 impl FsFileLen for Host {
     fn file_len(path: &Path) -> io::Result<u64> {
-        std::fs::metadata(path).map(|metadata| metadata.len())
+        std::fs::symlink_metadata(path)
+            .map(|metadata| if metadata.file_type().is_symlink() { 0 } else { metadata.len() })
     }
 }
 
@@ -76,12 +111,9 @@ impl FsCreateDirAll for Host {
 }
 
 impl FsAtomicWrite for Host {
-    /// Stream the tarball atomically: `write_body` writes into a sibling
-    /// temp file that is fsynced, then renamed over `dest`. The rename
-    /// replaces a symlink sitting at the output path rather than following
-    /// it — so a repo-controlled symlink can't redirect the write to
-    /// clobber an arbitrary file — and a crash never leaves a partial
-    /// `.tgz` behind. Mirrors the `write-file-atomic` pattern
+    /// The rename replaces a symlink sitting at the output path rather than
+    /// following it, so a repo-controlled symlink can't redirect the write to
+    /// clobber an arbitrary file. Mirrors the `write-file-atomic` pattern
     /// `pnpm-package-manifest` uses for `package.json`.
     fn atomic_write(
         dest: &Path,
@@ -91,24 +123,35 @@ impl FsAtomicWrite for Host {
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
-        let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
-        write_body(tmp.as_file_mut())?;
-        // A `NamedTempFile` is created 0o600. Match what a plain `fs::write`
-        // would leave: preserve the mode only when overwriting an existing
-        // regular file — `symlink_metadata` so a symlink at `dest` doesn't
-        // donate its target's (or a directory's) mode — otherwise widen to
-        // 0o644 so the archive isn't owner-only. Set the mode before the
-        // sync so content and metadata are flushed together.
+        // Overwriting an existing regular file keeps its mode, and the temp file
+        // starts at that mode so the archive is never readable by more users.
+        // `symlink_metadata`, so a symlink at `dest` doesn't donate its target's
+        // (or a directory's) mode.
+        let existing = std::fs::symlink_metadata(dest).ok().filter(std::fs::Metadata::is_file);
         #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::symlink_metadata(dest)
-                .ok()
-                .filter(std::fs::Metadata::is_file)
-                .map_or(0o644, |metadata| metadata.permissions().mode() & 0o777);
-            tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
+        let existing_mode = existing.map(|metadata| {
+            pnpm_fs::CopyPermissions::of_metadata(&metadata).mode() & 0o777
+        });
+        #[cfg(target_os = "wasi")]
+        let existing_mode = match existing {
+            Some(_) => Some(
+                pnpm_fs::read_file_permissions(&pnpm_fs::open_file_without_following(dest)?)?
+                    .mode()
+                    & 0o777,
+            ),
+            None => None,
+        };
+        #[cfg(not(any(unix, target_os = "wasi")))]
+        let existing_mode: Option<u32> = existing.and(None);
+        let mut tmp = pnpm_fs::named_tempfile_with_mode_in(dir, existing_mode.unwrap_or(0o666))?;
+        write_body(tmp.as_file_mut())?;
+        // The umask may have narrowed the creation mode; restore the exact one.
+        // Set it before the sync so content and metadata are flushed together.
+        #[cfg(any(unix, target_os = "wasi"))]
+        if let Some(mode) = existing_mode {
+            pnpm_fs::CopyPermissions::from_mode(mode).apply_to_file(tmp.as_file())?;
         }
-        tmp.as_file().sync_all()?;
+        pnpm_fs::sync_file(tmp.as_file())?;
         tmp.persist(dest).map_err(|error| error.error)?;
         Ok(())
     }

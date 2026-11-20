@@ -16,13 +16,28 @@
       "path": "../../core/constants"
     },
     {
+      "path": "../../core/error"
+    },
+    {
       "path": "../../core/logger"
     },
     {
       "path": "../../core/types"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../pkg-manifest/utils"
+    },
+    {
       "path": "../../text/ordinal-comparator"
+    },
+    {
+      "path": "../package-patterns"
     },
     {
       "path": "../project-manifest-reader"

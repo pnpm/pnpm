@@ -10,6 +10,7 @@ import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 import { loadJsonFileSync } from 'load-json-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
@@ -82,11 +83,11 @@ test('recursive publish', async () => {
   }, [])
 
   {
-    const { exitCode } = await execa('pnpm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'], { reject: false })
+    const { exitCode } = await execa('pnpm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`, '--json'], { reject: false })
     expect(exitCode).toBe(1)
   }
   {
-    const { exitCode } = await execa('pnpm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'], { reject: false })
+    const { exitCode } = await execa('pnpm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`, '--json'], { reject: false })
     expect(exitCode).toBe(1)
   }
 
@@ -113,7 +114,7 @@ test('recursive publish', async () => {
   }, [])
 
   {
-    const { stdout } = await execa('pnpm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+    const { stdout } = await execa('pnpm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
     expect(stdout?.toString()).toContain('next: 2.0.0')
   }
 })
@@ -413,13 +414,13 @@ test('recursive publish --json: writes per-package summary array to stdout', asy
   const summaries = JSON.parse(result!.output!) as Array<Record<string, unknown>>
   expect(Array.isArray(summaries)).toBe(true)
   expect(summaries).toHaveLength(2)
-  expect(summaries.map((s) => s.name).sort()).toEqual([pkg1.name, pkg2.name].sort())
-  for (const s of summaries) {
-    expect(s).toMatchObject({ version: '1.0.0', bundled: [] })
-    expect(s.id).toBe(`${s.name as string}@${s.version as string}`)
-    expect(s.size).toEqual(expect.any(Number))
-    expect(s.shasum).toMatch(/^[0-9a-f]{40}$/)
-    expect(s.integrity).toMatch(/^sha512-/)
+  expect(summaries.map((summary) => summary.name).sort()).toEqual([pkg1.name, pkg2.name].sort())
+  for (const summary of summaries) {
+    expect(summary).toMatchObject({ version: '1.0.0', bundled: [] })
+    expect(summary.id).toBe(`${summary.name as string}@${summary.version as string}`)
+    expect(summary.size).toEqual(expect.any(Number))
+    expect(summary.shasum).toMatch(/^[0-9a-f]{40}$/)
+    expect(summary.integrity).toMatch(/^sha512-/)
   }
 })
 
@@ -452,3 +453,69 @@ test('recursive publish --report-summary: file entries use per-package summary s
   expect(entry.unpackedSize).toEqual(expect.any(Number))
   fs.unlinkSync('pnpm-publish-summary.json')
 })
+
+test('recursive publish resolves workspace protocol when node_modules is not installed (pnpm/pnpm#6567)', async () => {
+  const SUFFIX = Date.now()
+  const pkgA = {
+    name: `@pnpmtest/test-pkg-a-${SUFFIX}`,
+    version: '1.2.3',
+  }
+  const pkgB = {
+    name: `@pnpmtest/test-pkg-b-${SUFFIX}`,
+    version: '2.0.0',
+    dependencies: {
+      [pkgA.name]: 'workspace:^',
+    },
+  }
+  preparePackages([pkgA, pkgB])
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    recursive: true,
+  }, [])
+
+  const { stdout } = await execa('pnpm', ['view', pkgB.name, 'dependencies', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`, '--json'])
+  const dependencies = JSON.parse(stdout?.toString() ?? '{}')
+  expect(dependencies[pkgA.name]).toBe('^1.2.3')
+})
+
+test('recursive publish skips manifests with empty name or empty version without private: true', async () => {
+  const suffix = Date.now()
+  const validPkg = {
+    name: `@pnpmtest/test-empty-manifest-fields-${suffix}`,
+    version: '1.0.0',
+  }
+  preparePackages([
+    validPkg,
+    {
+      location: 'empty-version-pkg',
+      package: {
+        name: `@pnpmtest/test-empty-version-${suffix}`,
+        version: '',
+      },
+    },
+    {
+      location: 'empty-name-pkg',
+      package: {
+        name: '',
+        version: '1.0.0',
+      },
+    },
+  ])
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'monorepo-root', version: '' }))
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    configByUri: CONFIG_BY_URI,
+    dir: process.cwd(),
+    recursive: true,
+  }, [])
+
+  await checkPkgExists(validPkg.name, validPkg.version)
+})
+

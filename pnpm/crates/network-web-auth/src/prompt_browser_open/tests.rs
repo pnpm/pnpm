@@ -1,18 +1,39 @@
 use std::{
-    cell::{Cell, RefCell},
-    future::{self, Future},
+    cell::{
+        Cell,
+        RefCell,
+    },
+    future::{
+        self,
+        Future,
+    },
     io,
     pin::Pin,
     sync::Mutex,
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
 };
 
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pretty_assertions::assert_eq;
-use tokio::{sync::oneshot, task::LocalSet};
+use tokio::{
+    sync::oneshot,
+    task::LocalSet,
+};
 
 use super::prompt_browser_open;
-use crate::capabilities::{EnterKeyListener, OpenUrl, StdinIsTty};
+use crate::capabilities::{
+    EnterKeyListener,
+    OpenUrl,
+    StdinIsTty,
+};
 
 #[derive(Clone, Copy)]
 enum Outcome {
@@ -21,8 +42,8 @@ enum Outcome {
 }
 
 // Per-test fake for stdin-tty / browser-open / enter-key, plus a recording
-// reporter. Its state is fn-local — thread-locals for the inputs and a `static
-// Mutex<Vec<LogEvent>>` for the captured log events — so each `#[test]` gets
+// reporter. Its state is fn-local (thread-locals for the inputs and a `static
+// Mutex<Vec<LogEvent>>` for the captured log events) so each `#[test]` gets
 // independent storage and concurrent tests never share it. Each test names the
 // optional helpers it drives, so every emitted helper is used and none needs a
 // `dead_code` allow.
@@ -164,7 +185,7 @@ macro_rules! browser_fake {
     };
 }
 
-// The `Global`-log messages at `level`, in emit order — the projection that
+// The `Global`-log messages at `level`, in emit order, the projection that
 // the fake's `infos` and `warns` accessors share.
 fn global_messages_at(events: &[LogEvent], level: LogLevel) -> Vec<String> {
     events
@@ -221,7 +242,9 @@ async fn opens_browser_when_enter_key_is_pressed_before_poll_completes() {
 
             assert_eq!(open_calls(), vec![AUTH_URL.to_owned()]);
 
-            poll_tx.send(Ok("token-after-enter".to_owned())).expect("send poll result");
+            poll_tx
+                .send(Ok("token-after-enter".to_owned()))
+                .expect("send poll result");
             let token = handle.await.expect("join").expect("a token");
 
             assert_eq!(token, "token-after-enter");
@@ -248,13 +271,17 @@ async fn warns_and_continues_polling_when_open_fails() {
             tokio::task::yield_now().await;
 
             assert!(
-                warns().iter().any(|message| message.contains("xdg-open not found")),
+                warns()
+                    .iter()
+                    .any(|message| message.contains("xdg-open not found")),
                 "open failure should warn, got {:?}",
                 warns(),
             );
             assert!(infos().contains(&"Please open the URL shown above manually.".to_owned()));
 
-            poll_tx.send(Ok("tok".to_owned())).expect("send poll result");
+            poll_tx
+                .send(Ok("tok".to_owned()))
+                .expect("send poll result");
             let token = handle.await.expect("join").expect("a token");
             assert_eq!(token, "tok");
         })
@@ -276,7 +303,9 @@ async fn warns_and_falls_back_to_plain_poll_when_listen_fails() {
 
     assert_eq!(token, "fallback-token");
     assert!(
-        warns().iter().any(|message| message.contains("setRawMode not supported")),
+        warns()
+            .iter()
+            .any(|message| message.contains("setRawMode not supported")),
         "listener setup failure should warn, got {:?}",
         warns(),
     );

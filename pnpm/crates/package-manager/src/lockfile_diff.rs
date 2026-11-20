@@ -7,15 +7,21 @@
 //! report what deduplication would rewrite. Mirrors pnpm's
 //! `calcDedupeCheckIssues`, which serves both commands the same way.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
-use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotDepRef,
+    SnapshotEntry,
+};
 
 /// What a real install would change, derived from two lockfiles.
-///
-/// Package-level changes are diffed over the v9 `snapshots:` map — the
-/// peer-aware dependency wiring a real install rewrites — to match pnpm's
-/// `dedupeDiffCheck`, whose in-memory `packages` map is depPath-keyed.
 #[derive(Debug, Default)]
 pub struct LockfileDiff {
     /// Per-importer direct-dependency changes, in importer-id order.
@@ -28,7 +34,7 @@ pub struct LockfileDiff {
     pub updated_packages: Vec<SnapshotDiff>,
 }
 
-/// Dependency changes within a single snapshot — an importer's direct
+/// Dependency changes within a single snapshot, an importer's direct
 /// dependencies or one `snapshots:` entry's dependency wiring.
 #[derive(Debug)]
 pub struct SnapshotDiff {
@@ -46,8 +52,8 @@ pub struct SnapshotDiff {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImporterDiffKey {
     /// The manifest specifier. A real install rewrites the lockfile
-    /// whenever a specifier changes — even when it still resolves to the
-    /// same version — so `install --dry-run` previews by specifier.
+    /// whenever a specifier changes (even when it still resolves to the
+    /// same version) so `install --dry-run` previews by specifier.
     Specifier,
     /// The resolved version. Deduplication rewrites peer-resolved
     /// versions while the specifiers stay put, so `dedupe --check`
@@ -74,8 +80,8 @@ enum AliasChange {
 /// groups.
 ///
 /// pnpm folds every group's diff into one alias-keyed map, so an alias
-/// that only moves between groups — `devDependencies` to `dependencies`,
-/// say — yields the last group's single verdict rather than an addition
+/// that only moves between groups (`devDependencies` to `dependencies`,
+/// say) yields the last group's single verdict rather than an addition
 /// and a removal that contradict each other. Merging in pnpm's group
 /// order therefore decides which verdict wins.
 #[derive(Default)]
@@ -130,7 +136,7 @@ impl LockfileDiff {
 }
 
 /// Diff the existing lockfile (`old`) against the freshly-resolved one
-/// (`new`). A `None` `new` yields an empty diff — there is nothing a real
+/// (`new`). A `None` `new` yields an empty diff; there is nothing a real
 /// install would produce to compare against.
 #[must_use]
 pub fn diff_lockfiles(
@@ -144,7 +150,10 @@ pub fn diff_lockfiles(
 
     let mut diff = LockfileDiff::default();
 
-    let mut importer_ids: BTreeSet<&str> = new.importers.keys().map(String::as_str).collect();
+    let mut importer_ids: BTreeSet<&str> = new.importers
+        .keys()
+        .map(String::as_str)
+        .collect();
     if let Some(old) = old {
         importer_ids.extend(old.importers.keys().map(String::as_str));
     }
@@ -165,8 +174,8 @@ pub fn diff_lockfiles(
     diff
 }
 
-/// Diff the v9 `snapshots:` map — the peer-aware dependency wiring a real
-/// install rewrites — by key set and by `dependencies` /
+/// Diff the v9 `snapshots:` map (the peer-aware dependency wiring a real
+/// install rewrites) by key set and by `dependencies` /
 /// `optionalDependencies`. Mirrors pnpm's `dedupeDiffCheck`, which diffs its
 /// depPath-keyed `packages` snapshots the same way. Results are sorted.
 fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut LockfileDiff) {
@@ -176,8 +185,8 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
     for (key, new_entry) in new_snapshots.into_iter().flatten() {
         match old_snapshots.and_then(|snapshots| snapshots.get(key)) {
             None => diff.added_packages.push(key.to_string()),
-            // The equality check keeps the common case — a snapshot both
-            // lockfiles wire identically — off the per-alias path, which
+            // The equality check keeps the common case (a snapshot both
+            // lockfiles wire identically) off the per-alias path, which
             // allocates a map per dependency group on both sides.
             Some(old_entry) if snapshot_wiring_differs(old_entry, new_entry) => {
                 let entry_diff = diff_snapshot_entry(key.to_string(), old_entry, new_entry);
@@ -188,7 +197,11 @@ fn diff_snapshots(old: Option<&Lockfile>, new: Option<&Lockfile>, diff: &mut Loc
             Some(_) => {}
         }
     }
-    for key in old_snapshots.into_iter().flatten().map(|(key, _)| key) {
+    for key in old_snapshots
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key)
+    {
         if new_snapshots.is_none_or(|snapshots| !snapshots.contains_key(key)) {
             diff.removed_packages.push(key.to_string());
         }
@@ -207,7 +220,7 @@ fn snapshot_wiring_differs(old: &SnapshotEntry, new: &SnapshotEntry) -> bool {
 }
 
 /// Diff one `snapshots:` entry's dependency wiring, over `dependencies` /
-/// `optionalDependencies` only — pnpm's `PACKAGE_SNAPSHOT_DEP_FIELDS`.
+/// `optionalDependencies` only, pnpm's `PACKAGE_SNAPSHOT_DEP_FIELDS`.
 fn diff_snapshot_entry(key: String, old: &SnapshotEntry, new: &SnapshotEntry) -> SnapshotDiff {
     let mut changes = AliasChanges::default();
     changes.merge(&dep_refs(old.dependencies.as_ref()), &dep_refs(new.dependencies.as_ref()));
@@ -240,7 +253,7 @@ fn diff_importer(
     changes.into_diff(id.to_string())
 }
 
-/// The importer dependency groups, in pnpm's `DEPENDENCIES_FIELDS` order —
+/// The importer dependency groups, in pnpm's `DEPENDENCIES_FIELDS` order,
 /// which decides the winner for an alias that moves between them.
 const IMPORTER_GROUPS: [ImporterGroup; 3] =
     [ImporterGroup::Optional, ImporterGroup::Prod, ImporterGroup::Dev];
@@ -295,40 +308,49 @@ pub fn render_dry_run_report(diff: &LockfileDiff) -> String {
         String::new(),
     ];
 
-    if !diff.importers.is_empty() {
-        lines.push("Importers".to_string());
-        for importer in &diff.importers {
-            lines.push(importer.id.clone());
-            for (alias, version) in &importer.added {
-                lines.push(format!("  + {alias} {version}"));
-            }
-            for (alias, version) in &importer.removed {
-                lines.push(format!("  - {alias} {version}"));
-            }
-            for (alias, old, new) in &importer.updated {
-                lines.push(format!("  {alias} {old} -> {new}"));
-            }
-        }
-        lines.push(String::new());
-    }
-
-    if !diff.added_packages.is_empty()
-        || !diff.removed_packages.is_empty()
-        || !diff.updated_packages.is_empty()
-    {
-        lines.push("Packages".to_string());
-        for key in &diff.added_packages {
-            lines.push(format!("+ {key}"));
-        }
-        for key in &diff.removed_packages {
-            lines.push(format!("- {key}"));
-        }
-        for package in &diff.updated_packages {
-            lines.push(format!("~ {}", package.id));
-        }
-    }
+    push_importer_lines(&mut lines, diff);
+    push_package_lines(&mut lines, diff);
 
     lines.join("\n")
+}
+
+fn push_importer_lines(lines: &mut Vec<String>, diff: &LockfileDiff) {
+    if diff.importers.is_empty() {
+        return;
+    }
+    lines.push("Importers".to_string());
+    for importer in &diff.importers {
+        lines.push(importer.id.clone());
+        for (alias, version) in &importer.added {
+            lines.push(format!("  + {alias} {version}"));
+        }
+        for (alias, version) in &importer.removed {
+            lines.push(format!("  - {alias} {version}"));
+        }
+        for (alias, old, new) in &importer.updated {
+            lines.push(format!("  {alias} {old} -> {new}"));
+        }
+    }
+    lines.push(String::new());
+}
+
+fn push_package_lines(lines: &mut Vec<String>, diff: &LockfileDiff) {
+    if diff.added_packages.is_empty()
+        && diff.removed_packages.is_empty()
+        && diff.updated_packages.is_empty()
+    {
+        return;
+    }
+    lines.push("Packages".to_string());
+    for key in &diff.added_packages {
+        lines.push(format!("+ {key}"));
+    }
+    for key in &diff.removed_packages {
+        lines.push(format!("- {key}"));
+    }
+    for package in &diff.updated_packages {
+        lines.push(format!("~ {}", package.id));
+    }
 }
 
 #[cfg(test)]

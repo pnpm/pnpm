@@ -1,12 +1,36 @@
-use pnpm_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
-use pnpm_package_is_installable::InstallabilityOptions;
-
 use super::{
-    LockfileResolution, base64_to_hex, build_purl, classify_license, confined_importer_dir,
-    encode_purl_name, extract_author, extract_repository, integrity_string, is_simple_spdx_id,
-    normalize_link_path, peer_names_from_manifest, platform_incompatible_optional,
-    sanitize_spdx_id, split_scoped_name, strip_url_credentials,
+    LockfileResolution,
+    RegistryContext,
+    SanitizedRegistries,
+    base64_to_hex,
+    build_purl,
+    build_purl_with_encoded_registry,
+    classify_license,
+    confined_importer_dir,
+    extract_author,
+    extract_repository,
+    integrity_string,
+    normalize_link_path,
+    peer_names_from_manifest,
+    platform_incompatible_optional,
 };
+use crate::cli_args::sbom::{
+    cyclonedx::split_scoped_name,
+    metadata::{
+        encode_purl_name,
+        encode_repository_url,
+        extract_bugs_url,
+        sanitize_registry_url,
+        url_without_credentials,
+    },
+    spdx::sanitize_spdx_id,
+};
+use pnpm_lockfile::{
+    PackageMetadata,
+    RegistryResolution,
+    StringOrList,
+};
+use pnpm_package_is_installable::InstallabilityOptions;
 
 fn registry_package(
     os: Option<Vec<String>>,
@@ -14,6 +38,7 @@ fn registry_package(
     libc: Option<StringOrList>,
 ) -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                 .parse()
@@ -101,7 +126,7 @@ fn confined_importer_dir_rejects_lexical_escapes() {
 }
 
 /// A lexically clean importer key whose directory is a symlink pointing
-/// outside the workspace must not be read — the canonicalize + containment
+/// outside the workspace must not be read, the canonicalize + containment
 /// check catches what the lexical `validate_importer_id` filter cannot.
 #[cfg(unix)]
 #[test]
@@ -133,6 +158,123 @@ fn build_purl_unscoped() {
 #[test]
 fn build_purl_scoped() {
     assert_eq!(build_purl("@babel/core", "7.22.0"), "pkg:npm/%40babel/core@7.22.0");
+}
+
+#[test]
+fn build_purl_with_named_registry_adds_repository_url_qualifier() {
+    let work_encoded = encode_repository_url("https://npm.enterprise.example.com/");
+    assert_eq!(
+        build_purl_with_encoded_registry("foo", "1.0.0", Some(&work_encoded)),
+        "pkg:npm/foo@1.0.0?repository_url=https%3A%2F%2Fnpm.enterprise.example.com%2F",
+    );
+    let team_encoded = encode_repository_url("https://npm.enterprise.example.com/team-a/");
+    assert_eq!(
+        build_purl_with_encoded_registry("@scope/pkg", "1.0.0", Some(&team_encoded)),
+        "pkg:npm/%40scope/pkg@1.0.0?repository_url=https%3A%2F%2Fnpm.enterprise.example.com%2Fteam-a%2F",
+    );
+}
+
+#[test]
+fn sanitize_registry_url_strips_credentials_and_rejects_malformed_urls() {
+    let sanitized = sanitize_registry_url(
+        "https://some-user:some-token@npm.enterprise.example.com/team-a/?api_key=secret#frag",
+    )
+    .expect("valid https url");
+    assert_eq!(sanitized, "https://npm.enterprise.example.com/team-a/");
+    let purl =
+        build_purl_with_encoded_registry("foo", "1.0.0", Some(&encode_repository_url(&sanitized)));
+    assert_eq!(
+        purl,
+        "pkg:npm/foo@1.0.0?repository_url=https%3A%2F%2Fnpm.enterprise.example.com%2Fteam-a%2F",
+    );
+    for secret in ["some-user", "some-token", "secret", "frag"] {
+        assert!(!purl.contains(secret), "secret {secret} leaked in {purl}");
+    }
+    assert_eq!(
+        sanitize_registry_url("https://token@npm.enterprise.example.com/team-a/").as_deref(),
+        Some("https://npm.enterprise.example.com/team-a/"),
+    );
+
+    for invalid in [
+        "https://token@npm.example.com:bad/",
+        "https://user:token@example.com:bad/team/",
+        "ftp://token@npm.example.com/",
+        "https://user:pass@",
+        "https://npm.example.com/%zz/",
+        "not-a-url",
+    ] {
+        assert_eq!(sanitize_registry_url(invalid), None, "expected {invalid:?} to fail closed");
+    }
+}
+
+#[test]
+fn sanitized_registries_resolves_configured_prefix_and_rejects_missing_or_invalid_urls() {
+    let mut context = RegistryContext::default();
+    context.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://some-user:some-token@npm.work.example.com/team-a/?api_key=secret#frag".to_string(),
+    );
+    context.registries_by_prefix.insert(
+        "broken".to_string(),
+        "https://secret-user:secret-token@npm.broken.example.com:bad/team/".to_string(),
+    );
+    let registries = SanitizedRegistries::new(context);
+
+    let plain: pnpm_lockfile::PkgNameVerPeer = "foo@1.0.0".parse().unwrap();
+    assert_eq!(registries.resolve_named(&plain).unwrap(), None);
+
+    let qualified: pnpm_lockfile::PkgNameVerPeer =
+        "@scope/foo@work:1.0.0(peer@2.0.0)".parse().unwrap();
+    let resolved = registries
+        .resolve_named(&qualified)
+        .unwrap()
+        .expect("work registry");
+    assert_eq!(resolved.sanitized_url, "https://npm.work.example.com/team-a/");
+    assert_eq!(resolved.encoded_repository_url, "https%3A%2F%2Fnpm.work.example.com%2Fteam-a%2F");
+
+    let missing: pnpm_lockfile::PkgNameVerPeer = "foo@unknown:1.0.0".parse().unwrap();
+    let missing_err = registries.resolve_named(&missing).unwrap_err();
+    assert_eq!(missing_err.code().unwrap().to_string(), "ERR_PNPM_MISSING_NAMED_REGISTRY");
+
+    let broken: pnpm_lockfile::PkgNameVerPeer = "foo@broken:1.0.0".parse().unwrap();
+    let broken_err = registries.resolve_named(&broken).unwrap_err();
+    assert_eq!(broken_err.code().unwrap().to_string(), "ERR_PNPM_INVALID_NAMED_REGISTRY_URL");
+    let rendered = format!("{broken_err:?}");
+    for secret in ["secret-user", "secret-token", "npm.broken.example.com"] {
+        assert!(!rendered.contains(secret), "secret {secret} leaked in error: {rendered}");
+    }
+}
+
+#[test]
+fn tarball_url_for_component_sanitizes_registries_and_omits_malformed_default_registry() {
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            .parse()
+            .expect("parse integrity"),
+        revision: None,
+    });
+    let mut context = RegistryContext::default();
+    context.registries_by_prefix.insert(
+        "work".to_string(),
+        "https://some-user:some-token@npm.work.example.com/team-a/?api_key=secret".to_string(),
+    );
+    context.registries.insert(
+        "default".to_string(),
+        "https://default-token@npm.default.example.com:bad/".to_string(),
+    );
+    let registries = SanitizedRegistries::new(context);
+
+    let qualified: pnpm_lockfile::PkgNameVerPeer = "@scope/pkg@work:1.0.0".parse().unwrap();
+    let named = registries.resolve_named(&qualified).unwrap();
+    let named_url = registries.tarball_url_for_component(&resolution, "@scope/pkg", "1.0.0", named);
+    assert_eq!(
+        named_url.as_deref(),
+        Some("https://npm.work.example.com/team-a/@scope/pkg/-/pkg-1.0.0.tgz"),
+    );
+
+    let malformed_default_url =
+        registries.tarball_url_for_component(&resolution, "plain-pkg", "1.0.0", None);
+    assert_eq!(malformed_default_url, None);
 }
 
 #[test]
@@ -201,6 +343,20 @@ fn extract_author_missing() {
 }
 
 #[test]
+fn extract_author_blank_string() {
+    assert_eq!(extract_author(&serde_json::json!({ "author": "" })), None);
+    assert_eq!(extract_author(&serde_json::json!({ "author": " \t\n" })), None);
+}
+
+#[test]
+fn extract_author_blank_object_name() {
+    let manifest = serde_json::json!({ "author": { "name": "", "email": "jane@example.com" } });
+    assert_eq!(extract_author(&manifest), None);
+    let manifest = serde_json::json!({ "author": { "name": "   " } });
+    assert_eq!(extract_author(&manifest), None);
+}
+
+#[test]
 fn extract_repository_string() {
     let manifest = serde_json::json!({ "repository": "https://github.com/foo/bar" });
     assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar".to_string()));
@@ -210,6 +366,155 @@ fn extract_repository_string() {
 fn extract_repository_object() {
     let manifest = serde_json::json!({ "repository": { "type": "git", "url": "https://github.com/foo/bar.git" } });
     assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar.git".to_string()));
+}
+
+#[test]
+fn extract_repository_expands_the_shorthands_hosted_git_info_knows() {
+    for (value, expected) in [
+        ("vercel/ms", "git+https://github.com/vercel/ms.git"),
+        ("acme/widgets.git", "git+https://github.com/acme/widgets.git"),
+        ("  vercel/ms  ", "git+https://github.com/vercel/ms.git"),
+        ("github:vercel/ms", "git+https://github.com/vercel/ms.git"),
+        ("gitlab:acme/widgets", "git+https://gitlab.com/acme/widgets.git"),
+        ("bitbucket:acme/widgets", "git+https://bitbucket.org/acme/widgets.git"),
+        ("gitlab:foo/bar/baz", "git+https://gitlab.com/foo/bar/baz.git"),
+        ("owner/repo#main", "git+https://github.com/owner/repo.git#main"),
+        ("git@github.com:foo/bar.git", "git+https://github.com/foo/bar.git"),
+    ] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), Some(expected.to_string()), "value: {value:?}");
+    }
+}
+
+#[test]
+fn extract_repository_expands_shorthand_in_object() {
+    let manifest = serde_json::json!({ "repository": { "type": "git", "url": "acme/widgets" } });
+    assert_eq!(
+        extract_repository(&manifest),
+        Some("git+https://github.com/acme/widgets.git".to_string()),
+    );
+}
+
+#[test]
+fn extract_repository_keeps_non_http_absolute_urls() {
+    for url in [
+        "git://github.com/foo/bar.git",
+        "git+https://github.com/foo/bar.git",
+        "git+ssh://git@github.com/foo/bar.git",
+        "ssh://git@github.com/foo/bar.git",
+    ] {
+        let manifest = serde_json::json!({ "repository": url });
+        assert_eq!(extract_repository(&manifest), Some(url.to_string()));
+    }
+}
+
+#[test]
+fn extract_repository_completes_a_url_missing_a_slash() {
+    let manifest = serde_json::json!({ "repository": "https:/github.com/foo/bar.git" });
+    assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar.git".to_string()));
+}
+
+#[test]
+fn extract_repository_strips_credentials() {
+    let manifest = serde_json::json!({ "repository": "https://user:token@github.com/foo/bar" });
+    assert_eq!(extract_repository(&manifest), Some("https://github.com/foo/bar".to_string()));
+}
+
+#[test]
+fn extract_repository_keeps_an_ssh_login() {
+    for url in ["ssh://git@github.com/foo/bar.git", "git+ssh://git@github.com/foo/bar.git"] {
+        let manifest = serde_json::json!({ "repository": url });
+        assert_eq!(extract_repository(&manifest), Some(url.to_string()));
+    }
+}
+
+#[test]
+fn extract_repository_strips_a_username_only_authority() {
+    for (url, expected) in [
+        ("https://token@github.com/foo/bar", "https://github.com/foo/bar"),
+        ("git+https://token@github.com/foo/bar.git", "git+https://github.com/foo/bar.git"),
+        ("ssh://git:token@github.com/foo/bar.git", "ssh://github.com/foo/bar.git"),
+        ("not-ssh://token@example.com/foo/bar", "not-ssh://example.com/foo/bar"),
+    ] {
+        let manifest = serde_json::json!({ "repository": url });
+        assert_eq!(extract_repository(&manifest), Some(expected.to_string()), "url: {url:?}");
+    }
+}
+
+#[test]
+fn extract_repository_drops_values_that_name_no_repository() {
+    for value in [
+        "foo@example.com",
+        "a/b/c",
+        "/abs/path",
+        ".hidden/repo",
+        "owner/",
+        "owner",
+        "owner /repo",
+        // Only a project name, with no owner.
+        "github:owner",
+        "mailto:bugs@example.com",
+        "git+file:/tmp/repo",
+        "",
+        "   ",
+    ] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), None, "value: {value:?}");
+    }
+}
+
+#[test]
+fn extract_repository_expands_the_gist_shorthand_and_keeps_a_gist_url() {
+    let shorthand = serde_json::json!({ "repository": "gist:11081aaa281" });
+    assert_eq!(
+        extract_repository(&shorthand),
+        Some("git+https://gist.github.com/11081aaa281.git".to_string()),
+    );
+    let url = serde_json::json!({ "repository": "https://gist.github.com/11081aaa281" });
+    assert_eq!(extract_repository(&url), Some("https://gist.github.com/11081aaa281".to_string()));
+}
+
+#[test]
+fn extract_repository_keeps_at_sign_in_path() {
+    let manifest = serde_json::json!({ "repository": "https://github.com/foo/bar/baz@qux" });
+    assert_eq!(
+        extract_repository(&manifest),
+        Some("https://github.com/foo/bar/baz@qux".to_string()),
+    );
+}
+
+#[test]
+fn extract_repository_does_not_treat_query_userinfo_lookalikes_as_credentials() {
+    let manifest =
+        serde_json::json!({ "repository": "https://github.com?x=user:pass@evil.example/repo" });
+    assert_eq!(
+        extract_repository(&manifest),
+        Some("https://github.com/?x=user:pass@evil.example/repo".to_string()),
+    );
+}
+
+#[test]
+fn extract_repository_percent_encodes_whitespace_in_urls() {
+    let manifest = serde_json::json!({ "repository": "https://example.com/a b" });
+    assert_eq!(extract_repository(&manifest), Some("https://example.com/a%20b".to_string()));
+}
+
+#[test]
+fn extract_repository_drops_an_incomplete_percent_escape() {
+    // The hosted parser decodes a shorthand's committish, so the `%251` of
+    // the last value reaches the derived URL as a stray `%1`.
+    for value in ["https://example.com/%zz", "https://example.com/%", "owner/repo#release%251"] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), None, "value: {value:?}");
+    }
+}
+
+#[test]
+fn extract_repository_drops_unparsable_absolute_urls() {
+    for value in ["https://", "http://user:pass@"] {
+        let manifest = serde_json::json!({ "repository": value });
+        assert_eq!(extract_repository(&manifest), None, "value: {value:?}");
+    }
 }
 
 #[test]
@@ -233,47 +538,179 @@ fn normalize_link_path_to_root() {
 }
 
 #[test]
-fn classify_license_spdx_id() {
-    let result = classify_license("MIT");
-    assert_eq!(result["license"]["id"], "MIT");
+fn classify_license_spdx_ids() {
+    for (license, id) in [
+        ("MIT", "MIT"),
+        ("mit", "MIT"),
+        (" MIT ", "MIT"),
+        ("GPL-2.0", "GPL-2.0"),
+        ("gpl-2.0", "GPL-2.0"),
+        ("GFDL-1.1-invariants-only", "GFDL-1.1-invariants-only"),
+        ("WTFPL", "WTFPL"),
+    ] {
+        assert_eq!(classify_license(license), serde_json::json!({ "license": { "id": id } }));
+    }
 }
 
 #[test]
-fn classify_license_expression() {
-    let result = classify_license("MIT OR Apache-2.0");
-    assert_eq!(result["expression"], "MIT OR Apache-2.0");
+fn classify_license_spdx_2_3_expressions() {
+    for expression in [
+        "MIT OR Apache-2.0",
+        "mit OR apache-2.0",
+        "MIT AND ISC",
+        "GPL-2.0+",
+        "LicenseRef-Proprietary",
+        "DocumentRef-doc:LicenseRef-Custom",
+        "GPL-2.0-only WITH Classpath-exception-2.0",
+        "gpl-2.0-only WITH classpath-exception-2.0",
+        "(MIT AND Apache-2.0) OR ISC",
+        " MIT OR Apache-2.0 ",
+    ] {
+        assert_eq!(classify_license(expression), serde_json::json!({ "expression": expression }));
+    }
 }
 
 #[test]
-fn classify_license_freetext() {
-    let result = classify_license("Proprietary License");
-    assert_eq!(result["license"]["name"], "Proprietary License");
+fn classify_license_free_form_names() {
+    for license in [
+        "BDS-3-Clause",
+        "UNLICENSED",
+        "Proprietary License",
+        "SEE LICENSE IN LICENSE.md",
+        "LLVM-exception",
+        "GFDL-1.1-invariants",
+        "GFDL-1.1-invariants OR MIT",
+        "NONE",
+        "NOASSERTION",
+        "NOASSERTION OR MIT",
+        "MIT OR BDS-3-Clause",
+        "MIT or Apache-2.0",
+        "MIT WITH AdditionRef-Custom",
+        "MIT WITH Unknown-exception",
+        "MIT/Apache-2.0",
+        "MIT OR",
+        "MIT OR\nApache-2.0",
+        "\nMIT OR Apache-2.0\n",
+        "\tMIT OR Apache-2.0",
+        "\tMIT\t",
+        " Proprietary License ",
+    ] {
+        assert_eq!(
+            classify_license(license),
+            serde_json::json!({ "license": { "name": license } }),
+        );
+    }
 }
 
 #[test]
-fn is_simple_spdx_id_valid() {
-    assert!(is_simple_spdx_id("MIT"));
-    assert!(is_simple_spdx_id("Apache-2.0"));
-    assert!(is_simple_spdx_id("GPL-3.0-or-later"));
-}
-
-#[test]
-fn is_simple_spdx_id_invalid() {
-    assert!(!is_simple_spdx_id("Proprietary License"));
-    assert!(!is_simple_spdx_id(""));
-}
-
-#[test]
-fn strip_url_credentials_removes_userinfo() {
+fn url_without_credentials_removes_userinfo() {
     assert_eq!(
-        strip_url_credentials("https://user:token@github.com/foo/bar"),
-        "https://github.com/foo/bar",
+        url_without_credentials("https://user:token@github.com/foo/bar").map(|u| u.to_string()),
+        Some("https://github.com/foo/bar".to_string()),
     );
 }
 
 #[test]
-fn strip_url_credentials_no_credentials() {
-    assert_eq!(strip_url_credentials("https://github.com/foo/bar"), "https://github.com/foo/bar");
+fn url_without_credentials_keeps_an_ssh_login() {
+    assert_eq!(
+        url_without_credentials("git+ssh://git@github.com/foo/bar.git").map(|u| u.to_string()),
+        Some("git+ssh://git@github.com/foo/bar.git".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_removes_a_username_only_authority() {
+    for (url, expected) in [
+        ("https://token@github.com/foo/bar", "https://github.com/foo/bar"),
+        ("not-ssh://token@example.com/foo/bar", "not-ssh://example.com/foo/bar"),
+    ] {
+        assert_eq!(
+            url_without_credentials(url).map(|u| u.to_string()),
+            Some(expected.to_string()),
+            "url: {url:?}",
+        );
+    }
+}
+
+#[test]
+fn url_without_credentials_no_credentials() {
+    assert_eq!(
+        url_without_credentials("https://github.com/foo/bar").map(|u| u.to_string()),
+        Some("https://github.com/foo/bar".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_ignores_userinfo_lookalikes_in_query() {
+    // The query, not the authority, carries the `@`: the URL must come out
+    // unchanged, not re-pointed at the query's host.
+    let url = "https://github.com?x=user:pass@evil.example/repo";
+    assert_eq!(
+        url_without_credentials(url).map(|u| u.to_string()),
+        Some("https://github.com/?x=user:pass@evil.example/repo".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_percent_encodes_whitespace() {
+    assert_eq!(
+        url_without_credentials("https://example.com/a b").map(|u| u.to_string()),
+        Some("https://example.com/a%20b".to_string()),
+    );
+}
+
+#[test]
+fn url_without_credentials_rejects_unparsable_values() {
+    for value in ["https://", "http://user:pass@"] {
+        assert_eq!(url_without_credentials(value), None, "value: {value:?}");
+    }
+}
+
+#[test]
+fn extract_bugs_url_keeps_http_urls_in_both_manifest_shapes() {
+    let string_form = serde_json::json!({ "bugs": "https://tracker.example.com/issues" });
+    assert_eq!(
+        extract_bugs_url(&string_form),
+        Some("https://tracker.example.com/issues".to_string()),
+    );
+    let object_form =
+        serde_json::json!({ "bugs": { "url": "https://tracker.example.com/issues" } });
+    assert_eq!(
+        extract_bugs_url(&object_form),
+        Some("https://tracker.example.com/issues".to_string()),
+    );
+}
+
+#[test]
+fn extract_bugs_url_strips_password_bearing_userinfo() {
+    let manifest = serde_json::json!({ "bugs": "https://user:token@tracker.example.com/issues" });
+    assert_eq!(extract_bugs_url(&manifest), Some("https://tracker.example.com/issues".to_string()));
+}
+
+#[test]
+fn extract_bugs_url_strips_bare_username() {
+    let manifest = serde_json::json!({ "bugs": "https://user@tracker.example.com/issues" });
+    assert_eq!(extract_bugs_url(&manifest), Some("https://tracker.example.com/issues".to_string()));
+}
+
+#[test]
+fn extract_bugs_url_does_not_treat_query_userinfo_lookalikes_as_credentials() {
+    let manifest =
+        serde_json::json!({ "bugs": "https://github.com?x=user:pass@evil.example/repo" });
+    assert_eq!(
+        extract_bugs_url(&manifest),
+        Some("https://github.com/?x=user:pass@evil.example/repo".to_string()),
+    );
+}
+
+#[test]
+fn extract_bugs_url_drops_non_http_schemes_and_unparsable_values() {
+    for value in
+        ["mailto:bugs@example.com", "git+https://github.com/foo/bar.git", "https://user:pass@"]
+    {
+        let manifest = serde_json::json!({ "bugs": value });
+        assert_eq!(extract_bugs_url(&manifest), None, "value: {value:?}");
+    }
 }
 
 #[test]

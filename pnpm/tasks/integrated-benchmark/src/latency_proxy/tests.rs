@@ -1,9 +1,23 @@
-use super::{LatencyProxy, LinkProfile, mbps_to_bytes_per_sec};
+use super::{
+    LatencyProxy,
+    LinkProfile,
+    mbps_to_bytes_per_sec,
+};
 use std::{
-    io::{Read as _, Write as _},
-    net::{TcpListener, TcpStream},
+    io::{
+        ErrorKind,
+        Read as _,
+        Write as _,
+    },
+    net::{
+        TcpListener,
+        TcpStream,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[test]
@@ -18,12 +32,22 @@ fn binds_to_requested_listen_addr() {
         socket.write_all(b"pong").expect("write reply");
     });
 
-    let reserved = TcpListener::bind(("127.0.0.1", 0)).expect("reserve listen port");
-    let listen = reserved.local_addr().expect("listen addr");
-    drop(reserved);
-
-    let profile = LinkProfile { one_way: Duration::ZERO, rate_limit: None, slow_start: false };
-    let proxy = LatencyProxy::spawn_on(listen, upstream_addr, profile).expect("spawn proxy");
+    // Another process can claim the port between `drop(reserved)` and the
+    // proxy's bind, so retry that window with a fresh port.
+    let (proxy, listen) = (0..10)
+        .find_map(|_| {
+            let reserved = TcpListener::bind(("127.0.0.1", 0)).expect("reserve listen port");
+            let listen = reserved.local_addr().expect("listen addr");
+            drop(reserved);
+            let profile =
+                LinkProfile { one_way: Duration::ZERO, rate_limit: None, slow_start: false };
+            match LatencyProxy::spawn_on(listen, upstream_addr, profile) {
+                Ok(proxy) => Some((proxy, listen)),
+                Err(error) if error.kind() == ErrorKind::AddrInUse => None,
+                Err(error) => panic!("spawn proxy: {error}"),
+            }
+        })
+        .expect("a free listen port within 10 attempts");
     assert_eq!(proxy.addr, listen);
 
     let mut client = TcpStream::connect(proxy.addr).expect("connect to proxy");
@@ -89,7 +113,9 @@ fn caps_throughput_to_the_rate_limit() {
         let (mut socket, _) = upstream.accept().expect("accept");
         let mut scratch = [0u8; 64];
         let _ = socket.read(&mut scratch);
-        socket.write_all(&vec![0u8; PAYLOAD]).expect("write payload");
+        socket
+            .write_all(&vec![0u8; PAYLOAD])
+            .expect("write payload");
     });
 
     // No latency, only a bandwidth cap, so the wall time is the
@@ -138,7 +164,9 @@ fn slow_start_ramps_per_connection_throughput() {
             let (mut socket, _) = upstream.accept().expect("accept");
             let mut buf = [0u8; 64];
             let _ = socket.read(&mut buf).expect("read request");
-            socket.write_all(&vec![0u8; PAYLOAD]).expect("write payload");
+            socket
+                .write_all(&vec![0u8; PAYLOAD])
+                .expect("write payload");
         });
 
         let profile =
@@ -162,14 +190,17 @@ fn slow_start_ramps_per_connection_throughput() {
     };
 
     let best_of = |samples: u32, slow_start: bool| {
-        (0..samples).map(|_| timed_transfer(slow_start)).min().expect("at least one sample")
+        (0..samples)
+            .map(|_| timed_transfer(slow_start))
+            .min()
+            .expect("at least one sample")
     };
     // Flat: ~2×20ms latency + 256KiB/10MB/s ≈ 66 ms. Ramped: the first
     // windows (14.6 KB and doubling) each serialize at cwnd/RTT, adding ~3-4
     // window-times before the rate approaches the cap, so the structural gap
-    // is well over 100 ms — far above the 25 ms the assertion requires.
+    // is well over 100 ms, far above the 25 ms the assertion requires.
     // Compare the best of several samples on each side: the minimum is the
-    // noise-resistant estimator on a loaded CI runner — scheduler stalls only
+    // noise-resistant estimator on a loaded CI runner, scheduler stalls only
     // ever inflate a sample, while slow start's ramp overhead is structural
     // and survives in every sample, including the minimum. The only way to
     // falsely fail is for *every* flat sample to be stalled at once, so take

@@ -7,13 +7,15 @@ import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import chalk from 'chalk'
 
 import { getPkgInfo } from './getPkgInfo.js'
-import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, nameAtVersion, peerHashSuffix } from './peerVariants.js'
+import { collectHashes, DEDUPED_LABEL, filterMultiPeerEntries, hasPkgNamePrefix, nameAtVersion, peerHashSuffix } from './peerVariants.js'
 import type { PackageDependencyHierarchy } from './types.js'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
-const PROD_DEP_CLR = (s: string) => s // just use the default color
+const PROD_DEP_CLR = (text: string) => text // use the default color
 const OPTIONAL_DEP_CLR = chalk.blue
 const NOT_SAVED_DEP_CLR = chalk.red
+
+const SORTED_DEPENDENCIES_FIELDS = [...DEPENDENCIES_FIELDS].sort()
 
 const LEGEND = `Legend: ${PROD_DEP_CLR('production dependency')}, ${OPTIONAL_DEP_CLR('optional only')}, ${DEV_DEP_ONLY_CLR('dev only')}\n\n`
 
@@ -46,14 +48,28 @@ async function renderTreeForPackage (
   opts: RenderTreeOptions,
   multiPeerPkgs: Map<string, number>
 ): Promise<string> {
-  if (
-    !opts.alwaysPrintRootPackage &&
+  if (hasNothingToPrint(pkg, opts)) return ''
+
+  const label = renderRootLabel(pkg)
+  const childNodes = await renderDependencyGroups(pkg, opts, multiPeerPkgs)
+
+  const rootLabel = chalk.bold(label)
+  if (childNodes.length === 0) {
+    return rootLabel
+  }
+  const tree: TreeNode = { label: rootLabel, nodes: childNodes }
+  return renderArchyTree(tree, { treeChars: chalk.dim }).trimEnd()
+}
+
+function hasNothingToPrint (pkg: PackageDependencyHierarchy, opts: RenderTreeOptions): boolean {
+  return !opts.alwaysPrintRootPackage &&
     !pkg.dependencies?.length &&
     !pkg.devDependencies?.length &&
     !pkg.optionalDependencies?.length &&
     (!opts.showExtraneous || !pkg.unsavedDependencies?.length)
-  ) return ''
+}
 
+function renderRootLabel (pkg: PackageDependencyHierarchy): string {
   let label = ''
   if (pkg.name) {
     label += nameAtVersion(pkg.name, pkg.version ?? '')
@@ -64,13 +80,21 @@ async function renderTreeForPackage (
   if (pkg.private) {
     label += chalk.dim(' (PRIVATE)')
   }
+  return label
+}
+
+async function renderDependencyGroups (
+  pkg: PackageDependencyHierarchy,
+  opts: RenderTreeOptions,
+  multiPeerPkgs: Map<string, number>
+): Promise<TreeNodeGroup[]> {
   const dependenciesFields: Array<DependenciesField | 'unsavedDependencies'> = [
-    ...DEPENDENCIES_FIELDS.sort(),
+    ...SORTED_DEPENDENCIES_FIELDS,
   ]
   if (opts.showExtraneous) {
     dependenciesFields.push('unsavedDependencies')
   }
-  const childNodes: TreeNodeGroup[] = (await Promise.all(
+  return (await Promise.all(
     dependenciesFields.map(async (dependenciesField) => {
       if (!pkg[dependenciesField]?.length) return null
       const depsLabel = chalk.cyanBright(
@@ -87,13 +111,6 @@ async function renderTreeForPackage (
       return { group: depsLabel, nodes: depNodes } as TreeNodeGroup
     })
   )).filter((n): n is TreeNodeGroup => n != null)
-
-  const rootLabel = chalk.bold(label)
-  if (childNodes.length === 0) {
-    return rootLabel
-  }
-  const tree: TreeNode = { label: rootLabel, nodes: childNodes }
-  return renderArchyTree(tree, { treeChars: chalk.dim }).trimEnd()
 }
 
 type GetPkgColor = (node: DependencyNode) => (s: string) => string
@@ -113,27 +130,7 @@ export async function toArchyTree (
       const nodes: TreeNode[] = node.deduped
         ? []
         : await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
-      const labelLines: string[] = [
-        printLabel(getPkgColor, opts.multiPeerPkgs, node),
-      ]
-      if (node.searchMessage) {
-        labelLines.push(node.searchMessage)
-      }
-      if (opts.long) {
-        const pkg = await getPkgInfo(node)
-        if (pkg.description) {
-          labelLines.push(pkg.description)
-        }
-        if (pkg.repository) {
-          labelLines.push(pkg.repository)
-        }
-        if (pkg.homepage) {
-          labelLines.push(pkg.homepage)
-        }
-        if (pkg.path) {
-          labelLines.push(pkg.path)
-        }
-      }
+      const labelLines = await renderNodeLabelLines(getPkgColor, node, opts)
       return {
         label: labelLines.join('\n'),
         nodes,
@@ -142,16 +139,32 @@ export async function toArchyTree (
   )
 }
 
+async function renderNodeLabelLines (
+  getPkgColor: GetPkgColor,
+  node: DependencyNode,
+  opts: { long: boolean, multiPeerPkgs?: Map<string, number> }
+): Promise<string[]> {
+  const labelLines: string[] = [
+    printLabel(getPkgColor, opts.multiPeerPkgs, node),
+  ]
+  if (node.searchMessage) {
+    labelLines.push(node.searchMessage)
+  }
+  if (opts.long) {
+    const pkg = await getPkgInfo(node)
+    labelLines.push(...[pkg.description, pkg.repository, pkg.homepage, pkg.path].filter(Boolean) as string[])
+  }
+  return labelLines
+}
+
 function printLabel (getPkgColor: GetPkgColor, multiPeerPkgs: Map<string, number> | undefined, node: DependencyNode): string {
   const color = getPkgColor(node)
   let txt: string
   if (node.alias !== node.name) {
-    // When using npm: protocol alias, display as "alias@npm:name@version"
-    // Only add npm: prefix if version doesn't already contain @ (to avoid file:, link:, etc.)
-    if (!node.version.includes('@')) {
-      txt = `${color(node.alias)}${chalk.gray(`@npm:${node.name}@${node.version}`)}`
-    } else {
+    if (hasPkgNamePrefix(node.version)) {
       txt = `${color(node.alias)}${chalk.gray(`@${node.version}`)}`
+    } else {
+      txt = `${color(node.alias)}${chalk.gray(`@npm:${node.name}@${node.version}`)}`
     }
   } else {
     txt = nameAtVersion(node.name, node.version, color)

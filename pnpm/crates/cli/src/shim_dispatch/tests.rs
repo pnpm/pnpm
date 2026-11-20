@@ -1,44 +1,75 @@
+#[cfg(unix)]
+use super::runtime_env::managed_runtime_bin;
 #[cfg(windows)]
 use super::validate_candidate;
 use super::{
-    Candidate, apply_state_dir_setting, find_candidate,
+    Candidate,
+    ShimLaunch,
+    find_candidate,
     identity::{
-        MAX_HASHED_BIN_SIZE, local_bin_identity, package_dir_of_target, provider_of_target,
-        read_shim_target_from_content, small_file_hash,
+        MAX_HASHED_BIN_SIZE,
+        local_bin_identity,
+        package_dir_of_target,
+        provider_of_target,
+        read_shim_target_from_content,
+        small_file_hash,
     },
-    is_automatic_runtime, local_bin_path, local_bin_unchanged, manifest_runtime_pin,
-    runtime_env::managed_runtime_bin,
-    trust::{append_trust_decision, read_trust_decision},
-    try_dispatch,
+    is_automatic_runtime,
+    local_bin_path,
+    local_bin_unchanged,
+    runtime_env::hardened_install_config,
+    runtime_pin,
+    trust::{
+        append_trust_decision,
+        read_trust_decision,
+    },
 };
-use pnpm_config::ShimPolicy;
-use std::{ffi::OsString, fs, path::Path};
+use crate::shim_dispatch::settings::apply_state_dir_setting;
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    ShimPolicy,
+};
+use std::{
+    ffi::OsString,
+    fs,
+    path::Path,
+};
 
 fn strings(items: &[&str]) -> Vec<OsString> {
-    items.iter().map(OsString::from).collect()
+    items
+        .iter()
+        .map(OsString::from)
+        .collect()
+}
+
+/// Dispatch through a freshly detected launch, the way [`crate::main`]
+/// carries one verdict from its `--env-file` gate into the command.
+fn dispatch(argv: &[OsString]) -> Option<i32> {
+    ShimLaunch::detect(argv).dispatch(argv)
 }
 
 #[test]
 fn non_shim_argv_is_not_intercepted() {
-    assert!(try_dispatch(&strings(&["pnpm"])).is_none());
-    assert!(try_dispatch(&strings(&["pnpm", "install"])).is_none());
-    assert!(try_dispatch(&strings(&["pnpm", "add", "--shim"])).is_none());
+    assert!(dispatch(&strings(&["pnpm"])).is_none());
+    assert!(dispatch(&strings(&["pnpm", "install"])).is_none());
+    assert!(dispatch(&strings(&["pnpm", "add", "--shim"])).is_none());
 }
 
 #[test]
 fn malformed_legacy_shim_argv_fails_instead_of_running_the_cli() {
-    assert_eq!(try_dispatch(&strings(&["pnpm", "--shim"])), Some(1));
-    assert_eq!(try_dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool"])), Some(1));
+    assert_eq!(dispatch(&strings(&["pnpm", "--shim"])), Some(1));
+    assert_eq!(dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool"])), Some(1));
     assert_eq!(
-        try_dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "/g/pkg/cli", "x"])),
+        dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "/g/pkg/cli", "x"])),
         Some(1),
     );
     assert_eq!(
-        try_dispatch(&strings(&["pnpm", "--shim", "../tool", "/g/bin/tool", "/g/pkg/cli", "--"])),
+        dispatch(&strings(&["pnpm", "--shim", "../tool", "/g/bin/tool", "/g/pkg/cli", "--"])),
         Some(1),
     );
     assert_eq!(
-        try_dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "pkg:not valid", "--"])),
+        dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "pkg:not valid", "--"])),
         Some(1),
     );
 }
@@ -96,7 +127,10 @@ fn no_candidate_without_a_bin_or_pin() {
 #[test]
 fn local_bin_ignores_directories() {
     let root = tempfile::tempdir().unwrap();
-    let bin_dir = root.path().join("node_modules").join(".bin");
+    let bin_dir = root
+        .path()
+        .join("node_modules")
+        .join(".bin");
     fs::create_dir_all(bin_dir.join("tsc")).unwrap();
     assert!(local_bin_path(root.path(), "tsc").is_none());
 }
@@ -118,15 +152,9 @@ fn runtime_pin_prefers_dev_engines_and_supports_arrays() {
         .to_string(),
     )
     .unwrap();
-    assert_eq!(
-        manifest_runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(),
-        Some("22.11.0"),
-    );
-    assert_eq!(
-        manifest_runtime_pin(root.path(), "deno").map(|pin| pin.0).as_deref(),
-        Some("2.0.0"),
-    );
-    assert_eq!(manifest_runtime_pin(root.path(), "bun"), None);
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("22.11.0"));
+    assert_eq!(runtime_pin(root.path(), "deno").map(|pin| pin.0).as_deref(), Some("2.0.0"));
+    assert_eq!(runtime_pin(root.path(), "bun"), None);
 }
 
 #[test]
@@ -140,10 +168,120 @@ fn runtime_pin_falls_back_to_engines() {
         .to_string(),
     )
     .unwrap();
-    assert_eq!(
-        manifest_runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(),
-        Some("20.1.0"),
-    );
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("20.1.0"));
+}
+
+#[test]
+fn runtime_pin_falls_back_to_nvmrc() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join(".nvmrc"),
+        "# Node.js version\ncache = shared\n  v22.11.0 # current LTS\nmirror=nodejs\n",
+    )
+    .unwrap();
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("22.11.0"));
+    assert_eq!(runtime_pin(root.path(), "deno"), None);
+}
+
+#[test]
+fn runtime_pin_falls_back_to_node_version_file() {
+    let root = tempfile::tempdir().unwrap();
+    for contents in ["v22.11.0\n", "22.11.0\r\n", "22.11.0"] {
+        fs::write(root.path().join(".node-version"), contents).unwrap();
+        assert_eq!(
+            runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(),
+            Some("22.11.0"),
+            "contents: {contents:?}",
+        );
+    }
+    assert_eq!(runtime_pin(root.path(), "deno"), None);
+}
+
+#[test]
+fn runtime_pin_prefers_node_version_file_over_nvmrc() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join(".node-version"), "22.0.0\n").unwrap();
+    fs::write(root.path().join(".nvmrc"), "20.0.0\n").unwrap();
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("22.0.0"));
+}
+
+#[test]
+fn runtime_pin_prefers_the_manifest_over_version_files() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "22.0.0" } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(root.path().join(".node-version"), "20.0.0\n").unwrap();
+    fs::write(root.path().join(".nvmrc"), "20.0.0\n").unwrap();
+    assert_eq!(runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(), Some("22.0.0"));
+}
+
+#[test]
+fn nvmrc_aliases_are_runtime_selectors() {
+    let root = tempfile::tempdir().unwrap();
+    for (nvm_version, runtime_selector) in [
+        ("node", "latest"),
+        ("stable", "latest"),
+        ("lts/*", "lts"),
+        ("lts/Iron", "Iron"),
+        ("v20", "20"),
+    ] {
+        fs::write(root.path().join(".nvmrc"), nvm_version).unwrap();
+        assert_eq!(
+            runtime_pin(root.path(), "node").map(|pin| pin.0).as_deref(),
+            Some(runtime_selector),
+        );
+    }
+}
+
+#[test]
+fn nvm_only_selectors_are_not_runtime_pins() {
+    let root = tempfile::tempdir().unwrap();
+    for contents in
+        ["system", "default", "iojs", "iojs-v1.0.0", "unstable", "lts/-1", "iron", "v", "20foo"]
+    {
+        fs::write(root.path().join(".nvmrc"), contents).unwrap();
+        assert_eq!(runtime_pin(root.path(), "node"), None, "contents: {contents:?}");
+    }
+}
+
+#[test]
+fn unpinned_nvmrc_defers_to_an_ancestor_pin() {
+    let root = tempfile::tempdir().unwrap();
+    let nested = root.path().join("packages").join("app");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(
+        root.path().join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "22.0.0" } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(nested.join(".nvmrc"), "system\n").unwrap();
+
+    let candidate = find_candidate(&nested, "node", "node").unwrap();
+    let Candidate::RuntimePin { project_dir, version_spec, .. } = candidate else {
+        panic!("expected a runtime pin candidate");
+    };
+    assert_eq!(project_dir, root.path());
+    assert_eq!(version_spec, "22.0.0");
+}
+
+#[test]
+fn malformed_nvmrc_is_not_a_runtime_pin() {
+    let root = tempfile::tempdir().unwrap();
+    for contents in
+        ["", "20\n22\n", "cache=one\ncache=two\n20\n", "node=20\n", "20,evil-package\n", "lts/\n"]
+    {
+        fs::write(root.path().join(".nvmrc"), contents).unwrap();
+        assert_eq!(runtime_pin(root.path(), "node"), None, "contents: {contents:?}");
+    }
 }
 
 #[test]
@@ -170,9 +308,36 @@ fn runtime_pin_candidate_found_walking_up() {
 }
 
 #[test]
+fn nearest_nvmrc_runtime_pin_candidate_wins() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    let nested = project.join("packages/app");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "node", "version": "20.0.0" } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(nested.join(".nvmrc"), "22.0.0\n").unwrap();
+
+    let candidate = find_candidate(&nested, "node", "node").unwrap();
+    let Candidate::RuntimePin { project_dir, version_spec, .. } = candidate else {
+        panic!("expected a runtime pin candidate");
+    };
+    assert_eq!(project_dir, nested);
+    assert_eq!(version_spec, "22.0.0");
+}
+
+#[test]
 fn runtime_candidates_never_use_project_bin_entries() {
     let root = tempfile::tempdir().unwrap();
-    let bin_dir = root.path().join("node_modules").join(".bin");
+    let bin_dir = root
+        .path()
+        .join("node_modules")
+        .join(".bin");
     fs::create_dir_all(&bin_dir).unwrap();
     fs::write(bin_dir.join("node"), "compromised").unwrap();
 
@@ -204,7 +369,13 @@ fn managed_runtime_must_resolve_inside_the_global_store() {
     std::os::unix::fs::symlink(&package, environment_modules.join("node")).unwrap();
 
     assert_eq!(
-        managed_runtime_bin(root.path().join("state/environment").as_path(), "node", &store),
+        managed_runtime_bin(
+            root.path()
+                .join("state/environment")
+                .as_path(),
+            "node",
+            &store
+        ),
         Some(fs::canonicalize(package.join("bin/node")).unwrap()),
     );
 
@@ -216,15 +387,95 @@ fn managed_runtime_must_resolve_inside_the_global_store() {
     fs::write(outside.join("bin/node"), "runtime").unwrap();
     std::os::unix::fs::symlink(outside, environment_modules.join("node")).unwrap();
     assert_eq!(
-        managed_runtime_bin(root.path().join("state/environment").as_path(), "node", &store),
+        managed_runtime_bin(
+            root.path()
+                .join("state/environment")
+                .as_path(),
+            "node",
+            &store
+        ),
         None,
     );
+}
+
+/// [`super::runtime_env::managed_runtime_bin`] only accepts a runtime that resolves into the
+/// global virtual store, which the hoisted linker never writes to.
+#[test]
+fn hardened_runtime_install_pins_the_isolated_linker() {
+    let root = tempfile::tempdir().unwrap();
+    let config = Config { node_linker: NodeLinker::Hoisted, ..Config::default() };
+
+    let install_config = hardened_install_config(
+        config,
+        &root.path().join("environment"),
+        Some(root.path().join("store/links")),
+    );
+
+    assert_eq!(install_config.node_linker, NodeLinker::Isolated);
+}
+
+#[test]
+fn a_private_runtime_install_stays_out_of_the_global_virtual_store() {
+    let root = tempfile::tempdir().unwrap();
+    let config = Config { enable_global_virtual_store: true, ..Config::default() };
+
+    let install_config = hardened_install_config(config, &root.path().join("private"), None);
+
+    assert!(!install_config.enable_global_virtual_store);
+}
+
+/// A pnpmfile hook runs in a worker started as `node`, which on `PATH` can
+/// be the very shim that is installing the runtime.
+#[test]
+fn a_runtime_install_ignores_the_global_pnpmfile() {
+    let root = tempfile::tempdir().unwrap();
+    let config =
+        Config { global_pnpmfile: Some(root.path().join("pnpmfile.mjs")), ..Config::default() };
+
+    let install_config = hardened_install_config(config, &root.path().join("environment"), None);
+
+    assert!(install_config.ignore_pnpmfile);
+}
+
+#[test]
+fn a_runtime_install_keeps_its_release_age_approvals_out_of_the_caller_workspace() {
+    let root = tempfile::tempdir().unwrap();
+    let environment_dir = root.path().join("environment");
+    let config = Config { workspace_dir: Some(root.path().join("project")), ..Config::default() };
+
+    let install_config = hardened_install_config(config, &environment_dir, None);
+
+    assert_eq!(install_config.workspace_dir, Some(environment_dir));
+    assert_eq!(install_config.target_workspace_dir, None);
+}
+
+/// A parent pnpm exports its settings as `PNPM_CONFIG_*` variables, which
+/// the dispatcher's own configuration reads back.
+#[test]
+fn a_runtime_install_keeps_its_lockfile_and_links_in_the_environment() {
+    let root = tempfile::tempdir().unwrap();
+    let environment_dir = root.path().join("environment");
+    let config = Config {
+        lockfile_dir: Some(root.path().join("elsewhere")),
+        virtual_store_only: true,
+        symlink: false,
+        ..Config::default()
+    };
+
+    let install_config = hardened_install_config(config, &environment_dir, None);
+
+    assert_eq!(install_config.lockfile_dir, Some(environment_dir));
+    assert!(!install_config.virtual_store_only);
+    assert!(install_config.symlink);
 }
 
 #[test]
 fn trust_decisions_round_trip_last_record_wins() {
     let root = tempfile::tempdir().unwrap();
-    let trust_file = root.path().join("state").join("global-bin-trust.jsonl");
+    let trust_file = root
+        .path()
+        .join("state")
+        .join("global-bin-trust.jsonl");
 
     assert_eq!(read_trust_decision(&trust_file, "/a", "candidate-a"), None);
     append_trust_decision(&trust_file, "/a", "candidate-a", true).unwrap();
@@ -261,13 +512,15 @@ fn legacy_path_only_trust_records_are_ignored() {
 #[test]
 fn package_root_is_the_nearest_manifest_ancestor() {
     let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("package.json"), r#"{"name":"workspace"}"#).unwrap();
     let package = root.path().join("workspace-package");
     let nested_target = package.join("dist/bin/cli.js");
     fs::create_dir_all(nested_target.parent().unwrap()).unwrap();
     fs::write(package.join("package.json"), r#"{"name":"tool"}"#).unwrap();
     fs::write(&nested_target, "").unwrap();
     assert_eq!(package_dir_of_target(&nested_target), Some(package));
-    assert_eq!(package_dir_of_target(root.path()), None);
+    assert_eq!(package_dir_of_target(&root.path().join("cli.js")), Some(root.path().to_path_buf()));
+    assert_eq!(package_dir_of_target(Path::new(std::path::MAIN_SEPARATOR_STR)), None);
 }
 
 #[cfg(windows)]
@@ -319,7 +572,10 @@ fn local_bin_fingerprint_binds_the_executed_flavor() {
         bin_dir.join("tool"),
         format!(
             "#!/bin/sh\nexec x\n# cmd-shim-target={}\n",
-            modules.join("tool").join("cli.js").display(),
+            modules
+                .join("tool")
+                .join("cli.js")
+                .display(),
         ),
     )
     .unwrap();
@@ -371,7 +627,10 @@ fn revalidation_rejects_a_bin_swapped_after_approval() {
         &bin,
         format!(
             "#!/bin/sh\nexec x\n# cmd-shim-target={}\n",
-            modules.join("tool").join("cli.js").display(),
+            modules
+                .join("tool")
+                .join("cli.js")
+                .display(),
         ),
     )
     .unwrap();
@@ -383,7 +642,10 @@ fn revalidation_rejects_a_bin_swapped_after_approval() {
         &bin,
         format!(
             "#!/bin/sh\nexec swapped\n# cmd-shim-target={}\n",
-            modules.join("tool").join("cli.js").display(),
+            modules
+                .join("tool")
+                .join("cli.js")
+                .display(),
         ),
     )
     .unwrap();
@@ -434,7 +696,10 @@ fn local_bin_identity_resolves_symlinks_and_trailers() {
         &scripted,
         format!(
             "#!/bin/sh\nexec x\n# cmd-shim-target={}\n",
-            modules.join("tool").join("cli.js").display(),
+            modules
+                .join("tool")
+                .join("cli.js")
+                .display(),
         ),
     )
     .unwrap();

@@ -1,49 +1,69 @@
-use super::{PublishArgs, PublishFlags, run_publish_scripts};
-use crate::cli_args::{CliArgs, cli_command::CliCommand};
+use super::{
+    PublishArgs,
+    PublishFlags,
+    configured_publish_branch,
+    run_publish_scripts,
+};
+use crate::{
+    boolean_values::resolve_boolean_values,
+    cli_args::{
+        CliArgs,
+        cli_command::CliCommand,
+    },
+};
 use clap::Parser;
 use pnpm_config::Config;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_publish::PublishNetwork;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
+use std::ffi::OsString;
 
 /// A `PublishArgs` with every flag at its default; a test overrides only the
 /// field it exercises.
-fn publish_args() -> PublishArgs {
+pub(super) fn publish_args() -> PublishArgs {
     PublishArgs { package: None, flags: publish_flags() }
 }
 
-fn publish_args_with(flags: PublishFlags) -> PublishArgs {
+pub(super) fn publish_args_with(flags: PublishFlags) -> PublishArgs {
     PublishArgs { package: None, flags }
 }
 
-fn parsed_publish_flags(argv: &[&str]) -> PublishFlags {
-    match CliArgs::try_parse_from(argv).expect("parses").command {
-        CliCommand::Publish(publish) => publish.flags,
-        other => panic!("expected publish, got {other:?}"),
-    }
-}
-
-fn publish_flags() -> PublishFlags {
+pub(super) fn publish_flags() -> PublishFlags {
     PublishFlags {
         dry_run: false,
-        json: false,
-        tag: None,
-        access: None,
-        provenance: false,
-        no_provenance: false,
         ignore_scripts: false,
-        embed_readme: false,
-        no_embed_readme: false,
-        skip_manifest_obfuscation: false,
-        no_skip_manifest_obfuscation: false,
-        otp: None,
-        publish_branch: None,
-        no_git_checks: false,
         force: false,
         batch: false,
-        report_summary: false,
+        registry: crate::cli_args::publish::PublishRegistryArgs {
+            tag: None,
+            access: None,
+            provenance: false,
+            no_provenance: false,
+            otp: None,
+            publish_wait_timeout: None,
+        },
+        manifest: crate::cli_args::publish::PublishManifestArgs {
+            new_version: None,
+            embed_readme: false,
+            no_embed_readme: false,
+            skip_manifest_obfuscation: false,
+            no_skip_manifest_obfuscation: false,
+            notes: super::arguments::PublishNotesArgs {
+                release_notes: None,
+                no_release_notes: false,
+                publication_name: None,
+            },
+        },
+        git: crate::cli_args::publish::PublishGitArgs {
+            publish_branch: None,
+            no_git_checks: false,
+        },
+        output: crate::cli_args::publish::PublishOutputArgs { json: false, report_summary: false },
     }
 }
 
@@ -60,13 +80,71 @@ fn should_ignore_scripts_ors_the_flag_with_the_config() {
 }
 
 #[test]
+fn publish_branch_flag_overrides_the_workspace_setting() {
+    let config = Config { publish_branch: Some("production".to_owned()), ..Config::default() };
+    assert_eq!(configured_publish_branch(None, &config), Some("production"));
+    assert_eq!(configured_publish_branch(Some("release"), &config), Some("release"));
+}
+
+#[test]
+fn an_empty_publish_branch_leaves_the_built_in_pair() {
+    let empty = Config { publish_branch: Some(String::new()), ..Config::default() };
+    assert_eq!(configured_publish_branch(None, &empty), None);
+    let blank = Config { publish_branch: Some("  ".to_owned()), ..Config::default() };
+    assert_eq!(configured_publish_branch(None, &blank), Some("  "));
+}
+
+#[test]
+fn publish_options_falls_back_to_the_configured_access_and_tag() {
+    let config = Config {
+        access: Some("restricted".to_owned()),
+        tag: Some("next".to_owned()),
+        ..Config::default()
+    };
+    let options = publish_args().publish_options(&config, None, false);
+    assert_eq!(options.registry.access.as_deref(), Some("restricted"));
+    assert_eq!(options.registry.tag, "next");
+}
+
+#[test]
+fn publish_flags_outrank_the_configured_access_and_tag() {
+    let config = Config {
+        access: Some("restricted".to_owned()),
+        tag: Some("next".to_owned()),
+        ..Config::default()
+    };
+    let args = publish_args_with(PublishFlags {
+        registry: crate::cli_args::publish::PublishRegistryArgs {
+            tag: Some("from-flag".to_owned()),
+            access: Some("public".to_owned()),
+            ..publish_flags().registry
+        },
+        ..publish_flags()
+    });
+    let options = args.publish_options(&config, None, false);
+    assert_eq!(options.registry.access.as_deref(), Some("public"));
+    assert_eq!(options.registry.tag, "from-flag");
+}
+
+/// See [`pnpm_publish::resolve_access`] for why an unrecognized value is
+/// not dropped.
+#[test]
+fn an_unrecognized_configured_access_is_kept_verbatim() {
+    let config = Config { access: Some("everyone".to_owned()), ..Config::default() };
+    assert_eq!(
+        publish_args().publish_options(&config, None, false).registry.access.as_deref(),
+        Some("everyone"),
+    );
+}
+
+#[test]
 fn publish_options_defaults_the_tag_to_latest_and_carries_the_otp() {
     let options =
         publish_args().publish_options(&Config::default(), Some("246810".to_owned()), false);
-    assert_eq!(options.tag, "latest");
-    assert_eq!(options.otp, Some("246810".to_owned()));
-    assert_eq!(options.provenance, None);
-    assert_eq!(options.access, None);
+    assert_eq!(options.registry.tag, "latest");
+    assert_eq!(options.registry.otp, Some("246810".to_owned()));
+    assert_eq!(options.registry.provenance, None);
+    assert_eq!(options.registry.access, None);
     assert!(!options.dry_run);
     assert!(!options.stage);
 }
@@ -74,125 +152,68 @@ fn publish_options_defaults_the_tag_to_latest_and_carries_the_otp() {
 #[test]
 fn publish_options_applies_tag_access_provenance_and_dry_run() {
     let args = publish_args_with(PublishFlags {
-        tag: Some("next".to_owned()),
-        access: Some("restricted".to_owned()),
-        provenance: true,
         dry_run: true,
+        registry: crate::cli_args::publish::PublishRegistryArgs {
+            tag: Some("next".to_owned()),
+            access: Some("restricted".to_owned()),
+            provenance: true,
+            ..publish_flags().registry
+        },
         ..publish_flags()
     });
     let options = args.publish_options(&Config::default(), None, false);
-    assert_eq!(options.tag, "next");
-    assert_eq!(options.access.as_deref(), Some("restricted"));
-    assert_eq!(options.provenance, Some(true));
+    assert_eq!(options.registry.tag, "next");
+    assert_eq!(options.registry.access.as_deref(), Some("restricted"));
+    assert_eq!(options.registry.provenance, Some(true));
     assert!(options.dry_run);
-    assert_eq!(options.otp, None);
+    assert_eq!(options.registry.otp, None);
 }
 
 #[test]
-fn publish_options_falls_back_to_the_configured_settings() {
-    let config = Config {
-        access: Some("restricted".to_owned()),
-        tag: Some("next".to_owned()),
-        provenance: Some(true),
-        ..Default::default()
+fn publish_options_layers_the_provenance_flags_over_the_config() {
+    let with_flags = |provenance, no_provenance| {
+        publish_args_with(PublishFlags {
+            registry: crate::cli_args::publish::PublishRegistryArgs {
+                provenance,
+                no_provenance,
+                ..publish_flags().registry
+            },
+            ..publish_flags()
+        })
     };
-    let options = publish_args().publish_options(&config, None, false);
-    assert_eq!(options.access.as_deref(), Some("restricted"));
-    assert_eq!(options.tag, "next");
-    assert_eq!(options.provenance, Some(true));
-}
-
-#[test]
-fn publish_flags_outrank_the_configured_settings() {
-    let config = Config {
-        access: Some("restricted".to_owned()),
-        tag: Some("next".to_owned()),
-        ..Default::default()
+    let resolve = |args: &PublishArgs, configured| {
+        let config = Config { provenance: configured, ..Default::default() };
+        args.publish_options(&config, None, false).registry.provenance
     };
-    let args = publish_args_with(PublishFlags {
-        tag: Some("from-flag".to_owned()),
-        access: Some("public".to_owned()),
-        ..publish_flags()
-    });
-    let options = args.publish_options(&config, None, false);
-    assert_eq!(options.access.as_deref(), Some("public"));
-    assert_eq!(options.tag, "from-flag");
-}
-
-/// A configured `provenance: false` has to reach the publish options as an
-/// explicit `false` — that is what suppresses the attestation the OIDC
-/// exchange would otherwise turn on.
-#[test]
-fn configured_provenance_false_reaches_the_publish_options() {
-    let config = Config { provenance: Some(false), ..Default::default() };
-    assert_eq!(publish_args().publish_options(&config, None, false).provenance, Some(false));
+    let unset = with_flags(false, false);
+    let on = with_flags(true, false);
+    let off = with_flags(false, true);
+    assert_eq!(resolve(&unset, None), None);
+    assert_eq!(resolve(&unset, Some(false)), Some(false));
+    assert_eq!(resolve(&unset, Some(true)), Some(true));
+    assert_eq!(resolve(&off, None), Some(false));
+    assert_eq!(resolve(&off, Some(true)), Some(false));
+    assert_eq!(resolve(&on, Some(false)), Some(true));
 }
 
 #[test]
-fn provenance_flag_outranks_a_configured_false() {
-    let config = Config { provenance: Some(false), ..Default::default() };
-    let args = publish_args_with(PublishFlags { provenance: true, ..publish_flags() });
-    assert_eq!(args.publish_options(&config, None, false).provenance, Some(true));
-}
-
-#[test]
-fn provenance_pair_resolves_last_one_wins() {
-    assert!(parsed_publish_flags(&["pacquet", "publish", "--provenance"]).provenance);
-    assert!(parsed_publish_flags(&["pacquet", "publish", "--no-provenance"]).no_provenance);
-
-    // Both spellings in one argv must not error (pnpm forwards raw tokens);
-    // mutual `overrides_with` collapses them to the last-specified.
-    let last_off = parsed_publish_flags(&["pacquet", "publish", "--provenance", "--no-provenance"]);
-    assert!(last_off.no_provenance && !last_off.provenance, "--no-provenance wins when last");
-    let last_on = parsed_publish_flags(&["pacquet", "publish", "--no-provenance", "--provenance"]);
-    assert!(last_on.provenance && !last_on.no_provenance, "--provenance wins when last");
-}
-
-#[test]
-fn no_provenance_flag_outranks_a_configured_true() {
-    let config = Config { provenance: Some(true), ..Default::default() };
-    let args = publish_args_with(PublishFlags { no_provenance: true, ..publish_flags() });
-    assert_eq!(args.publish_options(&config, None, false).provenance, Some(false));
-}
-
-/// See [`pnpm_publish::resolve_access`] for why an unrecognized value is
-/// not dropped.
-#[test]
-fn an_unrecognized_configured_access_is_kept_verbatim() {
-    let config = Config { access: Some("everyone".to_owned()), ..Default::default() };
-    assert_eq!(
-        publish_args().publish_options(&config, None, false).access.as_deref(),
-        Some("everyone"),
-    );
-}
-
-/// `""` resolves to `None`, but whitespace does not: upstream's
-/// `opts.publishBranch ? … : ['master','main']` is a truthiness test, and
-/// `"  "` is truthy there, so the git checks reject every real branch.
-#[test]
-fn resolved_publish_branch_treats_only_an_empty_value_as_unset() {
-    let configured = Config { publish_branch: Some("release".to_owned()), ..Default::default() };
-    assert_eq!(publish_flags().resolved_publish_branch(&configured), Some("release"));
-    assert_eq!(publish_flags().resolved_publish_branch(&Config::default()), None);
-
-    let flagged = PublishFlags { publish_branch: Some("from-flag".to_owned()), ..publish_flags() };
-    assert_eq!(flagged.resolved_publish_branch(&configured), Some("from-flag"));
-
-    let empty = Config { publish_branch: Some(String::new()), ..Default::default() };
-    assert_eq!(publish_flags().resolved_publish_branch(&empty), None);
-    let blank = Config { publish_branch: Some("  ".to_owned()), ..Default::default() };
-    assert_eq!(publish_flags().resolved_publish_branch(&blank), Some("  "));
-}
-
-#[test]
-fn resolved_otp_prefers_the_flag_then_the_config() {
-    let config = Config { otp: Some("from-config".to_owned()), ..Default::default() };
-    assert_eq!(publish_flags().resolved_otp(&config), Some("from-config".to_owned()));
-
-    let flags = PublishFlags { otp: Some("from-flag".to_owned()), ..publish_flags() };
-    assert_eq!(flags.resolved_otp(&config), Some("from-flag".to_owned()));
-    assert_eq!(flags.resolved_otp(&Config::default()), Some("from-flag".to_owned()));
-    assert_eq!(publish_flags().resolved_otp(&Config::default()), None);
+fn provenance_false_on_the_command_line_parses_as_no_provenance() {
+    let parse = |parts: &[&str]| {
+        let argv = parts
+            .iter()
+            .map(OsString::from)
+            .collect();
+        match CliArgs::try_parse_from(resolve_boolean_values(argv)).expect("parses").command {
+            CliCommand::Publish(publish) => publish.flags.registry,
+            other => panic!("expected publish, got {other:?}"),
+        }
+    };
+    for spelling in ["--provenance=false", "--no-provenance"] {
+        let flags = parse(&["pnpm", "publish", spelling]);
+        assert!(!flags.provenance && flags.no_provenance, "{spelling}");
+    }
+    let flags = parse(&["pnpm", "publish", "--no-provenance", "--provenance"]);
+    assert!(flags.provenance && !flags.no_provenance);
 }
 
 #[tokio::test]
@@ -204,7 +225,13 @@ async fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
 
     let args = publish_args_with(PublishFlags { ignore_scripts: true, ..publish_flags() });
     let result = args
-        .pack_for_publish::<SilentReporter>(dir.path(), &Config::default(), dest.path(), &[])
+        .pack_for_publish::<SilentReporter>(
+            dir.path(),
+            &Config::default(),
+            dest.path(),
+            &[],
+            super::PublishScope::Single { summary: None, bumped: None },
+        )
         .await
         .expect("packing succeeds");
 
@@ -212,7 +239,12 @@ async fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
     let wrote_tarball = std::fs::read_dir(dest.path())
         .expect("read the destination")
         .flatten()
-        .any(|entry| entry.path().extension().is_some_and(|ext| ext == "tgz"));
+        .any(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|ext| ext == "tgz")
+        });
     assert!(wrote_tarball, "a .tgz should be written to the destination");
 }
 
@@ -254,7 +286,7 @@ fn run_publish_scripts_is_a_noop_when_no_script_is_declared() {
 }
 
 /// Publishing a directory that has no `package.json` fails with
-/// `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` before any packing or network work —
+/// `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` before any packing or network work,
 /// the only branch of `publish_directory` reachable without a live registry.
 #[tokio::test]
 async fn publish_directory_errors_when_no_manifest_is_present() {
@@ -267,12 +299,22 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
     let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
 
     let err = args
-        .publish_directory::<SilentReporter>(dir.path(), &config, &opts, &network, &[])
+        .publish_directory::<SilentReporter>(
+            dir.path(),
+            &config,
+            &opts,
+            &network,
+            &[],
+            super::PublishScope::Single { summary: None, bumped: None },
+        )
         .await
-        .expect_err("an empty directory has no package.json");
+        .expect_err("an empty directory has no package.json")
+        .error;
 
     assert_eq!(
-        err.code().map(|code| code.to_string()).as_deref(),
+        err.code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND"),
     );
 }
@@ -287,7 +329,9 @@ async fn run_rejects_batch_without_recursive() {
         .await
         .expect_err("--batch requires --recursive");
     assert_eq!(
-        err.code().map(|code| code.to_string()).as_deref(),
+        err.code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE"),
     );
 }

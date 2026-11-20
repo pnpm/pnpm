@@ -396,7 +396,7 @@ Bit's `pnpm11-rust` branch is rewired to `@pnpm/napi` and **`npm run lint`
   and adds `@pnpm/napi`. It later drops `logger`, `cli.default-reporter`, and
   `deps.inspection.*` too, once the binding grew `options.reporter` and
   `getDependents`. Data/format packages (`lockfile.*`, `deps.path`,
-  `installing.modules-yaml`, `config.reader`, `types`, `error`, …) stay.
+  `installing.modules-yaml`, `config.reader`, `types`, `error`, and so on) stay.
 
 ### Auth / private registries — DONE
 

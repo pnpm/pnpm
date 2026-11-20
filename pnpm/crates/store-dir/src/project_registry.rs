@@ -1,22 +1,36 @@
 //! The project registry is a flat directory of symlinks at
 //! `<store_dir>/projects/<short-hash>` that point back to every project
-//! using the global virtual store. The prune sweep walks this directory
+//! installed from the store. The prune sweep walks this directory
 //! to learn which projects still reference the shared `<store_dir>/links`
-//! slots — without it, a `pacquet store prune` (tracked separately) could
+//! slots, without it, a `pacquet store prune` could
 //! not distinguish abandoned packages from packages a project still uses.
 //!
 //! [`register_project`] (the write half) lives here alongside
 //! [`get_registered_projects`] (the read half).
 
 use crate::StoreDir;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_crypto_hash::create_short_hash;
-use pnpm_fs::{lexical_normalize, read_symlink_dir, remove_symlink_dir, symlink_dir};
+use pnpm_fs::{
+    lexical_normalize,
+    read_symlink_dir,
+    remove_symlink_dir,
+    symlink_dir_with_contents,
+};
 use std::{
     fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Error type for [`register_project`].
@@ -65,81 +79,55 @@ pub enum RegisterProjectError {
     },
 }
 
-/// Register `project_dir` as a user of the global virtual store at
+/// Register `project_dir` as a user of the store at
 /// `store_dir` by writing a symlink at
 /// `<store_dir>/projects/<create_short_hash(project_dir)>` pointing
-/// back at `project_dir`.
+/// back at `project_dir`. The link holds `project_dir` as given, not a path
+/// relative to the link, because a relative path computed between two
+/// spellings that cross a symlink at different depths resolves elsewhere.
 ///
-/// Skips silently when `store_dir` lives inside `project_dir` — the
+/// Skips silently when `store_dir` lives inside `project_dir`, the
 /// "store inside the project" case (legacy `--store-dir node_modules/.pnpm`
 /// setups, or just a typo) would otherwise create a self-referential
 /// symlink. Uses the `is-subdir` semantics for the guard.
 ///
 /// Idempotent: if the symlink already exists pointing at the same
 /// project, the function is a no-op. If a previous entry under the
-/// same short hash points elsewhere (very unlikely — would require a
-/// sha256 collision in the first 32 hex chars), the stale entry is
+/// same short hash no longer resolves to `project_dir`, the entry is
 /// removed and re-created so a re-run heals the registry.
 pub fn register_project(
     store_dir: &StoreDir,
     project_dir: &Path,
 ) -> Result<(), RegisterProjectError> {
-    // The npm `is-subdir` check is `(parent, child)`. Skip when the
-    // store root lives at or under the project dir.
     if path_contains(project_dir, store_dir.root()) {
         return Ok(());
     }
 
+    register_loaded_project(store_dir, project_dir)
+}
+
+/// Register a loader's ownership even when its store is inside the project.
+/// Pruning reads the store manifest in the registered directory without
+/// recursively walking the registry link.
+pub fn register_loaded_project(
+    store_dir: &StoreDir,
+    project_dir: &Path,
+) -> Result<(), RegisterProjectError> {
     let registry_dir = store_dir.projects();
-    fs::create_dir_all(&registry_dir).map_err(|error| RegisterProjectError::CreateRegistryDir {
-        dir: registry_dir.clone(),
-        error,
-    })?;
+    fs::create_dir_all(&registry_dir)
+        .map_err(|error| RegisterProjectError::CreateRegistryDir {
+            dir: registry_dir.clone(),
+            error,
+        })?;
 
     let project_dir_str = project_dir.to_string_lossy();
     let link_path = registry_dir.join(create_short_hash(&project_dir_str));
 
-    // Fast path: link doesn't exist yet — just create it.
-    match symlink_dir(project_dir, &link_path) {
+    // Fast path: link doesn't exist yet, just create it.
+    match link_project(project_dir, &link_path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == ErrorKind::AlreadyExists => {
-            // Either the same project re-registering (no-op) or an
-            // unrelated path that hashed to the same slug (heal).
-            // Resolve and compare the existing link's target. The
-            // cross-platform helper handles Windows junctions —
-            // `fs::read_link` alone would fail with `EINVAL` for
-            // every entry pacquet writes there (see
-            // [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528)).
-            let existing_target = read_symlink_dir(&link_path).map_err(|error| {
-                RegisterProjectError::InspectExisting {
-                    project_dir: project_dir.to_path_buf(),
-                    link_path: link_path.clone(),
-                    error,
-                }
-            })?;
-            let canonical_existing = canonicalize_or_join(&link_path, &existing_target);
-            let canonical_project =
-                dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
-            if canonical_existing == canonical_project {
-                return Ok(());
-            }
-            // Mismatch — remove the stale entry and recreate. The
-            // entry is a directory symlink on Unix (file-shaped) and
-            // a junction on Windows (directory-shaped); the helper
-            // covers both.
-            remove_symlink_dir(&link_path).map_err(|error| RegisterProjectError::RemoveStale {
-                project_dir: project_dir.to_path_buf(),
-                link_path: link_path.clone(),
-                old_target: existing_target.clone(),
-                error,
-            })?;
-            symlink_dir(project_dir, &link_path).map_err(|error| {
-                RegisterProjectError::CreateSymlink {
-                    project_dir: project_dir.to_path_buf(),
-                    link_path,
-                    error,
-                }
-            })
+            repair_project_link(project_dir, link_path)
         }
         Err(error) => Err(RegisterProjectError::CreateSymlink {
             project_dir: project_dir.to_path_buf(),
@@ -147,6 +135,59 @@ pub fn register_project(
             error,
         }),
     }
+}
+
+fn link_project(project_dir: &Path, link_path: &Path) -> io::Result<()> {
+    let target = std::path::absolute(project_dir)?;
+    symlink_dir_with_contents(&target, &target, link_path)
+}
+
+fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), RegisterProjectError> {
+    // Either the same project re-registering (no-op), or an entry that no
+    // longer resolves to it (heal).
+    let existing_target = read_symlink_dir(&link_path)
+        .map_err(|error| RegisterProjectError::InspectExisting {
+            project_dir: project_dir.to_path_buf(),
+            link_path: link_path.clone(),
+            error,
+        })?;
+    if target_resolves_to(&link_path, &existing_target, project_dir) {
+        return Ok(());
+    }
+    // A concurrent registration of the same project may remove the entry
+    // first, or recreate it between the removal and the create below.
+    match remove_symlink_dir(&link_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(RegisterProjectError::RemoveStale {
+                project_dir: project_dir.to_path_buf(),
+                link_path,
+                old_target: existing_target,
+                error,
+            });
+        }
+    }
+    match link_project(project_dir, &link_path) {
+        Err(error)
+            if error.kind() == ErrorKind::AlreadyExists
+                && read_symlink_dir(&link_path)
+                    .is_ok_and(|target| target_resolves_to(&link_path, &target, project_dir)) =>
+        {
+            Ok(())
+        }
+        result => result.map_err(|error| RegisterProjectError::CreateSymlink {
+            project_dir: project_dir.to_path_buf(),
+            link_path,
+            error,
+        }),
+    }
+}
+
+fn target_resolves_to(link_path: &Path, target: &Path, project_dir: &Path) -> bool {
+    let canonical_project =
+        dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
+    canonicalize_or_join(link_path, target) == canonical_project
 }
 
 /// Error type for [`get_registered_projects`].
@@ -160,8 +201,7 @@ pub enum GetRegisteredProjectsError {
         error: io::Error,
     },
 
-    /// The `PROJECT_REGISTRY_ENTRY_INACCESSIBLE` error code. Fires
-    /// only when `read_link` failed with something *other* than
+    /// Fires only when `read_link` failed with something *other* than
     /// `ENOENT` / `EINVAL` (those two are silently skipped).
     #[display("Cannot read project registry entry {link_path:?}: {error}")]
     #[diagnostic(
@@ -174,12 +214,11 @@ pub enum GetRegisteredProjectsError {
         error: io::Error,
     },
 
-    /// The `PROJECT_INACCESSIBLE` error code. The registry entry
-    /// exists and points at a path that exists according to the
-    /// filesystem, but the stat returned a permission / I/O error.
-    /// Surfaces instead of silently dropping the entry — pruning on an
-    /// inaccessible project could remove slots the project still
-    /// references.
+    /// The registry entry exists and points at a path that exists
+    /// according to the filesystem, but the stat returned a permission
+    /// / I/O error. Surfaces instead of silently dropping the entry,
+    /// pruning on an inaccessible project could remove slots the
+    /// project still references.
     #[display("Cannot access registered project {project_dir:?} (via {link_path:?}): {error}")]
     #[diagnostic(
         code(ERR_PNPM_PROJECT_INACCESSIBLE),
@@ -204,24 +243,17 @@ pub enum GetRegisteredProjectsError {
 /// List every project that's still registered against `store_dir` and
 /// drop registry entries whose target directory no longer exists.
 ///
-/// Returns the surviving project root paths (absolute: an absolute
-/// target is used as-is, a relative one is resolved against the link's
-/// parent directory — pacquet's [`register_project`] always writes
-/// absolute targets via [`pnpm_fs::symlink_dir`], but the
-/// relative-target branch is preserved so a registry seeded by pnpm
-/// (which uses `symlink-dir`'s "make relative when possible" behaviour
-/// on some platforms) still resolves correctly).
+/// Returns the surviving project root paths. An absolute target is used
+/// as-is. A relative one, which older pnpm versions wrote, is resolved
+/// against the link's parent directory.
 ///
 /// Side effects: any registry entry whose target stat returns
 /// `NotFound` is unlinked here, so the projects directory self-heals
 /// on every prune. Other I/O errors surface as
-/// [`GetRegisteredProjectsError`] variants — a `PROJECT_INACCESSIBLE`
-/// would otherwise leave the prune unable to tell whether the
-/// project's slots are still referenced, so we refuse rather than
-/// silently dropping the entry.
+/// [`GetRegisteredProjectsError`] variants.
 ///
-/// `ENOENT` on the registry directory itself returns an empty `Vec`
-/// — a store that hasn't seen any GVS install yet has no projects
+/// `ENOENT` on the registry directory itself returns an empty `Vec`,
+/// a store that hasn't seen any GVS install yet has no projects
 /// dir, and that's not an error.
 pub fn get_registered_projects(
     store_dir: &StoreDir,
@@ -237,90 +269,96 @@ pub fn get_registered_projects(
 
     let mut projects = Vec::new();
     for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                return Err(GetRegisteredProjectsError::ReadRegistryDir {
-                    dir: registry_dir,
-                    error,
-                });
-            }
-        };
-        let name = entry.file_name();
-        let name_str = name.to_string_lossy();
-        // Skip dotfiles.
-        if name_str.starts_with('.') {
-            continue;
-        }
-        let link_path = entry.path();
-        // Only symlinks (junctions on Windows count via `is_symlink`).
-        // Surfacing `file_type()` errors instead of swallowing them:
-        // a permission failure here would otherwise silently drop a
-        // live registry entry, and a downstream prune could then
-        // remove slots that project still references. We err on the
-        // side of strictness.
-        let file_type = entry.file_type().map_err(|error| {
-            GetRegisteredProjectsError::EntryInaccessible { link_path: link_path.clone(), error }
+        let entry = entry.map_err(|error| GetRegisteredProjectsError::ReadRegistryDir {
+            dir: registry_dir.clone(),
+            error,
         })?;
-        if !file_type.is_symlink() {
+        let Some(target) = registered_project_target(&entry)? else {
             continue;
-        }
-
-        // Use the cross-platform symlink reader. On Windows
-        // pacquet's writer creates junctions; `fs::read_link` alone
-        // would EINVAL on every live entry (see
-        // [`rust-lang/rust#28528`](https://github.com/rust-lang/rust/issues/28528)),
-        // and the EINVAL silent-skip below would then drop every
-        // registered project on that platform.
-        let target = match read_symlink_dir(&link_path) {
-            Ok(target) => target,
-            // pnpm silently skips both ENOENT and EINVAL (the
-            // "file is not a symlink" errno on Linux). Now that the
-            // helper handles junctions, an EINVAL here means the
-            // entry is neither a symlink nor a junction (some other
-            // reparse-point shape, or a race) — still benign to
-            // skip. EINVAL doesn't have a portable `ErrorKind`
-            // variant in stable Rust, so we match raw `errno` via
-            // `raw_os_error` when present and fall through to the
-            // generic "inaccessible" error otherwise.
-            Err(error) if is_enoent_or_einval(&error) => continue,
-            Err(error) => {
-                return Err(GetRegisteredProjectsError::EntryInaccessible { link_path, error });
-            }
         };
-
-        let absolute_target = if target.is_absolute() {
-            target.clone()
-        } else {
-            link_path.parent().map_or_else(|| target.clone(), |p| p.join(&target))
-        };
-
-        match fs::metadata(&absolute_target) {
-            Ok(_) => projects.push(absolute_target),
-            Err(error) if error.kind() == ErrorKind::NotFound => {
-                // Use the cross-platform helper: the registry entry
-                // is a directory symlink on Unix and a junction on
-                // Windows, which need different syscalls to unlink.
-                remove_symlink_dir(&link_path).map_err(|error| {
-                    GetRegisteredProjectsError::UnlinkStale { link_path: link_path.clone(), error }
-                })?;
-            }
-            Err(error) => {
-                return Err(GetRegisteredProjectsError::ProjectInaccessible {
-                    project_dir: absolute_target,
-                    link_path,
-                    error,
-                });
-            }
+        if let Some(project_dir) = live_project_dir(&entry.path(), &target)? {
+            projects.push(project_dir);
         }
     }
 
     Ok(projects)
 }
 
+/// The link target of one registry entry, or `None` for an entry that is not
+/// a registration at all.
+fn registered_project_target(
+    entry: &fs::DirEntry,
+) -> Result<Option<PathBuf>, GetRegisteredProjectsError> {
+    // Skip dotfiles.
+    if entry
+        .file_name()
+        .to_string_lossy()
+        .starts_with('.')
+    {
+        return Ok(None);
+    }
+    let link_path = entry.path();
+    // Only symlinks (junctions on Windows count via `is_symlink`).
+    // Surfacing `file_type()` errors instead of swallowing them:
+    // a permission failure here would otherwise silently drop a
+    // live registry entry, and a downstream prune could then
+    // remove slots that project still references. We err on the
+    // side of strictness.
+    let file_type = entry
+        .file_type()
+        .map_err(|error| GetRegisteredProjectsError::EntryInaccessible {
+            link_path: link_path.clone(),
+            error,
+        })?;
+    if !file_type.is_symlink() {
+        return Ok(None);
+    }
+
+    match read_symlink_dir(&link_path) {
+        Ok(target) => Ok(Some(target)),
+        // pnpm silently skips both ENOENT and EINVAL (the
+        // "file is not a symlink" errno on Linux).
+        Err(error) if is_enoent_or_einval(&error) => Ok(None),
+        Err(error) => Err(GetRegisteredProjectsError::EntryInaccessible { link_path, error }),
+    }
+}
+
+/// The project directory a registration points at, or `None` when the
+/// project is gone, in which case the stale registration is unlinked.
+fn live_project_dir(
+    link_path: &Path,
+    target: &Path,
+) -> Result<Option<PathBuf>, GetRegisteredProjectsError> {
+    let absolute_target = if target.is_absolute() {
+        target.to_path_buf()
+    } else {
+        link_path
+            .parent()
+            .map(|parent| parent.join(target))
+            .unwrap_or_else(|| target.to_path_buf())
+    };
+
+    match fs::metadata(&absolute_target) {
+        Ok(_) => Ok(Some(absolute_target)),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            remove_symlink_dir(link_path)
+                .map_err(|error| GetRegisteredProjectsError::UnlinkStale {
+                    link_path: link_path.to_path_buf(),
+                    error,
+                })?;
+            Ok(None)
+        }
+        Err(error) => Err(GetRegisteredProjectsError::ProjectInaccessible {
+            project_dir: absolute_target,
+            link_path: link_path.to_path_buf(),
+            error,
+        }),
+    }
+}
+
 /// True for the "silently skip" errnos when reading a registry entry's
 /// symlink. `EINVAL` from `readlink` means "not a symbolic link" on
-/// Linux — the entry is benign garbage (e.g. a stray regular file) and
+/// Linux, the entry is benign garbage (e.g. a stray regular file) and
 /// gets ignored. `ErrorKind::InvalidInput`
 /// is the stable mapping for EINVAL on Unix; the raw errno fallback
 /// covers platforms where the std mapping hasn't been tightened.
@@ -343,15 +381,15 @@ fn is_enoent_or_einval(error: &io::Error) -> bool {
 
 /// Port of npm `is-subdir`: returns `true` when `inner` is `outer`
 /// itself or any descendant of it. Named `path_contains(outer, inner)`
-/// because the bare `isSubdir` name reads ambiguously at the call site
-/// — [`path_contains`] reads unambiguously as "does `outer` contain
+/// because the bare `isSubdir` name reads ambiguously at the call site,
+/// [`path_contains`] reads unambiguously as "does `outer` contain
 /// `inner`".
 ///
 /// Both paths are compared by their canonical (resolved) form so
 /// symlinks don't fool the check. When either path can't be
 /// canonicalized (typically the store dir hasn't been created yet),
 /// fall back to a *lexical* normalization that collapses `.` and `..`
-/// segments — the same purely-lexical check that
+/// segments, the same purely-lexical check that
 /// [`is-subdir`](https://github.com/zkochan/packages/blob/e65701a6ae/is-subdir/index.js)
 /// performs. A raw `starts_with` on the unnormalized path would treat
 /// `<workspace>/../pacquet-store` as inside `<workspace>` even though
@@ -370,7 +408,10 @@ fn canonicalize_or_join(link_path: &Path, target: &Path) -> PathBuf {
     let absolute = if target.is_absolute() {
         target.to_path_buf()
     } else {
-        link_path.parent().map_or_else(|| target.to_path_buf(), |p| p.join(target))
+        link_path
+            .parent()
+            .map(|p| p.join(target))
+            .unwrap_or_else(|| target.to_path_buf())
     };
     dunce::canonicalize(&absolute).unwrap_or(absolute)
 }

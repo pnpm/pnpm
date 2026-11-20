@@ -280,22 +280,22 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
       lockfileOnly: false,
     })
 
-    const installable = components.find((c) => c.name === 'installable')
+    const installable = components.find((component) => component.name === 'installable')
     expect(installable).toBeDefined()
     expect(installable?.license).toBe('MIT')
 
     // Optional packages for other platforms are not installed, so they have no
     // store metadata and are omitted from the SBOM — as is the edge pointing
     // at them, which would otherwise dangle.
-    expect(components.find((c) => c.name === 'never-installable')).toBeUndefined()
-    expect(relationships.some((r) => r.to === 'pkg:npm/never-installable@1.0.0')).toBe(false)
+    expect(components.find((component) => component.name === 'never-installable')).toBeUndefined()
+    expect(relationships.some((relationship) => relationship.to === 'pkg:npm/never-installable@1.0.0')).toBe(false)
 
     // Non-optional packages are not filtered by this optional-platform logic:
     // the component and its relationship stay in the SBOM.
-    const required = components.find((c) => c.name === 'never-installable-required')
+    const required = components.find((component) => component.name === 'never-installable-required')
     expect(required).toBeDefined()
     expect(
-      relationships.some((r) => r.to === 'pkg:npm/never-installable-required@1.0.0')
+      relationships.some((relationship) => relationship.to === 'pkg:npm/never-installable-required@1.0.0')
     ).toBe(true)
   })
 
@@ -311,9 +311,58 @@ describe('collectSbomComponents with platform-incompatible packages', () => {
       lockfileOnly: true,
     })
 
-    expect(components.find((c) => c.name === 'installable')).toBeDefined()
+    expect(components.find((component) => component.name === 'installable')).toBeDefined()
     // --lockfile-only describes the full lockfile graph, so an optional
     // package for another platform remains a component.
-    expect(components.find((c) => c.name === 'never-installable')).toBeDefined()
+    expect(components.find((component) => component.name === 'never-installable')).toBeDefined()
+  })
+})
+
+describe('collectSbomComponents with an optional peer satisfied by a devDependency', () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { abc: '1.0.0(peer-a@1.0.0)(peer-c@1.0.0)' },
+        devDependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+        specifiers: { abc: '1.0.0', 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+      },
+    },
+    packages: {
+      ['abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)' as DepPath]: {
+        resolution: { integrity: 'sha512-AAAA' },
+        peerDependencies: { 'peer-a': '^1.0.0', 'peer-c': '^1.0.0' },
+        peerDependenciesMeta: { 'peer-c': { optional: true } },
+        dependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+      },
+      ['peer-a@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-BBBB' } },
+      ['peer-c@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-CCCC' } },
+    },
+  }
+
+  const collect = async (include?: { dependencies: boolean, devDependencies: boolean, optionalDependencies: boolean }) => collectSbomComponents({
+    lockfile,
+    rootName: 'root',
+    rootVersion: '1.0.0',
+    include,
+    registriesByScope,
+    registriesByPrefix: normalizeRegistriesByPrefix(undefined),
+    lockfileDir: '/test',
+    lockfileOnly: true,
+  })
+
+  it('leaves the peer out of a production SBOM and keeps a required peer', async () => {
+    const { components, relationships } = await collect({ dependencies: true, devDependencies: false, optionalDependencies: true })
+
+    expect(components.map(({ name }) => name).sort()).toStrictEqual(['abc', 'peer-a'])
+    expect(relationships).not.toContainEqual(expect.objectContaining({ to: 'pkg:npm/peer-c@1.0.0' }))
+  })
+
+  it('keeps the peer when every dependency group is included', async () => {
+    const { components } = await collect()
+
+    expect(components.map(({ name }) => name).sort()).toStrictEqual(['abc', 'peer-a', 'peer-c'])
+    // A devDependency that only satisfies an optional peer is dev-only.
+    expect(components.find(({ name }) => name === 'peer-c')!.depType).toBe(0)
   })
 })

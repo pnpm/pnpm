@@ -1,13 +1,30 @@
 use crate::LockfileResolution;
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, ops::Deref};
+use pnpm_package_manifest::DependencyGroup;
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
+    ops::Deref,
+};
 
 /// Metadata for one resolved package version, as stored in the v9
 /// `packages:` map. This is the per-version data that does not vary by
-/// peer-dependency context — peer-specific information lives in
+/// peer-dependency context, peer-specific information lives in
 /// [`SnapshotEntry`](crate::SnapshotEntry) instead.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror package records in pnpm-lock.yaml."
+    )
+)]
 pub struct PackageMetadata {
     pub resolution: LockfileResolution,
 
@@ -48,6 +65,40 @@ pub struct PackageMetadata {
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specifiers: Option<DeclaredSpecifiers>,
+}
+
+/// The dependencies a directory package's manifest declares, after the
+/// manifest hooks and before peer shadowing and catalog resolution.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeclaredSpecifiers {
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub dependencies: Option<HashMap<String, String>>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::serialize_yaml::sorted_map_opt"
+    )]
+    pub optional_dependencies: Option<HashMap<String, String>>,
+    /// The declared dependencies `dependenciesMeta` marks `injected`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub injected: Option<BTreeSet<String>>,
+}
+
+impl DeclaredSpecifiers {
+    /// The declarations of `group`. A package records no dev or peer group.
+    #[must_use]
+    pub fn group(&self, group: DependencyGroup) -> Option<&HashMap<String, String>> {
+        match group {
+            DependencyGroup::Prod => self.dependencies.as_ref(),
+            DependencyGroup::Optional => self.optional_dependencies.as_ref(),
+            DependencyGroup::Dev | DependencyGroup::Peer => None,
+        }
+    }
 }
 
 /// What a package bundles inside its own tarball, as pnpm records it: the
@@ -55,7 +106,7 @@ pub struct PackageMetadata {
 /// `dependencies`. Both manifest spellings (`bundledDependencies` and
 /// `bundleDependencies`) land here under the `bundledDependencies` key.
 ///
-/// The presence of the field — whatever its shape — is what tells the
+/// The presence of the field (whatever its shape) is what tells the
 /// installer to link the bins the tarball ships in its own `node_modules`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -74,8 +125,9 @@ impl BundledDependencies {
     /// depend on the manifest source.
     #[must_use]
     pub fn from_manifest(manifest: Option<&serde_json::Value>) -> Option<Self> {
-        ["bundledDependencies", "bundleDependencies"].into_iter().find_map(|key| {
-            match manifest?.get(key)? {
+        ["bundledDependencies", "bundleDependencies"]
+            .into_iter()
+            .find_map(|key| match manifest?.get(key)? {
                 serde_json::Value::Array(items) if !items.is_empty() => {
                     Some(BundledDependencies::Names(
                         items
@@ -87,8 +139,7 @@ impl BundledDependencies {
                 }
                 serde_json::Value::Bool(true) => Some(BundledDependencies::Boolean(true)),
                 _ => None,
-            }
-        })
+            })
     }
 }
 

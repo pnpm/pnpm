@@ -1,3 +1,46 @@
+#![cfg_attr(target_os = "wasi", feature(wasi_ext))]
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
+pub use install_v2::{
+    parse_install_v2,
+    parse_release_record,
+};
+pub use package::{
+    DerivedPackuments,
+    Package,
+};
+pub use package_distribution::{
+    AttestationsDist,
+    InstallV2Entry,
+    PackageDistribution,
+    PnprDistribution,
+    ProvenanceMeta,
+};
+pub use package_tag::PackageTag;
+pub use package_version::{
+    Approver,
+    NpmUser,
+    PackageVersion,
+    TrustedPublisher,
+    VersionPolicyFields,
+    VersionTrustDist,
+    VersionTrustMetadata,
+};
+pub use package_versions::{
+    MirrorFile,
+    PackageVersions,
+    read_exact_at,
+};
+pub use range_spec_style::{
+    RangeSpecGranularity,
+    RangeSpecStyle,
+};
+
+mod install_v2;
 mod package;
 mod package_distribution;
 mod package_tag;
@@ -6,14 +49,11 @@ mod package_versions;
 mod range_spec_style;
 mod wire_tolerance;
 
-pub use package::{DerivedPackuments, Package};
-pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};
-pub use package_tag::PackageTag;
-pub use package_version::{Approver, NpmUser, PackageVersion, TrustedPublisher};
-pub use package_versions::{MirrorFile, PackageVersions, read_exact_at};
-pub use range_spec_style::{RangeSpecGranularity, RangeSpecStyle};
-
-use derive_more::{Display, Error, From};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 use miette::Diagnostic;
 
 #[derive(Debug, Display, Error)]

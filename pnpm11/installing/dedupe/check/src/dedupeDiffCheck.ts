@@ -60,11 +60,11 @@ export function dedupeDiffCheck (prev: LockfileObject, next: LockfileObject): vo
 }
 
 /**
- * Get all the keys of an object T where the value extends some type U.
+ * Get all the keys of an object type where the value extends some type.
  */
-type KeysOfValue<T, U> = KeyValueMatch<T, keyof T, U>
-type KeyValueMatch<T, K, U> = K extends keyof T
-  ? T[K] extends U ? K : never
+type KeysOfValue<Obj, Value> = KeyValueMatch<Obj, keyof Obj, Value>
+type KeyValueMatch<Obj, Key, Value> = Key extends keyof Obj
+  ? Obj[Key] extends Value ? Key : never
   : never
 
 /**

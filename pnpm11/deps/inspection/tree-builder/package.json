@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.tree-builder",
-  "version": "1101.0.2",
+  "version": "1101.1.5",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "keywords": [
     "pnpm",
@@ -29,8 +29,8 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -41,6 +41,7 @@
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/pkg-manifest.reader": "workspace:*",
@@ -48,6 +49,7 @@
     "@pnpm/store.index": "workspace:*",
     "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.state": "workspace:*",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
     "p-limit": "catalog:",

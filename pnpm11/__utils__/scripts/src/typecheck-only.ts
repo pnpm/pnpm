@@ -27,6 +27,11 @@ async function main (): Promise<void> {
   })
   assert.notEqual(tsconfigFiles.length, 0)
 
+  writeTypeCheckTsConfig(tsconfigFiles)
+  runTsc()
+}
+
+function writeTypeCheckTsConfig (tsconfigFiles: string[]): void {
   const typeCheckTSConfig = {
     extends: '@pnpm/tsconfig',
     compilerOptions: {
@@ -54,29 +59,21 @@ async function main (): Promise<void> {
     path.join(typeCheckDir, 'tsconfig.json'),
     JSON.stringify(typeCheckTSConfig, undefined, 2)
   )
+}
 
+function runTsc (): void {
   const singleThreaded = resolveThreadingMode(repoRoot)
   const args = ['--build']
   if (singleThreaded) {
     args.push('--singleThreaded')
   }
   args.push(typeCheckDir)
-  console.log(`Running tsgo --build${singleThreaded ? ' --singleThreaded' : ''}...`)
-  execa('tsgo', args, {
-    // The INIT_CWD variable is populated by package managers and points towards
-    // the user's original working directory. It's more useful to run TypeScript
-    // from the user's actual working directory so any type checking errors can
-    // reference files relative to the real CWD. This allows better integration
-    // with terminals. For example, most terminals support Ctrl+Click or
-    // Cmd+Click on file paths printed to directly open them.
-    //
-    // There's intentionally no fallback if INIT_CWD is undefined. In that case,
-    // this script isn't run through a package manager and we can allow the
-    // current working directory used to be the user's real one.
+  console.log(`Running tsc --build${singleThreaded ? ' --singleThreaded' : ''}...`)
+  execa('tsc', args, {
     cwd: process.env.INIT_CWD,
     stdio: 'inherit',
   })
-  console.log('Running tsgo build done')
+  console.log('Running tsc build done')
 }
 
 const AUTO_SINGLE_THREAD_MEMORY_THRESHOLD_GB = 8
@@ -122,9 +119,11 @@ function readThreadingMode (repoRoot: string): { mode: string, source: string } 
 
 main().catch((error: unknown) => {
   if (error && typeof error === 'object' && 'exitCode' in error && 'shortMessage' in error) {
+    // eslint-disable-next-line n/no-process-exit -- the script's exit code mirrors the failed child process
     process.exit(error.exitCode as number)
   } else {
     console.error(error)
+    // eslint-disable-next-line n/no-process-exit -- a top-level script failure ends the process
     process.exit(1)
   }
 })

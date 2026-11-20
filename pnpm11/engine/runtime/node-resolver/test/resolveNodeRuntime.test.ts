@@ -4,8 +4,9 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { PlatformAssetResolution } from '@pnpm/resolving.resolver-base'
 
-import { resolveNodeRuntime, resolveNodeVersion } from '../lib/index.js'
+import { DEFAULT_NODE_MIRROR_BASE_URL, resolveNodeRuntime, resolveNodeVersion, UNOFFICIAL_NODE_MIRROR_BASE_URL } from '../lib/index.js'
 
 const MIRROR = 'https://node.example/download/rc/'
 
@@ -50,19 +51,18 @@ test('resolveNodeRuntime() authenticates release index and SHASUMS requests with
     return fetch(url)
   }
   const cacheDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-node-resolver-auth-'))
+  const runResolve = async () => resolveNodeRuntime({
+    fetchFromRegistry: authenticatedFetch,
+    getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
+    nodeDownloadMirrors: { rc: MIRROR },
+    cacheDir,
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22',
+  })
   try {
-    for (let run = 0; run < 2; run++) {
-      // eslint-disable-next-line no-await-in-loop
-      await resolveNodeRuntime({
-        fetchFromRegistry: authenticatedFetch,
-        getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
-        nodeDownloadMirrors: { rc: MIRROR },
-        cacheDir,
-      }, {
-        alias: 'node',
-        bareSpecifier: 'runtime:rc/22',
-      })
-    }
+    await runResolve()
+    await runResolve()
 
     expect(requests).toEqual([
       { url: `${MIRROR}index.json`, authHeaderValue: 'Bearer mirror-token' },
@@ -185,7 +185,7 @@ test('resolveNodeRuntime() serves repeat asset reads from the cache', async () =
     })
 
     for (let run = 0; run < 2; run++) {
-      // eslint-disable-next-line no-await-in-loop
+      // eslint-disable-next-line no-await-in-loop -- the second run must see the cache written by the first
       const resolution = await resolveNodeRuntime({
         fetchFromRegistry: countedFetch,
         nodeDownloadMirrors: { rc: MIRROR },
@@ -214,3 +214,147 @@ function countingFetch (responses: Record<string, () => Response>): { fetch: Fet
   }) as unknown as FetchFromRegistry
   return { fetch: countedFetch, calls }
 }
+
+const OFFICIAL_INDEX_URL = `${DEFAULT_NODE_MIRROR_BASE_URL}index.json`
+const OFFICIAL_SHASUMS_URL = `${DEFAULT_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`
+const UNOFFICIAL_SHASUMS_URL = `${UNOFFICIAL_NODE_MIRROR_BASE_URL}v22.11.0/SHASUMS256.txt`
+
+test('resolveNodeRuntime() skips the musl assets of a release unofficial-builds never built', async () => {
+  const variants = await resolveMuslVariants(async () => new Response(null, { status: 404 }))
+
+  expect(variants.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined])
+})
+
+test('resolveNodeRuntime() reads the musl assets unofficial-builds publishes', async () => {
+  const variants = await resolveMuslVariants(async () => new Response(MUSL_SHASUMS))
+
+  expect(variants.map(({ targets }) => targets[0].libc)).toStrictEqual([undefined, 'musl'])
+})
+
+test.each([
+  403,
+  500,
+])('resolveNodeRuntime() fails when unofficial-builds answers %i', async (status) => {
+  await expect(resolveMuslVariants(async () => new Response(null, { status })))
+    .rejects.toThrow(`Failed to fetch integrity file: ${UNOFFICIAL_SHASUMS_URL} (status: ${status})`)
+})
+
+test('resolveNodeRuntime() fails when unofficial-builds cannot be reached', async () => {
+  await expect(resolveMuslVariants(() => Promise.reject(new Error('getaddrinfo ENOTFOUND unofficial-builds.nodejs.org'))))
+    .rejects.toThrow('getaddrinfo ENOTFOUND unofficial-builds.nodejs.org')
+})
+
+/**
+ * The musl request is only made when the picked mirror is the default one, and
+ * pointing the `rc` channel at it keeps that mirror's own SHASUMS file
+ * unsigned, so no release signature has to be minted for the official half.
+ */
+async function resolveMuslVariants (respondToMuslRequest: () => Promise<Response>): Promise<PlatformAssetResolution[]> {
+  const fetch: FetchFromRegistry = async (url) => {
+    switch (url) {
+      case OFFICIAL_INDEX_URL:
+        return new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }]))
+      case OFFICIAL_SHASUMS_URL:
+        return new Response(GLIBC_SHASUMS)
+      case UNOFFICIAL_SHASUMS_URL:
+        return respondToMuslRequest()
+      default:
+        throw new Error(`Unexpected URL: ${url}`)
+    }
+  }
+  const resolution = await resolveNodeRuntime({
+    fetchFromRegistry: fetch,
+    nodeDownloadMirrors: { rc: DEFAULT_NODE_MIRROR_BASE_URL },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22.11.0',
+  })
+  return resolution!.resolution.variants
+}
+
+const GLIBC_SHASUMS = 'ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n'
+const MUSL_SHASUMS = '696cb00a4b9d0e4dd2eb95e5fe32e8ff1ac2c3dfe54c7a2a5f03f7f9e6f0b1c2  node-v22.11.0-linux-x64-musl.tar.gz\n'
+
+test('resolveNodeRuntime() resolves native win-arm64 variant for Node 20+', async () => {
+  const fetch: FetchFromRegistry = async (url) => {
+    if (url === `${MIRROR}index.json`) {
+      return new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }]))
+    }
+    if (url === `${MIRROR}v22.11.0/SHASUMS256.txt`) {
+      return new Response(
+        'b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2  node-v22.11.0-win-x64.zip\n' +
+        'a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1  node-v22.11.0-win-arm64.zip\n'
+      )
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  const resolution = await resolveNodeRuntime({
+    fetchFromRegistry: fetch,
+    nodeDownloadMirrors: { rc: MIRROR },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22.11.0',
+  })
+
+  const variants = resolution!.resolution.variants
+  const winArm64 = variants.find(variant => variant.targets.some(target => target.os === 'win32' && target.cpu === 'arm64'))
+  expect(winArm64).toBeDefined()
+  expect(winArm64!.targets).toStrictEqual([{ os: 'win32', cpu: 'arm64' }])
+  expect(winArm64!.resolution).toMatchObject({
+    url: `${MIRROR}v22.11.0/node-v22.11.0-win-arm64.zip`,
+    archive: 'zip',
+    prefix: 'node-v22.11.0-win-arm64',
+  })
+})
+
+test('resolveNodeRuntime() includes win32-arm64 target on win-x64 variant for Node < 20', async () => {
+  const fetch: FetchFromRegistry = async (url) => {
+    if (url === `${MIRROR}index.json`) {
+      return new Response(JSON.stringify([{ version: 'v18.20.0', lts: false }]))
+    }
+    if (url === `${MIRROR}v18.20.0/SHASUMS256.txt`) {
+      return new Response('c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3  node-v18.20.0-win-x64.zip\n')
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  const resolution = await resolveNodeRuntime({
+    fetchFromRegistry: fetch,
+    nodeDownloadMirrors: { rc: MIRROR },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/18.20.0',
+  })
+
+  const variants = resolution!.resolution.variants
+  expect(variants).toHaveLength(1)
+  expect(variants[0].targets).toStrictEqual([
+    { os: 'win32', cpu: 'x64' },
+    { os: 'win32', cpu: 'arm64' },
+  ])
+  expect(variants[0].resolution).toMatchObject({
+    url: `${MIRROR}v18.20.0/node-v18.20.0-win-x64.zip`,
+    archive: 'zip',
+    prefix: 'node-v18.20.0-win-x64',
+  })
+})
+
+
+test('resolveNodeRuntime() picks again a locked runtime from another release channel', async () => {
+  const nightly = '26.0.0-nightly20260101abcdef'
+  const resolveLocked = (bareSpecifier: string) => resolveNodeRuntime({
+    fetchFromRegistry: fetch,
+    offline: true,
+  }, { alias: 'node', bareSpecifier }, {
+    currentPkg: {
+      id: `node@runtime:${nightly}`,
+      version: nightly,
+      resolution: { type: 'variations', variants: [] },
+    },
+  } as never)
+
+  await expect(resolveLocked('runtime:nightly/^26')).resolves.toMatchObject({ id: `node@runtime:${nightly}` })
+  await expect(resolveLocked('runtime:rc/^26')).rejects.toThrow(/Offline Node.js resolution is not supported/)
+  await expect(resolveLocked('runtime:^26')).rejects.toThrow(/Offline Node.js resolution is not supported/)
+})

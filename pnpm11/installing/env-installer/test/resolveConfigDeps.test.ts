@@ -2,13 +2,15 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
-import { readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
+import { createEnvLockfile, readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { readYamlFileSync } from 'read-yaml-file'
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+import { bravoDepMatureUpTo101MinimumReleaseAge } from './utils/minimumReleaseAge.js'
+
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 test('configuration dependency is resolved', async () => {
   prepareEmpty()
@@ -40,6 +42,7 @@ test('configuration dependency is resolved', async () => {
   expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0'),
+      tarball: `${registry}@pnpm.e2e/foo@100.0.0`,
     },
   })
   expect(envLockfile!.snapshots['@pnpm.e2e/foo@100.0.0']).toStrictEqual({})
@@ -82,6 +85,7 @@ test('one level of optionalDependencies is recorded in the env lockfile with pla
   expect(envLockfile!.packages['@pnpm.e2e/only-darwin-arm64@1.0.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/only-darwin-arm64', '1.0.0'),
+      tarball: `${registry}@pnpm.e2e/only-darwin-arm64@1.0.0`,
     },
     os: ['darwin'],
     cpu: ['arm64'],
@@ -91,6 +95,7 @@ test('one level of optionalDependencies is recorded in the env lockfile with pla
   expect(envLockfile!.packages['@pnpm.e2e/only-linux-x64-musl@1.0.0']).toStrictEqual({
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/only-linux-x64-musl', '1.0.0'),
+      tarball: `${registry}@pnpm.e2e/only-linux-x64-musl@1.0.0`,
     },
     os: ['linux'],
     cpu: ['x64'],
@@ -194,4 +199,63 @@ test('fails with frozenLockfile', async () => {
     storeDir,
     frozenLockfile: true,
   })).rejects.toThrow('Cannot resolve configDependencies with "frozen-lockfile"')
+})
+
+test('adding a configuration dependency verifies the config dependencies already in the lockfile', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+  const lockfile = createEnvLockfile()
+  lockfile.importers['.'].configDependencies['my-config'] = { specifier: '1.0.0', version: '1.0.0' }
+  lockfile.packages['my-config@1.0.0'] = {
+    resolution: { integrity: 'sha512-ZGVm', tarball: `https://codeload.github.com/evil/config/tar.gz/${'a'.repeat(40)}` },
+  }
+  lockfile.snapshots['my-config@1.0.0'] = {}
+  await writeEnvLockfile(process.cwd(), lockfile)
+
+  await expect(resolveConfigDeps(['@pnpm.e2e/foo@100.0.0'], {
+    configDependencies: { 'my-config': '1.0.0' },
+    registriesByScope: {
+      default: registry,
+    },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP' })
+  expect((await readEnvLockfile(process.cwd()))!.packages['@pnpm.e2e/foo@100.0.0']).toBeUndefined()
+})
+
+test('adding a configuration dependency range picks a version older than minimumReleaseAge', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  await resolveConfigDeps(['@pnpm.e2e/bravo-dep@^1.0.0'], {
+    registriesByScope: { default: registry },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+    minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge(),
+  })
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile!.importers['.'].configDependencies['@pnpm.e2e/bravo-dep']).toStrictEqual({
+    specifier: '^1.0.0',
+    version: '1.0.1',
+  })
+})
+
+test('adding a configuration dependency newer than minimumReleaseAge fails', async () => {
+  prepareEmpty()
+  const { storeController, storeDir } = createTempStore()
+
+  await expect(resolveConfigDeps(['@pnpm.e2e/bravo-dep@1.1.0'], {
+    registriesByScope: { default: registry },
+    rootDir: process.cwd(),
+    cacheDir: path.resolve('cache'),
+    store: storeController,
+    storeDir,
+    minimumReleaseAge: bravoDepMatureUpTo101MinimumReleaseAge(),
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_BAD_CONFIG_DEP', message: expect.stringContaining('minimumReleaseAge') })
+  expect(await readEnvLockfile(process.cwd())).toBeNull()
 })

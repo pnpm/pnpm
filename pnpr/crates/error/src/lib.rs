@@ -1,17 +1,59 @@
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
+pub use redact_url::{
+    redact_connection_url,
+    redact_url_credentials,
 };
-use derive_more::{Display, Error, From};
+
+mod redact_url;
+#[cfg(feature = "server")]
+mod response;
+#[cfg(feature = "server")]
+pub use response::{
+    PublicErrorCode,
+    PublicErrorMessage,
+    error_body,
+    json_error,
+};
+
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 
 #[derive(Debug, Display, Error, From)]
 #[non_exhaustive]
 pub enum RegistryError {
+    /// A password write committed, but credential cleanup or replica refresh failed.
+    #[display("Password change committed, but credential cleanup failed: {source}")]
+    #[from(skip)]
+    PasswordChangeCommitted {
+        #[error(not(source))]
+        user_id: String,
+        #[error(source)]
+        source: Box<RegistryError>,
+    },
+
     #[display("Upstream request to {url} failed: {source}")]
+    #[cfg(feature = "server")]
     Upstream {
         url: String,
         #[error(source)]
         source: reqwest::Error,
+    },
+
+    /// The upstream sent no response head within its `timeout`.
+    #[display("Upstream request to {url} timed out before the response arrived")]
+    #[from(skip)]
+    UpstreamTimeout {
+        #[error(not(source))]
+        url: String,
+    },
+
+    #[display("Upstream response body from {url} failed: {source}")]
+    UpstreamBody {
+        url: String,
+        #[error(source)]
+        source: std::io::Error,
     },
 
     #[display("Upstream returned status {status} for {url}")]
@@ -20,6 +62,14 @@ pub enum RegistryError {
         status: u16,
         #[error(not(source))]
         body: String,
+    },
+
+    #[display("Invalid response from upstream {url}: {reason}")]
+    #[from(skip)]
+    UpstreamResponse {
+        #[error(not(source))]
+        url: String,
+        reason: String,
     },
 
     /// The upstream's circuit breaker is open: it reached `max_fails`
@@ -32,6 +82,21 @@ pub enum RegistryError {
     UpstreamUnavailable {
         #[error(not(source))]
         upstream: String,
+        retry_after: std::time::Duration,
+    },
+
+    #[display("Storage is temporarily unavailable: {reason}")]
+    #[from(skip)]
+    StorageUnavailable {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    #[display("Stored archive {key:?} failed integrity verification")]
+    #[from(skip)]
+    CorruptArchive {
+        #[error(not(source))]
+        key: String,
     },
 
     #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
@@ -49,6 +114,16 @@ pub enum RegistryError {
         name: String,
     },
 
+    #[display("Package name {name:?} is not valid for {ecosystem}: {reason}")]
+    InvalidEcosystemPackageName {
+        #[error(not(source))]
+        name: String,
+        #[error(not(source))]
+        ecosystem: String,
+        #[error(not(source))]
+        reason: String,
+    },
+
     #[display("Tarball filename {filename:?} is not valid for package {package:?}")]
     InvalidTarballName {
         #[error(not(source))]
@@ -56,8 +131,7 @@ pub enum RegistryError {
         filename: String,
     },
 
-    /// The YAML config could not be parsed. Startup-only — this never
-    /// surfaces over HTTP, but `Config` parsing shares this error type.
+    /// The server configuration or database schema is incompatible.
     #[display("Invalid config: {reason}")]
     #[from(skip)]
     InvalidConfig {
@@ -86,17 +160,32 @@ pub enum RegistryError {
         resource: String,
     },
 
-    /// A team mutation (create/destroy/add/rm) hit the npm team API, but
-    /// pnpr teams are declared in the registry configuration and cannot be
-    /// changed over HTTP. Maps to 403.
-    #[display(
-        "Teams on this registry are declared in the pnpr configuration; to {action}, ask the \
-         registry operator to update the config"
-    )]
+    /// A conditional write whose `If-Match` names a version the resource no
+    /// longer has. Maps to 412.
+    #[display("{resource} changed since version {expected}; read it again and repeat the change")]
     #[from(skip)]
-    TeamsConfigManaged { action: &'static str },
+    PreconditionFailed {
+        #[error(not(source))]
+        resource: String,
+        expected: String,
+    },
 
-    /// Tarball payload from a publish couldn't be decoded — bad
+    /// This replica has no registry graph it may serve: the stored graph was
+    /// never loaded, or could not be read for longer than the stale limit.
+    /// Also a publish into a hosted namespace that the stored graph retired,
+    /// from a replica that has not loaded that graph yet. Maps to 503.
+    #[display("The registries are temporarily unavailable")]
+    #[from(skip)]
+    RegistriesUnavailable,
+
+    /// An admin edit that the current state refuses. Maps to 409.
+    #[from(skip)]
+    AdminConflict {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// Tarball payload from a publish couldn't be decoded, bad
     /// base64, length mismatch, or integrity mismatch.
     #[display("Invalid attachment {filename:?}: {reason}")]
     #[from(skip)]
@@ -106,7 +195,14 @@ pub enum RegistryError {
         reason: String,
     },
 
-    /// Generic client-side error during a write operation —
+    /// The addressed registry cannot accept the package. Maps to 403.
+    #[from(skip)]
+    PublishRejected {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// Generic client-side error during a write operation,
     /// missing/invalid JSON body field, etc. Maps to 400.
     #[display("Bad request: {reason}")]
     #[from(skip)]
@@ -140,7 +236,7 @@ pub enum RegistryError {
     /// artifact, for the same reason a `name@version` admits one tarball: a
     /// consumer that resolved it once must not be handed different bytes
     /// later. Replacing a claimed slot is an operator action against the
-    /// store, not something a publishing credential can do — a stolen one
+    /// store, not something a publishing credential can do, a stolen one
     /// would otherwise be able to swap an artifact for a dependency nobody
     /// has looked at in a year.
     #[display("Cannot publish over the artifact already published for this input key and platform")]
@@ -152,22 +248,55 @@ pub enum RegistryError {
         entry: String,
     },
 
-    #[display("Hosted packument for package {package:?} changed while writing")]
+    /// A publish depended on an incarnation of an archive's bytes that a
+    /// reclaim is removing or removed, or that another incarnation replaced,
+    /// so the bytes it stored or found may be gone. A retry stores them
+    /// afresh.
+    #[display(
+        "Archive {artifact:?} of {package} was reclaimed while the publish was in flight; publish again"
+    )]
     #[from(skip)]
-    PackumentWriteConflict {
+    ArchiveReclaimed {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        artifact: String,
+    },
+
+    #[display("Upload {id:?} changed; query its offset before retrying")]
+    #[from(skip)]
+    BlobUploadConflict {
+        #[error(not(source))]
+        id: String,
+    },
+
+    #[display("Hosted document for package {package:?} changed while writing")]
+    #[from(skip)]
+    DocumentWriteConflict {
         #[error(not(source))]
         package: String,
     },
 
-    #[display("Hosted revision digest already has the maximum of {limit} references")]
+    #[display(
+        "Hosted document {document} has format version {format_version}, but this server only supports up to version {supported_version}; refusing to rewrite"
+    )]
     #[from(skip)]
-    RevisionReferenceLimit { limit: usize },
-
-    #[display("Hosted revision reference index for digest {digest:?} changed while writing")]
-    #[from(skip)]
-    RevisionReferenceWriteConflict {
+    DocumentFormatTooNew {
         #[error(not(source))]
-        digest: String,
+        document: String,
+        format_version: u32,
+        supported_version: u32,
+    },
+
+    /// Another request is already approving this staged publish. A staged
+    /// record is approved exactly once: the approving request claims it with
+    /// a conditional write, and a second one is refused rather than
+    /// publishing the held document twice.
+    #[display("Staged publish {stage_id:?} is already being approved")]
+    #[from(skip)]
+    StagedApprovalInFlight {
+        #[error(not(source))]
+        stage_id: String,
     },
 
     #[display(
@@ -183,20 +312,98 @@ pub enum RegistryError {
         advisories: String,
     },
 
-    /// New-user registration is off: `auth.htpasswd.max_users` is
+    /// New-user registration is off: `auth.users.max_users` is
     /// unset (the secure default) or set to `-1`. Returned for adduser
     /// on a username that doesn't already exist; existing-user logins
     /// are unaffected.
     #[display(
-        "New user registration is disabled. Set auth.htpasswd.max_users to a positive number to allow sign-ups"
+        "New user registration is disabled. Set auth.users.max_users to a positive number to allow sign-ups"
     )]
     RegistrationDisabled,
 
-    /// `auth.htpasswd.max_users: N` cap reached. Returned for
+    /// `auth.users.max_users: N` cap reached. Returned for
     /// adduser on a username that doesn't already exist.
     #[display("Maximum number of users ({max}) reached")]
     #[from(skip)]
     TooManyUsers { max: u64 },
+
+    /// Caller is not a maintainer of the package.
+    #[display("You must be a package maintainer to {action} {package:?}")]
+    #[from(skip)]
+    NotPackageMaintainer {
+        #[error(not(source))]
+        action: &'static str,
+        #[error(not(source))]
+        package: String,
+    },
+
+    /// Package was unpublished and cannot be claimed by non-maintainers.
+    #[display(
+        "Package {package:?} was unpublished and can only be republished by former maintainers"
+    )]
+    #[from(skip)]
+    PackageTombstoned {
+        #[error(not(source))]
+        package: String,
+    },
+
+    /// A version that was previously unpublished cannot be republished.
+    #[display("Cannot republish previously unpublished version {version:?} of package {package:?}")]
+    #[from(skip)]
+    CannotRepublishUnpublishedVersion {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+    },
+
+    /// A publish submitted version metadata that disagrees with the
+    /// `package.json` inside its archive, under the manifest interpretation
+    /// profile `profile`. `fields` names the install-critical fields that
+    /// differ.
+    #[display(
+        "The metadata submitted for {package}@{version} does not match the package.json in its \
+         archive under {profile}: {fields}"
+    )]
+    #[from(skip)]
+    ManifestMismatch {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+        #[error(not(source))]
+        profile: &'static str,
+        #[error(not(source))]
+        fields: String,
+    },
+
+    /// Maintainers list cannot be emptied.
+    #[display("Package {package:?} must have at least one maintainer")]
+    #[from(skip)]
+    EmptyMaintainers {
+        #[error(not(source))]
+        package: String,
+    },
+
+    /// The client sent too many requests. Maps to 429 Too Many Requests.
+    #[display("Too many requests: {reason}")]
+    #[from(skip)]
+    TooManyRequests {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// Request processing timed out. Maps to 504 Gateway Timeout.
+    #[display("Request timed out: {reason}")]
+    #[from(skip)]
+    RequestTimeout {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// An error wrapped in an `Arc` so multiple concurrent waiters sharing a
+    /// singleflight upstream fetch can clone the failure.
+    Shared(std::sync::Arc<RegistryError>),
 
     #[display("Internal error: {reason}")]
     #[from(skip)]
@@ -205,34 +412,26 @@ pub enum RegistryError {
         reason: String,
     },
 
-    /// The htpasswd file on disk couldn't be parsed at startup.
-    /// Surfaced as a startup-time error rather than a silent empty
-    /// store so a corrupted file can't quietly lock every existing
-    /// user out.
-    #[display("Invalid htpasswd file {path}: {reason}")]
-    #[from(skip)]
-    InvalidHtpasswdFile {
-        #[error(not(source))]
-        path: String,
-        reason: String,
-    },
-
     /// Bcrypt hash/verify failure. Operational error, not user-facing.
     #[display("Bcrypt failure: {_0}")]
+    #[cfg(feature = "server")]
     Bcrypt(bcrypt::BcryptError),
 
-    /// SQLite-backed token store failure.
-    #[display("Token database error: {_0}")]
+    /// A failure of an `SQLite` database: the token store or the metadata.
+    #[display("SQLite database error: {_0}")]
+    #[cfg(feature = "server")]
     Sqlite(rusqlite::Error),
 
-    /// Networked-SQLite (libsql / Turso) auth backend failure.
+    /// A failure of a libSQL database (Turso): the auth backend or the
+    /// metadata.
     #[cfg(feature = "backend-libsql")]
-    #[display("Auth database error: {_0}")]
+    #[display("libSQL database error: {_0}")]
     Libsql(libsql::Error),
 
-    /// SQL auth backend failure.
+    /// A failure of a `PostgreSQL` or `MySQL` database: the auth backend or
+    /// the metadata.
     #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-    #[display("Auth database error: {_0}")]
+    #[display("SQL database error: {_0}")]
     Sqlx(sqlx::Error),
 
     /// SQL auth backend operation timed out.
@@ -247,6 +446,7 @@ pub enum RegistryError {
     /// A blocking task spawned for bcrypt or `SQLite` work panicked
     /// or was cancelled. Treat as an internal server error.
     #[display("Background task failed: {_0}")]
+    #[cfg(feature = "server")]
     JoinError(tokio::task::JoinError),
 
     #[display("I/O error: {_0}")]
@@ -255,392 +455,27 @@ pub enum RegistryError {
     /// Object-store (S3 / R2 / S3-compatible) backend failure on the
     /// hosted store.
     #[display("Object store error: {_0}")]
+    #[cfg(feature = "server")]
     ObjectStore(object_store::Error),
 
     #[display("JSON error: {_0}")]
+    #[cfg(feature = "server")]
     Json(serde_json::Error),
 }
 
 impl RegistryError {
-    /// Whether a failed upstream fetch is a transient *availability* failure —
-    /// a transport error, an open circuit breaker, or an upstream `5xx`. A `4xx`
-    /// is an authoritative response about *this* request — `401`/`403` (auth),
-    /// `429` (throttle), `400`/`410`, etc. — and is **not** transient: it must
-    /// surface immediately rather than be masked (e.g. by serving a stale cache
-    /// entry), which would let a revoked credential or a `410 Gone` keep being
-    /// answered from old bytes.
-    ///
-    /// A `404` never reaches here — it is modeled as a distinct not-found
-    /// outcome, not an error.
+    /// The account whose password committed despite this error.
     #[must_use]
-    pub fn is_transient_upstream_error(&self) -> bool {
+    pub fn committed_password_user(&self) -> Option<&str> {
         match self {
-            RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. } => true,
-            RegistryError::UpstreamStatus { status, .. } => *status >= 500,
-            _ => false,
+            Self::PasswordChangeCommitted { user_id, .. } => Some(user_id),
+            Self::Shared(inner) => inner.committed_password_user(),
+            _ => None,
         }
-    }
-
-    #[must_use]
-    pub fn log_kind(&self) -> &'static str {
-        match self {
-            RegistryError::Upstream { .. } => "upstream",
-            RegistryError::UpstreamStatus { .. } => "upstream_status",
-            RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
-            RegistryError::TarballIntegrity { .. } => "tarball_integrity",
-            RegistryError::InvalidPackageName { .. } => "invalid_package_name",
-            RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
-            RegistryError::InvalidConfig { .. } => "invalid_config",
-            RegistryError::NotFound => "not_found",
-            RegistryError::Unauthenticated { .. } => "unauthenticated",
-            RegistryError::Forbidden { .. } => "forbidden",
-            RegistryError::TeamsConfigManaged { .. } => "teams_config_managed",
-            RegistryError::InvalidAttachment { .. } => "invalid_attachment",
-            RegistryError::BadRequest { .. } => "bad_request",
-            RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
-            RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
-            RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
-            RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
-            RegistryError::RevisionReferenceWriteConflict { .. } => {
-                "revision_reference_write_conflict"
-            }
-            RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
-            RegistryError::RegistrationDisabled => "registration_disabled",
-            RegistryError::TooManyUsers { .. } => "too_many_users",
-            RegistryError::Internal { .. } => "internal",
-            RegistryError::InvalidHtpasswdFile { .. } => "invalid_htpasswd_file",
-            RegistryError::Bcrypt(_) => "bcrypt",
-            RegistryError::Sqlite(_) => "sqlite",
-            #[cfg(feature = "backend-libsql")]
-            RegistryError::Libsql(_) => "libsql",
-            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-            RegistryError::Sqlx(_) => "sqlx",
-            #[cfg(any(
-                feature = "backend-libsql",
-                feature = "backend-postgres",
-                feature = "backend-mysql"
-            ))]
-            RegistryError::AuthDatabaseTimeout => "auth_database_timeout",
-            RegistryError::JoinError(_) => "join_error",
-            RegistryError::Io(_) => "io",
-            RegistryError::ObjectStore(_) => "object_store",
-            RegistryError::Json(_) => "json",
-        }
-    }
-
-    #[must_use]
-    pub fn log_message(&self) -> String {
-        redact_url_credentials(&self.to_string())
-    }
-
-    #[must_use]
-    pub fn public_message(&self) -> String {
-        let status = self.status_code();
-        if status.is_server_error() {
-            return status.canonical_reason().unwrap_or("Internal Server Error").to_string();
-        }
-        self.to_string()
-    }
-
-    /// Map the error to the HTTP status the proxy should return to the
-    /// client. Follows the standard gateway semantics:
-    ///
-    /// * `502 Bad Gateway` — upstream returned something we can't make
-    ///   use of (5xx, malformed JSON, generic transport failure).
-    /// * `503 Service Unavailable` — couldn't reach upstream at all
-    ///   (DNS, connection refused, network unreachable). Distinct from
-    ///   502 so pnpm clients see "service down" rather than "upstream
-    ///   misbehaved" — both trigger the client's retry loop, but the
-    ///   distinction matters for monitoring and for any future circuit
-    ///   breaker.
-    /// * `504 Gateway Timeout` — upstream took too long to respond.
-    /// * `400 Bad Request` — client-supplied package or tarball name
-    ///   wasn't usable. Not retryable.
-    #[must_use]
-    pub fn status_code(&self) -> StatusCode {
-        match self {
-            RegistryError::Upstream { source, .. } => {
-                if source.is_timeout() {
-                    StatusCode::GATEWAY_TIMEOUT
-                } else if source.is_connect() {
-                    StatusCode::SERVICE_UNAVAILABLE
-                } else {
-                    StatusCode::BAD_GATEWAY
-                }
-            }
-            RegistryError::UpstreamStatus { .. } | RegistryError::TarballIntegrity { .. } => {
-                StatusCode::BAD_GATEWAY
-            }
-            RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
-            RegistryError::InvalidPackageName { .. }
-            | RegistryError::InvalidTarballName { .. }
-            | RegistryError::InvalidConfig { .. }
-            | RegistryError::InvalidAttachment { .. }
-            | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
-            RegistryError::VersionAlreadyPublished { .. }
-            | RegistryError::ArtifactAlreadyPublished { .. }
-            | RegistryError::PackumentWriteConflict { .. }
-            | RegistryError::RevisionReferenceLimit { .. }
-            | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
-            RegistryError::NotFound => StatusCode::NOT_FOUND,
-            RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
-            RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
-            RegistryError::TeamsConfigManaged { .. } => StatusCode::FORBIDDEN,
-            RegistryError::OsvVulnerability { .. } => StatusCode::FORBIDDEN,
-            RegistryError::RegistrationDisabled | RegistryError::TooManyUsers { .. } => {
-                StatusCode::FORBIDDEN
-            }
-            RegistryError::Internal { .. }
-            | RegistryError::InvalidHtpasswdFile { .. }
-            | RegistryError::Bcrypt(_)
-            | RegistryError::Sqlite(_)
-            | RegistryError::JoinError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(feature = "backend-libsql")]
-            RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-            RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(any(
-                feature = "backend-libsql",
-                feature = "backend-postgres",
-                feature = "backend-mysql"
-            ))]
-            RegistryError::AuthDatabaseTimeout => StatusCode::GATEWAY_TIMEOUT,
-            RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
-                StatusCode::BAD_GATEWAY
-            }
-        }
-    }
-}
-
-/// Rewrite every URL in `message` so its `user:pass@` userinfo and any
-/// sensitive query parameter render as `<redacted>`. Shared with the config
-/// layer, whose operator-supplied endpoints can carry either.
-#[must_use]
-pub fn redact_url_credentials(message: &str) -> String {
-    let mut redacted = String::with_capacity(message.len());
-    let mut cursor = 0;
-    while let Some(relative_scheme_end) = message[cursor..].find("://") {
-        let scheme_end = cursor + relative_scheme_end;
-        let scheme_start = find_scheme_start(message, scheme_end);
-        if scheme_start == scheme_end || !is_valid_scheme(&message[scheme_start..scheme_end]) {
-            redacted.push_str(&message[cursor..scheme_end + 3]);
-            cursor = scheme_end + 3;
-            continue;
-        }
-
-        let url_end = find_url_end(message, scheme_end + 3);
-        let (candidate, suffix) = split_trailing_punctuation(&message[scheme_start..url_end]);
-        let Some(safe_url) = redact_url_candidate(candidate) else {
-            redacted.push_str(&message[cursor..url_end]);
-            cursor = url_end;
-            continue;
-        };
-
-        redacted.push_str(&message[cursor..scheme_start]);
-        redacted.push_str(&safe_url);
-        redacted.push_str(suffix);
-        cursor = url_end;
-    }
-    redacted.push_str(&message[cursor..]);
-    redacted
-}
-
-fn find_scheme_start(message: &str, scheme_end: usize) -> usize {
-    let bytes = message.as_bytes();
-    let mut start = scheme_end;
-    while start > 0 {
-        let byte = bytes[start - 1];
-        if !byte.is_ascii_alphanumeric() && byte != b'+' && byte != b'.' && byte != b'-' {
-            break;
-        }
-        start -= 1;
-    }
-    start
-}
-
-fn is_valid_scheme(scheme: &str) -> bool {
-    let mut chars = scheme.bytes();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    first.is_ascii_alphabetic()
-        && chars.all(|byte| {
-            byte.is_ascii_alphanumeric() || byte == b'+' || byte == b'.' || byte == b'-'
-        })
-}
-
-fn find_url_end(message: &str, url_start: usize) -> usize {
-    message[url_start..]
-        .char_indices()
-        .find_map(|(offset, ch)| is_url_delimiter(ch).then_some(url_start + offset))
-        .unwrap_or(message.len())
-}
-
-fn is_url_delimiter(ch: char) -> bool {
-    ch.is_whitespace() || matches!(ch, '"' | '\'' | '`' | '<' | '>' | '(' | ')' | '{' | '}')
-}
-
-fn split_trailing_punctuation(candidate: &str) -> (&str, &str) {
-    let mut end = candidate.len();
-    while let Some(ch) = candidate[..end].chars().next_back() {
-        if !matches!(ch, '.' | ',' | ';' | '!') {
-            break;
-        }
-        end -= ch.len_utf8();
-    }
-    (&candidate[..end], &candidate[end..])
-}
-
-fn redact_url_candidate(candidate: &str) -> Option<String> {
-    redact_parseable_url_candidate(candidate).or_else(|| redact_unparsable_url_candidate(candidate))
-}
-
-fn redact_parseable_url_candidate(candidate: &str) -> Option<String> {
-    let mut url = url::Url::parse(candidate).ok()?;
-    let mut changed = false;
-    if !url.username().is_empty() || url.password().is_some() {
-        if url.set_username("redacted").is_ok() {
-            changed = true;
-        }
-        if url.set_password(None).is_ok() {
-            changed = true;
-        }
-    }
-
-    if url.query().is_some() {
-        let pairs = url
-            .query_pairs()
-            .map(|(key, value)| {
-                if is_sensitive_query_key(&key) {
-                    changed = true;
-                    (key.into_owned(), "redacted".to_string())
-                } else {
-                    (key.into_owned(), value.into_owned())
-                }
-            })
-            .collect::<Vec<_>>();
-        if changed {
-            url.query_pairs_mut()
-                .clear()
-                .extend_pairs(pairs.iter().map(|(key, value)| (&**key, &**value)));
-        }
-    }
-
-    if url.fragment().is_some() {
-        url.set_fragment(None);
-        changed = true;
-    }
-
-    changed.then(|| url.to_string())
-}
-
-fn redact_unparsable_url_candidate(candidate: &str) -> Option<String> {
-    let mut redacted = candidate.to_string();
-    let mut changed = false;
-    if let Some(safe_url) = redact_unparsable_url_userinfo(&redacted) {
-        redacted = safe_url;
-        changed = true;
-    }
-    if let Some(safe_url) = redact_sensitive_query_values(&redacted) {
-        redacted = safe_url;
-        changed = true;
-    }
-    if let Some(safe_url) = redact_fragment(&redacted) {
-        redacted = safe_url;
-        changed = true;
-    }
-    changed.then_some(redacted)
-}
-
-fn redact_unparsable_url_userinfo(candidate: &str) -> Option<String> {
-    let authority_start = candidate.find("://")? + 3;
-    let scan_end = candidate[authority_start..]
-        .find('?')
-        .map_or(candidate.len(), |offset| authority_start + offset);
-    let userinfo_end = candidate[authority_start..scan_end].rfind('@')? + authority_start;
-    let mut redacted = String::with_capacity(candidate.len());
-    redacted.push_str(&candidate[..authority_start]);
-    redacted.push_str("redacted@");
-    redacted.push_str(&candidate[userinfo_end + 1..]);
-    Some(redacted)
-}
-
-fn redact_sensitive_query_values(candidate: &str) -> Option<String> {
-    let query_start = candidate.find('?')?;
-    let fragment_start = candidate[query_start + 1..]
-        .find('#')
-        .map_or(candidate.len(), |offset| query_start + 1 + offset);
-    let query = &candidate[query_start + 1..fragment_start];
-    let mut redacted = String::with_capacity(candidate.len());
-    redacted.push_str(&candidate[..=query_start]);
-    let mut changed = false;
-    for segment in query.split_inclusive('&') {
-        let (pair, separator) = segment.strip_suffix('&').map_or((segment, ""), |pair| (pair, "&"));
-        if let Some(value_start) = pair.find('=') {
-            let key = &pair[..value_start];
-            if is_sensitive_query_key(key) {
-                redacted.push_str(key);
-                redacted.push_str("=redacted");
-                redacted.push_str(separator);
-                changed = true;
-                continue;
-            }
-        }
-        redacted.push_str(segment);
-    }
-    redacted.push_str(&candidate[fragment_start..]);
-    changed.then_some(redacted)
-}
-
-fn redact_fragment(candidate: &str) -> Option<String> {
-    let fragment_start = candidate.find('#')?;
-    Some(candidate[..fragment_start].to_string())
-}
-
-fn is_sensitive_query_key(key: &str) -> bool {
-    let normalized = key
-        .chars()
-        .filter(|ch| *ch != '-' && *ch != '_')
-        .map(|ch| ch.to_ascii_lowercase())
-        .collect::<String>();
-    matches!(
-        normalized.as_str(),
-        "auth"
-            | "authtoken"
-            | "password"
-            | "passwd"
-            | "pwd"
-            | "secret"
-            | "token"
-            | "accesstoken"
-            | "apikey",
-    )
-}
-
-/// Only server faults need [`Self::log_message`]'s redaction: every variant
-/// that can embed a request URL — and so a credential — is one. The 401 / 403 /
-/// 404 tier drops to `debug` so a probing or unauthorized client cannot flood
-/// the log with warnings.
-impl IntoResponse for RegistryError {
-    fn into_response(self) -> Response {
-        let status = self.status_code();
-        let error_kind = self.log_kind();
-        if status.is_server_error() {
-            let err = self.log_message();
-            tracing::error!(%err, %error_kind, %status, "request failed");
-        } else if matches!(
-            status,
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN | StatusCode::NOT_FOUND,
-        ) {
-            tracing::debug!(err = %self, %error_kind, %status, "request failed");
-        } else {
-            tracing::warn!(err = %self, %error_kind, %status, "request failed");
-        }
-        (status, self.public_message()).into_response()
     }
 }
 
 pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "server"))]
 mod tests;

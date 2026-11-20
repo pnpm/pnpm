@@ -1,14 +1,14 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/fs.graceful-fs'
-import type { FilesMap, PackageFileInfo, PackageFiles, RemoteSideEffectsQuarantine, SideEffects } from '@pnpm/store.cafs-types'
+import { isError, PnpmError } from '@pnpm/error'
+import gfs, { withFileLockRetry } from '@pnpm/fs.graceful-fs'
+import type { FilesMap, PackageFileInfo, PackageFiles, RemoteSideEffectsQuarantine, SideEffects, SideEffectsFilesMap } from '@pnpm/store.cafs-types'
 import type { BundledManifest } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
 import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
+import { createSideEffectsFilesMapBuilder } from './symlinks.js'
 
 const CHUNK_SIZE = 64 * 1024
 // Windows has neither flag; there the descriptor check below stands alone.
@@ -53,8 +53,10 @@ export function takeVerifiedFileIntegrity (): VerifiedFileIntegrity {
 export interface VerifyResult {
   passed: boolean
   filesMap: FilesMap
-  sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
+  sideEffectsMaps?: Map<string, SideEffectsFilesMap>
   sideEffectsDiffs?: SideEffects
+  /** See `PackageFilesResponse.emptySideEffects`. */
+  emptySideEffects?: string[]
   remoteSideEffectsQuarantine?: RemoteSideEffectsQuarantine
 }
 
@@ -75,38 +77,56 @@ export function checkPkgFilesIntegrity (
 ): VerifyResult {
   // It might make sense to use this cache for all files in the store
   // but there's a smaller chance that the same file will be checked twice
-  // so it's probably not worth the memory (this assumption should be verified)
+  // so it's likely not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
-  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
-  const verified = _checkFilesIntegrity(pkgIndex.files)
-  if (!verified.passed) return verified
+  const _checkFilesIntegrity: CheckFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
+  const filesMap: FilesMap = new Map()
+  if (!_checkFilesIntegrity(pkgIndex.files, (f, _fstat, filename) => filesMap.set(f, filename))) {
+    return { passed: false, filesMap }
+  }
 
-  const sideEffectsMaps = new Map<string, { added?: FilesMap, deleted?: string[] }>()
-  if (pkgIndex.sideEffects) {
-    // We verify all side effects cache. We could optimize it to verify only the side effects cache
-    // that satisfies the current os/arch/platform.
-    // However, it likely won't make a big difference.
-    for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
-      if (added) {
-        const result = _checkFilesIntegrity(added)
-        if (!result.passed) {
-          // Skip invalid side effects
-          continue
-        } else {
-          sideEffectsMaps.set(sideEffectName, { added: result.filesMap, deleted })
-        }
-      } else if (deleted) {
-        sideEffectsMaps.set(sideEffectName, { deleted })
-      }
+  // We verify all side effects cache. We could optimize it to verify only the side effects cache
+  // that satisfies the current os/arch/platform.
+  // However, it likely won't make a big difference.
+  const sideEffectsMaps = pkgIndex.sideEffects
+    ? verifySideEffectsMaps(pkgIndex.sideEffects, pkgIndex.files, _checkFilesIntegrity)
+    : new Map<string, SideEffectsFilesMap>()
+  return createPassedVerifyResult(pkgIndex, filesMap, sideEffectsMaps)
+}
+
+type CheckFilesIntegrity = (
+  files: PackageFiles,
+  record: (relativePath: string, fstat: PackageFileInfo, filename: string) => void
+) => boolean
+
+function verifySideEffectsMaps (
+  sideEffects: SideEffects,
+  pkgFiles: PackageFiles,
+  checkFiles: CheckFilesIntegrity
+): Map<string, SideEffectsFilesMap> {
+  const sideEffectsMaps = new Map<string, SideEffectsFilesMap>()
+  for (const [sideEffectName, diff] of sideEffects) {
+    if (diff.added) {
+      // Invalid side effects are skipped
+      const sideEffectsMap = verifyAddedSideEffects(diff.added, diff.deleted, { pkgFiles, checkFiles })
+      if (sideEffectsMap) sideEffectsMaps.set(sideEffectName, sideEffectsMap)
+    } else if (diff.deleted) {
+      sideEffectsMaps.set(sideEffectName, { deleted: diff.deleted })
     }
   }
+  return sideEffectsMaps
+}
 
-  return {
-    ...verified,
-    sideEffectsMaps: sideEffectsMaps.size > 0 ? sideEffectsMaps : undefined,
-    sideEffectsDiffs: sideEffectsMaps.size > 0 ? matchingSideEffects(pkgIndex.sideEffects, sideEffectsMaps) : undefined,
-    remoteSideEffectsQuarantine: pkgIndex.remoteSideEffectsQuarantine,
+function verifyAddedSideEffects (
+  added: PackageFiles,
+  deleted: string[] | undefined,
+  { pkgFiles, checkFiles }: { pkgFiles: PackageFiles, checkFiles: CheckFilesIntegrity }
+): SideEffectsFilesMap | undefined {
+  const builder = createSideEffectsFilesMapBuilder()
+  if (!checkFiles(added, (f, fstat, filename) => builder.add(f, fstat.mode, filename))) {
+    return undefined
   }
+  return builder.finish(deleted, pkgFiles.keys())
 }
 
 /**
@@ -119,40 +139,67 @@ export function buildFileMapsFromIndex (
 ): VerifyResult {
   const filesMap: FilesMap = new Map()
 
-  for (const [f, fstat] of pkgIndex.files) {
+  for (const [relativePath, fstat] of pkgIndex.files) {
     const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
-    filesMap.set(f, filename)
+    filesMap.set(relativePath, filename)
   }
 
-  const sideEffectsMaps = new Map<string, { added?: FilesMap, deleted?: string[] }>()
-  if (pkgIndex.sideEffects) {
-    for (const [sideEffectName, { added, deleted }] of pkgIndex.sideEffects) {
-      const sideEffectEntry: { added?: FilesMap, deleted?: string[] } = {}
+  const sideEffectsMaps = pkgIndex.sideEffects
+    ? buildSideEffectsMaps(storeDir, pkgIndex.sideEffects, pkgIndex.files)
+    : new Map<string, SideEffectsFilesMap>()
+  return createPassedVerifyResult(pkgIndex, filesMap, sideEffectsMaps)
+}
 
-      if (added) {
-        const addedFilesMap: FilesMap = new Map()
-        for (const [f, fstat] of added) {
-          const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
-          addedFilesMap.set(f, filename)
-        }
-        sideEffectEntry.added = addedFilesMap
-      }
-
-      if (deleted) {
-        sideEffectEntry.deleted = deleted
-      }
-
-      sideEffectsMaps.set(sideEffectName, sideEffectEntry)
+function buildSideEffectsMaps (
+  storeDir: string,
+  sideEffects: SideEffects,
+  pkgFiles: PackageFiles
+): Map<string, SideEffectsFilesMap> {
+  const sideEffectsMaps = new Map<string, SideEffectsFilesMap>()
+  for (const [sideEffectName, diff] of sideEffects) {
+    if (diff.added) {
+      const sideEffectsMap = buildAddedSideEffectsMap(storeDir, { added: diff.added, deleted: diff.deleted }, pkgFiles)
+      if (sideEffectsMap) sideEffectsMaps.set(sideEffectName, sideEffectsMap)
+    } else {
+      sideEffectsMaps.set(sideEffectName, diff.deleted ? { deleted: diff.deleted } : {})
     }
   }
+  return sideEffectsMaps
+}
 
+function buildAddedSideEffectsMap (
+  storeDir: string,
+  diff: { added: PackageFiles, deleted: string[] | undefined },
+  pkgFiles: PackageFiles
+): SideEffectsFilesMap | undefined {
+  const builder = createSideEffectsFilesMapBuilder()
+  for (const [relativePath, fstat] of diff.added) {
+    builder.add(relativePath, fstat.mode, getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode))
+  }
+  return builder.finish(diff.deleted, pkgFiles.keys())
+}
+
+function createPassedVerifyResult (
+  pkgIndex: PackageFilesIndex,
+  filesMap: FilesMap,
+  sideEffectsMaps: Map<string, SideEffectsFilesMap>
+): VerifyResult {
   return {
     passed: true,
     filesMap,
     sideEffectsMaps: sideEffectsMaps.size > 0 ? sideEffectsMaps : undefined,
     sideEffectsDiffs: sideEffectsMaps.size > 0 ? matchingSideEffects(pkgIndex.sideEffects, sideEffectsMaps) : undefined,
+    emptySideEffects: listEmptySideEffects(pkgIndex.sideEffects),
     remoteSideEffectsQuarantine: pkgIndex.remoteSideEffectsQuarantine,
   }
+}
+
+function listEmptySideEffects (sideEffects: SideEffects | undefined): string[] | undefined {
+  if (sideEffects == null) return undefined
+  const keys = Array.from(sideEffects)
+    .filter(([, diff]) => (diff.added == null || diff.added.size === 0) && (diff.deleted == null || diff.deleted.length === 0))
+    .map(([cacheKey]) => cacheKey)
+  return keys.length > 0 ? keys : undefined
 }
 
 function matchingSideEffects (
@@ -163,21 +210,27 @@ function matchingSideEffects (
   return new Map(Array.from(sideEffects).filter(([cacheKey]) => sideEffectsMaps.has(cacheKey)))
 }
 
+/**
+ * Verifies every entry of `files` against the store, handing each one's
+ * resolved store path to `record` on the way. Returns whether all passed;
+ * `record` has seen every entry either way. Throws `MISSING_CONTENT_DIGEST`
+ * for an entry without a digest.
+ */
 function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
   storeDir: string,
   algo: string,
-  files: PackageFiles
-): VerifyResult {
+  files: PackageFiles,
+  record: (relativePath: string, fstat: PackageFileInfo, filename: string) => void
+): boolean {
   let allVerified = true
-  const filesMap: FilesMap = new Map()
 
-  for (const [f, fstat] of files) {
+  for (const [relativePath, fstat] of files) {
     if (!fstat.digest) {
-      throw new PnpmError('MISSING_CONTENT_DIGEST', `Content digest is missing for ${f}`)
+      throw new PnpmError('MISSING_CONTENT_DIGEST', `Content digest is missing for ${relativePath}`)
     }
     const filename = getFilePathByModeInCafs(storeDir, fstat.digest, fstat.mode)
-    filesMap.set(f, filename)
+    record(relativePath, fstat, filename)
 
     if (verifiedFilesCache.has(filename)) continue
     const passed = verifyFile(filename, fstat, algo)
@@ -187,10 +240,7 @@ function checkFilesIntegrity (
       allVerified = false
     }
   }
-  return {
-    passed: allVerified,
-    filesMap,
-  }
+  return allVerified
 }
 
 type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt' | 'digest'>
@@ -204,12 +254,12 @@ function verifyFile (
   if (currentFile == null) return false
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
-      rimrafSync(filename)
+      scrubDirectoryAtCafsPath(filename)
       return false
     }
     const passed = tallyVerifyFileIntegrity(filename, { digest: fstat.digest, algorithm })
     if (!passed) {
-      gfs.unlinkSync(filename)
+      scrubDirectoryAtCafsPath(filename)
     }
     return passed
   }
@@ -220,10 +270,61 @@ function verifyFile (
 }
 
 /**
+ * Removes a directory squatting at a CAFS blob path, so the re-fetch's rename
+ * can land. Every other dirent stays: the re-fetch replaces a mismatched file
+ * atomically (writeBufferToCafs), and unlinking here would race installs in
+ * other processes importing from this very path (the pnpm/pnpm#14353 error
+ * class) — verification also reports a transient read failure the same way as
+ * a real mismatch.
+ *
+ * A check-then-delete on the live path could delete whatever a concurrent
+ * process put there in between, so the dirent is renamed aside first and only
+ * then inspected: a directory is removed at its scrub name, and anything
+ * else — including a blob a concurrent re-fetch landed after the failed
+ * verification — is renamed back where it was. Best-effort throughout; a
+ * crash between the two renames leaves an inert `*.pnpm-scrub-*` entry in the
+ * shard directory, which nothing ever resolves.
+ */
+let scrubCounter = 0
+function scrubDirectoryAtCafsPath (filename: string): void {
+  let stats
+  try {
+    stats = fs.lstatSync(filename)
+  } catch {
+    return
+  }
+  // Cheap gate only — the rename + inspect below re-decides
+  // authoritatively, so a dirent swapped after this stat is still handled
+  // correctly. Without the gate every mismatched *file* would pay the
+  // rename round-trip and briefly vanish from its path.
+  if (!stats.isDirectory()) return
+  const scrubName = `${filename}.pnpm-scrub-${process.pid}-${scrubCounter++}`
+  try {
+    fs.renameSync(filename, scrubName)
+  } catch {
+    // Nothing left at the path (a concurrent scrubber won), or the rename
+    // is not possible; either way the next install retries.
+    return
+  }
+  try {
+    if (fs.lstatSync(scrubName).isDirectory()) {
+      rimrafSync(scrubName)
+    } else {
+      // The dirent changed between the failed verification and the
+      // rename — a concurrent process replaced the squatter. Put the
+      // newcomer back where every reader expects it.
+      fs.renameSync(scrubName, filename)
+    }
+  } catch {
+    // Best-effort; the next install retries.
+  }
+}
+
+/**
  * `verifyFileIntegrity` with the work recorded in the tally the install
  * reports at the end. Only store verification goes through here; the
  * CAFS writer's own integrity check is not the store-wide problem the
- * report is about, and pacquet's writer doesn't hash at all.
+ * report is about.
  */
 function tallyVerifyFileIntegrity (
   filename: string,
@@ -273,8 +374,6 @@ export async function verifyFileIntegrityAsync (
   try {
     hasher = crypto.createHash(integrity.algorithm)
   } catch {
-    // An unusable algorithm, e.g. from a corrupted index file, is a
-    // verification failure rather than an error, as in `hashMatches`.
     return false
   }
   // The store addresses its own regular files. A symlink at the digest path
@@ -285,10 +384,6 @@ export async function verifyFileIntegrityAsync (
   try {
     handle = await fs.promises.open(filename, fs.constants.O_RDONLY | GUARDED_OPEN)
   } catch {
-    // Whatever turned the open away names something that cannot be reused, and
-    // the caller's fallback is a verified fetch that reports any real fault
-    // itself. A failure once the file is open is different: that one is left
-    // to throw, since the store handed over a file it then could not read.
     return false
   }
   try {
@@ -309,9 +404,12 @@ export async function verifyFileIntegrityAsync (
 /** The file's content, or `null` if it is no longer there. */
 function readFileForIntegrity (filename: string): Buffer | null {
   try {
-    return gfs.readFileSync(filename)
+    // A concurrent repair replacing this very path leaves it briefly
+    // delete-pending on Windows, where a read open answers EPERM; the
+    // lock-retry policy rides that out instead of crashing the worker.
+    return withFileLockRetry(() => gfs.readFileSync(filename))
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -335,13 +433,13 @@ function hashMatches (data: Buffer, integrity: Integrity): boolean | null {
 
 function checkFile (filename: string, checkedAt?: number): { isModified: boolean, size: number } | null {
   try {
-    const { mtimeMs, size } = fs.statSync(filename)
+    const { mtimeMs, size } = withFileLockRetry(() => fs.statSync(filename))
     return {
       isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
       size,
     }
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
 }

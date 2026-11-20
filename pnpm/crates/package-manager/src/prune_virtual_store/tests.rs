@@ -1,13 +1,19 @@
 use std::{
     collections::HashSet,
     fs,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 use pnpm_lockfile::PkgNameVerPeer;
 
 use super::{
-    prune_target_within_modules, prune_virtual_store, same_dir, should_prune_virtual_store,
+    prune_target_within_modules,
+    prune_virtual_store,
+    same_dir,
+    should_prune_virtual_store,
 };
 use crate::SkippedSnapshots;
 
@@ -100,12 +106,24 @@ fn sweep_keeps_needed_removes_surplus_and_skipped() {
     let removed = prune_virtual_store(vsdir, keys.iter(), &skipped, max);
 
     assert_eq!(removed, Some(2));
-    assert!(vsdir.join(keep.to_virtual_store_name(max)).exists());
-    assert!(vsdir.join(keep_peer.to_virtual_store_name(max)).exists());
+    assert!(
+        vsdir
+            .join(keep.to_virtual_store_name(max))
+            .exists(),
+    );
+    assert!(
+        vsdir
+            .join(keep_peer.to_virtual_store_name(max))
+            .exists(),
+    );
     assert!(vsdir.join("node_modules").exists());
     assert!(vsdir.join("lock.yaml").exists());
     assert!(!vsdir.join("surplus@9.9.9").exists());
-    assert!(!vsdir.join(skipped_key.to_virtual_store_name(max)).exists());
+    assert!(
+        !vsdir
+            .join(skipped_key.to_virtual_store_name(max))
+            .exists(),
+    );
 }
 
 #[test]
@@ -176,4 +194,28 @@ fn same_dir_matches_equivalent_paths() {
     fs::create_dir_all(&store).unwrap();
     assert!(same_dir(&store, &store.join(".")));
     assert!(!same_dir(&store, dir.path()));
+}
+
+#[test]
+fn sweep_preserves_an_in_progress_lockfile_write() {
+    use std::io::Write;
+
+    let store = tempfile::tempdir().unwrap();
+    for name in ["lock.yaml.123456789", ".lock.yaml.123.456.tmp"] {
+        fs::create_dir(store.path().join("surplus@1.0.0")).unwrap();
+        fs::write(store.path().join("stray-file"), "remove").unwrap();
+        let pending_path = store.path().join(name);
+        let mut pending = fs::File::create_new(&pending_path).unwrap();
+        pending.write_all(b"pending lockfile").unwrap();
+        pending.flush().unwrap();
+
+        let removed = prune_virtual_store(store.path(), [].iter(), &SkippedSnapshots::new(), 120);
+
+        assert_eq!(removed, Some(2));
+        drop(pending);
+        let destination = store.path().join("lock.yaml");
+        fs::rename(pending_path, &destination).unwrap();
+        assert_eq!(fs::read_to_string(destination).unwrap(), "pending lockfile");
+        assert!(!store.path().join("stray-file").exists());
+    }
 }

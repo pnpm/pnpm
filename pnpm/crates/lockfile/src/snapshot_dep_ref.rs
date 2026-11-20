@@ -1,14 +1,62 @@
-use crate::{ParsePkgNameSuffixError, ParsePkgVerPeerError, PkgName, PkgNameVerPeer, PkgVerPeer};
-use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, str::FromStr};
+use crate::{
+    ParsePkgNameSuffixError,
+    ParsePkgVerPeerError,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    borrow::Cow,
+    str::FromStr,
+};
+
+/// The start of a [`SnapshotDepRef::Link`] target that points inside the
+/// package declaring it, as in `link:<root>/typings/css-tree`. `<root>`
+/// stands for that package's own directory, which is only known where the
+/// package is placed on disk, so every linker resolves it there.
+pub const PACKAGE_ROOT_LINK_BASE: &str = "<root>/";
+
+/// The path inside the declaring package that a `link:` target written
+/// against [`PACKAGE_ROOT_LINK_BASE`] points to, or `None` for any other
+/// target.
+///
+/// The path comes from a lockfile or a published manifest, so it is
+/// accepted only when every `/`-separated segment is a plain name: no empty,
+/// `.` or `..` segment, and no `\` or `:`, which would let a platform path
+/// join re-anchor it outside the package.
+#[must_use]
+pub fn package_root_link_target(link_target: &str) -> Option<&str> {
+    let target = link_target.strip_prefix(PACKAGE_ROOT_LINK_BASE)?;
+    target
+        .split('/')
+        .all(|segment| !matches!(segment, "" | "." | "..") && !segment.contains(['\\', ':']))
+        .then_some(target)
+}
+
+/// Join a [`package_root_link_target`] path, written with `/`, onto the
+/// declaring package's directory one segment at a time, so the result uses
+/// the platform's separator.
+#[must_use]
+pub fn join_package_root_link(package_dir: &std::path::Path, target: &str) -> std::path::PathBuf {
+    target
+        .split('/')
+        .fold(package_dir.to_path_buf(), |dir, segment| dir.join(segment))
+}
 
 /// Value of a single entry in [`SnapshotEntry::dependencies`](crate::SnapshotEntry::dependencies)
 /// (or `optional_dependencies`).
 ///
 /// A snapshot dependency can be written in one of three forms:
 ///
-/// * A bare version with an optional peer-dependency suffix — the dependency
+/// * A bare version with an optional peer-dependency suffix, the dependency
 ///   resolves to `<alias-name>@<version>` in the `snapshots:` map.
 ///
 ///   ```yaml
@@ -17,7 +65,7 @@ use std::{borrow::Cow, str::FromStr};
 ///       string-width: 5.1.2
 ///   ```
 ///
-/// * An npm-alias of the form `<target-name>@<version>` — the dependency
+/// * An npm-alias of the form `<target-name>@<version>`, the dependency
 ///   resolves to `<target-name>@<version>` in the `snapshots:` map and the
 ///   entry key is only used as the directory name inside `node_modules`.
 ///
@@ -27,7 +75,7 @@ use std::{borrow::Cow, str::FromStr};
 ///       string-width-cjs: string-width@4.2.3
 ///   ```
 ///
-/// * A `link:<path>` value — the dependency is a workspace sibling at
+/// * A `link:<path>` value, the dependency is a workspace sibling at
 ///   `<path>` relative to the lockfile root. Pnpm writes this shape for
 ///   injected workspace packages whose own dependencies resolve to other
 ///   workspace projects (and for which `excludeLinksFromLockfile` is off);
@@ -39,6 +87,9 @@ use std::{borrow::Cow, str::FromStr};
 ///     dependencies:
 ///       c: link:packages/c
 ///   ```
+///
+///   A `link:<root>/<path>` value is the exception: `<path>` is a directory
+///   inside the declaring package itself, see [`PACKAGE_ROOT_LINK_BASE`].
 ///
 /// Detection rules: a reference starting with `link:` short-circuits to the
 /// link variant; a reference is an alias when a package name appears before
@@ -87,6 +138,13 @@ impl SnapshotDepRef {
             SnapshotDepRef::Link(target) => Some(target.as_str()),
         }
     }
+
+    /// The path inside the declaring package this reference points to, when
+    /// it is a `link:<root>/...` reference. See [`PACKAGE_ROOT_LINK_BASE`].
+    #[must_use]
+    pub fn package_root_link_target(&self) -> Option<&'_ str> {
+        self.as_link_target().and_then(package_root_link_target)
+    }
 }
 
 impl std::fmt::Display for SnapshotDepRef {
@@ -109,17 +167,19 @@ fn looks_like_alias(value: &str) -> bool {
     let Some(at_idx) = value.find('@') else {
         return false;
     };
-    let before_paren = value.find('(').is_none_or(|idx| at_idx < idx);
-    let before_colon = value.find(':').is_none_or(|idx| at_idx < idx);
+    let before_paren = value
+        .find('(')
+        .is_none_or(|idx| at_idx < idx);
+    let before_colon = value
+        .find(':')
+        .is_none_or(|idx| at_idx < idx);
     before_paren && before_colon
 }
 
 /// Error when parsing [`SnapshotDepRef`] from a string.
 #[derive(Debug, Display, Error)]
 pub enum ParseSnapshotDepRefError {
-    #[display("{_0}")]
     ParsePlain(#[error(source)] ParsePkgVerPeerError),
-    #[display("{_0}")]
     ParseAlias(#[error(source)] ParsePkgNameSuffixError<ParsePkgVerPeerError>),
 }
 

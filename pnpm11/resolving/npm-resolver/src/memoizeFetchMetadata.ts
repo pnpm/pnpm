@@ -28,15 +28,10 @@ export interface MemoizeFetchMetadataOptions {
  * `clear`, see `clearResolutionCache`), deduplicating concurrent and repeat
  * requests for the same package.
  *
- * Unlike plain memoization, the entry is swapped for a body-less clone once
- * the request settles. `jsonText` — the raw registry response body, up to tens
- * of MB for a popular package — reaches every caller sharing the in-flight
- * request, so a package resolved by many workspace projects at once mirrors
- * that one body to disk instead of each project separately re-serializing
- * `meta`. Retaining bodies past settlement would pin hundreds of MB on large
- * cold-cache graphs, so a later cache-hit caller that writes the mirror falls
- * back to `JSON.stringify(meta)` in `prepareJsonForDisk`, which is equivalent
- * on read: `loadMeta` re-derives `etag` from the headers line.
+ * Unlike plain memoization, the entry is swapped for a clone once the request
+ * settles. The encoded mirror is memoized on the original result (see
+ * `encodeMirror`), and holding that result for the whole phase would pin one
+ * encoded body, up to tens of MB, per package.
  *
  * Because that swap lands a turn after the request settles, both settlement
  * paths write back only while the entry is still their own promise — a `clear`
@@ -84,6 +79,6 @@ export function memoizeFetchMetadata (fetch: FetchMetadata, memoOpts?: MemoizeFe
         meta = condense(result.meta)
       } catch {}
     }
-    return { ...result, jsonText: undefined, meta }
+    return { ...result, meta }
   }
 }

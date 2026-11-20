@@ -11,7 +11,7 @@
 //! they don't surface in the lockfile.
 //!
 //! Pacquet's lockfile importer-version writer does not yet support
-//! `file:<workspace>` direct-dep entries — when an importer's
+//! `file:<workspace>` direct-dep entries, when an importer's
 //! `direct_dependencies_by_alias` still carries an injected workspace
 //! depPath after this pass, the lockfile writer panics in
 //! `importer_dep_version`. In practice this pass is what keeps the
@@ -22,13 +22,25 @@
 use rustc_hash::FxHashSet as HashSet;
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use pnpm_deps_path::{DepPath, get_pkg_id_with_patch_hash};
+use pnpm_deps_path::{
+    DepPath,
+    get_pkg_id_with_patch_hash,
+};
 
 use crate::{
-    dep_path_compatibility::is_compatible_and_has_more_deps, dependencies_graph::DependenciesGraph,
+    dep_path_compatibility::is_compatible_and_has_more_deps,
+    dependencies_graph::DependenciesGraph,
+    peer_dependents_dedupe::{
+        CollapseGuard,
+        OptionalPeerScope,
+        UnboundOptionalPeers,
+    },
 };
 
 /// Per-importer direct deps map keyed by lockfile importer id (`"."`
@@ -41,23 +53,32 @@ pub type DirectByImporter = BTreeMap<String, BTreeMap<String, DepPath>>;
 ///
 /// `importer_root_dirs` maps each importer id (`"."` for the root,
 /// POSIX-relative for siblings) to its absolute project dir; the
-/// caller already has this from the resolve loop.
-pub fn dedupe_injected_deps(
+/// caller already has this from the resolve loop. A child listed in
+/// `unbound_optional_peers` is not provided by a target child that
+/// resolves a listed peer.
+pub(crate) fn dedupe_injected_deps(
     graph: &mut DependenciesGraph,
     direct_by_importer: &mut DirectByImporter,
     importer_root_dirs: &BTreeMap<String, PathBuf>,
-    lockfile_dir: &Path,
+    unbound_optional_peers: &UnboundOptionalPeers,
 ) {
-    let workspace_project_ids: HashSet<String> = importer_root_dirs.keys().cloned().collect();
-    let dedupe_map = build_dedupe_map(graph, direct_by_importer, &workspace_project_ids);
+    let workspace_project_ids: HashSet<String> = importer_root_dirs
+        .keys()
+        .cloned()
+        .collect();
+    let guard = CollapseGuard {
+        optional_peers: OptionalPeerScope::Workspace,
+        unbound_optional_peers: Some(unbound_optional_peers),
+    };
+    let dedupe_map = build_dedupe_map(graph, direct_by_importer, &workspace_project_ids, guard);
     if dedupe_map.is_empty() {
         return;
     }
-    apply_dedupe_map(&dedupe_map, direct_by_importer, importer_root_dirs, lockfile_dir);
+    apply_dedupe_map(&dedupe_map, direct_by_importer, importer_root_dirs);
     prune_unreachable(graph, direct_by_importer);
 }
 
-/// `importer_id → alias → target_project_id` — the per-importer set of
+/// `importer_id → alias → target_project_id`: the per-importer set of
 /// aliases that get rewritten, with the workspace project they redirect
 /// to.
 type DedupeMap = BTreeMap<String, BTreeMap<String, String>>;
@@ -66,6 +87,7 @@ fn build_dedupe_map(
     graph: &DependenciesGraph,
     direct_by_importer: &DirectByImporter,
     workspace_project_ids: &HashSet<String>,
+    guard: CollapseGuard<'_>,
 ) -> DedupeMap {
     let mut dedupe_map: DedupeMap = BTreeMap::new();
     for (importer_id, direct) in direct_by_importer {
@@ -77,9 +99,11 @@ fn build_dedupe_map(
                 continue;
             };
             let target_direct = direct_by_importer.get(&target_project_id);
-            let children_match = node.children.iter().all(|(child_alias, child_dep_path)| {
-                child_matches_target(graph, target_direct, child_alias, child_dep_path)
-            });
+            let children_match = node.edges.children
+                .iter()
+                .all(|(child_alias, child_dep_path)| {
+                    child_matches_target(graph, target_direct, (child_alias, child_dep_path), guard)
+                });
             if !children_match {
                 continue;
             }
@@ -103,8 +127,8 @@ fn build_dedupe_map(
 fn child_matches_target(
     graph: &DependenciesGraph,
     target_direct: Option<&BTreeMap<String, DepPath>>,
-    child_alias: &str,
-    child_dep_path: &DepPath,
+    (child_alias, child_dep_path): (&str, &DepPath),
+    guard: CollapseGuard<'_>,
 ) -> bool {
     let Some(target_dep_path) = target_direct.and_then(|map| map.get(child_alias)) else {
         return false;
@@ -120,7 +144,9 @@ fn child_matches_target(
     {
         return false;
     }
-    is_compatible_and_has_more_deps(graph, target_dep_path, child_dep_path)
+    // The child collapses into the target project's own dependency, so it
+    // gains only peers that project already resolves.
+    is_compatible_and_has_more_deps(graph, target_dep_path, child_dep_path, guard)
 }
 
 /// Return the workspace project id (lockfile importer key) this node
@@ -130,7 +156,7 @@ fn child_matches_target(
 /// The resolver's `pkg.id` for a `file:<path>` workspace pick is
 /// emitted as `<name>@file:<path>` once the manifest name is in scope
 /// (see `build_pkg_id_with_patch_hash`) and as the bare `file:<path>`
-/// before that — accept both shapes. Splitting on the whole `@file:`
+/// before that, accept both shapes. Splitting on the whole `@file:`
 /// separator rather than on `@` alone keeps scoped names
 /// (`@scope/name@file:<path>`) matching, whose leading `@` would
 /// otherwise be taken for the separator.
@@ -139,8 +165,9 @@ fn injected_workspace_target(
     workspace_project_ids: &HashSet<String>,
 ) -> Option<String> {
     let raw = node.resolved_package_id.as_str();
-    let path =
-        raw.strip_prefix("file:").or_else(|| raw.split_once("@file:").map(|(_, path)| path))?;
+    let path = raw
+        .strip_prefix("file:")
+        .or_else(|| raw.split_once("@file:").map(|(_, path)| path))?;
     workspace_project_ids.contains(path).then(|| path.to_string())
 }
 
@@ -148,14 +175,13 @@ fn apply_dedupe_map(
     dedupe_map: &DedupeMap,
     direct_by_importer: &mut DirectByImporter,
     importer_root_dirs: &BTreeMap<String, PathBuf>,
-    lockfile_dir: &Path,
 ) {
     for (importer_id, aliases) in dedupe_map {
         let Some(source_root) = importer_root_dirs.get(importer_id) else { continue };
         let Some(direct) = direct_by_importer.get_mut(importer_id) else { continue };
         for (alias, target_project_id) in aliases {
             let Some(target_root) = importer_root_dirs.get(target_project_id) else { continue };
-            let link_dep_path = make_link_dep_path(source_root, target_root, lockfile_dir);
+            let link_dep_path = make_link_dep_path(source_root, target_root);
             direct.insert(alias.clone(), link_dep_path);
         }
     }
@@ -168,30 +194,18 @@ fn apply_dedupe_map(
 /// pacquet stores as absolute project dirs; resolving the relative
 /// path through the filesystem layer keeps Windows path separators
 /// correct.
-fn make_link_dep_path(source_root: &Path, target_root: &Path, lockfile_dir: &Path) -> DepPath {
+fn make_link_dep_path(source_root: &Path, target_root: &Path) -> DepPath {
     let rel =
         pathdiff::diff_paths(target_root, source_root).unwrap_or_else(|| target_root.to_path_buf());
     let rendered = rel.to_string_lossy().replace('\\', "/");
-    let rel_posix = if rendered.is_empty() || rendered == "." {
-        // Source and target match: emit a path relative to the lockfile
-        // dir so the resulting symlink still resolves to a real
-        // directory. In practice this branch is unreachable —
-        // `injected_workspace_target` only matches when the importer's
-        // direct dep points at a different workspace project — but the
-        // fallback keeps the helper total.
-        let fallback = pathdiff::diff_paths(target_root, lockfile_dir)
-            .unwrap_or_else(|| target_root.to_path_buf());
-        fallback.to_string_lossy().replace('\\', "/")
-    } else {
-        rendered
-    };
+    let rel_posix = if rendered.is_empty() { "." } else { &rendered };
     DepPath::from(format!("link:{rel_posix}"))
 }
 
 /// Remove graph nodes no importer reaches after a dedupe pass.
-/// A snapshot that loses all references — an injected `file:` rewritten
+/// A snapshot that loses all references, an injected `file:` rewritten
 /// to `link:`, or a peer-variant collapsed by
-/// [`fn@crate::dedupe_peer_dependents::dedupe_peer_dependents`] — would
+/// [`fn@crate::dedupe_peer_dependents::dedupe_peer_dependents`], would
 /// otherwise remain in the graph and surface in `pnpm-lock.yaml` as an
 /// orphan, since pacquet has no unified post-resolve lockfile pruner.
 pub(crate) fn prune_unreachable(
@@ -199,14 +213,17 @@ pub(crate) fn prune_unreachable(
     direct_by_importer: &DirectByImporter,
 ) {
     let mut reachable: HashSet<DepPath> = HashSet::default();
-    let mut stack: Vec<DepPath> =
-        direct_by_importer.values().flat_map(|direct| direct.values().cloned()).collect();
+    let mut stack: Vec<DepPath> = direct_by_importer
+        .values()
+        .map(BTreeMap::values)
+        .flat_map(std::iter::Iterator::cloned)
+        .collect();
     while let Some(dep_path) = stack.pop() {
         if !reachable.insert(dep_path.clone()) {
             continue;
         }
         let Some(node) = graph.get(&dep_path) else { continue };
-        for child in node.children.values() {
+        for child in node.edges.children.values() {
             if !reachable.contains(child) {
                 stack.push(child.clone());
             }

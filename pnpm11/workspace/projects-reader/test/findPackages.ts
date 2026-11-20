@@ -1,13 +1,15 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { findPackages } from '@pnpm/workspace.projects-reader'
+import { findPackages, findPackagesSync } from '@pnpm/workspace.projects-reader'
+import { temporaryDirectory } from 'tempy'
 
-function compare (a: string | undefined, b: string | undefined) {
-  if (a == null) return 1
-  if (b == null) return -1
-  return a.localeCompare(b)
+function compare (left: string | undefined, right: string | undefined) {
+  if (left == null) return 1
+  if (right == null) return -1
+  return left.localeCompare(right)
 }
 
 const fixtures = path.join(import.meta.dirname, 'findPackages-fixtures')
@@ -86,4 +88,78 @@ test('json and yaml manifests are also found', async () => {
   expect(pkgs[1].manifest.name).toBe('component-2')
   expect(pkgs[2].rootDir).toBeDefined()
   expect(pkgs[2].manifest.name).toBe('foo')
+})
+
+test('finds symlinked packages', async () => {
+  const tempDir = temporaryDirectory()
+  const targetDir = path.join(tempDir, 'target-pkg')
+  await fs.promises.mkdir(targetDir)
+  await fs.promises.writeFile(path.join(targetDir, 'package.json'), JSON.stringify({ name: 'target-pkg', version: '1.0.0' }))
+
+  const ws = path.join(tempDir, 'ws')
+  await fs.promises.mkdir(path.join(ws, 'packages'), { recursive: true })
+  await fs.promises.writeFile(path.join(ws, 'package.json'), JSON.stringify({ name: 'ws-root' }))
+  await fs.promises.symlink(targetDir, path.join(ws, 'packages', 'linked-pkg'), process.platform === 'win32' ? 'junction' : 'dir')
+
+  const pkgs = await findPackages(ws, { patterns: ['packages/*'] })
+  expect(pkgs).toHaveLength(1)
+  expect(pkgs[0].manifest.name).toBe('target-pkg')
+  expect(pkgs[0].rootDir).toBe(path.join(ws, 'packages', 'linked-pkg'))
+  expect(pkgs[0].rootDirRealPath).toBe(await fs.promises.realpath(targetDir))
+
+  const syncPkgs = findPackagesSync(ws, { patterns: ['packages/*'] })
+  expect(syncPkgs).toHaveLength(1)
+  expect(syncPkgs[0].manifest.name).toBe('target-pkg')
+  expect(syncPkgs[0].rootDir).toBe(path.join(ws, 'packages', 'linked-pkg'))
+  expect(syncPkgs[0].rootDirRealPath).toBe(fs.realpathSync(targetDir))
+})
+
+test('wildcards in exclusion patterns match dot directories', async () => {
+  const ws = temporaryDirectory()
+  for (const [dir, name] of [['packages/.dev/tool', 'dev-tool'], ['packages/.dev/other', 'dev-other']]) {
+    fs.mkdirSync(path.join(ws, dir), { recursive: true })
+    fs.writeFileSync(path.join(ws, dir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+  }
+  const patterns = ['packages/.dev/*', '!packages/*/tool']
+
+  expect((await findPackages(ws, { patterns })).map(({ manifest }) => manifest.name)).toStrictEqual(['dev-other'])
+  expect(findPackagesSync(ws, { patterns }).map(({ manifest }) => manifest.name)).toStrictEqual(['dev-other'])
+})
+
+test.each([false, true])('subtree exclusions preserve discovery semantics (sync: %s)', async (sync) => {
+  const root = temporaryDirectory()
+  const workspace = path.join(root, 'workspace')
+  for (const [dir, name] of [
+    ['workspace', 'root'],
+    ['workspace/generated', 'generated'],
+    ['workspace/generated/child', 'child'],
+    ['workspace/packages/.hidden/tool', 'hidden'],
+    ['workspace/packages/keep', 'keep'],
+    ['generated/child', 'outside'],
+    ['shared/drop/child', 'drop'],
+    ['shared/keep', 'shared'],
+  ]) {
+    fs.mkdirSync(path.join(root, dir), { recursive: true })
+    fs.writeFileSync(path.join(root, dir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+  }
+  const find = async (patterns: string[]) => (sync
+    ? findPackagesSync(workspace, { patterns, includeRoot: true, ignore: [] })
+    : await findPackages(workspace, { patterns, includeRoot: true, ignore: [] }))
+    .map(({ manifest }) => manifest.name).sort()
+  expect(await find(['**', 'packages/.hidden/**', '!generated'])).toEqual(['child', 'hidden', 'keep', 'root'])
+  expect(await find(['**', 'packages/.hidden/**', '!generated/**', '!packages/.hidden/**'])).toEqual(['keep', 'root'])
+  expect(await find(['**', '../**', '!generated/**', '!../shared/drop/**'])).toEqual(['keep', 'outside', 'root', 'shared'])
+  expect(await find(['**', '../**', '!../**'])).toEqual(['child', 'generated', 'keep', 'root'])
+  expect(await find(['**', '!**'])).toEqual(['root'])
+})
+
+test.each(['generated', 'linked'])('excluding %s preserves other paths to its symlink target', async (excluded) => {
+  const root = temporaryDirectory()
+  const generated = path.join(root, 'generated')
+  fs.mkdirSync(path.join(generated, 'child'), { recursive: true })
+  fs.writeFileSync(path.join(generated, 'child/package.json'), JSON.stringify({ name: 'child' }))
+  fs.symlinkSync(generated, path.join(root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+  const options = { patterns: ['**', '!' + excluded + '/**'] }
+  expect((await findPackages(root, options)).map(({ rootDir }) => path.relative(root, rootDir))).toEqual([path.join(excluded === 'generated' ? 'linked' : 'generated', 'child')])
+  expect(findPackagesSync(root, options).map(({ rootDir }) => path.relative(root, rootDir))).toEqual([path.join(excluded === 'generated' ? 'linked' : 'generated', 'child')])
 })

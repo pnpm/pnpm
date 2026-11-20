@@ -12,7 +12,7 @@ const DEFAULT_OPTS = {
   bail: false,
 }
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
@@ -100,6 +100,21 @@ test('unpublish: should refuse to unpublish entire package without --force', asy
   }).rejects.toThrow('pnpm unpublish --force')
 })
 
+test('unpublish: should name the range when it matches every version', async () => {
+  const pkgName = 'test-unpublish-only-version'
+  await publishVersion(pkgName, '0.0.1')
+
+  const promise = unpublish.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: {},
+    configByUri: CONFIG_BY_URI,
+  }, [`${pkgName}@0.0.1`])
+  await expect(promise).rejects.toThrow(`${pkgName}@0.0.1 matches every published version (0.0.1).
+Run pnpm unpublish "${pkgName}@0.0.1" --force to remove the whole package from the registry.`)
+
+  expect(await getVersions(pkgName)).toEqual(['0.0.1'])
+})
+
 test('unpublish: should throw error when package not found', async () => {
   await expect(async () => {
     await unpublish.handler({
@@ -166,7 +181,7 @@ describe('unpublish: OTP challenges', () => {
   test('a 401 carrying authUrl/doneUrl is an OTP challenge, not a missing login', async () => {
     const restoreTty = overrideTty(false)
     try {
-      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT)
+      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT)
       getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/test-pkg/-rev/3-abc' }).reply(401, WEB_AUTH_CHALLENGE)
 
       await expect(unpublish.handler({ ...OPTS, cliOptions: { force: true } }, ['test-pkg']))
@@ -179,7 +194,7 @@ describe('unpublish: OTP challenges', () => {
   test('the classic "one-time pass" wording on the packument PUT is an OTP challenge too', async () => {
     const restoreTty = overrideTty(false)
     try {
-      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT)
+      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT)
       getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'PUT', path: '/test-pkg/-rev/3-abc' })
         .reply(401, { error: 'You must provide a one-time pass. Upgrade your client to npm@latest in order to use 2FA.' })
 
@@ -191,7 +206,7 @@ describe('unpublish: OTP challenges', () => {
   })
 
   test('a plain 401 is reported as a missing login, with its body stripped of terminal control characters', async () => {
-    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT)
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT)
     getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/test-pkg/-rev/3-abc' }).reply(401, 'unauthorized \u001b[2J spoofed\r line')
 
     await expect(unpublish.handler({ ...OPTS, cliOptions: { force: true } }, ['test-pkg']))
@@ -200,7 +215,7 @@ describe('unpublish: OTP challenges', () => {
 
   test('--otp sends the code up front under the legacy auth type', async () => {
     let deleteHeaders: Headers = {}
-    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT)
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT)
     getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/test-pkg/-rev/3-abc' }).reply(({ headers }) => {
       deleteHeaders = headers as Headers
       return { statusCode: 200, data: {} }
@@ -209,18 +224,49 @@ describe('unpublish: OTP challenges', () => {
     await expect(unpublish.handler({ ...OPTS, cliOptions: { force: true, otp: '123456' } }, ['test-pkg']))
       .resolves.toBe('Successfully unpublished all 2 version(s) of test-pkg')
     expect(deleteHeaders['npm-auth-type']).toBe('legacy')
+    expect(deleteHeaders['npm-command']).toBe('unpublish')
     expect(deleteHeaders['npm-otp']).toBe('123456')
+  })
+
+  test('a registry mounted under a path gets the tarball delete under that path', async () => {
+    const registryUrl = `${MOCK_REGISTRY}/npm/`
+    const packument = {
+      ...PACKUMENT,
+      versions: {
+        '0.0.1': { name: 'test-pkg', version: '0.0.1', dist: { tarball: `${registryUrl}test-pkg/-/test-pkg-0.0.1.tgz` } },
+        '0.0.2': { name: 'test-pkg', version: '0.0.2', dist: { tarball: `${registryUrl}test-pkg/-/test-pkg-0.0.2.tgz` } },
+      },
+    }
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/npm/test-pkg?write=true' }).reply(200, packument).times(2)
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'PUT', path: '/npm/test-pkg/-rev/3-abc' }).reply(200, {})
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/npm/test-pkg/-/test-pkg-0.0.1.tgz/-rev/3-abc' }).reply(200, {})
+
+    await expect(unpublish.handler({ ...OPTS, registriesByScope: { default: registryUrl }, cliOptions: {} }, ['test-pkg@0.0.1']))
+      .resolves.toBe('Successfully unpublished 1 version(s) of test-pkg')
+  })
+
+  test('getTarballPathname strips registry path prefix only at path segment boundary', () => {
+    expect(unpublish.getTarballPathname('https://registry.example.com/pkg/-/pkg-1.0.0.tgz', 'https://registry.example.com/'))
+      .toBe('pkg/-/pkg-1.0.0.tgz')
+    expect(unpublish.getTarballPathname('https://registry.example.com/npm/pkg/-/pkg-1.0.0.tgz', 'https://registry.example.com/npm/'))
+      .toBe('pkg/-/pkg-1.0.0.tgz')
+    expect(unpublish.getTarballPathname('https://registry.example.com/npm/pkg/-/pkg-1.0.0.tgz', 'https://registry.example.com/npm'))
+      .toBe('pkg/-/pkg-1.0.0.tgz')
+    expect(unpublish.getTarballPathname('https://registry.example.com/npm2/pkg/-/pkg-1.0.0.tgz', 'https://registry.example.com/npm'))
+      .toBe('npm2/pkg/-/pkg-1.0.0.tgz')
   })
 
   test('the web-auth flow answers the challenge and its token is reused by the tarball delete', async () => {
     const restoreTty = overrideTty(true)
     const putOtpHeaders: Array<string | string[] | undefined> = []
+    const putCommandHeaders: Array<string | string[] | undefined> = []
     let tarballDeleteHeaders: Headers = {}
     try {
-      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT).times(2)
+      getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg?write=true' }).reply(200, PACKUMENT).times(2)
       getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'PUT', path: '/test-pkg/-rev/3-abc' }).reply(({ headers }) => {
         const otp = (headers as Headers)['npm-otp']
         putOtpHeaders.push(otp)
+        putCommandHeaders.push((headers as Headers)['npm-command'])
         if (otp === 'web-token') return { statusCode: 200, data: {} }
         return { statusCode: 401, data: WEB_AUTH_CHALLENGE }
       }).times(2)
@@ -233,7 +279,9 @@ describe('unpublish: OTP challenges', () => {
       await expect(unpublish.handler({ ...OPTS, cliOptions: {} }, ['test-pkg@0.0.1']))
         .resolves.toBe('Successfully unpublished 1 version(s) of test-pkg')
       expect(putOtpHeaders).toEqual([undefined, 'web-token'])
+      expect(putCommandHeaders).toEqual(['unpublish', 'unpublish'])
       expect(tarballDeleteHeaders['npm-auth-type']).toBe('web')
+      expect(tarballDeleteHeaders['npm-command']).toBe('unpublish')
       expect(tarballDeleteHeaders['npm-otp']).toBe('web-token')
     } finally {
       restoreTty()

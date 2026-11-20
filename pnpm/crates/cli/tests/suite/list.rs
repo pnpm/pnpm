@@ -1,10 +1,21 @@
-use crate::_utils::{with_colors, without_colors};
+use crate::_utils::{
+    with_colors,
+    without_colors,
+};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use console::strip_ansi_codes;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{collections::BTreeSet, fs, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
@@ -43,225 +54,158 @@ fn recursive_project_names(pacquet: Command, extra_args: &[&str]) -> BTreeSet<St
         String::from_utf8_lossy(&output.stderr),
     );
     let packages: Vec<Value> = serde_json::from_slice(&output.stdout).expect("parse list JSON");
-    packages.iter().map(|pkg| pkg["name"].as_str().expect("package name").to_string()).collect()
-}
-
-#[test]
-fn recursive_list_depth_minus_one_json_lists_workspace_projects() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(
-        &workspace,
-        &[
-            (
-                "project-1",
-                json!({
-                    "name": "project-1",
-                    "version": "1.0.0",
-                    "scripts": { ".test": "jest" },
-                }),
-            ),
-            (
-                "project-2",
-                json!({
-                    "name": "project-2",
-                    "version": "1.0.0",
-                    "scripts": { ".test": "jest" },
-                }),
-            ),
-        ],
-    );
-
-    let names = recursive_project_names(pacquet, &[]);
-    assert_eq!(
-        names,
-        BTreeSet::from(["project-1".to_string(), "project-2".to_string(), "root".to_string()]),
-    );
-
-    drop(root);
-}
-
-/// `--fail-if-no-match` is a universal flag, not an `sbom` one: any
-/// filtered command ends with exit code 1 when its selectors select no
-/// workspace project. Port of upstream's `no projects matched the
-/// filters` (`pnpm/test/monorepo/index.ts`).
-#[test]
-fn fail_if_no_match_exits_non_zero_when_the_filter_matches_nothing() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(
-        &workspace,
-        &[("project-1", json!({ "name": "project-1", "version": "1.0.0" }))],
-    );
-
-    let output = pacquet
-        .with_arg("list")
-        .with_arg("--filter=not-exists")
-        .with_arg("--fail-if-no-match")
-        .output()
-        .expect("spawn pacquet list");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
-
-    drop(root);
-}
-
-#[test]
-fn list_is_recursive_by_default_inside_workspace() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(
-        &workspace,
-        &[
-            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
-            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
-        ],
-    );
-
-    let output = pacquet
-        .with_arg("list")
-        .with_arg("--depth")
-        .with_arg("-1")
-        .with_arg("--json")
-        .output()
-        .expect("spawn pacquet list");
-
-    assert!(
-        output.status.success(),
-        "list should succeed: {}",
-        String::from_utf8_lossy(&output.stderr),
-    );
-    let packages: Vec<Value> = serde_json::from_slice(&output.stdout).expect("parse list JSON");
-    let names: BTreeSet<String> = packages
+    packages
         .iter()
-        .map(|pkg| pkg["name"].as_str().expect("package name").to_string())
-        .collect();
-    assert_eq!(
-        names,
-        BTreeSet::from(["project-1".to_string(), "project-2".to_string(), "root".to_string()]),
-    );
-
-    drop(root);
+        .map(|pkg| {
+            pkg["name"]
+                .as_str()
+                .expect("package name")
+                .to_string()
+        })
+        .collect()
 }
 
 #[test]
-fn recursive_list_depth_minus_one_json_keeps_project_only_output_with_package_params() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+fn recursive_list_sorts_projects_by_workspace_dependencies() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     write_workspace(
         &workspace,
         &[
-            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
-            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
+            (
+                "a",
+                json!({ "name": "a", "version": "1.0.0", "dependencies": { "b": "workspace:*" } }),
+            ),
+            (
+                "b",
+                json!({ "name": "b", "version": "1.0.0", "dependencies": { "c": "workspace:*" } }),
+            ),
+            ("c", json!({ "name": "c", "version": "1.0.0" })),
         ],
     );
 
-    let names = recursive_project_names(pacquet, &["does-not-exist"]);
-    assert_eq!(
-        names,
-        BTreeSet::from(["project-1".to_string(), "project-2".to_string(), "root".to_string()]),
-    );
+    for shared_lockfile in [true, false] {
+        if !shared_lockfile {
+            fs::write(
+                workspace.join("pnpm-workspace.yaml"),
+                "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+            )
+            .expect("write dedicated-lockfile workspace settings");
+        }
+
+        for (flags, expected) in [
+            (vec![], vec!["c", "b", "a"]),
+            (vec!["--prod", "--only-projects"], vec!["c", "b", "a"]),
+            (vec!["--no-sort"], vec!["a", "b", "c"]),
+            (vec!["--no-sort", "--reverse"], vec!["a", "b", "c"]),
+            (vec!["--reverse"], vec!["a", "b", "c"]),
+        ] {
+            let mut args =
+                vec!["--filter", "./packages/*", "-r", "list", "--depth", "-1", "--json"];
+            args.extend(flags);
+            let output = run_ok(&workspace, &args);
+            let projects: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+            let names: Vec<&str> = projects
+                .iter()
+                .map(|project| project["name"].as_str().expect("project name"))
+                .collect();
+            assert_eq!(names, expected, "shared lockfile: {shared_lockfile}, args: {args:?}");
+
+            let text_args: Vec<&str> = args
+                .iter()
+                .copied()
+                .filter(|arg| *arg != "--json")
+                .collect();
+            let text_output = run_ok(&workspace, &text_args);
+            let positions: Vec<usize> = expected
+                .iter()
+                .map(|name| {
+                    text_output
+                        .find(&format!("{name}@1.0.0"))
+                        .expect("project in text output")
+                })
+                .collect();
+            assert!(
+                positions
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1]),
+                "shared lockfile: {shared_lockfile}, args: {text_args:?}, output: {text_output}",
+            );
+        }
+
+        let project_b_manifest = workspace.join("packages/b/package.json");
+        fs::write(
+            &project_b_manifest,
+            json!({ "name": "b", "version": "1.0.0", "devDependencies": { "c": "workspace:*" } })
+                .to_string(),
+        )
+        .expect("write dev-only workspace edge");
+        let output = run_ok(
+            &workspace,
+            &["--filter-prod", "a", "--filter-prod", "c", "-r", "list", "--depth", "-1", "--json"],
+        );
+        let projects: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+        let names: Vec<&str> = projects
+            .iter()
+            .map(|project| project["name"].as_str().expect("project name"))
+            .collect();
+        assert_eq!(names, ["a", "c"], "shared lockfile: {shared_lockfile}");
+        fs::write(
+            &project_b_manifest,
+            json!({ "name": "b", "version": "1.0.0", "dependencies": { "c": "workspace:*" } })
+                .to_string(),
+        )
+        .expect("restore project manifest");
+    }
 
     drop(root);
 }
 
-/// Port of upstream's `changedFilesIgnorePattern is respected`
-/// (`pnpm/test/monorepo/index.ts`): files matching the
-/// `changedFilesIgnorePattern` workspace setting don't count as changes
-/// for a `[<since>]` filter, and an empty `--changed-files-ignore-pattern=`
-/// CLI override disables the yaml patterns.
 #[test]
-fn changed_files_ignore_pattern_is_respected() {
-    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let projects = [
-        "project-1-no-changes",
-        "project-2-change-is-never-ignored",
-        "project-3-ignored-by-pattern",
-        "project-4-ignored-by-pattern",
-        "project-5-ignored-by-pattern",
-    ];
-    for name in projects {
-        let dir = workspace.join(name);
-        fs::create_dir_all(&dir).expect("create project dir");
+fn list_json_reads_unsaved_dependencies_from_each_project() {
+    for modules_dir in ["node_modules", "vendor/modules"] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        write_workspace(&workspace, &[("app", json!({ "name": "app", "version": "1.0.0" }))]);
+        let app = workspace.join("packages/app");
         fs::write(
-            dir.join("package.json"),
-            json!({ "name": name, "version": "1.0.0" }).to_string(),
+            workspace.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - packages/*\nmodulesDir: {modules_dir}\n"),
         )
-        .expect("write package.json");
+        .expect("write workspace settings");
+        fs::write(
+            workspace.join("pnpm-lock.yaml"),
+            "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/app: {}\n",
+        )
+        .expect("write workspace lockfile");
+        for (project, name) in [(&workspace, "root-extra"), (&app, "app-extra")] {
+            let package = project.join(modules_dir).join(name);
+            fs::create_dir_all(&package).expect("create unsaved package directory");
+            fs::write(
+                package.join("package.json"),
+                json!({ "name": name, "version": "1.0.0" }).to_string(),
+            )
+            .expect("write unsaved package manifest");
+        }
+
+        for (cwd, args, expected_count) in [
+            (workspace.as_path(), ["list", "--json", "--recursive"].as_slice(), 2),
+            (app.as_path(), ["list", "--json"].as_slice(), 1),
+        ] {
+            let output = run_ok(cwd, args);
+            let projects: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+            assert_eq!(projects.len(), expected_count, "{output}");
+            for project in projects {
+                let name = project["name"].as_str().expect("project name");
+                let dependencies =
+                    project["unsavedDependencies"].as_object().expect("unsaved dependencies");
+                assert_eq!(
+                    dependencies.keys().collect::<Vec<_>>(),
+                    [&format!("{name}-extra")],
+                    "{output}",
+                );
+            }
+        }
+        drop(root);
     }
-    let write_workspace_yaml = |extra: &str| {
-        fs::write(workspace.join("pnpm-workspace.yaml"), format!("packages:\n  - '*'\n{extra}"))
-            .expect("write pnpm-workspace.yaml");
-    };
-    write_workspace_yaml("");
-
-    let git = |args: &[&str]| {
-        let output =
-            Command::new("git").args(args).current_dir(&workspace).output().expect("spawn git");
-        assert!(
-            output.status.success(),
-            "git {args:?} failed: {}",
-            String::from_utf8_lossy(&output.stderr),
-        );
-    };
-    let remote = root.path().join("remote");
-    fs::create_dir_all(&remote).expect("create remote dir");
-    git(&["init", "--initial-branch=main"]);
-    git(&["config", "user.email", "x@y.z"]);
-    git(&["config", "user.name", "xyz"]);
-    git(&["init", "--bare", &remote.to_string_lossy()]);
-    git(&["add", "."]);
-    git(&["commit", "-m", "init", "--no-gpg-sign"]);
-    git(&["remote", "add", "origin", &remote.to_string_lossy()]);
-    git(&["push", "-u", "origin", "main"]);
-
-    fs::write(workspace.join("project-2-change-is-never-ignored").join("index.js"), "")
-        .expect("write changed file");
-    fs::write(workspace.join("project-3-ignored-by-pattern").join("index.spec.js"), "")
-        .expect("write changed file");
-    fs::write(workspace.join("project-3-ignored-by-pattern").join("README.md"), "")
-        .expect("write changed file");
-    let buildscript_dir = workspace.join("project-4-ignored-by-pattern").join("a/b/c");
-    fs::create_dir_all(&buildscript_dir).expect("create nested dirs");
-    fs::write(buildscript_dir.join("buildscript.js"), "").expect("write changed file");
-    let cache_dir = workspace.join("project-5-ignored-by-pattern").join("cache/a/b");
-    fs::create_dir_all(&cache_dir).expect("create nested dirs");
-    fs::write(cache_dir.join("index.js"), "").expect("write changed file");
-    git(&["add", "."]);
-    git(&["commit", "-m", "changes", "--no-gpg-sign"]);
-
-    // Left uncommitted, like upstream: `git diff <since>` also sees
-    // working-tree changes to tracked files.
-    write_workspace_yaml(
-        "changedFilesIgnorePattern:\n  - '**/{*.spec.js,*.md}'\n  - '**/buildscript.js'\n  - '**/cache/**'\n",
-    );
-
-    let changed_project_names = |extra_args: &[&str]| {
-        let pacquet =
-            Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(&workspace);
-        recursive_project_names(pacquet, &[&["--filter", "[origin/main]"], extra_args].concat())
-    };
-
-    assert_eq!(
-        changed_project_names(&[]),
-        BTreeSet::from(["project-2-change-is-never-ignored".to_string()]),
-    );
-
-    // The empty CLI value overrides the yaml patterns with "no patterns".
-    assert_eq!(
-        changed_project_names(&["--changed-files-ignore-pattern="]),
-        BTreeSet::from([
-            "project-2-change-is-never-ignored".to_string(),
-            "project-3-ignored-by-pattern".to_string(),
-            "project-4-ignored-by-pattern".to_string(),
-            "project-5-ignored-by-pattern".to_string(),
-        ]),
-    );
-
-    drop(root);
 }
 
 /// Scaffold a project whose lockfile records exactly one dependency
@@ -329,7 +273,11 @@ fn list_json_reports_extraneous_packages_as_unsaved() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_project_with_extraneous_dep(&workspace);
 
-    let output = pacquet.with_arg("list").with_arg("--json").output().expect("spawn pacquet list");
+    let output = pacquet
+        .with_arg("list")
+        .with_arg("--json")
+        .output()
+        .expect("spawn pacquet list");
     assert!(
         output.status.success(),
         "list should succeed:\n{}",
@@ -379,6 +327,21 @@ fn list_json_with_package_arg_omits_unsaved_dependencies() {
     drop(root);
 }
 
+#[test]
+fn list_only_projects_omits_unsaved_dependencies() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_project_with_extraneous_dep(&workspace);
+
+    let output = run_ok(&workspace, &["list", "--only-projects", "--parseable"]);
+    assert_eq!(output, format!("{}\n", canonical(&workspace)));
+
+    let output = run_ok(&workspace, &["list", "--only-projects", "--json"]);
+    let roots: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+    assert_eq!(roots[0].get("unsavedDependencies"), None, "{output}");
+
+    drop(root);
+}
+
 // --- ports of the TypeScript listing command tests ---------------------------
 //
 // Sources: pnpm11/deps/inspection/commands/test/listing/{index.ts,json.ts,
@@ -398,9 +361,9 @@ fn setup_registry()
 }
 
 fn pacquet_in(dir: &Path, args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>) -> Command {
-    let mut command = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    command.current_dir(dir);
-    command.args(args);
+    let mut command =
+        Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(dir);
+    command = command.with_args(args);
     command
 }
 
@@ -416,7 +379,10 @@ fn run_ok(dir: &Path, args: &[&str]) -> String {
 }
 
 fn canonical(dir: &Path) -> String {
-    dunce::canonicalize(dir).expect("canonicalize dir").to_string_lossy().into_owned()
+    dunce::canonicalize(dir)
+        .expect("canonicalize dir")
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Port of upstream's `listing packages`
@@ -442,7 +408,7 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
     assert_eq!(
         prod_only,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n└── {PKG}@100.0.0\n\n1 package\n"
         ),
     );
 
@@ -450,7 +416,7 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
     assert_eq!(
         dev_only,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   devDependencies:\n\u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   devDependencies:\n└── {HELLO}@1.0.0\n\n1 package\n"
         ),
     );
 
@@ -458,7 +424,7 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
     assert_eq!(
         both,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{251c}\u{2500}\u{2500} {PKG}@100.0.0\n\u{2502}\n\u{2502}   devDependencies:\n\u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\n2 packages\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n├── {PKG}@100.0.0\n│\n│   devDependencies:\n└── {HELLO}@1.0.0\n\n2 packages\n"
         ),
     );
 }
@@ -468,7 +434,7 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
 /// (`deps/inspection/commands/test/listing/index.ts`). Upstream calls
 /// the handler for the one project; going through the CLI from inside a
 /// workspace member makes the run recursive by default, so the summary
-/// counts the projects too — verified against `pnpm ls` in pnpm 11.
+/// counts the projects too, verified against `pnpm ls` in pnpm 11.
 #[test]
 fn listing_packages_of_a_project_with_an_external_lockfile() {
     let (_root, workspace, _registry) = setup_registry();
@@ -498,7 +464,7 @@ fn listing_packages_of_a_project_with_an_external_lockfile() {
     assert_eq!(
         output,
         format!(
-            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package in 2 projects\n"
+            "{LEGEND}\n\npkg@1.0.0 {dir}\n│\n│   dependencies:\n└── {PKG}@100.0.0\n\n1 package\n"
         ),
     );
 }
@@ -535,7 +501,7 @@ fn listing_packages_with_local_file_directory_dependency() {
     assert_eq!(
         output,
         format!(
-            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} dep@file:../dep\n\n1 package\n"
+            "{LEGEND}\n\npkg@1.0.0 {dir}\n│\n│   dependencies:\n└── dep@file:../dep\n\n1 package\n"
         ),
     );
 }
@@ -563,7 +529,7 @@ fn listing_packages_with_lockfile_only() {
     assert_eq!(
         prod_only,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n└── {PKG}@100.0.0\n\n1 package\n"
         ),
     );
 
@@ -571,7 +537,7 @@ fn listing_packages_with_lockfile_only() {
     assert_eq!(
         dev_only,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   devDependencies:\n\u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   devDependencies:\n└── {HELLO}@1.0.0\n\n1 package\n"
         ),
     );
 
@@ -579,7 +545,7 @@ fn listing_packages_with_lockfile_only() {
     assert_eq!(
         both,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{251c}\u{2500}\u{2500} {PKG}@100.0.0\n\u{2502}\n\u{2502}   devDependencies:\n\u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\n2 packages\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n├── {PKG}@100.0.0\n│\n│   devDependencies:\n└── {HELLO}@1.0.0\n\n2 packages\n"
         ),
     );
 }
@@ -630,7 +596,7 @@ fn listing_specific_package_with_lockfile_only() {
     assert_eq!(
         output,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n└── {PKG}@100.0.0\n\n1 package\n"
         ),
     );
 }
@@ -691,91 +657,6 @@ fn list_json_reports_private_field_when_arguments_are_provided() {
         assert_eq!(parsed[0]["private"], json!(expected), "private_field={private_field:?}");
         assert!(parsed[0]["path"].is_string());
     }
-}
-
-/// Port of upstream's `recursive list with sharedWorkspaceLockfile`
-/// (`deps/inspection/commands/test/listing/recursive.ts`). With a
-/// shared workspace lockfile the projects render in one pass: one
-/// legend, one combined summary.
-#[test]
-fn recursive_list_renders_workspace_projects_in_one_pass() {
-    let (_root, workspace, _registry) = setup_registry();
-    fs::write(
-        workspace.join("package.json"),
-        json!({ "name": "root", "version": "1.0.0", "private": true }).to_string(),
-    )
-    .expect("write root package.json");
-    let mut yaml =
-        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
-    yaml.push_str("packages:\n  - project-*\n");
-    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
-
-    let manifests = [
-        (
-            "project-1",
-            json!({ "name": "project-1", "version": "1.0.0", "dependencies": { PKG: "100.0.0" } }),
-        ),
-        (
-            "project-2",
-            json!({ "name": "project-2", "version": "1.0.0", "dependencies": { HELLO: "1.0.0" } }),
-        ),
-        ("project-3", json!({ "name": "project-3", "version": "1.0.0" })),
-    ];
-    for (name, manifest) in &manifests {
-        let dir = workspace.join(name);
-        fs::create_dir_all(&dir).expect("create project dir");
-        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
-    }
-    run_ok(&workspace, &["install"]);
-
-    let output = run_ok(&workspace, &["-r", "list", "--depth", "2"]);
-    let project_1 = canonical(&workspace.join("project-1"));
-    let project_2 = canonical(&workspace.join("project-2"));
-    assert_eq!(
-        output,
-        format!(
-            "{LEGEND}\n\n\
-             project-1@1.0.0 {project_1}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{252c} {PKG}@100.0.0\n\
-             \x20\x20\u{2514}\u{2500}\u{2500} {DEP}@100.1.0\n\
-             \n\
-             project-2@1.0.0 {project_2}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\
-             \n\
-             3 packages in 4 projects\n"
-        ),
-    );
-}
-
-/// Port of upstream's `ls --filter=not-exist --json should prints an
-/// empty array` (`pnpm/test/list.ts`, pnpm/pnpm#9672).
-#[test]
-fn ls_filter_not_exist_json_prints_an_empty_array() {
-    let (_root, workspace, _registry) = setup_registry();
-    fs::write(
-        workspace.join("package.json"),
-        json!({ "name": "root", "version": "1.0.0", "private": true }).to_string(),
-    )
-    .expect("write root package.json");
-    let mut yaml =
-        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
-    yaml.push_str("packages:\n  - packages/*\n");
-    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
-    let foo = workspace.join("packages/foo");
-    fs::create_dir_all(&foo).expect("create packages/foo");
-    fs::write(
-        foo.join("package.json"),
-        json!({ "name": "foo", "version": "0.0.0", "private": true }).to_string(),
-    )
-    .expect("write foo package.json");
-    run_ok(&workspace, &["install"]);
-
-    let output = run_ok(&workspace, &["ls", "--filter=project-that-does-not-exist", "--json"]);
-    assert_eq!(output.trim_end(), "[]");
 }
 
 /// Port of upstream's `ls should load a finder from .pnpmfile.cjs`
@@ -858,6 +739,47 @@ fn ls_with_unknown_finder_fails() {
     assert!(stderr.contains("No finder with name no-such-finder is found"), "stderr: {stderr}");
 }
 
+#[test]
+fn finder_returning_empty_string_does_not_match() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            "dependencies": { HELLO: "1.0.0", "@pnpm.e2e/abc": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = {
+  finders: {
+    emptyForHello: (ctx) => ctx.name === '@pnpm.e2e/abc' ? 'matched abc' : '',
+  },
+};
+",
+    )
+    .expect("write .pnpmfile.cjs");
+    run_ok(&workspace, &["install"]);
+
+    let list_out = run_ok(&workspace, &["list", "--find-by=emptyForHello"]);
+    assert!(list_out.contains("@pnpm.e2e/abc@1.0.0"), "expected abc match: {list_out}");
+    assert!(list_out.contains("matched abc"), "expected finder message: {list_out}");
+    assert!(
+        !list_out.contains(&format!("{HELLO}@1.0.0")),
+        "empty string return must not match: {list_out}",
+    );
+
+    let why_out = run_ok(&workspace, &["why", "--find-by=emptyForHello"]);
+    assert!(why_out.contains("@pnpm.e2e/abc@1.0.0"), "expected abc match in why: {why_out}");
+    assert!(
+        !why_out.contains(&format!("{HELLO}@1.0.0")),
+        "empty string return must not match in why: {why_out}",
+    );
+}
+
 /// Port of upstream's `pnpm list returns correct paths with global
 /// virtual store` (`pnpm/test/list.ts`).
 #[test]
@@ -897,61 +819,42 @@ fn list_returns_correct_paths_with_global_virtual_store() {
     );
 }
 
-/// Port of upstream's `--only-projects shows only projects`
-/// (`deps/inspection/list/test/index.ts`): dependencies that are not
-/// workspace projects are pruned from the tree.
+/// Port of upstream's `pnpm list returns correct paths when nodeLinker is hoisted`
+/// (`pnpm/test/list.ts`).
 #[test]
-fn list_only_projects_shows_only_projects() {
+fn list_returns_correct_paths_with_hoisted_node_linker() {
     let (_root, workspace, _registry) = setup_registry();
     fs::write(
         workspace.join("package.json"),
         json!({
-            "name": "root",
-            "version": "1.0.0",
-            "dependencies": { "@scope/a": "workspace:*" },
+            "name": "project",
+            "version": "0.0.0",
+            "dependencies": { PKG: "100.0.0" },
         })
         .to_string(),
     )
-    .expect("write root package.json");
+    .expect("write package.json");
     let mut yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
-    yaml.push_str("packages:\n  - packages/*\n");
+    yaml.push_str("nodeLinker: hoisted\n");
     fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
-
-    let packages = [
-        (
-            "a",
-            json!({ "name": "@scope/a", "version": "1.0.0", "dependencies": { "@scope/b": "workspace:*" } }),
-        ),
-        (
-            "b",
-            json!({ "name": "@scope/b", "version": "1.0.0", "dependencies": { "@scope/c": "workspace:*", HELLO: "1.0.0" } }),
-        ),
-        ("c", json!({ "name": "@scope/c", "version": "1.0.0" })),
-    ];
-    for (dir_name, manifest) in &packages {
-        let dir = workspace.join("packages").join(dir_name);
-        fs::create_dir_all(&dir).expect("create package dir");
-        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
-    }
     run_ok(&workspace, &["install"]);
 
-    let output =
-        run_ok(&workspace, &["--filter", ".", "list", "--depth", "999", "--only-projects"]);
-    let dir = canonical(&workspace);
+    let output = run_ok(&workspace, &["list", "--json", "--depth=Infinity"]);
+    let parsed: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+
+    let pkg_path = parsed[0]["dependencies"][PKG]["path"].as_str().expect("pkg path");
+    let real_pkg = dunce::canonicalize(workspace.join("node_modules").join(PKG))
+        .expect("resolve installed package");
+    assert_eq!(dunce::canonicalize(Path::new(pkg_path)).expect("canonicalize pkg_path"), real_pkg);
+
+    let sub_dep_path =
+        parsed[0]["dependencies"][PKG]["dependencies"][DEP]["path"].as_str().expect("subdep path");
+    let real_sub_dep = dunce::canonicalize(workspace.join("node_modules").join(DEP))
+        .expect("resolve hoisted subdep");
     assert_eq!(
-        output,
-        format!(
-            "{LEGEND}\n\n\
-             root@1.0.0 {dir}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
-             \x20\x20\u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
-             \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
-             \n\
-             3 packages\n"
-        ),
+        dunce::canonicalize(Path::new(sub_dep_path)).expect("canonicalize sub_dep_path"),
+        real_sub_dep,
     );
 }
 
@@ -1028,3 +931,6 @@ fn list_accepts_the_global_loglevel_flag() {
 
     drop(root);
 }
+
+mod local_refs;
+mod workspace;

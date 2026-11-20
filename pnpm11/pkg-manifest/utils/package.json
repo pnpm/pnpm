@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pkg-manifest.utils",
-  "version": "1100.4.2",
+  "version": "1100.4.13",
   "description": "Utils for dealing with package manifest",
   "keywords": [
     "pnpm",
@@ -24,11 +24,11 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

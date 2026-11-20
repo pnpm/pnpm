@@ -1,7 +1,7 @@
 import { expect, jest, test } from '@jest/globals'
 import { isPackageManagerResolved } from '@pnpm/installing.env-installer'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
-import type { ProjectManifest } from '@pnpm/types'
+import type { DepPath, ProjectManifest } from '@pnpm/types'
 
 const resolveManifestDependencies =
   jest.fn<(manifest: ProjectManifest, opts: unknown) => Promise<LockfileObject>>()
@@ -18,7 +18,20 @@ test('the JS pnpm and @pnpm/exe are both pinned for the majors that publish them
 
 test('only pnpm is pinned from v12, where the unscoped pnpm is itself the executable', () => {
   expect(isPackageManagerResolved(envLockfile({ pnpm: '12.0.0' }), '12.0.0')).toBe(true)
-  expect(isPackageManagerResolved(envLockfile({ 'pnpm': '12.0.0', '@pnpm/exe': '12.0.0' }), '12.0.0')).toBe(false)
+})
+
+test('a compatible entry beside the wanted ones is left alone (#14926)', () => {
+  expect(isPackageManagerResolved(envLockfile({ 'pnpm': '12.0.0', '@pnpm/exe': '12.0.0' }), '12.0.0')).toBe(true)
+})
+
+test('an extra entry pinning another version, or one with nothing to install it from, is not resolved', () => {
+  expect(isPackageManagerResolved(envLockfile({ 'pnpm': '12.0.0', '@pnpm/exe': '11.0.0' }), '12.0.0')).toBe(false)
+  const missingExtraPackage = envLockfile({ 'pnpm': '12.0.0', '@pnpm/exe': '12.0.0' })
+  delete missingExtraPackage.packages['@pnpm/exe@12.0.0' as DepPath]
+  expect(isPackageManagerResolved(missingExtraPackage, '12.0.0')).toBe(false)
+  const missingWantedSnapshot = envLockfile({ 'pnpm': '12.0.0', '@pnpm/exe': '12.0.0' })
+  delete missingWantedSnapshot.snapshots['pnpm@12.0.0' as DepPath]
+  expect(isPackageManagerResolved(missingWantedSnapshot, '12.0.0')).toBe(false)
 })
 
 test('only pnpm is pinned before @pnpm/exe was published', () => {

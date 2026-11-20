@@ -9,6 +9,7 @@ import { addUser, getRegistryMockToken, REGISTRY_MOCK_PORT } from '@pnpm/testing
 import type { RegistryConfig } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 
+import { closeServer } from '../utils/closeServer.js'
 import { testDefaults } from '../utils/index.js'
 
 const skipOnNode17 = ['v14', 'v16'].includes(process.version.split('.')[0]) ? test : test.skip
@@ -27,28 +28,9 @@ const EXPECTED_BASIC_AUTH = `Basic ${Buffer.from(
 async function withBasicAuthRegistry (run: (registryUrl: string) => Promise<void>): Promise<void> {
   const upstreamBase = `http://localhost:${REGISTRY_MOCK_PORT}`
   const bearer = `Bearer ${getRegistryMockToken()}`
-  let proxyBase = ''
+  const proxy: BasicAuthProxy = { upstreamBase, bearer, proxyBase: '' }
   const server = http.createServer((req, res) => {
-    void (async () => {
-      if (req.headers.authorization !== EXPECTED_BASIC_AUTH) {
-        res.writeHead(401, { 'www-authenticate': 'Basic realm="pnpr"' })
-        res.end('Unauthorized')
-        return
-      }
-      const upstream = await fetch(`${upstreamBase}${req.url}`, {
-        method: req.method,
-        headers: { accept: req.headers.accept ?? '*/*', authorization: bearer },
-      })
-      const contentType = upstream.headers.get('content-type') ?? ''
-      if (contentType.includes('json')) {
-        const body = (await upstream.text()).split(upstreamBase).join(proxyBase)
-        res.writeHead(upstream.status, { 'content-type': 'application/json' })
-        res.end(body)
-      } else {
-        res.writeHead(upstream.status, { 'content-type': contentType })
-        res.end(Buffer.from(await upstream.arrayBuffer()))
-      }
-    })().catch((err: unknown) => {
+    forwardWithBasicAuth(proxy, req, res).catch((err: unknown) => {
       res.writeHead(500)
       res.end(String(err))
     })
@@ -56,20 +38,38 @@ async function withBasicAuthRegistry (run: (registryUrl: string) => Promise<void
   await new Promise<void>((resolve) => {
     server.listen(0, resolve)
   })
-  proxyBase = `http://localhost:${(server.address() as AddressInfo).port}`
+  proxy.proxyBase = `http://localhost:${(server.address() as AddressInfo).port}`
   try {
-    await run(`${proxyBase}/`)
+    await run(`${proxy.proxyBase}/npm/`)
   } finally {
-    server.closeAllConnections()
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err == null) {
-          resolve()
-        } else {
-          reject(err)
-        }
-      })
-    })
+    await closeServer(server)
+  }
+}
+
+interface BasicAuthProxy {
+  upstreamBase: string
+  bearer: string
+  proxyBase: string
+}
+
+async function forwardWithBasicAuth (proxy: BasicAuthProxy, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  if (req.headers.authorization !== EXPECTED_BASIC_AUTH) {
+    res.writeHead(401, { 'www-authenticate': 'Basic realm="pnpr"' })
+    res.end('Unauthorized')
+    return
+  }
+  const upstream = await fetch(`${proxy.upstreamBase}${req.url}`, {
+    method: req.method,
+    headers: { accept: req.headers.accept ?? '*/*', authorization: proxy.bearer },
+  })
+  const contentType = upstream.headers.get('content-type') ?? ''
+  if (contentType.includes('json')) {
+    const body = (await upstream.text()).split(proxy.upstreamBase).join(proxy.proxyBase)
+    res.writeHead(upstream.status, { 'content-type': 'application/json' })
+    res.end(body)
+  } else {
+    res.writeHead(upstream.status, { 'content-type': contentType })
+    res.end(Buffer.from(await upstream.arrayBuffer()))
   }
 }
 
@@ -78,7 +78,7 @@ test('a package that need authentication', async () => {
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 
@@ -136,7 +136,7 @@ test('a scoped package that need authentication specific to scope', async () => 
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 
@@ -146,7 +146,7 @@ test('a scoped package that need authentication specific to scope', async () => 
   let opts = testDefaults({
     registriesByScope: {
       default: 'https://registry.npmjs.org/',
-      '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      '@private': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
@@ -166,7 +166,7 @@ test('a scoped package that need authentication specific to scope', async () => 
   opts = testDefaults({
     registriesByScope: {
       default: 'https://registry.npmjs.org/',
-      '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      '@private': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
@@ -228,7 +228,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 
@@ -237,11 +237,11 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({
     registriesByScope: {
-      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
-    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }, {
     configByUri,
   }))
@@ -254,7 +254,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 
   const data = await addUser({
     email: 'foo@bar.com',
-    password: 'bar',
+    password: 'test-password',
     username: 'foo',
   })
 
@@ -263,11 +263,11 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   }
   let opts = testDefaults({
     registriesByScope: {
-      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
-    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }, {
     configByUri,
   })
@@ -281,11 +281,11 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   // Recreating options to clean store cache
   opts = testDefaults({
     registriesByScope: {
-      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
-    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }, {
     configByUri,
   })

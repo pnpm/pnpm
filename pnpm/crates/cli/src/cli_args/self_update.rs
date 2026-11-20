@@ -1,4 +1,4 @@
-//! `pacquet self-update` — update pnpm to the latest version (or a given one).
+//! `pacquet self-update`: update pnpm to the latest version (or a given one).
 //!
 //! The target version is resolved from the trusted package-manager
 //! bootstrap registry. When the project pins pnpm via
@@ -10,39 +10,64 @@
 // `pub(crate)` so `pnpm with` can reuse the engine installer and the
 // engine-identity verifier; both commands install the same pnpm engine.
 pub(crate) mod install_pnpm;
+pub(super) mod project_pin;
 pub(crate) mod verify_engine;
 
+pub(crate) use externally_managed::{
+    ExternalManager,
+    find_external_manager,
+};
+
+mod externally_managed;
+mod global_bin;
+mod pinned_project;
+
+use crate::config_deps::{
+    self,
+    EnginePolicyViolation,
+};
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
-use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
-use pnpm_env_installer::pnpm_engine_packages;
-use pnpm_fs::force_symlink_dir;
-use pnpm_global::{
-    create_global_cache_key, find_global_package, get_hash_link, read_installed_packages,
+use derive_more::{
+    Display,
+    Error,
+};
+use global_bin::{
+    link_into_global_bin,
+    link_into_legacy_home_dir,
+};
+use miette::{
+    Context,
+    Diagnostic,
+};
+use pinned_project::ProjectPin;
+use pnpm_config::{
+    Config,
+    Host,
+    PNPM_VERSION,
+    default_pnpm_home_dir,
 };
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_resolving_npm_resolver::{
+    MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+    infer_range_spec_style,
+};
+use project_pin::{
+    NoUpgradeKind,
+    implicit_latest_no_upgrade_message,
+    registry_latest_ignoring_maturity,
+};
 use serde_json::Value;
-use std::{collections::HashSet, io::IsTerminal, path::Path};
-
-use crate::config_deps::{self, EnginePolicyViolation};
-
-/// Migration guidance printed once when `self-update` crosses a major
-/// boundary. Add an entry per future major that ships breaking changes
-/// users need to act on.
-fn major_upgrade_hint(target_major: u64) -> Option<&'static str> {
-    match target_major {
-        11 => Some(
-            "pnpm v11 removed or renamed several v10 settings. \
-             See https://pnpm.io/11.x/migration for migration instructions.",
-        ),
-        _ => None,
-    }
-}
+use std::{
+    io::IsTerminal,
+    path::Path,
+};
 
 /// Errors specific to `self-update`. The codes carry the shared
 /// `ERR_PNPM_` prefix, so a code already starting with `PNPM_` becomes
@@ -55,6 +80,13 @@ pub(crate) enum SelfUpdateError {
         help("Install pnpm with the standalone script instead: {install_command}")
     )]
     CantSelfUpdateInCorepack { install_command: &'static str },
+
+    #[display("pnpm cannot update itself when it is installed by Homebrew")]
+    #[diagnostic(
+        code(ERR_PNPM_CANT_SELF_UPDATE_IN_HOMEBREW),
+        help("Update it with Homebrew instead: brew upgrade {formula}")
+    )]
+    CantSelfUpdateInHomebrew { formula: String },
 
     #[display(r#"Cannot find "{specifier}" version of pnpm"#)]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PNPM))]
@@ -79,13 +111,18 @@ pub(crate) enum SelfUpdateError {
     #[diagnostic(code(ERR_PNPM_MINIMUM_RELEASE_AGE_DENIED))]
     MinimumReleaseAgeDenied,
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE))]
     EngineIdentityUnverifiable { message: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_MISMATCH))]
     EngineIdentityMismatch { message: String },
+
+    #[display("Cannot run {label} on this host: it ships no native binary for {target}.")]
+    #[diagnostic(
+        code(ERR_PNPM_PNPM_ENGINE_NO_NATIVE_BINARY),
+        help("Set `pmOnFail` to `ignore` to skip the version switch.")
+    )]
+    EngineNoNativeBinary { label: String, target: String },
 
     #[display("Unable to find the global bin directory")]
     #[diagnostic(
@@ -127,16 +164,16 @@ pub struct SelfUpdateArgs {
 /// A `minimumReleaseAge` cutoff exists so a freshly published pnpm cannot
 /// reach the machine before anyone has had a chance to notice it is
 /// malicious, and pnpm itself is the most valuable thing on the machine to
-/// compromise — so under strict mode an immature pick is refused. An
+/// compromise, so under strict mode an immature pick is refused. An
 /// interactive run may still confirm it: naming a version on the command line
 /// is a deliberate act by the person at the keyboard, unlike a dependency
 /// drifting onto a new release. CI and other non-interactive runs always fail
-/// closed — a CI runner that allocates a pseudo-TTY has no one at the keyboard
-/// either. The cutoff never comes from the project — see
-/// [`WorkspaceSettings::clear_self_update_policy`] — so the only policy to
+/// closed, a CI runner that allocates a pseudo-TTY has no one at the keyboard
+/// either. The cutoff never comes from the project; see
+/// [`WorkspaceSettings::clear_self_update_policy`], so the only policy to
 /// confirm here is the user's own.
 ///
-/// A `trustPolicy` violation is not negotiable — it means the release's trust
+/// A `trustPolicy` violation is not negotiable; it means the release's trust
 /// evidence weakened relative to the installed version.
 ///
 /// [`WorkspaceSettings::clear_self_update_policy`]: pnpm_config::WorkspaceSettings::clear_self_update_policy
@@ -153,7 +190,7 @@ fn enforce_resolution_policy(
     {
         return Ok(());
     }
-    if is_ci::cached() || !std::io::stdin().is_terminal() {
+    if pnpm_config::is_ci() || !std::io::stdin().is_terminal() {
         return Err(SelfUpdateError::NoMatureMatchingVersion {
             version: version.to_string(),
             reason: violation.reason.clone(),
@@ -162,46 +199,37 @@ fn enforce_resolution_policy(
     }
     let prompt = format!("pnpm@{version} {reason}.\nUpdate anyway?", reason = violation.reason);
     // An interrupted prompt (Esc / Ctrl-C) counts as a refusal.
-    match dialoguer::Confirm::new().with_prompt(prompt).default(false).interact() {
+    match crate::confirm_prompt::confirm(&prompt, Some(false)) {
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(SelfUpdateError::MinimumReleaseAgeDenied.into()),
     }
 }
 
-/// Refuse to self-update under corepack (which manages its own updates).
-/// Checked in the dispatcher *before* project config is loaded, so a broken
-/// `.npmrc` / workspace config can't mask the corepack refusal.
-pub(crate) fn reject_if_corepack() -> miette::Result<()> {
-    if is_executed_by_corepack() {
-        return Err(SelfUpdateError::CantSelfUpdateInCorepack {
-            install_command: standalone_install_command(),
-        }
-        .into());
-    }
-    Ok(())
-}
-
 impl SelfUpdateArgs {
-    pub async fn run<Reporter: self::Reporter + 'static>(
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(
         self,
         config: &'static Config,
         dir: &Path,
+        external_manager: Option<ExternalManager>,
     ) -> miette::Result<()> {
         if let Some(message) =
-            Box::pin(handler::<Reporter>(self.version.as_deref(), config, dir)).await?
+            Box::pin(handler::<Reporter>(self.version.as_deref(), config, dir, external_manager))
+                .await?
         {
-            println!("{message}");
+            pnpm_diagnostics::println!("{message}");
         }
         Ok(())
     }
 }
 
 /// The `self-update` flow. Returns the final user-facing message (printed
-/// to stdout), or `None` when nothing needs printing.
+/// to stdout), or `None` when nothing needs printing. Under an
+/// `external_manager`, only the project pin is written.
 async fn handler<Reporter: self::Reporter + 'static>(
     params: Option<&str>,
     config: &'static Config,
     dir: &Path,
+    external_manager: Option<ExternalManager>,
 ) -> miette::Result<Option<String>> {
     let prefix = dir.to_string_lossy().into_owned();
     info::<Reporter>(&prefix, "Checking for updates...");
@@ -212,85 +240,83 @@ async fn handler<Reporter: self::Reporter + 'static>(
     let is_implicit_latest = params.is_none();
     let bare_specifier = params.unwrap_or("latest");
 
+    let (pin, external_manager) = ProjectPin::read(config, dir, external_manager)?;
+
+    let target_version = Box::pin(resolve_target_version(config, bare_specifier)).await?;
+
+    if let Some(hint) = pin.crossed_major_hint(&target_version) {
+        warn::<Reporter>(&prefix, hint);
+    }
+
+    if let Some(refusal) = Box::pin(pin.refusal(config, &target_version, is_implicit_latest)).await?
+    {
+        return Ok(Some(refusal));
+    }
+
+    // The global install moves forward even when the project pins pnpm, or
+    // the machine never holds a pnpm that reaches the pin (pnpm/pnpm#14747).
+    // The pin is written last so a failed switch leaves the project as it was.
+    let global_message = match external_manager {
+        Some(manager) => Some(manager.global_switch_skipped_message()),
+        None => {
+            Box::pin(decline_or_switch_global::<Reporter>(
+                config,
+                &target_version,
+                &prefix,
+                bare_specifier,
+                is_implicit_latest,
+            ))
+            .await?
+        }
+    };
+
+    let project_pin_message = Box::pin(pin.update(config, &target_version)).await?;
+    Ok(join_messages(project_pin_message, global_message))
+}
+
+/// The version `bare_specifier` resolves to on the trusted bootstrap
+/// registry, once it has cleared the installability and release-policy
+/// gates. Both gates run before the project pin is written, not just before
+/// the install: the pin is shared, so a release this wrapper survives can
+/// still break a teammate's.
+async fn resolve_target_version(
+    config: &'static Config,
+    bare_specifier: &str,
+) -> miette::Result<String> {
     let resolved = Box::pin(config_deps::resolve_engine_version(config, "pnpm", bare_specifier))
         .await?
         .ok_or_else(|| SelfUpdateError::CannotResolvePnpm {
             specifier: bare_specifier.to_string(),
         })?;
-    let target_version = resolved.version;
-    // Before the pin below is written, not just before the install: the pin is
-    // shared, so a release this wrapper survives can still break a teammate's.
-    install_pnpm::assert_release_is_installable(&target_version)?;
-
+    install_pnpm::assert_release_is_installable(&resolved.version)?;
     if let Some(violation) = resolved.policy_violation {
-        enforce_resolution_policy(config, &target_version, &violation)?;
+        enforce_resolution_policy(config, &resolved.version, &violation)?;
     }
+    Ok(resolved.version)
+}
 
-    let manifest_value = super::package_manager::read_manifest_json(&dir.join("package.json"))?;
-    let wanted = manifest_value.as_ref().and_then(super::package_manager::wanted_package_manager);
-
-    // Migration hint when crossing a major boundary. The pinned version
-    // (when the project pins pnpm) is the source of truth for "from";
-    // otherwise the running binary is.
-    let previous_version = match &wanted {
-        // A range pin (`^10.0.0`) has no recoverable major on its own, so
-        // read the resolved version from the env lockfile to drive the
-        // hint — otherwise crossing a major would silently skip it.
-        Some(pm) if pm.name == "pnpm" => {
-            let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-            read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
-                .filter(|version| version != &target_version)
-        }
-        _ if PNPM_VERSION != target_version => Some(PNPM_VERSION.to_string()),
-        _ => None,
-    };
-    if let Some(previous) = &previous_version
-        && let (Some(previous_major), Ok(target)) =
-            (coerce_major(previous), node_semver::Version::parse(&target_version))
-        && target.major > previous_major
-        && let Some(hint) = major_upgrade_hint(target.major)
-    {
-        warn::<Reporter>(&prefix, hint);
+fn join_messages(first: Option<String>, second: Option<String>) -> Option<String> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
+        (first, second) => first.or(second),
     }
+}
 
-    // Project-pin branch: the project pins pnpm, so update the pin in
-    // place instead of touching the global install.
-    if let Some(pm) = &wanted
-        && pm.name == "pnpm"
-    {
-        return Box::pin(update_project_pin(config, dir, pm, &target_version, is_implicit_latest))
-            .await;
-    }
-
-    // Global switch. Version equality with the running binary alone must
-    // not skip the update: a removed global install can be recovered by
-    // running a local pnpm of the same version (see pnpm/pnpm#12877).
-    if target_version == PNPM_VERSION
-        && is_installed_globally(config.global_pkg_dir.as_deref(), &target_version)?
-    {
-        return Ok(Some(format!(
-            r#"The currently active pnpm v{PNPM_VERSION} is already "{bare_specifier}" and doesn't need an update"#,
-        )));
-    }
-    if is_implicit_latest && version_lt(&target_version, PNPM_VERSION) {
-        return Ok(Some(format!(
-            r#"The currently active pnpm v{PNPM_VERSION} is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
-        )));
-    }
-
-    info::<Reporter>(
-        &prefix,
-        &format!("Switching pnpm from v{PNPM_VERSION} to v{target_version}..."),
-    );
-
+/// Resolve the target engine's integrities into the env lockfile and verify
+/// its identity before anything is installed.
+async fn verify_target_engine<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    target_version: &str,
+    prefix: &str,
+) -> miette::Result<()> {
     let env_root = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     // Resolve integrities into the env lockfile so the engine identity can
     // be verified before install.
     Box::pin(config_deps::sync_package_manager_dependencies(
         config,
         &env_root,
-        &target_version,
-        &target_version,
+        target_version,
+        target_version,
         false,
         false,
     ))
@@ -304,307 +330,95 @@ async fn handler<Reporter: self::Reporter + 'static>(
             ),
         })?;
     let label = format!("pnpm@{target_version}");
+    let package = install_pnpm::pnpm_package_to_install(target_version);
     let engine = verify_engine::EngineToVerify {
         label: &label,
-        packages: pnpm_engine_packages(&target_version),
-        platform_binaries: verify_engine::PlatformBinaries::PnpmExe,
+        package: package.name,
+        version: target_version,
+        platform_binaries: if package.links_native_binary {
+            verify_engine::PlatformBinaries::PnpmExe
+        } else {
+            verify_engine::PlatformBinaries::None
+        },
     };
     if let Some(warning) =
         Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?
     {
-        warn::<Reporter>(&prefix, &warning);
+        warn::<Reporter>(prefix, &warning);
     }
-
-    let result = Box::pin(install_pnpm::install_pnpm::<Reporter>(
-        config,
-        &target_version,
-        config.supported_architectures.clone(),
-    ))
-    .await?;
-
-    link_into_global_bin(config, &result, &target_version)?;
-
-    if result.already_existed {
-        return Ok(Some(format!(
-            "The {bare_specifier} version, v{target_version}, is already present on the system. It was activated by linking it from {}.",
-            result.install_dir.display(),
-        )));
-    }
-    Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
-}
-
-/// Update the project's `packageManager` / `devEngines.packageManager`
-/// pin to `target_version`.
-async fn update_project_pin(
-    config: &'static Config,
-    dir: &Path,
-    pm: &super::package_manager::WantedPackageManager,
-    target_version: &str,
-    is_implicit_latest: bool,
-) -> miette::Result<Option<String>> {
-    if pm.version.as_deref() == Some(target_version) {
-        return Ok(Some(format!(
-            "The current project is already set to use pnpm v{target_version}",
-        )));
-    }
-
-    // Implicit `latest` must not downgrade a project pinned to a newer
-    // version than the registry's `latest`. The env lockfile lives at the
-    // workspace root, not necessarily the command's `--dir`.
-    let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-    if is_implicit_latest
-        && let Some(current) = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
-        && version_lt(target_version, &current)
-    {
-        return Ok(Some(format!(
-            r#"The current project is set to use pnpm v{current}, which is newer than the "latest" version on the registry (v{target_version}). No update performed. Run "pnpm self-update latest" to downgrade."#,
-        )));
-    }
-
-    let manifest_path = dir.join("package.json");
-    let mut manifest = PackageManifest::from_path(manifest_path)
-        .map_err(miette::Report::new)
-        .wrap_err("read the project manifest")?;
-
-    let has_dev_engines = manifest
-        .value()
-        .get("devEngines")
-        .and_then(|dev_engines| dev_engines.get("packageManager"))
-        .is_some();
-
-    if has_dev_engines {
-        let legacy_pins_pnpm = manifest
-            .value()
-            .get("packageManager")
-            .and_then(Value::as_str)
-            .map(super::package_manager::parse_package_manager)
-            .is_some_and(|(name, version)| name == "pnpm" && version.is_some());
-
-        let mut changed = false;
-        // Falls back to the resolved version when devEngines has no pnpm entry
-        // to update; `package_manager_pin_specifier` supplies it otherwise.
-        let mut pin_specifier = target_version.to_string();
-        if let Some(entry) = dev_engines_pnpm_entry_mut(manifest.value_mut()) {
-            let current = entry.get("version").and_then(Value::as_str);
-            let updated = package_manager_pin_specifier(legacy_pins_pnpm, current, target_version);
-            if current != Some(updated.as_str())
-                && let Some(object) = entry.as_object_mut()
-            {
-                object.insert("version".to_string(), Value::String(updated.clone()));
-                changed = true;
-            }
-            pin_specifier = updated;
-        }
-        if legacy_pins_pnpm {
-            let new_legacy = format!("pnpm@{target_version}");
-            if manifest.value().get("packageManager").and_then(Value::as_str) != Some(&new_legacy)
-                && let Some(object) = manifest.value_mut().as_object_mut()
-            {
-                object.insert("packageManager".to_string(), Value::String(new_legacy));
-                changed = true;
-            }
-        }
-        if changed {
-            manifest.save().map_err(miette::Report::new).wrap_err("write the project manifest")?;
-        }
-        if super::package_manager::should_persist_package_manager_lockfile(&pm_for_persist(pm)) {
-            let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
-            Box::pin(config_deps::sync_package_manager_dependencies(
-                config,
-                &root_dir,
-                &pin_specifier,
-                target_version,
-                false,
-                false,
-            ))
-            .await?;
-        }
-    } else if let Some(object) = manifest.value_mut().as_object_mut() {
-        object
-            .insert("packageManager".to_string(), Value::String(format!("pnpm@{target_version}")));
-        manifest.save().map_err(miette::Report::new).wrap_err("write the project manifest")?;
-    }
-
-    Ok(Some(format!("The current project has been updated to use pnpm v{target_version}")))
-}
-
-/// The `pnpm` entry of `devEngines.packageManager` (which can be a single
-/// object or an array), as a mutable reference.
-fn dev_engines_pnpm_entry_mut(manifest: &mut Value) -> Option<&mut Value> {
-    let package_manager = manifest.get_mut("devEngines")?.get_mut("packageManager")?;
-    if package_manager.is_array() {
-        return package_manager
-            .as_array_mut()?
-            .iter_mut()
-            .find(|item| item.get("name").and_then(Value::as_str) == Some("pnpm"));
-    }
-    if package_manager.get("name").and_then(Value::as_str) == Some("pnpm") {
-        return Some(package_manager);
-    }
-    None
-}
-
-/// A [`super::package_manager::WantedPackageManager`] flagged as `fromDevEngines` so
-/// [`super::package_manager::should_persist_package_manager_lockfile`] decides persistence
-/// the way it does for a devEngines pin.
-fn pm_for_persist(
-    pm: &super::package_manager::WantedPackageManager,
-) -> super::package_manager::WantedPackageManager {
-    super::package_manager::WantedPackageManager {
-        name: pm.name.clone(),
-        version: pm.version.clone(),
-        from_dev_engines: true,
-        on_fail: pm.on_fail.clone(),
-    }
-}
-
-/// The specifier to record in `packageManagerDependencies` after
-/// `self-update` rewrites the `devEngines.packageManager` pin. It must equal
-/// the constraint a later install reads back from the manifest (see
-/// [`super::package_manager::package_manager_to_sync`]) — the updated
-/// devEngines constraint, never the CLI dist-tag or range passed to
-/// `self-update` — so a subsequent `--frozen-lockfile` install does not
-/// reject the lockfile as outdated. A legacy `packageManager` pin is always
-/// exact, so it takes the resolved version directly.
-fn package_manager_pin_specifier(
-    legacy_pins_pnpm: bool,
-    current_dev_engine_version: Option<&str>,
-    target_version: &str,
-) -> String {
-    if legacy_pins_pnpm {
-        target_version.to_string()
-    } else {
-        update_version_constraint(current_dev_engine_version, target_version)
-    }
-}
-
-/// Returns the updated `devEngines.packageManager` version constraint.
-/// Exact pins and simple ranges (`^`, `~`) are rewritten to the new version
-/// while keeping the operator, matching `pnpm update` / `pnpm runtime set`.
-/// Complex ranges that still satisfy the new version are left as-is (the
-/// lockfile pins the exact version); otherwise the new version is written
-/// as a caret range.
-fn update_version_constraint(current: Option<&str>, new_version: &str) -> String {
-    let Some(current) = current else {
-        return new_version.to_string();
-    };
-    match infer_range_spec_style(current) {
-        Some(pinned) => format!("{}{new_version}", pinned.range_prefix()),
-        None if range_satisfies(current, new_version) => current.to_string(),
-        None => format!("^{new_version}"),
-    }
-}
-
-/// The project's currently-pinned pnpm version, used to guard implicit
-/// `latest` against downgrading. Prefers the env lockfile's resolved
-/// version (accurate for range pins); falls back to the spec's exact
-/// version.
-fn read_project_pinned_pnpm_version(lockfile_dir: &Path, spec: Option<&str>) -> Option<String> {
-    let lockfile_pinned = EnvLockfile::read(lockfile_dir).ok().flatten().and_then(|env| {
-        env.importers
-            .get(EnvLockfile::ROOT_IMPORTER_KEY)
-            .and_then(|importer| importer.package_manager_dependencies.as_ref())
-            .and_then(|deps| deps.get("pnpm"))
-            .map(|dep| dep.version.clone())
-    });
-    let spec_min = spec.and_then(super::package_manager::exact_version);
-    match (lockfile_pinned, spec_min) {
-        (Some(lockfile), Some(spec)) => {
-            Some(if version_lt(&spec, &lockfile) { lockfile } else { spec })
-        }
-        (lockfile, spec) => lockfile.or(spec),
-    }
-}
-
-/// Link the installed engine's bins into the global bin directory and
-/// record its cache-keyed hash symlink (so `pnpm ls -g` and `store prune`
-/// see it).
-fn link_into_global_bin(
-    config: &Config,
-    installed: &install_pnpm::InstallPnpmResult,
-    version: &str,
-) -> miette::Result<()> {
-    let global_bin = config.global_bin.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
-    let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
-    let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&global_bin)?;
-
-    refresh_global_shims(&global_bin, installed, version)?;
-
-    let pkgs = read_installed_packages(&installed.install_dir);
-    link_bins_of_packages_with_excludes::<CmdShimHost>(
-        &pkgs,
-        &global_bin,
-        &HashSet::new(),
-        &LinkBinsOptions::default(),
-    )
-    .map_err(miette::Report::new)
-    .wrap_err("link the updated pnpm bins")?;
-
-    let aliases = vec![installed.package_name.to_string()];
-    let cache_hash = create_global_cache_key(&aliases, &registries_for_cache_key(config));
-    let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
-    force_symlink_dir(&installed.install_dir, &hash_link)
-        .into_diagnostic()
-        .wrap_err("link the global pnpm install directory")?;
     Ok(())
 }
 
-fn refresh_global_shims(
-    global_bin: &Path,
-    installed: &install_pnpm::InstallPnpmResult,
-    version: &str,
-) -> miette::Result<()> {
-    // Named native shims first shipped in pnpm 12.3. An older engine
-    // cannot interpret their sidecars, so leave the working shim engine
-    // in place when downgrading.
-    if !node_semver::Version::parse(version)
-        .is_ok_and(|version| (version.major, version.minor) >= (12, 3))
+/// The message explaining why the global install is left alone, when this
+/// update would not move it forward. Otherwise install and activate the
+/// target engine.
+async fn decline_or_switch_global<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    target_version: &str,
+    prefix: &str,
+    bare_specifier: &str,
+    is_implicit_latest: bool,
+) -> miette::Result<Option<String>> {
+    match Box::pin(global_switch_declined(
+        config,
+        target_version,
+        bare_specifier,
+        is_implicit_latest,
+    ))
+    .await?
     {
-        return Ok(());
+        Some(declined) => Ok(Some(declined)),
+        None => {
+            switch_global_pnpm::<Reporter>(config, target_version, prefix, bare_specifier).await
+        }
     }
-    let executable =
-        install_pnpm::pnpm_executable_path(&installed.install_dir, installed.package_name);
-    crate::shim_dispatch::refresh_native_shims(&executable, global_bin)
-        .into_diagnostic()
-        .wrap_err("refresh the global shims")
 }
 
-/// Build the registry map (`{ default, ...scoped }`) hashed into the
-/// global cache key, from the trusted package-manager bootstrap registries
-/// — never the repo-controlled project registries, so a project `.npmrc`
-/// can't change the hash-symlink name (which would create duplicate global
-/// `pnpm` groups that `find_global_package` resolves non-deterministically).
-fn registries_for_cache_key(config: &Config) -> Vec<(String, String)> {
-    let bootstrap = &config.package_manager_bootstrap;
-    let mut registries = vec![("default".to_string(), bootstrap.registry.clone())];
-    registries.extend(bootstrap.registries.iter().map(|(key, value)| (key.clone(), value.clone())));
-    registries
+/// The message explaining why the global install is left alone, when this
+/// update would not move it forward.
+async fn global_switch_declined(
+    config: &'static Config,
+    target_version: &str,
+    bare_specifier: &str,
+    is_implicit_latest: bool,
+) -> miette::Result<Option<String>> {
+    // Version equality with the running binary alone must not skip the
+    // update: a removed global install can be recovered by running a local
+    // pnpm of the same version (see pnpm/pnpm#12877).
+    if target_version == PNPM_VERSION
+        && is_installed_globally(config.global_pkg_dir.as_deref(), target_version)?
+    {
+        return Ok(Some(format!(
+            r#"The currently active pnpm v{PNPM_VERSION} is already "{bare_specifier}" and doesn't need an update"#,
+        )));
+    }
+    if is_implicit_latest && version_lt(target_version, PNPM_VERSION) {
+        let registry_latest = registry_latest_ignoring_maturity(config).await?;
+        return Ok(Some(implicit_latest_no_upgrade_message(
+            NoUpgradeKind::Active,
+            PNPM_VERSION,
+            target_version,
+            registry_latest.as_deref(),
+        )));
+    }
+    Ok(None)
 }
 
 /// Whether the global packages directory already holds the engine that a
-/// switch to `version` would install, at exactly that version.
+/// switch to `version` would install, at exactly that version, with its
+/// executable in place.
+///
+/// A group whose executable is missing is not that engine yet: declining the
+/// update would strand it. Reporting it as absent sends the update down the
+/// install path, where the group is relinked in place instead of downloaded
+/// again.
 fn is_installed_globally(global_pkg_dir: Option<&Path>, version: &str) -> miette::Result<bool> {
     let Some(global_pkg_dir) = global_pkg_dir else {
         return Ok(false);
     };
-    let package = install_pnpm::pnpm_package_to_install(version);
-    let existing = find_global_package(global_pkg_dir, package.name)
-        .into_diagnostic()
-        .wrap_err("scan global packages")?;
-    Ok(existing.is_some_and(|existing| {
-        install_pnpm::installed_version(&existing.install_dir, package.name).as_deref()
-            == Some(version)
-    }))
-}
-
-/// `true` when pnpm is running under corepack, which manages its own
-/// updates (corepack sets `COREPACK_ROOT`).
-fn is_executed_by_corepack() -> bool {
-    std::env::var_os("COREPACK_ROOT").is_some()
-}
-
-fn coerce_major(version: &str) -> Option<u64> {
-    node_semver::Version::parse(version).ok().map(|version| version.major)
+    Ok(install_pnpm::find_global_engines(global_pkg_dir, version)?
+        .iter()
+        .any(|(pkg, alias)| install_pnpm::pnpm_executable_path(&pkg.install_dir, alias).exists()))
 }
 
 pub(super) fn version_lt(left: &str, right: &str) -> bool {
@@ -612,25 +426,6 @@ pub(super) fn version_lt(left: &str, right: &str) -> bool {
         (Ok(left), Ok(right)) => left < right,
         _ => false,
     }
-}
-
-fn range_satisfies(range: &str, version: &str) -> bool {
-    let (Ok(range), Ok(parsed)) =
-        (node_semver::Range::parse(range), node_semver::Version::parse(version))
-    else {
-        return false;
-    };
-    if range.satisfies(&parsed) {
-        return true;
-    }
-    // node-semver rejects a prerelease (`1.2.3-beta.1`) even when its base
-    // version is in range; retry with the base so prerelease self-update
-    // targets aren't spuriously treated as out of range.
-    if parsed.pre_release.is_empty() {
-        return false;
-    }
-    let base = format!("{}.{}.{}", parsed.major, parsed.minor, parsed.patch);
-    matches!(node_semver::Version::parse(&base), Ok(base) if range.satisfies(&base))
 }
 
 #[cfg(test)]
@@ -650,4 +445,41 @@ fn warn<Reporter: self::Reporter>(prefix: &str, message: &str) {
         message: message.to_string(),
         prefix: prefix.to_string(),
     }));
+}
+
+async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    target_version: &str,
+    prefix: &str,
+    bare_specifier: &str,
+) -> miette::Result<Option<String>> {
+    info::<Reporter>(
+        prefix,
+        &format!("Switching pnpm from v{PNPM_VERSION} to v{target_version}..."),
+    );
+
+    verify_target_engine::<Reporter>(config, target_version, prefix).await?;
+
+    let result = Box::pin(install_pnpm::install_pnpm::<Reporter>(
+        config,
+        target_version,
+        config.supported_architectures.clone(),
+    ))
+    .await?;
+
+    link_into_global_bin(config, &result, target_version)?;
+    if cfg!(windows)
+        && let Some(pnpm_home_dir) = default_pnpm_home_dir::<Host>()
+        && link_into_legacy_home_dir(&pnpm_home_dir, &result)?
+    {
+        warn::<Reporter>(prefix, global_bin::LEGACY_HOME_DIR_WARNING);
+    }
+
+    if result.already_existed {
+        return Ok(Some(format!(
+            "The {bare_specifier} version, v{target_version}, is already present on the system. It was activated by linking it from {}.",
+            result.install_dir.display(),
+        )));
+    }
+    Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
 }

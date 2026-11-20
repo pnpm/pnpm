@@ -3,10 +3,10 @@ import fs from 'node:fs/promises'
 import type { VersioningChangelogStorage, VersioningSettings } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 
-import { indexProjectRefs, type ReleasePlan, type WorkspaceProject } from './assembleReleasePlan.js'
+import { indexProjectRefs, type PlannedRelease, privateProjectDirs, type ProjectRefIndex, type ReleasePlan, type WorkspaceProject } from './assembleReleasePlan.js'
 import { composeChangelogSection, prependChangelogSection } from './changelog.js'
 import type { ChangeIntent } from './intents.js'
-import { appendToLedger, buildConsumptionIndex, type Ledger } from './ledger.js'
+import { appendToLedger, buildConsumptionIndex, type Ledger, normalizeProjectDir, type PackageConsumption } from './ledger.js'
 import { listPendingChangelogs, readPendingChangelog, removePendingChangelog, writePendingChangelog } from './pendingChangelog.js'
 
 /**
@@ -47,30 +47,50 @@ export interface AppliedRelease {
 
 export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePlanOptions): Promise<AppliedRelease[]> {
   const storage = changelogStorage(opts.versioning)
+  // A private project is never published, so no tarball can ever carry its
+  // prose: its releases use `repository` storage whatever is configured.
+  const privateDirs = privateProjectDirs(opts.projects, opts.workspaceDir)
+  const storageOf = (dir: string): VersioningChangelogStorage => privateDirs.has(dir) ? 'repository' : storage
 
-  const applied = await Promise.all(plan.releases.map(async (release) => {
-    const { manifest, writeProjectManifest } = await readProjectManifest(release.rootDir)
-    manifest.version = release.newVersion
-    await writeProjectManifest(manifest)
-    return {
-      name: release.name,
-      currentVersion: release.currentVersion,
-      newVersion: release.newVersion,
-    }
-  }))
+  const applied = await Promise.all(plan.releases.map(writeNewVersion))
+  await writeChangelogSections(plan, opts.workspaceDir, storageOf)
+  const ledger = await appendToLedger(opts.workspaceDir, toLedgerEntries(plan))
+  await removeConsumedIntents({ ledger, storage, privateDirs, opts })
+  return applied
+}
 
-  // In `repository` storage the section is committed to CHANGELOG.md now. In
-  // `registry` storage nothing is committed to the package; the section is
-  // parked until publish, when it is packed into the tarball.
+async function writeNewVersion (release: PlannedRelease): Promise<AppliedRelease> {
+  const { manifest, writeProjectManifest } = await readProjectManifest(release.rootDir)
+  manifest.version = release.newVersion
+  await writeProjectManifest(manifest)
+  return {
+    name: release.name,
+    currentVersion: release.currentVersion,
+    newVersion: release.newVersion,
+  }
+}
+
+/**
+ * In `repository` storage the section is committed to CHANGELOG.md now. In
+ * `registry` storage nothing is committed to the package; the section is
+ * parked until publish, when it is packed into the tarball.
+ */
+async function writeChangelogSections (
+  plan: ReleasePlan,
+  workspaceDir: string,
+  storageOf: (dir: string) => VersioningChangelogStorage
+): Promise<void> {
   await Promise.all(plan.releases.map(async (release) => {
     const section = composeChangelogSection(release)
-    if (storage === 'repository') {
+    if (storageOf(release.dir) === 'repository') {
       await prependChangelogSection(release.rootDir, release.name, section)
     } else {
-      await writePendingChangelog(opts.workspaceDir, release.name, release.newVersion, section)
+      await writePendingChangelog(workspaceDir, release.name, release.newVersion, section)
     }
   }))
+}
 
+function toLedgerEntries (plan: ReleasePlan): Record<string, { dir: string, intents: string[] }> {
   const newEntries: Record<string, { dir: string, intents: string[] }> = {}
   for (const release of plan.releases) {
     if (release.intents.length === 0) continue
@@ -79,43 +99,69 @@ export async function applyReleasePlan (plan: ReleasePlan, opts: ApplyReleasePla
       intents: release.intents.map((intent) => intent.id).sort(),
     }
   }
-  const ledger = await appendToLedger(opts.workspaceDir, newEntries)
+  return newEntries
+}
 
-  // An intent file is deletable once every project it names has a consumed
-  // ledger entry for it, with one exemption: while a project is still on a
-  // lane, entries against prerelease versions alone keep the file alive — its
-  // prose is still needed to compose the stable changelog section at
-  // graduation. Declined (`none`) entries demand no release and never block
-  // deletion. References here were already validated by the plan assembly,
-  // so an unresolvable one just keeps its file around.
-  //
-  // In `registry` storage the ledger alone does not authorize deletion: the
-  // repository is the only copy of the prose until the release is published,
-  // so an entry counts as consumed only once the registry confirms its version
-  // carries the composed section.
+interface RemoveConsumedIntentsOptions {
+  ledger: Ledger
+  storage: VersioningChangelogStorage
+  privateDirs: Set<string>
+  opts: ApplyReleasePlanOptions
+}
+
+/**
+ * An intent file is deletable once every project it names has a consumed
+ * ledger entry for it, with one exemption: while a project is still on a
+ * lane, entries against prerelease versions alone keep the file alive — its
+ * prose is still needed to compose the stable changelog section at
+ * graduation. Declined (`none`) entries demand no release and never block
+ * deletion. References here were already validated by the plan assembly,
+ * so an unresolvable one just keeps its file around.
+ *
+ * In `registry` storage the ledger alone does not authorize deletion: the
+ * repository is the only copy of the prose until the release is published,
+ * so an entry counts as consumed only once the registry confirms its version
+ * carries the composed section.
+ */
+async function removeConsumedIntents ({ ledger, storage, privateDirs, opts }: RemoveConsumedIntentsOptions): Promise<void> {
   const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
   const consumedLedger = storage === 'repository'
     ? ledger
-    : await confirmPublished(ledger, opts)
-  const consumptionOf = buildConsumptionIndex(consumedLedger, refs.nameToDirs)
+    : Object.assign(privateEntries(ledger, privateDirs), await confirmPublished(ledger, opts))
+  const isConsumed = consumptionChecker({
+    refs,
+    consumptionOf: buildConsumptionIndex(consumedLedger, refs.nameToDirs),
+    laneDirs: collectLaneDirs(refs, opts.versioning),
+  })
+  const deletable = opts.allIntents.filter((intent) =>
+    Object.entries(intent.releases).every(([ref, bumpType]) => bumpType === 'none' || isConsumed(intent, ref)))
+  await Promise.all(deletable.map(async (intent) => fs.rm(intent.filePath)))
+}
+
+function collectLaneDirs (refs: ProjectRefIndex, versioning?: VersioningSettings): Set<string> {
   const laneDirs = new Set<string>()
-  for (const ref of Object.keys(opts.versioning?.lanes ?? {})) {
+  for (const ref of Object.keys(versioning?.lanes ?? {})) {
     for (const dir of refs.refToDirs(ref)) {
       laneDirs.add(dir)
     }
   }
-  const deletable = opts.allIntents.filter((intent) =>
-    Object.entries(intent.releases).every(([ref, bumpType]) => {
-      if (bumpType === 'none') return true
-      const dirs = refs.refToDirs(ref)
-      if (dirs.length !== 1) return false
-      const consumption = consumptionOf(dirs[0])
-      return consumption.allIds.has(intent.id) &&
-        !(laneDirs.has(dirs[0]) && consumption.prereleaseOnlyIds.has(intent.id))
-    }))
-  await Promise.all(deletable.map(async (intent) => fs.rm(intent.filePath)))
+  return laneDirs
+}
 
-  return applied
+interface ConsumptionCheckerOptions {
+  refs: ProjectRefIndex
+  consumptionOf: (projectDir: string) => PackageConsumption
+  laneDirs: Set<string>
+}
+
+function consumptionChecker ({ refs, consumptionOf, laneDirs }: ConsumptionCheckerOptions): (intent: ChangeIntent, ref: string) => boolean {
+  return (intent, ref) => {
+    const dirs = refs.refToDirs(ref)
+    if (dirs.length !== 1) return false
+    const consumption = consumptionOf(dirs[0])
+    return consumption.allIds.has(intent.id) &&
+      !(laneDirs.has(dirs[0]) && consumption.prereleaseOnlyIds.has(intent.id))
+  }
 }
 
 /**
@@ -143,4 +189,19 @@ async function confirmPublished (ledger: Ledger, opts: ApplyReleasePlanOptions):
     await removePendingChangelog(opts.workspaceDir, name, version)
   }))
   return confirmed
+}
+
+/**
+ * The entries of `ledger` that belong to private projects. Their prose is
+ * committed to the repository, so they count as consumed without a registry
+ * confirmation. An entry that does not record its dir is left out.
+ */
+function privateEntries (ledger: Ledger, privateDirs: ReadonlySet<string>): Ledger {
+  const entries: Ledger = Object.create(null) as Ledger
+  for (const [key, entry] of Object.entries(ledger)) {
+    if (!Array.isArray(entry) && privateDirs.has(normalizeProjectDir(entry.dir))) {
+      entries[key] = entry
+    }
+  }
+  return entries
 }

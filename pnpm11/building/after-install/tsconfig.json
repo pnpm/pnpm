@@ -31,6 +31,9 @@
       "path": "../../core/types"
     },
     {
+      "path": "../../deps/graph-builder"
+    },
+    {
       "path": "../../deps/graph-hasher"
     },
     {
@@ -46,7 +49,13 @@
       "path": "../../installing/context"
     },
     {
+      "path": "../../installing/deps-restorer"
+    },
+    {
       "path": "../../installing/modules-yaml"
+    },
+    {
+      "path": "../../lockfile/settings-checker"
     },
     {
       "path": "../../lockfile/types"
@@ -56,6 +65,9 @@
     },
     {
       "path": "../../lockfile/walker"
+    },
+    {
+      "path": "../../patching/config"
     },
     {
       "path": "../../pkg-manifest/reader"
@@ -77,6 +89,9 @@
     },
     {
       "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../during-install"
     },
     {
       "path": "../pkg-requires-build"

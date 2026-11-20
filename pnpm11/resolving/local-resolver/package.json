@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.local-resolver",
-  "version": "1101.1.20",
+  "version": "1101.2.10",
   "description": "Resolver for local packages",
   "keywords": [
     "pnpm",
@@ -28,13 +28,14 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "compile": "tsgo --build && pn lint --fix",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -47,6 +48,7 @@
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/resolving.local-resolver": "workspace:*",
     "@types/normalize-path": "catalog:"
   },

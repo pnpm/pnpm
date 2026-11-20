@@ -1,11 +1,17 @@
 //! Build the `PATH` a spawned child sees.
 
-use derive_more::{Display, Error};
+use crate::process::Command;
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpm_diagnostics::miette::Diagnostic;
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     path::PathBuf,
-    process::Command,
 };
 
 /// A directory that cannot be expressed as a single `PATH` entry, because
@@ -21,25 +27,28 @@ pub(crate) struct BadPathDir {
     pub(crate) delimiter: char,
 }
 
+/// The character that separates entries of `PATH` on this platform.
+const PATH_DELIMITER: char = if cfg!(windows) { ';' } else { ':' };
+
+/// [`PATH_DELIMITER`] as a string, for joining entries.
+const PATH_SEPARATOR: &str = if cfg!(windows) { ";" } else { ":" };
+
 /// Prepend `dirs` to the current process `PATH`, most significant first.
 ///
 /// A directory holding the platform path delimiter is rejected rather than
 /// written: it would silently split into several entries, and one of the
 /// halves could name a directory somebody else can write to. Every command
-/// that puts a directory of its own in front of the user's `PATH` — `exec`,
-/// `dlx`, `with`, and the shim dispatcher — goes through here, so they
-/// cannot drift apart on that.
+/// that puts a directory of its own in front of the user's `PATH` goes
+/// through here, so they cannot drift apart on that.
 pub(crate) fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, BadPathDir> {
-    let delimiter = if cfg!(windows) { ';' } else { ':' };
-    let separator = if cfg!(windows) { ";" } else { ":" };
     let mut path = OsString::new();
     for dir in dirs {
         let displayed = dir.to_string_lossy();
-        if displayed.contains(delimiter) {
-            return Err(BadPathDir { dir: displayed.into_owned(), delimiter });
+        if displayed.contains(PATH_DELIMITER) {
+            return Err(BadPathDir { dir: displayed.into_owned(), delimiter: PATH_DELIMITER });
         }
         if !path.is_empty() {
-            path.push(separator);
+            path.push(PATH_SEPARATOR);
         }
         path.push(dir);
     }
@@ -47,7 +56,7 @@ pub(crate) fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, BadPath
         && !current.is_empty()
     {
         if !path.is_empty() {
-            path.push(separator);
+            path.push(PATH_SEPARATOR);
         }
         path.push(current);
     }
@@ -60,10 +69,13 @@ pub(crate) fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, BadPath
 /// environment names are case-insensitive, so a process that inherited
 /// `Path` and is then given `PATH` would carry both, and which one the
 /// child reads is unspecified. Every pnpm spawn site goes through here so
-/// none of them can forget that.
+/// none of them can forget that. Elsewhere names are case-sensitive, so a
+/// `Path` variable is a variable of its own and reaches the child.
 pub(crate) fn set_command_path(cmd: &mut Command, path: &OsStr) {
     cmd.env_remove("PATH");
-    cmd.env_remove("Path");
+    if cfg!(windows) {
+        cmd.env_remove("Path");
+    }
     cmd.env("PATH", path);
 }
 

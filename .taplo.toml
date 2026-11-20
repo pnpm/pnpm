@@ -1,6 +1,7 @@
 include = ["Cargo.toml", "pnpm/crates/*/*.toml", "pnpm/tasks/*/*.toml", "pnpr/crates/*/*.toml"]
 
 [formatting]
-align_entries = true
+align_entries = false
+align_comments = false
 column_width = 120
 allowed_blank_lines = 1

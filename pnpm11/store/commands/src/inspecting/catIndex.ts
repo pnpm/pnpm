@@ -62,6 +62,15 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     )
   }
 
+  const pkgFilesIndex = await fetchPackageFilesIndex(opts, alias, bareSpecifier)
+  return JSON.stringify(sortDeepKeys(pkgFilesIndex), replacer, 2)
+}
+
+async function fetchPackageFilesIndex (
+  opts: CatIndexCommandOptions,
+  alias: string,
+  bareSpecifier: string | undefined
+): Promise<PackageFilesIndex> {
   const storeDir = await getStorePath({
     pkgRoot: process.cwd(),
     storePath: opts.storeDir,
@@ -93,7 +102,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
         'No corresponding index file found. You can use pnpm list to see if the package is installed.'
       )
     }
-    return JSON.stringify(sortDeepKeys(pkgFilesIndex), replacer, 2)
+    return pkgFilesIndex
   } finally {
     storeIndex.close()
   }

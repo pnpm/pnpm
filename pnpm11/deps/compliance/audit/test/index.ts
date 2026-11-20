@@ -2,7 +2,7 @@ import { describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { audit, buildAuditPathIndex, lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import type { PnpmError } from '@pnpm/error'
-import type { PackageSnapshots } from '@pnpm/lockfile.types'
+import type { LockfileObject, PackageSnapshots } from '@pnpm/lockfile.types'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
@@ -29,6 +29,67 @@ describe('audit', () => {
     expect(result.totalDependencies).toBe(2)
     expect(result.devDependencies).toBe(0)
   })
+
+  test('lockfileToAuditRequest() does not treat a dependency named after an Object.prototype property as a peer-satisfaction edge', () => {
+    // Peer-satisfaction detection must check own properties only. Checking
+    // via `in` would match inherited Object.prototype names — `constructor`
+    // is both one of them and a syntactically valid npm package name — and
+    // wrongly exclude this real, non-peer dependency from every reachable
+    // set even though `foo` declares no peerDependencies at all.
+    const result = lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['constructor@1.0.0' as DepPath]: { resolution: { integrity: 'constructor-integrity' } },
+        ['foo@1.0.0' as DepPath]: {
+          dependencies: { constructor: '1.0.0' },
+          resolution: { integrity: 'foo-integrity' },
+        },
+      },
+    }, {})
+
+    expect(result.request).toEqual({ foo: ['1.0.0'], constructor: ['1.0.0'] })
+  })
+  test('lockfileToAuditRequest() throws LockfileMissingDependencyError on missing direct dependency', () => {
+    expect(() => lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {},
+    }, {})).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY',
+    }))
+  })
+
+  test('lockfileToAuditRequest() throws LockfileMissingDependencyError on missing transitive dependency', () => {
+    expect(() => lockfileToAuditRequest({
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { foo: '1.0.0' },
+          specifiers: { foo: '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['foo@1.0.0' as DepPath]: {
+          dependencies: { bar: '1.0.0' },
+          resolution: { integrity: 'foo-integrity' },
+        },
+      },
+    }, {})).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY',
+    }))
+  })
+
 
   test('buildAuditPathIndex() records install paths for vulnerable packages', () => {
     const lockfile = {
@@ -98,9 +159,9 @@ describe('audit', () => {
       },
     })
     packages['cold-leaf@1.0.0' as DepPath] = { resolution: { integrity: 'cold-leaf-integrity' } }
-    for (let i = 0; i < 50; i++) {
-      const parentName = `parent-${i}`
-      importers[`.${i}` as ProjectId] = {
+    for (let parentIndex = 0; parentIndex < 50; parentIndex++) {
+      const parentName = `parent-${parentIndex}`
+      importers[`.${parentIndex}` as ProjectId] = {
         dependencies: { [parentName]: '1.0.0' },
         specifiers: { [parentName]: '1.0.0' },
       }
@@ -121,7 +182,6 @@ describe('audit', () => {
 
   test('buildAuditPathIndex() stops reading saturated vulnerable nodes', () => {
     let vulnReads = 0
-    const importers: Record<ProjectId, { dependencies: Record<string, string>, specifiers: Record<string, string> }> = {}
     const packages: PackageSnapshots = {}
     Object.defineProperty(packages, 'vuln@1.0.0', {
       enumerable: true,
@@ -130,20 +190,37 @@ describe('audit', () => {
         return { resolution: { integrity: 'vuln-integrity' } }
       },
     })
-    for (let i = 0; i < 150; i++) {
-      importers[`.${i}` as ProjectId] = {
-        dependencies: { vuln: '1.0.0' },
-        specifiers: { vuln: '1.0.0' },
-      }
-    }
+    const { dependencies, specifiers } = addFanOutToVuln(packages, 150)
     const result = buildAuditPathIndex({
-      importers,
+      importers: { ['.' as ProjectId]: { dependencies, specifiers } },
       lockfileVersion: LOCKFILE_VERSION,
       packages,
     }, new Set(['vuln']), { depTypes: {}, optionalOnly: new Set() })
 
     expect(result['vuln']!.get('1.0.0')!.paths).toHaveLength(100)
     expect(vulnReads).toBe(101)
+  })
+
+  test('buildAuditPathIndex() records a path from every importer after the finding is saturated', () => {
+    const packages: PackageSnapshots = {
+      ['vuln@1.0.0' as DepPath]: { resolution: { integrity: 'vuln-integrity' } },
+    }
+    const { dependencies, specifiers } = addFanOutToVuln(packages, 150)
+    const result = buildAuditPathIndex({
+      importers: {
+        ['packages/a' as ProjectId]: { dependencies, specifiers },
+        ['packages/b' as ProjectId]: {
+          dependencies: { vuln: '1.0.0' },
+          specifiers: { vuln: '1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages,
+    }, new Set(['vuln']), { depTypes: {}, optionalOnly: new Set() })
+
+    const paths = result['vuln']!.get('1.0.0')!.paths
+    expect(paths).toHaveLength(101)
+    expect(paths).toContain('packages__b>vuln')
   })
 
   test('buildAuditPathIndex() classifies as optional when the only non-optional path runs through an excluded devDependency', () => {
@@ -186,6 +263,374 @@ describe('audit', () => {
     // With devDependencies excluded the only remaining way to reach shared-pkg
     // is through opt-root, so the dep becomes optional-only.
     expect(prodOnly['shared-pkg']!.get('1.0.0')!.optional).toBe(true)
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a prod dependency\'s optional peer via an excluded devDependency', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { hookform: '1.0.0(valibot@1.2.0)' },
+          devDependencies: { valibot: '1.2.0' },
+          specifiers: { hookform: '^1.0.0', valibot: '^1.2.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['hookform@1.0.0(valibot@1.2.0)' as DepPath]: {
+          optionalDependencies: { valibot: '1.2.0' },
+          peerDependencies: { valibot: '^1.0.0' },
+          peerDependenciesMeta: { valibot: { optional: true as const } },
+          resolution: { integrity: 'hookform-integrity' },
+        },
+        ['valibot@1.2.0' as DepPath]: { resolution: { integrity: 'valibot-integrity' } },
+      },
+    }
+
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({ hookform: ['1.0.0'], valibot: ['1.2.0'] })
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ hookform: ['1.0.0'] })
+    expect(prodOnly.request).not.toHaveProperty('valibot')
+  })
+
+  test('buildAuditPathIndex() classifies a peer-satisfied-by-devDependency package as dev, not optional', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { hookform: '1.0.0(valibot@1.2.0)' },
+          devDependencies: { valibot: '1.2.0' },
+          specifiers: { hookform: '^1.0.0', valibot: '^1.2.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['hookform@1.0.0(valibot@1.2.0)' as DepPath]: {
+          optionalDependencies: { valibot: '1.2.0' },
+          peerDependencies: { valibot: '^1.0.0' },
+          peerDependenciesMeta: { valibot: { optional: true as const } },
+          resolution: { integrity: 'hookform-integrity' },
+        },
+        ['valibot@1.2.0' as DepPath]: { resolution: { integrity: 'valibot-integrity' } },
+      },
+    }
+    const result = buildAuditPathIndex(lockfile, new Set(['valibot']), {})
+
+    expect(result['valibot']!.get('1.2.0')).toEqual({
+      paths: ['.>hookform>valibot', '.>valibot'],
+      dev: true,
+      optional: false,
+    })
+  })
+
+  test('lockfileToAuditRequest() excludes a package only present because it satisfied a devDependency\'s optional peer via an excluded prod dependency (--dev mirror)', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'helper-lib': '1.0.0' },
+          devDependencies: { 'dev-tool': '1.0.0(helper-lib@1.0.0)' },
+          specifiers: { 'dev-tool': '^1.0.0', 'helper-lib': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['dev-tool@1.0.0(helper-lib@1.0.0)' as DepPath]: {
+          optionalDependencies: { 'helper-lib': '1.0.0' },
+          peerDependencies: { 'helper-lib': '^1.0.0' },
+          peerDependenciesMeta: { 'helper-lib': { optional: true as const } },
+          resolution: { integrity: 'dev-tool-integrity' },
+        },
+        ['helper-lib@1.0.0' as DepPath]: { resolution: { integrity: 'helper-lib-integrity' } },
+      },
+    }
+
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({ 'dev-tool': ['1.0.0'], 'helper-lib': ['1.0.0'] })
+
+    const devOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+    })
+    expect(devOnly.request).toEqual({ 'dev-tool': ['1.0.0'] })
+    expect(devOnly.request).not.toHaveProperty('helper-lib')
+  })
+
+  test('lockfileToAuditRequest() keeps a package that satisfies a required peer via an excluded devDependency', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'needs-react': '1.0.0(react@18.0.0)' },
+          devDependencies: { react: '18.0.0' },
+          specifiers: { 'needs-react': '^1.0.0', react: '^18.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-react@1.0.0(react@18.0.0)' as DepPath]: {
+          dependencies: { react: '18.0.0' },
+          peerDependencies: { react: '^18.0.0' },
+          resolution: { integrity: 'needs-react-integrity' },
+        },
+        ['react@18.0.0' as DepPath]: { resolution: { integrity: 'react-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-react': ['1.0.0'], react: ['18.0.0'] })
+  })
+
+  test('lockfileToAuditRequest() keeps a required peer and excludes an optional peer that excluded devDependencies satisfy', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { abc: '1.0.0(peer-a@1.0.0)(peer-c@1.0.0)' },
+          devDependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+          specifiers: { abc: '1.0.0', 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0', 'peer-c': '1.0.0' },
+          peerDependencies: { 'peer-a': '^1.0.0', 'peer-c': '^1.0.0' },
+          peerDependenciesMeta: { 'peer-c': { optional: true as const } },
+          resolution: { integrity: 'abc-integrity' },
+        },
+        ['peer-a@1.0.0' as DepPath]: { resolution: { integrity: 'peer-a-integrity' } },
+        ['peer-c@1.0.0' as DepPath]: { resolution: { integrity: 'peer-c-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ abc: ['1.0.0'], 'peer-a': ['1.0.0'] })
+    const index = buildAuditPathIndex(lockfile, new Set(['peer-a', 'peer-c']), {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(index['peer-a'].get('1.0.0')!.paths).toEqual(['.>abc>peer-a'])
+    expect(index['peer-c']).toBeUndefined()
+  })
+
+  test('lockfileToAuditRequest() keeps a package that satisfies a devDependency\'s required peer via an excluded prod dependency (--dev mirror)', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'ui-lib': '2.0.0' },
+          devDependencies: { 'needs-ui-lib': '1.0.0(ui-lib@2.0.0)' },
+          specifiers: { 'needs-ui-lib': '^1.0.0', 'ui-lib': '^2.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-ui-lib@1.0.0(ui-lib@2.0.0)' as DepPath]: {
+          dependencies: { 'ui-lib': '2.0.0' },
+          peerDependencies: { 'ui-lib': '^2.0.0' },
+          resolution: { integrity: 'needs-ui-lib-integrity' },
+        },
+        ['ui-lib@2.0.0' as DepPath]: { resolution: { integrity: 'ui-lib-integrity' } },
+      },
+    }
+
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({ 'needs-ui-lib': ['1.0.0'], 'ui-lib': ['2.0.0'] })
+
+    const devOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+    })
+    expect(devOnly.request).toEqual({ 'needs-ui-lib': ['1.0.0'], 'ui-lib': ['2.0.0'] })
+  })
+
+  test('lockfileToAuditRequest() keeps an auto-installed peer whose only provider is the peer edge', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'needs-peer-a': '1.0.0(peer-a@1.0.0)' },
+          devDependencies: { 'dev-tool': '1.0.0' },
+          specifiers: { 'needs-peer-a': '^1.0.0', 'dev-tool': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-peer-a@1.0.0(peer-a@1.0.0)' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0' },
+          peerDependencies: { 'peer-a': '^1.0.0' },
+          resolution: { integrity: 'needs-peer-a-integrity' },
+        },
+        ['peer-a@1.0.0' as DepPath]: {
+          dependencies: { 'peer-a-dep': '1.0.0' },
+          resolution: { integrity: 'peer-a-integrity' },
+        },
+        ['peer-a-dep@1.0.0' as DepPath]: { resolution: { integrity: 'peer-a-dep-integrity' } },
+        ['dev-tool@1.0.0' as DepPath]: { resolution: { integrity: 'dev-tool-integrity' } },
+      },
+    }
+
+    const full = lockfileToAuditRequest(lockfile, {})
+    expect(full.request).toEqual({
+      'needs-peer-a': ['1.0.0'],
+      'peer-a': ['1.0.0'],
+      'peer-a-dep': ['1.0.0'],
+      'dev-tool': ['1.0.0'],
+    })
+    expect(full).toMatchObject({ totalDependencies: 4, dependencies: 3, devDependencies: 1, optionalDependencies: 0 })
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-peer-a': ['1.0.0'], 'peer-a': ['1.0.0'], 'peer-a-dep': ['1.0.0'] })
+  })
+
+  test('buildAuditPathIndex() records the install path of an auto-installed peer', () => {
+    const lockfile = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'needs-peer-a': '1.0.0(peer-a@1.0.0)' },
+          specifiers: { 'needs-peer-a': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-peer-a@1.0.0(peer-a@1.0.0)' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0' },
+          peerDependencies: { 'peer-a': '^1.0.0' },
+          resolution: { integrity: 'needs-peer-a-integrity' },
+        },
+        ['peer-a@1.0.0' as DepPath]: { resolution: { integrity: 'peer-a-integrity' } },
+      },
+    }
+
+    const index = buildAuditPathIndex(lockfile, new Set(['peer-a']), {})
+    expect(index['peer-a'].get('1.0.0')).toEqual({ paths: ['.>needs-peer-a>peer-a'], dev: false, optional: false })
+  })
+
+  test('lockfileToAuditRequest() keeps an auto-installed peer that another importer lists as a devDependency', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['pkg-a' as ProjectId]: {
+          devDependencies: { typescript: '5.4.5' },
+          specifiers: { typescript: '5.4.5' },
+        },
+        ['pkg-b' as ProjectId]: {
+          dependencies: { 'needs-ts': '1.0.0(typescript@5.4.5)' },
+          specifiers: { 'needs-ts': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-ts@1.0.0(typescript@5.4.5)' as DepPath]: {
+          dependencies: { typescript: '5.4.5' },
+          peerDependencies: { typescript: '^5.0.0' },
+          resolution: { integrity: 'needs-ts-integrity' },
+        },
+        ['typescript@5.4.5' as DepPath]: { resolution: { integrity: 'typescript-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-ts': ['1.0.0'], typescript: ['5.4.5'] })
+  })
+
+  test('lockfileToAuditRequest() keeps an auto-installed peer that a devDependency also depends on', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: { 'needs-peer-a': '1.0.0(peer-a@1.0.0)' },
+          devDependencies: { 'dev-tool': '1.0.0' },
+          specifiers: { 'needs-peer-a': '^1.0.0', 'dev-tool': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-peer-a@1.0.0(peer-a@1.0.0)' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0' },
+          peerDependencies: { 'peer-a': '^1.0.0' },
+          resolution: { integrity: 'needs-peer-a-integrity' },
+        },
+        ['dev-tool@1.0.0' as DepPath]: {
+          dependencies: { 'peer-a': '1.0.0' },
+          resolution: { integrity: 'dev-tool-integrity' },
+        },
+        ['peer-a@1.0.0' as DepPath]: { resolution: { integrity: 'peer-a-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-peer-a': ['1.0.0'], 'peer-a': ['1.0.0'] })
+  })
+
+  test('lockfileToAuditRequest() keeps a peer that one importer lists as a devDependency when another importer reaches the dependent without listing it', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['pkg-a' as ProjectId]: {
+          dependencies: { 'needs-ts': '1.0.0(typescript@5.4.5)' },
+          devDependencies: { typescript: '5.4.5' },
+          specifiers: { 'needs-ts': '^1.0.0', typescript: '5.4.5' },
+        },
+        ['pkg-b' as ProjectId]: {
+          dependencies: { 'needs-ts': '1.0.0(typescript@5.4.5)' },
+          specifiers: { 'needs-ts': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-ts@1.0.0(typescript@5.4.5)' as DepPath]: {
+          dependencies: { typescript: '5.4.5' },
+          peerDependencies: { typescript: '^5.0.0' },
+          peerDependenciesMeta: { typescript: { optional: true as const } },
+          resolution: { integrity: 'needs-ts-integrity' },
+        },
+        ['typescript@5.4.5' as DepPath]: { resolution: { integrity: 'typescript-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-ts': ['1.0.0'], typescript: ['5.4.5'] })
+  })
+
+  test('lockfileToAuditRequest() keeps an optional peer that only the workspace root lists unless resolvePeersFromWorkspaceRoot is on', () => {
+    const lockfile: LockfileObject = {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: { typescript: '5.4.5' },
+          specifiers: { typescript: '5.4.5' },
+        },
+        ['pkg-b' as ProjectId]: {
+          dependencies: { 'needs-ts': '1.0.0(typescript@5.4.5)' },
+          specifiers: { 'needs-ts': '^1.0.0' },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['needs-ts@1.0.0(typescript@5.4.5)' as DepPath]: {
+          dependencies: { typescript: '5.4.5' },
+          peerDependencies: { typescript: '^5.0.0' },
+          peerDependenciesMeta: { typescript: { optional: true as const } },
+          resolution: { integrity: 'needs-ts-integrity' },
+        },
+        ['typescript@5.4.5' as DepPath]: { resolution: { integrity: 'typescript-integrity' } },
+      },
+    }
+
+    const prodOnly = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+    })
+    expect(prodOnly.request).toEqual({ 'needs-ts': ['1.0.0'], typescript: ['5.4.5'] })
+
+    const prodOnlyWithRootPeers = lockfileToAuditRequest(lockfile, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+      resolvePeersFromWorkspaceRoot: true,
+    })
+    expect(prodOnlyWithRootPeers.request).toEqual({ 'needs-ts': ['1.0.0'] })
   })
 
   test('buildAuditPathIndex() flags findings reached only through optional edges', () => {
@@ -309,28 +754,28 @@ describe('audit', () => {
   })
 
   test('buildAuditPathIndex() scales linearly, not quadratically, with cycle size', () => {
-    // n0 -> ... -> n(L-1) -> n0 is one big cycle with a single vulnerable leaf.
-    // Recomputing the cycle for every ancestor scans ~L^2 nodes, so doubling L
+    // n0 -> ... -> n(cycleLength-1) -> n0 is one big cycle with a single vulnerable leaf.
+    // Recomputing the cycle for every ancestor scans ~cycleLength^2 nodes, so doubling cycleLength
     // quadruples the reads; linear work only doubles them. Comparing the growth
     // rate of two sizes — rather than an absolute count — keeps the assertion
-    // robust to constant-factor changes in future refactors.
-    const countReads = (L: number): number => {
+    // stable across constant-factor changes in future refactors.
+    const countReads = (cycleLength: number): number => {
       let reads = 0
       const importers = {
         ['.' as ProjectId]: { dependencies: { n0: '1.0.0' }, specifiers: { n0: '^1.0.0' } },
       }
       const packages: PackageSnapshots = {}
-      for (let i = 0; i < L; i++) {
-        const nextName = i + 1 < L ? `n${i + 1}` : 'n0' // the last node loops back to n0
-        const deps = { [nextName]: '1.0.0', [`leaf${i}`]: '1.0.0' }
-        Object.defineProperty(packages, `n${i}@1.0.0`, {
+      for (let nodeIndex = 0; nodeIndex < cycleLength; nodeIndex++) {
+        const nextName = nodeIndex + 1 < cycleLength ? `n${nodeIndex + 1}` : 'n0' // the last node loops back to n0
+        const deps = { [nextName]: '1.0.0', [`leaf${nodeIndex}`]: '1.0.0' }
+        Object.defineProperty(packages, `n${nodeIndex}@1.0.0`, {
           enumerable: true,
           get: () => {
             reads++
-            return { dependencies: deps, resolution: { integrity: `n${i}-integrity` } }
+            return { dependencies: deps, resolution: { integrity: `n${nodeIndex}-integrity` } }
           },
         })
-        packages[`leaf${i}@1.0.0` as DepPath] = { resolution: { integrity: `leaf${i}-integrity` } }
+        packages[`leaf${nodeIndex}@1.0.0` as DepPath] = { resolution: { integrity: `leaf${nodeIndex}-integrity` } }
       }
 
       const result = buildAuditPathIndex({
@@ -353,15 +798,15 @@ describe('audit', () => {
   })
 
   test('buildAuditPathIndex() handles a very deep dependency chain without overflowing the stack', () => {
-    // n0 -> n1 -> ... -> n(L-1) -> vuln is a single chain far deeper than the JS
+    // n0 -> n1 -> ... -> n(chainLength-1) -> vuln is a single chain far deeper than the JS
     // call-stack limit. A recursive walk (reachability or path traversal) would
     // throw RangeError on this lockfile (a lockfile is untrusted input); the
     // iterative implementation must complete and still report the leaf.
-    const L = 60_000
+    const chainLength = 60_000
     const packages: PackageSnapshots = {}
-    for (let i = 0; i < L; i++) {
-      const child = i + 1 < L ? `n${i + 1}` : 'vuln'
-      packages[`n${i}@1.0.0` as DepPath] = { dependencies: { [child]: '1.0.0' }, resolution: { integrity: `n${i}-integrity` } }
+    for (let nodeIndex = 0; nodeIndex < chainLength; nodeIndex++) {
+      const child = nodeIndex + 1 < chainLength ? `n${nodeIndex + 1}` : 'vuln'
+      packages[`n${nodeIndex}@1.0.0` as DepPath] = { dependencies: { [child]: '1.0.0' }, resolution: { integrity: `n${nodeIndex}-integrity` } }
     }
     packages['vuln@1.0.0' as DepPath] = { resolution: { integrity: 'vuln-integrity' } }
 
@@ -757,4 +1202,60 @@ describe('audit', () => {
       await teardownMockAgent()
     }
   })
+
+  test('keeps advisories with string ids in bulk response', async () => {
+    const registry = 'http://registry.registry/'
+    const getAuthHeader = () => undefined
+    await setupMockAgent()
+    getMockAgent().get('http://registry.registry')
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        lodash: [
+          {
+            id: 'CUSTOM-ADVISORY-1',
+            url: 'https://example.com/advisories/CUSTOM-ADVISORY-1',
+            title: 'Test advisory',
+            severity: 'high',
+            vulnerable_versions: '<4.17.21',
+          },
+        ],
+      })
+
+    try {
+      const result = await audit(
+        {
+          importers: {
+            ['.' as ProjectId]: {
+              dependencies: { lodash: '4.17.20' },
+              specifiers: { lodash: '4.17.20' },
+            },
+          },
+          lockfileVersion: LOCKFILE_VERSION,
+          packages: {
+            ['lodash@4.17.20' as DepPath]: { resolution: { integrity: 'lodash-integrity' } },
+          },
+        },
+        getAuthHeader,
+        { registry, retry: { retries: 0 } }
+      )
+      expect(result.metadata.vulnerabilities.high).toBe(1)
+      expect(result.advisories['CUSTOM-ADVISORY-1'].id).toBe('CUSTOM-ADVISORY-1')
+    } finally {
+      await teardownMockAgent()
+    }
+  })
 })
+
+function addFanOutToVuln (packages: PackageSnapshots, count: number): { dependencies: Record<string, string>, specifiers: Record<string, string> } {
+  const dependencies: Record<string, string> = {}
+  const specifiers: Record<string, string> = {}
+  for (let parentIndex = 0; parentIndex < count; parentIndex++) {
+    dependencies[`parent${parentIndex}`] = '1.0.0'
+    specifiers[`parent${parentIndex}`] = '1.0.0'
+    packages[`parent${parentIndex}@1.0.0` as DepPath] = {
+      dependencies: { vuln: '1.0.0' },
+      resolution: { integrity: `parent${parentIndex}-integrity` },
+    }
+  }
+  return { dependencies, specifiers }
+}

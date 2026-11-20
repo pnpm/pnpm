@@ -7,6 +7,8 @@ import type { PackageDependencyHierarchy } from './types.js'
 
 const sortPackages = sortBy(path(['pkg', 'alias']) as (pkg: DependencyNode) => Ord)
 
+const SORTED_DEPENDENCIES_FIELDS = [...DEPENDENCIES_FIELDS].sort()
+
 type RenderJsonResultItem = Pick<PackageDependencyHierarchy, 'name' | 'version' | 'path'> &
 Required<Pick<PackageDependencyHierarchy, 'private'>> &
 {
@@ -34,7 +36,7 @@ export async function renderJson (
     Object.assign(jsonObj,
       Object.fromEntries(
         await Promise.all(
-          ([...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies'] as const)
+          ([...SORTED_DEPENDENCIES_FIELDS, 'unsavedDependencies'] as const)
             .filter((dependenciesField) => pkg[dependenciesField]?.length)
             .map(async (dependenciesField) => [
               dependenciesField,
@@ -63,30 +65,42 @@ export async function toJsonResult (
       const subDependencies = await toJsonResult(node.dependencies ?? [], opts)
       const dep: PackageJsonListItem = opts.long
         ? await getPkgInfo(node)
-        : {
-          alias: node.alias as string | undefined,
-          from: node.name,
-          version: node.version,
-          resolved: node.resolved,
-          path: node.path,
-        }
-      if (Object.keys(subDependencies).length > 0) {
-        dep.dependencies = subDependencies
-      }
-      if (node.deduped) {
-        dep.deduped = true
-        if (node.dedupedDependenciesCount) {
-          dep.dedupedDependenciesCount = node.dedupedDependenciesCount
-        }
-      }
-      if (!dep.resolved) {
-        delete dep.resolved
-      }
-      delete dep.alias
+        : toPlainJsonListItem(node)
+      completeJsonListItem(dep, node, subDependencies)
       dependencies[node.alias] = dep
     })
   )
   return dependencies
+}
+
+function toPlainJsonListItem (node: DependencyNode): PackageJsonListItem {
+  return {
+    alias: node.alias as string | undefined,
+    from: node.name,
+    version: node.version,
+    resolved: node.resolved,
+    path: node.path,
+  }
+}
+
+function completeJsonListItem (
+  dep: PackageJsonListItem,
+  node: DependencyNode,
+  subDependencies: Record<string, PackageJsonListItem>
+): void {
+  if (Object.keys(subDependencies).length > 0) {
+    dep.dependencies = subDependencies
+  }
+  if (node.deduped) {
+    dep.deduped = true
+    if (node.dedupedDependenciesCount) {
+      dep.dedupedDependenciesCount = node.dedupedDependenciesCount
+    }
+  }
+  if (!dep.resolved) {
+    delete dep.resolved
+  }
+  delete dep.alias
 }
 
 interface PackageJsonListItem extends PkgInfo {

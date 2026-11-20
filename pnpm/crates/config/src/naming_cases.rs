@@ -85,30 +85,30 @@ fn words(name: &str) -> Vec<String> {
     let mut current = String::new();
     let mut prev: Option<char> = None;
 
-    for (i, &c) in chars.iter().enumerate() {
-        if !c.is_ascii_alphanumeric() {
-            if !current.is_empty() {
-                result.push(std::mem::take(&mut current));
-            }
+    for (index, &char) in chars.iter().enumerate() {
+        if !char.is_ascii_alphanumeric() {
+            push_word(&mut result, &mut current);
             prev = None;
             continue;
         }
-
-        if let Some(p) = prev {
-            let boundary = boundary_before(p, c, chars.get(i + 1).copied());
-            if boundary && !current.is_empty() {
-                result.push(std::mem::take(&mut current));
-            }
+        let starts_word =
+            prev.is_some_and(|prev| boundary_before(prev, char, chars.get(index + 1).copied()));
+        if starts_word {
+            push_word(&mut result, &mut current);
         }
-
-        current.push(c);
-        prev = Some(c);
+        current.push(char);
+        prev = Some(char);
     }
 
-    if !current.is_empty() {
-        result.push(current);
-    }
+    push_word(&mut result, &mut current);
     result
+}
+
+/// Close the word being built, if there is one.
+fn push_word(result: &mut Vec<String>, current: &mut String) {
+    if !current.is_empty() {
+        result.push(std::mem::take(current));
+    }
 }
 
 /// Whether a word boundary falls *before* `curr` given the previous char
@@ -121,15 +121,12 @@ fn boundary_before(prev: char, curr: char, next: Option<char>) -> bool {
     let curr_upper = curr.is_ascii_uppercase();
     let curr_digit = curr.is_ascii_digit();
 
-    // letter → digit and digit → letter both start a new word
     if (prev.is_ascii_alphabetic() && curr_digit) || (prev_digit && curr.is_ascii_alphabetic()) {
         return true;
     }
-    // lower → upper: camelCase hump (`fetchRetries` → `fetch`, `Retries`)
     if prev_lower && curr_upper {
         return true;
     }
-    // upper → upper followed by lower: acronym end (`XMLHttp` → `XML`, `Http`)
     if prev_upper && curr_upper && next.is_some_and(|following| following.is_ascii_lowercase()) {
         return true;
     }

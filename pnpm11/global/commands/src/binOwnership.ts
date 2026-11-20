@@ -1,26 +1,34 @@
-import { getInstalledBinNames, scanGlobalPackages } from '@pnpm/global.packages'
+import {
+  getInstalledBinNames,
+  type GlobalPackageBinSnapshot,
+  type GlobalPackageInfo,
+  scanGlobalPackages,
+} from '@pnpm/global.packages'
 
 /**
- * The set of bin names provided by global package groups *other* than those
- * in `excludeHashes`.
+ * A complete ownership snapshot for the groups about to be replaced or
+ * removed, together with the at-risk bins owned by groups that will survive.
  *
- * Used before unlinking a group's bins (on remove / update / replace) so
- * that a bin name shared with — and owned by — another still-installed
- * group is never removed. Without this, removing one group could delete a
- * bin that actually belongs to a different global package.
+ * Every manifest read settles before the caller mutates global state. That
+ * makes a target whose ownership cannot be read fail closed. Survivors only
+ * need inspecting when a target bin will not be retained, because no other
+ * bin can be removed.
  */
-export async function getBinNamesOfOtherGroups (
+export async function getGlobalBinOwnership (
   globalDir: string,
-  excludeHashes: Set<string>
-): Promise<Set<string>> {
-  const others = scanGlobalPackages(globalDir).filter((pkg) => !excludeHashes.has(pkg.hash))
-  const names = new Set<string>()
-  await Promise.all(
-    others.map(async (pkg) => {
-      for (const name of await getInstalledBinNames(pkg)) {
-        names.add(name)
-      }
-    })
+  targetGroups: GlobalPackageInfo[],
+  retainedBinNames: Set<string>
+): Promise<{ groups: GlobalPackageBinSnapshot[], protectedBins: Set<string> }> {
+  const targetHashes = new Set(targetGroups.map(({ hash }) => hash))
+  const targetBinNames = await Promise.all(targetGroups.map((pkg) => getInstalledBinNames(pkg)))
+  const groups = targetGroups.map((info, index) => ({ info, binNames: targetBinNames[index] }))
+  const binNamesToProtect = new Set(targetBinNames.flat().filter((name) => !retainedBinNames.has(name)))
+  if (binNamesToProtect.size === 0) return { groups, protectedBins: new Set() }
+
+  const survivingGroups = scanGlobalPackages(globalDir).filter((pkg) => !targetHashes.has(pkg.hash))
+  const survivorBinNames = await Promise.all(survivingGroups.map((pkg) => getInstalledBinNames(pkg)))
+  const protectedBins = new Set(
+    survivorBinNames.flat().filter((name) => binNamesToProtect.has(name))
   )
-  return names
+  return { groups, protectedBins }
 }

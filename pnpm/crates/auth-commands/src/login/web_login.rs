@@ -1,17 +1,36 @@
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
+};
 use pnpm_network_web_auth::{
-    AuthUrlMessage, Clock, EnterKeyListener, OpenUrl, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
-    WebAuthFetchOptions, WebAuthTimeoutError, WebAuthTokenPollParams, format_auth_url_message,
-    poll_for_web_auth_token, prompt_browser_open,
+    AuthUrlMessage,
+    Clock,
+    EnterKeyListener,
+    OpenUrl,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    WebAuthFetch,
+    WebAuthFetchOptions,
+    WebAuthTimeoutError,
+    WebAuthTokenPollParams,
+    format_auth_url_message,
+    poll_for_web_auth_token,
+    prompt_browser_open,
 };
 use pnpm_reporter::Reporter;
+use pnpm_text_sanitize::sanitize_inline;
 use serde_json::Value;
 
-use super::{error::LoginError, global_info, registry_join};
+use super::{
+    error::LoginError,
+    global_info,
+    registry_join,
+};
 
-/// Drive the registry's web-based login: probe `-/v1/login`, then poll the
-/// returned `doneUrl` for the granted token while offering to open the login
-/// URL in a browser.
+/// Drive the registry's web-based login: probe `-/v1/login`, print any
+/// `npm-notice` headers it returned, then poll the returned `doneUrl` for the
+/// granted token while offering to open the login URL in a browser.
 pub(super) async fn web_login<Sys, Reporter>(
     http_client: &ThrottledClient,
     registry: &str,
@@ -31,7 +50,10 @@ where
 
     let json = serde_json::from_str::<Value>(&response.body).unwrap_or(Value::Null);
     let read = |field: &str| {
-        json.get(field).and_then(Value::as_str).filter(|value| !value.is_empty()).map(str::to_owned)
+        json.get(field)
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
     };
     let (Some(auth_url), Some(done_url)) = (read("loginUrl"), read("doneUrl")) else {
         return Err(WebLoginFlowError::InvalidResponse);
@@ -45,6 +67,8 @@ where
     if auth_url.contains(char::is_control) || done_url.contains(char::is_control) {
         return Err(WebLoginFlowError::UnsafeUrl);
     }
+
+    report_notices::<Reporter>(&response.notices);
 
     // A non-TTY stdout (a CI log, a pipe) cannot render the QR code block, so
     // print the URL on its own.
@@ -82,16 +106,42 @@ async fn web_login_post(
         .map_err(|error| WebLoginFlowError::Transport { reason: error.to_string() })?;
     let ok = response.status().is_success();
     let status = response.status().as_u16();
+    // The headers must be read before `text()` consumes the response.
+    // Non-UTF-8 bytes are decoded lossily so a malformed notice cannot
+    // fail the login.
+    let notices = response
+        .headers()
+        .get_all("npm-notice")
+        .iter()
+        .map(reqwest::header::HeaderValue::as_bytes)
+        .map(String::from_utf8_lossy)
+        .map(std::borrow::Cow::into_owned)
+        .collect();
     let body = response.text().await.unwrap_or_default();
-    Ok(HttpResponse { ok, status, body })
+    Ok(HttpResponse { ok, status, body, notices })
 }
 
-/// A materialized registry response — the fields [`web_login`] and
+/// Print the `npm-notice` values of the probe response in the order received.
+/// The text is registry-controlled, so control and formatting characters are
+/// removed first. A notice that is empty afterwards is skipped. A notice never
+/// fails the login.
+fn report_notices<Reporter: self::Reporter>(notices: &[String]) {
+    for notice in notices {
+        let sanitized = sanitize_inline(notice);
+        if !sanitized.is_empty() {
+            global_info::<Reporter>(sanitized.into_owned());
+        }
+    }
+}
+
+/// A materialized registry response, the fields [`web_login`] and
 /// `add_user` read after the request completes.
 struct HttpResponse {
     ok: bool,
     status: u16,
     body: String,
+    /// The `npm-notice` header values, in the order received.
+    notices: Vec<String>,
 }
 
 /// Failure surface of the web-based login flow. Internal to this module: the
@@ -102,8 +152,8 @@ pub(super) enum WebLoginFlowError {
     Http { status: u16, text: String },
     /// The probe succeeded but the body lacked a usable `loginUrl` / `doneUrl`.
     InvalidResponse,
-    /// A `loginUrl` / `doneUrl` carried control characters — a terminal-spoofing
-    /// attempt — so the login is rejected rather than used.
+    /// A `loginUrl` / `doneUrl` carried control characters (a terminal-spoofing
+    /// attempt) so the login is rejected rather than used.
     UnsafeUrl,
     /// The token poll exceeded its budget.
     Timeout(WebAuthTimeoutError),

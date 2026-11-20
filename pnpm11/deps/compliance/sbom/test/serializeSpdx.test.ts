@@ -49,6 +49,13 @@ describe('serializeSpdx', () => {
     expect(parsed.creationInfo.created).toBeDefined()
   })
 
+  it('should format created as whole seconds per SPDX 2.3 (6.9)', () => {
+    const result = makeSbomResult()
+    const parsed = JSON.parse(serializeSpdx(result))
+
+    expect(parsed.creationInfo.created).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
+  })
+
   it('should include root package and dependency packages', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeSpdx(result))
@@ -92,7 +99,7 @@ describe('serializeSpdx', () => {
     const parsed = JSON.parse(serializeSpdx(result))
 
     const describes = parsed.relationships.find(
-      (r: { relationshipType: string }) => r.relationshipType === 'DESCRIBES'
+      (relationship: { relationshipType: string }) => relationship.relationshipType === 'DESCRIBES'
     )
     expect(describes).toBeDefined()
     expect(describes.spdxElementId).toBe('SPDXRef-DOCUMENT')
@@ -104,7 +111,7 @@ describe('serializeSpdx', () => {
     const parsed = JSON.parse(serializeSpdx(result))
 
     const dependsOn = parsed.relationships.filter(
-      (r: { relationshipType: string }) => r.relationshipType === 'DEPENDS_ON'
+      (relationship: { relationshipType: string }) => relationship.relationshipType === 'DEPENDS_ON'
     )
     expect(dependsOn).toHaveLength(1)
     expect(dependsOn[0].spdxElementId).toBe('SPDXRef-RootPackage')
@@ -176,7 +183,7 @@ describe('serializeSpdx', () => {
     const parsed = JSON.parse(serializeSpdx(result))
 
     const dependsOn = parsed.relationships.filter(
-      (r: { relationshipType: string }) => r.relationshipType === 'DEPENDS_ON'
+      (relationship: { relationshipType: string }) => relationship.relationshipType === 'DEPENDS_ON'
     )
     expect(dependsOn).toHaveLength(1)
   })

@@ -1,6 +1,16 @@
-use super::{GitCheckError, run_git_checks};
-use crate::capabilities::{CommandOutput, ConfirmPrompt, RunCommand};
-use std::{io, path::Path};
+use super::{
+    GitCheckError,
+    run_git_checks,
+};
+use crate::capabilities::{
+    CommandOutput,
+    ConfirmPrompt,
+    RunCommand,
+};
+use std::{
+    io,
+    path::Path,
+};
 use tempfile::TempDir;
 
 /// Create a scratch directory holding a `.git/HEAD` with the given contents.
@@ -32,7 +42,7 @@ fn skips_when_disabled() {
             unreachable!()
         }
     }
-    assert!(run_git_checks::<Sys>(Path::new("/"), false, None).is_ok());
+    assert!(run_git_checks::<Sys>(Path::new("/"), false, None, false).is_ok());
 }
 
 #[test]
@@ -49,7 +59,7 @@ fn skips_when_not_a_git_repo() {
             unreachable!()
         }
     }
-    assert!(run_git_checks::<Sys>(Path::new("/"), true, None).is_ok());
+    assert!(run_git_checks::<Sys>(Path::new("/"), true, None, false).is_ok());
 }
 
 #[test]
@@ -69,16 +79,21 @@ fn errors_on_unclean_tree() {
             unreachable!()
         }
     }
-    let err = run_git_checks::<Sys>(Path::new("/"), true, None).unwrap_err();
-    assert!(matches!(err, GitCheckError::Unclean));
+    for ci in [false, true] {
+        let err = run_git_checks::<Sys>(Path::new("/"), true, None, ci).unwrap_err();
+        assert!(matches!(dbg!(err), GitCheckError::Unclean));
+    }
 }
 
 #[test]
-fn errors_on_detached_head() {
+fn allows_detached_head_only_in_ci() {
     let repo = repo_with_head("0123456789abcdef0123456789abcdef01234567\n");
     struct Sys;
     impl RunCommand for Sys {
         fn run(_: &str, args: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+            if args == ["rev-parse", "--verify", "--symbolic-full-name", "HEAD"] {
+                return ok("HEAD\n");
+            }
             match args[0] {
                 "rev-parse" => ok(""),
                 "status" => ok(""),
@@ -91,8 +106,9 @@ fn errors_on_detached_head() {
             unreachable!()
         }
     }
-    let err = run_git_checks::<Sys>(repo.path(), true, None).unwrap_err();
-    assert!(matches!(err, GitCheckError::UnknownBranch { .. }));
+    let err = run_git_checks::<Sys>(repo.path(), true, None, false).unwrap_err();
+    assert!(matches!(dbg!(err), GitCheckError::UnknownBranch { .. }));
+    run_git_checks::<Sys>(repo.path(), true, None, true).unwrap();
 }
 
 #[test]
@@ -113,8 +129,10 @@ fn errors_on_wrong_branch_when_declined() {
             false
         }
     }
-    let err = run_git_checks::<Sys>(repo.path(), true, None).unwrap_err();
-    assert!(matches!(err, GitCheckError::NotCorrectBranch { .. }));
+    for ci in [false, true] {
+        let err = run_git_checks::<Sys>(repo.path(), true, None, ci).unwrap_err();
+        assert!(matches!(dbg!(err), GitCheckError::NotCorrectBranch { .. }));
+    }
 }
 
 #[test]
@@ -136,5 +154,5 @@ fn passes_on_publish_branch_with_clean_remote() {
             unreachable!("no prompt when already on a publish branch")
         }
     }
-    assert!(run_git_checks::<Sys>(repo.path(), true, None).is_ok());
+    assert!(run_git_checks::<Sys>(repo.path(), true, None, false).is_ok());
 }

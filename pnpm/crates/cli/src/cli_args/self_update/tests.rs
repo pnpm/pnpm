@@ -1,9 +1,62 @@
 use super::{
-    install_pnpm, is_installed_globally, package_manager_pin_specifier, refresh_global_shims,
-    update_version_constraint, version_lt,
+    externally_managed::homebrew_formula,
+    global_bin::{
+        finish_retirement,
+        link_into_global_bin,
+        link_into_legacy_home_dir,
+        refresh_global_shims,
+        retire_standalone_executable,
+    },
+    handler,
+    install_pnpm,
+    is_installed_globally,
+    join_messages,
+    version_lt,
 };
-use crate::shim_dispatch::{ShimTarget, native_shim::install_native_shim_from, native_shim_target};
-use std::{fs, path::Path};
+use crate::{
+    cli_args::self_update::project_pin::{
+        NoUpgradeKind,
+        implicit_latest_no_upgrade_message,
+        package_manager_pin_specifier,
+        update_version_constraint,
+    },
+    shim_dispatch::{
+        ShimTarget,
+        native_shim::install_native_shim_from,
+        native_shim_target,
+    },
+};
+use pnpm_config::Config;
+use pnpm_reporter::SilentReporter;
+use std::{
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+#[test]
+fn homebrew_formula_names_the_keg_that_holds_the_executable() {
+    let root = tempfile::tempdir().expect("create temp dir");
+    let keg = |formula: &str, receipt: bool| {
+        let keg = root
+            .path()
+            .join("Cellar")
+            .join(formula)
+            .join("1.0.0");
+        fs::create_dir_all(keg.join("bin")).expect("create the keg");
+        if receipt {
+            fs::write(keg.join("INSTALL_RECEIPT.json"), "{}").expect("write the receipt");
+        }
+        keg.join("bin").join("pnpm")
+    };
+    assert_eq!(homebrew_formula(&keg("pnpm", true)).as_deref(), Some("pnpm"));
+    assert_eq!(homebrew_formula(&keg("pnpm@11", true)).as_deref(), Some("pnpm@11"));
+    assert_eq!(homebrew_formula(&keg("node", true)), None);
+    assert_eq!(homebrew_formula(&keg("pnpm@10", false)), None);
+    assert_eq!(homebrew_formula(&root.path().join("pnpm")), None);
+}
 
 #[test]
 fn version_constraint_preserves_pinning_style() {
@@ -22,9 +75,31 @@ fn version_constraint_preserves_pinning_style() {
     assert_eq!(update_version_constraint(Some("1.0.0"), "2.0.0"), "2.0.0");
     // A complex multi-comparator range falls back to a caret range.
     assert_eq!(update_version_constraint(Some(">=1.0.0 <2.0.0"), "3.0.0"), "^3.0.0");
+    // A prerelease is checked against the range as is, not as its release.
+    assert_eq!(update_version_constraint(Some(">=1.0.0"), "2.0.0-rc.1"), ">=1.0.0");
+    assert_eq!(update_version_constraint(Some(">=2.0.0 <3.0.0"), "2.0.0-rc.1"), "^2.0.0-rc.1");
 }
 
 fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
+    seed_global_engine_slot(global_dir, package_name, version, true);
+}
+
+fn seed_global_engine_slot(
+    global_dir: &Path,
+    package_name: &str,
+    version: &str,
+    with_executable: bool,
+) {
+    let install_dir = seed_engine_install_dir(global_dir, package_name, version, with_executable);
+    pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}"))).unwrap();
+}
+
+fn seed_engine_install_dir(
+    global_dir: &Path,
+    package_name: &str,
+    version: &str,
+    with_executable: bool,
+) -> PathBuf {
     let install_dir = global_dir.join(format!("pnpm-{version}"));
     let package_dir = install_pnpm::package_dir(&install_dir, package_name);
     fs::create_dir_all(&package_dir).unwrap();
@@ -38,7 +113,11 @@ fn seed_global_engine(global_dir: &Path, package_name: &str, version: &str) {
         format!(r#"{{"name":"{package_name}","version":"{version}"}}"#),
     )
     .unwrap();
-    pnpm_fs::force_symlink_dir(&install_dir, &global_dir.join(format!("hash-{version}"))).unwrap();
+    if with_executable {
+        fs::write(install_pnpm::pnpm_executable_path(&install_dir, package_name), b"engine")
+            .unwrap();
+    }
+    install_dir
 }
 
 #[test]
@@ -71,6 +150,243 @@ fn is_installed_globally_requires_a_matching_global_install() {
     assert!(is_installed_globally(Some(global_dir), "11.0.0").unwrap());
     // A different target version of the same engine package is not a match.
     assert!(!is_installed_globally(Some(global_dir), "11.1.0").unwrap());
+
+    // The standalone install script installs a v12 engine as `@pnpm/exe`, while
+    // `pnpm_package_to_install` resolves v12 to `pnpm`. The install still counts.
+    seed_global_engine(global_dir, "@pnpm/exe", "12.3.4");
+    assert!(is_installed_globally(Some(global_dir), "12.3.4").unwrap());
+    // A `pnpm` group at another version does not hide the matching `@pnpm/exe` one.
+    seed_global_engine(global_dir, "pnpm", "12.4.0");
+    assert!(is_installed_globally(Some(global_dir), "12.3.4").unwrap());
+
+    // A group recording the target version but missing its executable is not
+    // the engine yet, so the update proceeds and relinks it.
+    seed_global_engine_slot(global_dir, "@pnpm/exe", "12.5.0", false);
+    assert!(!is_installed_globally(Some(global_dir), "12.5.0").unwrap());
+}
+
+#[test]
+fn self_update_replaces_the_engine_installed_under_the_other_alias() {
+    // pnpm/pnpm#14709
+    let root = tempfile::tempdir().unwrap();
+    let global_dir = root.path().join("global");
+    seed_global_engine(&global_dir, "@pnpm/exe", "12.3.4");
+    fs::create_dir_all(global_dir.join("tool/node_modules")).unwrap();
+    fs::write(global_dir.join("tool/package.json"), r#"{"dependencies":{"typescript":"6.0.0"}}"#)
+        .unwrap();
+    pnpm_fs::force_symlink_dir(&global_dir.join("tool"), &global_dir.join("hash-tool")).unwrap();
+    let installed = install_pnpm::InstallPnpmResult {
+        install_dir: seed_engine_install_dir(&global_dir, "pnpm", "12.4.0", true),
+        package_name: "pnpm",
+        already_existed: false,
+    };
+    let config = Config {
+        global_bin: Some(root.path().join("bin")),
+        global_pkg_dir: Some(global_dir.clone()),
+        ..Config::default()
+    };
+    fs::create_dir_all(root.path().join("bin")).unwrap();
+
+    link_into_global_bin(&config, &installed, "12.4.0").unwrap();
+
+    let mut groups: Vec<_> = pnpm_global::scan_global_packages(&global_dir)
+        .unwrap()
+        .into_iter()
+        .map(|group| group.dependencies)
+        .collect();
+    groups.sort();
+    assert_eq!(
+        groups,
+        [
+            vec![("pnpm".to_string(), "12.4.0".to_string())],
+            vec![("typescript".to_string(), "6.0.0".to_string())],
+        ],
+    );
+}
+
+fn seed_new_engine_with_bin(root: &Path) -> install_pnpm::InstallPnpmResult {
+    let install_dir = seed_engine_install_dir(root, "pnpm", "12.4.0", true);
+    fs::write(
+        install_pnpm::package_dir(&install_dir, "pnpm").join("package.json"),
+        r#"{"name":"pnpm","version":"12.4.0","bin":{"pnpm":"bin.cjs"}}"#,
+    )
+    .unwrap();
+    fs::write(install_pnpm::package_dir(&install_dir, "pnpm").join("bin.cjs"), b"").unwrap();
+    install_pnpm::InstallPnpmResult { install_dir, package_name: "pnpm", already_existed: false }
+}
+
+/// pnpm/pnpm#9094
+#[test]
+fn self_update_retires_a_standalone_executable() {
+    let root = tempfile::tempdir().unwrap();
+    let bin_dir = root.path().join("bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::write(bin_dir.join("pnpm.exe"), b"old standalone pnpm").unwrap();
+    fs::write(bin_dir.join(".pnpm.exe.1.retired"), b"retired by an earlier update").unwrap();
+
+    let retired = retire_standalone_executable(&bin_dir).unwrap();
+    assert!(retired.is_some());
+    finish_retirement(retired, Ok(())).unwrap();
+
+    assert_eq!(fs::read_dir(&bin_dir).unwrap().count(), 0);
+    assert!(retire_standalone_executable(&bin_dir).unwrap().is_none());
+}
+
+/// pnpm/pnpm#9094
+#[test]
+fn self_update_restores_a_standalone_executable_when_linking_fails() {
+    let root = tempfile::tempdir().unwrap();
+    let bin_dir = root.path().join("bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    fs::write(bin_dir.join("pnpm.exe"), b"old standalone pnpm").unwrap();
+
+    let retired = retire_standalone_executable(&bin_dir).unwrap();
+    assert!(!bin_dir.join("pnpm.exe").exists());
+    let error = finish_retirement(retired, Err(miette::miette!("link failed"))).unwrap_err();
+
+    assert_eq!(error.to_string(), "link failed");
+    assert_eq!(fs::read(bin_dir.join("pnpm.exe")).unwrap(), b"old standalone pnpm");
+    assert_eq!(fs::read_dir(&bin_dir).unwrap().count(), 1);
+}
+
+/// pnpm/pnpm#9094
+#[cfg(windows)]
+#[test]
+fn self_update_retires_a_standalone_executable_in_the_global_bin() {
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    fs::write(global_bin.join("pnpm.exe"), b"old standalone pnpm").unwrap();
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+    let config = Config {
+        global_bin: Some(global_bin.clone()),
+        global_pkg_dir: Some(root.path().join("global")),
+        ..Config::default()
+    };
+
+    link_into_global_bin(&config, &installed, "12.4.0").unwrap();
+
+    assert!(!global_bin.join("pnpm.exe").exists());
+    assert!(global_bin.join("pnpm.cmd").is_file());
+}
+
+/// pnpm/pnpm#9094
+#[test]
+fn self_update_replaces_a_standalone_executable_in_the_pnpm_home_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home_dir).unwrap();
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(!link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+    assert!(!pnpm_home_dir.join("pnpm").exists());
+
+    fs::write(pnpm_home_dir.join("pnpm.exe"), b"old standalone pnpm").unwrap();
+
+    assert!(link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+    assert!(!pnpm_home_dir.join("pnpm.exe").exists());
+    assert!(pnpm_home_dir.join("pnpm").is_file());
+}
+
+#[test]
+fn self_update_refreshes_the_shims_an_earlier_update_left_in_the_pnpm_home_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home_dir).unwrap();
+    fs::write(pnpm_home_dir.join("pnpm.exe"), b"old standalone pnpm").unwrap();
+    let first = seed_new_engine_with_bin(&root.path().join("first"));
+    assert!(link_into_legacy_home_dir(&pnpm_home_dir, &first).unwrap());
+    let second = seed_new_engine_with_bin(&root.path().join("second"));
+
+    assert!(link_into_legacy_home_dir(&pnpm_home_dir, &second).unwrap());
+
+    let shim = fs::read_to_string(pnpm_home_dir.join("pnpm")).unwrap();
+    eprintln!("SHIM:\n{shim}");
+    assert!(shim.contains("/second/"));
+    assert!(!shim.contains("/first/"));
+}
+
+#[test]
+fn self_update_refreshes_a_pnpm_home_dir_shim_beside_an_unreadable_native_shim_sidecar() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home_dir).unwrap();
+    fs::write(pnpm_home_dir.join("pnpm.cmd"), b"@echo off").unwrap();
+    fs::write(pnpm_home_dir.join(".pnpm-shim-v1-pnpm-target"), b"not a shim target").unwrap();
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+    assert!(pnpm_home_dir.join("pnpm").is_file());
+}
+
+#[test]
+fn self_update_ignores_a_pnpm_home_dir_shim_whose_target_is_gone() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home_dir).unwrap();
+    fs::write(pnpm_home_dir.join("pnpm"), "#!/bin/sh\n# cmd-shim-target=../removed/pnpm\n")
+        .unwrap();
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(!link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+}
+
+#[test]
+fn self_update_removes_an_executable_retired_from_the_pnpm_home_dir_by_an_earlier_update() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home_dir).unwrap();
+    fs::write(pnpm_home_dir.join(".pnpm.exe.1.retired"), b"retired by an earlier update").unwrap();
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(!link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+    assert!(!pnpm_home_dir.join(".pnpm.exe.1.retired").exists());
+}
+
+#[test]
+fn self_update_does_not_create_a_missing_pnpm_home_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(!link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+    assert!(!pnpm_home_dir.exists());
+}
+
+#[test]
+fn self_update_keeps_a_native_shim_named_pnpm() {
+    let root = tempfile::tempdir().unwrap();
+    let pnpm_home_dir = root.path().join("pnpm-home");
+    let old_engine = root.path().join("old-engine");
+    fs::write(&old_engine, b"old shim engine").unwrap();
+    install_native_shim_from(
+        &old_engine,
+        &pnpm_home_dir,
+        "pnpm",
+        &ShimTarget::Virtual("pnpm".to_string()),
+    )
+    .unwrap();
+    let executable = pnpm_home_dir.join("pnpm.exe");
+    if !executable.exists() {
+        fs::copy(&old_engine, &executable).unwrap();
+    }
+    let installed = seed_new_engine_with_bin(&root.path().join("global"));
+
+    assert!(!link_into_legacy_home_dir(&pnpm_home_dir, &installed).unwrap());
+    assert!(executable.is_file());
+}
+
+#[test]
+fn a_project_pin_message_does_not_hide_the_global_switch() {
+    // Guards pnpm/pnpm#14747: `self-update` in a project already pinned to the
+    // resolved version still moves the global install forward, and has to say so.
+    assert_eq!(
+        join_messages(Some("pinned".to_string()), Some("switched".to_string())),
+        Some("pinned\nswitched".to_string()),
+    );
+    assert_eq!(join_messages(Some("pinned".to_string()), None), Some("pinned".to_string()));
+    assert_eq!(join_messages(None, Some("switched".to_string())), Some("switched".to_string()));
+    assert_eq!(join_messages(None, None), None);
 }
 
 #[test]
@@ -196,7 +512,7 @@ fn self_update_to_pnpm_without_native_shims_leaves_the_global_shims_alone() {
 }
 
 /// The engine is a native binary, so building a runnable and a non-runnable one
-/// means writing real executables — hence the unix gate, matching the `/bin/sh`
+/// means writing real executables, hence the unix gate, matching the `/bin/sh`
 /// shims the rest of this crate's tests use.
 #[cfg(unix)]
 fn seed_engine_executable(install_dir: &Path, contents: &str) {
@@ -242,4 +558,155 @@ fn assert_pnpm_runs_reports_the_exit_code_of_an_engine_that_fails() {
     let err = install_pnpm::assert_pnpm_runs(&install_dir, "@pnpm/exe", "1.2.3").unwrap_err();
 
     assert!(err.to_string().contains("exited with code 1"), "{err}");
+}
+
+fn seed_javascript_engine(install_dir: &Path, manifest: &str, script: &str) {
+    let package_dir = install_pnpm::package_dir(install_dir, "pnpm");
+    fs::create_dir_all(package_dir.join("bin")).unwrap();
+    fs::write(package_dir.join("package.json"), manifest).unwrap();
+    fs::write(package_dir.join("bin/pnpm.cjs"), script).unwrap();
+}
+
+const JAVASCRIPT_ENGINE_MANIFEST: &str =
+    r#"{"name":"pnpm","version":"1.2.3","bin":{"pnpm":"bin/pnpm.cjs"}}"#;
+
+#[test]
+fn assert_javascript_pnpm_runs_accepts_an_engine_that_executes() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let install_dir = global_dir.path().join("1");
+    seed_javascript_engine(&install_dir, JAVASCRIPT_ENGINE_MANIFEST, "process.exit(0)\n");
+
+    install_pnpm::assert_javascript_pnpm_runs(&install_dir, "pnpm", "1.2.3").unwrap();
+}
+
+#[test]
+fn assert_javascript_pnpm_runs_reports_the_exit_code_of_an_engine_that_fails() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let install_dir = global_dir.path().join("1");
+    seed_javascript_engine(&install_dir, JAVASCRIPT_ENGINE_MANIFEST, "process.exit(3)\n");
+
+    let err = install_pnpm::assert_javascript_pnpm_runs(&install_dir, "pnpm", "1.2.3").unwrap_err();
+
+    assert!(err.to_string().contains("exited with code 3"), "{err}");
+}
+
+#[test]
+fn assert_javascript_pnpm_runs_rejects_an_engine_without_a_pnpm_bin() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let install_dir = global_dir.path().join("1");
+    seed_javascript_engine(&install_dir, r#"{"name":"pnpm","version":"1.2.3"}"#, "");
+
+    let err = install_pnpm::assert_javascript_pnpm_runs(&install_dir, "pnpm", "1.2.3").unwrap_err();
+
+    assert!(err.to_string().contains("declares no pnpm bin"), "{err}");
+}
+
+#[test]
+fn implicit_latest_message_mentions_minimum_release_age_when_registry_latest_is_not_older() {
+    let message =
+        implicit_latest_no_upgrade_message(NoUpgradeKind::Project, "9.1.0", "9.0.0", Some("9.1.0"));
+    assert!(message.contains("minimumReleaseAge") && !message.contains("downgrade"), "{message}");
+    let active =
+        implicit_latest_no_upgrade_message(NoUpgradeKind::Active, "9.1.0", "9.0.0", Some("9.1.0"));
+    assert!(active.contains("minimumReleaseAge") && !active.contains("downgrade"), "{active}");
+}
+
+#[test]
+fn implicit_latest_message_still_offers_downgrade_when_registry_latest_is_older() {
+    let message = implicit_latest_no_upgrade_message(
+        NoUpgradeKind::Active,
+        "9.0.0",
+        "8.15.0",
+        Some("8.15.0"),
+    );
+    assert!(message.contains("downgrade") && !message.contains("minimumReleaseAge"), "{message}");
+}
+
+#[test]
+fn implicit_latest_message_names_both_versions_when_registry_latest_is_older_but_immature() {
+    let message = implicit_latest_no_upgrade_message(
+        NoUpgradeKind::Project,
+        "10.0.0",
+        "9.0.0",
+        Some("9.5.0"),
+    );
+    assert!(
+        message.contains(r#""latest" version on the registry (v9.5.0)"#)
+            && message.contains("minimumReleaseAge is v9.0.0")
+            && message.contains("downgrade"),
+        "{message}",
+    );
+}
+
+/// A registry serving `mature` published long ago and `fresh` published now,
+/// with `latest` on `fresh`.
+async fn registry_with_fresh_latest(mature: &str, fresh: &str) -> mockito::ServerGuard {
+    let dist = |version: &str| {
+        format!(
+            r#"{{"name":"pnpm","version":"{version}","dist":{{"shasum":"0000000000000000000000000000000000000000","tarball":"https://registry/pnpm-{version}.tgz"}}}}"#,
+        )
+    };
+    let body = format!(
+        r#"{{"name":"pnpm","dist-tags":{{"latest":"{fresh}"}},"time":{{"{mature}":"2024-01-10T08:30:00.000Z","{fresh}":"{now}"}},"versions":{{"{mature}":{mature_dist},"{fresh}":{fresh_dist}}}}}"#,
+        now = pnpm_time::format_rfc3339(jiff::Timestamp::now()),
+        mature_dist = dist(mature),
+        fresh_dist = dist(fresh),
+    );
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("GET", "/pnpm")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
+    server
+}
+
+/// Run an implicit `self-update` in a project pinned to `pin`, under a
+/// one-day `minimumReleaseAge`, and return its message and the manifest it
+/// leaves behind.
+async fn implicit_self_update_of_pin(server: &mockito::ServerGuard, pin: &str) -> (String, String) {
+    let root = tempfile::tempdir().expect("tempdir");
+    let manifest = format!(r#"{{"packageManager":"pnpm@{pin}"}}"#);
+    fs::write(root.path().join("package.json"), &manifest).expect("write package.json");
+    let mut config = Config {
+        minimum_release_age: Some(24 * 60),
+        cache_dir: root.path().join("cache"),
+        ..Config::default()
+    };
+    config.package_manager_bootstrap.registry = format!("{}/", server.url());
+    let config: &'static Config = Box::leak(Box::new(config));
+
+    let message = handler::<SilentReporter>(None, config, root.path(), None)
+        .await
+        .expect("the refusal is not an error")
+        .expect("the refusal prints a message");
+    let manifest_after = fs::read_to_string(root.path().join("package.json")).expect("read");
+    (message, manifest_after)
+}
+
+#[tokio::test]
+async fn implicit_self_update_names_the_cutoff_when_the_pin_is_the_immature_latest() {
+    let server = registry_with_fresh_latest("900.0.0", "900.1.0").await;
+
+    let (message, manifest) = implicit_self_update_of_pin(&server, "900.1.0").await;
+
+    assert_eq!(
+        message,
+        "The current project is set to use pnpm v900.1.0. The latest version that meets minimumReleaseAge is v900.0.0. v900.1.0 on the registry is still within the cutoff. No update performed.",
+    );
+    assert_eq!(manifest, r#"{"packageManager":"pnpm@900.1.0"}"#);
+}
+
+#[tokio::test]
+async fn implicit_self_update_names_both_versions_when_the_immature_latest_is_older_than_the_pin() {
+    let server = registry_with_fresh_latest("900.0.0", "900.5.0").await;
+
+    let (message, manifest) = implicit_self_update_of_pin(&server, "901.0.0").await;
+
+    assert_eq!(
+        message,
+        r#"The current project is set to use pnpm v901.0.0, which is newer than the "latest" version on the registry (v900.5.0). The latest version that meets minimumReleaseAge is v900.0.0. No update performed. Run "pnpm self-update latest" to downgrade."#,
+    );
+    assert_eq!(manifest, r#"{"packageManager":"pnpm@901.0.0"}"#);
 }

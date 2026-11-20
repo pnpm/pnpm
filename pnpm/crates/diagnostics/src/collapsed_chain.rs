@@ -8,24 +8,51 @@
 //! wrapper that prefixes the inner message with context
 //! ("Failed to resolve dependency tree: {inner}") repeats it just as
 //! fully, one line above. The handler here folds those levels away
-//! before delegating to miette's own renderer, which keeps every theme,
-//! width, and colour decision miette would otherwise make.
+//! before delegating to miette's own renderer, which keeps every theme
+//! and colour decision miette would otherwise make. Line wrapping is
+//! off, so URLs and paths in a message stay intact and copyable.
 
 use miette::{
-    Diagnostic, LabeledSpan, MietteHandler, MietteHandlerOpts, ReportHandler, Severity, SourceCode,
+    Diagnostic,
+    LabeledSpan,
+    MietteHandler,
+    MietteHandlerOpts,
+    ReportHandler,
+    Severity,
+    SourceCode,
 };
-use std::{error::Error, fmt};
+use std::{
+    error::Error,
+    fmt,
+};
 
 /// Route [`miette::Report`] rendering through the collapsing handler.
 ///
 /// A [`miette::Report`] captures the installed hook when it is built,
 /// so this has to run before the first one is created. A hook that is
-/// already installed is left alone — the first caller wins, and the
-/// only caller is the CLI entry point.
+/// already installed is left alone, the first caller wins.
 pub fn install_report_handler() {
     let _ = miette::set_hook(Box::new(|_| {
-        Box::new(CollapsingHandler { inner: MietteHandlerOpts::new().build() })
+        Box::new(CollapsingHandler { inner: handler_options().build() })
     }));
+}
+
+fn handler_options() -> MietteHandlerOpts {
+    MietteHandlerOpts::new().wrap_lines(false)
+}
+
+/// The reported error and its distinct causes on one line, joined by
+/// `: ` the way `{report:#}` joins them, without the repeated levels.
+pub fn collapsed_message(diagnostic: &dyn Diagnostic) -> String {
+    let collapsed = Collapsed::new(diagnostic);
+    let mut message = collapsed.head.to_string();
+    let mut cause = collapsed.causes.as_deref();
+    while let Some(current) = cause {
+        message.push_str(": ");
+        message.push_str(&current.message);
+        cause = current.next.as_deref();
+    }
+    message
 }
 
 struct CollapsingHandler {
@@ -58,7 +85,7 @@ struct Collapsed<'a> {
 /// Owned rather than borrowed because [`Error::source`] hands the
 /// renderer a `&(dyn Error + 'static)`, which a chain borrowed from
 /// the report could not satisfy. A level's message is all miette
-/// prints for it — the causes below the head render as text, not as
+/// prints for it, the causes below the head render as text, not as
 /// nested reports.
 #[derive(Debug)]
 struct Cause {
@@ -68,15 +95,19 @@ struct Cause {
 
 impl<'a> Collapsed<'a> {
     fn new(head: &'a dyn Diagnostic) -> Self {
-        let mut messages = Vec::new();
-        let mut last = head.to_string();
+        let mut messages: Vec<String> = Vec::new();
+        let head_message = head.to_string();
+        let mut above = head_message.clone();
         let mut level = nested(Level::Diagnostic(head));
         while let Some(current) = level {
             let message = current.to_string();
-            if !restates(&last, &message) {
+            let last = messages.last().unwrap_or(&head_message);
+            // The level directly above can fold into `last` and still
+            // restate this one, which `last` alone does not.
+            if !restates(last, &message) && !restates(&above, &message) {
                 messages.push(message.clone());
-                last = message;
             }
+            above = message;
             level = nested(current);
         }
 
@@ -88,9 +119,11 @@ impl<'a> Collapsed<'a> {
     }
 }
 
-/// Whether `outer` already says everything `inner` says: the two are equal, or
+/// Whether `outer` already says everything `inner` says: the two are equal,
 /// `outer` is a wrapper that appended `inner` verbatim behind a separator
-/// ("Failed to resolve dependency tree: {inner}"). A cause level renders as its
+/// ("Failed to resolve dependency tree: {inner}"), or `outer` starts with
+/// `inner` and continues on a new line ("{inner}\n\nFailed to resolve foo@1").
+/// A cause level renders as its
 /// message and nothing else, so one whose whole message the line above already
 /// ends with adds no information.
 ///
@@ -99,6 +132,12 @@ impl<'a> Collapsed<'a> {
 /// whose sentence happens to end with those characters ("resolved to 3.0.1"),
 /// dropping a distinct cause.
 fn restates(outer: &str, inner: &str) -> bool {
+    if outer
+        .strip_prefix(inner)
+        .is_some_and(|context| context.starts_with('\n'))
+    {
+        return true;
+    }
     let Some(prefix) = outer.strip_suffix(inner) else { return false };
     prefix.is_empty() || prefix.ends_with([' ', ':'])
 }
@@ -148,7 +187,9 @@ impl fmt::Debug for Collapsed<'_> {
 
 impl Error for Collapsed<'_> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.causes.as_deref().map(|cause| cause as &(dyn Error + 'static))
+        self.causes
+            .as_deref()
+            .map(|cause| cause as &(dyn Error + 'static))
     }
 }
 
@@ -190,7 +231,9 @@ impl fmt::Display for Cause {
 
 impl Error for Cause {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.next.as_deref().map(|cause| cause as &(dyn Error + 'static))
+        self.next
+            .as_deref()
+            .map(|cause| cause as &(dyn Error + 'static))
     }
 }
 

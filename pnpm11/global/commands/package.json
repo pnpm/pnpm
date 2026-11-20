@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/global.commands",
-  "version": "1101.1.0",
+  "version": "1102.0.14",
   "description": "Global package command handlers for pnpm",
   "keywords": [
     "pnpm",
@@ -26,8 +26,8 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     "test": "pn compile && pn .test",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
@@ -41,11 +41,15 @@
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.inspection.list": "workspace:*",
+    "@pnpm/engine.runtime.node-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.deps-installer": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/text.ordinal-comparator": "workspace:*",

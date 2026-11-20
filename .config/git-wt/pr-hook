@@ -1,0 +1,30 @@
+#!/bin/sh
+# Invoked by @zkochan/git-wt after `git wt <pr-number>` creates a worktree.
+# Silently no-ops for contributors who don't have the requested agent installed.
+case "${1:-}" in
+  '')
+    AGENT_CLI=claude
+    ;;
+  *[!0-9]*)
+    AGENT_CLI=$1
+    ;;
+  *)
+    AGENT_CLI=${2:-claude}
+    ;;
+esac
+
+command -v "$AGENT_CLI" >/dev/null 2>&1 || exit 0
+
+PROMPT="Use the review-and-fix-pr skill in .agents/skills/review-and-fix-pr/SKILL.md to review and fix PR $PR_NUMBER. Commit and push the fixes, then follow the existing PR through CI and review using the pull-requests skill."
+
+case "$AGENT_CLI" in
+  claude)
+    exec "$AGENT_CLI" --dangerously-skip-permissions "$PROMPT"
+    ;;
+  codex)
+    exec "$AGENT_CLI" --dangerously-bypass-approvals-and-sandbox "$PROMPT"
+    ;;
+  *)
+    exec "$AGENT_CLI" "$PROMPT"
+    ;;
+esac

@@ -2,11 +2,25 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_lockfile::{
+    EnvLockfile,
+    PackageKey,
+};
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    command_env::CommandTestExt,
+    diagnostics::assert_diagnostic_contains as assert_contains,
+};
 use std::{
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{
+        Command,
+        Output,
+    },
 };
 
 #[test]
@@ -33,7 +47,8 @@ fn pm_on_fail_warn_downgrades_the_other_package_manager_failure_to_a_warning() {
     let output = run(pacquet, root.path(), &["install", "--config.pm-on-fail=warn"]);
 
     assert_success(&output);
-    assert_contains(&output_text(&output), "This project is configured to use yarn");
+    assert_contains(&stderr(&output), "This project is configured to use yarn");
+    assert!(!stdout(&output).contains("yarn"), "the warning leaked into stdout");
 }
 
 #[test]
@@ -63,11 +78,16 @@ fn pm_on_fail_ignore_bypasses_the_package_manager_version_mismatch() {
 
 #[test]
 fn a_package_manager_field_with_an_integrity_hash_matches_the_running_version() {
-    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
     let pinned = format!("pnpm@{}+sha256.123456789", pnpm_config::PNPM_VERSION);
     write_manifest(&workspace, &serde_json::json!({ "packageManager": pinned }));
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(pacquet, root.path(), &["install"]);
 
@@ -201,10 +221,15 @@ fn dev_engines_package_manager_array_defaults_on_fail_to_ignore_before_the_last_
 /// must not leave `packageManagerDependencies` unwritten.
 #[test]
 fn a_command_outside_the_install_family_records_the_pinned_package_manager() {
-    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
     write_dev_engines_package_manager(&workspace, "pnpm", pnpm_config::PNPM_VERSION, None);
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
 
@@ -216,19 +241,81 @@ fn a_command_outside_the_install_family_records_the_pinned_package_manager() {
     drop((root, npmrc_info));
 }
 
+#[test]
+fn a_package_yaml_project_records_the_pinned_package_manager() {
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    write_yaml_manifest(
+        &workspace,
+        &format!(
+            "name: package-yaml-pin\nversion: 1.0.0\ndevEngines:\n  packageManager:\n    name: pnpm\n    version: {}\n    onFail: download\n",
+            pnpm_config::PNPM_VERSION,
+        ),
+    );
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let env_lockfile = EnvLockfile::read(&workspace)
+        .expect("read the written env lockfile")
+        .expect("the env lockfile should have been written");
+    let recorded = env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].version, pnpm_config::PNPM_VERSION);
+    let pinned: PackageKey = format!("pnpm@{}", recorded["pnpm"].version)
+        .parse()
+        .expect("parse the pinned pnpm package key");
+    assert!(
+        env_lockfile.packages
+            .get(&pinned)
+            .expect("the pinned pnpm package should be recorded")
+            .resolution
+            .checkable_integrity()
+            .is_some(),
+        "the env lockfile must pin the pnpm package by integrity",
+    );
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn a_package_yaml_project_without_a_pin_writes_no_env_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_yaml_manifest(&workspace, "name: package-yaml-no-pin\nversion: 1.0.0\n");
+
+    let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the written lockfile");
+    assert!(!lockfile.contains("packageManagerDependencies:"), "{lockfile}");
+}
+
 /// Adding a pnpm pin to a project whose dependencies are already installed
 /// must still record it. The up-to-date fast path returns before the install
 /// pipeline that writes the entry, so a plain install kept reporting success
 /// while every `--frozen-lockfile` run failed on the entry it never wrote.
 #[test]
 fn adding_a_pin_to_an_up_to_date_project_records_the_package_manager() {
-    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
     write_manifest(
         &workspace,
         &serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
     );
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
     assert_success(&run(pacquet, root.path(), &["install"]));
 
     write_manifest(
@@ -240,8 +327,8 @@ fn adding_a_pin_to_an_up_to_date_project_records_the_package_manager() {
             },
         }),
     );
-    let mut pinned = pacquet_at(&workspace);
-    pinned.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    let pinned =
+        pacquet_at(&workspace).with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
     let output = run(pinned, root.path(), &["install"]);
 
     assert_success(&output);
@@ -359,6 +446,147 @@ fn turning_off_version_management_accepts_a_mismatched_pnpm_pin() {
     assert!(!output_text(&output).contains("0.0.0"), "unexpected mention of the pinned version");
 }
 
+/// Turning version management off hands the user which pnpm runs, not which
+/// one the lockfile records: the install family records the pin from its own
+/// pipeline either way, so a read-only command has to record it too, or the
+/// two rewrite each other forever (pnpm/pnpm#14575).
+#[test]
+fn turning_off_version_management_still_records_the_pinned_package_manager() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_dev_engines_package_manager(
+        &workspace,
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
+    );
+    let unmanaged = || {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_env("PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS", "false")
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+    };
+
+    let output = run(unmanaged(), root.path(), &["list"]);
+
+    assert_success(&output);
+    let env_lockfile = EnvLockfile::read(&workspace)
+        .expect("read the written env lockfile")
+        .expect("the env lockfile should have been written");
+    let recorded = env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].specifier, pnpm_config::PNPM_VERSION);
+    assert_eq!(recorded["pnpm"].version, pnpm_config::PNPM_VERSION);
+    let after_list = env_document(&workspace);
+
+    let output = run(unmanaged(), root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_eq!(
+        env_document(&workspace),
+        after_list,
+        "the install must leave the env document the other command wrote alone",
+    );
+
+    drop(mock_instance);
+}
+
+fn env_document(workspace: &Path) -> String {
+    fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("read pnpm-lock.yaml")
+        .split("\n---\n")
+        .next()
+        .expect("the env document")
+        .to_string()
+}
+
+/// `lockfileDir` moves `pnpm-lock.yaml`, and the recorded pin is the first
+/// document of that file, so it moves with it. Recording it at the
+/// workspace root instead would leave a second lockfile there, and the one
+/// the install reads would never carry the pin.
+#[test]
+fn a_pinned_package_manager_is_recorded_in_the_lockfile_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let lockfile_dir = workspace.join("lf");
+    fs::create_dir_all(&lockfile_dir).expect("create the lockfile directory");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfileDir: ./lf\n")
+        .expect("write the workspace manifest");
+    write_dev_engines_package_manager(
+        &workspace,
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
+    );
+
+    let output =
+        run(pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url()), root.path(), &["list"]);
+
+    assert_success(&output);
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "the workspace root should carry no lockfile of its own",
+    );
+    let env_lockfile = EnvLockfile::read(&lockfile_dir)
+        .expect("read the written env lockfile")
+        .expect("the env lockfile should have been written beside the lockfile");
+    let recorded = env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].version, pnpm_config::PNPM_VERSION);
+
+    drop(mock_instance);
+}
+
+/// `lockfile: false` opts the project out of `pnpm-lock.yaml`, and an
+/// `onFail: download` pin is no exception: the pin it would otherwise record
+/// there does not bring the file back (pnpm/pnpm#14728).
+#[test]
+fn a_pinned_package_manager_writes_no_lockfile_when_the_lockfile_is_turned_off() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfile: false\n")
+        .expect("write the workspace manifest");
+    write_dev_engines_package_manager(
+        &workspace,
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
+    );
+
+    let output = run(
+        pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url()),
+        root.path(),
+        &["install"],
+    );
+
+    assert_success(&output);
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "lockfile: false must leave the project without a pnpm-lock.yaml",
+    );
+
+    drop(mock_instance);
+}
+
 #[test]
 fn a_global_command_warns_instead_of_failing_the_package_manager_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -373,219 +601,41 @@ fn a_global_command_warns_instead_of_failing_the_package_manager_check() {
     );
 }
 
+/// Global state belongs to the pnpm the user invoked, so a pnpm pin with
+/// `onFail: "download"` does not switch a global command to the pinned
+/// version (pnpm/pnpm#14531). The pin names a version that does not exist,
+/// so a switch attempt would fail the command.
 #[test]
-fn dev_engines_runtime_with_on_fail_error_reports_a_node_version_mismatch() {
+fn a_global_command_does_not_switch_to_the_pinned_pnpm() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "error",
-        }),
-    );
+    write_dev_engines_package_manager(&workspace, "pnpm", "0.0.1", Some("download"));
 
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(&stderr(&output), "This project requires Node.js 99999.0.0");
-}
-
-#[test]
-fn dev_engines_runtime_with_on_fail_warn_warns_about_a_node_version_mismatch() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "warn",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
+    let output = run(pacquet, root.path(), &["list", "--global"]);
 
     assert_success(&output);
-    assert_contains(&output_text(&output), "This project requires Node.js 99999.0.0");
+    assert_contains(
+        &output_text(&output),
+        "Using --global skips the package manager check for this project",
+    );
 }
 
 #[test]
-fn dev_engines_runtime_with_on_fail_ignore_is_not_checked() {
+fn a_global_command_does_not_warn_when_the_running_pnpm_satisfies_the_pin() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
+    write_dev_engines_package_manager(
         &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "ignore",
-        }),
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
     );
 
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
+    let output = run(pacquet, root.path(), &["list", "--global"]);
 
     assert_success(&output);
-    assert!(!output_text(&output).contains("99999.0.0"), "unexpected mention of the pinned range");
-}
-
-#[test]
-fn engines_runtime_is_checked_too() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "engines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "error",
-        }),
+    assert!(
+        !output_text(&output).contains("skips the package manager check"),
+        "a satisfied pin has no check to skip",
     );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(&stderr(&output), "This project requires Node.js 99999.0.0");
-}
-
-#[test]
-fn an_invalid_node_version_range_fails_with_the_runtime_on_fail_hint() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "invalid range", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    let stderr = stderr(&output);
-    assert_contains(
-        &stderr,
-        "This project requires an invalid Node.js version range: invalid range",
-    );
-    assert_contains(&stderr, "--runtime-on-fail=ignore");
-}
-
-#[test]
-fn an_invalid_deno_version_range_names_deno() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "deno", "version": "invalid range", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project requires an invalid Deno version range: invalid range",
-    );
-}
-
-#[test]
-fn an_invalid_bun_version_range_names_bun() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "bun", "version": "invalid range", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project requires an invalid Bun version range: invalid range",
-    );
-}
-
-#[test]
-fn a_runtime_without_a_version_range_fails() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project requires a Node.js runtime but does not specify a version range",
-    );
-}
-
-#[test]
-fn runtime_array_entries_are_checked_beyond_the_first_one() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!([
-            { "name": "node", "version": "*", "onFail": "error" },
-            { "name": "deno", "version": "invalid range", "onFail": "error" },
-        ]),
-    );
-
-    let output = run(pacquet, root.path(), &EXEC_NODE_VERSION);
-
-    assert_failure(&output);
-    assert_contains(
-        &stderr(&output),
-        "This project requires an invalid Deno version range: invalid range",
-    );
-}
-
-#[test]
-fn runtime_on_fail_ignore_bypasses_the_manifest_on_fail() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "error",
-        }),
-    );
-
-    let output = run(
-        pacquet,
-        root.path(),
-        &[
-            "--config.verify-deps-before-run=false",
-            "--config.runtime-on-fail=ignore",
-            "exec",
-            "node",
-            "--version",
-        ],
-    );
-
-    assert_success(&output);
-    assert!(!output_text(&output).contains("99999.0.0"), "unexpected mention of the pinned range");
-}
-
-#[test]
-fn a_failing_runtime_check_does_not_block_the_version_output() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_runtime(
-        &workspace,
-        "devEngines",
-        &serde_json::json!({
-            "name": "node", "version": "99999.0.0", "onFail": "error",
-        }),
-    );
-
-    let output = run(pacquet, root.path(), &["--version"]);
-
-    assert_success(&output);
-    assert_eq!(stdout(&output).trim(), pnpm_config::PNPM_VERSION);
 }
 
 /// `exec` is the cheapest command that still goes through the pre-command
@@ -603,32 +653,44 @@ fn pacquet_at(workspace: &Path) -> Command {
 }
 
 fn run(command: Command, root: &Path, args: &[&str]) -> Output {
-    let mut command = command;
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
+    let mut command = command
+        .with_env("PNPM_HOME", root.join("pnpm-home"))
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"));
     // These checks run `exec node`, which resolves `node` from `PATH`. A
     // context-aware global shim there would honour the deliberately
     // unsatisfiable `devEngines.runtime` pin these fixtures declare and
     // fail to fetch it, instead of running the node the test expects.
-    command.env("PNPM_SHIM_BYPASS", "1");
+    command = command.with_env("PNPM_SHIM_BYPASS", "1");
     // The pnpm and npm settings these checks read are already gone:
     // `CommandTempCwd::init` strips the inherited ones, and an explicit
     // `env` on the command overrides that removal. `COREPACK_ROOT` is not
-    // one of them, so clear it here — unless a test set it on purpose.
+    // one of them, so clear it here, unless a test set it on purpose.
     // Windows matches environment names case-insensitively, so does this.
-    let explicitly_set =
-        command.get_envs().map(|(name, _)| name.to_string_lossy().into_owned()).collect::<Vec<_>>();
-    if !explicitly_set.iter().any(|name| name.eq_ignore_ascii_case("COREPACK_ROOT")) {
-        command.env_remove("COREPACK_ROOT");
+    let explicitly_set = command
+        .get_envs()
+        .map(|(name, _)| name.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    if !explicitly_set
+        .iter()
+        .any(|name| name.eq_ignore_ascii_case("COREPACK_ROOT"))
+    {
+        command = command.without_env("COREPACK_ROOT");
     }
-    let output = command.args(args).output().expect("run pacquet");
+    let output = command
+        .with_args(args)
+        .output()
+        .expect("run pacquet");
     dbg!(&output);
     output
 }
 
 fn write_manifest(workspace: &Path, manifest: &serde_json::Value) {
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+}
+
+fn write_yaml_manifest(workspace: &Path, manifest: &str) {
+    fs::write(workspace.join("package.yaml"), manifest).expect("write package.yaml");
 }
 
 fn write_dev_engines_package_manager(
@@ -669,20 +731,6 @@ fn assert_failure(output: &Output) {
     );
 }
 
-fn assert_contains(text: &str, expected: &str) {
-    assert!(
-        unwrap_diagnostic(text).contains(&unwrap_diagnostic(expected)),
-        "expected {expected:?} in:\n{text}",
-    );
-}
-
-/// miette hard-wraps a diagnostic to the terminal width and prefixes the
-/// continuation lines with `│`, so an expected message only matches after
-/// both sides are flattened to single-spaced text.
-fn unwrap_diagnostic(text: &str) -> String {
-    text.replace('│', " ").split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
 fn output_text(output: &Output) -> String {
     format!("{}{}", stdout(output), stderr(output))
 }
@@ -696,7 +744,7 @@ fn stderr(output: &Output) -> String {
 }
 
 /// Naming a package manager records which one the project uses, so it
-/// stays possible in a project pinned to another one — changing that
+/// stays possible in a project pinned to another one, changing that
 /// declaration is not the pinned manager's work. Adding anything else
 /// still is.
 #[test]
@@ -723,10 +771,15 @@ fn a_project_pinned_to_another_package_manager_can_still_be_repinned() {
 /// install saves, not into one of its own.
 #[test]
 fn a_mixed_add_writes_the_declaration_with_the_dependency() {
-    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     write_manifest(&workspace, &serde_json::json!({}));
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(
         pacquet,
@@ -738,7 +791,9 @@ fn a_mixed_add_writes_the_declaration_with_the_dependency() {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
     assert!(
-        manifest["packageManager"].as_str().is_some_and(|pin| pin.starts_with("yarn@1.")),
+        manifest["packageManager"]
+            .as_str()
+            .is_some_and(|pin| pin.starts_with("yarn@1.")),
         "{manifest}",
     );
     assert!(manifest["dependencies"]["@pnpm.e2e/dep-of-pkg-with-1-dep"].is_string(), "{manifest}");
@@ -750,11 +805,16 @@ fn a_mixed_add_writes_the_declaration_with_the_dependency() {
 /// anything for.
 #[test]
 fn a_failed_add_leaves_the_declaration_unwritten() {
-    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let original = serde_json::json!({ "name": "project", "version": "1.0.0" });
     write_manifest(&workspace, &original);
-    pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
 
     let output = run(
         pacquet,
@@ -770,7 +830,7 @@ fn a_failed_add_leaves_the_declaration_unwritten() {
 }
 
 /// Which package manager a project uses is that project's declaration,
-/// not something a filter writes across a selection — and it must not
+/// not something a filter writes across a selection, and it must not
 /// quietly become an install of the npm package that shares the name.
 #[test]
 fn declaring_a_package_manager_for_a_filtered_selection_is_refused() {
@@ -808,7 +868,7 @@ fn a_manifest_that_is_not_an_object_fails_instead_of_panicking() {
 }
 
 /// Yarn is started from a project pin by corepack, which reads only
-/// `packageManager` and only accepts an exact version there — so a Yarn
+/// `packageManager` and only accepts an exact version there, so a Yarn
 /// pin is resolved to one, and carries nothing else: the release corepack
 /// downloads is corepack's to verify, not pnpm's to pin.
 #[test]
@@ -825,8 +885,9 @@ fn a_yarn_pin_is_recorded_as_the_exact_version_corepack_requires() {
     let manifest: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap()).unwrap();
     let pin = manifest["packageManager"].as_str().expect("a recorded package manager");
-    let reference =
-        pin.strip_prefix("yarn@").unwrap_or_else(|| panic!("expected a Yarn pin, got {pin}"));
+    let reference = pin
+        .strip_prefix("yarn@")
+        .unwrap_or_else(|| panic!("expected a Yarn pin, got {pin}"));
     let version = node_semver::Version::parse(reference).expect("an exact version");
     assert_eq!(version.major, 1, "{pin}");
     assert!(!reference.contains('+'), "{pin}");
@@ -843,3 +904,5 @@ fn a_project_pinned_to_another_package_manager_still_refuses_an_ordinary_add() {
     assert_failure(&output);
     assert_contains(&stderr(&output), "This project is configured to use yarn");
 }
+
+mod runtime;

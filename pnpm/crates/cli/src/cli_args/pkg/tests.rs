@@ -1,8 +1,19 @@
 use super::{
-    delete_object_value_by_property_path, fix_manifest, get_output,
+    delete_object_value_by_property_path,
+    fix_manifest,
+    get_output,
+    pkg_delete,
+    pkg_fix,
+    pkg_get,
+    pkg_set,
     set_object_value_by_property_path,
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
+use std::fs;
+use tempfile::tempdir;
 
 #[test]
 fn test_get_single_key() {
@@ -163,6 +174,98 @@ fn test_fix_keeps_object_bin() {
     });
     fix_manifest(&mut manifest);
     assert_eq!(manifest["bin"]["myapp"], "./bin.js");
+}
+
+fn fix_repository(repository: Value) -> Value {
+    let mut manifest = json!({ "name": "test-pkg" });
+    manifest["repository"] = repository;
+    fix_manifest(&mut manifest);
+    manifest["repository"].take()
+}
+
+#[test]
+fn test_fix_converts_repository_string_to_object() {
+    for (repository, url) in [
+        ("github:pnpm/example", "git+https://github.com/pnpm/example.git"),
+        ("pnpm/example", "git+https://github.com/pnpm/example.git"),
+        ("https://github.com/pnpm/example", "git+https://github.com/pnpm/example.git"),
+        ("https://github.com/pnpm/example.git", "git+https://github.com/pnpm/example.git"),
+        ("https://www.github.com/pnpm/example", "git+https://github.com/pnpm/example.git"),
+        ("git+https://github.com/pnpm/example.git", "git+https://github.com/pnpm/example.git"),
+        ("git@github.com:pnpm/example.git", "git+ssh://git@github.com/pnpm/example.git"),
+        ("ssh://git@github.com/pnpm/example.git", "git+ssh://git@github.com/pnpm/example.git"),
+        ("git+ssh://git@github.com/pnpm/example.git", "git+ssh://git@github.com/pnpm/example.git"),
+        ("http://github.com/pnpm/example", "git+ssh://git@github.com/pnpm/example.git"),
+        ("git://github.com/pnpm/example.git", "git://github.com/pnpm/example.git"),
+        ("gitlab:foo/bar", "git+https://gitlab.com/foo/bar.git"),
+        ("https://gitlab.com/group/sub/proj", "git+https://gitlab.com/group/sub/proj.git"),
+        ("git://gitlab.com/foo/bar.git", "git://gitlab.com/foo/bar.git"),
+        ("bitbucket:foo/bar", "git+https://bitbucket.org/foo/bar.git"),
+        ("github:pnpm/example#v1", "git+https://github.com/pnpm/example.git#v1"),
+        ("github:pnpm/example#semver:^1", "git+https://github.com/pnpm/example.git#semver:^1"),
+        ("https://example.com/repo.git", "https://example.com/repo.git"),
+    ] {
+        let fixed = fix_repository(json!(repository));
+        assert_eq!(fixed, json!({ "type": "git", "url": url }), "repository: {repository}");
+        let keys: Vec<&String> = fixed
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect();
+        assert_eq!(keys, ["type", "url"], "repository: {repository}");
+    }
+}
+
+#[test]
+fn test_fix_normalizes_gist_repository_url() {
+    assert_eq!(
+        fix_repository(json!("gist:abc123")),
+        json!({ "type": "git", "url": "git+https://gist.github.com/abc123.git" }),
+    );
+}
+
+#[test]
+fn test_fix_keeps_ownerless_repository_shortcut() {
+    assert_eq!(
+        fix_repository(json!("github:skills")),
+        json!({ "type": "git", "url": "github:skills" }),
+    );
+}
+
+#[test]
+fn test_fix_normalizes_repository_object_url() {
+    assert_eq!(
+        fix_repository(json!({
+            "type": "git",
+            "url": "github:pnpm/example",
+            "directory": "packages/x",
+        })),
+        json!({
+            "type": "git",
+            "url": "git+https://github.com/pnpm/example.git",
+            "directory": "packages/x",
+        }),
+    );
+}
+
+#[test]
+fn test_fix_does_not_add_repository_type() {
+    assert_eq!(
+        fix_repository(json!({ "url": "https://github.com/pnpm/example" })),
+        json!({ "url": "git+https://github.com/pnpm/example.git" }),
+    );
+}
+
+#[test]
+fn test_fix_keeps_unfixable_repository() {
+    for repository in [
+        json!(""),
+        json!({ "type": "git", "url": 42 }),
+        json!(["github:pnpm/example"]),
+        json!(true),
+    ] {
+        assert_eq!(fix_repository(repository.clone()), repository);
+    }
 }
 
 #[test]
@@ -335,7 +438,7 @@ fn test_set_rejects_empty_path() {
 #[test]
 fn test_set_rejects_too_large_index() {
     let mut value = json!({});
-    let big_idx = format!("x[{}]", super::MAX_ARRAY_INDEX + 1);
+    let big_idx = format!("x[{}]", super::editing::MAX_ARRAY_INDEX + 1);
     let result = set_object_value_by_property_path(&mut value, &big_idx, json!("value"));
     assert!(result.is_err());
 }
@@ -366,4 +469,136 @@ fn test_delete_with_numeric_key_on_object() {
     let mut value = json!({ "123": "number-key" });
     assert!(delete_object_value_by_property_path(&mut value, "[123]").unwrap());
     assert!(value.get("123").is_none());
+}
+
+#[test]
+fn test_pkg_get_does_not_leak_synthetic_runtime_dependencies() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = json!({
+        "name": "test-pkg",
+        "devEngines": {
+            "runtime": {
+                "name": "node",
+                "version": "22.14.0",
+                "onFail": "download",
+            },
+        },
+        "engines": {
+            "runtime": {
+                "name": "node",
+                "version": "22.14.0",
+                "onFail": "download",
+            },
+        },
+    });
+    fs::write(&path, serde_json::to_string_pretty(&raw).unwrap()).unwrap();
+
+    let full: Value = serde_json::from_str(&pkg_get(&path, &[], false).unwrap()).unwrap();
+    assert_eq!(full, raw);
+    assert_eq!(pkg_get(&path, &["devDependencies".to_string()], false).unwrap(), "");
+    assert_eq!(pkg_get(&path, &["dependencies".to_string()], false).unwrap(), "");
+}
+
+#[test]
+fn test_pkg_set_updates_dev_engines_runtime_version() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&json!({
+            "name": "test-pkg",
+            "devEngines": {
+                "runtime": {
+                    "name": "node",
+                    "version": "22.14.0",
+                    "onFail": "download",
+                },
+            },
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    pkg_set(&path, &["devEngines.runtime.version=24.0.0".to_string()], false).unwrap();
+
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(saved["devEngines"]["runtime"]["version"], "24.0.0");
+    assert!(saved.get("devDependencies").is_none());
+}
+
+#[test]
+fn test_pkg_delete_dev_dependencies_preserves_dev_engines_runtime() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let runtime = json!({
+        "name": "node",
+        "version": "22.14.0",
+        "onFail": "download",
+    });
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&json!({
+            "name": "test-pkg",
+            "devDependencies": { "vitest": "^3.0.0" },
+            "devEngines": { "runtime": runtime },
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    pkg_delete(&path, &["devDependencies".to_string()]).unwrap();
+
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert!(saved.get("devDependencies").is_none());
+    assert_eq!(saved["devEngines"]["runtime"], runtime);
+
+    pkg_delete(&path, &["devEngines.runtime".to_string()]).unwrap();
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(saved["devEngines"], json!({}));
+}
+
+#[test]
+fn test_pkg_set_json_preserves_empty_dependency_objects_and_key_order() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    fs::write(
+        &path,
+        "{\n  \"name\": \"test-pkg\",\n  \"devDependencies\": {\n    \"zebra\": \"1.0.0\",\n    \"alpha\": \"1.0.0\"\n  }\n}\n",
+    )
+    .unwrap();
+
+    pkg_set(&path, &["dependencies={}".to_string()], true).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "{\n  \"name\": \"test-pkg\",\n  \"devDependencies\": {\n    \"zebra\": \"1.0.0\",\n    \"alpha\": \"1.0.0\"\n  },\n  \"dependencies\": {}\n}\n",
+    );
+}
+
+#[test]
+fn test_pkg_fix_preserves_dev_engines_runtime_when_removing_invalid_dev_dependencies() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let runtime = json!({
+        "name": "node",
+        "version": "22.14.0",
+        "onFail": "download",
+    });
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&json!({
+            "name": "test-pkg",
+            "devDependencies": "invalid",
+            "devEngines": { "runtime": runtime },
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    pkg_fix(&path).unwrap();
+
+    let saved: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert!(saved.get("devDependencies").is_none());
+    assert_eq!(saved["devEngines"]["runtime"], runtime);
 }

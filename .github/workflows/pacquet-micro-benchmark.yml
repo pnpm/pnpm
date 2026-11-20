@@ -13,6 +13,7 @@ on:
       - 'pnpm/tasks/micro-benchmark/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
+      - '.github/actions/install-crates/**'
       - '.github/workflows/pacquet-micro-benchmark.yml'
 
 concurrency:
@@ -41,6 +42,11 @@ jobs:
         with:
           shared-key: micro-benchmark
 
+      # Once per checkout: the two revisions can pin different crates, and the
+      # second checkout leaves the first one's `.pnpm/crates` in place.
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+
       - name: Compile
         run: cargo build --release --bin=micro-benchmark
 
@@ -58,6 +64,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+
       - name: Compile
         run: cargo build --release --bin=micro-benchmark
 
@@ -69,7 +78,7 @@ jobs:
         run: cargo run --bin=micro-benchmark --release -- --save-baseline pr
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: benchmark-results-ubuntu-latest
           path: ./target/criterion
@@ -86,12 +95,12 @@ jobs:
 
     steps:
       - name: Install critcmp
-        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
           tool: critcmp
 
       - name: Linux | Download PR benchmark results
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: benchmark-results-ubuntu-latest
           path: ./target/criterion

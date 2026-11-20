@@ -1,0 +1,26 @@
+use super::{
+    AppState,
+    Identity,
+    RegistryError,
+};
+
+pub(in super::super) async fn active_account_name(
+    state: &AppState,
+    user_id: &str,
+) -> Result<String, RegistryError> {
+    let username = state.inner.identity.auth.users
+        .active_account_name(user_id)
+        .await?
+        .ok_or_else(|| RegistryError::Unauthenticated {
+            resource: "an inactive account".to_string(),
+        })?;
+    Ok(username)
+}
+
+pub(super) async fn account_identity(
+    state: &AppState,
+    user_id: &str,
+) -> Result<Identity, RegistryError> {
+    let username = active_account_name(state, user_id).await?;
+    Ok(super::super::team_directory::account_identity(state, user_id.to_string(), username))
+}

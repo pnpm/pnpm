@@ -4,7 +4,10 @@ use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -45,12 +48,14 @@ fn deprecates_a_package_version_successfully() {
 
     let get_mock = server
         .mock("GET", "/@scope%2ftest")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(r#"{"versions":{"1.0.0":{}}}"#)
         .create();
 
     let put_mock = server
         .mock("PUT", "/@scope%2ftest")
+        .match_header("npm-command", "deprecate")
         .match_header("content-type", "application/json")
         .match_body(Matcher::Json(serde_json::json!({
             "versions": {
@@ -79,6 +84,39 @@ fn deprecates_a_package_version_successfully() {
         stdout.contains("Successfully deprecated 1 version(s) of @scope/test"),
         "stdout: {stdout}",
     );
+}
+
+#[test]
+fn deprecates_a_package_whose_document_is_larger_than_10_mib() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+
+    let get_mock = server
+        .mock("GET", "/large")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
+        .with_status(200)
+        .with_body(
+            serde_json::json!({
+                "readme": "x".repeat(11 * 1024 * 1024),
+                "versions": { "1.0.0": {} },
+            })
+            .to_string(),
+        )
+        .create();
+    let put_mock = server
+        .mock("PUT", "/large")
+        .with_status(200)
+        .with_body("{}")
+        .create();
+
+    let auth_file = empty_auth_file(root.path());
+    let output =
+        run_deprecate(&workspace, &auth_file, Some(&registry), &["large@1.0.0", "use another"]);
+
+    get_mock.assert();
+    put_mock.assert();
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
 }
 
 #[test]
@@ -111,6 +149,7 @@ fn fails_with_no_matching_versions_for_an_invalid_range() {
 
     let get_mock = server
         .mock("GET", "/test")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(r#"{"versions":{"1.0.0":{}}}"#)
         .create();
@@ -133,6 +172,7 @@ fn fails_on_unauthorized() {
 
     let get_mock = server
         .mock("GET", "/test")
+        .match_query(Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(r#"{"versions":{"1.0.0":{}}}"#)
         .create();

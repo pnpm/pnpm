@@ -1,10 +1,23 @@
-use std::sync::{Arc, Mutex};
-
-use pnpm_reporter::{
-    LogEvent, LogLevel, ProgressLog, ProgressMessage, StatsLog, StatsMessage, SummaryLog,
+use std::sync::{
+    Arc,
+    Mutex,
 };
 
-use super::{Destination, NativeRenderer, ReporterOptions};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    StatsLog,
+    StatsMessage,
+    SummaryLog,
+};
+
+use super::{
+    Destination,
+    NativeRenderer,
+    ReporterOptions,
+};
 
 const DIR: &str = "/repo";
 
@@ -70,7 +83,7 @@ fn in_place_mode_writes_a_frame_with_cursor_control() {
 }
 
 /// Progress redraws inside the throttle window are dropped, but the state
-/// still folds them — the next event that is not a progress update renders
+/// still folds them, the next event that is not a progress update renders
 /// the current counts.
 #[test]
 fn progress_is_throttled_and_the_next_non_progress_event_catches_up() {
@@ -177,8 +190,8 @@ fn an_unknown_log_level_falls_back_to_info() {
     );
 }
 
-/// A host that computed its width the way pnpm does — the terminal's
-/// columns less two — can arrive at zero from a one- or two-column
+/// A host that computed its width the way pnpm does (the terminal's
+/// columns less two) can arrive at zero from a one- or two-column
 /// terminal. The renderer floors it rather than trying to wrap at nothing.
 #[test]
 fn a_zero_width_is_floored_to_one_column() {

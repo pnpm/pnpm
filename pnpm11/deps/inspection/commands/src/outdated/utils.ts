@@ -15,7 +15,7 @@ export const NAME_COMPARATOR: Comparator = (o1, o2) => o1.packageName.localeComp
 export const DEFAULT_COMPARATORS: Comparator[] = [
   sortBySemverChange,
   NAME_COMPARATOR,
-  (o1, o2) => (o1.current && o2.current) ? o1.current.localeCompare(o2.current) : 0, // eslint-disable-line @typescript-eslint/explicit-module-boundary-types
+  (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff): number => (o1.current && o2.current) ? o1.current.localeCompare(o2.current) : 0,
 ]
 
 export function sortBySemverChange (outdated1: OutdatedWithVersionDiff, outdated2: OutdatedWithVersionDiff): number {

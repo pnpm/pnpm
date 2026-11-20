@@ -41,9 +41,18 @@ export interface BuildTaskGraphOptions {
   projectDependencies: Map<ProjectRootDir, ProjectRootDir[]>
   scriptsByProject: (project: ProjectRootDir) => PackageScripts
   selectScripts: (scripts: PackageScripts, taskName: string) => string[]
-  /** The script the invocation runs; every selected project gets a task named this. */
+  /**
+   * The script the invocation runs; every selected project gets a task named
+   * this, or one per matched script for an expanded selector.
+   */
   taskName: string
   tasks?: WorkspaceTasks
+  /**
+   * Whether a task name is a RegExp selector (a `/pattern/` literal). With
+   * `tasks` declared, a selector seeds one task per script `selectScripts`
+   * matches in each project, so each resolves the `dependsOn` of its own name.
+   */
+  isSelectorTaskName?: (taskName: string) => boolean
 }
 
 /**
@@ -53,47 +62,78 @@ export interface BuildTaskGraphOptions {
  * `dependsOn: ['^<its own name>']`: plain topological order over the
  * project graph.
  */
+interface QueueItem {
+  project: ProjectRootDir
+  taskName: string
+  requested: boolean
+}
+
 export function buildTaskGraph (opts: BuildTaskGraphOptions): TaskGraph {
   const graph: TaskGraph = new Map()
-  const queue: Array<{ project: ProjectRootDir, taskName: string, requested: boolean }> = []
-  for (const project of opts.projectDependencies.keys()) {
-    queue.push({ project, taskName: opts.taskName, requested: true })
-  }
-  // Drained by index: shift() moves every remaining element, which is
-  // quadratic over a workspace-sized queue.
+  const queue: QueueItem[] = seedTaskQueue(opts)
   let head = 0
   while (head < queue.length) {
-    const { project, taskName, requested } = queue[head++]
-    const key = taskKey(project, taskName)
+    const item = queue[head++]
+    const key = taskKey(item.project, item.taskName)
     const existing = graph.get(key)
     if (existing != null) {
-      existing.requested ||= requested
+      existing.requested ||= item.requested
       continue
     }
-    const dependencies = new Set<TaskKey>()
-    for (const entry of taskDependsOn(opts.tasks, taskName)) {
-      if (entry.startsWith('^')) {
-        const dependencyTaskName = entry.slice(1)
-        for (const dependencyProject of opts.projectDependencies.get(project) ?? []) {
-          dependencies.add(taskKey(dependencyProject, dependencyTaskName))
-          queue.push({ project: dependencyProject, taskName: dependencyTaskName, requested: false })
-        }
-      } else {
-        dependencies.add(taskKey(project, entry))
-        queue.push({ project, taskName: entry, requested: false })
-      }
-    }
+    const scripts = opts.selectScripts(opts.scriptsByProject(item.project), item.taskName)
+    const dependencies = resolveTaskDependencies(opts, item, scripts, queue)
     graph.set(key, {
-      project,
-      taskName,
-      concurrency: taskConcurrency(opts.tasks, taskName),
-      scripts: opts.selectScripts(opts.scriptsByProject(project), taskName),
-      requested,
-      dependencies: [...dependencies],
+      project: item.project,
+      taskName: item.taskName,
+      concurrency: taskConcurrency(opts.tasks, item.taskName),
+      scripts,
+      requested: item.requested,
+      dependencies,
     })
   }
   return graph
 }
+
+function seedTaskQueue (opts: BuildTaskGraphOptions): QueueItem[] {
+  const queue: QueueItem[] = []
+  const expandsSelector = expandsSelectorTask(opts)
+  for (const project of opts.projectDependencies.keys()) {
+    const matchedScripts = expandsSelector
+      ? opts.selectScripts(opts.scriptsByProject(project), opts.taskName)
+      : []
+    const seedTaskNames = matchedScripts.length > 0 ? matchedScripts : [opts.taskName]
+    for (const taskName of seedTaskNames) {
+      queue.push({ project, taskName, requested: true })
+    }
+  }
+  return queue
+}
+
+function resolveTaskDependencies (
+  opts: BuildTaskGraphOptions,
+  item: QueueItem,
+  scripts: string[],
+  queue: QueueItem[]
+): TaskKey[] {
+  const expandsSelector = expandsSelectorTask(opts)
+  const isSkippedPassThrough = expandsSelector && item.taskName === opts.taskName && scripts.length === 0
+  const dependsOn = isSkippedPassThrough ? [] : taskDependsOn(opts.tasks, item.taskName)
+  const dependencies = new Set<TaskKey>()
+  for (const entry of dependsOn) {
+    if (entry.startsWith('^')) {
+      const depName = entry.slice(1)
+      for (const depProject of opts.projectDependencies.get(item.project) ?? []) {
+        dependencies.add(taskKey(depProject, depName))
+        queue.push({ project: depProject, taskName: depName, requested: false })
+      }
+    } else {
+      dependencies.add(taskKey(item.project, entry))
+      queue.push({ project: item.project, taskName: entry, requested: false })
+    }
+  }
+  return [...dependencies]
+}
+
 
 function taskConcurrency (tasks: WorkspaceTasks | undefined, taskName: string): number | undefined {
   return tasks != null && Object.hasOwn(tasks, taskName)
@@ -116,6 +156,18 @@ function taskDependsOn (tasks: WorkspaceTasks | undefined, taskName: string): st
     return tasks[taskName].dependsOn ?? []
   }
   return [`^${taskName}`]
+}
+
+/**
+ * Whether the invocation's RegExp selector expands into a task per matched
+ * script. Only with `tasks` declared, and not when an exact `tasks` entry
+ * under the selector string itself governs it as a single task.
+ */
+function expandsSelectorTask (opts: BuildTaskGraphOptions): boolean {
+  return opts.tasks != null &&
+    Object.keys(opts.tasks).length > 0 &&
+    !Object.hasOwn(opts.tasks, opts.taskName) &&
+    opts.isSelectorTaskName?.(opts.taskName) === true
 }
 
 export interface SequenceTasksOptions {
@@ -195,7 +247,11 @@ export function reverseTaskGraph (graph: TaskGraph): TaskGraph {
 export interface ResumeTaskGraphOptions {
   resumeFrom: string
   selectedProjectsGraph: ProjectsGraph
-  /** The task of the anchor project the invocation resolves to. */
+  /**
+   * The task of the anchor project the invocation resolves to. When a RegExp
+   * selector expanded into per-script tasks, every requested task of the
+   * anchor project is an anchor.
+   */
   taskName: string
   /** Tasks durably completed by the matching previous invocation. */
   completedTasks?: ReadonlySet<TaskKey>
@@ -214,16 +270,15 @@ export function resumeTaskGraphFrom (graph: TaskGraph, opts: ResumeTaskGraphOpti
   if (!anchorProject) {
     throw new PnpmError('RESUME_FROM_NOT_FOUND', `Cannot find package ${opts.resumeFrom}. Could not determine where to resume from.`)
   }
-  const anchor = graph.get(taskKey(anchorProject, opts.taskName))
-  if (anchor == null) {
+  const anchorKeys = resumeAnchorKeys(graph, anchorProject, opts.taskName)
+  if (anchorKeys.size === 0) {
     // The anchor exists but its task is not in this graph (e.g. a
     // non-recursive invocation): there is nothing to skip.
     return graph
   }
-  const anchorKey = taskKey(anchorProject, opts.taskName)
   const dropped = opts.completedTasks == null
-    ? transitiveDependencies(graph, anchor)
-    : new Set([...opts.completedTasks].filter((key) => key !== anchorKey && graph.has(key)))
+    ? transitiveDependencies(graph, anchorKeys)
+    : new Set([...opts.completedTasks].filter((key) => !anchorKeys.has(key) && graph.has(key)))
   const resumed: TaskGraph = new Map()
   for (const [key, node] of graph) {
     if (dropped.has(key)) continue
@@ -232,15 +287,28 @@ export function resumeTaskGraphFrom (graph: TaskGraph, opts: ResumeTaskGraphOpti
   return resumed
 }
 
-function transitiveDependencies (graph: TaskGraph, anchor: TaskNode): Set<TaskKey> {
+/**
+ * The anchor project's task for `taskName`, or, when a RegExp selector
+ * expanded into a task per matched script, every task requested in that
+ * project.
+ */
+function resumeAnchorKeys (graph: TaskGraph, anchorProject: ProjectRootDir, taskName: string): Set<TaskKey> {
+  const key = taskKey(anchorProject, taskName)
+  if (graph.has(key)) return new Set([key])
+  return new Set([...graph].filter(([, node]) => node.requested && node.project === anchorProject).map(([key]) => key))
+}
+
+/** The anchors' transitive dependencies, other than the anchors themselves. */
+function transitiveDependencies (graph: TaskGraph, anchorKeys: Set<TaskKey>): Set<TaskKey> {
   const dependencies = new Set<TaskKey>()
-  const stack = [...anchor.dependencies]
+  const stack = [...anchorKeys].flatMap((key) => graph.get(key)!.dependencies)
   while (stack.length > 0) {
     const key = stack.pop()!
     if (dependencies.has(key)) continue
     dependencies.add(key)
     stack.push(...graph.get(key)!.dependencies)
   }
+  for (const key of anchorKeys) dependencies.delete(key)
   return dependencies
 }
 

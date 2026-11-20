@@ -4,11 +4,13 @@ import path from 'node:path'
 
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
+import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import {
   addDirToEnvPath,
   type ConfigReport,
   type PathExtenderReport,
+  quotePowerShell,
 } from '@pnpm/os.env.path-extender'
 import PATH from 'path-name'
 import { renderHelp } from 'render-help'
@@ -57,13 +59,13 @@ function getExecPath (): string {
     // to the exe file instead of the js path.
     return process.execPath
   }
-  return process.argv[1] ?? process.cwd()
+  // npm and Homebrew start pnpm through a symlink in their bin directory,
+  // and `process.argv[1]` keeps that path.
+  return process.argv[1] == null ? process.cwd() : fs.realpathSync(process.argv[1])
 }
 
 /**
  * Install the CLI as a global package using `pnpm add -g file:<dir>`.
- * This places pnpm in the standard global directory alongside other
- * globally installed packages.
  */
 function installCliGlobally (execPath: string, pnpmHomeDir: string): void {
   const execDir = path.dirname(execPath)
@@ -147,19 +149,114 @@ function createAliasScripts (targetDir: string): void {
 
   fs.mkdirSync(targetDir, { recursive: true })
 
-  createShellScript(targetDir, 'pn', 'pnpm')
-  createShellScript(targetDir, 'pnpx', 'pnpm dlx')
-  createShellScript(targetDir, 'pnx', 'pnpm dlx')
+  createShellScript(targetDir, 'pn', '')
+  createShellScript(targetDir, 'pnpx', ' dlx')
+  createShellScript(targetDir, 'pnx', ' dlx')
 }
 
-function createShellScript (targetDir: string, name: string, command: string): void {
+// Sets $self to the regular file this alias script lives in, walking the shim
+// or symlink chain it was launched through.
+const RESOLVE_SELF_SCRIPT = `# A helper the default path lacks, as in a Nix build sandbox, comes from PATH
+# instead, with node_modules and relative entries dropped from it.
+caller_path_set=\${PATH+set}
+caller_path=\${PATH-}
+helper_path=
+rest=$caller_path:
+while [ -n "$rest" ]; do
+  dir=\${rest%%:*}
+  rest=\${rest#*:}
+  case "$dir" in
+    */node_modules/*|*/node_modules) ;;
+    /*) helper_path=\${helper_path:+$helper_path:}$dir ;;
+  esac
+done
+# An empty PATH searches the current directory.
+PATH=\${helper_path:-/}
+# A helper comes from PATH only when /usr/bin and /bin lack it and PATH has it.
+# \`command -p -v\` cannot tell, because the bash 3.2 that macOS ships as sh
+# answers it from PATH. \`[ -x ]\` also fails where a sandbox denies the file.
+run_helper() {
+  if [ -x "/usr/bin/$1" ] || [ -x "/bin/$1" ] || ! command -v "$1" >/dev/null 2>&1; then command -p "$@"; else command "$@"; fi
+}
+self=$0
+# MSYS and Cygwin can launch this with a native Windows path, which has no slash
+# for \`\${self%/*}\` to strip. Only a drive letter or a UNC prefix marks one; a
+# backslash anywhere else is an ordinary character in a Unix file name, so the
+# path is left alone. The separators are swapped in the shell rather than through
+# \`echo\`, which mangles a \`\\t\` or \`\\b\` in a path under dash.
+case $self in
+  [A-Za-z]:\\\\*|\\\\\\\\*)
+    while :; do
+      case $self in
+        *\\\\*) self=\${self%%\\\\*}/\${self#*\\\\} ;;
+        *) break ;;
+      esac
+    done
+    ;;
+esac
+# \`\${self%/*}\` needs a slash to strip. A bare name came from a PATH lookup and
+# stands for a file in the current directory.
+case $self in
+  */*) ;;
+  *) self=./$self ;;
+esac
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(run_helper readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=\${self%/*}/$link ;;
+  esac
+done
+if [ -n "$caller_path_set" ]; then PATH=$caller_path; else unset PATH; fi
+`
+
+/**
+ * Write one alias, `subcommand` being the shell text it appends to the pnpm call
+ * (`' dlx'` for `pnpx` and `pnx`).
+ *
+ * The sibling each form reaches is the bin `pnpm add -g` linked for the CLI this command
+ * just installed: a pnpm shim and, on Windows, its pnpm.cmd twin. The bin linker
+ * writes a bare pnpm.exe only for the `node` bin name, so each form has exactly
+ * one sibling to name.
+ *
+ * On Windows this also writes the `.cmd` form and removes a `.ps1` form of the same
+ * name, so PowerShell runs the `.cmd`.
+ */
+function createShellScript (targetDir: string, name: string, subcommand: string): void {
   // windows can also use shell script via mingw or cygwin so no filter
-  const shellScript = `#!/bin/sh\nexec ${command} "$@"\n`
+  const shellScript = `#!/bin/sh
+# $0 is whatever shim or symlink \`${name}\` was launched through, so walk to the
+# file itself before looking beside it. The hop cap matches the kernel's ELOOP
+# limit, so a cycle cannot hang the script. Directories come from \`\${self%/*}\`
+# and \`readlink\` runs through \`command -p\`, so the caller's PATH decides nothing here.
+#
+${RESOLVE_SELF_SCRIPT}# The walk has to end at a regular file. Running out of hops leaves $self a
+# symlink; a chain that changed under us can leave it dangling or a directory, and
+# a failed readlink leaves a trailing slash. Each case would take \`pnpm\` from the
+# wrong directory — the substitution this script exists to prevent.
+if [ -L "$self" ] || [ ! -f "$self" ]; then
+  echo "${name}: could not resolve $0 to a regular file within 40 symlink hops." >&2
+  exit 1
+fi
+
+exec "\${self%/*}/pnpm"${subcommand} "$@"
+`
   fs.writeFileSync(path.join(targetDir, name), shellScript, { mode: 0o755 })
 
   if (process.platform === 'win32') {
-    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\n${command} %*\n`)
-    fs.writeFileSync(path.join(targetDir, `${name}.ps1`), `${command} @args\n`)
+    // The sibling is invoked directly, the way the generated .cmd shims invoke
+    // theirs. Through `call` the forwarded arguments would take a second round of
+    // %-expansion, and the exit code is the shim's either way, since this is the
+    // last command this script runs. `%~dp0` already ends in a backslash.
+    fs.writeFileSync(path.join(targetDir, `${name}.cmd`), `@echo off\r\n"%~dp0pnpm.cmd"${subcommand} %*\r\n`)
+    // No .ps1 form, and one an earlier setup left is removed, because PowerShell
+    // prefers it over the .cmd. It could only call pnpm.cmd too, since the bin
+    // linker omits pnpm.ps1 (makePowerShellShim), so it would add nothing but an
+    // execution-policy error where unsigned scripts are blocked, and it would drop
+    // a bare `--` from the arguments.
+    fs.rmSync(path.join(targetDir, `${name}.ps1`), { force: true })
   }
 }
 
@@ -185,6 +282,7 @@ export async function handler (
     pnpmHomeDir: string
   }
 ): Promise<string> {
+  validatePnpmHomeDir(opts.pnpmHomeDir)
   const execPath = getExecPath()
   const binDir = path.join(opts.pnpmHomeDir, 'bin')
   validateGHActionsEnvFileValues(opts.pnpmHomeDir, binDir)
@@ -192,6 +290,33 @@ export async function handler (
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
   }
+  const output = await addPnpmHomeToEnvPath(opts)
+  writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
+  removeLegacyHomeDirShims(opts.pnpmHomeDir)
+  return output
+}
+
+function validatePnpmHomeDir (pnpmHomeDir: string): void {
+  const unsafeCharacters = process.platform === 'win32' ? ';%\n\r' : ':\n\r\0'
+  const unsafeCharacter = [...pnpmHomeDir].find(character => unsafeCharacters.includes(character))
+  if (unsafeCharacter == null) return
+  throw new PnpmError(
+    'INVALID_PNPM_HOME',
+    `The pnpm home directory "${pnpmHomeDir}" contains a character ('${CONTROL_CHARACTER_ESCAPES[unsafeCharacter] ?? unsafeCharacter}') that is unsafe for the PATH`
+  )
+}
+
+const CONTROL_CHARACTER_ESCAPES: Record<string, string> = {
+  '\n': '\\n',
+  '\r': '\\r',
+  '\0': '\\0',
+}
+
+/**
+ * Unavailable shell configuration or registry access leaves pnpm installed,
+ * with instructions for configuring the environment manually.
+ */
+async function addPnpmHomeToEnvPath (opts: { force?: boolean, pnpmHomeDir: string }): Promise<string> {
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
       configSectionName: 'pnpm',
@@ -200,11 +325,15 @@ export async function handler (
       overwrite: opts.force,
       position: 'start',
     })
-    writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
-    removeLegacyHomeDirShims(opts.pnpmHomeDir)
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
+      case 'ERR_PNPM_REG_READ':
+      case 'ERR_PNPM_FAILED_SET_ENV':
+        return renderWindowsManualSetupOutput(err.message, opts.pnpmHomeDir)
+      case 'ERR_PNPM_UNKNOWN_SHELL':
+      case 'ERR_PNPM_NO_SHELL_CONFIG':
+        return renderManualSetupOutput(err.message, opts.pnpmHomeDir)
       case 'ERR_PNPM_BAD_ENV_FOUND':
         err.hint = 'If you want to override the existing env variable, use the --force option'
         break
@@ -216,24 +345,55 @@ export async function handler (
   }
 }
 
+function renderWindowsManualSetupOutput (reason: string, pnpmHomeDir: string): string {
+  return `${reason}
+
+pnpm is installed, but its environment could not be saved in the registry.
+To start using pnpm in this PowerShell session, run:
+$env:PNPM_HOME = ${quotePowerShell(pnpmHomeDir)}
+$env:Path = "$env:PNPM_HOME\\bin;$env:Path"
+
+Add these lines to your PowerShell profile to use pnpm in future sessions.`
+}
+
+function renderManualSetupOutput (reason: string, pnpmHomeDir: string): string {
+  return `${reason} No shell config file was changed.
+
+To start using pnpm, add these lines to your shell config file:
+export PNPM_HOME=${shSingleQuote(pnpmHomeDir)}
+export PATH="$PNPM_HOME/bin:$PATH"`
+}
+
+function shSingleQuote (text: string): string {
+  return `'${text.replace(/'/g, "'\\''")}'`
+}
+
 function renderSetupOutput (report: PathExtenderReport): string {
-  if (report.oldSettings === report.newSettings) {
-    return 'No changes to the environment were made. Everything is already up to date.'
-  }
   const output = []
   if (report.configFile) {
     output.push(reportConfigChange(report.configFile))
   }
-  output.push(`Next configuration changes were made:
+  if (report.oldSettings === report.newSettings) {
+    output.push('No changes to the environment were made. Everything is already up to date.')
+    return output.join('\n\n')
+  }
+  output.push(`The following configuration changes were made:
 ${report.newSettings}`)
   if (report.configFile == null) {
     output.push('Setup complete. Open a new terminal to start using pnpm.')
   } else if (report.configFile.changeType !== 'skipped') {
     output.push(`To start using pnpm, run:
-source ${report.configFile.path}
+${renderReloadCommand(report.configFile.path)}
 `)
   }
   return output.join('\n\n')
+}
+
+function renderReloadCommand (configFile: string): string {
+  if (configFile.endsWith('.ps1')) {
+    return `. ${quotePowerShell(configFile)}`
+  }
+  return `source ${configFile}`
 }
 
 function reportConfigChange (configReport: ConfigReport): string {

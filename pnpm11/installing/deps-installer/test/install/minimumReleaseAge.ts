@@ -1,8 +1,11 @@
+import path from 'node:path'
+
 import { expect, jest, test } from '@jest/globals'
-import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
-import { prepareEmpty } from '@pnpm/prepare'
-import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { bravoDepMatureUpTo101MinimumReleaseAge, bravoMatureBravoDep110ImmatureMinimumReleaseAge } from '@pnpm/testing.registry-mock'
+import type { DepPath, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -85,17 +88,16 @@ test('minimumReleaseAge falls back to immature version when no mature version sa
 })
 
 test('strict minimumReleaseAge surfaces every immature pick via handleResolutionPolicyViolations, then aborts', async () => {
-  // Pre-refactor strict mode threw at the resolver on the first immature
-  // pick (forcing a discover-by-loop dance, #10488). With always-defer the
-  // resolver records every immature pick inline; the install command (here
-  // simulated via the hook) decides what to do once it has the full set.
+  // The resolver records every immature pick inline (pnpm/pnpm#10488); the
+  // install command (here simulated via the hook) decides what to do once it
+  // has the full set.
   prepareEmpty()
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
   const seen: string[] = []
   await expect(addDependenciesToPackage({}, ['is-odd@0.1'], {
     ...opts,
     handleResolutionPolicyViolations: async (violations) => {
-      for (const v of violations) seen.push(`${v.name}@${v.version}`)
+      for (const violation of violations) seen.push(`${violation.name}@${violation.version}`)
       throw new Error('immature picks rejected')
     },
   })).rejects.toThrow(/immature picks rejected/)
@@ -124,6 +126,47 @@ test('time-based resolution repopulates missing lockfile time entries on re-inst
 
   const lockfileAfterReinstall = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
   expect(lockfileAfterReinstall.time).toEqual(lockfileAfterFirstInstall.time)
+})
+
+test('a subdependency newer than the time-based cutoff but mature under minimumReleaseAge is not a violation', async () => {
+  const project = prepareEmpty()
+  const violations: string[] = []
+
+  // @pnpm.e2e/bravo@1.0.0 is published in 2022-04, so the time-based cutoff for
+  // its dependencies is one hour later. The override pins bravo-dep to 1.1.0,
+  // published in 2022-05, which a one-minute minimumReleaseAge admits.
+  await install({ dependencies: { '@pnpm.e2e/bravo': '1.0.0' } }, {
+    ...testDefaults({
+      minimumReleaseAge: 1,
+      resolutionMode: 'time-based',
+      overrides: { '@pnpm.e2e/bravo-dep': '1.1.0' },
+    }),
+    handleResolutionPolicyViolations: async (found) => {
+      violations.push(...found.map((violation) => `${violation.name}@${violation.version}`))
+    },
+  })
+
+  expect(violations).toStrictEqual([])
+  expect(project.readLockfile().snapshots).toHaveProperty(['@pnpm.e2e/bravo-dep@1.1.0'])
+})
+
+test('a subdependency newer than minimumReleaseAge is reported against the minimumReleaseAge cutoff under time-based resolution', async () => {
+  prepareEmpty()
+  const reasons: string[] = []
+
+  await install({ dependencies: { '@pnpm.e2e/bravo': '1.0.0' } }, {
+    ...testDefaults({
+      minimumReleaseAge: bravoMatureBravoDep110ImmatureMinimumReleaseAge(),
+      resolutionMode: 'time-based',
+      overrides: { '@pnpm.e2e/bravo-dep': '1.1.0' },
+    }),
+    handleResolutionPolicyViolations: async (found) => {
+      reasons.push(...found.map((violation) => `${violation.name}@${violation.version} ${violation.reason}`))
+    },
+  })
+
+  expect(reasons).toHaveLength(1)
+  expect(reasons[0]).toMatch(/^@pnpm\.e2e\/bravo-dep@1\.1\.0 was published at 2022-05-\S+, within the minimumReleaseAge cutoff \(2022-04-15T/)
 })
 
 const matureUpTo101MinimumReleaseAge = bravoDepMatureUpTo101MinimumReleaseAge()
@@ -165,6 +208,92 @@ test('pnpm update --latest updates to the newest mature version instead of the i
   expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/bravo-dep@1.0.1'])
   expect(lockfile.snapshots).not.toHaveProperty(['@pnpm.e2e/bravo-dep@1.1.0'])
 })
+
+const UNSERVED_VERSION = '100.9.9'
+
+test('pnpm update <pkg> moves a dependency off a locked version the registry no longer serves', async () => {
+  const project = prepareEmpty()
+  const manifest = await installWithUnservedVersionOfDepOfPkgWith1Dep()
+
+  await install(manifest, testDefaults({
+    depth: Infinity,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/dep-of-pkg-with-1-dep',
+    minimumReleaseAge: 1,
+  }))
+
+  const snapshotKeys = Object.keys(project.readLockfile().snapshots)
+  expect(snapshotKeys).not.toContain(`@pnpm.e2e/dep-of-pkg-with-1-dep@${UNSERVED_VERSION}`)
+  expect(snapshotKeys).toContainEqual(expect.stringMatching(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep@100\./))
+})
+
+test('pnpm update <pkg> still verifies the locked versions of the packages it does not update', async () => {
+  prepareEmpty()
+  const manifest = await installWithUnservedVersionOfDepOfPkgWith1Dep()
+
+  await expect(install(manifest, testDefaults({
+    depth: Infinity,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === 'is-positive',
+    minimumReleaseAge: 1,
+  }))).rejects.toThrow(`@pnpm.e2e/dep-of-pkg-with-1-dep@${UNSERVED_VERSION} could not be checked against minimumReleaseAge`)
+})
+
+test('pnpm update <pkg> --depth 0 still verifies the locked versions of the dependencies it cannot reach', async () => {
+  prepareEmpty()
+  const manifest = await installWithUnservedVersionOfDepOfPkgWith1Dep()
+
+  await expect(install(manifest, testDefaults({
+    depth: 0,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/dep-of-pkg-with-1-dep',
+    minimumReleaseAge: 1,
+  }))).rejects.toThrow(`@pnpm.e2e/dep-of-pkg-with-1-dep@${UNSERVED_VERSION} could not be checked against minimumReleaseAge`)
+})
+
+test('pnpm update <pkg> of some importers still verifies the locked versions of the others', async () => {
+  preparePackages([
+    { location: 'project-1', package: { name: 'project-1' } },
+    { location: 'project-2', package: { name: 'project-2' } },
+  ])
+  const allProjects = ['project-1', 'project-2'].map((name) => ({
+    buildIndex: 0,
+    manifest: { name, version: '1.0.0', dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } },
+    rootDir: path.resolve(name) as ProjectRootDir,
+  }))
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({ allProjects }))
+  await lockUnservedVersionOfDepOfPkgWith1Dep()
+  const updateDep = (rootDir: ProjectRootDir): MutatedProject => ({
+    mutation: 'install',
+    rootDir,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/dep-of-pkg-with-1-dep',
+  })
+  const opts = { allProjects, depth: Infinity, minimumReleaseAge: 1 }
+
+  await expect(mutateModules([updateDep(allProjects[1].rootDir)], testDefaults(opts)))
+    .rejects.toThrow(`@pnpm.e2e/dep-of-pkg-with-1-dep@${UNSERVED_VERSION} could not be checked against minimumReleaseAge`)
+
+  await mutateModules(allProjects.map(({ rootDir }) => updateDep(rootDir)), testDefaults(opts))
+  const lockfile = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
+  expect(Object.keys(lockfile.packages!)).not.toContain(`@pnpm.e2e/dep-of-pkg-with-1-dep@${UNSERVED_VERSION}`)
+})
+
+async function installWithUnservedVersionOfDepOfPkgWith1Dep (): Promise<ProjectManifest> {
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults())
+  await lockUnservedVersionOfDepOfPkgWith1Dep()
+  return manifest
+}
+
+async function lockUnservedVersionOfDepOfPkgWith1Dep (): Promise<void> {
+  const lockfile = (await readWantedLockfile('.', { ignoreIncompatible: false }))!
+  const depName = '@pnpm.e2e/dep-of-pkg-with-1-dep'
+  const lockedDepPath = Object.keys(lockfile.packages!).find((depPath) => depPath.startsWith(`${depName}@`))! as DepPath
+  lockfile.packages![`${depName}@${UNSERVED_VERSION}` as DepPath] = lockfile.packages![lockedDepPath]
+  delete lockfile.packages![lockedDepPath]
+  lockfile.packages!['@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath].dependencies![depName] = UNSERVED_VERSION
+  await writeWantedLockfile('.', lockfile)
+}
 
 test('pnpm add without a version pins the newest version that satisfies minimumReleaseAge', async () => {
   const project = prepareEmpty()
@@ -252,10 +381,9 @@ test('the lockfile minimumReleaseAge gate runs in loose mode too', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1.2'], testDefaults())
   expect(manifest.dependencies!['is-odd']).toBe('0.1.2')
 
-  // Loose mode no longer skips the verifier — once auto-collect makes every
-  // accepted-immature pin explicit in `minimumReleaseAgeExclude`, running
-  // the verifier in loose mode is what keeps the manifest in sync with the
-  // lockfile. A pre-existing immature lockfile entry that isn't yet on the
+  // Once auto-collect makes every accepted-immature pin explicit in
+  // `minimumReleaseAgeExclude`, running the verifier in loose mode is what
+  // keeps the manifest in sync with the lockfile. A pre-existing immature lockfile entry that isn't yet on the
   // exclude list is rejected here, same as strict mode.
   await expect(
     install(manifest, testDefaults({ minimumReleaseAge }))
@@ -309,7 +437,7 @@ test('pacquet materializes after pnpm resolves when policy violations must be su
   prepareEmpty()
 
   const opts = testDefaults({ minimumReleaseAge: allImmatureMinimumReleaseAge })
-  const runPacquet = jest.fn<(opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>>().mockResolvedValue(undefined)
+  const runPacquet = jest.fn<(opts?: { filterResolvedProgress?: boolean, resolve?: boolean, rootProjectPreinstallRan?: boolean }) => Promise<void>>().mockResolvedValue(undefined)
   const result = await install({
     dependencies: {
       'is-odd': '0.1',
@@ -323,7 +451,7 @@ test('pacquet materializes after pnpm resolves when policy violations must be su
     },
   })
 
-  expect(runPacquet).toHaveBeenCalledWith({ filterResolvedProgress: true })
+  expect(runPacquet).toHaveBeenCalledWith({ filterResolvedProgress: true, rootProjectPreinstallRan: true })
   expect(runPacquet).not.toHaveBeenCalledWith({ resolve: true })
   expect(result.resolutionPolicyViolations).toContainEqual(
     expect.objectContaining({
@@ -353,7 +481,7 @@ test('versions excluded via minimumReleaseAgeExclude are not surfaced as violati
   // range) treating it as fully trusted. The verifier short-circuits on the
   // excluded entry, so it doesn't end up in the violations array — otherwise
   // every install would re-add the same exclude entry the user just dismissed.
-  expect(result.resolutionPolicyViolations.find((v) => v.name === 'is-odd')).toBeUndefined()
+  expect(result.resolutionPolicyViolations.find((violation) => violation.name === 'is-odd')).toBeUndefined()
 })
 
 test('handleResolutionPolicyViolations throwing aborts the install before the lockfile is written', async () => {
@@ -397,7 +525,7 @@ test('handleResolutionPolicyViolations approval lets the install proceed cleanly
       // The real install command would inspect the violations and run
       // an enquirer prompt here. The test just confirms the hook gets a
       // full set and returns to approve.
-      expect(violations.some((v) => v.name === 'is-odd' && v.version === '0.1.0')).toBe(true)
+      expect(violations.some((violation) => violation.name === 'is-odd' && violation.version === '0.1.0')).toBe(true)
     },
   })
 

@@ -1,16 +1,29 @@
 //! The per-package summary `pnpm publish` returns and prints under `--json`,
 //! modeled after `npm publish --json`.
 
-use std::path::Path;
+use std::{
+    ffi::OsStr,
+    path::Path,
+};
 
 use serde::Serialize;
 use serde_json::Value;
-use ssri::{Algorithm, IntegrityOpts};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
 
 /// Per-package summary describing a successful publish. Field names serialize
 /// to the `npm publish --json` shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm publish --json result format."
+    )
+)]
 pub struct PublishSummary {
     /// Human-readable identifier `name@version`.
     pub id: String,
@@ -58,7 +71,8 @@ pub fn create_publish_summary(info: &PackedPkgInfo<'_>, tarball_data: &[u8]) -> 
     let version = manifest_string(info.published_manifest, "version");
     let filename = Path::new(info.tarball_path)
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .unwrap_or_default();
     PublishSummary {
         id: format!("{name}@{version}"),
@@ -70,7 +84,10 @@ pub fn create_publish_summary(info: &PackedPkgInfo<'_>, tarball_data: &[u8]) -> 
         shasum: sha1_hex(tarball_data),
         integrity: sha512_sri(tarball_data),
         filename,
-        files: info.contents.iter().map(|path| PublishSummaryFile { path: path.clone() }).collect(),
+        files: info.contents
+            .iter()
+            .map(|path| PublishSummaryFile { path: path.clone() })
+            .collect(),
         entry_count: info.contents.len(),
         bundled: extract_bundled_dependencies(info.published_manifest),
         stage_id: None,
@@ -87,9 +104,11 @@ pub fn extract_bundled_dependencies(manifest: &Value) -> Vec<String> {
         .filter(|value| !value.is_null())
         .or_else(|| manifest.get("bundleDependencies"));
     match raw {
-        Some(Value::Array(items)) => {
-            items.iter().filter_map(|item| item.as_str().map(str::to_owned)).collect()
-        }
+        Some(Value::Array(items)) => items
+            .iter()
+            .map(Value::as_str)
+            .filter_map(|text| text.map(str::to_owned))
+            .collect(),
         // `true` means "bundle every dependency"; expand it to the names.
         Some(Value::Bool(true)) => manifest
             .get("dependencies")
@@ -101,7 +120,11 @@ pub fn extract_bundled_dependencies(manifest: &Value) -> Vec<String> {
 }
 
 fn manifest_string(manifest: &Value, key: &str) -> String {
-    manifest.get(key).and_then(Value::as_str).unwrap_or_default().to_owned()
+    manifest
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn sha1_hex(data: &[u8]) -> String {

@@ -1,13 +1,71 @@
-use chrono::{DateTime, Utc};
-use serde_json::{Value, json};
-
 use super::{
-    bin_summary, format_bytes, format_field_value, format_person, format_time_ago_since,
-    get_nested_property, parse_date, published_info, publisher, render_fields, render_summary,
+    nearest_manifest_name,
+    render_fields,
+    render_summary,
+};
+use crate::cli_args::view::render::{
+    bin_summary,
+    format_bytes,
+    format_field_value,
+    format_person,
+    format_time_ago_since,
+    get_nested_property,
+    parse_date,
+    published_info,
+    publisher,
+};
+use jiff::Timestamp;
+use miette::Diagnostic;
+use serde_json::{
+    Value,
+    json,
 };
 
-fn utc(rfc3339: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(rfc3339).expect("valid timestamp").with_timezone(&Utc)
+#[test]
+fn invalid_project_names_report_format_neutral_diagnostic() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("package.json"), r#"{"name":"parent"}"#).unwrap();
+    for basename in ["package.json", "package.json5", "package.yaml"] {
+        let project = root
+            .path()
+            .join(format!("project-{basename}"));
+        std::fs::create_dir(&project).unwrap();
+        for content in [r#"{"version":"1.0.0"}"#, r#"{"name":""}"#, r#"{"name":42}"#] {
+            std::fs::write(project.join(basename), content).unwrap();
+            let error = nearest_manifest_name(&project).unwrap_err();
+            assert_eq!(error.code().unwrap().to_string(), "ERR_PNPM_INVALID_PACKAGE_JSON");
+            assert_eq!(
+                error.to_string(),
+                format!(
+                    r#"Invalid project manifest at "{}". The "name" field is required and must be a non-empty string."#,
+                    project.display(),
+                ),
+            );
+        }
+    }
+}
+
+#[test]
+fn nearest_project_name_uses_alternative_manifests_and_precedence() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("package.json"), r#"{"name":"parent"}"#).unwrap();
+    let project = root.path().join("project");
+    let child = project.join("src");
+    std::fs::create_dir_all(&child).unwrap();
+    std::fs::write(project.join("package.yaml"), "name: yaml\n").unwrap();
+    assert_eq!(nearest_manifest_name(&child).unwrap(), "yaml");
+    std::fs::write(project.join("package.json5"), "{name: 'json5'}").unwrap();
+    assert_eq!(nearest_manifest_name(&child).unwrap(), "json5");
+    std::fs::write(project.join("package.json"), r#"{"name":"json"}"#).unwrap();
+    assert_eq!(nearest_manifest_name(&child).unwrap(), "json");
+    std::fs::write(project.join("package.json"), "{ invalid:").unwrap();
+    let error = nearest_manifest_name(&child).unwrap_err();
+    eprintln!("ERROR: {error}");
+    assert!(error.to_string().contains("package.json"));
+}
+
+fn utc(rfc3339: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(rfc3339).expect("valid timestamp")
 }
 
 #[test]
@@ -99,7 +157,7 @@ fn rich_info() -> Value {
 
 #[test]
 fn render_summary_includes_every_section() {
-    let out = render_summary(&rich_info());
+    let out = render_summary(&rich_info(), "https://registry.example/");
     for needle in [
         "is-negative@1.0.0",
         "deps: ",
@@ -118,14 +176,31 @@ fn render_summary_includes_every_section() {
         "dist-tags:",
         "latest:",
         "published ",
+        "registry: https://registry.example/",
     ] {
         assert!(out.contains(needle), "summary missing {needle:?}:\n{out}");
     }
 }
 
 #[test]
+fn render_summary_redacts_and_sanitizes_registry() {
+    let out = render_summary(
+        &json!({ "name": "x", "version": "1.0.0" }),
+        "https://user:secret@registry.example/\u{1b}[2Knpm/?token=query-secret#fragment-secret",
+    );
+    // Stripping the renderer's color also strips an unsanitized `ESC[2K`, so
+    // the `[2K` left in the expected suffix proves the URL's own escape was
+    // removed before printing.
+    let out = console::strip_ansi_codes(&out);
+    assert!(out.ends_with("\nregistry: https://registry.example/[2Knpm/"), "{out:?}");
+    for leaked in ["secret", "token", "fragment"] {
+        assert!(!out.contains(leaked), "registry line must not print {leaked:?}: {out:?}");
+    }
+}
+
+#[test]
 fn render_summary_minimal_shows_deps_none() {
-    let out = render_summary(&json!({ "name": "x", "version": "1.0.0" }));
+    let out = render_summary(&json!({ "name": "x", "version": "1.0.0" }), "https://r.example/");
     assert!(out.contains("x@1.0.0"), "{out}");
     assert!(out.contains("deps: none"), "{out}");
 }
@@ -161,7 +236,11 @@ fn render_fields_multi_text_formats_by_type() {
     // An absent field renders as `field = ` with an empty value.
     let with_absent = ["missing".to_string(), "name".to_string()];
     let out2 = render_fields(&info, &with_absent, false);
-    assert!(out2.lines().any(|line| line == "missing = "), "{out2}");
+    assert!(
+        out2.lines()
+            .any(|line| line == "missing = "),
+        "{out2}",
+    );
 }
 
 #[test]
@@ -226,4 +305,42 @@ fn format_person_renders_name_and_optional_email() {
 
     let without_email = format_person(&json!({ "name": "bob" }));
     assert!(without_email.contains("bob") && !without_email.contains('<'), "{without_email}");
+}
+
+#[tokio::test]
+async fn fetch_package_metadata_honors_registry_override_for_scoped_package() {
+    let mut server = mockito::Server::new_async().await;
+    let body = serde_json::json!({
+        "name": "@scope/acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "@scope/acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry.example/@scope/acme-1.0.0.tgz" }
+            }
+        }
+    })
+    .to_string();
+    let mock = server
+        .mock("GET", "/@scope%2Facme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let mut config = pnpm_config::Config::default();
+    config.registries_by_scope.insert("@scope".to_string(), "https://other.registry/".to_string());
+
+    let server_url = server.url();
+    let fetched = super::fetch_package_metadata(&config, Some(&server_url), "@scope/acme", "view")
+        .await
+        .expect("fetch package metadata");
+
+    assert_eq!(fetched.meta.name, "@scope/acme");
+    assert_eq!(fetched.picked.version.to_string(), "1.0.0");
+    assert!(fetched.registry.starts_with(&server_url), "{}", fetched.registry);
+    mock.assert_async().await;
 }

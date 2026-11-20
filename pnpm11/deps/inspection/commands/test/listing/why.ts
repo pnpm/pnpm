@@ -36,7 +36,7 @@ test('"why" should show reverse dependency tree for a non-direct dependency', as
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dev: false,
@@ -61,7 +61,7 @@ test('"why" should find packages by alias name when using npm: protocol', async 
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dev: false,
@@ -83,7 +83,7 @@ test('"why" should find packages by actual package name when using npm: protocol
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dev: false,
@@ -105,7 +105,7 @@ test('"why" should display parseable output', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dev: false,
@@ -128,7 +128,7 @@ test('"why" should display finder message in tree output', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dir: process.cwd(),
@@ -156,7 +156,7 @@ test('"why" should display finder message in JSON output', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dir: process.cwd(),
@@ -186,7 +186,7 @@ test('"why" finder can read manifest from store', async () => {
     },
   })
 
-  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
 
   const output = await why.handler({
     dir: process.cwd(),
@@ -240,4 +240,67 @@ test('"why" should find file: protocol local packages', async () => {
   // Should find the local package and show reverse tree
   expect(lines[0]).toContain('my-local-pkg')
   expect(lines.some(l => l.includes('project@0.0.0'))).toBe(true)
+})
+
+test('"why --global" inspects isolated global package groups instead of opts.dir', async () => {
+  prepare({
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+  await execa('node', [pnpmBin, 'install'])
+
+  const pnpmHome = path.resolve('..', 'global-why-home')
+  const binDir = path.join(pnpmHome, 'bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH'
+  await execa('node', [pnpmBin, 'add', '-g', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`, '@pnpm.e2e/pkg-with-1-dep@100.0.0'], {
+    env: {
+      ...process.env,
+      PNPM_HOME: pnpmHome,
+      [pathKey]: `${binDir}${path.delimiter}${process.env[pathKey] ?? ''}`,
+    },
+  })
+
+  const globalPkgDir = path.join(pnpmHome, 'global', 'v11')
+  const globalOutput = await why.handler({
+    dev: false,
+    dir: process.cwd(),
+    global: true,
+    globalPkgDir,
+    optional: false,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+
+  expect(stripAnsi(globalOutput)).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  expect(stripAnsi(globalOutput)).toContain('@pnpm.e2e/pkg-with-1-dep@100.0.0')
+
+  const localLeakOutput = await why.handler({
+    dev: false,
+    dir: process.cwd(),
+    global: true,
+    globalPkgDir,
+    optional: false,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['is-negative'])
+
+  expect(localLeakOutput).toBe('')
+})
+
+test('"why --global" throws ERR_PNPM_NO_GLOBAL_BIN_DIR when globalPkgDir is missing', async () => {
+  prepare({
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await expect(why.handler({
+    dev: false,
+    dir: process.cwd(),
+    global: true,
+    optional: false,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['is-negative'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_GLOBAL_BIN_DIR',
+  })
 })

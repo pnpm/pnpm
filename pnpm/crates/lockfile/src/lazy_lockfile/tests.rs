@@ -1,5 +1,12 @@
-use super::{LazyLockfile, MaybeLazyLockfile};
-use crate::{LoadLockfileError, Lockfile, WantedLockfileSelection};
+use super::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
+use crate::{
+    LoadLockfileError,
+    Lockfile,
+    WantedLockfileSelection,
+};
 use std::fs;
 use text_block_macros::text_block;
 
@@ -23,17 +30,21 @@ fn preloaded_repair_preserves_the_merge_view() {
         "  pkg@1.0.0:"
         "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
         "    deprecated: stale"
+        "    engines: {node: '>=14'}"
     })
     .expect("parse preloaded lockfile");
     let lazy = LazyLockfile::preloaded(Some(lockfile));
     let package_key = "pkg@1.0.0".parse().expect("package key");
 
-    let seed = lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    let seed = lazy
+        .get_for_fix()
+        .expect("repair load succeeds")
+        .expect("repair lockfile");
     assert!(
         seed.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .is_some_and(|metadata| metadata.deprecated.is_none()),
+            .is_some_and(|metadata| metadata.engines.is_none()),
     );
 
     let merge = MaybeLazyLockfile::Repair(&lazy)
@@ -41,8 +52,7 @@ fn preloaded_repair_preserves_the_merge_view() {
         .expect("merge load succeeds")
         .expect("merge lockfile");
     assert_eq!(
-        merge
-            .packages
+        merge.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
             .and_then(|metadata| metadata.deprecated.as_deref()),
@@ -53,14 +63,22 @@ fn preloaded_repair_preserves_the_merge_view() {
 #[test]
 fn preloaded_none_reports_absent() {
     let lazy = LazyLockfile::preloaded(None);
-    assert!(lazy.get().expect("preloaded lockfile loads infallibly").is_none());
+    assert!(
+        lazy.get()
+            .expect("preloaded lockfile loads infallibly")
+            .is_none(),
+    );
     assert!(!lazy.is_loaded_or_on_disk());
 }
 
 #[test]
 fn disabled_never_touches_the_filesystem() {
     let lazy = LazyLockfile::disabled();
-    assert!(lazy.get().expect("disabled load is infallible").is_none());
+    assert!(
+        lazy.get()
+            .expect("disabled load is infallible")
+            .is_none(),
+    );
     assert!(!lazy.is_loaded_or_on_disk());
 }
 
@@ -72,15 +90,27 @@ fn deferred_loads_from_the_given_dir_not_the_process_cwd() {
 
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(lazy.is_loaded_or_on_disk(), "probe must find the dir-addressed lockfile");
-    assert!(lazy.get().expect("deferred load succeeds").is_some());
+    assert!(
+        lazy.get()
+            .expect("deferred load succeeds")
+            .is_some(),
+    );
 
     let empty = tempfile::tempdir().expect("tempdir");
     let lazy =
         LazyLockfile::deferred(empty.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk());
-    assert!(lazy.get_for_fix().expect("absent repair load succeeds").is_none());
+    assert!(
+        lazy.get_for_fix()
+            .expect("absent repair load succeeds")
+            .is_none(),
+    );
     assert!(!lazy.is_loaded_or_on_disk(), "the empty repair cache must report no lockfile");
-    assert!(lazy.get().expect("absent lockfile loads as None").is_none());
+    assert!(
+        lazy.get()
+            .expect("absent lockfile loads as None")
+            .is_none(),
+    );
 }
 
 #[test]
@@ -96,29 +126,34 @@ fn normal_load_does_not_fill_the_repair_cache() {
             "  pkg@1.0.0:"
             "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
             "    deprecated: stale"
+            "    engines: {node: '>=14'}"
         },
     )
     .expect("write pnpm-lock.yaml");
 
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
-    let normal = lazy.get().expect("normal load succeeds").expect("normal lockfile");
+    let normal = lazy
+        .get()
+        .expect("normal load succeeds")
+        .expect("normal lockfile");
     let package_key = "pkg@1.0.0".parse().expect("package key");
     assert_eq!(
-        normal
-            .packages
+        normal.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
             .and_then(|metadata| metadata.deprecated.as_deref()),
         Some("stale"),
     );
 
-    let repaired = lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    let repaired = lazy
+        .get_for_fix()
+        .expect("repair load succeeds")
+        .expect("repair lockfile");
     assert!(
-        repaired
-            .packages
+        repaired.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .is_some_and(|metadata| metadata.deprecated.is_none()),
+            .is_some_and(|metadata| metadata.engines.is_none()),
     );
 
     let merge = MaybeLazyLockfile::Repair(&lazy)
@@ -126,8 +161,7 @@ fn normal_load_does_not_fill_the_repair_cache() {
         .expect("merge load succeeds")
         .expect("merge lockfile");
     assert_eq!(
-        merge
-            .packages
+        merge.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
             .and_then(|metadata| metadata.deprecated.as_deref()),
@@ -161,19 +195,25 @@ fn repair_merge_preserves_valid_metadata_when_strict_parsing_fails() {
     assert!(lazy.get().is_err(), "strict parsing must reject the malformed settings");
 
     let package_key = "pkg@1.0.0".parse().expect("package key");
-    let repaired = lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    let repaired = lazy
+        .get_for_fix()
+        .expect("repair load succeeds")
+        .expect("repair lockfile");
     assert!(repaired.settings.is_none());
-    assert!(
-        repaired
-            .packages
+    assert_eq!(
+        repaired.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .is_some_and(|metadata| metadata.deprecated.is_none()),
+            .and_then(|metadata| metadata.deprecated.as_deref()),
+        Some("stale"),
     );
     assert!(
-        repaired.snapshots.as_ref().and_then(|snapshots| snapshots.get(&package_key)).is_some_and(
-            |snapshot| { !snapshot.optional && snapshot.transitive_peer_dependencies.is_none() }
-        ),
+        repaired.snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(&package_key))
+            .is_some_and(|snapshot| {
+                !snapshot.optional && snapshot.transitive_peer_dependencies.is_none()
+            }),
     );
 
     let merge = MaybeLazyLockfile::Repair(&lazy)
@@ -182,20 +222,20 @@ fn repair_merge_preserves_valid_metadata_when_strict_parsing_fails() {
         .expect("merge lockfile");
     assert!(merge.settings.is_none());
     assert_eq!(
-        merge
-            .packages
+        merge.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
             .and_then(|metadata| metadata.deprecated.as_deref()),
         Some("stale"),
     );
     assert!(
-        merge.snapshots.as_ref().and_then(|snapshots| snapshots.get(&package_key)).is_some_and(
-            |snapshot| {
+        merge.snapshots
+            .as_ref()
+            .and_then(|snapshots| snapshots.get(&package_key))
+            .is_some_and(|snapshot| {
                 snapshot.optional
                     && snapshot.transitive_peer_dependencies.as_deref() == Some(&["peer".into()])
-            }
-        ),
+            }),
     );
 }
 
@@ -218,7 +258,9 @@ fn repair_views_stay_on_the_same_file_generation() {
     .expect("write first lockfile generation");
 
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
-    lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    lazy.get_for_fix()
+        .expect("repair load succeeds")
+        .expect("repair lockfile");
 
     fs::write(
         path,
@@ -240,8 +282,7 @@ fn repair_views_stay_on_the_same_file_generation() {
         .expect("merge lockfile");
     let package_key = "pkg@1.0.0".parse().expect("package key");
     assert_eq!(
-        merge
-            .packages
+        merge.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
             .and_then(|metadata| metadata.deprecated.as_deref()),
@@ -269,7 +310,11 @@ fn a_failed_repair_load_is_retried_rather_than_cached() {
         },
     )
     .expect("write repaired lockfile");
-    assert!(lazy.get_for_fix().expect("the failed load was not cached").is_some());
+    assert!(
+        lazy.get_for_fix()
+            .expect("the failed load was not cached")
+            .is_some(),
+    );
 }
 
 #[test]
@@ -288,7 +333,8 @@ fn repair_views_fold_branch_lockfiles_together() {
     )
     .expect("write base lockfile");
     fs::write(
-        dir.path().join(Lockfile::git_branch_file_name("feature")),
+        dir.path()
+            .join(Lockfile::git_branch_file_name("feature")),
         text_block! {
             "lockfileVersion: '9.0'"
             "importers:"
@@ -305,7 +351,10 @@ fn repair_views_fold_branch_lockfiles_together() {
         ..WantedLockfileSelection::default()
     };
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), selection);
-    let seed = lazy.get_for_fix().expect("repair load succeeds").expect("repair lockfile");
+    let seed = lazy
+        .get_for_fix()
+        .expect("repair load succeeds")
+        .expect("repair lockfile");
     let merge = MaybeLazyLockfile::Repair(&lazy)
         .get_for_merge()
         .expect("merge load succeeds")
@@ -337,7 +386,51 @@ fn empty_and_env_only_files_count_as_absent() {
     fs::write(&path, "---\nenvDependencies:\n  node: '22.0.0'\n").expect("write env-only lockfile");
     let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
     assert!(!lazy.is_loaded_or_on_disk(), "an env-only document must count as absent");
-    assert!(lazy.get().expect("env-only lockfile loads as None").is_none());
+    assert!(
+        lazy.get()
+            .expect("env-only lockfile loads as None")
+            .is_none(),
+    );
+}
+
+#[test]
+fn a_detached_head_candidate_counts_as_the_wanted_lockfile() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    // No shared lockfile; only the branch the checked-out commit belongs
+    // to carries one.
+    fs::write(dir.path().join("pnpm-lock.feature.yaml"), "lockfileVersion: '9.0'\n")
+        .expect("write branch lockfile");
+
+    let selection = WantedLockfileSelection {
+        branch_lockfile_candidates: vec!["pnpm-lock.feature.yaml".to_owned()],
+        ..WantedLockfileSelection::default()
+    };
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), selection);
+    assert!(
+        lazy.is_loaded_or_on_disk(),
+        "a candidate's lockfile stands in for the absent shared one",
+    );
+}
+
+#[test]
+fn an_attached_branch_keeps_the_single_file_existence_check() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    // Only the shared lockfile is on disk; the checked-out branch has no
+    // lockfile of its own yet.
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("write shared lockfile");
+
+    let selection = WantedLockfileSelection {
+        file_name: "pnpm-lock.feature.yaml".to_owned(),
+        ..WantedLockfileSelection::default()
+    };
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), selection);
+    assert!(
+        !lazy.is_loaded_or_on_disk(),
+        "the branch's own lockfile is the only one that counts on a branch",
+    );
 }
 
 #[cfg(unix)]
@@ -360,10 +453,20 @@ fn unreadable_lockfile_counts_as_present() {
 fn loaded_variant_passes_through() {
     let lockfile = minimal_lockfile();
     let maybe = MaybeLazyLockfile::Loaded(Some(&lockfile));
-    assert!(maybe.get().expect("loaded variant is infallible").is_some());
+    assert!(
+        maybe
+            .get()
+            .expect("loaded variant is infallible")
+            .is_some(),
+    );
     assert!(maybe.is_loaded_or_on_disk());
     let maybe = MaybeLazyLockfile::Loaded(None);
-    assert!(maybe.get().expect("loaded variant is infallible").is_none());
+    assert!(
+        maybe
+            .get()
+            .expect("loaded variant is infallible")
+            .is_none(),
+    );
     assert!(!maybe.is_loaded_or_on_disk());
 }
 
@@ -383,8 +486,7 @@ fn prefetch_hands_get_the_background_parse() {
     // parse, never from an inline load.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
-        let finished = lazy
-            .prefetch
+        let finished = lazy.prefetch
             .lock()
             .expect("prefetch slot lock")
             .as_ref()
@@ -397,15 +499,27 @@ fn prefetch_hands_get_the_background_parse() {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove pnpm-lock.yaml");
-    assert!(lazy.get().expect("prefetched load succeeds").is_some());
-    assert!(lazy.get().expect("cached load succeeds").is_some());
+    assert!(
+        lazy.get()
+            .expect("prefetched load succeeds")
+            .is_some(),
+    );
+    assert!(
+        lazy.get()
+            .expect("cached load succeeds")
+            .is_some(),
+    );
 }
 
 #[test]
 fn prefetch_on_a_disabled_lockfile_is_a_noop() {
     let lazy = LazyLockfile::disabled();
     lazy.prefetch();
-    assert!(lazy.get().expect("disabled lockfile loads as None").is_none());
+    assert!(
+        lazy.get()
+            .expect("disabled lockfile loads as None")
+            .is_none(),
+    );
 }
 
 #[test]
@@ -421,5 +535,9 @@ fn a_failed_prefetch_is_surfaced_and_then_retried() {
     // The error is not cached: a repaired file loads on the next call.
     fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
         .expect("repair pnpm-lock.yaml");
-    assert!(lazy.get().expect("retried load succeeds").is_some());
+    assert!(
+        lazy.get()
+            .expect("retried load succeeds")
+            .is_some(),
+    );
 }

@@ -17,13 +17,13 @@
       "path": "../pnpm11/core/types"
     },
     {
-      "path": "../pnpm11/lockfile/fs"
-    },
-    {
       "path": "../pnpm11/object/key-sorting"
     },
     {
       "path": "../pnpm11/workspace/projects-reader"
+    },
+    {
+      "path": "../pnpm11/workspace/spec-parser"
     },
     {
       "path": "../pnpm11/workspace/workspace-manifest-reader"

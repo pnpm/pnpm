@@ -3,11 +3,22 @@
 
 use std::sync::Arc;
 
-use futures_util::{StreamExt, stream::FuturesUnordered};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
 use serde_json::Value;
 
-use pnpm_hooks::{CustomResolver, HookError, PnpmfileHooks};
-use pnpm_lockfile::{Lockfile, PackageKey, SnapshotEntry};
+use pnpm_hooks::{
+    CustomResolver,
+    HookError,
+    PnpmfileHooks,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    SnapshotEntry,
+};
 
 /// Whether the install's custom resolvers require a fresh resolution.
 /// A `true` result prevents the prefer-frozen-lockfile optimization.
@@ -22,7 +33,7 @@ pub(crate) async fn force_resolve_from_pnpmfile(
 
 /// Whether any custom resolver's `shouldRefreshResolution` returns true
 /// for any package in `lockfile`. The hook is called independently of
-/// `canResolve` — each resolver does its own filtering.
+/// `canResolve`; each resolver does its own filtering.
 pub(crate) async fn check_custom_resolver_force_resolve(
     custom_resolvers: &[Arc<dyn CustomResolver>],
     lockfile: &Lockfile,
@@ -45,10 +56,12 @@ pub(crate) async fn check_custom_resolver_force_resolve(
         .iter()
         .flat_map(|(dep_path, entry)| {
             let snapshot_json = merged_package_snapshot_json(lockfile, dep_path, entry);
-            hooks.iter().map(move |hook| {
-                let snapshot_json = snapshot_json.clone();
-                async move { hook.should_refresh_resolution(dep_path, snapshot_json).await }
-            })
+            hooks
+                .iter()
+                .map(move |hook| {
+                    let snapshot_json = snapshot_json.clone();
+                    async move { hook.should_refresh_resolution(dep_path, snapshot_json).await }
+                })
         })
         .collect();
     while let Some(refresh) = checks.next().await {
@@ -68,11 +81,11 @@ fn merged_package_snapshot_json(
     entry: &SnapshotEntry,
 ) -> Value {
     let mut merged = serde_json::Map::new();
-    if let Some(Value::Object(fields)) = lockfile
-        .packages
+    if let Some(Value::Object(fields)) = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&dep_path.without_peer()))
-        .and_then(|metadata| serde_json::to_value(metadata).ok())
+        .map(serde_json::to_value)
+        .and_then(Result::ok)
     {
         merged.extend(fields);
     }

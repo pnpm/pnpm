@@ -4,19 +4,33 @@
 
 use std::collections::BTreeMap;
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+    },
     display_error::display_diagnostic,
     global_log::global_warn,
     oidc::{
-        DetermineProvenanceError, GetIdTokenError, OidcHttpOptions, determine_provenance,
-        fetch_auth_token, get_id_token,
+        DetermineProvenanceError,
+        GetIdTokenError,
+        OidcHttpOptions,
+        determine_provenance,
+        fetch_auth_token,
+        get_id_token,
     },
-    registry_config_keys::{NormalizedRegistryUrl, parse_supported_registry_url},
+    registry_config_keys::{
+        NormalizedRegistryUrl,
+        parse_supported_registry_url,
+    },
 };
 
 /// The closed set of access levels `publishConfig.access` may name: `public`
@@ -58,10 +72,8 @@ pub struct PublishUnsupportedRegistryProtocolError {
     pub registry_url: String,
 }
 
-/// Find the target registry for a package. The manifest's
-/// `publishConfig.registry` wins, then a scoped registry for the package's
-/// scope, then the default registry. Credential / TLS resolution is handled by
-/// pacquet's shared [`pnpm_network::AuthHeaders`] at request time.
+/// Find the target registry for a package. Credential / TLS resolution is
+/// handled by pacquet's shared [`pnpm_network::AuthHeaders`] at request time.
 pub fn find_registry_info(
     name: &str,
     default_registry: &str,
@@ -102,14 +114,16 @@ fn scope_of(name: &str) -> Option<&str> {
 /// `publishConfig.access`, which can be the more permissive level.
 #[must_use]
 pub fn resolve_access(explicit: Option<&str>, manifest: &Value) -> Option<String> {
-    explicit.map(str::to_owned).or_else(|| {
-        manifest
-            .get("publishConfig")
-            .and_then(|config| config.get("access"))
-            .and_then(Value::as_str)
-            .filter(|access| Access::parse(access).is_some())
-            .map(str::to_owned)
-    })
+    explicit
+        .map(str::to_owned)
+        .or_else(|| {
+            manifest
+                .get("publishConfig")
+                .and_then(|config| config.get("access"))
+                .and_then(Value::as_str)
+                .filter(|access| Access::parse(access).is_some())
+                .map(str::to_owned)
+        })
 }
 
 /// The OIDC-derived auth token and provenance flag, returned when trusted
@@ -125,18 +139,16 @@ pub struct OidcTokenProvenance {
 /// skippable OIDC miss.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum FetchTokenAndProvenanceError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     IdToken(GetIdTokenError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Provenance(DetermineProvenanceError),
 }
 
 /// Try to obtain an auth token (and provenance flag) for `package_name` on
 /// `registry` via an OIDC token exchange. Returns `Ok(None)` when OIDC is not
-/// applicable or fails in a skippable way — the caller then falls back to
+/// applicable or fails in a skippable way, the caller then falls back to
 /// static credentials.
 ///
 /// `provenance_override` is the caller's already-resolved provenance decision
@@ -161,8 +173,8 @@ where
         Err(error) => return Err(FetchTokenAndProvenanceError::IdToken(error)),
     };
     let Some(id_token) = id_token else {
-        // OIDC is simply not applicable (local publish / non-OIDC CI). Stay
-        // silent — only configuration errors in a supported CI warn.
+        // OIDC is not applicable (local publish / non-OIDC CI). Stay
+        // silent, only configuration errors in a supported CI warn.
         return Ok(None);
     };
 
@@ -181,7 +193,7 @@ where
     match determine_provenance::<Sys>(&auth_token, &id_token, package_name, registry, http).await {
         Ok(provenance) => Ok(Some(OidcTokenProvenance { auth_token, provenance })),
         Err(DetermineProvenanceError::Provenance(error)) => {
-            // Keep the OIDC auth token even when provenance can't be decided —
+            // Keep the OIDC auth token even when provenance can't be decided,
             // the publish itself can still go through, matching the npm CLI.
             global_warn::<Reporter>(&format!(
                 "Skipped setting provenance: {}",
@@ -217,6 +229,17 @@ pub struct ResolvedPublishOptions {
     pub auth_token_override: Option<String>,
 }
 
+/// The registry `publishConfig` sets for `name`: its `@<scope>:registry` entry
+/// for the scope of `name`, else `publishConfig.registry`. Entries that are not
+/// strings are ignored. `None` means the configured registries apply.
+pub fn publish_config_registry<'a>(manifest: &'a Value, name: &str) -> Option<&'a str> {
+    let publish_config = manifest.get("publishConfig")?;
+    scope_of(name)
+        .and_then(|scope| publish_config.get(format!("@{scope}:registry")))
+        .and_then(Value::as_str)
+        .or_else(|| publish_config.get("registry").and_then(Value::as_str))
+}
+
 /// Build the registry / auth / access options for publishing `manifest`. When
 /// `oidc_enabled` is `false` the per-package OIDC exchange is skipped (batch
 /// publish sends many packages a package-scoped token cannot authorize).
@@ -229,16 +252,15 @@ where
     Sys: EnvVar + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
-    let publish_config_registry = manifest
-        .get("publishConfig")
-        .and_then(|config| config.get("registry"))
-        .and_then(Value::as_str);
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let registry = find_registry_info(
         name,
         input.default_registry,
         input.scoped_registries,
-        publish_config_registry,
+        publish_config_registry(manifest, name),
     )?;
 
     let access = resolve_access(input.access, manifest);
@@ -274,11 +296,9 @@ where
 /// Failure surface of [`create_publish_options`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum CreatePublishOptionsError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     UnsupportedProtocol(PublishUnsupportedRegistryProtocolError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Oidc(FetchTokenAndProvenanceError),
 }

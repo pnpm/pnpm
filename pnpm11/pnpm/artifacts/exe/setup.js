@@ -1,8 +1,14 @@
 import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs'
+import { spawnSync } from 'child_process'
 import { familySync } from 'detect-libc'
-import { exePlatformPkgName } from './platform-pkg-name.js'
+import { exePlatformPkgName, missingPlatformPkgMessage } from './platform-pkg-name.js'
+
+if (process.env.npm_lifecycle_event === 'postinstall') {
+  relinkNpmWindowsShims()
+  process.exit(0)
+}
 
 // Platform package names use the legacy scheme: `@pnpm/macos-<arch>` (darwin),
 // `@pnpm/win-<arch>` (win32), `@pnpm/linux-<arch>` (glibc), and
@@ -13,7 +19,8 @@ import { exePlatformPkgName } from './platform-pkg-name.js'
 // The name computation lives in platform-pkg-name.js so it can be unit-tested
 // without triggering the side effects of this preinstall script.
 const platform = process.platform
-const pkgName = exePlatformPkgName(platform, process.arch, familySync())
+const libcFamily = familySync()
+const pkgName = exePlatformPkgName(platform, process.arch, libcFamily)
 let pkgJson
 try {
   pkgJson = fileURLToPath(import.meta.resolve(`${pkgName}/package.json`))
@@ -22,18 +29,14 @@ try {
   // Anything else (resolver bug, broken Node, etc.) should surface as-is.
   if (err?.code !== 'ERR_MODULE_NOT_FOUND') throw err
 
-  // The platform package isn't on disk. The only currently-published host
-  // for which @pnpm/exe deliberately omits a binary is darwin-x64 (Intel
-  // Mac): Node.js SEA injection corrupts the binary on x64 Mach-O — see
-  // https://github.com/pnpm/pnpm/issues/11423 and upstream
-  // https://github.com/nodejs/node/issues/62893.
+  // The platform package isn't on disk: @pnpm/exe deliberately ships no
+  // binary for some hosts (see missingPlatformPkgMessage).
   //
   // Inside the pnpm workspace itself there's no platform package linked
-  // either — it would be `@pnpm/macos-x64` for darwin-x64 and we removed
-  // that workspace package entirely. We don't want a contributor on Intel
-  // hardware blocked from `pnpm install`-ing the repo to work on
-  // unrelated parts of pnpm, so skip silently when this script runs as
-  // the workspace's own @pnpm/exe (whose path always ends in
+  // either, since the workspace packages for those hosts were removed. We
+  // don't want a contributor on such a host blocked from `pnpm install`-ing
+  // the repo to work on unrelated parts of pnpm, so skip silently when this
+  // script runs as the workspace's own @pnpm/exe (whose path always ends in
   // pnpm/artifacts/exe). A path-suffix check is more precise than walking
   // up for `pnpm-workspace.yaml` — that walk can false-positive if the
   // user's globally-installed @pnpm/exe happens to live anywhere under
@@ -42,15 +45,7 @@ try {
     process.exit(0)
   }
 
-  if (platform === 'darwin' && process.arch === 'x64') {
-    console.error(
-      '@pnpm/exe does not ship a working binary for Intel macOS (darwin-x64) due to an upstream Node.js SEA bug.\n' +
-      'See https://github.com/pnpm/pnpm/issues/11423 and https://github.com/nodejs/node/issues/62893.\n' +
-      'Workaround: install pnpm via `npm install -g pnpm` (uses your system Node.js, no SEA), or use pnpm 10.x.'
-    )
-  } else {
-    console.error(`Could not find platform package "${pkgName}" — @pnpm/exe does not ship a binary for ${platform}-${process.arch}.`)
-  }
+  console.error(missingPlatformPkgMessage(platform, process.arch, libcFamily))
   process.exit(1)
 }
 const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
@@ -66,9 +61,8 @@ linkSync(bin, path.resolve(ownDir, executable))
 if (platform === 'win32') {
   // On Windows, also hardlink the binary as 'pnpm' (no .exe extension).
   // npm's bin shims point to the name from publishConfig.bin, and npm
-  // does NOT re-read package.json after preinstall, so rewriting the bin
-  // entry has no effect on the shims. The file at the original name must
-  // be the real binary so the shim can execute it.
+  // does NOT re-read package.json after preinstall. This original target
+  // remains executable until postinstall regenerates npm's shims.
   linkSync(bin, path.resolve(ownDir, 'pnpm'))
 
   // Aliases (pn / pnpx / pnx) need to be .exe hardlinks of the SEA binary,
@@ -92,6 +86,63 @@ if (platform === 'win32') {
   pkg.bin.pnpx = 'pnpx.exe'
   pkg.bin.pnx = 'pnx.exe'
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2))
+}
+
+function relinkNpmWindowsShims() {
+  const npmExecPath = process.env.npm_execpath
+  if (
+    process.platform !== 'win32' ||
+    npmExecPath == null ||
+    path.basename(npmExecPath).toLowerCase() !== 'npm-cli.js'
+  ) return
+
+  const args = [npmExecPath, 'rebuild', '--ignore-scripts']
+  if (process.env.npm_config_global === 'true' || process.env.npm_config_location === 'global') {
+    args.push('--global')
+    if (process.env.npm_config_prefix) {
+      args.push('--prefix', process.env.npm_config_prefix)
+    }
+  } else {
+    // The script runs inside the installed package, so a project install
+    // names its project explicitly.
+    const projectPrefix = findNpmProjectPrefix()
+    if (projectPrefix == null) return
+    args.push('--prefix', projectPrefix)
+  }
+  args.push('@pnpm/exe')
+  const result = spawnSync(process.execPath, args, { stdio: 'inherit' })
+  if (result.error != null) {
+    console.error(`Could not regenerate the npm shims for @pnpm/exe: ${result.error.message}`)
+    process.exit(1)
+  }
+  if (result.status !== 0) {
+    console.error(`npm could not regenerate the shims for @pnpm/exe (exit code ${result.status}).`)
+    process.exit(1)
+  }
+}
+
+/**
+ * The resolved path of the npm project whose `node_modules` holds this
+ * package. Returns `null` when npm names no project, when its `node_modules`
+ * cannot be resolved, or when it does not contain the package. `npm exec`
+ * installs into its own cache while the prefix still names the caller's
+ * project, and rebuilding there would touch an unrelated project.
+ */
+function findNpmProjectPrefix() {
+  const prefix = process.env.npm_config_local_prefix
+  if (!prefix) return null
+  let realPrefix
+  let realModulesDir
+  try {
+    realPrefix = fs.realpathSync(prefix)
+    realModulesDir = fs.realpathSync(path.join(realPrefix, 'node_modules'))
+  } catch {
+    return null
+  }
+  // import.meta.dirname is resolved through symlinks.
+  const relative = path.relative(realModulesDir, import.meta.dirname)
+  if (relative === '' || relative.split(path.sep)[0] === '..' || path.isAbsolute(relative)) return null
+  return realPrefix
 }
 
 function linkSync(src, dest) {

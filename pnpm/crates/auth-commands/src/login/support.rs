@@ -1,26 +1,39 @@
 //! Shared fixtures for the `login` tests.
 //!
-//! Holds the credential and `config.yaml` fake (`login_fake!`), its
-//! scripted-response type aliases, and the helper constructors the three
-//! scenario modules — non-interactive, web-login, and classic-login — build on.
+//! Holds the credential and `auth.ini` / `config.yaml` fake (`login_fake!`), its
+//! scripted-response type aliases, and the helper constructors the scenario
+//! modules build on.
+
+pub(crate) use crate::login_fake;
 
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use pnpm_network::ThrottledClient;
+use pipe_trait::Pipe;
+use pnpm_network::{
+    ThrottledClient,
+    nerf_dart,
+};
 
 use super::LoginOptions;
+use crate::{
+    config_yaml::GLOBAL_CONFIG_YAML_FILENAME,
+    ini::IniSettings,
+};
 
 /// A scripted response for a credential prompt, keyed on the prompt message.
-/// The error half is `dialoguer::Error` — exactly what the real terminal read
-/// yields — so a script can drive [`super::prompt::prompt_line`]'s real error
+/// The error half is `dialoguer::Error` (exactly what the real terminal read
+/// yields) so a script can drive [`super::prompt::prompt_line`]'s real error
 /// classification (e.g. an interrupt mapping to a canceled login). `Send`
 /// because `prompt_line` calls the fake read from a `spawn_blocking` thread.
 pub(crate) type PromptScript = Box<dyn FnMut(&str) -> Result<String, dialoguer::Error> + Send>;
 
-/// A scripted `config.yaml` read.
+/// A scripted `auth.ini` / `config.yaml` read.
 pub(crate) type ReadScript = Box<dyn FnMut(&Path) -> io::Result<String>>;
 
 /// Expand the login-specific half of the `Sys` fake at the top of a test,
@@ -35,7 +48,8 @@ pub(crate) type ReadScript = Box<dyn FnMut(&Path) -> io::Result<String>>;
 /// `prompt_line` runs `prompt_input` / `prompt_password` inside `spawn_blocking`,
 /// so they execute on a blocking-pool thread where thread-local state would be
 /// invisible. Each test's expansion has its own `static`, so tests stay
-/// isolated. `config.yaml` I/O runs on the test thread and stays `thread_local!`.
+/// isolated. File I/O runs on the test thread and stays `thread_local!`.
+#[macro_export]
 macro_rules! login_fake {
     ($fake:ident $(, $helper:ident)* $(,)?) => {
         static PROMPT_INPUT: Mutex<Option<PromptScript>> = Mutex::new(None);
@@ -43,23 +57,24 @@ macro_rules! login_fake {
         thread_local! {
             static INI_READ: RefCell<Option<ReadScript>> = const { RefCell::new(None) };
             static INI_WRITES: RefCell<Vec<(PathBuf, String)>> = const { RefCell::new(Vec::new()) };
+            static WRITE_FAILURE: RefCell<Option<&'static str>> = const { RefCell::new(None) };
         }
 
-        impl crate::login::PromptInput for $fake {
+        impl $crate::login::PromptInput for $fake {
             fn prompt_input(message: &str) -> Result<String, dialoguer::Error> {
                 let mut script = PROMPT_INPUT.lock().expect("input script mutex");
                 (script.as_mut().expect("an input script must be set"))(message)
             }
         }
 
-        impl crate::login::PromptPassword for $fake {
+        impl $crate::login::PromptPassword for $fake {
             fn prompt_password(message: &str) -> Result<String, dialoguer::Error> {
                 let mut script = PROMPT_PASSWORD.lock().expect("password script mutex");
                 (script.as_mut().expect("a password script must be set"))(message)
             }
         }
 
-        impl crate::logout::FsReadToString for $fake {
+        impl $crate::logout::FsReadToString for $fake {
             fn read_to_string(path: &Path) -> io::Result<String> {
                 INI_READ.with(|script| match script.borrow_mut().as_mut() {
                     Some(read) => read(path),
@@ -68,9 +83,15 @@ macro_rules! login_fake {
             }
         }
 
-        impl crate::logout::FsWrite for $fake {
+        impl $crate::logout::FsWrite for $fake {
             fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
-                let text = String::from_utf8(bytes.to_vec()).expect("config.yaml is UTF-8");
+                let fails = WRITE_FAILURE.with(|failure| {
+                    failure.borrow().is_some_and(|file_name| path.ends_with(file_name))
+                });
+                if fails {
+                    return Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"));
+                }
+                let text = String::from_utf8(bytes.to_vec()).expect("login writes UTF-8");
                 INI_WRITES.with(|writes| writes.borrow_mut().push((path.to_path_buf(), text)));
                 Ok(())
             }
@@ -81,6 +102,7 @@ macro_rules! login_fake {
             *PROMPT_PASSWORD.lock().expect("password script mutex") = None;
             INI_READ.with(|cell| *cell.borrow_mut() = None);
             INI_WRITES.with(|writes| writes.borrow_mut().clear());
+            WRITE_FAILURE.with(|failure| *failure.borrow_mut() = None);
         }
 
         $( login_fake!(@helper $helper); )*
@@ -101,6 +123,11 @@ macro_rules! login_fake {
             INI_READ.with(|cell| *cell.borrow_mut() = Some(script));
         }
     };
+    (@helper fail_writes_to) => {
+        fn fail_writes_to(file_name: &'static str) {
+            WRITE_FAILURE.with(|failure| *failure.borrow_mut() = Some(file_name));
+        }
+    };
     (@helper login_writes) => {
         fn login_writes() -> Vec<(PathBuf, String)> {
             INI_WRITES.with(|writes| writes.borrow().clone())
@@ -110,12 +137,11 @@ macro_rules! login_fake {
         compile_error!(concat!(
             "unknown `login_fake!` helper `",
             stringify!($unknown),
-            "`; expected one of: set_prompt_input, set_prompt_password, set_ini_read, login_writes",
+            "`; expected one of: set_prompt_input, set_prompt_password, set_ini_read, fail_writes_to, \
+             login_writes",
         ));
     };
 }
-
-pub(crate) use login_fake;
 
 /// A throwaway HTTP client. Requests that reach it target the test's `mockito`
 /// server (or, for the pre-network guards, are never sent at all).
@@ -123,7 +149,7 @@ pub(crate) fn client() -> ThrottledClient {
     ThrottledClient::default()
 }
 
-/// Build [`LoginOptions`] with retry / timeout knobs zeroed — the poll runs
+/// Build [`LoginOptions`] with retry / timeout knobs zeroed, the poll runs
 /// against the fake clock, so the real values are irrelevant.
 pub(crate) fn opts<'a>(registry: &'a str, config_dir: &'a Path) -> LoginOptions<'a> {
     LoginOptions {
@@ -138,20 +164,38 @@ pub(crate) fn opts<'a>(registry: &'a str, config_dir: &'a Path) -> LoginOptions<
     }
 }
 
-/// The `config.yaml` [`login`] left behind, parsed back into JSON. A login
-/// writes one field at a time, so the last write is the finished document.
+/// The text [`login`] last wrote to the file named `file_name`, if any.
+fn last_write<'a>(writes: &'a [(PathBuf, String)], file_name: &str) -> Option<&'a str> {
+    writes
+        .iter()
+        .rev()
+        .find(|(path, _)| {
+            path.file_name()
+                .is_some_and(|name| name == file_name)
+        })
+        .map(|(_, text)| text.as_str())
+}
+
+/// The `auth.ini` [`login`] left behind.
+pub(crate) fn written_settings(writes: &[(PathBuf, String)]) -> IniSettings {
+    last_write(writes, "auth.ini").expect("auth.ini was written").pipe(IniSettings::parse)
+}
+
+/// The `config.yaml` [`login`] left behind, parsed back into JSON.
 pub(crate) fn written_document(writes: &[(PathBuf, String)]) -> serde_json::Value {
-    let (_, text) = writes.last().expect("config.yaml was written");
+    let text = last_write(writes, GLOBAL_CONFIG_YAML_FILENAME).expect("config.yaml was written");
     serde_saphyr::from_str(text).expect("login writes valid YAML")
 }
 
-/// The token [`login`] recorded for `registry` itself — the `"@"` scope an
-/// unscoped login writes under.
+/// The token [`login`] recorded for `registry` itself, the key an unscoped
+/// login writes.
 pub(crate) fn written_registry_token(
     writes: &[(PathBuf, String)],
     registry: &str,
 ) -> Option<String> {
-    written_document(writes)["_auth"][registry]["@"]["authToken"].as_str().map(str::to_owned)
+    written_settings(writes)
+        .get(&format!("{}:_authToken", nerf_dart(registry)))
+        .map(str::to_owned)
 }
 
 /// The classic-login prompt script the OTP tests share: username / email by

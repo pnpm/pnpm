@@ -47,8 +47,8 @@ export async function readErrorBody (response: Response): Promise<string> {
   const chunks: Uint8Array[] = []
   let total = 0
   let truncated = false
-  while (total < ERROR_BODY_LIMIT) {
-    // eslint-disable-next-line no-await-in-loop
+  while (true) {
+    // eslint-disable-next-line no-await-in-loop -- stream chunks must be read in order
     const { done, value } = await reader.read()
     if (done) break
     const need = ERROR_BODY_LIMIT - total

@@ -8,5 +8,12 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
+    }
+  ]
 }

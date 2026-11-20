@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.commands",
-  "version": "1101.0.2",
+  "version": "1101.0.17",
   "description": "The list, ll, why, and outdated commands of pnpm",
   "keywords": [
     "pnpm",
@@ -26,8 +26,8 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn --filter=pnpm compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -56,6 +56,7 @@
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/store.path": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",

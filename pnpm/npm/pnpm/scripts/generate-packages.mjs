@@ -8,7 +8,9 @@
 // meta-updater and pnpm's own name-keyed resolution key on); this script
 // rewrites it into the publishable `pnpm` manifest.
 
+import console from "node:console";
 import { dirname, resolve } from "node:path";
+import process from "node:process";
 import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 
@@ -32,7 +34,7 @@ const NOTICES_FILE = "THIRD-PARTY-NOTICES.md";
 // the Corepack entry points + README + the third-party notices. Both wrappers
 // publish the same `files` list, so anything named there has to be copied here
 // too.
-const WRAPPER_FILES = [
+export const WRAPPER_FILES = [
   "pnpm",
   "pn",
   "pnpx",
@@ -111,24 +113,20 @@ function generateNativePackage(target) {
 // here — the manifest declares it as `publishConfig.name`, which `pnpm pack`
 // hoists, so the parked changelog section and the ledger keep addressing this
 // project by its workspace name.
+export function createWrapperManifest(manifest = rootManifest) {
+  const published = { ...manifest };
+  delete published.private;
+  delete published.dependencies;
+  delete published.devDependencies;
+  published.optionalDependencies = Object.fromEntries(TARGETS.map((target) => [
+    nativePackageName(target), manifest.version,
+  ]));
+  return published;
+}
+
 function patchPnpmWrapperManifest() {
-  const nativePackages = TARGETS.map((target) => [
-    nativePackageName(target),
-    rootManifest.version,
-  ]);
-
-  delete rootManifest["private"];
-  // `node-gyp` is declared so the workspace lockfile pins it and
-  // scripts/bundle-node-gyp.mjs can deploy it into dist/node_modules. The
-  // published package carries that tree already, so keeping the declaration
-  // would install it a second time. devDependencies go with it: they build the
-  // payload and are not published.
-  delete rootManifest["dependencies"];
-  delete rootManifest["devDependencies"];
-  rootManifest["optionalDependencies"] = Object.fromEntries(nativePackages);
-
   console.log(`Update manifest ${MANIFEST_PATH}`);
-  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(rootManifest));
+  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(createWrapperManifest()));
 }
 
 // Generate the `@pnpm/exe` wrapper as a copy of the `pnpm` wrapper with only the
@@ -158,7 +156,8 @@ function generateExeWrapper() {
   const baseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
   // The wrapper states its own name outright, so it must not inherit the base
   // manifest's `publishConfig.name` rename — that would publish it as `pnpm`.
-  const { name: _renamedTo, ...publishConfig } = baseManifest.publishConfig ?? {};
+  const publishConfig = { ...baseManifest.publishConfig };
+  delete publishConfig.name;
   const exeManifest = {
     ...baseManifest,
     name: EXE_WRAPPER_NAME,
@@ -187,13 +186,22 @@ const TARGETS = [
   { platform: "darwin", arch: "arm64", codeTarget: "darwin-arm64", packageTarget: "darwin-arm64" },
   { platform: "linux", arch: "x64", libc: "glibc", codeTarget: "linux-x64", packageTarget: "linux-x64" },
   { platform: "linux", arch: "arm64", libc: "glibc", codeTarget: "linux-arm64", packageTarget: "linux-arm64" },
+  { platform: "linux", arch: "riscv64", libc: "glibc", codeTarget: "linux-riscv64", packageTarget: "linux-riscv64" },
+  { platform: "linux", arch: "ppc64", libc: "glibc", codeTarget: "linux-ppc64", packageTarget: "linux-ppc64" },
+  { platform: "linux", arch: "s390x", libc: "glibc", codeTarget: "linux-s390x", packageTarget: "linux-s390x" },
+  { platform: "linux", arch: "loong64", libc: "glibc", codeTarget: "linux-loong64", packageTarget: "linux-loong64" },
   { platform: "linux", arch: "x64", libc: "musl", codeTarget: "linux-x64-musl", packageTarget: "linux-x64-musl" },
   { platform: "linux", arch: "arm64", libc: "musl", codeTarget: "linux-arm64-musl", packageTarget: "linux-arm64-musl" },
+  { platform: "freebsd", arch: "x64", codeTarget: "freebsd-x64", packageTarget: "freebsd-x64" },
+  { platform: "netbsd", arch: "x64", codeTarget: "netbsd-x64", packageTarget: "netbsd-x64" },
+  { platform: "android", arch: "arm64", codeTarget: "android-arm64", packageTarget: "android-arm64" },
+  { platform: "android", arch: "x64", codeTarget: "android-x64", packageTarget: "android-x64" },
 ];
 
-for (const target of TARGETS) {
-  generateNativePackage(target);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  for (const target of TARGETS) {
+    generateNativePackage(target);
+  }
+  patchPnpmWrapperManifest();
+  generateExeWrapper();
 }
-
-patchPnpmWrapperManifest();
-generateExeWrapper();

@@ -2,7 +2,11 @@
 
 use super::remove_dirent;
 use crate::symlink_dir;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::tempdir;
 
 /// Assert `path` no longer exists, distinguishing "gone" (`NotFound`)
@@ -117,3 +121,6 @@ fn windows_removes_a_dangling_junction() {
 
     assert_gone(&link, "the dangling junction");
 }
+
+#[cfg(all(windows, feature = "test"))]
+mod windows;

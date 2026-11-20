@@ -39,7 +39,7 @@ function extendPkg (manifest: PackageManifest, extensions: PackageExtensionMatch
       manifest[field] = {
         ...packageExtension[field],
         ...manifest[field],
-      } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the loop variable spans fields with different map types that TypeScript cannot narrow per iteration
     }
   }
 }

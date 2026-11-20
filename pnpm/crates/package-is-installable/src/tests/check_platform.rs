@@ -5,7 +5,11 @@
 //! any global state.
 
 use crate::{
-    SupportedArchitectures, UnsupportedPlatformError, WantedPlatform, WantedPlatformRef,
+    ArchitectureAxes,
+    SupportedArchitectures,
+    UnsupportedPlatformError,
+    WantedPlatform,
+    WantedPlatformRef,
     check_platform,
 };
 
@@ -16,17 +20,19 @@ const FAKE_MUSL: &str = "musl";
 
 fn wanted(os: Option<&[&str]>, cpu: Option<&[&str]>, libc: Option<&[&str]>) -> WantedPlatform {
     fn vec_opt(values: Option<&[&str]>) -> Option<Vec<String>> {
-        values.map(|slice| slice.iter().map(|item| (*item).to_string()).collect())
+        values.map(|slice| {
+            slice
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect()
+        })
     }
     WantedPlatform { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
 }
 
-/// Test-local convenience wrapper. The runtime `check_platform` takes
-/// the wanted axes as `Option<&[String]>` slices so the install hot
-/// path doesn't have to construct a `WantedPlatform` per snapshot;
-/// the tests find it more ergonomic to build one and pass it by
-/// reference, so this wrapper does the `.as_deref()` for each axis
-/// in one place.
+/// Test-local convenience wrapper. The tests find it more ergonomic to
+/// build a `WantedPlatform` and pass it by reference, so this wrapper does
+/// the `.as_deref()` for each axis in one place.
 fn check_platform_w(
     pkg: &str,
     wanted_platform: &WantedPlatform,
@@ -49,9 +55,18 @@ fn supported(
     libc: Option<&[&str]>,
 ) -> SupportedArchitectures {
     fn vec_opt(values: Option<&[&str]>) -> Option<Vec<String>> {
-        values.map(|slice| slice.iter().map(|item| (*item).to_string()).collect())
+        values.map(|slice| {
+            slice
+                .iter()
+                .map(|item| (*item).to_string())
+                .collect()
+        })
     }
-    SupportedArchitectures { os: vec_opt(os), cpu: vec_opt(cpu), libc: vec_opt(libc) }
+    SupportedArchitectures::Axes(ArchitectureAxes {
+        os: vec_opt(os),
+        cpu: vec_opt(cpu),
+        libc: vec_opt(libc),
+    })
 }
 
 #[test]

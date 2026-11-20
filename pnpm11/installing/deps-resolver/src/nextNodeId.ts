@@ -1,6 +1,6 @@
 let nodeIdCounter = 0
 
-type Brand<K, T> = K & { __brand: T }
+type Brand<Base, Tag> = Base & { __brand: Tag }
 
 export type NodeId = Brand<string | number, 'nodeId'>
 

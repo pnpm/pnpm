@@ -14,6 +14,7 @@ packages:
   - '!has-yarn2-lock'
   - '!workspace-with-lockfile-dupes'
   - '!workspace-with-lockfile-subdep-dupes'
+  - '!workspace-with-nested-workspace-deps'
   - '!workspace-has-shared-yarn-lock'
   - '!workspace-has-shared-package-lock-json'
   - '!workspace-has-shared-npm-shrinkwrap-json'

@@ -2,6 +2,7 @@
 // (`install.js`), which links it over the placeholder bins, and by the Corepack
 // entry (`bin/pnpm.mjs`), which spawns it.
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -29,13 +30,41 @@ const PLATFORMS = {
       glibc: '@pnpm/exe.linux-arm64/pnpm',
       musl: '@pnpm/exe.linux-arm64-musl/pnpm',
     },
+    // Only a glibc build is released for these architectures.
+    riscv64: {
+      glibc: '@pnpm/exe.linux-riscv64/pnpm',
+    },
+    ppc64: {
+      glibc: '@pnpm/exe.linux-ppc64/pnpm',
+    },
+    s390x: {
+      glibc: '@pnpm/exe.linux-s390x/pnpm',
+    },
+    loong64: {
+      glibc: '@pnpm/exe.linux-loong64/pnpm',
+    },
   },
+  freebsd: {
+    x64: '@pnpm/exe.freebsd-x64/pnpm',
+  },
+  netbsd: {
+    x64: '@pnpm/exe.netbsd-x64/pnpm',
+  },
+  // Android is bionic, which is neither of the two libcs the linux entries
+  // above are keyed on, so it takes a bare specifier of its own.
+  android: {
+    arm64: '@pnpm/exe.android-arm64/pnpm',
+    x64: '@pnpm/exe.android-x64/pnpm',
+  },
+  // Android is bionic, which is neither of the two libcs the linux entries
+  // above are keyed on, so it takes a bare specifier of its own.
 }
 
 /**
- * Native binary specifiers to try, most-preferred first; empty when the host is
- * unsupported. The linux glibc/musl pair is ordered by detected libc, which
- * only decides the winner when both are installed (e.g. `npm install --force`).
+ * Native binary specifiers to try, most-preferred first; empty when no released
+ * binary runs on the host. The linux glibc/musl pair is ordered by detected
+ * libc, which only decides the winner when both are installed (e.g.
+ * `npm install --force`).
  *
  * @returns {string[]}
  */
@@ -45,12 +74,36 @@ export function getBinCandidates () {
   if (platformEntry == null) {
     return []
   }
+  // Node reports both POWER endiannesses as `ppc64` and npm's `cpu` field
+  // cannot tell them apart, so a big-endian host installs the little-endian
+  // package it cannot run. Only the little-endian build is released.
+  if (arch === 'ppc64' && os.endianness() !== 'LE') {
+    return []
+  }
   if (typeof platformEntry === 'string') {
     return [platformEntry]
   }
 
-  const order = detectLinuxLibc() === 'musl' ? ['musl', 'glibc'] : ['glibc', 'musl']
-  return order.map((libc) => platformEntry[libc])
+  // An unprobeable libc (`detectLinuxLibc` returns null) counts as glibc.
+  const detected = detectLinuxLibc() === 'musl' ? 'musl' : 'glibc'
+  const preferred = platformEntry[detected]
+  // An architecture released for one libc only has no entry for the other, and
+  // the binary it does ship cannot run there, so it offers no candidate.
+  if (preferred == null) {
+    return []
+  }
+  const alternate = platformEntry[detected === 'musl' ? 'glibc' : 'musl']
+  return alternate == null ? [preferred] : [preferred, alternate]
+}
+
+/**
+ * How the host names itself in messages, spelled like the targets pnpm releases
+ * binaries for: `linux-x64-musl`, `darwin-arm64`.
+ *
+ * @returns {string}
+ */
+export function hostTarget () {
+  return `${platform}-${arch}${detectLinuxLibc() === 'musl' ? '-musl' : ''}`
 }
 
 /**

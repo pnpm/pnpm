@@ -1,12 +1,29 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
-use pnpm_resolving_resolver_base::{PackageVersionGuard, PackageVersionGuardDecision};
+use pnpr_fixtures::MockConfigPresets;
 
-use super::OsvIndex;
+use pnpm_resolving_resolver_base::{
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+};
+
+use super::{
+    OsvIndex,
+    cvss_v4::cvss_v4_score,
+    severity::{
+        OsvSeverity,
+        SeverityLevel,
+        cvss_v2_score,
+        cvss_v3_score,
+    },
+};
 
 #[test]
 fn loads_directory_and_matches_semver_ranges() {
@@ -83,7 +100,7 @@ fn package_name_lookup_is_case_insensitive() {
 #[test]
 fn duplicate_affected_blocks_yield_one_id() {
     let dir = tempfile::tempdir().expect("tempdir");
-    // One record listing the same package twice — the id must appear once.
+    // One record listing the same package twice, the id must appear once.
     fs::write(
         dir.path().join("GHSA-dup.json"),
         r#"{
@@ -150,14 +167,14 @@ fn out_of_order_range_events_are_normalized() {
 
     assert_eq!(index.vulnerability_ids("ord", "0.9.0"), Vec::<String>::new());
     assert_eq!(index.vulnerability_ids("ord", "1.1.0"), vec!["GHSA-order"]);
-    // Above the fix: must be safe — this is the case that fails without sorting.
+    // Above the fix: must be safe; this is the case that fails without sorting.
     assert_eq!(index.vulnerability_ids("ord", "1.3.0"), Vec::<String>::new());
 }
 
 #[test]
 fn withdrawn_handling_respects_null_vs_timestamp() {
     let dir = tempfile::tempdir().expect("tempdir");
-    // `withdrawn: null` is not a withdrawal — the advisory stays active.
+    // `withdrawn: null` is not a withdrawal, the advisory stays active.
     fs::write(
         dir.path().join("GHSA-active.json"),
         r#"{ "id": "GHSA-active", "withdrawn": null,
@@ -203,7 +220,7 @@ fn loads_zip_archive_and_fingerprints_it() {
 /// The fingerprint sorts per-record digests, so the same records in a
 /// different archive order produce the same fingerprint and a cached verdict
 /// stays trusted. A record's digest covers its *name* as well as its bytes,
-/// so this holds for reordering only — moving a record to a different entry
+/// so this holds for reordering only, moving a record to a different entry
 /// name is a different database.
 #[test]
 fn fingerprint_ignores_the_order_records_appear_in() {
@@ -308,10 +325,14 @@ fn enabled_database_without_npm_advisories_is_rejected() {
 
 #[test]
 fn advisory_ids_are_capped_in_messages() {
-    let few: Vec<String> = (0..3).map(|i| format!("GHSA-{i}")).collect();
+    let few: Vec<String> = (0..3)
+        .map(|i| format!("GHSA-{i}"))
+        .collect();
     assert_eq!(super::format_advisory_ids(&few), "GHSA-0, GHSA-1, GHSA-2");
 
-    let many: Vec<String> = (0..25).map(|i| format!("GHSA-{i}")).collect();
+    let many: Vec<String> = (0..25)
+        .map(|i| format!("GHSA-{i}"))
+        .collect();
     let formatted = super::format_advisory_ids(&many);
     assert!(formatted.ends_with("and 5 more"), "{formatted}");
     assert_eq!(formatted.matches("GHSA-").count(), 20);
@@ -335,4 +356,184 @@ fn oversized_advisory_id_is_truncated() {
     assert_eq!(ids.len(), 1);
     assert!(ids[0].len() < 300, "id not truncated: {} bytes", ids[0].len());
     assert!(ids[0].ends_with('…'), "truncated id should end with ellipsis");
+}
+
+#[test]
+fn default_path_loads_from_storage_hidden_osv_directory() {
+    use std::io::Write;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let storage = dir.path().join("storage");
+    let cache = dir.path().join("cache");
+    let default_zip = storage.join(".osv/npm/all.zip");
+    fs::create_dir_all(default_zip.parent().expect("parent")).expect("mkdir .osv/npm");
+    let mut writer = zip::ZipWriter::new(fs::File::create(&default_zip).expect("create zip"));
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    writer.start_file("GHSA-default.json", options).expect("start file");
+    writer
+        .write_all(
+            br#"{"id":"GHSA-default","affected":[{"package":{"ecosystem":"npm","name":"default-pkg"},"versions":["1.0.0"]}]}"#,
+        )
+        .expect("write entry");
+    writer.finish().expect("finish zip");
+
+    let listen = "127.0.0.1:4873".parse().expect("listen addr");
+    let mut config = crate::Config::proxy(listen, storage);
+    config.storage.cache_dir = cache.clone();
+    config.osv.enabled = true;
+    config.osv.path = None;
+
+    let index =
+        super::load_osv_index(&config).expect("load default osv index").expect("osv enabled");
+    assert_eq!(index.vulnerability_ids("default-pkg", "1.0.0"), vec!["GHSA-default"]);
+    assert!(!cache.join("osv").exists(), "default OSV path must not live inside cache_dir");
+}
+
+#[test]
+fn cvss_v3_scores_match_first_specification_vectors() {
+    let cases = [
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H", Some(10.0)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", Some(9.8)),
+        ("CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H", Some(9.9)),
+        ("CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:C/C:H/I:H/A:N", Some(8.7)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N", Some(7.5)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", Some(6.1)),
+        ("CVSS:3.0/AV:L/AC:H/PR:H/UI:R/S:U/C:L/I:N/A:N", Some(1.8)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N", Some(0.0)),
+        ("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N/E:P/RL:O/RC:C", Some(7.5)),
+        ("CVSS:3.1/AV:Z/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", None),
+        ("CVSS:3.1/AV:N/AC:L", None),
+    ];
+    for (vector, expected) in cases {
+        let actual = cvss_v3_score(vector);
+        assert_eq!(actual, expected, "vector: {vector}");
+    }
+}
+
+#[test]
+fn cvss_v4_scores_match_first_specification_vectors() {
+    let cases = [
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H", Some(10.0)),
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", Some(9.3)),
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N/E:U", Some(9.3)),
+        ("CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", Some(9.2)),
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:L/VA:N/SC:N/SI:N/SA:N", Some(7.1)),
+        ("CVSS:4.0/AV:N/AC:H/AT:P/PR:L/UI:P/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N", Some(5.9)),
+        ("CVSS:4.0/AV:L/AC:H/AT:P/PR:H/UI:A/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N", Some(1.0)),
+        ("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:N/SC:N/SI:N/SA:N", Some(0.0)),
+        ("CVSS:4.0/AV:L/AC:L/AT:N/PR:H/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N", Some(4.6)),
+        ("CVSS:4.0/AV:L/AC:L/AT:N/PR:H/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N/MSI:S", Some(4.6)),
+        ("CVSS:4.0/AV:Z/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", None),
+        ("CVSS:4.0/AV:Z/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N/MAV:N", None),
+    ];
+    for (vector, expected) in cases {
+        let actual = cvss_v4_score(vector);
+        assert_eq!(actual, expected, "vector: {vector}");
+    }
+
+    for vector in [
+        "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
+        "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N/E:U",
+    ] {
+        let entry = OsvSeverity { kind: "CVSS_V4".to_string(), score: vector.to_string() };
+        assert_eq!(SeverityLevel::from_osv_severity(&entry), Some(SeverityLevel::Critical));
+    }
+}
+
+#[test]
+fn cvss_v2_and_osv_severity_mapping_cover_fallbacks() {
+    let v2_high = cvss_v2_score("AV:N/AC:L/Au:N/C:P/I:P/A:P");
+    assert_eq!(v2_high, Some(7.5));
+    let v2_parens = cvss_v2_score("(AV:N/AC:L/Au:N/C:C/I:C/A:C)");
+    assert_eq!(v2_parens, Some(10.0));
+
+    let numeric_entry = OsvSeverity { kind: "CVSS_V3".to_string(), score: "9.1".to_string() };
+    let numeric_level = SeverityLevel::from_osv_severity(&numeric_entry);
+    assert_eq!(numeric_level, Some(SeverityLevel::Critical));
+
+    let label_entry = OsvSeverity { kind: "Ubuntu".to_string(), score: "Medium".to_string() };
+    let label_level = SeverityLevel::from_osv_severity(&label_entry);
+    assert_eq!(label_level, Some(SeverityLevel::Moderate));
+}
+
+#[test]
+fn rejects_record_exceeding_version_range_comparison_budget() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let versions: Vec<String> = (0..1000)
+        .map(|idx| format!("1.0.{idx}"))
+        .collect();
+    let ranges: Vec<serde_json::Value> = (0..600)
+        .map(|idx| {
+            serde_json::json!({
+                "type": "SEMVER",
+                "events": [
+                    { "introduced": format!("2.{idx}.0") },
+                    { "fixed": format!("2.{idx}.1") }
+                ]
+            })
+        })
+        .collect();
+    let record = serde_json::json!({
+        "id": "GHSA-quadratic",
+        "affected": [{
+            "package": { "ecosystem": "npm", "name": "quad-pkg" },
+            "ranges": ranges,
+            "versions": versions
+        }]
+    });
+    fs::write(dir.path().join("GHSA-quadratic.json"), record.to_string()).expect("write record");
+
+    let err = OsvIndex::load_from_path(dir.path()).expect_err("must reject quadratic work");
+    let message = format!("{err}");
+    assert!(message.contains("version-range comparison limit"), "{message}");
+}
+
+#[test]
+fn rejects_single_explicit_range_with_excessive_union_alternatives() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let versions: Vec<String> = (0..1000)
+        .map(|idx| format!("1.0.{idx}"))
+        .collect();
+    let explicit_range = (0..600)
+        .map(|idx| format!("2.{idx}.0"))
+        .collect::<Vec<_>>()
+        .join(" || ");
+    let record = serde_json::json!({
+        "id": "GHSA-union-budget",
+        "affected": [{
+            "package": { "ecosystem": "npm", "name": "union-pkg" },
+            "database_specific": {
+                "last_known_affected_version_range": explicit_range
+            },
+            "versions": versions
+        }]
+    });
+    fs::write(dir.path().join("GHSA-union-budget.json"), record.to_string()).expect("write record");
+
+    let err = OsvIndex::load_from_path(dir.path()).expect_err("must reject excessive alternatives");
+    let message = format!("{err}");
+    assert!(message.contains("version-range comparison limit"), "{message}");
+}
+
+#[test]
+fn ignores_non_string_severity_values_in_specific_objects() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        dir.path().join("OSV-non-string-sev.json"),
+        r#"{
+          "id": "OSV-non-string-sev",
+          "database_specific": { "severity": { "level": 8 } },
+          "affected": [{
+            "package": { "ecosystem": "npm", "name": "numeric-sev-pkg" },
+            "database_specific": { "severity": ["HIGH"] },
+            "ecosystem_specific": { "severity": 8 },
+            "versions": ["1.0.0"]
+          }]
+        }"#,
+    )
+    .expect("write record");
+
+    let index = OsvIndex::load_from_path(dir.path()).expect("load index");
+    assert!(index.is_vulnerable("numeric-sev-pkg", "1.0.0"));
 }

@@ -11,36 +11,50 @@ export interface NetworkConfigs {
 }
 
 export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkConfigs {
-  const rawCredsMap: Record<string, Record<string, RawCreds>> = {}
-  const registries: Record<string, string> = {}
-  const networkConfigs: NetworkConfigs = { registries }
+  const collected: CollectedNetworkConfigs = {
+    rawCredsMap: {},
+    networkConfigs: { registries: {} },
+  }
   for (const [configKey, value] of Object.entries(rawConfig)) {
-    if (configKey[0] === '@' && configKey.endsWith(':registry')) {
-      registries[configKey.slice(0, configKey.indexOf(':'))] = normalizeRegistryUrl(value as string)
-      continue
-    }
+    collectNetworkConfigEntry(collected, configKey, value)
+  }
+  addParsedCredsToConfigByUri(collected)
+  return collected.networkConfigs
+}
 
-    const parsedCreds = tryParseCredsKey(configKey)
-    if (parsedCreds) {
-      const { credsField, registry, scope } = parsedCreds
-      rawCredsMap[registry] ??= {}
-      rawCredsMap[registry][scope ?? DEFAULT_REGISTRY_SCOPE] ??= {}
-      rawCredsMap[registry][scope ?? DEFAULT_REGISTRY_SCOPE][credsField] = value as string
-      continue
-    }
+interface CollectedNetworkConfigs {
+  rawCredsMap: Record<string, Record<string, RawCreds>>
+  networkConfigs: NetworkConfigs
+}
 
-    const parsedSsl = tryParseSslKey(configKey)
-    if (parsedSsl) {
-      const { registry, sslField, isFile } = parsedSsl
-      networkConfigs.configByUri ??= {}
-      networkConfigs.configByUri[registry] ??= {}
-      networkConfigs.configByUri[registry].tls ??= {}
-      networkConfigs.configByUri[registry].tls[sslField] = isFile
-        ? fs.readFileSync(value as string, 'utf8')
-        : (value as string).replace(/\\n/g, '\n')
-    }
+function collectNetworkConfigEntry ({ rawCredsMap, networkConfigs }: CollectedNetworkConfigs, configKey: string, value: unknown): void {
+  if (configKey[0] === '@' && configKey.endsWith(':registry')) {
+    networkConfigs.registries[configKey.slice(0, configKey.indexOf(':'))] = normalizeRegistryUrl(value as string)
+    return
   }
 
+  const parsedCreds = tryParseCredsKey(configKey)
+  if (parsedCreds) {
+    const { credsField, registry, scope } = parsedCreds
+    rawCredsMap[registry] ??= {}
+    rawCredsMap[registry][scope ?? DEFAULT_REGISTRY_SCOPE] ??= {}
+    rawCredsMap[registry][scope ?? DEFAULT_REGISTRY_SCOPE][credsField] = value as string
+    return
+  }
+
+  const parsedSsl = tryParseSslKey(configKey)
+  if (parsedSsl) {
+    const { registry, sslField, isFile } = parsedSsl
+    networkConfigs.configByUri ??= {}
+    networkConfigs.configByUri[registry] ??= {}
+    networkConfigs.configByUri[registry].tls ??= {}
+    networkConfigs.configByUri[registry].tls[sslField] = isFile
+      ? fs.readFileSync(value as string, 'utf8')
+      : (value as string).replace(/\\n/g, '\n')
+  }
+}
+
+function addParsedCredsToConfigByUri ({ rawCredsMap, networkConfigs }: CollectedNetworkConfigs): void {
   for (const uri in rawCredsMap) {
     const scopedCreds = getScopedCreds(rawCredsMap[uri])
     if (Object.keys(scopedCreds).length > 0) {
@@ -49,8 +63,6 @@ export function getNetworkConfigs (rawConfig: Record<string, unknown>): NetworkC
       Object.assign(networkConfigs.configByUri[uri], scopedCreds)
     }
   }
-
-  return networkConfigs
 }
 
 export function getDefaultCreds (rawConfig: Record<string, unknown>): Creds | undefined {

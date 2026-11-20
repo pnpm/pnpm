@@ -17,7 +17,16 @@ import type {
   RegistriesByScope,
 } from '@pnpm/types'
 
-export interface ResolveManifestDependenciesOpts {
+/**
+ * The `trustPolicy` settings a resolution is held to, as an install holds the
+ * project's dependencies to them.
+ */
+export type PackageTrustPolicy = Pick<
+  Parameters<typeof resolveDependencies>[1],
+'trustPolicy' | 'trustPolicyExclude' | 'trustPolicyIgnoreAfter'
+>
+
+export interface ResolveManifestDependenciesOpts extends PackageTrustPolicy {
   dir: string
   registriesByScope: RegistriesByScope
   storeController: StoreController
@@ -27,9 +36,6 @@ export interface ResolveManifestDependenciesOpts {
 /**
  * Resolves the dependencies of a manifest and returns the resulting lockfile
  * without writing anything to disk.
- *
- * This is a lightweight wrapper around resolveDependencies for cases where
- * you only need the lockfile output (e.g., resolving package manager integrities).
  */
 export async function resolveManifestDependencies (
   manifest: ProjectManifest,
@@ -57,34 +63,44 @@ export async function resolveManifestDependencies (
         updatePackageManifest: false,
       },
     ],
-    {
-      allowedDeprecatedVersions: {},
-      allowUnusedPatches: true,
-      currentLockfile: emptyLockfile,
-      defaultUpdateDepth: 0,
-      dryRun: true,
-      engineStrict: false,
-      force: false,
-      forceFullResolution: true,
-      hooks: {},
-      lockfileDir: opts.dir,
-      nodeVersion: process.version,
-      pnpmVersion: '',
-      preferWorkspacePackages: false,
-      preserveWorkspaceProtocol: false,
-      registriesByScope: opts.registriesByScope,
-      saveWorkspaceProtocol: false,
-      storeController: opts.storeController,
-      tag: 'latest',
-      virtualStoreDir: path.join(opts.dir, 'node_modules', '.pnpm'),
-      globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
-      virtualStoreDirMaxLength: 120,
-      wantedLockfile: emptyLockfile,
-      workspacePackages: new Map(),
-      peersSuffixMaxLength: 1000,
-      allProjectIds: ['.'],
-    }
+    createResolveDependenciesOptions(opts, emptyLockfile)
   )
   await waitTillAllFetchingsFinish()
   return newLockfile
+}
+
+function createResolveDependenciesOptions (
+  opts: ResolveManifestDependenciesOpts,
+  emptyLockfile: LockfileObject
+): Parameters<typeof resolveDependencies>[1] {
+  return {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: true,
+    currentLockfile: emptyLockfile,
+    defaultUpdateDepth: 0,
+    dryRun: true,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: true,
+    hooks: {},
+    lockfileDir: opts.dir,
+    nodeVersion: process.version,
+    pnpmVersion: '',
+    preferWorkspacePackages: false,
+    preserveWorkspaceProtocol: false,
+    registriesByScope: opts.registriesByScope,
+    saveWorkspaceProtocol: false,
+    storeController: opts.storeController,
+    tag: 'latest',
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+    virtualStoreDir: path.join(opts.dir, 'node_modules', '.pnpm'),
+    globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: emptyLockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    allProjectIds: ['.'],
+  }
 }

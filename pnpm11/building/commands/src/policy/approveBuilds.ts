@@ -1,16 +1,17 @@
 import fs from 'node:fs'
 
 import { checkbox, confirm } from '@inquirer/prompts'
-import { allowBuildKeyFromIgnoredBuild } from '@pnpm/building.policy'
+import { allowBuildKeyFromIgnoredBuild, packageNameFromAllowBuildKey, parseAllowBuildSelector } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { install } from '@pnpm/installing.commands'
 import { type Modules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import type { IgnoredBuilds } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import chalk from 'chalk'
 import { isSubdir } from 'is-subdir'
@@ -19,7 +20,7 @@ import { renderHelp } from 'render-help'
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'enableGlobalVirtualStore' | 'globalPkgDir'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & {
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'ci' | 'enableGlobalVirtualStore' | 'globalPkgDir'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & {
   all?: boolean
   global?: boolean
   /**
@@ -77,117 +78,27 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts, params: string[] = [], commands?: CommandHandlerMap): Promise<void> {
-  if (opts.all && params.length) {
-    throw new PnpmError(
-      'APPROVE_BUILDS_ALL_WITH_ARGS',
-      'Cannot use --all with positional arguments'
-    )
-  }
+  validateParams(opts, params)
   const targets = await getApprovalTargets(opts)
   const automaticallyIgnoredBuilds = sortUniqueStrings(targets.flatMap((target) => target.automaticallyIgnoredBuilds ?? []))
-  if (!automaticallyIgnoredBuilds.length) {
+  const existingAllowBuilds = await readExistingAllowBuilds(opts)
+  const undecidedBuilds = automaticallyIgnoredBuilds.filter((name) => existingAllowBuilds?.[name] !== false)
+  if (!undecidedBuilds.length && !params.length) {
     globalInfo('There are no packages awaiting approval')
     return
   }
-  const denied: string[] = []
-  const approved: string[] = []
-  const unknown: string[] = []
-  for (const p of params) {
-    const name = p.startsWith('!') ? p.slice(1) : p
-    if (!automaticallyIgnoredBuilds.includes(name)) {
-      unknown.push(name)
-    } else if (p.startsWith('!')) {
-      denied.push(name)
-    } else {
-      approved.push(name)
-    }
-  }
-  if (unknown.length) {
-    throw new PnpmError(
-      'APPROVE_BUILDS_UNKNOWN_PACKAGES',
-      `The following packages are not awaiting approval: ${unknown.join(', ')}`
-    )
-  }
-  const contradictions = approved.filter((p) => denied.includes(p))
-  if (contradictions.length) {
-    throw new PnpmError(
-      'APPROVE_BUILDS_CONTRADICTING_ARGS',
-      `The following packages are both approved and denied: ${contradictions.join(', ')}`
-    )
-  }
-  let buildPackages: string[] = []
-  if (params.length) {
-    buildPackages = sortUniqueStrings([...approved])
-  } else if (opts.all) {
-    buildPackages = sortUniqueStrings([...automaticallyIgnoredBuilds])
-  } else {
-    try {
-      const buildPackagesValues = await checkbox({
-        choices: sortUniqueStrings([...automaticallyIgnoredBuilds]).map((name) => ({
-          name,
-          value: name,
-        })),
-        message: 'Choose which packages to build ' +
-          `(Press ${chalk.cyan('<space>')} to select, ` +
-          `${chalk.cyan('<a>')} to toggle all, ` +
-          `${chalk.cyan('<i>')} to invert selection)`,
-        required: false,
-        theme: {
-          icon: { checked: '●', unchecked: '○', cursor: '❯' },
-          style: {
-            highlight: chalk.bgBlack.whiteBright,
-          },
-          keybindings: ['vim'],
-        },
-      })
-      buildPackages = buildPackagesValues
-    } catch (err) {
-      if (err instanceof Error && err.name === 'ExitPromptError') {
-        process.exit(0)
-      }
-      throw err
-    }
-  }
-  const existingAllowBuilds = opts.global
-    ? (await readWorkspaceManifest(opts.globalPkgDir))?.allowBuilds
-    : opts.allowBuilds
+  const { approved, denied } = parseSelectors(params, automaticallyIgnoredBuilds)
+  const buildPackages = await chooseBuildPackages({ opts, params, approved, undecidedBuilds })
   const allowBuilds: Record<string, boolean | string> = { ...existingAllowBuilds }
   if (params.length) {
-    for (const pkg of approved) {
-      allowBuilds[pkg] = true
-    }
-    for (const pkg of denied) {
-      allowBuilds[pkg] = false
-    }
+    setAllowBuilds(allowBuilds, approved, true)
+    setAllowBuilds(allowBuilds, denied, false)
   } else {
-    const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
-    for (const pkg of ignoredPackages) {
-      allowBuilds[pkg] = false
-    }
-    for (const pkg of buildPackages) {
-      allowBuilds[pkg] = true
-    }
+    setAllowBuilds(allowBuilds, undecidedBuilds.filter((undecidedBuild) => !buildPackages.includes(undecidedBuild)), false)
+    setAllowBuilds(allowBuilds, buildPackages, true)
   }
-  if (!opts.all && !params.length) {
-    if (buildPackages.length) {
-      let isConfirmed: boolean
-      try {
-        isConfirmed = await confirm({
-          message: `The next packages will now be built: ${buildPackages.join(', ')}.\nDo you approve?`,
-          default: false,
-        })
-      } catch (err) {
-        if (err instanceof Error && err.name === 'ExitPromptError') {
-          process.exit(0)
-        }
-        throw err
-      }
-      if (!isConfirmed) {
-        return
-      }
-    } else {
-      globalInfo('All packages were added to allowBuilds with value false.')
-    }
+  if (!opts.all && !params.length && !await confirmBuildPackages(buildPackages)) {
+    return
   }
   await writeSettings({
     ...opts,
@@ -195,21 +106,188 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     updatedSettings: { allowBuilds },
     deletedLegacyKeys: LEGACY_BUILD_SETTINGS,
   })
-  const decided = new Set([...approved, ...denied])
+  await clearDecidedIgnoredBuilds(targets, params.length ? new Set([...approved, ...denied]) : undefined)
+  await buildApprovedPackages({ targets, buildPackages, allowBuilds, commands })
+}
+
+function validateParams (opts: ApproveBuildsCommandOpts, params: string[]): void {
+  if (opts.all && params.length) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_ALL_WITH_ARGS',
+      'Cannot use --all with positional arguments'
+    )
+  }
+  if (params.some((param) => parseAllowBuildSelector(param).name === '')) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_MISSING_PACKAGE',
+      'A package name is missing from the arguments. Please specify the package name(s) to approve (`<pkg>`) or deny (`!<pkg>`).'
+    )
+  }
+}
+
+interface ParsedSelectors {
+  approved: string[]
+  denied: string[]
+}
+
+function parseSelectors (params: string[], automaticallyIgnoredBuilds: string[]): ParsedSelectors {
+  const denied: string[] = []
+  const approved: string[] = []
+  const unknown: string[] = []
+  for (const selector of params) {
+    const { name, allowed } = parseAllowBuildSelector(selector)
+    if (!automaticallyIgnoredBuilds.includes(name)) {
+      unknown.push(name)
+    }
+    if (allowed) {
+      approved.push(name)
+    } else {
+      denied.push(name)
+    }
+  }
+  const contradictions = approved.filter((name) => denied.includes(name))
+  if (contradictions.length) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_CONTRADICTING_ARGS',
+      `The following packages are both approved and denied: ${contradictions.join(', ')}`
+    )
+  }
+  if (unknown.length) {
+    requireExactFileSelectors(automaticallyIgnoredBuilds, { approved, denied, unknown })
+    globalWarn(`The following packages are not awaiting approval: ${unknown.join(', ')}`)
+  }
+  return { approved, denied }
+}
+
+function requireExactFileSelectors (pending: string[], { approved, denied, unknown }: ParsedSelectors & { unknown: string[] }): void {
+  const fileSelectors = pending.filter((key) => {
+    const name = packageNameFromAllowBuildKey(key)
+    return name != null && key.startsWith(`${name}@file:`) &&
+      unknown.includes(name) && approved.includes(name) &&
+      !approved.includes(key) && !denied.includes(key)
+  })
+  if (fileSelectors.length) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_FILE_SELECTOR_REQUIRED',
+      `Use an exact selector to approve a file dependency: ${fileSelectors.join(', ')}`
+    )
+  }
+}
+
+interface ChooseBuildPackagesOptions {
+  opts: ApproveBuildsCommandOpts
+  params: string[]
+  approved: string[]
+  undecidedBuilds: string[]
+}
+
+async function chooseBuildPackages ({ opts, params, approved, undecidedBuilds }: ChooseBuildPackagesOptions): Promise<string[]> {
+  if (params.length) {
+    return sortUniqueStrings([...approved])
+  }
+  if (opts.all) {
+    return sortUniqueStrings([...undecidedBuilds])
+  }
+  if (!undecidedBuilds.length) {
+    return []
+  }
+  if (opts.ci || !process.stdin.isTTY) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_NON_INTERACTIVE',
+      '"pnpm approve-builds" without package arguments or --all requires an interactive terminal',
+      {
+        hint: 'Run "pnpm approve-builds" in an interactive terminal outside CI, pass --all, or pass the package names to approve (<pkg>) or deny (!<pkg>).',
+      }
+    )
+  }
+  return exitOnPromptCancel(() => checkbox({
+    choices: sortUniqueStrings([...undecidedBuilds]).map((name) => ({
+      name,
+      value: name,
+    })),
+    message: 'Choose which packages to build ' +
+      `(Press ${chalk.cyan('<space>')} to select, ` +
+      `${chalk.cyan('<a>')} to toggle all, ` +
+      `${chalk.cyan('<i>')} to invert selection)`,
+    required: false,
+    theme: {
+      icon: { checked: '●', unchecked: '○', cursor: '❯' },
+      style: {
+        highlight: chalk.bgBlack.whiteBright,
+      },
+      keybindings: ['vim'],
+    },
+  }))
+}
+
+async function readExistingAllowBuilds (opts: ApproveBuildsCommandOpts): Promise<Config['allowBuilds'] | undefined> {
+  return opts.global
+    ? (await readWorkspaceManifest(opts.globalPkgDir))?.allowBuilds
+    : opts.allowBuilds
+}
+
+function setAllowBuilds (allowBuilds: Record<string, boolean | string>, pkgs: string[], value: boolean): void {
+  for (const pkg of pkgs) {
+    allowBuilds[pkg] = value
+  }
+}
+
+async function confirmBuildPackages (buildPackages: string[]): Promise<boolean> {
+  if (!buildPackages.length) {
+    globalInfo('All packages were added to allowBuilds with value false.')
+    return true
+  }
+  return exitOnPromptCancel(() => confirm({
+    message: `The next packages will now be built: ${buildPackages.join(', ')}.\nDo you approve?`,
+    default: false,
+  }))
+}
+
+async function exitOnPromptCancel<Answer> (prompt: () => Promise<Answer>): Promise<Answer> {
+  try {
+    return await prompt()
+  } catch (err) {
+    if (isError(err) && err.name === 'ExitPromptError') {
+      // eslint-disable-next-line n/no-process-exit -- the user cancelled the prompt, so nothing else should run
+      process.exit(0)
+    }
+    throw err
+  }
+}
+
+/**
+ * Without `decided`, every ignored build of a target is cleared.
+ * With it, only the ignored builds whose allowBuilds key is in `decided` are.
+ */
+async function clearDecidedIgnoredBuilds (targets: ApprovalTarget[], decided: Set<string> | undefined): Promise<void> {
   await Promise.all(targets.map(async ({ modulesDir, modulesManifest }) => {
     if (!modulesManifest?.ignoredBuilds) return
-    if (!params.length) {
+    if (decided == null) {
       delete modulesManifest.ignoredBuilds
     } else {
-      for (const depPath of modulesManifest.ignoredBuilds) {
-        if (decided.has(allowBuildKeyFromIgnoredBuild(depPath))) {
-          modulesManifest.ignoredBuilds.delete(depPath)
-        }
-      }
+      removeDecidedIgnoredBuilds(modulesManifest.ignoredBuilds, decided)
       if (!modulesManifest.ignoredBuilds.size) delete modulesManifest.ignoredBuilds
     }
     await writeModulesManifest(modulesDir, modulesManifest as Modules)
   }))
+}
+
+function removeDecidedIgnoredBuilds (ignoredBuilds: IgnoredBuilds, decided: Set<string>): void {
+  for (const depPath of ignoredBuilds) {
+    if (decided.has(allowBuildKeyFromIgnoredBuild(depPath))) {
+      ignoredBuilds.delete(depPath)
+    }
+  }
+}
+
+interface BuildApprovedPackagesOptions {
+  targets: ApprovalTarget[]
+  buildPackages: string[]
+  allowBuilds: Record<string, boolean | string>
+  commands?: CommandHandlerMap
+}
+
+async function buildApprovedPackages ({ targets, buildPackages, allowBuilds, commands }: BuildApprovedPackagesOptions): Promise<void> {
   await Promise.all(targets.map(async (target) => {
     const targetBuildPackages = buildPackages.filter((name) => target.automaticallyIgnoredBuilds?.includes(name))
     if (!targetBuildPackages.length) return
@@ -219,7 +297,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
         allowBuilds,
         frozenLockfile: true,
         optimisticRepeatInstall: false,
-      } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any -- approve-builds options are not typed as the full install option set
       return
     }
     await rebuild.handler({

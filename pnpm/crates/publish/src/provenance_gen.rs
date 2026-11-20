@@ -5,30 +5,48 @@
 //! It builds the in-toto SLSA *statement* and delegates the signing to the
 //! `sigstore_sign` crate unmodified, so the emitted bundle is whatever that
 //! crate produces: a **sigstore bundle v0.3** (single certificate, `dsse`
-//! Rekor entry) — not the legacy v0.2 form (`x509CertificateChain`, `intoto`
+//! Rekor entry), not the legacy v0.2 form (`x509CertificateChain`, `intoto`
 //! Rekor entry), which pacquet deliberately does not reproduce.
-//! The npm registry accepts the v0.3 bundle: a package published this way was
-//! verified end-to-end against npmjs.com (`@pnpm.e2e/testing-provenance2`,
-//! recorded in the Rekor transparency log), so the modern bundle is sufficient
-//! and no legacy-compatibility path is needed.
+//! The npm registry accepts the v0.3 bundle, so no legacy-compatibility path
+//! is needed.
+
+mod gitlab_parameters;
+mod sign;
 
 use std::time::Duration;
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{RetryOpts, redact_url_credentials};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
-use serde_json::{Value, json};
-use sha2::{Digest, Sha512};
-use sigstore_sign::{SigningContext, oidc::IdentityToken};
+use serde_json::{
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha512,
+};
 
 use crate::{
-    capabilities::{Clock, EnvVar, Host, OidcFetch, OidcFetchError},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+    },
     global_log::global_info,
     oidc::{
-        GitHubRequestTokenError, OidcHttpOptions, github_request_token, is_github_actions,
-        is_gitlab, truthy_env,
+        GitHubRequestTokenError,
+        OidcHttpOptions,
+        github_request_token,
+        is_github_actions,
+        is_gitlab,
+        truthy_env,
     },
 };
+use gitlab_parameters::gitlab_parameters;
 
 const IN_TOTO_STATEMENT_V1_TYPE: &str = "https://in-toto.io/Statement/v1";
 const IN_TOTO_STATEMENT_V01_TYPE: &str = "https://in-toto.io/Statement/v0.1";
@@ -64,11 +82,9 @@ where
     Sys: EnvVar + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
-    let sha512_hex = format!("{:x}", Sha512::digest(tarball_data));
-    let subject = json!([{
-        "name": npm_purl(package_name, package_version),
-        "digest": { "sha512": sha512_hex },
-    }]);
+    let ProvenanceSubject { name, sha512_hex } =
+        ProvenanceSubject::of(package_name, package_version, tarball_data);
+    let subject = json!([{ "name": name, "digest": { "sha512": sha512_hex } }]);
 
     let statement = build_statement::<Sys>(&subject)?;
     let statement_bytes = serde_json::to_vec(&statement).expect("serialize provenance statement");
@@ -87,7 +103,7 @@ where
 }
 
 /// Sign the in-toto SLSA statement into a sigstore bundle. The production
-/// [`Host`] impl performs the real keyless sigstore exchange (Fulcio
+/// [`Host`](crate::capabilities::Host) impl performs the real keyless sigstore exchange (Fulcio
 /// certificate + Rekor transparency log) over the network; tests inject a fake
 /// so [`generate_provenance`] runs offline and deterministically.
 pub trait SignProvenance {
@@ -109,94 +125,19 @@ pub struct SignedProvenance {
     pub data: String,
 }
 
-impl SignProvenance for Host {
-    async fn sign_statement(
-        jwt: &str,
-        statement: &[u8],
-        timeout: Option<Duration>,
-    ) -> Result<SignedProvenance, ProvenanceGenError> {
-        let token = IdentityToken::from_jwt(jwt)
-            .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
-        let context = SigningContext::production();
-        let deadline = timeout.unwrap_or(DEFAULT_SIGN_TIMEOUT);
-        sign_with_retry(SIGN_RETRY_OPTS, || {
-            with_sign_deadline(deadline, async {
-                let bundle =
-                    context.signer(token.clone()).sign_raw_statement(statement).await.map_err(
-                        |source| ProvenanceGenError::Sign { source: source.to_string() },
-                    )?;
-                let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
-                Ok(SignedProvenance { media_type: bundle.media_type, data })
-            })
-        })
-        .await
-    }
+/// The subject of a version's provenance statement: its archive, by the
+/// version's PURL and the archive's SHA-512.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ProvenanceSubject {
+    pub(crate) name: String,
+    pub(crate) sha512_hex: String,
 }
 
-/// The TypeScript CLI signs through sigstore-js, which wraps every Fulcio /
-/// TSA / Rekor request in `make-fetch-happen` with its default retry policy
-/// (2 retries, factor 2, 1 s floor), so a transient sigstore outage does not
-/// abort the publish. The `sigstore_sign` crate issues each request exactly
-/// once, so pacquet retries at the boundary it owns instead: the whole
-/// signing exchange. Every step is idempotent (a fresh ephemeral key,
-/// certificate, timestamp, and transparency-log entry per attempt), so
-/// re-running it is safe.
-const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
-    retries: 2,
-    factor: 2,
-    min_timeout: Duration::from_secs(1),
-    max_timeout: Duration::from_mins(1),
-};
-
-/// sigstore-js's `DEFAULT_TIMEOUT`, used only when the caller supplies no
-/// `fetch-timeout` — the sigstore-rust clients set no request timeout of
-/// their own, so without a deadline a hung connection stalls the publish
-/// until the OS gives up on the socket.
-const DEFAULT_SIGN_TIMEOUT: Duration = Duration::from_secs(5);
-
-async fn with_sign_deadline<Fut>(
-    deadline: Duration,
-    attempt: Fut,
-) -> Result<SignedProvenance, ProvenanceGenError>
-where
-    Fut: Future<Output = Result<SignedProvenance, ProvenanceGenError>>,
-{
-    match tokio::time::timeout(deadline, attempt).await {
-        Ok(result) => result,
-        Err(_) => Err(ProvenanceGenError::Sign {
-            source: format!(
-                "no response from the sigstore signing exchange within {} ms",
-                deadline.as_millis(),
-            ),
-        }),
-    }
-}
-
-async fn sign_with_retry<Fut>(
-    retry_opts: RetryOpts,
-    mut attempt_fn: impl FnMut() -> Fut,
-) -> Result<SignedProvenance, ProvenanceGenError>
-where
-    Fut: Future<Output = Result<SignedProvenance, ProvenanceGenError>>,
-{
-    let mut attempt = 0;
-    loop {
-        match attempt_fn().await {
-            Ok(signed) => return Ok(signed),
-            Err(error) if attempt < retry_opts.retries => {
-                let delay = retry_opts.delay_for(attempt);
-                tracing::warn!(
-                    target: "pnpm_publish::provenance",
-                    error = %redact_url_credentials(&error.to_string()),
-                    attempt = attempt + 1,
-                    max_attempts = retry_opts.retries + 1,
-                    ?delay,
-                    "Signing the provenance statement failed; retrying after backoff",
-                );
-                tokio::time::sleep(delay).await;
-                attempt += 1;
-            }
-            Err(error) => return Err(error),
+impl ProvenanceSubject {
+    pub(crate) fn of(package_name: &str, package_version: &str, tarball_data: &[u8]) -> Self {
+        ProvenanceSubject {
+            name: npm_purl(package_name, package_version),
+            sha512_hex: format!("{:x}", Sha512::digest(tarball_data)),
         }
     }
 }
@@ -205,8 +146,10 @@ where
 /// (`pkg:npm/<name>@<version>`), with only a leading scope `@`
 /// percent-encoded to `%40` (the `/` is left intact).
 fn npm_purl(name: &str, version: &str) -> String {
-    let encoded =
-        name.strip_prefix('@').map_or_else(|| name.to_owned(), |rest| format!("%40{rest}"));
+    let encoded = name
+        .strip_prefix('@')
+        .map(|rest| format!("%40{rest}"))
+        .unwrap_or_else(|| name.to_owned());
     format!("pkg:npm/{encoded}@{version}")
 }
 
@@ -229,10 +172,12 @@ fn github_statement<Sys: EnvVar>(subject: &Value) -> Value {
     let workflow_ref = env::<Sys>("GITHUB_WORKFLOW_REF");
     // GITHUB_WORKFLOW_REF is `owner/repo/path@ref`; strip the `owner/repo/`
     // prefix, then split the remainder on `@` into path and ref.
-    let relative_ref =
-        workflow_ref.strip_prefix(&format!("{repository}/")).unwrap_or(&workflow_ref);
-    let (workflow_path, workflow_ref_only) =
-        relative_ref.split_once('@').unwrap_or((relative_ref, ""));
+    let relative_ref = workflow_ref
+        .strip_prefix(&format!("{repository}/"))
+        .unwrap_or(&workflow_ref);
+    let (workflow_path, workflow_ref_only) = relative_ref
+        .split_once('@')
+        .unwrap_or((relative_ref, ""));
 
     json!({
         "_type": IN_TOTO_STATEMENT_V1_TYPE,
@@ -260,18 +205,22 @@ fn github_statement<Sys: EnvVar>(subject: &Value) -> Value {
                     "digest": { "gitCommit": env::<Sys>("GITHUB_SHA") },
                 }],
             },
-            "runDetails": {
-                "builder": {
-                    "id": format!("{GITHUB_BUILDER_ID_PREFIX}/{}", env::<Sys>("RUNNER_ENVIRONMENT")),
-                },
-                "metadata": {
-                    "invocationId": format!(
-                        "{server_url}/{repository}/actions/runs/{}/attempts/{}",
-                        env::<Sys>("GITHUB_RUN_ID"),
-                        env::<Sys>("GITHUB_RUN_ATTEMPT"),
-                    ),
-                },
-            },
+            "runDetails": github_run_details::<Sys>(&server_url, &repository),
+        },
+    })
+}
+
+fn github_run_details<Sys: EnvVar>(server_url: &str, repository: &str) -> Value {
+    json!({
+        "builder": {
+            "id": format!("{GITHUB_BUILDER_ID_PREFIX}/{}", env::<Sys>("RUNNER_ENVIRONMENT")),
+        },
+        "metadata": {
+            "invocationId": format!(
+                "{server_url}/{repository}/actions/runs/{}/attempts/{}",
+                env::<Sys>("GITHUB_RUN_ID"),
+                env::<Sys>("GITHUB_RUN_ATTEMPT"),
+            ),
         },
     })
 }
@@ -293,6 +242,7 @@ fn gitlab_statement<Sys: EnvVar>(subject: &Value) -> Value {
                     "digest": { "sha1": env::<Sys>("CI_COMMIT_SHA") },
                     "entryPoint": env::<Sys>("CI_JOB_NAME"),
                 },
+                "parameters": gitlab_parameters::<Sys>(),
                 "environment": {
                     "name": env::<Sys>("CI_RUNNER_DESCRIPTION"),
                     "architecture": env::<Sys>("CI_RUNNER_EXECUTABLE_ARCH"),
@@ -369,6 +319,11 @@ impl From<GitHubRequestTokenError> for ProvenanceGenError {
 /// Failure surface of [`generate_provenance`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum ProvenanceGenError {
+    #[cfg(target_family = "wasm")]
+    #[display("Automatic provenance signing is not supported in WebContainers")]
+    #[diagnostic(code(ERR_PNPM_PROVENANCE_UNSUPPORTED_RUNTIME))]
+    UnsupportedRuntime,
+
     #[display("Automatic provenance generation is not supported for this CI provider")]
     #[diagnostic(code(ERR_PNPM_PROVENANCE_UNSUPPORTED_PROVIDER))]
     UnsupportedProvider,
@@ -397,7 +352,6 @@ pub enum ProvenanceGenError {
     #[display("invalid id-token request URL: {_0}")]
     InvalidRequestUrl(url::ParseError),
 
-    #[display("{_0}")]
     Fetch(OidcFetchError),
 
     #[display("invalid sigstore identity token: {source}")]

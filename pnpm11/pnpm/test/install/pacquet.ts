@@ -61,6 +61,70 @@ test('pnpm install --frozen-lockfile delegates to pacquet when declared in confi
   expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
+// https://github.com/pnpm/pnpm/issues/11936
+test.each([
+  [['--silent']],
+  [['-s']],
+  [['-sd']],
+  [['-silent']],
+  [['-quiet']],
+  [['--loglevel', 'warn']],
+])('pnpm install --frozen-lockfile %j keeps the reporting flags from pacquet', async (reportingFlags) => {
+  await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '3.1.0' } } })
+  await fs.promises.rm('node_modules', { recursive: true, force: true })
+
+  const { stdout, stderr, status } = execPnpmSync(
+    [PUBLIC_REGISTRY, 'install', '--frozen-lockfile', ...reportingFlags],
+    { env: { pnpm_config_silent: 'false' }, stdio: 'pipe' }
+  )
+  expect(stderr.toString()).toBe('')
+  expect(stdout.toString()).toBe('')
+  expect(status).toBe(0)
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
+}, TIMEOUT)
+
+// https://github.com/pnpm/pnpm/issues/11936
+test.each([
+  [['-sP']],
+  [['-prod', '--silent']],
+])('pnpm install --frozen-lockfile %j installs only production dependencies with pacquet', async (flags) => {
+  await prepareWithPacquet({
+    manifest: {
+      dependencies: { 'is-positive': '3.1.0' },
+      devDependencies: { 'is-negative': '2.1.0' },
+    },
+  })
+  await fs.promises.rm('node_modules', { recursive: true, force: true })
+
+  const { stdout, stderr, status } = execPnpmSync(
+    [PUBLIC_REGISTRY, 'install', '--frozen-lockfile', ...flags],
+    { env: { pnpm_config_silent: 'false' }, stdio: 'pipe' }
+  )
+  expect(stderr.toString()).toBe('')
+  expect(stdout.toString()).toBe('')
+  expect(status).toBe(0)
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(false)
+}, TIMEOUT)
+
+// https://github.com/pnpm/pnpm/issues/11936
+test('pnpm install --frozen-lockfile --reporter --prod passes --prod to pacquet', async () => {
+  await prepareWithPacquet({
+    manifest: {
+      dependencies: { 'is-positive': '3.1.0' },
+      devDependencies: { 'is-negative': '2.1.0' },
+    },
+  })
+  await fs.promises.rm('node_modules', { recursive: true, force: true })
+
+  execPnpmSync(
+    [PUBLIC_REGISTRY, 'install', '--frozen-lockfile', '--reporter', '--prod'],
+    { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
+  )
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
+  expect(fs.existsSync('node_modules/is-negative')).toBe(false)
+}, TIMEOUT)
+
 test('bare `pnpm install` (no --frozen-lockfile) delegates to pacquet when the lockfile is up to date', async () => {
   await prepareWithPacquet({ manifest: { dependencies: { 'is-positive': '3.1.0' } } })
   await fs.promises.rm('node_modules', { recursive: true, force: true })
@@ -136,6 +200,21 @@ test('`pnpm add <pkg>` resolves the new dep with pnpm and materializes with pacq
   // Package.json must record the new dep so subsequent installs see it.
   const manifest = JSON.parse(await fs.promises.readFile('package.json', 'utf8'))
   expect(manifest.dependencies?.['is-positive']).toBeDefined()
+}, TIMEOUT)
+
+// https://github.com/pnpm/pnpm/issues/11936
+test('`pnpm add <pkg>` does not warn that pacquet ignores the reporting flags', async () => {
+  await prepareWithPacquet()
+
+  const { stdout, status } = execPnpmSync(
+    [PUBLIC_REGISTRY, 'add', 'is-positive@3.1.0', '--loglevel=info'],
+    { env: { pnpm_config_silent: 'false' }, stdio: 'pipe', expectSuccess: true }
+  )
+  expect(status).toBe(0)
+  const output = stdout.toString()
+  expect(output).toContain('Using pacquet for this install')
+  expect(output).not.toContain('not forwarded to pacquet')
+  expect(fs.existsSync('node_modules/is-positive/package.json')).toBe(true)
 }, TIMEOUT)
 
 test('`pnpm update <pkg>` resolves a new version with pnpm and materializes with pacquet', async () => {

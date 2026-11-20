@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any -- Untyped third-party modules expose opaque values. */
 declare module 'bole' {
   const anything: any
   export = anything
@@ -24,9 +24,19 @@ declare module '@zkochan/libnpx/index' {
   export = anything
 }
 
-declare module '@pnpm/npm-lifecycle' {
-  export function lifecycle (pkg: any, stage: string, wd: string, opts: any): Promise<void>
-  export function makeEnv (data: any, opts: any, prefix?: string | null, env?: any): Record<string, string>
+declare module '@pnpm/byline' {
+  import type { Readable } from 'node:stream'
+  function byline (stream: Readable): Readable
+  export = byline
+}
+
+declare module 'uid-number' {
+  function uidNumber (
+    user: string | number | null | undefined,
+    group: string | number | null | undefined,
+    cb: (err: Error | null, uid: number, gid: number) => void
+  ): void
+  export = uidNumber
 }
 
 declare module '@pnpm/npm-package-arg' {
@@ -92,22 +102,8 @@ declare module 'yaml-tag' {
   export = anything
 }
 
-declare module '@pnpm/patch-package/dist/applyPatches.js' {
-  export function applyPatch (opts: any): boolean
-}
-
-declare module '@pnpm/patch-package/dist/patch/parse.js' {
-  export interface PatchFilePart {
-    type: 'file deletion' | 'file creation' | 'patch' | 'mode change' | 'rename'
-    path?: string
-    fromPath?: string
-    toPath?: string
-  }
-  export function parsePatchFile (file: string): PatchFilePart[]
-}
-
 declare module 'ramda/src/map' {
-  function map <K extends string | number | symbol, V, U> (fn: (x: V) => U, obj: Record<K, V>): Record<K, U>
+  function map <Key extends string | number | symbol, SourceValue, MappedValue> (fn: (value: SourceValue) => MappedValue, obj: Record<Key, SourceValue>): Record<Key, MappedValue>
   export = map
 }
 
@@ -119,4 +115,21 @@ declare module '@yarnpkg/core/structUtils'
 declare module 'picomatch' {
   const anything: any
   export = anything
+}
+
+declare module 'seek-bzip' {
+  interface Input {
+    readByte: () => number
+    read: (buffer: Uint8Array, offset: number, length: number) => number
+  }
+  interface Output {
+    writeByte: (byte: number) => void
+  }
+  const Bunzip: {
+    decode: {
+      (input: Uint8Array | Input): Buffer
+      (input: Uint8Array | Input, output: Output): void
+    }
+  }
+  export = Bunzip
 }

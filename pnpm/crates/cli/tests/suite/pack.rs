@@ -8,9 +8,22 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    diagnostics::assert_diagnostic_contains,
+};
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fmt::Write,
+    fs,
+    path::Path,
+};
+
+mod output;
+mod publish_directory;
 
 #[test]
 fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
@@ -32,7 +45,10 @@ fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
     )
     .unwrap();
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["readme"], "# Packed README\n");
@@ -73,7 +89,10 @@ fn packing_reuses_the_hooks_that_updated_config() {
     )
     .expect("write .pnpmfile.cjs");
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["devDependencies"]["is-odd"], "3.0.1");
@@ -111,7 +130,10 @@ fn external_lockfile_dir_supplies_packing_hooks() {
     )
     .expect("write lockfile-root pnpmfile");
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["dependencies"]["is-odd"], "3.0.1");
@@ -121,8 +143,13 @@ fn external_lockfile_dir_supplies_packing_hooks() {
 
 #[test]
 fn pack_installs_config_dependencies_before_loading_hooks() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -134,7 +161,11 @@ fn pack_installs_config_dependencies_before_loading_hooks() {
     settings.push_str("\nconfigDependencies:\n  '@pnpm/plugin-pnpmfile': 1.0.0\n");
     fs::write(workspace_yaml, settings).expect("write configDependencies");
 
-    pacquet.with_arg("pack").assert().success();
+    pacquet
+        .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", workspace.join(".npmrc"))
+        .with_arg("pack")
+        .assert()
+        .success();
 
     assert!(
         workspace.join("node_modules/.pnpm-config/@pnpm/plugin-pnpmfile/pnpmfile.cjs").is_file(),
@@ -357,9 +388,9 @@ module.exports = {{
     let events = fs::read_to_string(events).expect("read pack events");
     let events = events.lines().collect::<Vec<_>>();
     assert_eq!(events.len(), 4);
-    for pair in events.chunks_exact(2) {
-        let project = pair[0].strip_suffix(":start").expect("start event");
-        assert_eq!(pair[1], format!("{project}:end"));
+    for [start, end] in events.as_chunks::<2>().0 {
+        let project = start.strip_suffix(":start").expect("start event");
+        assert_eq!(*end, format!("{project}:end"));
     }
     assert!(workspace.join("artifact.tgz").exists());
 
@@ -415,8 +446,8 @@ fn recursive_pack_reports_results_in_dependency_order() {
         "recursive pack failed: {}",
         String::from_utf8_lossy(&output.stderr),
     );
-    let results: serde_json::Value =
-        serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+    let results: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| {
             panic!(
                 "parse recursive pack JSON: {error}; stdout={:?}; stderr={:?}",
                 String::from_utf8_lossy(&output.stdout),
@@ -435,9 +466,7 @@ fn recursive_pack_reports_results_in_dependency_order() {
 }
 
 /// `--config.ignore-scripts=true` suppresses the pack lifecycle scripts
-/// just like the bare `--ignore-scripts` flag does for the commands that
-/// declare it. `pack` has no such flag, so the dotted override is the only
-/// way to skip its `prepack` (pnpm/pnpm#13986).
+/// (pnpm/pnpm#13986).
 #[test]
 fn config_ignore_scripts_override_suppresses_prepack() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -468,7 +497,11 @@ fn config_ignore_scripts_override_suppresses_prepack() {
     fs::remove_file(&marker).expect("remove marker");
     fs::remove_file(&tarball).expect("remove the first tarball");
 
-    let CommandTempCwd { pacquet: ignoring, root: ignoring_root, .. } = CommandTempCwd::init();
+    let CommandTempCwd {
+        pacquet: ignoring,
+        root: ignoring_root,
+        ..
+    } = CommandTempCwd::init();
     ignoring
         .with_current_dir(&workspace)
         .with_arg("pack")
@@ -481,6 +514,59 @@ fn config_ignore_scripts_override_suppresses_prepack() {
     assert!(tarball.exists(), "the tarball must still be packed");
 
     drop((root, ignoring_root));
+}
+
+/// `--ignore-pnpmfile` and `--ignore-scripts` let `pack` run on a
+/// directory without executing any of its code (pnpm/pnpm#18132).
+#[test]
+fn ignore_flags_pack_without_running_project_code() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "scripts": {
+                "prepack": r#"node -e "require('fs').writeFileSync('prepack-ran.txt','ran')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "require('fs').writeFileSync('pnpmfile-ran.txt', 'ran')\nmodule.exports = { hooks: {} }\n",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet
+        .with_arg("pack")
+        .with_arg("--ignore-pnpmfile")
+        .with_arg("--ignore-scripts")
+        .assert()
+        .success();
+
+    assert!(workspace.join("pkg-1.0.0.tgz").exists(), "the tarball must be packed");
+    assert!(
+        !workspace.join("pnpmfile-ran.txt").exists(),
+        "--ignore-pnpmfile must not load the pnpmfile",
+    );
+    assert!(!workspace.join("prepack-ran.txt").exists(), "--ignore-scripts must suppress prepack");
+
+    let CommandTempCwd {
+        pacquet: unflagged,
+        root: unflagged_root,
+        ..
+    } = CommandTempCwd::init();
+    unflagged
+        .with_current_dir(&workspace)
+        .with_arg("pack")
+        .assert()
+        .success();
+    assert!(workspace.join("pnpmfile-ran.txt").exists(), "pack must load the pnpmfile by default");
+    assert!(workspace.join("prepack-ran.txt").exists(), "pack must run prepack by default");
+
+    drop((root, unflagged_root));
 }
 
 /// Extract `package/package.json` from a packed tarball.
@@ -499,4 +585,348 @@ fn read_manifest_from_tarball(tarball: &Path) -> serde_json::Value {
         }
     }
     panic!("package/package.json not found in {}", tarball.display());
+}
+
+#[cfg(unix)]
+fn read_entry_mode_from_tarball(tarball: &Path, entry_path: &str) -> u32 {
+    let bytes = fs::read(tarball).expect("read tarball");
+    let decoder = flate2::read::GzDecoder::new(bytes.as_slice());
+    let mut archive = tar::Archive::new(decoder);
+    for entry in archive.entries().expect("iterate tarball entries") {
+        let entry = entry.expect("read tarball entry");
+        if entry.path().expect("entry path") == Path::new(entry_path) {
+            return entry
+                .header()
+                .mode()
+                .expect("read entry mode");
+        }
+    }
+    panic!("{entry_path} not found in {}", tarball.display());
+}
+
+#[test]
+#[cfg(unix)]
+fn pack_preserves_on_disk_executable_file_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg-exec",
+            "version": "1.0.0",
+            "files": ["scripts/run.sh", "index.js"],
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::create_dir_all(workspace.join("scripts")).unwrap();
+    fs::write(workspace.join("scripts/run.sh"), "#!/bin/sh\necho hi\n").unwrap();
+    fs::set_permissions(workspace.join("scripts/run.sh"), fs::Permissions::from_mode(0o755))
+        .unwrap();
+    fs::write(workspace.join("index.js"), "module.exports = 1;\n").unwrap();
+
+    pacquet
+        .with_arg("pack")
+        .assert()
+        .success();
+
+    let tarball = workspace.join("pkg-exec-1.0.0.tgz");
+    let script_mode = read_entry_mode_from_tarball(&tarball, "package/scripts/run.sh");
+    assert_eq!(script_mode, 0o755);
+
+    let js_mode = read_entry_mode_from_tarball(&tarball, "package/index.js");
+    assert_eq!(js_mode, 0o644);
+
+    drop(root);
+}
+
+#[test]
+fn pack_json_preserves_lifecycle_streams_before_the_result() {
+    assert_pack_json_lifecycle_streams(None, false, &[]);
+}
+
+#[test]
+fn pack_json_preserves_lifecycle_streams_before_the_error() {
+    for stage in ["prepack", "prepare", "postpack"] {
+        assert_pack_json_lifecycle_streams(Some(stage), false, &[]);
+    }
+}
+
+#[test]
+fn recursive_pack_json_preserves_lifecycle_streams_before_the_error() {
+    for stage in ["prepack", "prepare", "postpack"] {
+        assert_pack_json_lifecycle_streams(Some(stage), true, &[]);
+    }
+}
+
+fn assert_pack_json_lifecycle_streams(
+    failing_stage: Option<&str>,
+    recursive: bool,
+    flags: &[&str],
+) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    if recursive {
+        fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
+            .expect("write pnpm-workspace.yaml");
+    }
+    let stages = ["prepack", "prepare", "postpack"];
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pack-json-streams",
+            "version": "1.0.0",
+            "scripts": {
+                "prepack": "node lifecycle.cjs prepack",
+                "prepare": "node lifecycle.cjs prepare",
+                "postpack": "node lifecycle.cjs postpack",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join("lifecycle.cjs"),
+        r"const stage = process.argv[2];
+console.log(JSON.stringify({ error: { code: stage } }));
+console.log(`${stage} stdout`);
+console.error(`${stage} stderr`);
+process.exitCode = stage === process.env.FAILING_STAGE ? 1 : 0;
+",
+    )
+    .expect("write lifecycle script");
+
+    let output = pacquet
+        .with_args(["pack", "--json"])
+        .with_args(flags)
+        .with_args(recursive.then_some("--recursive"))
+        .with_env("FAILING_STAGE", failing_stage.unwrap_or(""))
+        .output()
+        .expect("run pack --json");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    eprintln!("failing stage: {failing_stage:?}; stdout: {stdout}; stderr: {stderr}");
+    assert_eq!(output.status.success(), failing_stage.is_none());
+    let mut expected_stdout = String::new();
+    let mut expected_stderr = String::new();
+    for stage in stages {
+        writeln!(expected_stdout, "{{\"error\":{{\"code\":\"{stage}\"}}}}\n{stage} stdout").expect(
+            "write expected stdout",
+        );
+        writeln!(expected_stderr, "$ node lifecycle.cjs {stage}\n{stage} stderr").expect(
+            "write expected stderr",
+        );
+        if Some(stage) == failing_stage {
+            break;
+        }
+    }
+    assert_eq!(stderr, expected_stderr);
+    let result = stdout.strip_prefix(&expected_stdout).expect("lifecycle stdout precedes JSON");
+    let result: serde_json::Value = serde_json::from_str(result).expect("final JSON result");
+    if let Some(stage) = failing_stage {
+        assert_eq!(result["error"]["code"], "ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED");
+        let message = result["error"]["message"].as_str().expect("error message");
+        assert!(
+            message.contains(&format!("{stage}: `node lifecycle.cjs {stage}` exited with")),
+            "{message}",
+        );
+    } else {
+        assert_eq!(result["name"], "pack-json-streams");
+        assert_eq!(result["version"], "1.0.0");
+        assert!(workspace.join("pack-json-streams-1.0.0.tgz").is_file());
+    }
+    drop(root);
+}
+
+#[test]
+fn pack_json_prints_structured_errors_without_lifecycle_scripts() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), json!({ "name": "pack-json" }).to_string())
+        .expect("write package.json");
+
+    let output = pacquet
+        .with_args(["pack", "--json"])
+        .output()
+        .expect("run pack --json");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
+    assert!(!output.status.success());
+    assert_eq!(stderr, "");
+    assert_eq!(
+        stdout,
+        "{\n  \"error\": {\n    \"code\": \"ERR_PNPM_PACKAGE_VERSION_NOT_FOUND\",\n    \"message\": \"Package version is not defined in the package.json.\"\n  }\n}\n",
+    );
+    drop(root);
+}
+
+/// A `workspace:` peer is not installed into `node_modules`, so the
+/// version comes from the workspace package itself. When that package
+/// has no `version`, pack names the missing field.
+#[test]
+fn pack_reports_a_workspace_peer_without_a_version() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    for (dir, manifest) in [
+        (
+            "packages/pkg-a",
+            json!({
+                "name": "pkg-a",
+                "version": "1.0.0",
+                "peerDependencies": { "pkg-b": "workspace:*" },
+            }),
+        ),
+        ("packages/pkg-b", json!({ "name": "pkg-b" })),
+    ] {
+        let dir = workspace.join(dir);
+        fs::create_dir_all(&dir).expect("create package dir");
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write package.json");
+    }
+
+    let output = pacquet
+        .with_args(["--filter", "pkg-a", "pack"])
+        .output()
+        .expect("run pack");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    assert!(!output.status.success(), "pack must fail:\n{stderr}");
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL");
+    assert_diagnostic_contains(
+        &stderr,
+        r#"Cannot resolve workspace protocol of dependency "pkg-b" because its package.json has no "version" field."#,
+    );
+    assert_diagnostic_contains(&stderr, r#"Add a "version" field to the package.json of "pkg-b"."#);
+
+    drop(root);
+}
+
+fn init_package_with_dotenv() -> CommandTempCwd<()> {
+    let temp = CommandTempCwd::init();
+    fs::write(
+        temp.workspace.join("package.json"),
+        json!({ "name": "pkg-with-dotenv", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(temp.workspace.join(".env"), "SECRET=1\n").expect("write .env");
+    temp
+}
+
+#[test]
+fn pack_warns_about_an_unlisted_dotenv_file() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = init_package_with_dotenv();
+
+    let output = pacquet
+        .with_arg("pack")
+        .output()
+        .expect("run pack");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
+    assert!(output.status.success());
+    let combined = format!("{stdout}{stderr}");
+    assert!(combined.contains("dotenv files that may contain secrets"));
+    assert!(combined.contains("  .env\n"));
+    assert!(workspace.join("pkg-with-dotenv-1.0.0.tgz").is_file());
+
+    drop(root);
+}
+
+#[test]
+fn pack_json_keeps_the_dotenv_warning_out_of_its_output() {
+    let CommandTempCwd { pacquet, root, .. } = init_package_with_dotenv();
+
+    let output = pacquet
+        .with_args(["pack", "--json"])
+        .output()
+        .expect("run pack --json");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
+    assert!(output.status.success());
+    assert_eq!(stderr, "");
+    let result: serde_json::Value = serde_json::from_str(&stdout).expect("parse pack JSON");
+    let files = result["files"].as_array().expect("files array");
+    assert!(files.contains(&json!({ "path": ".env" })));
+
+    drop(root);
+}
+
+/// `pnpm pack` reports itself to the lifecycle scripts it runs. pnpm 11 and
+/// npm both export `npm_command`, so a `prepack` script that branches on the
+/// variable behaves alike.
+#[test]
+fn pack_exports_the_command_to_lifecycle_scripts() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "scripts": {
+                "prepack":
+                    r#"node -e "require('fs').writeFileSync('npm-command.txt', process.env.npm_command ?? 'unset')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let out = workspace.join("tarballs");
+    fs::create_dir_all(&out).expect("create out dir");
+
+    pacquet
+        .with_arg("pack")
+        .with_arg("--pack-destination")
+        .with_arg(out.to_str().expect("utf8 out dir"))
+        .assert()
+        .success();
+
+    let value =
+        fs::read_to_string(workspace.join("npm-command.txt")).expect("read npm-command.txt");
+    assert_eq!(value, "pack");
+
+    drop(root);
+}
+
+#[test]
+fn dry_run_json_reports_the_publish_transformed_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "main": "./src/index.ts",
+            "publishConfig": { "main": "./dist/index.js" },
+            "scripts": { "build": "exit 0", "prepublishOnly": "exit 0" },
+            "pnpm": { "overrides": { "is-positive": "1.0.0" } },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("README.md"), "# pkg").expect("write README.md");
+
+    let output = pacquet
+        .with_arg("pack")
+        .with_arg("--dry-run")
+        .with_arg("--json")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let result: serde_json::Value =
+        serde_json::from_slice(&output).expect("parse pack --json output");
+    let manifest = &result["manifest"];
+
+    assert_eq!(manifest["main"], json!("./dist/index.js"), "publishConfig must be applied");
+    assert!(manifest.get("publishConfig").is_none(), "publishConfig must be stripped");
+    assert_eq!(manifest["scripts"], json!({ "build": "exit 0" }));
+    assert!(manifest.get("pnpm").is_none(), "the pnpm field must be stripped");
+    assert!(
+        manifest.get("readme").is_none(),
+        "the readme is registry metadata, not part of the packed manifest",
+    );
+    assert!(!workspace.join("pkg-1.0.0.tgz").exists(), "--dry-run must not write a tarball");
+
+    drop(root);
 }

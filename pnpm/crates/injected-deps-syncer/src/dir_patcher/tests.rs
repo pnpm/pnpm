@@ -1,8 +1,30 @@
-use super::{DirPatcher, InodeMap, Value, extend_files_map, file_id};
+use super::{
+    CopyFiles,
+    DirPatcher,
+    InodeMap,
+    PublishSource,
+    Value,
+    extend_files_map,
+    inode_map::file_id,
+    publish_edits,
+};
+#[cfg(not(windows))]
+use command_extra::CommandExtra;
+use pnpm_fs::LinkFailure;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{
+    cell::Cell,
+    collections::HashMap,
+    fs,
+    io,
+    path::PathBuf,
+    time::{
+        Duration,
+        SystemTime,
+    },
+};
 use tempfile::TempDir;
 
 fn create_file(path: &std::path::Path, content: &str) {
@@ -13,17 +35,24 @@ fn create_file(path: &std::path::Path, content: &str) {
 #[cfg(unix)]
 fn create_fifo(path: &std::path::Path) {
     fs::create_dir_all(path.parent().expect("fifo has a parent")).expect("create parent");
-    let status = std::process::Command::new("mkfifo").arg(path).status().expect("run mkfifo");
+    let status = std::process::Command::new("mkfifo")
+        .with_arg(path)
+        .status()
+        .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed for {path:?}");
 }
 
 fn files_map(root: &std::path::Path, relative_paths: &[&str]) -> HashMap<String, PathBuf> {
-    relative_paths.iter().map(|relative| ((*relative).to_string(), root.join(relative))).collect()
+    relative_paths
+        .iter()
+        .map(|relative| ((*relative).to_string(), root.join(relative)))
+        .collect()
 }
 
 fn sync(source: &std::path::Path, target: &std::path::Path) {
-    let patchers = DirPatcher::from_multiple_targets(source, &[target.to_path_buf()])
-        .expect("diff source against target");
+    let patchers =
+        DirPatcher::from_multiple_targets(source, &[target.to_path_buf()], CopyFiles::AllFiles)
+            .expect("diff source against target");
     for patcher in patchers {
         patcher.apply().expect("apply patch");
     }
@@ -145,4 +174,304 @@ fn sync_shares_inodes_with_the_source() {
         file_id(&source_path, &source_stat).expect("source file id"),
         file_id(&target_path, &target_stat).expect("target file id"),
     );
+}
+
+/// Hardlinks fail with the error each platform raises when the target
+/// is on another filesystem than the source.
+struct CrossDeviceLinks;
+
+impl pnpm_fs::FsHardLink for CrossDeviceLinks {
+    fn hard_link(_: &std::path::Path, _: &std::path::Path) -> io::Result<()> {
+        Err(LinkFailure::CrossDevice.sample_error())
+    }
+}
+
+thread_local! {
+    static LINK_FAILURE: Cell<LinkFailure> = const { Cell::new(LinkFailure::Path) };
+}
+
+/// Hardlinks fail with the failure set on this thread.
+struct FailingLinks;
+
+impl pnpm_fs::FsHardLink for FailingLinks {
+    fn hard_link(_: &std::path::Path, _: &std::path::Path) -> io::Result<()> {
+        Err(LINK_FAILURE.with(Cell::get).sample_error())
+    }
+}
+
+/// The sync shares inodes, so only a file it cannot share is copied: one
+/// on another filesystem, or one whose source has no names left. A
+/// filesystem that refuses links fails the sync.
+#[test]
+fn sync_copies_only_what_the_source_cannot_share() {
+    for failure in LinkFailure::ALL {
+        let dir = TempDir::new().expect("temp dir");
+        let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+        create_file(&source.join("index.js"), "built");
+        fs::create_dir_all(&target).expect("create target");
+        LINK_FAILURE.with(|cell| cell.set(failure));
+
+        let result = sync_with::<FailingLinks>(&source, &target);
+
+        if matches!(failure, LinkFailure::CrossDevice | LinkFailure::TooManyLinks) {
+            result.expect("sync by copying");
+            assert_eq!(fs::read_to_string(target.join("index.js")).expect("read copy"), "built");
+            continue;
+        }
+        let error = result.expect_err("the link error surfaces");
+        assert!(
+            matches!(
+                &error,
+                super::PatchError::Link { error, .. }
+                    if (error.kind(), error.raw_os_error())
+                        == (failure.sample_error().kind(), failure.sample_error().raw_os_error()),
+            ),
+            "{failure:?}: {error:?}",
+        );
+        assert!(!target.join("index.js").exists(), "{failure:?}: nothing was copied");
+    }
+}
+
+fn sync_with<Sys: pnpm_fs::FsHardLink>(
+    source: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<(), super::PatchError> {
+    let patch = super::diff_dir(
+        &super::load_inode_map(target, CopyFiles::AllFiles).expect("target inode map"),
+        &super::load_inode_map(source, CopyFiles::AllFiles).expect("source inode map"),
+    );
+    super::apply_patch_with_link::<Sys>(&patch, source, target)
+}
+
+#[test]
+fn sync_copies_when_the_target_is_on_another_filesystem() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("lib/index.js"), "built");
+    fs::create_dir_all(&target).expect("create target");
+
+    sync_with::<CrossDeviceLinks>(&source, &target).expect("sync by copying");
+
+    assert_eq!(fs::read_to_string(target.join("lib/index.js")).expect("read copy"), "built");
+}
+
+/// A copy never shares its source's identity, so nothing short of
+/// recopying tells a same-length rewrite apart from an unchanged file.
+#[test]
+fn sync_refreshes_a_copy_whose_source_changed_in_place() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("index.js"), "old");
+    fs::create_dir_all(&target).expect("create target");
+    sync_with::<CrossDeviceLinks>(&source, &target).expect("first sync");
+
+    fs::write(source.join("index.js"), "new").expect("rewrite source");
+    sync_with::<CrossDeviceLinks>(&source, &target).expect("second sync");
+
+    assert_eq!(fs::read_to_string(target.join("index.js")).expect("read copy"), "new");
+}
+
+fn device_and_inode(path: &std::path::Path) -> (u64, u64) {
+    let metadata = fs::metadata(path).expect("stat");
+    let id = file_id(path, &metadata).expect("file id");
+    (id.device, id.inode)
+}
+
+#[test]
+fn publish_replaces_an_edited_hardlink_with_its_own_file() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("index.js"), "old");
+    fs::create_dir_all(&target).expect("create target");
+    fs::hard_link(source.join("index.js"), target.join("index.js")).expect("hardlink");
+    fs::write(source.join("index.js"), "new").expect("rewrite the hardlink in place");
+
+    publish_edits(
+        &PublishSource::load(&source, CopyFiles::AllFiles).expect("load source"),
+        &target,
+        SystemTime::UNIX_EPOCH,
+    )
+    .expect("publish");
+
+    assert_eq!(fs::read_to_string(target.join("index.js")).expect("read published file"), "new");
+    assert_ne!(
+        device_and_inode(&source.join("index.js")),
+        device_and_inode(&target.join("index.js")),
+        "a published file has its own inode, so a watcher on the injected directory sees the write",
+    );
+}
+
+#[test]
+fn publish_of_package_files_leaves_out_the_files_the_manifest_does_not_list() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("package.json"), r#"{"name":"source","files":["index.js"]}"#);
+    create_file(&source.join("index.js"), "built");
+    create_file(&source.join("src/index.ts"), "source");
+    fs::create_dir_all(&target).expect("create target");
+
+    publish_edits(
+        &PublishSource::load(&source, CopyFiles::PackageFiles).expect("load source"),
+        &target,
+        SystemTime::UNIX_EPOCH,
+    )
+    .expect("publish");
+
+    assert_eq!(fs::read_to_string(target.join("index.js")).expect("read published file"), "built");
+    assert!(!target.join("src").exists());
+}
+
+#[test]
+fn publish_leaves_a_hardlink_that_was_not_edited_in_this_watch() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("index.js"), "same");
+    fs::create_dir_all(&target).expect("create target");
+    fs::hard_link(source.join("index.js"), target.join("index.js")).expect("hardlink");
+    let edited_since = SystemTime::now()
+        .checked_add(Duration::from_hours(24))
+        .expect("a deadline past every current mtime");
+
+    publish_edits(
+        &PublishSource::load(&source, CopyFiles::AllFiles).expect("load source"),
+        &target,
+        edited_since,
+    )
+    .expect("publish");
+
+    assert_eq!(
+        device_and_inode(&source.join("index.js")),
+        device_and_inode(&target.join("index.js")),
+        "an untouched hardlink stays shared",
+    );
+}
+
+#[test]
+fn publish_does_not_recopy_a_file_whose_length_and_mtime_match() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("index.js"), "built");
+    fs::create_dir_all(&target).expect("create target");
+
+    publish_edits(
+        &PublishSource::load(&source, CopyFiles::AllFiles).expect("load source"),
+        &target,
+        SystemTime::UNIX_EPOCH,
+    )
+    .expect("first publish");
+    let published = device_and_inode(&target.join("index.js"));
+    publish_edits(
+        &PublishSource::load(&source, CopyFiles::AllFiles).expect("load source"),
+        &target,
+        SystemTime::UNIX_EPOCH,
+    )
+    .expect("second publish");
+
+    assert_eq!(published, device_and_inode(&target.join("index.js")));
+    assert_eq!(fs::read_to_string(target.join("index.js")).expect("read copy"), "built");
+}
+
+#[test]
+fn sync_replaces_a_target_manifest_left_half_written() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#);
+    create_file(&target.join("package.json"), "");
+
+    let patchers = DirPatcher::from_multiple_targets(
+        &source,
+        std::slice::from_ref(&target),
+        CopyFiles::PackageFiles,
+    )
+    .expect("a half-written target manifest is diffed, not parsed");
+    for patcher in patchers {
+        patcher.apply().expect("apply patch");
+    }
+    assert_eq!(
+        fs::read_to_string(target.join("package.json")).expect("read target manifest"),
+        r#"{"name":"pkg","version":"1.0.0"}"#,
+    );
+}
+
+/// Sync `source` into a fresh `target` with the package files only.
+#[cfg(unix)]
+fn sync_package_files(source: &std::path::Path, target: &std::path::Path) {
+    fs::create_dir_all(target).expect("create target");
+    let patchers =
+        DirPatcher::from_multiple_targets(source, &[target.to_path_buf()], CopyFiles::PackageFiles)
+            .expect("diff");
+    for patcher in patchers {
+        patcher.apply().expect("apply patch");
+    }
+}
+
+/// The packlist lists a symlinked directory as one entry. The copy keeps it
+/// as a link, as the install does, and a link inside it may point anywhere
+/// in the package.
+#[cfg(unix)]
+#[test]
+fn sync_of_package_files_keeps_a_symlinked_directory_as_a_link() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(&source.join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#);
+    create_file(&source.join("files/foo/bar.txt"), "bar");
+    create_file(&source.join("other/sibling.txt"), "sibling");
+    std::os::unix::fs::symlink("../../other", source.join("files/foo/other")).expect("symlink");
+    std::os::unix::fs::symlink("files/foo", source.join("link-to-a-dir")).expect("symlink");
+
+    sync_package_files(&source, &target);
+
+    assert_eq!(
+        fs::read_link(target.join("link-to-a-dir")).expect("read the link"),
+        std::path::Path::new("files/foo"),
+    );
+    for (path, content) in
+        [("link-to-a-dir/bar.txt", "bar"), ("link-to-a-dir/other/sibling.txt", "sibling")]
+    {
+        assert_eq!(fs::read_to_string(target.join(path)).expect("read synced file"), content);
+    }
+}
+
+/// A link to a directory the packlist leaves out is left out of the copy, as
+/// the install leaves it out, and so is a link that leads out of the package.
+#[cfg(unix)]
+#[test]
+fn sync_of_package_files_leaves_out_a_link_to_an_unlisted_directory() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(
+        &source.join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","files":["link-to-a-dir"]}"#,
+    );
+    create_file(&source.join("files/foo/bar.txt"), "bar");
+    create_file(&dir.path().join("outside/secret.txt"), "secret");
+    std::os::unix::fs::symlink("files/foo", source.join("link-to-a-dir")).expect("symlink");
+    std::os::unix::fs::symlink("../outside", source.join("escape")).expect("symlink");
+
+    sync_package_files(&source, &target);
+
+    assert!(target.join("package.json").exists());
+    assert!(fs::symlink_metadata(target.join("link-to-a-dir")).is_err());
+    assert!(!target.join("escape").exists());
+}
+
+/// The install imports a link to a file it leaves out as that file, so the
+/// copy can open it.
+#[cfg(unix)]
+#[test]
+fn sync_of_package_files_copies_a_link_to_an_unlisted_file_as_the_file() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(
+        &source.join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","files":["link.txt"]}"#,
+    );
+    create_file(&source.join("src/real.txt"), "real");
+    std::os::unix::fs::symlink("src/real.txt", source.join("link.txt")).expect("symlink");
+
+    sync_package_files(&source, &target);
+
+    let metadata = fs::symlink_metadata(target.join("link.txt")).expect("stat the synced file");
+    assert!(metadata.file_type().is_file(), "{metadata:?}");
+    assert_eq!(fs::read_to_string(target.join("link.txt")).expect("read synced file"), "real");
 }

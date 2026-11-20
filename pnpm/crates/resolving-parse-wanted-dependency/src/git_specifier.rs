@@ -53,7 +53,6 @@ fn normalize_url(specifier: &str) -> Option<String> {
     {
         return None;
     }
-    // Hostnames are case-insensitive; the repository path and ref are not.
     let host = host.to_ascii_lowercase();
     if scheme.eq_ignore_ascii_case("https") && !is_known_host(&host) && !path.ends_with(".git") {
         return None;
@@ -62,15 +61,7 @@ fn normalize_url(specifier: &str) -> Option<String> {
 }
 
 fn normalize_parts(host: &str, path: &str, committish: Option<&str>) -> Option<String> {
-    if path.is_empty()
-        || path.starts_with('/')
-        || path.ends_with('/')
-        || path.contains("//")
-        || path.contains('@')
-        || path.contains('?')
-        || path.chars().any(char::is_whitespace)
-        || path.split('/').any(str::is_empty)
-    {
+    if !is_valid_repository_path(path) {
         return None;
     }
     let path = path.strip_suffix(".git").unwrap_or(path);
@@ -81,6 +72,17 @@ fn normalize_parts(host: &str, path: &str, committish: Option<&str>) -> Option<S
         Some(committish) => Some(format!("git+https://{host}/{path}.git#{committish}")),
         None => Some(format!("git+https://{host}/{path}.git")),
     }
+}
+
+fn is_valid_repository_path(path: &str) -> bool {
+    !path.is_empty()
+        && !path.starts_with('/')
+        && !path.ends_with('/')
+        && !path.contains("//")
+        && !path.contains('@')
+        && !path.contains('?')
+        && !path.chars().any(char::is_whitespace)
+        && !path.split('/').any(str::is_empty)
 }
 
 fn split_committish(specifier: &str) -> Option<(&str, Option<&str>)> {

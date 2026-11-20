@@ -7,12 +7,12 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { PnpmError } from '@pnpm/error'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { prependDirsToPath } from '@pnpm/shell.path'
-import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
-import crossSpawn from 'cross-spawn'
+import { createStoreController, type CreateStoreControllerOptions, type StoreControllerHandle } from '@pnpm/store.connection-manager'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { installPnpmToStore } from '../self-updater/installPnpm.js'
+import { spawnPnpm } from '../spawnPnpm.js'
 
 export const commandNames = ['with']
 
@@ -65,63 +65,13 @@ export async function handler (
   const store = await createStoreController(opts)
   let binDir: string
   try {
-    // resolvePackageManagerIntegrities resolves ranges/dist-tags via the
-    // registry and writes the resolved exact version to the envLockfile.
-    const envLockfile = await resolvePackageManagerIntegrities(spec, {
-      rootDir: opts.pnpmHomeDir,
-      registriesByScope: opts.registriesByScope,
-      storeController: store.ctrl,
-      storeDir: store.dir,
-    })
-    const resolvedVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
-    if (!resolvedVersion) {
-      throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot resolve pnpm version for "${spec}"`)
-    }
-    ;({ binDir } = await installPnpmToStore(resolvedVersion, {
-      envLockfile,
-      storeController: store.ctrl,
-      storeDir: store.dir,
-      registriesByScope: opts.registriesByScope,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      packageManager: { name: packageManager.name, version: packageManager.version },
-      // Network settings so the engine identity check can reach the canonical
-      // npm registry through the user's proxy / TLS configuration.
-      ca: opts.ca,
-      cert: opts.cert,
-      key: opts.key,
-      httpProxy: opts.httpProxy,
-      httpsProxy: opts.httpsProxy,
-      noProxy: opts.noProxy,
-      strictSsl: opts.strictSsl,
-      localAddress: opts.localAddress,
-      maxSockets: opts.maxSockets,
-      configByUri: opts.configByUri,
-      timeout: opts.fetchTimeout,
-    }))
+    binDir = await installPnpmSpec(opts, store, spec)
   } finally {
     await store.ctrl.close()
   }
 
-  // The child pnpm must skip the packageManager/devEngines check so the requested
-  // version stays active. Two keys are set for backward compatibility:
-  //   - `COREPACK_ROOT` is honored by every pnpm release that supports corepack
-  //     (older versions skip the pm check whenever this is set).
-  //   - `pnpm_config_pm_on_fail=ignore` is the principled override recognized
-  //     by pnpm releases that ship the `pmOnFail` setting.
-  const pnpmEnv = prependDirsToPath([binDir])
-  const spawnEnv: NodeJS.ProcessEnv = {
-    ...process.env,
-    [pnpmEnv.name]: pnpmEnv.value,
-    COREPACK_ROOT: process.env.COREPACK_ROOT ?? 'pnpm-with',
-    pnpm_config_pm_on_fail: 'ignore',
-  }
-
   const pnpmBinPath = path.join(binDir, 'pnpm')
-  const { status, signal, error } = crossSpawn.sync(pnpmBinPath, args, {
-    stdio: 'inherit',
-    env: spawnEnv,
-  })
-  if (error) throw error
+  const { status, signal } = await spawnPnpm(pnpmBinPath, args, { env: createChildEnv(binDir) })
   if (signal) {
     // Best-effort: try to terminate with the same signal the child received.
     // If the signal is handled or ignored, fall back to a non-zero exit code
@@ -130,4 +80,57 @@ export async function handler (
     return { exitCode: 1 }
   }
   return { exitCode: status ?? 0 }
+}
+
+function createChildEnv (binDir: string): NodeJS.ProcessEnv {
+  // The child pnpm must skip the packageManager/devEngines check so the requested
+  // version stays active. Two keys are set for backward compatibility:
+  //   - `COREPACK_ROOT` is honored by every pnpm release that supports corepack
+  //     (older versions skip the pm check whenever this is set).
+  //   - `pnpm_config_pm_on_fail=ignore` is the principled override recognized
+  //     by pnpm releases that ship the `pmOnFail` setting.
+  const pnpmEnv = prependDirsToPath([binDir])
+  return {
+    ...process.env,
+    [pnpmEnv.name]: pnpmEnv.value,
+    COREPACK_ROOT: process.env.COREPACK_ROOT ?? 'pnpm-with',
+    pnpm_config_pm_on_fail: 'ignore',
+  }
+}
+
+async function installPnpmSpec (opts: WithCommandOptions, store: StoreControllerHandle, spec: string): Promise<string> {
+  // resolvePackageManagerIntegrities resolves ranges/dist-tags via the
+  // registry and writes the resolved exact version to the envLockfile.
+  const envLockfile = await resolvePackageManagerIntegrities(spec, {
+    rootDir: opts.pnpmHomeDir,
+    registriesByScope: opts.registriesByScope,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+  })
+  const resolvedVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (!resolvedVersion) {
+    throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot resolve pnpm version for "${spec}"`)
+  }
+  const { binDir } = await installPnpmToStore(resolvedVersion, {
+    envLockfile,
+    storeController: store.ctrl,
+    storeDir: store.dir,
+    registriesByScope: opts.registriesByScope,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    packageManager: { name: packageManager.name, version: packageManager.version },
+    // Network settings so the engine identity check can reach the canonical
+    // npm registry through the user's proxy / TLS configuration.
+    ca: opts.ca,
+    cert: opts.cert,
+    key: opts.key,
+    httpProxy: opts.httpProxy,
+    httpsProxy: opts.httpsProxy,
+    noProxy: opts.noProxy,
+    strictSsl: opts.strictSsl,
+    localAddress: opts.localAddress,
+    maxSockets: opts.maxSockets,
+    configByUri: opts.configByUri,
+    timeout: opts.fetchTimeout,
+  })
+  return binDir
 }

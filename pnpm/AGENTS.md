@@ -6,71 +6,61 @@ Guidance for AI coding agents working in `pnpm/`.
 
 ## What this project is
 
-`pacquet` is the [pnpm](https://pnpm.io) CLI implemented in Rust. It is one of
-two parallel implementations of the same package manager — the other is the
-TypeScript pnpm CLI (the workspaces outside `pnpm/`). The two are kept
-behaviorally identical: the same commands, flags, defaults, error codes, file
-formats, lockfile shape, and directory layout. pacquet is not a downstream port
-that trails the TypeScript CLI; it is a source of truth in its own right, at
-near-complete feature parity, and the two stacks are developed together.
+`pacquet` is pnpm v12, implemented in Rust and the target for new feature
+development. The TypeScript CLI under `../pnpm11/` is pnpm v11, which is
+maintained for bug fixes. New features are developed only in pacquet.
 
-## The cardinal rule
+## Version policy
 
-**pacquet and the TypeScript pnpm CLI must stay behaviorally identical.**
-They are parallel implementations of one package manager, developed together at
-near-complete feature parity. Any user-visible change — a command, flag,
-default, error code or message, lockfile/manifest/state-file format, log
-emission parsed by `@pnpm/cli.default-reporter`, store layout, or hook
-semantic — must land in both stacks at the same time. The repo-wide statement
-of this obligation lives in
-[`../AGENTS.md`](../AGENTS.md#keep-pnpm-and-pacquet-in-sync); this section is the
-pacquet-side detail.
+**Implement new features only in pnpm v12. Do not add them to pnpm v11.** A
+new command, flag, behavior, or format introduced in pacquet does not need a
+TypeScript implementation.
 
-Neither stack is downstream of the other. You are not "porting from" the
-TypeScript code: when you implement or change behavior in pacquet, make the
-equivalent change in the TypeScript workspaces in the same PR, and vice versa.
-If you genuinely can't (different expertise, scope too large, or the other
-stack hasn't grown the surrounding feature yet), ship your side and say so in
-the PR description so the matching commits can follow before it lands.
+Bug fixes follow the affected versions. If a bug is present in both pnpm v11
+and v12, fix and test it in both implementations. If it is present in only one
+version, fix only that version. The repo-wide policy lives in
+[`../AGENTS.md`](../AGENTS.md#pnpm-v12-and-v11-development-policy); this section
+is the pacquet-side detail.
 
 Working rules:
 
-1. **Keep the two implementations in agreement.** When you touch behavior in
-   pacquet, find the counterpart in the TypeScript workspaces — they live at
-   the repo root (`pnpm/` for the CLI entry, `pkg-manager/`, `resolving/`,
-   `lockfile/`, `store/`, `fetching/`, `config/`, `hooks/`, and so on; see the
-   [repo-structure section](../AGENTS.md#repository-structure)) — and change it
-   there too. The two must agree on logic, edge cases, config resolution, error
-   messages, and file/lockfile formats.
-2. **Match observable behavior, not structure.** Structural similarity (similar
+1. **Classify the change before editing v11.** New features and v12-only bug
+   fixes stay in pacquet. Only edit `../pnpm11/` when fixing a bug that is also
+   present in v11 or when doing work explicitly requested for v11.
+2. **Fix shared bugs in both versions.** For a bug present in both releases,
+   find the counterpart under `../pnpm11/` and make both implementations agree
+   on logic, edge cases, config resolution, error messages, and file/lockfile
+   formats affected by the fix.
+3. **Match observable behavior, not structure.** Structural similarity (similar
    function decomposition and names) is a convenience for cross-referencing, not
    a requirement. What must match is what a user or a downstream tool can
-   observe.
-3. **Don't diverge unilaterally.** Do not add a feature, flag, or quirk to one
-   stack without the other, and do not "fix" a behavior in only one. A genuine
-   bug present in both is fixed in both.
-4. **Log emissions are part of behavioral identity.** A function that fires
-   `pnpm:<channel>` events through the reporter must use the same call site,
-   payload, and ordering in both stacks so `@pnpm/cli.default-reporter` parses
-   pacquet's NDJSON the same way it parses the TypeScript CLI's. See
+   observe for the shared bug fix.
+4. **Keep version-specific behavior deliberate.** A new v12 feature is an
+   intentional difference, not something to backport to v11. Do not introduce
+   unrelated differences while implementing a shared bug fix.
+5. **Log emissions are part of shared bug-fix behavior.** When a shared fix
+   changes a function that fires `pnpm:<channel>` events through the reporter,
+   keep the call site, payload, and ordering consistent in both stacks so
+   `@pnpm/cli.default-reporter` parses pacquet's NDJSON the same way it parses
+   the TypeScript CLI's. See
    [Reporter / log events](./CODE_STYLE_GUIDE.md#reporter--log-events)
    in the style guide for the convention (channel mapping, threading
    `R: Reporter`, emit-site placement, recording-fake tests).
-5. **Prefer real fixtures; reach for the dependency-injection seam
+6. **Prefer real fixtures; reach for the dependency-injection seam
    only when they can't cover the branch.** Most happy paths and
    error paths should be tested with a `tempfile::TempDir`, the
    mocked registry, or an integration test that spawns the actual
    binary. Use the DI seam — a capability trait on the `Host`
    provider, threaded as `Sys: <Bounds>` — only for branches a real
    fixture can't reach portably: filesystem error kinds
-   (`PermissionDenied`, `ENOSPC`, …), deterministic time, shared
+   (`PermissionDenied`, `ENOSPC`, and so on), deterministic time, shared
    process-global state a test would otherwise mutate
-   (`env::set_var`, `set_current_dir`, the umask, …), or the
+   (`env::set_var`, `set_current_dir`, the umask, and so on), or the
    external-service happy paths in features like `pnpm login` (2FA)
    and `pnpm publish` (OIDC / provenance) when those land. See
    [Dependency injection for tests](./CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
    in the style guide for the gating rule, the names (`Sys`, `Host`,
-   `Fs*`, `Clock`, `EnvVar`, …), the eight principles, and the
+   `Fs*`, `Clock`, `EnvVar`, and so on), the eight principles, and the
    `modules-yaml` worked example.
 
 If the intended behavior is unclear or looks wrong, stop and ask the user
@@ -165,16 +155,42 @@ inside `pnpm/`. Run `cargo` and `just` from the repo root.
 
 ## Commands
 
-Prefer `just` recipes when one fits; drop down to `cargo` / `taplo` / etc.
-directly when you need flags the recipe doesn't expose (e.g. filtering tests
-by crate or name — see below).
+Build, check, lint, and test through the root `package.json` scripts, not by
+calling `cargo` or `just` yourself. Each script wraps the `just` recipe or
+node script it is listed with below and passes its arguments through. Going
+through `pnpm` is what lets a task concurrency group (`concurrencyGroups`
+in `pnpm-workspace.yaml`) hold the builds and test runs of every worktree on
+a machine to a limit it can carry; a bare `cargo` slips past it. Drop down to `cargo` / `taplo` / etc. only for a
+one-off that no script covers.
 
-- `just ready` — run the same checks CI runs (typos, fmt, check, test, lint).
-  Run this before declaring a task complete.
-- `just test` — `cargo nextest run`.
-- `just lint` — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
-- `just check` — `cargo check --locked --workspace --all-targets`.
-- `just fmt` — `cargo fmt` + `taplo format`.
+- `pnpm ready:rust` (`just ready`) — run the same checks CI runs (typos, fmt,
+  check, test, lint). It runs all ~11,000 tests in the workspace. CI already
+  does that on three platforms for every pull request, so run it locally only
+  when a change reaches past the crates you can name (see
+  [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks)).
+- `pnpm test:rust-affected` (`just test-affected`) — the tests of the crates
+  the working tree changes, plus the smoke profile when unselected crates
+  depend on them. The default way to test a change; `--help` lists its flags.
+- `pnpm test:rust -p <crate>` (`node pnpm/scripts/run-rust-tests.mjs`) — one
+  crate's tests, with the sanitized environment `just test` uses.
+  `-E '<filterset>'` narrows further: `test(<substring>)` for one test. Prefer
+  `-p` over a `package()` filterset when picking crates by hand: `-p`
+  restricts what cargo builds, a filterset only selects among what was built.
+  Reach for `rdeps()` only at the edge of the dependency graph — for a core
+  crate it selects most of the workspace. The
+  [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill has the
+  measured fan-out and how to pick a selection.
+- `pnpm test:rust-smoke` (`just smoke`) — one end-to-end test per area of CLI
+  behavior, listed in the `smoke` profile in `.config/nextest.toml`.
+  `test:rust-affected` runs it automatically when unselected crates depend on
+  what changed, standing in for their full test sets; this runs it on its own.
+- `pnpm test:rust` (`just test`) — `cargo nextest run` over the whole workspace.
+- `pnpm ci:rust-test` / `pnpm ci:pnpr-test` (`just test-pacquet` /
+  `just test-pnpr`) — one product's crates.
+- `pnpm lint:rust` (`just lint`) — `cargo clippy --locked --workspace --all-targets -- --deny warnings`.
+- `pnpm check:rust` (`just check`) — `cargo check --locked --workspace --all-targets`.
+- `pnpm build:pnpm` — `cargo build --release --bin pnpm`.
+- `just fmt` — the pinned fork (`node pnpm/scripts/rustfmt.mjs --all`) + `taplo format`.
 - `just cli -- <args>` — run the pacquet binary.
 - `just registry-mock <args>` — manage the mock registry used by tests.
 - `just integrated-benchmark <args>` — compare revisions or compare against
@@ -206,10 +222,10 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
 - Tests that need the mocked registry start `pnpr` through
   `pnpm-testing-utils`; `cargo test` / `cargo nextest run` should not
   require a separate `just registry-mock launch` step.
-- When a behavior change spans both stacks, keep their tests in sync — give
+- When a bug fix spans both versions, keep their tests in sync — give
   pacquet a Rust test for the same scenario the TypeScript stack covers (and
   vice versa) whenever it translates. Matching test coverage is the easiest
-  way to prove behavioral parity.
+  way to prove the shared bug is fixed consistently.
 - The active test-porting plan lives in
   [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It enumerates the
   upstream TypeScript tests scheduled to be ported (with file paths and line
@@ -253,7 +269,7 @@ fn my_test() {
 }
 ```
 
-are forbidden. If the test needs a tool, just call into it and let the
+are forbidden. If the test needs a tool, call into it and let the
 existing `.unwrap()` / `.expect(...)` panic when the tool is absent — a
 failing test in an under-provisioned environment is the correct signal.
 Tolerance defeats the purpose of testing: if the environment really
@@ -274,25 +290,50 @@ shows up in the test report; a silent `return` does not.
 
 ### Running tests narrowly
 
-Running the full suite is slow. While iterating, target what you're working
-on:
+Running the full suite is slow. Target what you're working on. Run these
+through `pnpm test:rust` rather than `cargo nextest` directly for anything
+that exercises the CLI: it sanitizes the ambient npm and pnpm configuration
+the way `just test` does.
 
 ```sh
-# One crate
-cargo nextest run -p pnpm-lockfile
+# The crates the working tree changes
+pnpm test:rust-affected
 
-# One test by name substring
-cargo nextest run -p pnpm-lockfile <name_substring>
-
-# One integration test file
-cargo nextest run -p pnpm-lockfile --test <file_stem>
-
-# One module of pnpm-cli's suite (the suite is a single target, so the
-# former per-file `--test <file_stem>` is a module filter here)
-cargo nextest run -p pnpm-cli -E 'test(/^<file_stem>::/)'
+# One crate, one test, one module of pnpm-cli's suite. The suite is a single
+# target, so a module filter replaces the per-file `--test <file_stem>`.
+pnpm test:rust -p pnpm-lockfile
+pnpm test:rust -E 'test(<name_substring>)'
+pnpm test:rust -p pnpm-cli -E 'test(/^<file_stem>::/)'
 ```
 
-Run `just ready` (full suite) before handing the PR off.
+CI runs the full suite on three platforms for every pull request, so a local
+`pnpm ready:rust` is for changes whose affected set you cannot name, not a
+step before every handoff. See
+[`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks).
+
+### Process lifetime contract
+
+What happens to the processes pnpm starts for scripts and commands when they,
+or pnpm, end is a contract, written down in
+[`crates/executor/PROCESS_LIFETIME.md`](./crates/executor/PROCESS_LIFETIME.md).
+Its rule is that what a command leaves running outlives pnpm exactly when it
+would outlive the command run without pnpm, apart from two stated
+differences. Each row of the contract names the tests that pin it, most of
+them in `crates/cli/tests/suite/process_lifetime/`.
+
+- Treat a request to end, or to keep, some process that the contract says
+  otherwise about as a change to the contract. Change `PROCESS_LIFETIME.md`
+  first, give the reason for any new difference from the command run without
+  pnpm, and update the tests its changed rows name, in the same PR.
+- Never change or delete one of those tests on its own to make a change
+  pass. A failure there means the change diverges from the contract.
+- Exit through `pnpm_executor::exit` or return from `main`. Never call
+  `std::process::exit` or a platform exit directly, and never silence the
+  `clippy::disallowed_methods` lint that bans it: such an exit skips the
+  release of the Windows Job Object and kills whatever the command left
+  running.
+- A review should flag a PR that changes how pnpm spawns, waits for,
+  signals, or kills processes without checking it against the contract.
 
 ## Style
 
@@ -308,12 +349,19 @@ Run `just ready` (full suite) before handing the PR off.
   scalar `assert_eq!`.
 - Follow [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/naming.html)
   for naming.
+- A `bool` stays a `bool` only while every use site reads as a predicate. A
+  behavior switch, a bare `true`/`false` argument, or a `bool` in a tuple
+  becomes an enum or a struct with named fields. A `bool` named for one of
+  several alternatives becomes an enum of those alternatives. Flags that
+  constrain each other become one enum of the reachable states, not a struct of
+  named flags.
+  See [Boolean parameters and fields](./CODE_STYLE_GUIDE.md#boolean-parameters-and-fields).
 - **No star imports inside module bodies.** Write `use super::{Foo, bar}`
   instead of `use super::*;`, and the same for any other glob whose
   target is a module you control. Two forms stay allowed: external-crate
   preludes such as `use rayon::prelude::*;` and root-of-module
-  re-exports such as `pub use submodule::*;` in a `lib.rs`. See the
-  "No star imports" section in `CODE_STYLE_GUIDE.md`.
+  re-exports such as `pub use submodule::*;` in a `lib.rs`. See
+  [No star imports](./CODE_STYLE_GUIDE.md#no-star-imports).
 
 ### Comments
 
@@ -402,12 +450,18 @@ are part of the public contract, not implementation detail. See
 
 - Keep commits focused. A bug fix commit should not also refactor or
   reformat unrelated code.
-- When a change has a counterpart in the TypeScript pnpm CLI, land both
-  together; if they must be split, cross-reference the matching PR so a
-  reviewer can confirm the two stacks stay in sync.
-- Run `just ready` before pushing.
-- The repo-wide husky `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh`,
-  which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
+- When a bug fix also applies to pnpm v11, land both implementations together;
+  if they must be split, cross-reference the matching PR so a reviewer can
+  confirm both versions are fixed.
+- Before pushing, run `typos`, the formatter, `pnpm check:rust`,
+  `pnpm lint:rust`, and the tests for the crates you touched. Keep `check` and
+  `lint` workspace-wide; scope the tests. Reach for the full `pnpm ready:rust`
+  only when the change reaches past the crates you can name — CI runs the
+  whole suite on three platforms anyway. See
+  [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks) and the
+  [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill.
+- The repo-wide husky `pre-push` hook runs `pnpm run pre-push:rust`
+  (`pnpm/scripts/pre-push-rust.sh`), which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
   warnings`), `cargo doc` (with `RUSTDOCFLAGS=-D warnings`), and `cargo
   dylint`. Make sure your environment
   can run cargo (the hook needs it) before pushing; `cargo-dylint` is
@@ -433,17 +487,19 @@ perf(store-dir): share one read-only StoreIndex across cache lookups
 
 ## Things not to do
 
-- Do not add a feature, flag, or behavior to one stack without making the
-  same change to the other. The two move together.
-- Do not change lockfile format, store layout, `.npmrc` semantics, or CLI
-  surface in only one stack — those are the shared contract and must change
-  in both at once.
+- Do not implement new features, flags, or behaviors in pnpm v11. New features
+  belong only in pnpm v12.
+- Do not fix a bug in only one implementation when the same bug is present in
+  both pnpm v11 and v12.
 - A dependency that is already declared in `[workspace.dependencies]` in the
   root `Cargo.toml` may be added to any crate that needs it.
 - Do not add a dependency that is not already declared in the workspace
   without an explicit human request. If there is a clear benefit and
   justification for pulling in a new third-party crate, ask the human to
   approve it and to add it to `[workspace.dependencies]` rather than adding
-  it yourself. Consult `deny.toml` when evaluating candidates.
+  it yourself. Consult `.config/deny.toml` when evaluating candidates.
 - Do not introduce `unsafe` without a clear justification and review.
 - Do not disable lints, tests, or CI checks to make a PR green.
+- Do not change what happens to the processes a command leaves running without
+  changing [`PROCESS_LIFETIME.md`](./crates/executor/PROCESS_LIFETIME.md)
+  first (see [Process lifetime contract](#process-lifetime-contract)).

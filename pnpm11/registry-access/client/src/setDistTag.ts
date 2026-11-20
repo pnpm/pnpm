@@ -30,6 +30,7 @@ export async function setDistTag (opts: SetDistTagOptions): Promise<void> {
     headers: {
       'content-type': 'application/json',
       'npm-auth-type': opts.authType ?? 'web',
+      'npm-command': 'dist-tag',
       ...(opts.otp ? { 'npm-otp': opts.otp } : {}),
     },
     body: JSON.stringify(opts.version),

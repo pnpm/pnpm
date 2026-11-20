@@ -1,10 +1,16 @@
 use std::{
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use crate::{error::VersioningError, intents::CHANGES_DIR};
+use crate::{
+    error::VersioningError,
+    intents::CHANGES_DIR,
+};
 
 /// Directory (under the workspace's `.changeset/`) holding the composed
 /// changelog sections of releases whose intents are not yet published. In
@@ -64,7 +70,10 @@ pub fn list_pending_changelogs(
     for entry in entries {
         let entry = entry.map_err(|source| VersioningError::Read { path: dir.clone(), source })?;
         let file_name = entry.file_name();
-        let Some(key) = file_name.to_str().and_then(|name| name.strip_suffix(".md")) else {
+        let Some(key) = file_name
+            .to_str()
+            .and_then(|name| name.strip_suffix(".md"))
+        else {
             continue;
         };
         let Some(at) = key.rfind('@') else {
@@ -91,7 +100,7 @@ pub fn read_pending_changelog(
     }
 }
 
-/// Removes a parked section. A missing file is not an error — it may already
+/// Removes a parked section. A missing file is not an error; it may already
 /// have been collected.
 pub fn remove_pending_changelog(
     workspace_dir: &Path,

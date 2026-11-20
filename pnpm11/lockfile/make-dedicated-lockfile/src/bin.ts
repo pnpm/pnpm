@@ -3,7 +3,7 @@ import { findWorkspaceDir } from '@pnpm/workspace.root-finder'
 
 import { makeDedicatedLockfile } from './index.js'
 
-main()
+await main()
 
 async function main (): Promise<void> {
   const projectDir = process.cwd()

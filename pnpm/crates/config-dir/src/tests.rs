@@ -1,5 +1,8 @@
 use super::config_dir;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn home(path: &str) -> impl FnOnce() -> Option<PathBuf> + use<'_> {
     move || Some(PathBuf::from(path))
@@ -22,7 +25,15 @@ fn prefers_xdg_config_home_on_every_os_without_consulting_home() {
 #[test]
 fn macos_uses_library_preferences() {
     let dir = config_dir("pnpr", "macos", None, None, home("/Users/u"));
-    assert_eq!(dir, Some(Path::new("/Users/u").join("Library").join("Preferences").join("pnpr")));
+    assert_eq!(
+        dir,
+        Some(
+            Path::new("/Users/u")
+                .join("Library")
+                .join("Preferences")
+                .join("pnpr")
+        ),
+    );
 }
 
 #[test]

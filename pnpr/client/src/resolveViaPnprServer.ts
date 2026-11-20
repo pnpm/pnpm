@@ -1,6 +1,7 @@
 import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
+import { isDeepStrictEqual, promisify } from 'node:util'
 import { gunzip } from 'node:zlib'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -11,15 +12,18 @@ import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { PackageExtension, RegistryDeclaration, TrustPolicy } from '@pnpm/types'
 
 import type { ResponseMetadata } from './protocol.js'
+import { buildPnprVerifyError, type PnprViolation } from './verifyError.js'
 
 export interface PnprProject {
   /** Relative dir within the workspace (e.g. "." or "packages/foo") */
   dir: string
   name?: string
   version?: string
+  publishConfig?: { directory: string, linkDirectory?: boolean }
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
+  peerDependencies?: Record<string, string>
 }
 
 export interface ResolveViaPnprServerOptions {
@@ -29,12 +33,16 @@ export interface ResolveViaPnprServerOptions {
   name?: string
   /** Project version to resolve (single project) */
   version?: string
+  /** Workspace link target (single project) */
+  publishConfig?: PnprProject['publishConfig']
   /** Dependencies to resolve (single project) */
   dependencies?: Record<string, string>
   /** Dev dependencies to resolve (single project) */
   devDependencies?: Record<string, string>
   /** Optional dependencies to resolve (single project) */
   optionalDependencies?: Record<string, string>
+  /** Peer dependencies, auto-installed under autoInstallPeers (single project) */
+  peerDependencies?: Record<string, string>
   /** Multiple projects in a workspace */
   projects?: PnprProject[]
   /**
@@ -88,14 +96,14 @@ export interface ResolveViaPnprServerOptions {
    */
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   /**
-   * The client's verification policy. The server is the only place these
-   * run on the pnpr path — the client skips its own
-   * `verifyLockfileResolutions` whenever a pnpr server is configured — so
-   * every field has to travel with the request. Anything omitted is not
-   * merely defaulted server-side: the server clears the field from its
-   * config, which enforces a *stricter* policy than the user configured
-   * (an omitted `minimumReleaseAgeExclude` re-applies the age gate to
-   * packages the user opted out of).
+   * The client's supply-chain verification policy. The client runs offline
+   * structural and resolution-shape checks locally, while the server enforces
+   * the online supply-chain policy on the pnpr path — so every policy field
+   * has to travel with the request. Anything omitted is not merely defaulted
+   * server-side: the server clears the field from its config, which enforces a
+   * *stricter* policy than the user configured (an omitted
+   * `minimumReleaseAgeExclude` re-applies the age gate to packages the user
+   * opted out of).
    */
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
@@ -116,8 +124,6 @@ export interface ResolveViaPnprServerOptions {
    */
   frozenLockfile?: boolean
   preferFrozenLockfile?: boolean
-  /** Refresh registry artifacts while retaining every locked package version. */
-  updatePatches?: boolean
   /**
    * Existing lockfile for incremental resolution, in the on-disk format
    * the wire protocol carries. The caller reads it with
@@ -131,8 +137,6 @@ export interface ResolveViaPnprServerResult {
   stats: ResponseMetadata['stats']
 }
 
-interface Violation { name: string, version: string, code: string, reason: string }
-
 /**
  * One NDJSON frame from `POST /-/pnpr/v0/resolve`. `package` frames stream as
  * the server resolves; exactly one terminal frame (`done` / `error` /
@@ -140,9 +144,9 @@ interface Violation { name: string, version: string, code: string, reason: strin
  */
 type ResolveFrame =
   | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string }
-  | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'] }
-  | { type: 'error', message: string }
-  | { type: 'violations', violations: Violation[] }
+  | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'], appliedPolicies: Record<string, unknown> }
+  | { type: 'error', message: string, code?: string }
+  | { type: 'violations', violations: PnprViolation[] }
 
 /**
  * Resolve a project against a pnpr server and return the resolved
@@ -158,16 +162,41 @@ type ResolveFrame =
 export async function resolveViaPnprServer (
   opts: ResolveViaPnprServerOptions
 ): Promise<ResolveViaPnprServerResult> {
-  const projects = opts.projects ?? [{
+  const projects = opts.projects ?? [singleProjectOf(opts)]
+  const requestBody = serializeResolveRequest(opts, projects)
+
+  const body = await postResolve(opts.registryUrl, requestBody, opts.authorization)
+
+  const terminal = parseTerminalFrame(body.toString('utf-8'))
+  assertResolutionSucceeded(terminal)
+
+  assertAppliedPolicies(terminal.appliedPolicies, opts)
+  assertTransformMetadata(terminal.lockfile, opts)
+  assertPublishDirectories(terminal.lockfile, projects)
+
+  return {
+    // The server speaks the on-disk lockfile format; convert it to the
+    // in-memory `LockfileObject` the rest of pnpm consumes.
+    lockfile: convertToLockfileObject(terminal.lockfile),
+    stats: terminal.stats,
+  }
+}
+
+function singleProjectOf (opts: ResolveViaPnprServerOptions): PnprProject {
+  return {
     dir: '.',
     name: opts.name,
     version: opts.version,
+    publishConfig: opts.publishConfig,
     dependencies: opts.dependencies,
     devDependencies: opts.devDependencies,
     optionalDependencies: opts.optionalDependencies,
-  }]
+    peerDependencies: opts.peerDependencies,
+  }
+}
 
-  const requestBody = JSON.stringify({
+function serializeResolveRequest (opts: ResolveViaPnprServerOptions, projects: PnprProject[]): string {
+  return JSON.stringify({
     projects,
     registry: opts.registry,
     registries: opts.registries,
@@ -192,34 +221,62 @@ export async function resolveViaPnprServer (
     trustLockfile: opts.trustLockfile,
     frozenLockfile: opts.frozenLockfile,
     preferFrozenLockfile: opts.preferFrozenLockfile,
-    updatePatches: opts.updatePatches,
     // Sent as-is: `opts.lockfile` is already the on-disk format the wire
     // protocol carries (split `packages`/`snapshots`, `{ specifier, version }`
     // importer deps).
     lockfile: opts.lockfile,
   })
+}
 
-  const body = await postResolve(opts.registryUrl, requestBody, opts.authorization)
-
-  const terminal = parseTerminalFrame(body.toString('utf-8'))
-
+function assertResolutionSucceeded (terminal: TerminalFrame): asserts terminal is DoneFrame {
   if (terminal.type === 'error') {
+    if (terminal.code != null) {
+      throw new PnpmError(terminal.code, terminal.message)
+    }
     throw new Error(terminal.message)
   }
   if (terminal.type === 'violations') {
-    const rendered = terminal.violations
-      .map((violation) => `  ${violation.name}@${violation.version}: ${violation.reason}`)
-      .join('\n')
-    throw new Error(`pnpr server rejected the lockfile under the verification policy:\n${rendered}`)
+    throw buildPnprVerifyError(terminal.violations)
   }
+}
 
-  assertTransformMetadata(terminal.lockfile, opts)
+function assertAppliedPolicies (applied: Record<string, unknown> | undefined, opts: ResolveViaPnprServerOptions): void {
+  if (applied == null || typeof applied !== 'object' || Array.isArray(applied)) {
+    throw new PnpmError('PNPR_POLICY_MISMATCH', 'pnpr server omitted appliedPolicies')
+  }
+  const expected = expectedPolicies(opts)
+  for (const [name, value] of Object.entries(expected)) {
+    if (!isDeepStrictEqual(applied[name], value)) {
+      throw new PnpmError('PNPR_POLICY_MISMATCH', `pnpr server ignored requested ${name}`)
+    }
+  }
+  assertAppliedResolutionSettings(applied, opts)
+}
 
+function expectedPolicies (opts: ResolveViaPnprServerOptions): Record<string, unknown> {
   return {
-    // The server speaks the on-disk lockfile format; convert it to the
-    // in-memory `LockfileObject` the rest of pnpm consumes.
-    lockfile: convertToLockfileObject(terminal.lockfile),
-    stats: terminal.stats,
+    minimumReleaseAge: opts.minimumReleaseAge ?? null,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude ?? [],
+    minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime ?? true,
+    trustPolicy: opts.trustPolicy === 'no-downgrade' ? 'no-downgrade' : null,
+    trustPolicyExclude: opts.trustPolicyExclude ?? [],
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter ?? null,
+    trustLockfile: opts.trustLockfile ?? false,
+    frozenLockfile: opts.frozenLockfile ?? false,
+    resolutionMode: opts.resolutionMode ?? 'highest',
+  }
+}
+
+function assertAppliedResolutionSettings (applied: Record<string, unknown>, opts: ResolveViaPnprServerOptions): void {
+  for (const name of ['autoInstallPeers', 'dedupePeers', 'excludeLinksFromLockfile'] as const) {
+    if (typeof applied[name] !== 'boolean' || (opts[name] != null && applied[name] !== opts[name])) {
+      throw new PnpmError('PNPR_POLICY_MISMATCH', `pnpr server ignored requested ${name}`)
+    }
+  }
+  for (const name of ['addMissingPeerTypes', 'projectScopedOptionalPeers']) {
+    if (typeof applied[name] !== 'boolean') {
+      throw new PnpmError('PNPR_POLICY_MISMATCH', `pnpr server omitted appliedPolicies.${name}`)
+    }
   }
 }
 
@@ -246,7 +303,31 @@ function equalStringRecords (
   return Object.entries(expected).every(([key, value]) => actual[key] === value)
 }
 
+/**
+ * Every project that publishes from a subdirectory must come back with that
+ * directory on its importer: the server rebuilds each project's manifest from
+ * the request, so a server that ignored `publishConfig` would have the caller
+ * link the project root and install different code than a local install does.
+ * Only an importer the server did return is checked — a request may be merged
+ * into a lockfile that leaves other importers alone.
+ */
+function assertPublishDirectories (lockfile: LockfileFile, projects: PnprProject[]): void {
+  for (const project of projects) {
+    const expected = project.publishConfig?.directory
+    if (expected == null) continue
+    const importer = returnedImporter(lockfile, project.dir)
+    if (importer == null || importer.publishDirectory === expected) continue
+    throw new PnpmError('PNPR_PUBLISH_DIRECTORY_MISMATCH', `pnpr server /-/pnpr/v0/resolve returned importer "${project.dir}" linked at ${JSON.stringify(importer.publishDirectory)} instead of its publishConfig.directory "${expected}"; the server may not forward project publishConfig`)
+  }
+}
+
+function returnedImporter (lockfile: LockfileFile, dir: string): NonNullable<LockfileFile['importers']>[string] | undefined {
+  return lockfile.importers != null && Object.hasOwn(lockfile.importers, dir) ? lockfile.importers[dir] : undefined
+}
+
 type TerminalFrame = Extract<ResolveFrame, { type: 'done' | 'error' | 'violations' }>
+
+type DoneFrame = Extract<ResolveFrame, { type: 'done' }>
 
 /**
  * Parse the NDJSON `/-/pnpr/v0/resolve` body and return its single terminal
@@ -259,15 +340,17 @@ type TerminalFrame = Extract<ResolveFrame, { type: 'done' | 'error' | 'violation
 function parseTerminalFrame (body: string): TerminalFrame {
   for (const line of body.split('\n')) {
     if (line.trim() === '') continue
-    const frame = JSON.parse(line) as ResolveFrame
+    const frame = JSON.parse(line) as { type?: unknown, [key: string]: unknown }
     if (frame.type === 'package') continue
     if (frame.type === 'done' || frame.type === 'error' || frame.type === 'violations') {
-      return frame
+      return frame as TerminalFrame
     }
-    throw new Error(`pnpr server /-/pnpr/v0/resolve stream emitted an unknown frame type: ${String((frame as { type: unknown }).type)}`)
+    // Ignore unknown frames instead of throwing
   }
   throw new Error('pnpr server /-/pnpr/v0/resolve stream ended without a terminal frame')
 }
+
+const gunzipAsync = promisify(gunzip)
 
 const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be slow on first run
 
@@ -282,7 +365,29 @@ async function postResolve (registryUrl: string, body: string, authorization?: s
   const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
   const url = new URL('-/pnpr/v0/resolve', base)
   const requestFn = url.protocol === 'https:' ? https.request : http.request
+  const headers = resolveRequestHeaders(body, authorization)
 
+  return new Promise<Buffer>((resolve, reject) => {
+    const req = requestFn(url, {
+      method: 'POST',
+      timeout: REQUEST_TIMEOUT,
+      headers,
+    }, (res) => {
+      readResolveResponse(res).then(resolve, reject)
+    })
+
+    req.on('timeout', () => {
+      req.destroy(new Error(`pnpr server request timed out after ${REQUEST_TIMEOUT / 1000}s (${registryUrl})`))
+    })
+    req.on('error', (err: NodeJS.ErrnoException) => {
+      reject(describeRequestError(err, registryUrl))
+    })
+    req.write(body)
+    req.end()
+  })
+}
+
+function resolveRequestHeaders (body: string, authorization: string | undefined): http.OutgoingHttpHeaders {
   const headers: http.OutgoingHttpHeaders = {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(body),
@@ -293,52 +398,39 @@ async function postResolve (registryUrl: string, body: string, authorization?: s
   if (authorization != null) {
     headers.Authorization = authorization
   }
+  return headers
+}
 
+function describeRequestError (err: NodeJS.ErrnoException, registryUrl: string): Error {
+  if (err.code === 'ECONNREFUSED') {
+    return new Error(`Could not connect to pnpr server at ${registryUrl}. Is the server running?`)
+  }
+  return err
+}
+
+async function readResolveResponse (res: http.IncomingMessage): Promise<Buffer> {
+  const raw = await bufferResponse(res)
+  // The server gzips both the install body and its JSON error bodies
+  // (e.g. a 401/403 access denial), so decompress *before* branching
+  // on the status code — otherwise an error surfaces as binary
+  // garbage instead of the server's message. Skip it only when the
+  // HTTP stack already decompressed (no gzip magic bytes).
+  const body = res.headers['content-encoding'] === 'gzip' || (raw[0] === 0x1f && raw[1] === 0x8b)
+    ? await gunzipAsync(raw)
+    : raw
+  if (res.statusCode !== 200) {
+    throw new Error(`pnpr server responded with ${res.statusCode}: ${body.toString('utf-8')}`)
+  }
+  return body
+}
+
+async function bufferResponse (res: http.IncomingMessage): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
-    const req = requestFn(url, {
-      method: 'POST',
-      timeout: REQUEST_TIMEOUT,
-      headers,
-    }, (res) => {
-      const chunks: Buffer[] = []
-      res.on('data', (chunk: Buffer) => chunks.push(chunk))
-      res.on('end', () => {
-        const raw = Buffer.concat(chunks)
-        // The server gzips both the install body and its JSON error bodies
-        // (e.g. a 401/403 access denial), so decompress *before* branching
-        // on the status code — otherwise an error surfaces as binary
-        // garbage instead of the server's message. Skip it only when the
-        // HTTP stack already decompressed (no gzip magic bytes).
-        const finish = (body: Buffer): void => {
-          if (res.statusCode !== 200) {
-            reject(new Error(`pnpr server responded with ${res.statusCode}: ${body.toString('utf-8')}`))
-          } else {
-            resolve(body)
-          }
-        }
-        if (res.headers['content-encoding'] === 'gzip' || (raw[0] === 0x1f && raw[1] === 0x8b)) {
-          gunzip(raw, (err, decompressed) => {
-            if (err) reject(err)
-            else finish(decompressed)
-          })
-        } else {
-          finish(raw)
-        }
-      })
-      res.on('error', reject)
+    const chunks: Buffer[] = []
+    res.on('data', (chunk: Buffer) => chunks.push(chunk))
+    res.on('end', () => {
+      resolve(Buffer.concat(chunks))
     })
-
-    req.on('timeout', () => {
-      req.destroy(new Error(`pnpr server request timed out after ${REQUEST_TIMEOUT / 1000}s (${registryUrl})`))
-    })
-    req.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'ECONNREFUSED') {
-        reject(new Error(`Could not connect to pnpr server at ${registryUrl}. Is the server running?`))
-      } else {
-        reject(err)
-      }
-    })
-    req.write(body)
-    req.end()
+    res.on('error', reject)
   })
 }

@@ -14,11 +14,11 @@ export function readdir (index: { files: PackageFiles }, dir: string): string[] 
 
 export type DirEntityType = 'file' | 'directory'
 
-export function dirEntityType (index: { files: PackageFiles }, p: string): DirEntityType | undefined {
-  if (index.files.has(p)) return 'file'
-  const prefix = `${p}/`
-  for (const k of index.files.keys()) {
-    if (k.startsWith(prefix)) return 'directory'
+export function dirEntityType (index: { files: PackageFiles }, entryPath: string): DirEntityType | undefined {
+  if (index.files.has(entryPath)) return 'file'
+  const prefix = `${entryPath}/`
+  for (const filePath of index.files.keys()) {
+    if (filePath.startsWith(prefix)) return 'directory'
   }
   return undefined
 }

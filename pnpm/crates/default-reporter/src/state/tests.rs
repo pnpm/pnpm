@@ -1,9 +1,24 @@
-use super::{PnpmInstallSource, cached_verdict, standalone_install_command, update_command};
-use chrono::{DateTime, Utc};
+use super::{
+    Colors,
+    Output,
+    ReporterOptions,
+    ReporterState,
+    cached_verdict,
+    standalone_install_command,
+    update_check::PnpmInstallSource,
+    update_command,
+};
+use jiff::Timestamp;
+use pnpm_reporter::{
+    IgnoredScriptsLog,
+    LogEvent,
+    LogLevel,
+    PendingSkillsLog,
+};
 use pretty_assertions::assert_eq;
 
-fn at(rfc3339: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(rfc3339).expect("parse timestamp").with_timezone(&Utc)
+fn at(rfc3339: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(rfc3339).expect("parse timestamp")
 }
 
 #[test]
@@ -30,6 +45,32 @@ fn falls_back_to_the_timeless_wording_without_a_usable_timestamp() {
 fn clamps_a_future_timestamp_to_zero() {
     let now = at("2026-07-25T12:00:00.000Z");
     assert_eq!(cached_verdict(Some("2026-07-25T12:00:05.000Z"), now), "verified 0ms ago");
+}
+
+#[test]
+fn flushes_pending_approvals_when_the_command_fails() {
+    let mut reporter = ReporterState::new_with_options(
+        "/repo".to_string(),
+        80,
+        Colors { enabled: false },
+        ReporterOptions { append_only: true, ..ReporterOptions::default() },
+    );
+    let _ = reporter.handle(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+        level: LogLevel::Debug,
+        package_names: vec!["esbuild@1.0.0".to_string()],
+        strict_dep_builds: false,
+    }));
+    let _ = reporter.handle(&LogEvent::PendingSkills(PendingSkillsLog {
+        level: LogLevel::Debug,
+        package_names: vec!["esbuild".to_string()],
+    }));
+
+    let Output::Lines(lines) = reporter.flush_pending_approvals() else {
+        panic!("expected appended lines");
+    };
+    let output = lines.join("\n");
+
+    assert!(output.contains("Packages awaiting approval:\n  esbuild  build, skills"), "{output}");
 }
 
 /// `self-update` is named only where it can replace the executable in use.

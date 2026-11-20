@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import { parse as parseDependencyPath, refToRelative } from '@pnpm/deps.path'
@@ -8,6 +10,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
   type LockfileObject,
+  type PackageSnapshot,
   type PackageSnapshots,
   readCurrentLockfile,
   readWantedLockfile,
@@ -29,6 +32,7 @@ export async function checkPeerDependencies (
   projectPaths: string[],
   opts: {
     lockfileDir: string
+    catalogs?: Catalogs
     checkWantedLockfileOnly?: boolean
     modulesDir?: string
     peerDependencyRules?: PeerDependencyRules
@@ -41,7 +45,7 @@ export async function checkPeerDependencies (
       ?? await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
   if (!lockfile) return {}
 
-  const issues = checkPeerDependenciesFromLockfile(projectPaths, lockfile, opts.lockfileDir)
+  const issues = checkPeerDependenciesFromLockfile(projectPaths, lockfile, opts)
   if (opts.peerDependencyRules) {
     return filterPeerDependencyIssues(issues, opts.peerDependencyRules)
   }
@@ -51,10 +55,10 @@ export async function checkPeerDependencies (
 function checkPeerDependenciesFromLockfile (
   projectPaths: string[],
   lockfile: LockfileObject,
-  lockfileDir: string
+  opts: { lockfileDir: string, catalogs?: Catalogs }
 ): PeerDependencyIssuesByProjects {
   const packages = lockfile.packages ?? {}
-  const importerIds = projectPaths.map((p) => getLockfileImporterId(lockfileDir, p))
+  const importerIds = projectPaths.map((projectPath) => getLockfileImporterId(opts.lockfileDir, projectPath))
   const walkerSteps = lockfileWalkerGroupImporterSteps(lockfile, importerIds as ProjectId[])
   const result: PeerDependencyIssuesByProjects = {}
 
@@ -66,7 +70,7 @@ function checkPeerDependenciesFromLockfile (
       intersections: {},
     }
 
-    walkStep(step, packages, [], projectIssues)
+    walkStep(step, { packages, catalogs: opts.catalogs }, [], projectIssues)
 
     const merged = mergePeers(projectIssues.missing)
     projectIssues.conflicts = merged.conflicts
@@ -78,9 +82,14 @@ function checkPeerDependenciesFromLockfile (
   return result
 }
 
+interface WalkContext {
+  packages: PackageSnapshots
+  catalogs?: Catalogs
+}
+
 function walkStep (
   step: LockfileWalkerStep,
-  packages: PackageSnapshots,
+  ctx: WalkContext,
   parents: ParentPackages,
   issues: PeerDependencyIssues
 ): void {
@@ -91,37 +100,81 @@ function walkStep (
     const currentParents: ParentPackages = [...parents, { name: pkgName, version: pkgVersion }]
 
     if (pkgSnapshot.peerDependencies) {
-      for (const [peerName, rawPeerRange] of Object.entries(pkgSnapshot.peerDependencies)) {
-        const peerRange = getPeerVersionRange(rawPeerRange)
-        const isOptional = pkgSnapshot.peerDependenciesMeta?.[peerName]?.optional === true
-        const resolvedPeerRef = pkgSnapshot.dependencies?.[peerName] ?? pkgSnapshot.optionalDependencies?.[peerName]
-
-        if (!resolvedPeerRef) {
-          if (!isOptional) {
-            if (!issues.missing[peerName]) issues.missing[peerName] = []
-            issues.missing[peerName].push({
-              parents: currentParents,
-              optional: isOptional,
-              wantedRange: peerRange,
-            })
-          }
-        } else {
-          const peerVersion = extractVersion(resolvedPeerRef, peerName, packages)
-          if (peerVersion && !satisfies(peerVersion, peerRange)) {
-            if (!issues.bad[peerName]) issues.bad[peerName] = []
-            issues.bad[peerName].push({
-              parents: currentParents,
-              optional: isOptional,
-              wantedRange: peerRange,
-              foundVersion: peerVersion,
-              resolvedFrom: [],
-            })
-          }
-        }
-      }
+      checkDependencyPeers(pkgSnapshot, currentParents, ctx, issues)
     }
 
-    walkStep(next(), packages, currentParents, issues)
+    walkStep(next(), ctx, currentParents, issues)
+  }
+}
+
+function checkDependencyPeers (
+  pkgSnapshot: PackageSnapshot,
+  currentParents: ParentPackages,
+  { packages, catalogs }: WalkContext,
+  issues: PeerDependencyIssues
+): void {
+  const isDirectoryPackage = 'type' in pkgSnapshot.resolution && pkgSnapshot.resolution.type === 'directory'
+  for (const [peerName, rawPeerRange] of Object.entries(pkgSnapshot.peerDependencies ?? {})) {
+    const peerRange = getPeerVersionRange(
+      isDirectoryPackage ? resolveCatalogPeerRange(peerName, rawPeerRange, catalogs) : rawPeerRange
+    )
+    const isOptional = pkgSnapshot.peerDependenciesMeta?.[peerName]?.optional === true
+    const resolvedPeerRef = pkgSnapshot.dependencies?.[peerName] ?? pkgSnapshot.optionalDependencies?.[peerName]
+
+    checkSinglePeer({
+      peerName,
+      peerRange,
+      isOptional,
+      resolvedPeerRef,
+      currentParents,
+      packages,
+      issues,
+    })
+  }
+}
+
+// The lockfile records a directory package's peers as written. A range the
+// catalogs cannot resolve is kept, and so reported as unmet.
+function resolveCatalogPeerRange (peerName: string, peerRange: string, catalogs: Catalogs | undefined): string {
+  if (catalogs == null) return peerRange
+  const result = resolveFromCatalog(catalogs, { alias: peerName, bareSpecifier: peerRange })
+  return result.type === 'found' ? result.resolution.specifier : peerRange
+}
+
+interface PeerCheckContext {
+  peerName: string
+  peerRange: string
+  isOptional: boolean
+  resolvedPeerRef: string | undefined
+  currentParents: ParentPackages
+  packages: PackageSnapshots
+  issues: PeerDependencyIssues
+}
+
+function checkSinglePeer (ctx: PeerCheckContext): void {
+  const { peerName, peerRange, isOptional, resolvedPeerRef, currentParents, packages, issues } = ctx
+  if (!resolvedPeerRef) {
+    if (!isOptional) {
+      if (!issues.missing[peerName]) issues.missing[peerName] = []
+      issues.missing[peerName].push({
+        parents: currentParents,
+        optional: isOptional,
+        wantedRange: peerRange,
+      })
+    }
+    return
+  }
+
+  const peerVersion = extractVersion(resolvedPeerRef, peerName, packages)
+  if (peerVersion && !satisfies(peerVersion, peerRange)) {
+    if (!issues.bad[peerName]) issues.bad[peerName] = []
+    issues.bad[peerName].push({
+      parents: currentParents,
+      optional: isOptional,
+      wantedRange: peerRange,
+      foundVersion: peerVersion,
+      resolvedFrom: [],
+    })
   }
 }
 
@@ -140,57 +193,97 @@ function satisfies (version: string, range: string): boolean {
   return semver.satisfies(version, range, { includePrerelease: true, loose: true })
 }
 
+interface AllowedVersions {
+  matchAll: Record<string, string[]>
+  byParent: Record<string, Record<string, string[]>>
+}
+
+interface IssueFilters {
+  ignoreMissingMatcher: (name: string) => boolean
+  allowAnyMatcher: (name: string) => boolean
+  allowedVersions: AllowedVersions
+}
+
 function filterPeerDependencyIssues (
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
   rules: PeerDependencyRules
 ): PeerDependencyIssuesByProjects {
-  const ignoreMissingMatcher = createMatcher([...new Set(rules.ignoreMissing ?? [])])
-  const allowAnyMatcher = createMatcher([...new Set(rules.allowAny ?? [])])
-  const { matchAll: allowedVersionsMatchAll, byParent: allowedVersionsByParent } = parseAllowedVersions(rules.allowedVersions ?? {})
-
-  const result: PeerDependencyIssuesByProjects = {}
-
-  for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
-    const filteredMissing: Record<string, MissingPeerDependencyIssue[]> = {}
-    const filteredBad: Record<string, BadPeerDependencyIssue[]> = {}
-    const filteredIntersections: Record<string, string> = {}
-
-    for (const [peerName, issues] of Object.entries(missing)) {
-      if (ignoreMissingMatcher(peerName) || issues.every(({ optional }) => optional)) continue
-      filteredMissing[peerName] = issues
-      if (intersections[peerName]) {
-        filteredIntersections[peerName] = intersections[peerName]
-      }
-    }
-
-    for (const [peerName, issues] of Object.entries(bad)) {
-      if (allowAnyMatcher(peerName)) continue
-      const remaining = issues.filter(
-        (issue) => {
-          if (allowedVersionsMatchAll[peerName]?.some(
-            (range) => semver.satisfies(issue.foundVersion, range)
-          )) return false
-          const declaringParent = issue.parents.at(-1)
-          if (declaringParent && allowedVersionsByParent[declaringParent.name]?.[peerName]?.some(
-            (range) => semver.satisfies(issue.foundVersion, range)
-          )) return false
-          return true
-        }
-      )
-      if (remaining.length > 0) {
-        filteredBad[peerName] = remaining
-      }
-    }
-
-    result[projectId] = {
-      bad: filteredBad,
-      missing: filteredMissing,
-      conflicts: conflicts.filter((peerName) => filteredMissing[peerName] != null),
-      intersections: filteredIntersections,
-    }
+  const filters: IssueFilters = {
+    ignoreMissingMatcher: createMatcher([...new Set(rules.ignoreMissing ?? [])]),
+    allowAnyMatcher: createMatcher([...new Set(rules.allowAny ?? [])]),
+    allowedVersions: parseAllowedVersions(rules.allowedVersions ?? {}),
   }
 
+  const result: PeerDependencyIssuesByProjects = {}
+  for (const [projectId, projectIssues] of Object.entries(peerDependencyIssuesByProjects)) {
+    result[projectId] = filterProjectIssues(projectIssues, filters)
+  }
   return result
+}
+
+function filterProjectIssues (
+  issues: PeerDependencyIssues,
+  filters: IssueFilters
+): PeerDependencyIssues {
+  const { missing, intersections } = filterMissingIssues(
+    issues.missing,
+    issues.intersections,
+    filters.ignoreMissingMatcher
+  )
+  const bad = filterBadIssues(issues.bad, filters)
+  return {
+    bad,
+    missing,
+    conflicts: issues.conflicts.filter((peerName) => missing[peerName] != null),
+    intersections,
+  }
+}
+
+function filterMissingIssues (
+  missing: Record<string, MissingPeerDependencyIssue[]>,
+  intersections: Record<string, string>,
+  ignoreMissingMatcher: (name: string) => boolean
+): { missing: Record<string, MissingPeerDependencyIssue[]>, intersections: Record<string, string> } {
+  const filteredMissing: Record<string, MissingPeerDependencyIssue[]> = {}
+  const filteredIntersections: Record<string, string> = {}
+  for (const [peerName, issues] of Object.entries(missing)) {
+    if (ignoreMissingMatcher(peerName) || issues.every(({ optional }) => optional)) continue
+    filteredMissing[peerName] = issues
+    if (intersections[peerName]) {
+      filteredIntersections[peerName] = intersections[peerName]
+    }
+  }
+  return { missing: filteredMissing, intersections: filteredIntersections }
+}
+
+function filterBadIssues (
+  bad: Record<string, BadPeerDependencyIssue[]>,
+  filters: IssueFilters
+): Record<string, BadPeerDependencyIssue[]> {
+  const filteredBad: Record<string, BadPeerDependencyIssue[]> = {}
+  for (const [peerName, issues] of Object.entries(bad)) {
+    if (filters.allowAnyMatcher(peerName)) continue
+    const remaining = issues.filter(issue => !isAllowedBadIssue(issue, peerName, filters.allowedVersions))
+    if (remaining.length > 0) {
+      filteredBad[peerName] = remaining
+    }
+  }
+  return filteredBad
+}
+
+function isAllowedBadIssue (
+  issue: BadPeerDependencyIssue,
+  peerName: string,
+  allowed: AllowedVersions
+): boolean {
+  if (allowed.matchAll[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) {
+    return true
+  }
+  const declaringParent = issue.parents.at(-1)
+  if (declaringParent && allowed.byParent[declaringParent.name]?.[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) {
+    return true
+  }
+  return false
 }
 
 function parseAllowedVersions (allowedVersions: Record<string, string>): {

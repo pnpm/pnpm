@@ -3,19 +3,18 @@ import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 
 /**
- * Converts an env lockfile to a standard LockfileObject by merging
- * configDependencies and packageManagerDependencies into a single
- * importers['.'].dependencies map.
+ * Separate importers preserve both pins when config and package-manager
+ * dependencies use different versions of the same package.
  */
 export function convertToLockfileEnvObject (envLockfile: EnvLockfile): LockfileObject {
   return convertToLockfileObject({
     lockfileVersion: envLockfile.lockfileVersion,
     importers: {
       '.': {
-        dependencies: {
-          ...envLockfile.importers['.'].configDependencies,
-          ...(envLockfile.importers['.'].packageManagerDependencies ?? {}),
-        },
+        dependencies: envLockfile.importers['.'].configDependencies,
+      },
+      packageManager: {
+        dependencies: envLockfile.importers['.'].packageManagerDependencies ?? {},
       },
     },
     packages: envLockfile.packages,
@@ -33,4 +32,19 @@ export function pruneEnvLockfile (envLockfile: EnvLockfile): void {
   const prunedFile = convertToLockfileFile(pruned)
   envLockfile.packages = prunedFile.packages ?? {}
   envLockfile.snapshots = prunedFile.snapshots ?? {}
+}
+
+/**
+ * Retains declared config roots, preserving package-manager dependencies.
+ * Returns whether a config root was removed.
+ */
+export function retainConfigDependencies (envLockfile: EnvLockfile, isDeclared: (name: string) => boolean): boolean {
+  const dependencies = envLockfile.importers['.'].configDependencies
+  let removed = false
+  for (const name of Object.keys(dependencies)) {
+    if (isDeclared(name)) continue
+    delete dependencies[name]
+    removed = true
+  }
+  return removed
 }

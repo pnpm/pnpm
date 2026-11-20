@@ -27,7 +27,11 @@ fn preserves_existing_file_mode() {
     std::fs::write(&path, "old").unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
     write_atomic(&path, b"new").unwrap();
-    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    let mode = std::fs::metadata(&path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o644, "existing mode must be preserved, got {mode:o}");
 }
 
@@ -45,12 +49,21 @@ fn does_not_follow_a_symlinked_target() {
     let link = dir.path().join("auth.ini");
     std::os::unix::fs::symlink(&real, &link).unwrap();
 
-    write_atomic(&link, b"new").unwrap();
+    super::write_atomic_private_if_new(&link, b"new").unwrap();
 
-    assert!(!std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+    assert!(
+        !std::fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+    );
     assert_eq!(std::fs::read_to_string(&link).unwrap(), "new");
     assert_eq!(std::fs::read_to_string(&real).unwrap(), "secret", "link target untouched");
-    let mode = std::fs::metadata(&link).unwrap().permissions().mode() & 0o777;
+    let mode = std::fs::metadata(&link)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o600, "a replaced symlink keeps the conservative default, got {mode:o}");
 }
 
@@ -69,6 +82,107 @@ fn write_atomic_private_does_not_inherit_a_readable_mode() {
 
     super::write_atomic_private(&path, b"_auth: {}\n").expect("write the credential");
 
-    let mode = std::fs::metadata(&path).expect("stat").permissions().mode() & 0o777;
+    let mode = std::fs::metadata(&path)
+        .expect("stat")
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o600, "got {mode:o}");
+}
+
+#[cfg(unix)]
+fn mode(path: &std::path::Path) -> u32 {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::metadata(path)
+        .expect("stat")
+        .permissions()
+        .mode()
+        & 0o777
+}
+
+#[cfg(unix)]
+#[test]
+fn write_atomic_private_if_new_creates_a_file_readable_only_by_its_owner() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("auth.ini");
+    super::write_atomic_private_if_new(&path, b"//host/:_authToken=tok\n")
+        .expect("write the credential");
+    assert_eq!(mode(&path), 0o600, "got {:o}", mode(&path));
+
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640))
+        .expect("widen the mode");
+    super::write_atomic_private_if_new(&path, b"registry=https://example.test/\n")
+        .expect("replace the file");
+    assert_eq!(mode(&path), 0o640, "got {:o}", mode(&path));
+}
+
+#[cfg(unix)]
+#[test]
+fn write_atomic_creates_a_file_with_the_umask_mode() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("pnpm-workspace.yaml");
+    write_atomic(&path, b"packages: []\n").expect("write a new file");
+    let reference = dir.path().join("reference");
+    std::fs::File::create(&reference).expect("create the reference file");
+    assert_eq!(mode(&path), mode(&reference), "got {:o}", mode(&path));
+
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640))
+        .expect("narrow the mode");
+    write_atomic(&path, b"packages: [a]\n").expect("replace the file");
+    assert_eq!(mode(&path), 0o640, "got {:o}", mode(&path));
+}
+
+#[test]
+fn concurrent_replacements_leave_complete_content() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("state.json");
+    let barrier = std::sync::Barrier::new(4);
+    std::thread::scope(|scope| {
+        for byte in b'a'..=b'd' {
+            let path = &path;
+            let barrier = &barrier;
+            scope.spawn(move || {
+                barrier.wait();
+                replace_repeatedly(path, byte);
+            });
+        }
+    });
+    let contents = std::fs::read(path).unwrap();
+    assert_eq!(contents.len(), 4096);
+    assert!(
+        contents
+            .iter()
+            .all(|byte| *byte == contents[0]),
+    );
+}
+
+fn replace_repeatedly(path: &std::path::Path, byte: u8) {
+    for _ in 0..20 {
+        write_atomic(path, &[byte; 4096]).unwrap();
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn waits_for_a_locked_destination_before_replacing_it() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("state.json");
+    std::fs::write(&path, "old").unwrap();
+    let locked = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1)
+        .open(&path)
+        .unwrap();
+    std::thread::scope(|scope| {
+        scope.spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            drop(locked);
+        });
+        write_atomic(&path, b"new").unwrap();
+    });
+    assert_eq!(std::fs::read(&path).unwrap(), b"new");
 }

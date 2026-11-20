@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { docsUrl, readProjectManifest, readProjectManifestOnly } from '@pnpm/cli.utils'
+import { docsUrl, readRawProjectManifest, readRawProjectManifestOnly } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -8,8 +8,11 @@ import {
   getObjectValueByPropertyPathString,
   setObjectValueByPropertyPathString,
 } from '@pnpm/object.property-path'
-import type { ProjectManifest } from '@pnpm/types'
+import { isPlainObject } from '@pnpm/types'
+import HostedGit from 'hosted-git-info'
 import { renderHelp } from 'render-help'
+
+import { assignReportKeys } from './reportKeys.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -84,12 +87,18 @@ async function handleRecursiveCommand (opts: PkgCommandOptions, subcmd: string, 
   }
 
   if (subcmd === 'get') {
-    const entries = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
-      const manifest = await readProjectManifestOnly(pkg.rootDir) as Record<string, unknown>
-      const pkgName = String(manifest.name ?? path.relative(workspaceDir, pkg.rootDir))
-      return [pkgName, selectFromManifest(manifest, args)] as const
+    const projects = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
+      const manifest = await readRawProjectManifestOnly(pkg.rootDir)
+      return {
+        identity: {
+          name: manifest.name == null ? undefined : String(manifest.name),
+          dirKey: path.relative(workspaceDir, pkg.rootDir),
+        },
+        value: selectFromManifest(manifest, args),
+      }
     }))
-    return JSON.stringify(Object.fromEntries(entries), undefined, 2)
+    const keys = assignReportKeys(projects.map(({ identity }) => identity))
+    return JSON.stringify(Object.fromEntries(projects.map(({ value }, index) => [keys[index], value])), undefined, 2)
   }
 
   await Promise.all(selectedProjects.map(({ package: pkg }) =>
@@ -98,7 +107,7 @@ async function handleRecursiveCommand (opts: PkgCommandOptions, subcmd: string, 
 }
 
 async function pkgGet (opts: PkgCommandOptions, args: string[]): Promise<string> {
-  const manifest = await readProjectManifestOnly(opts.dir) as Record<string, unknown>
+  const manifest = await readRawProjectManifestOnly(opts.dir)
 
   if (args.length === 1) {
     const value = getObjectValueByPropertyPathString(manifest, args[0])
@@ -126,7 +135,7 @@ async function pkgSet (opts: PkgCommandOptions, args: string[]): Promise<void> {
     })
   }
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
+  const { manifest, writeProjectManifest } = await readRawProjectManifest(opts.dir)
 
   for (const arg of args) {
     const eqIndex = arg.indexOf('=')
@@ -147,7 +156,7 @@ async function pkgSet (opts: PkgCommandOptions, args: string[]): Promise<void> {
       }
     }
 
-    setObjectValueByPropertyPathString(manifest as unknown as Record<string, unknown>, key, value)
+    setObjectValueByPropertyPathString(manifest, key, value)
   }
 
   await writeProjectManifest(manifest)
@@ -160,94 +169,109 @@ async function pkgDelete (opts: PkgCommandOptions, args: string[]): Promise<void
     })
   }
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
+  const { manifest, writeProjectManifest } = await readRawProjectManifest(opts.dir)
 
   for (const key of args) {
-    deleteObjectValueByPropertyPathString(manifest as unknown as Record<string, unknown>, key)
+    deleteObjectValueByPropertyPathString(manifest, key)
   }
 
   await writeProjectManifest(manifest)
 }
 
 async function pkgFix (opts: PkgCommandOptions): Promise<void> {
-  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
-  const m = manifest as ProjectManifest & Record<string, unknown>
+  const { manifest, writeProjectManifest } = await readRawProjectManifest(opts.dir)
 
-  if ('name' in m && typeof m.name !== 'string') {
-    delete m.name
-  }
-
-  if ('version' in m && typeof m.version !== 'string') {
-    delete m.version
-  }
-
+  removeIllTypedField(manifest, 'name', (value) => typeof value === 'string')
+  removeIllTypedField(manifest, 'version', (value) => typeof value === 'string')
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts'] as const) {
-    if (field in m && !isPlainObject(m[field])) {
-      delete m[field]
-    }
+    removeIllTypedField(manifest, field, isPlainObject)
   }
+  removeIllTypedField(manifest, 'bin', (value) => typeof value === 'string' || isPlainObject(value))
 
-  if ('bin' in m && typeof m.bin !== 'string' && !isPlainObject(m.bin)) {
-    delete m.bin
-  }
+  normalizeRepository(manifest)
 
   await writeProjectManifest(manifest)
 }
 
-function isPlainObject (value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+function removeIllTypedField (
+  manifest: Record<string, unknown>,
+  field: string,
+  isWellTyped: (value: unknown) => boolean
+): void {
+  if (field in manifest && !isWellTyped(manifest[field])) {
+    delete manifest[field]
+  }
 }
+
+// Mirrors the fixRepositoryField step of npm's `pkg fix`.
+function normalizeRepository (manifest: Record<string, unknown>): void {
+  if (typeof manifest.repository === 'string' && manifest.repository !== '') {
+    manifest.repository = { type: 'git', url: manifest.repository }
+  }
+  const repository = manifest.repository
+  if (!isPlainObject(repository) || typeof repository.url !== 'string') return
+  const hosted = HostedGit.fromUrl(repository.url)
+  // A gist has no owner, but any other host renders an ownerless shortcut such as `github:skills` as a broken URL.
+  if (hosted == null || (hosted.user == null && hosted.type !== 'gist')) return
+  repository.url = hosted.getDefaultRepresentation() === 'shortcut' ? hosted.https() : hosted.toString()
+}
+
+const COMMANDS = {
+  title: 'Commands',
+  list: [
+    {
+      description: 'Retrieves a value from package.json',
+      name: 'get [<key> [<key> ...]]',
+    },
+    {
+      description: 'Sets a value in package.json',
+      name: 'set <key>=<value> [<key>=<value> ...]',
+    },
+    {
+      description: 'Deletes a key from package.json',
+      name: 'delete <key> [<key> ...]',
+    },
+    {
+      description: 'Auto corrects common errors in package.json',
+      name: 'fix',
+    },
+  ],
+}
+
+const OPTIONS = {
+  title: 'Options',
+  list: [
+    {
+      description: 'When setting, parse the value as JSON. When getting a single key, return its JSON-encoded form instead of the raw value',
+      name: '--json',
+    },
+    {
+      description: 'Run on every workspace project or every project selected by a filter',
+      name: '--recursive',
+      shortAlias: '-r',
+    },
+  ],
+}
+
+const USAGES = [
+  'pnpm pkg get [<key> [<key> ...]]',
+  'pnpm pkg set <key>=<value> [<key>=<value> ...]',
+  'pnpm pkg delete <key> [<key> ...]',
+  'pnpm pkg fix',
+  'pnpm pkg set <key>=<value> --json',
+  'pnpm -r pkg get name',
+  'pnpm --filter <selector> pkg get name',
+  'pnpm -r pkg set version=1.0.0',
+]
 
 export function help (): string {
   return renderHelp({
     description: 'Manages your package.json',
     descriptionLists: [
-      {
-        title: 'Commands',
-        list: [
-          {
-            description: 'Retrieves a value from package.json',
-            name: 'get [<key> [<key> ...]]',
-          },
-          {
-            description: 'Sets a value in package.json',
-            name: 'set <key>=<value> [<key>=<value> ...]',
-          },
-          {
-            description: 'Deletes a key from package.json',
-            name: 'delete <key> [<key> ...]',
-          },
-          {
-            description: 'Auto corrects common errors in package.json',
-            name: 'fix',
-          },
-        ],
-      },
-      {
-        title: 'Options',
-        list: [
-          {
-            description: 'When setting, parse the value as JSON. When getting a single key, return its JSON-encoded form instead of the raw value',
-            name: '--json',
-          },
-          {
-            description: 'Run on every workspace project or every project selected by a filter',
-            name: '--recursive',
-            shortAlias: '-r',
-          },
-        ],
-      },
+      COMMANDS,
+      OPTIONS,
     ],
     url: docsUrl('pkg'),
-    usages: [
-      'pnpm pkg get [<key> [<key> ...]]',
-      'pnpm pkg set <key>=<value> [<key>=<value> ...]',
-      'pnpm pkg delete <key> [<key> ...]',
-      'pnpm pkg fix',
-      'pnpm pkg set <key>=<value> --json',
-      'pnpm -r pkg get name',
-      'pnpm --filter <selector> pkg get name',
-      'pnpm -r pkg set version=1.0.0',
-    ],
+    usages: USAGES,
   })
 }

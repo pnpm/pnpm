@@ -1,0 +1,8 @@
+extends: existence
+message: "Use the present tense. Describe what pnpm does, not what it will do."
+link: https://developers.google.com/style/tense
+level: warning
+ignorecase: true
+tokens:
+  - will
+  - "won't"

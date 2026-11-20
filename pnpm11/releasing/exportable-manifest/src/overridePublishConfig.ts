@@ -24,7 +24,7 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
   'es2015',
   'unpkg',
   'umd:main',
-  // These are useful to hide in order to avoid warnings during local development
+  // These are useful to hide to avoid warnings during local development
   'os',
   'cpu',
   'libc',
@@ -33,17 +33,19 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
 ])
 
 export function overridePublishConfig (publishManifest: ProjectManifest): void {
-  const { publishConfig } = publishManifest
-  if (!publishConfig) return
+  if (!publishManifest.publishConfig) return
+  const publishConfig = { ...publishManifest.publishConfig }
+  const manifestFields = publishManifest as Record<string, unknown>
 
   for (const key in publishConfig) {
     if (!PUBLISH_CONFIG_WHITELIST.has(key)) continue
-    const value = publishConfig[key]
-    publishManifest[key as keyof ProjectManifest] = value as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    manifestFields[key] = publishConfig[key]
     delete publishConfig[key]
   }
 
   if (isEmpty(publishConfig)) {
     delete publishManifest.publishConfig
+  } else {
+    publishManifest.publishConfig = publishConfig
   }
 }

@@ -21,17 +21,19 @@ export interface SbomRelationship {
   to: string
 }
 
+export interface SbomRootComponent {
+  name: string
+  version: string
+  type: 'library' | 'application'
+  license?: string
+  description?: string
+  author?: string
+  repository?: string
+  bugsUrl?: string
+}
+
 export interface SbomResult {
-  rootComponent: {
-    name: string
-    version: string
-    type: 'library' | 'application'
-    license?: string
-    description?: string
-    author?: string
-    repository?: string
-    bugsUrl?: string
-  }
+  rootComponent: SbomRootComponent
   components: SbomComponent[]
   relationships: SbomRelationship[]
 }

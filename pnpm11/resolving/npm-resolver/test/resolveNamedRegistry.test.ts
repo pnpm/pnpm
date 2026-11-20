@@ -16,15 +16,15 @@ import { temporaryDirectory } from 'tempy'
 import { getPkgMirrorPath, prepareJsonForDisk, saveMeta } from '../src/pickPackage.js'
 import { getMockAgent, retryLoadJsonFile, setupMockAgent, teardownMockAgent } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const ghAcmePrivateMeta = loadJsonFileSync<any>(f.find('gh-acme-private.json'))
+const testFixtures = fixtures(import.meta.dirname)
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixture is an arbitrary registry document */
+const ghAcmePrivateMeta = loadJsonFileSync<any>(testFixtures.find('gh-acme-private.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const GH_REGISTRY = 'https://npm.pkg.github.com/'
 const ENTERPRISE_REGISTRY = 'https://npm.enterprise.example.com/'
 
-// The `@github` scope is no longer defaulted to GitHub Packages — so public
+// The `@github` scope is not routed to GitHub Packages — so public
 // `@github/*` npm installs are not hijacked. The `gh:` prefix resolves via
 // the built-in `gh` named-registry alias instead.
 const registriesByScope = {
@@ -82,7 +82,7 @@ test('resolveFromNamedRegistry() resolves a scoped package published to GitHub P
   })
 
   // The resolve function writes the cache asynchronously — wait briefly before reading.
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.pkg.github.com/@acme/private.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+npm.pkg.github.com/@acme/private.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta).toMatchObject({
     name: '@acme/private',
     versions: expect.any(Object),
@@ -367,7 +367,7 @@ test('resolveFromNamedRegistry() throws when the specifier names an invalid scop
 test('the same package name served by two registriesByScope does not collide in the in-memory metadata cache', async () => {
   // Both registriesByScope serve `@acme/private`, but point at different tarballs.
   interceptGhAcmePrivate(GH_REGISTRY)
-  /* eslint-disable @typescript-eslint/no-explicit-any */
+  /* eslint-disable @typescript-eslint/no-explicit-any -- the test rewrites arbitrary fields of the fixture document */
   const enterpriseMeta = JSON.parse(JSON.stringify(ghAcmePrivateMeta))
   for (const version of Object.values<any>(enterpriseMeta.versions)) {
     version.dist.tarball = version.dist.tarball.replace('https://npm.pkg.github.com', 'https://npm.enterprise.example.com')

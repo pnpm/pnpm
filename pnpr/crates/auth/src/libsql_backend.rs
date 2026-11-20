@@ -2,42 +2,86 @@
 //!
 //! Backs both [`UserBackend`] and [`TokenBackend`] with one shared
 //! database reached over the network, so several stateless pnpr
-//! replicas observe a consistent set of users and tokens — the
+//! replicas observe a consistent set of users and tokens, the
 //! prerequisite for running the registry as more than a single
 //! instance.
 //!
-//! Unlike the local [`super::TokenStore`], there is no in-memory
-//! mirror: a token issued on one replica must be resolvable on another,
-//! so every [`TokenBackend::lookup`] hits the database. Reads are
+//! A token issued on one replica must be resolvable on another, so every
+//! [`TokenBackend::lookup`] hits the database. Reads are
 //! therefore on the network hot path; an embedded-replica read cache is
 //! the natural next optimization (see
 //! [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199)).
 //!
-//! The SQL is identical to the local backend — the `tokens` table reuses
-//! [`super::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
-//! between the two. Users, which the local backend keeps in an htpasswd
-//! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
+//! The `tokens` and `users` tables come from [`pnpr_sql::schema::TABLES`], as
+//! they do for the local [`super::SqliteAuth`], so a database can be migrated
+//! between the two.
+
+mod accounts;
+mod lifecycle;
+mod registration;
+mod schema;
+mod tokens;
+mod user_admin;
+use pnpr_libsql::{
+    ConnectionPool,
+    LibsqlConnector,
+    first_row,
+    is_unique_violation,
+};
+use schema::{
+    claim_user_counter_slot,
+    init_schema,
+    missing_count_row,
+    reconcile_user_counter_overcount,
+    retry_database_conflicts,
+};
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, mint_token, sha256_hex, token_timestamp_from_sql, unix_seconds, validate_username,
-    verify_returning_user, with_auth_timeout,
+    AccountCredential,
+    AccountStatus,
+    CredentialKind,
+    DEFAULT_BCRYPT_COST,
+    PasswordChange,
+    TokenBackend,
+    TokenRecord,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    account::{
+        decode_sql_account_state,
+        deprovisioned_login_error,
+    },
+    dummy_verify,
+    hash_bcrypt,
+    is_sha_hash,
+    unix_millis,
+    validation::{
+        token_timestamp_to_sql,
+        validate_username,
+    },
+    verify_returning_user,
+    with_auth_timeout,
 };
 use async_trait::async_trait;
-use libsql::{Builder, Connection, Database, Error as LibsqlError, Row, params};
-use pnpr_config::{LibsqlSettings, MaxUsers};
-use pnpr_error::{RegistryError, Result};
-use std::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
+use libsql::{
+    Connection,
+    Database,
+    Row,
+    TransactionBehavior,
+    params,
 };
+use pnpr_config::{
+    LibsqlSettings,
+    MaxUsers,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use std::time::Duration;
 
-/// The `tokens` columns selected (in order) by every token read, so
-/// [`row_to_keyed_record`] can decode any of them the same way.
-const TOKEN_COLUMNS: &str =
-    "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist";
-
-/// Deadline for request-path auth reads, beyond which a stalled endpoint
+/// Deadline for each auth database operation, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
 const DEFAULT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -45,20 +89,21 @@ const DEFAULT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
 /// generous than [`DEFAULT_AUTH_TIMEOUT`] for cold remote DDL.
 const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 
-/// Networked-SQLite auth backend. One [`Connection`] serves both record
-/// stores; the [`Database`] handle is held only to keep the connection
-/// alive.
+/// Networked-SQLite auth backend. Both record stores run their operations
+/// on one [`ConnectionPool`].
 pub struct LibsqlAuth {
-    _db: Database,
-    conn: Connection,
-    /// Per-process secret seeding [`mint_token`]. Need not match other
-    /// replicas: tokens are looked up by their stored hash, never
-    /// re-derived, so each replica minting with its own secret is safe.
-    secret: [u8; 32],
-    counter: AtomicU64,
+    pool: ConnectionPool,
     max_users: MaxUsers,
-    /// Deadline for each request-path auth read.
-    timeout: Duration,
+    registration_lock: tokio::sync::Mutex<()>,
+    /// Whether the pool's database is an embedded replica, which
+    /// [`Self::sync_replica`] then brings up to date after a write.
+    is_replica: bool,
+}
+
+pub(super) struct StoredLibsqlUser {
+    pub(super) id: String,
+    pub(super) status: AccountStatus,
+    pub(super) credential: AccountCredential,
 }
 
 impl std::fmt::Debug for LibsqlAuth {
@@ -73,80 +118,132 @@ impl LibsqlAuth {
     /// startup, so an unreachable database fails fast rather than per
     /// request.
     ///
-    /// With `replicaPath` set, the database is an embedded replica: an
-    /// initial sync runs at build time and libsql keeps it current in
-    /// the background (every `syncIntervalSecs`), so reads hit the local
-    /// file. Without it, every read is a remote query against the
-    /// primary — always fresh, but a network round-trip on the auth hot
-    /// path.
+    /// With `replicaPath` set, the database is an embedded replica (see
+    /// [`pnpr_libsql::open`]), so reads hit the local file. Without it, every
+    /// read is a remote query against the primary, always fresh, but a
+    /// network round-trip on the auth hot path.
+    ///
+    /// The whole startup, the initial sync included, runs under one
+    /// [`DEFAULT_STARTUP_TIMEOUT`], within which a dial that times out is
+    /// retried.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
-        let auth_token = settings.auth_token.clone().unwrap_or_default();
-        let db = match &settings.replica_path {
-            Some(path) => {
-                let mut builder =
-                    Builder::new_remote_replica(path, settings.url.clone(), auth_token);
-                let interval = settings
-                    .sync_interval_secs
-                    .unwrap_or(LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS);
-                if interval > 0 {
-                    builder = builder.sync_interval(Duration::from_secs(interval));
-                }
-                with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await?
-            }
-            None => {
-                with_auth_timeout(
-                    DEFAULT_STARTUP_TIMEOUT,
-                    Box::pin(Builder::new_remote(settings.url.clone(), auth_token).build()),
-                )
-                .await?
-            }
-        };
-        Self::from_database(db, max_users).await
+        let connector = pnpr_libsql::connector(settings, "storage.database")?;
+        let _startup_dials = connector.retry_timed_out_dials();
+        with_auth_timeout(
+            DEFAULT_STARTUP_TIMEOUT,
+            Box::pin(Self::open(settings, max_users, connector)),
+        )
+        .await
+        .map_err(|error| pnpr_libsql::startup_error(settings, error))
     }
 
-    /// Build the backend from an already-open [`Database`]. Shared by
-    /// [`Self::connect`] and the local-database test setup.
-    async fn from_database(db: Database, max_users: MaxUsers) -> Result<Self> {
-        let conn = db.connect()?;
-        with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, init_schema(&conn)).await?;
-        Ok(Self {
-            _db: db,
-            conn,
-            secret: fresh_secret(),
-            counter: AtomicU64::new(0),
+    async fn open(
+        settings: &LibsqlSettings,
+        max_users: MaxUsers,
+        connector: LibsqlConnector,
+    ) -> Result<Self> {
+        let db = pnpr_libsql::open(settings, connector).await?;
+        let max_connections =
+            settings.max_connections.unwrap_or(LibsqlSettings::DEFAULT_MAX_CONNECTIONS);
+        let is_replica = settings.replica_path.is_some();
+        Self::with_replica(db, max_users, max_connections, is_replica).await
+    }
+
+    /// [`Self::with_replica`] for the local-database test setup.
+    #[cfg(test)]
+    async fn from_database(
+        db: Database,
+        max_users: MaxUsers,
+        max_connections: u32,
+    ) -> Result<Self> {
+        Self::with_replica(db, max_users, max_connections, false).await
+    }
+
+    /// Build the backend from an already-open [`Database`], an embedded
+    /// replica when `is_replica` is set, and ensure the `users` and
+    /// `tokens` tables exist.
+    async fn with_replica(
+        db: Database,
+        max_users: MaxUsers,
+        max_connections: u32,
+        is_replica: bool,
+    ) -> Result<Self> {
+        let pool = ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT, || {
+            RegistryError::AuthDatabaseTimeout
+        });
+        let auth = Self {
+            pool: if is_replica { pool.replica() } else { pool },
             max_users,
-            timeout: DEFAULT_AUTH_TIMEOUT,
-        })
+            registration_lock: tokio::sync::Mutex::new(()),
+            is_replica,
+        };
+        with_auth_timeout(
+            DEFAULT_STARTUP_TIMEOUT,
+            init_schema(&auth.pool.connect()?, || auth.sync_replica()),
+        )
+        .await?;
+        Ok(auth)
     }
 
-    /// The bcrypt hash stored for `username`, or `None` when no such
-    /// user exists.
-    async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self
-                .conn
-                .query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
-                .await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row.get::<String>(0)?)),
-                None => Ok(None),
-            }
+    /// The account row stored for `username`, or `None` when no such user exists.
+    pub(super) async fn stored_account(&self, username: &str) -> Result<Option<StoredLibsqlUser>> {
+        self.pool.read(|conn| async move {
+            let rows = conn.query(
+                "SELECT id, status, credential_kind, password_hash FROM users WHERE username = ?1",
+                params![username],
+            )
+            .await?;
+            let Some((id, raw_status, raw_kind, password_hash)) = first_row(rows, |row| {
+                Ok((
+                    row.get::<String>(0)?,
+                    row.get::<String>(1)?,
+                    row.get::<String>(2)?,
+                    row.get::<Option<String>>(3)?,
+                ))
+            })
+            .await?
+            else {
+                return Ok(None);
+            };
+            let (status, credential) =
+                decode_sql_account_state(&id, &raw_status, &raw_kind, password_hash)?;
+            Ok(Some(StoredLibsqlUser { id, status, credential }))
         })
         .await
     }
 
-    /// Current number of registered users — read under the
+    /// Current number of registered users, read under the
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
-            let Some(row) = rows.next().await? else {
+        self.pool.read(|conn| async move {
+            let rows =
+                conn.query("SELECT COUNT(*) FROM users WHERE status <> 'deleted'", ()).await?;
+            let Some(count) = first_row(rows, |row| Ok(row.get::<i64>(0)?)).await? else {
                 return Err(missing_count_row());
             };
-            let count: i64 = row.get(0)?;
             Ok(count.max(0) as u64)
         })
         .await
+    }
+
+    async fn check_db_readiness(&self) -> Result<()> {
+        self.pool.read(|conn| async move {
+            first_row(conn.query("SELECT 1;", ()).await?, |_| Ok(())).await?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Pull the primary's latest frames into the replica, so a write this
+    /// backend just delegated is visible to its own reads. libsql's
+    /// read-your-writes would pull on the connection that wrote and reset
+    /// its pager afterwards, which corrupts a read in flight on it;
+    /// [`Database::sync`] pulls on a connection of its own instead.
+    async fn sync_replica(&self) -> Result<()> {
+        if !self.is_replica {
+            return Ok(());
+        }
+        self.pool.sync().await
     }
 }
 
@@ -157,271 +254,137 @@ impl UserBackend for LibsqlAuth {
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
-        validate_username(username)?;
-
-        if let Some(stored) = self.stored_hash(username).await? {
-            return verify_returning_user(username, password, stored).await;
-        }
-
-        // Brand-new user. The cheap pre-check avoids the (expensive) hash
-        // when the cap is already full; the insert below re-checks the
-        // cap atomically so it holds even under a concurrent burst.
-        match self.max_users {
-            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
-            MaxUsers::Limited(max) if self.user_count().await? >= max => {
-                return Err(RegistryError::TooManyUsers { max });
-            }
-            _ => {}
-        }
-
-        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        if matches!(self.max_users, MaxUsers::Unlimited) {
-            let inserted = self
-                .conn
-                .execute(
-                    "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                    params![username, hash],
-                )
-                .await;
-            return match inserted {
-                Ok(_) => Ok((UpsertOutcome::Created, username.to_string())),
-                Err(err) if is_unique_violation(&err) => {
-                    if let Some(stored) = self.stored_hash(username).await? {
-                        return verify_returning_user(username, password, stored).await;
-                    }
-                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
-                }
-                Err(err) => Err(err.into()),
-            };
-        }
-
-        let mut can_retry_after_reconcile = true;
-        loop {
-            let tx = self.conn.transaction().await?;
-            if let MaxUsers::Limited(max) = self.max_users {
-                let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
-                    reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
-                })?;
-                let updated = tx
-                    .execute(
-                        "UPDATE auth_counters SET value = value + 1
-                         WHERE name = ?1 AND value < ?2",
-                        params!["users", sql_max],
-                    )
-                    .await?;
-                if updated == 0 {
-                    tx.rollback().await?;
-                    if can_retry_after_reconcile {
-                        can_retry_after_reconcile = false;
-                        if reconcile_user_counter_overcount(&self.conn).await? {
-                            continue;
-                        }
-                    }
-                    if let Some(stored) = self.stored_hash(username).await? {
-                        return verify_returning_user(username, password, stored).await;
-                    }
-                    return Err(RegistryError::TooManyUsers { max });
-                }
-            }
-            let inserted = tx
-                .execute(
-                    "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                    params![username, hash],
-                )
-                .await;
-            match inserted {
-                Ok(_) => {
-                    tx.commit().await?;
-                    return Ok((UpsertOutcome::Created, username.to_string()));
-                }
-                Err(err) if is_unique_violation(&err) => {
-                    tx.rollback().await?;
-                    if let Some(stored) = self.stored_hash(username).await? {
-                        return verify_returning_user(username, password, stored).await;
-                    }
-                    return Err(RegistryError::Unauthenticated {
-                        resource: format!("user {username:?}"),
-                    });
-                }
-                Err(err) => return Err(err.into()),
-            }
-        }
-    }
-}
-
-#[async_trait]
-impl TokenBackend for LibsqlAuth {
-    async fn issue(&self, username: &str) -> Result<String> {
-        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, username);
-        let token_hash = sha256_hex(raw.as_bytes());
-        let now = unix_seconds() as i64;
-        self.conn
-            .execute(
-                "INSERT INTO tokens
-                 (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-             VALUES (?1, ?2, ?3, ?3, 0, '[]')",
-                params![token_hash, username, now],
-            )
-            .await?;
-        Ok(raw)
-    }
-
-    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self
-                .conn
-                .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
+        let hash = tokio::sync::OnceCell::new();
+        let outcome =
+            retry_database_conflicts(|| self.add_or_login_attempt(username, password, &hash))
                 .await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row.get::<String>(0)?)),
-                None => Ok(None),
-            }
-        })
-        .await
-    }
-
-    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![key]).await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-                None => Ok(None),
-            }
-        })
-        .await
-    }
-
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![username]).await?;
-            let mut out = Vec::new();
-            while let Some(row) = rows.next().await? {
-                out.push(row_to_keyed_record(&row)?);
-            }
-            Ok(out)
-        })
-        .await
-    }
-
-    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let Some(record) = self.find_by_key(key).await? else {
-            return Ok(None);
-        };
-        self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
-        Ok(Some(record))
-    }
-}
-
-async fn init_schema(conn: &Connection) -> Result<()> {
-    conn.execute(super::USERS_TABLE_SQL, ()).await?;
-    conn.execute(super::TOKENS_TABLE_SQL, ()).await?;
-    conn.execute(super::TOKENS_INDEX_SQL, ()).await?;
-    conn.execute(super::AUTH_COUNTERS_TABLE_SQL, ()).await?;
-    ensure_user_counter(conn).await
-}
-
-async fn ensure_user_counter(conn: &Connection) -> Result<()> {
-    let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
-    let Some(row) = rows.next().await? else {
-        return Err(missing_count_row());
-    };
-    let count: i64 = row.get(0)?;
-    let tx = conn.transaction().await?;
-    let inserted = tx
-        .execute("INSERT INTO auth_counters (name, value) VALUES (?1, ?2)", params!["users", count])
-        .await;
-    match inserted {
-        Ok(_) => {}
-        Err(err) if is_unique_violation(&err) => {}
-        Err(err) => {
-            tx.rollback().await?;
-            return Err(err.into());
+        if matches!(outcome.0, UpsertOutcome::Created) {
+            self.sync_replica().await?;
         }
+        Ok(outcome)
     }
-    tx.execute(
-        "UPDATE auth_counters
-         SET value = CASE WHEN value < ?2 THEN ?2 ELSE value END
-         WHERE name = ?1",
-        params!["users", count],
-    )
-    .await?;
-    tx.commit().await?;
-    Ok(())
-}
 
-async fn reconcile_user_counter_overcount(conn: &Connection) -> Result<bool> {
-    let tx = conn.transaction().await?;
-    let mut counter_rows =
-        tx.query("SELECT value FROM auth_counters WHERE name = ?1", params!["users"]).await?;
-    let Some(counter_row) = counter_rows.next().await? else {
-        drop(counter_rows);
-        tx.commit().await?;
-        return Ok(false);
-    };
-    let counter: i64 = counter_row.get(0)?;
-    drop(counter_rows);
-    let mut count_rows = tx.query("SELECT COUNT(*) FROM users", ()).await?;
-    let Some(count_row) = count_rows.next().await? else {
-        return Err(missing_count_row());
-    };
-    let count: i64 = count_row.get(0)?;
-    drop(count_rows);
-    if counter <= count {
-        tx.commit().await?;
-        return Ok(false);
+    async fn list_users(&self) -> Result<Vec<String>> {
+        self.list_usernames().await
     }
-    tx.execute(
-        "UPDATE auth_counters SET value = ?2 WHERE name = ?1",
-        params!["users", count.max(0)],
-    )
-    .await?;
-    tx.commit().await?;
-    Ok(true)
-}
 
-fn is_unique_violation(err: &LibsqlError) -> bool {
-    match err {
-        LibsqlError::SqliteFailure(code, message) => {
-            *code == 19 || *code == 2067 || message.contains("UNIQUE constraint failed")
+    async fn list_accounts(&self) -> Result<Vec<crate::UserAccount>> {
+        self.list_accounts_impl().await
+    }
+
+    async fn accounts_by_id(&self, user_ids: &[String]) -> Result<Vec<crate::UserAccount>> {
+        self.accounts_by_id_impl(user_ids).await
+    }
+
+    async fn credential(&self, username: &str) -> Result<Option<AccountCredential>> {
+        Ok(self
+            .stored_account(username)
+            .await?
+            .filter(|account| account.status.is_active())
+            .map(|account| account.credential))
+    }
+
+    async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
+        let creation = self.insert_user_for_admin(username, password).await?;
+        self.sync_replica().await?;
+        if creation == UserCreation::NameTaken && self.account_id_by_name(username).await?.is_none()
+        {
+            return Err(crate::validation::confusable_username());
         }
-        LibsqlError::RemoteSqliteFailure(_, code, message) => {
-            *code == 19 || *code == 2067 || message.contains("UNIQUE constraint failed")
-        }
-        _ => false,
+        Ok(creation)
     }
-}
 
-fn missing_count_row() -> RegistryError {
-    RegistryError::Internal { reason: "auth database COUNT(*) returned no rows".to_string() }
-}
+    async fn set_password(&self, user_id: &str, password: &str) -> Result<PasswordChange> {
+        self.update_password(user_id, password).await
+    }
 
-/// Decode a row selecting [`TOKEN_COLUMNS`] into its `(token_hash,
-/// record)` pair.
-fn row_to_keyed_record(row: &Row) -> Result<(String, TokenRecord)> {
-    let token_hash: String = row.get(0)?;
-    let username: String = row.get(1)?;
-    let created_at: i64 = row.get(2)?;
-    let last_used_at: i64 = row.get(3)?;
-    let readonly: i64 = row.get(4)?;
-    let cidr_json: String = row.get(5)?;
-    let cidr_whitelist: Vec<String> =
-        serde_json::from_str(&cidr_json).map_err(|err| RegistryError::Internal {
-            reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
-        })?;
-    Ok((
-        token_hash,
-        TokenRecord {
-            username,
-            created_at: token_timestamp_from_sql(created_at),
-            last_used_at: token_timestamp_from_sql(last_used_at),
-            readonly: readonly != 0,
-            cidr_whitelist,
-        },
-    ))
+    async fn set_password_if_current(
+        &self,
+        user_id: &str,
+        password: &str,
+        expected_hash: &str,
+    ) -> Result<bool> {
+        crate::validation::validate_password(password)?;
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        self.replace_password_hash_if_current(user_id, expected_hash, &hash).await
+    }
+
+    async fn clear_password(&self, user_id: &str) -> Result<PasswordChange> {
+        self.replace_password_hash(user_id, None).await
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
+        let removal = self.remove_user_record(username).await?;
+        if removal == UserRemoval::Removed {
+            self.sync_replica().await?;
+        }
+        Ok(removal)
+    }
+
+    async fn provision_user(&self, username: &str) -> Result<String> {
+        self.provision_account(username).await
+    }
+
+    async fn account_id(&self, username: &str) -> Result<Option<String>> {
+        self.account_id_by_name(username).await
+    }
+
+    async fn active_account_id(&self, username: &str) -> Result<Option<String>> {
+        self.active_account_id_by_name(username).await
+    }
+
+    async fn account_name(&self, user_id: &str) -> Result<Option<String>> {
+        self.account_name_by_id(user_id).await
+    }
+
+    async fn active_account_name(&self, user_id: &str) -> Result<Option<String>> {
+        self.active_account_name_by_id(user_id).await
+    }
+
+    async fn account_status(&self, user_id: &str) -> Result<Option<AccountStatus>> {
+        self.account_status_by_id(user_id).await
+    }
+
+    async fn status_revisions(
+        &self,
+        user_ids: &[String],
+    ) -> Result<std::collections::HashMap<String, crate::AccountStatusRevision>> {
+        self.status_revisions_by_id(user_ids).await
+    }
+
+    async fn apply_account_status(
+        &self,
+        user_id: &str,
+        revision: u64,
+        lifecycle: crate::AccountLifecycle,
+    ) -> Result<crate::AccountStatusOutcome> {
+        self.apply_account_status_by_id(user_id, revision, lifecycle).await
+    }
+
+    fn revokes_tokens_in_status_transition(&self) -> bool {
+        true
+    }
+
+    async fn account_login(&self, user_id: &str) -> Result<Option<crate::AccountLogin>> {
+        self.account_login_by_id(user_id).await
+    }
+
+    async fn rename_user(&self, user_id: &str, username: &str) -> Result<()> {
+        self.rename_account(user_id, username).await
+    }
+
+    async fn rename_user_if_current(
+        &self,
+        user_id: &str,
+        expected_revision: u64,
+        username: &str,
+    ) -> Result<crate::UserRename> {
+        self.rename_account_if_current(user_id, expected_revision, username).await
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
+    }
 }
 
 #[cfg(test)]

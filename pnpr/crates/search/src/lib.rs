@@ -1,43 +1,53 @@
 //! Local implementation of the npm `/-/v1/search` endpoint.
 //!
 //! Verdaccio (which this server replaces in `@pnpm/registry-mock`)
-//! does **not** proxy search to its upstream npmjs — it scans the
+//! does **not** proxy search to its upstream npmjs; it scans the
 //! local storage and matches on package name. Tests rely on that
-//! behavior: `releasing/commands/test/search.ts` asserts that a
-//! query for a guaranteed-not-to-exist string returns "No packages
-//! found", which an upstream proxy can't guarantee because npm's
-//! search returns dozens of fuzzy matches for almost anything.
-//!
-//! Implementation is intentionally simple: a one-shot scan of
-//! `<storage>/<pkg>/package.json` files at request time, filtered
-//! by a case-insensitive substring match on `name`. Sufficient for
-//! the `@pnpm/registry-mock` fixture (a few dozen packages) and the
-//! test queries that exercise it.
+//! behavior.
 
 use pnpr_error::Result;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
-use serde_json::{Map, Value, json};
-use std::collections::BTreeMap;
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
-/// Parse the `text` query parameter out of a `/-/v1/search?...`
-/// query string. npm clients always send `text=...`; we accept
-/// `q=...` as a fallback because some older callers use that.
-/// Returns `None` for "no text provided", in which case the
-/// caller should return an empty result rather than dumping the
-/// entire storage.
-///
-/// Three things this avoids:
-/// * The first malformed pair (no `=`) doesn't abort the whole
-///   parse — `size=20&text=foo` shouldn't return None just because
-///   a third pair somewhere is missing an `=`.
-/// * An empty decoded value (`text=`) is treated as "no text",
-///   not as "match everything" — a downstream substring filter
-///   uses `contains(needle)` which is always true for an empty
-///   needle and would dump the entire storage to anonymous
-///   callers.
-/// * `q=` is a *fallback*: when both `text` and `q` are present
-///   `text` wins regardless of order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SearchText {
+    Package(String),
+    Maintainer(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchParams {
+    pub text: SearchText,
+    pub from: usize,
+    pub size: usize,
+}
+
+#[must_use]
+pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchParams> {
+    let query = parse_query(query_string)?;
+    let text = query
+        .strip_prefix("maintainer:")
+        .filter(|maintainer| !maintainer.is_empty())
+        .map(std::string::ToString::to_string)
+        .map(SearchText::Maintainer)
+        .unwrap_or_else(|| SearchText::Package(query.clone()));
+    Some(SearchParams {
+        text,
+        from: parse_from(query_string),
+        size: parse_size(query_string, default_size),
+    })
+}
+
+/// Decode `text`, falling back to `q` regardless of parameter order.
+/// Empty values and malformed pairs are ignored. With no nonempty value,
+/// returns `None` unless `browse=true` explicitly requests an empty filter.
+/// Browse callers must restrict discovery to hosted packages and enforce
+/// registry routing and access rules.
 #[must_use]
 pub fn parse_query(query_string: &str) -> Option<String> {
     let mut fallback: Option<String> = None;
@@ -55,57 +65,90 @@ pub fn parse_query(query_string: &str) -> Option<String> {
             _ => {}
         }
     }
-    fallback
+    fallback.or_else(|| browse_requested(query_string).then(String::new))
 }
 
-/// `size=` URL param; bounded the same way npm bounds it (1..=250).
+#[must_use]
+pub fn browse_requested(query_string: &str) -> bool {
+    query_string
+        .split('&')
+        .any(|pair| pair == "browse=true")
+}
+
+/// The first parsable value of a numeric URL parameter, or `None` when the
+/// query string carries none.
+#[must_use]
+pub fn parse_usize_param(query_string: &str, key: &str) -> Option<usize> {
+    query_string
+        .split('&')
+        .find_map(|pair| {
+            let (candidate, value) = pair.split_once('=')?;
+            (candidate == key)
+                .then(|| value.parse().ok())
+                .flatten()
+        })
+}
+
+/// `size=` URL param; bounded the same way npm bounds it.
 #[must_use]
 pub fn parse_size(query_string: &str, default_size: usize) -> usize {
-    for pair in query_string.split('&') {
-        if let Some((key, value)) = pair.split_once('=')
-            && key == "size"
-            && let Ok(parsed) = value.parse::<usize>()
-        {
-            return parsed.clamp(1, 250);
-        }
-    }
-    default_size
+    parse_usize_param(query_string, "size")
+        .map_or(default_size, |size| size.clamp(1, MAX_PAGE_SIZE))
 }
 
-/// Scan one hosted store for packuments whose name contains `query`
-/// (case-insensitive) and passes `keep` — the server's routing and access
-/// filter, applied before any packument is read so a filtered name costs
-/// no I/O. Returns at most `limit` entries in npm search v1 `objects`
-/// shape (`{ package: {...}, score: {...}, searchScore }`); the server
-/// aggregates entries across the namespaces a registry serves and builds the
-/// response body. Errors reading individual packuments are tolerated — a
-/// malformed packument just doesn't match anything. Works against both
-/// the local-directory and the S3-backed hosted store.
-pub async fn run_local_search(
-    storage: &Storage,
-    query: &str,
-    limit: usize,
-    keep: impl Fn(&str) -> bool,
-) -> Result<Vec<Value>> {
-    let needle = query.to_lowercase();
-    let mut matches: Vec<Value> = Vec::new();
+/// `from=` URL param. Invalid values start at the first result.
+#[must_use]
+pub fn parse_from(query_string: &str) -> usize {
+    parse_usize_param(query_string, "from").unwrap_or(0)
+}
 
-    for name in storage.hosted_package_names().await? {
-        if matches.len() >= limit {
-            break;
-        }
-        if !name.to_lowercase().contains(&needle) || !keep(&name) {
+/// The most results any search surface returns in one page.
+pub const MAX_PAGE_SIZE: usize = 250;
+
+pub async fn local_search_names(
+    storage: &Storage,
+    query: &SearchText,
+    keep: impl Fn(&str) -> bool,
+) -> Result<Vec<String>> {
+    let needle = match query {
+        SearchText::Package(query) | SearchText::Maintainer(query) => query.to_lowercase(),
+    };
+    let mut matches = Vec::new();
+    let mut names = storage.hosted_published_package_names().await?;
+    names.sort();
+
+    for name in names {
+        if !keep(&name) {
             continue;
         }
-        let Ok(parsed) = PackageName::parse(&name) else { continue };
-        let Ok(Some(bytes)) = storage.read_hosted_packument(&parsed).await else { continue };
-        let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { continue };
-        if let Some(entry) = build_search_entry(&name, &packument) {
-            matches.push(entry);
+        let selected = match query {
+            SearchText::Package(_) => name.to_lowercase().contains(&needle),
+            SearchText::Maintainer(_) => {
+                hosted_package_has_maintainer(storage, &name, &needle).await
+            }
+        };
+        if selected {
+            matches.push(name);
         }
     }
 
     Ok(matches)
+}
+
+async fn hosted_package_has_maintainer(storage: &Storage, name: &str, needle: &str) -> bool {
+    let Ok(parsed) = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm) else {
+        return false;
+    };
+    let Ok(Some(bytes)) = storage.read_hosted_document(&parsed).await else { return false };
+    let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { return false };
+    packument_has_maintainer(&packument, needle)
+}
+
+pub async fn local_search_entry(storage: &Storage, name: &str) -> Option<Value> {
+    let parsed = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm).ok()?;
+    let bytes = storage.read_hosted_document(&parsed).await.ok()??;
+    let packument = serde_json::from_slice::<Value>(&bytes).ok()?;
+    build_search_entry(name, &packument)
 }
 
 /// Construct one entry for the `objects` array.
@@ -118,46 +161,131 @@ fn build_search_entry(name: &str, packument: &Value) -> Option<Value> {
 }
 
 /// Project a packument into the subset of fields npm's search
-/// endpoint returns per result. Pulls the latest version (or any
-/// version if there's no `dist-tags.latest`) for `version` /
-/// `description` / `keywords`.
+/// endpoint returns per result.
 fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     let obj = packument.as_object()?;
-    let dist_tags = obj.get("dist-tags").and_then(Value::as_object);
-    let latest_tag = dist_tags.and_then(|tags| tags.get("latest")).and_then(Value::as_str);
     let versions = obj.get("versions").and_then(Value::as_object)?;
-    let version_id: &str = latest_tag
-        .filter(|tag| versions.contains_key(*tag))
-        .or_else(|| versions.keys().next().map(String::as_str))?;
+    let version_id = latest_version_id(obj, versions)?;
     let version_obj = versions.get(version_id).and_then(Value::as_object);
     let mut pkg = Map::new();
     pkg.insert("name".to_string(), Value::String(name.to_string()));
     pkg.insert("version".to_string(), Value::String(version_id.to_string()));
-    if let Some(version_obj) = version_obj {
-        for field in ["description", "keywords", "author", "maintainers", "homepage"] {
-            if let Some(value) = version_obj.get(field) {
-                pkg.insert(field.to_string(), value.clone());
-            }
-        }
-    }
-    // `time.<version>` if present, else `time.modified` as a fallback.
+    insert_version_fields(&mut pkg, version_obj);
+    let maintainers = obj
+        .get("maintainers")
+        .or_else(|| version_obj.and_then(|version| version.get("maintainers")))
+        .map(search_maintainers)
+        .unwrap_or_else(|| Value::Array(Vec::new()));
+    pkg.insert("maintainers".to_string(), maintainers);
     if let Some(time) = obj.get("time").and_then(Value::as_object) {
-        let date = time.get(version_id).cloned().or_else(|| time.get("modified").cloned());
+        let date = time
+            .get(version_id)
+            .or_else(|| time.get("modified"))
+            .filter(|value| value.is_string())
+            .cloned();
         if let Some(date) = date {
             pkg.insert("date".to_string(), date);
         }
     }
-    // Stable-order publisher block when "_npmUser" is set, to keep
-    // diffs deterministic.
-    if let Some(npm_user) = version_obj.and_then(|v| v.get("_npmUser")) {
-        pkg.insert("publisher".to_string(), npm_user.clone());
+    if let Some(publisher) = version_obj
+        .and_then(|version| {
+            version
+                .get("_npmUser")
+                .or_else(|| version.get("publisher"))
+        })
+        .and_then(search_user)
+    {
+        pkg.insert("publisher".to_string(), publisher);
     }
-    // `links.npm` is what the npm website surfaces. Synthesized
-    // from the name so the search response looks the part.
-    let mut links = BTreeMap::new();
-    links.insert("npm".to_string(), Value::String(format!("https://npmx.dev/package/{name}")));
-    pkg.insert("links".to_string(), serde_json::to_value(links).ok()?);
     Some(Value::Object(pkg))
+}
+
+/// The `latest` tag's version when it is published, else the first one.
+fn latest_version_id<'p>(
+    obj: &'p Map<String, Value>,
+    versions: &'p Map<String, Value>,
+) -> Option<&'p str> {
+    let dist_tags = obj.get("dist-tags").and_then(Value::as_object);
+    dist_tags
+        .and_then(|tags| tags.get("latest"))
+        .and_then(Value::as_str)
+        .filter(|tag| versions.contains_key(*tag))
+        .or_else(|| {
+            versions
+                .keys()
+                .next()
+                .map(String::as_str)
+        })
+}
+
+fn search_maintainers(maintainers: &Value) -> Value {
+    Value::Array(
+        maintainers
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(search_user)
+            .collect(),
+    )
+}
+
+fn search_user(user: &Value) -> Option<Value> {
+    let username = user
+        .get("username")
+        .and_then(Value::as_str)
+        .or_else(|| user.get("name").and_then(Value::as_str))?;
+    let mut result = json!({ "username": username });
+    if let Some(email) = user.get("email").and_then(Value::as_str) {
+        result["email"] = json!(email);
+    }
+    Some(result)
+}
+
+/// Copy the per-version fields npm's search results carry.
+fn insert_version_fields(pkg: &mut Map<String, Value>, version_obj: Option<&Map<String, Value>>) {
+    let Some(version_obj) = version_obj else {
+        return;
+    };
+    for field in ["description", "keywords", "author", "homepage"] {
+        if let Some(value) = version_obj.get(field) {
+            pkg.insert(field.to_string(), value.clone());
+        }
+    }
+}
+
+fn packument_has_maintainer(packument: &Value, needle: &str) -> bool {
+    let Some(versions) = packument
+        .get("versions")
+        .and_then(Value::as_object)
+        .filter(|versions| !versions.is_empty())
+    else {
+        return false;
+    };
+    if maintainer_value_matches(packument.get("maintainers"), needle) {
+        return true;
+    }
+    versions
+        .values()
+        .any(|version| {
+            maintainer_value_matches(version.get("maintainers"), needle)
+                || maintainer_value_matches(version.get("_npmUser"), needle)
+                || maintainer_value_matches(version.get("publisher"), needle)
+        })
+}
+
+fn maintainer_value_matches(value: Option<&Value>, needle: &str) -> bool {
+    match value {
+        Some(Value::String(value)) => value.to_lowercase().contains(needle),
+        Some(Value::Array(values)) => values
+            .iter()
+            .any(|value| maintainer_value_matches(Some(value), needle)),
+        Some(Value::Object(value)) => ["username", "name", "email"]
+            .iter()
+            .filter_map(|field| value.get(*field).and_then(Value::as_str))
+            .map(str::to_lowercase)
+            .any(|lowercase| lowercase.contains(needle)),
+        _ => false,
+    }
 }
 
 /// Decode a percent-encoded query value. ASCII-oriented: multi-byte UTF-8

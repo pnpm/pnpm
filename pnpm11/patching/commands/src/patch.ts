@@ -67,7 +67,9 @@ export type PatchCommandOptions = Pick<Config,
 | 'modulesDir'
 | 'virtualStoreDir'
 | 'sharedWorkspaceLockfile'
+| 'workspaceDir'
 > & Pick<ConfigContext,
+| 'allProjects'
 | 'rootProjectManifest'
 > & CreateStoreControllerOptions & {
   editDir?: string
@@ -87,6 +89,9 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     lockfileDir,
     modulesDir: opts.modulesDir,
     virtualStoreDir: opts.virtualStoreDir,
+    workspaceDir: opts.workspaceDir,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    allProjects: opts.allProjects,
   })
 
   const quote = isWindows() ? '"' : "'"
@@ -96,11 +101,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     ? path.resolve(opts.dir, opts.editDir)
     : getEditDirPath(params[0], patchedDep, { modulesDir })
 
-  if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {
-    throw new PnpmError('EDIT_DIR_NOT_EMPTY', `The directory ${editDir} is not empty`, {
-      hint: 'Either run `pnpm patch-commit ' + quote + editDir + quote + '` to commit or delete it then run `pnpm patch` to recreate it',
-    })
-  }
+  ensureEditDirIsEmpty(editDir, quote)
 
   await writePackage(patchedDep, editDir, opts)
 
@@ -116,10 +117,14 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
       patchedDep,
       patchedDir: editDir,
       patchedDependencies: opts.patchedDependencies,
-      lockfileDir,
+      lockfileDir: opts.workspaceDir ?? lockfileDir,
     })
   }
 
+  return renderEditInstructions(editDir, quote)
+}
+
+function renderEditInstructions (editDir: string, quote: string): string {
   return `Patch: You can now edit the package at:
 
   ${terminalLink(chalk.blue(editDir), 'file://' + editDir, { fallback: false })}
@@ -131,9 +136,17 @@ To commit your changes, run:
 `
 }
 
+function ensureEditDirIsEmpty (editDir: string, quote: string): void {
+  if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {
+    throw new PnpmError('EDIT_DIR_NOT_EMPTY', `The directory ${editDir} is not empty`, {
+      hint: 'Either run `pnpm patch-commit ' + quote + editDir + quote + '` to commit or delete it then run `pnpm patch` to recreate it',
+    })
+  }
+}
+
 function tryPatchWithExistingPatchFile (
   {
-    patchedDep: { applyToAll, alias, bareSpecifier },
+    patchedDep: { applyToAll, alias, bareSpecifier, version },
     patchedDir,
     patchedDependencies,
     lockfileDir,
@@ -148,6 +161,9 @@ function tryPatchWithExistingPatchFile (
   let existingPatchFile: string | undefined
   if (bareSpecifier) {
     existingPatchFile = patchedDependencies[`${alias}@${bareSpecifier}`]
+  }
+  if (!existingPatchFile && version) {
+    existingPatchFile = patchedDependencies[`${alias}@${version}`]
   }
   if (!existingPatchFile && applyToAll) {
     existingPatchFile = patchedDependencies[alias]

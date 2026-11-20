@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/patching.config",
-  "version": "1100.1.3",
+  "version": "1100.1.13",
   "description": "Functions related to patching configurations",
   "keywords": [
     "pnpm",
@@ -26,8 +26,8 @@
   ],
   "scripts": {
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },

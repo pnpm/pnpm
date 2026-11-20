@@ -1,19 +1,116 @@
-use base64::{Engine, engine::general_purpose};
-use flate2::{Compression, write::GzEncoder};
-use node_semver::{Range, Version};
-use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256, Sha512};
+pub mod presets;
+pub use database::{
+    deprecate_version,
+    read_hosted_document,
+    read_hosted_file,
+    read_packument,
+    remove_version,
+    set_dist_tag,
+    tarball_path,
+    write_hosted_document,
+    write_hosted_file,
+    write_packuments,
+    write_packuments_into,
+};
+pub use presets::{
+    MockConfigPresets,
+    REGISTRY_MOCK_LOCAL_PATTERNS,
+    REGISTRY_MOCK_UPSTREAM_TIMEOUT,
+    TAR_REGISTRY,
+    proxy_config,
+    registry_mock_graph,
+    registry_mock_rules,
+    static_serve_config,
+    with_tar_registry,
+};
+pub use registries::{
+    MOCK_GRANTS_YAML,
+    MOCK_REGISTRIES_YAML,
+    load_seeded_config,
+    registries_routing,
+    registry_mock_routing,
+    seed_registries,
+    split_graph,
+    store_document,
+    write_document,
+    write_graph,
+};
+
+mod database;
+mod registries;
+mod rules;
+mod tarball;
+use tarball::{
+    build_tarball,
+    fixture_files,
+};
+
+use base64::{
+    Engine,
+    engine::general_purpose,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpr_registry::Ecosystem;
+use pnpr_storage::{
+    BlobId,
+    database::{
+        ArtifactBlob,
+        BlobRef,
+    },
+    layout::{
+        local_archive_path,
+        write_local_layout_marker,
+    },
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha256,
+    Sha512,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    env, fs,
-    io::{self, Write},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    env,
+    fs,
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         LazyLock,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 use walkdir::WalkDir;
+
+pub const MOCK_CONFIG_PATH: &str = "pnpr/.fixtures/config.yaml";
+pub const MOCK_CONFIG_YAML: &str = include_str!("../../../.fixtures/config.yaml");
+
+#[must_use]
+pub fn mock_config_path() -> PathBuf {
+    workspace_root().join(MOCK_CONFIG_PATH)
+}
 
 const PACKAGES_DIR: &str = "pnpr/.fixtures/packages";
 const GENERATED_DIR: &str = "pnpr-fixtures";
@@ -34,15 +131,24 @@ pub fn ensure_storage() -> &'static Path {
     STORAGE.as_path()
 }
 
+/// The database of the fixture storage at `storage`, the one pnpr
+/// reads by default.
+#[must_use]
+pub fn database_path(storage: &Path) -> PathBuf {
+    pnpr_config::default_database_path(storage)
+}
+
 #[must_use]
 pub fn packages_dir() -> PathBuf {
     workspace_root().join(PACKAGES_DIR)
 }
 
-/// Build verdaccio-shaped storage from the raw package fixtures in `packages`
-/// into `out`, replacing any existing contents. Used by the `pnpr-prepare`
-/// binary so the JS test harness can serve the moved fixtures; pacquet's own
-/// tests use [`ensure_storage`] (process-global, cached) instead.
+/// Build registry storage from the raw package fixtures in `packages` into
+/// `out`, replacing any existing contents: the tarballs as hosted blobs and
+/// the packuments in the `SQLite` database pnpr reads by default.
+/// Used by the `pnpr-prepare` binary so the JS test harness can serve the
+/// moved fixtures; pacquet's own tests use [`ensure_storage`]
+/// (process-global, cached) instead.
 pub fn build_storage_at(packages: &Path, out: &Path) {
     build_storage_at_with_substitutions(packages, out, &[]);
 }
@@ -56,53 +162,31 @@ pub fn build_storage_at_with_substitutions(
     out: &Path,
     substitutions: &[(&str, &str)],
 ) {
-    if out.exists() {
-        fs::remove_dir_all(out).expect("clear existing registry fixture storage");
-    }
+    build_storage_at_with_edits(packages, out, substitutions, &[]);
+}
+
+/// A field a fixture version's registry metadata leaves out while its
+/// tarball keeps it, so the registry serves metadata that disagrees with the
+/// published `package.json`.
+#[derive(Debug, Clone, Copy)]
+pub struct RemovedVersionField<'name> {
+    pub package: &'name str,
+    pub version: &'name str,
+    pub field: &'name str,
+}
+
+/// [`build_storage_at_with_substitutions`], with `removed_fields` left out
+/// of the registry metadata. The store never changes a version it accepted,
+/// so a field is removed as the storage is built, not afterwards.
+pub fn build_storage_at_with_edits(
+    packages: &Path,
+    out: &Path,
+    substitutions: &[(&str, &str)],
+    removed_fields: &[RemovedVersionField<'_>],
+) {
+    remove_tree(out, "clear existing registry fixture storage");
     fs::create_dir_all(out).expect("create registry fixture storage dir");
-    build_storage(packages, out, substitutions);
-}
-
-/// Point `tag` at `version` in a built storage tree — the fixture-side
-/// equivalent of the JS harness's `addDistTag`, and the only way to give a
-/// package a `latest` other than its highest published version.
-///
-/// `time.modified` moves with the tag, the same as pnpr's own
-/// `PUT /-/package/:pkg/dist-tags/:tag` — it is what the served
-/// `Last-Modified` is derived from.
-///
-/// Only call this on a tree the test owns, never on the process-global
-/// storage every other test reads — see [`build_storage_at`].
-pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
-    let path = storage.join(package).join("package.json");
-    let bytes = fs::read(&path)
-        .unwrap_or_else(|err| panic!("read fixture packument at {}: {err}", path.display()));
-    let mut packument: Value = serde_json::from_slice(&bytes).expect("parse fixture packument");
-    let packument_object = packument.as_object_mut().expect("fixture packument is an object");
-    assert!(
-        packument_object
-            .get("versions")
-            .and_then(Value::as_object)
-            .is_some_and(|versions| versions.contains_key(version)),
-        "{package} has no fixture version {version} to tag as {tag}",
-    );
-    insert_object_entry(packument_object, "dist-tags", tag, json!(version));
-    insert_object_entry(packument_object, "time", "modified", json!(now_iso()));
-    fs::write(&path, serde_json::to_vec(&packument).expect("serialize fixture packument"))
-        .expect("write fixture packument");
-}
-
-fn insert_object_entry(parent: &mut Map<String, Value>, field: &str, key: &str, value: Value) {
-    parent
-        .entry(field.to_string())
-        .or_insert_with(|| Value::Object(Map::new()))
-        .as_object_mut()
-        .unwrap_or_else(|| panic!("fixture packument {field} is an object"))
-        .insert(key.to_string(), value);
-}
-
-fn now_iso() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+    build_storage(packages, out, substitutions, removed_fields);
 }
 
 fn workspace_root() -> PathBuf {
@@ -114,7 +198,9 @@ fn workspace_root() -> PathBuf {
 }
 
 fn target_dir(workspace: &Path) -> PathBuf {
-    env::var_os("CARGO_TARGET_DIR").map_or_else(|| workspace.join("target"), PathBuf::from)
+    env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace.join("target"))
 }
 
 fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &Path) {
@@ -124,10 +210,8 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
     fs::create_dir_all(storage.parent().expect("registry fixture storage has parent"))
         .expect("create generated registry fixture storage dir");
     let temp = generated.join(scratch_name("storage.tmp"));
-    if temp.exists() {
-        fs::remove_dir_all(&temp).expect("remove stale temp registry fixture storage");
-    }
-    build_storage(packages, &temp, &[]);
+    remove_tree(&temp, "remove stale temp registry fixture storage");
+    build_storage(packages, &temp, &[], &[]);
     fs::write(temp.join(COMPLETE_FILE), "").expect("write registry fixture completion marker");
     publish_storage(generated, &temp, storage);
 }
@@ -135,7 +219,7 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
 /// Move a freshly built `temp` tree into place at `storage`.
 ///
 /// Publishers race: the loser's rename fails because the winner's tree is
-/// already there, which is harmless — the completion marker proves the
+/// already there, which is harmless, the completion marker proves the
 /// content arrived. A tree *without* the marker is a different matter. It
 /// is a half-finished publish, or a build cache restored without the
 /// marker, and no reader may touch it; left alone it wedges every later
@@ -169,18 +253,27 @@ fn discard_unusable_storage(generated: &Path, storage: &Path) {
         restore_claimed_storage(&claimed, storage);
         return;
     }
-    fs::remove_dir_all(&claimed).expect("remove unusable registry fixture storage");
+    remove_tree(&claimed, "remove unusable registry fixture storage");
 }
 
 /// Put a claimed tree back after it turned out to be complete.
 ///
 /// The claim leaves `storage` free, so a publisher can land its own tree
-/// there before the restore runs. Its content is the same — the path is
-/// addressed by a fingerprint of the fixtures — so a claim that can no
+/// there before the restore runs. Its content is the same (the path is
+/// addressed by a fingerprint of the fixtures) so a claim that can no
 /// longer go back is redundant rather than lost, and gets dropped.
 fn restore_claimed_storage(claimed: &Path, storage: &Path) {
     if fs::rename(claimed, storage).is_err() {
-        fs::remove_dir_all(claimed).expect("remove redundant registry fixture storage");
+        remove_tree(claimed, "remove redundant registry fixture storage");
+    }
+}
+
+/// Remove `path` and its subtree, treating an absent path as removed.
+fn remove_tree(path: &Path, what: &str) {
+    match fs::remove_dir_all(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => panic!("{what} at {}: {error}", path.display()),
     }
 }
 
@@ -188,21 +281,36 @@ fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {
     match fs::rename(temp, storage) {
         Ok(()) => Ok(()),
         Err(_) if storage.join(COMPLETE_FILE).exists() => {
-            fs::remove_dir_all(temp).expect("remove redundant registry fixture storage");
+            remove_tree(temp, "remove redundant registry fixture storage");
             Ok(())
         }
         Err(err) => Err(err),
     }
 }
 
-/// A scratch directory name no other publisher — in this process or any
-/// concurrent one — can collide with.
+/// A scratch directory name no other publisher (in this process or any
+/// concurrent one) can collide with.
 fn scratch_name(prefix: &str) -> String {
     format!("{prefix}.{}.{}", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 fn fixture_fingerprint(root: &Path) -> String {
     let mut hasher = Sha256::new();
+    // A storage tree built in another layout, or with metadata in another
+    // schema, must not be reused.
+    hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
+    hasher.update(MOCK_REGISTRIES_YAML.as_bytes());
+    hasher.update(MOCK_GRANTS_YAML.as_bytes());
+    hasher.update(pnpr_storage::database::SqlDatabase::SCHEMA_VERSION.to_le_bytes());
+    for statements in pnpr_storage::database::SqlDatabase::SCHEMA_STATEMENTS {
+        hasher.update(statements.as_bytes());
+        hasher.update([0]);
+    }
+    hasher.update(
+        local_archive_path(Path::new(""), "", Ecosystem::Npm, "sha512-00.1")
+            .to_string_lossy()
+            .as_bytes(),
+    );
     for entry in fixture_files(root) {
         let path = entry.path();
         let relative = path.strip_prefix(root).expect("fixture entry under root");
@@ -214,7 +322,12 @@ fn fixture_fingerprint(root: &Path) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-fn build_storage(fixtures_root: &Path, storage_root: &Path, substitutions: &[(&str, &str)]) {
+fn build_storage(
+    fixtures_root: &Path,
+    storage_root: &Path,
+    substitutions: &[(&str, &str)],
+    removed_fields: &[RemovedVersionField<'_>],
+) {
     let mut packages: HashMap<String, Package> = HashMap::new();
     for manifest_path in fixture_manifests(fixtures_root) {
         let version = PackageVersion::load(fixtures_root, &manifest_path, substitutions);
@@ -225,11 +338,46 @@ fn build_storage(fixtures_root: &Path, storage_root: &Path, substitutions: &[(&s
             .insert(version.version.clone(), version);
     }
     assert!(!packages.is_empty(), "no registry package fixtures found under {fixtures_root:?}");
+    let mut packuments = Vec::with_capacity(packages.len());
+    let mut archives = Vec::new();
     for package in packages.values_mut() {
         package.latest =
             latest_version(package.versions.keys()).expect("package has at least one version");
-        package.write(storage_root);
+        archives.extend(package.write_blobs(storage_root));
+        packuments.push((package.name.clone(), package.packument()));
     }
+    for removed in removed_fields {
+        remove_version_field(&mut packuments, removed);
+    }
+    write_local_layout_marker(storage_root).expect("write registry fixture layout marker");
+    database::write_packuments_with_archives(storage_root, packuments, archives);
+    seed_storage_registries(storage_root, MOCK_REGISTRIES_YAML);
+    database::run(rules::replace(&database::open(storage_root), MOCK_GRANTS_YAML));
+}
+
+/// Store the registries document `yaml` in the database of the
+/// fixture storage at `storage`.
+///
+/// # Panics
+///
+/// The document does not parse or cannot be stored.
+pub fn seed_storage_registries(storage: &Path, yaml: &str) {
+    registries::store_into(&database::open(storage), &registries::parse_document(yaml));
+}
+
+fn remove_version_field(packuments: &mut [(String, Value)], removed: &RemovedVersionField<'_>) {
+    let RemovedVersionField { package, version, field } = *removed;
+    let (_, packument) = packuments
+        .iter_mut()
+        .find(|(name, _)| name == package)
+        .unwrap_or_else(|| panic!("no fixture package {package}"));
+    let removed = packument
+        .get_mut("versions")
+        .and_then(|versions| versions.get_mut(version))
+        .and_then(Value::as_object_mut)
+        .unwrap_or_else(|| panic!("{package} has no fixture version {version}"))
+        .remove(field);
+    assert!(removed.is_some(), "{package}@{version} has no {field} to remove");
 }
 
 struct Package {
@@ -243,23 +391,34 @@ impl Package {
         Self { name, latest: String::new(), versions: BTreeMap::new() }
     }
 
-    fn write(&self, storage_root: &Path) {
-        let package_dir = storage_root.join(&self.name);
-        fs::create_dir_all(&package_dir).expect("create test registry package storage dir");
+    /// Store every version's tarball as the first incarnation of its bytes,
+    /// and return the mapping of each to them, which the metadata commits.
+    fn write_blobs(&self, storage_root: &Path) -> Vec<ArtifactBlob> {
+        let mut archives = Vec::with_capacity(self.versions.len());
+        let name = pnpr_package_name::CanonicalPackageName::parse(&self.name, Ecosystem::Npm)
+            .unwrap_or_else(|error| panic!("package name {:?}: {error}", self.name));
         for version in self.versions.values() {
-            fs::write(package_dir.join(&version.tarball_name), &version.tarball)
+            let blob =
+                BlobRef { id: BlobId::of_bytes(Ecosystem::Npm, &version.tarball), incarnation: 1 };
+            let path = local_archive_path(storage_root, "", Ecosystem::Npm, &blob.key());
+            fs::create_dir_all(path.parent().expect("an archive has a directory"))
+                .expect("create test registry archive dir");
+            fs::write(&path, &version.tarball)
                 .expect("write fixture tarball to test registry storage");
+            archives.push(ArtifactBlob {
+                ecosystem: Ecosystem::Npm,
+                name: name.as_str().to_string(),
+                version: version.version.clone(),
+                artifact: version.tarball_name.clone(),
+                blob,
+                size: version.tarball.len() as u64,
+            });
         }
-        fs::write(
-            package_dir.join("package.json"),
-            serde_json::to_vec(&self.packument()).expect("serialize fixture packument"),
-        )
-        .expect("write fixture packument to test registry storage");
+        archives
     }
 
     fn packument(&self) -> Value {
-        let versions = self
-            .versions
+        let versions = self.versions
             .iter()
             .map(|(version, package)| (version.clone(), package.packument_manifest.clone()))
             .collect();
@@ -311,38 +470,17 @@ struct PackageVersion {
 impl PackageVersion {
     fn load(root: &Path, manifest_path: &Path, substitutions: &[(&str, &str)]) -> Self {
         let package_dir = manifest_path.parent().expect("manifest has parent");
-        let manifest_text = substitutions.iter().fold(
-            fs::read_to_string(manifest_path).expect("read fixture package.json"),
-            |manifest, (from, to)| manifest.replace(from, to),
-        );
+        let manifest_text = substituted_manifest_text(manifest_path, substitutions);
         let manifest: Value =
             serde_json::from_str(&manifest_text).expect("parse fixture package.json");
-        let name = manifest
-            .get("name")
-            .and_then(Value::as_str)
-            .expect("fixture package.json has string name")
-            .to_string();
-        let version = manifest
-            .get("version")
-            .and_then(Value::as_str)
-            .expect("fixture package.json has string version")
-            .to_string();
+        let name = manifest_string(&manifest, "name");
+        let version = manifest_string(&manifest, "version");
         let tarball = build_tarball(root, package_dir, &manifest, &manifest_text);
         let integrity =
             format!("sha512-{}", general_purpose::STANDARD.encode(Sha512::digest(&tarball)));
         let tarball_name = format!("{}-{version}.tgz", tarball_basename(&name));
         let tarball_url = format!("http://example.test/{name}/-/{tarball_name}");
-        let mut packument_manifest = manifest;
-        let manifest_object =
-            packument_manifest.as_object_mut().expect("fixture package.json is an object");
-        manifest_object
-            .insert("dist".to_string(), json!({ "tarball": tarball_url, "integrity": integrity }));
-        // Verdaccio's abbreviated metadata exposes `bundleDependencies` (no "d"),
-        // and that is the key pnpm reads, so mirror `bundledDependencies` onto it
-        // when only the longer spelling is present in the fixture manifest.
-        if let Some(bundled) = manifest_object.get("bundledDependencies").cloned() {
-            manifest_object.entry("bundleDependencies").or_insert(bundled);
-        }
+        let packument_manifest = with_dist(manifest, &tarball_url, &integrity);
         Self { name, version, packument_manifest, tarball_name, tarball }
     }
 }
@@ -352,10 +490,46 @@ fn fixture_manifests(root: &Path) -> Vec<PathBuf> {
         .into_iter()
         .map(walkdir::DirEntry::into_path)
         .filter(|path| {
-            path.file_name().is_some_and(|name| name == "package.json")
+            path.file_name()
+                .is_some_and(|name| name == "package.json")
                 && is_version_dir(path.parent())
         })
         .collect()
+}
+
+fn substituted_manifest_text(manifest_path: &Path, substitutions: &[(&str, &str)]) -> String {
+    substitutions
+        .iter()
+        .fold(
+            fs::read_to_string(manifest_path).expect("read fixture package.json"),
+            |manifest, (from, to)| manifest.replace(from, to),
+        )
+}
+
+fn manifest_string(manifest: &Value, key: &str) -> String {
+    manifest
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("fixture package.json has string {key}"))
+        .to_string()
+}
+
+/// The manifest as a packument version entry: with its `dist` block, and
+/// with `bundleDependencies` mirrored from `bundledDependencies`.
+fn with_dist(mut packument_manifest: Value, tarball_url: &str, integrity: &str) -> Value {
+    let manifest_object =
+        packument_manifest.as_object_mut().expect("fixture package.json is an object");
+    manifest_object.insert(
+        "dist".to_string(),
+        json!({ "tarball": tarball_url, "integrity": integrity }),
+    );
+    // Verdaccio's abbreviated metadata exposes `bundleDependencies` (no "d"),
+    // and that is the key pnpm reads, so mirror `bundledDependencies` onto it
+    // when only the longer spelling is present in the fixture manifest.
+    if let Some(bundled) = manifest_object.get("bundledDependencies").cloned() {
+        manifest_object.entry("bundleDependencies").or_insert(bundled);
+    }
+    packument_manifest
 }
 
 // A `package.json` is a package manifest only when it sits directly inside a
@@ -365,182 +539,24 @@ fn fixture_manifests(root: &Path) -> Vec<PathBuf> {
 fn is_version_dir(dir: Option<&Path>) -> bool {
     dir.and_then(Path::file_name)
         .and_then(|name| name.to_str())
-        .is_some_and(|name| Version::parse(name).is_ok())
-}
-
-fn build_tarball(
-    root: &Path,
-    package_dir: &Path,
-    manifest: &Value,
-    manifest_text: &str,
-) -> Vec<u8> {
-    let name = manifest.get("name").and_then(Value::as_str).unwrap_or_default();
-    let gzip = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(gzip);
-    for entry in fixture_files(package_dir) {
-        let relative = entry.path().strip_prefix(package_dir).expect("fixture entry under package");
-        let path_in_archive = Path::new("package").join(relative);
-        let content = if relative == Path::new("package.json") {
-            manifest_text.as_bytes().to_vec()
-        } else {
-            fs::read(entry.path()).expect("read fixture file")
-        };
-        let mode = file_mode(root, entry.path(), &content).expect("read fixture file mode");
-        append_file(&mut tar, &path_in_archive, &content, mode);
-    }
-    // Files whose names differ only by case cannot coexist in a case-insensitive
-    // working tree (the default on macOS and Windows), so they are composed into
-    // the archive here instead of being committed as colliding fixture files.
-    for (relative, content) in in_memory_files(name) {
-        let path_in_archive = Path::new("package").join(relative);
-        append_file(&mut tar, &path_in_archive, content.as_bytes(), 0o644);
-    }
-    // pnpm's `publish` copies the workspace-root LICENSE into every package that
-    // doesn't ship its own; registry-mock published these fixtures that way, so
-    // reproduce the injected LICENSE here.
-    if should_inject_root_license(name) && !package_dir.join("LICENSE").exists() {
-        append_file(&mut tar, Path::new("package/LICENSE"), INJECTED_LICENSE.as_bytes(), 0o644);
-    }
-    // `bundleDependencies` packages publish their resolved dependency tree inside
-    // the tarball's `node_modules`. registry-mock produces this with a
-    // `prepublishOnly` install; reproduce it here so `node_modules` (gitignored)
-    // never has to be committed.
-    for (relative, content, mode) in bundled_node_modules(root, manifest) {
-        let path_in_archive = Path::new("package").join(relative);
-        append_file(&mut tar, &path_in_archive, &content, mode);
-    }
-    let gzip = tar.into_inner().expect("finish tar archive");
-    gzip.finish().expect("finish gzip archive")
-}
-
-const INJECTED_LICENSE: &str = include_str!("../../../../LICENSE");
-
-// The bundle-dependency fixtures publish via a `prepublishOnly` install that
-// turns each into a self-contained workspace with no root LICENSE to copy, and
-// a couple of special fixtures were likewise published without one. Everything
-// else receives the injected root LICENSE, matching the registry-mock tarballs.
-fn should_inject_root_license(name: &str) -> bool {
-    !matches!(
-        name,
-        "@pnpm.e2e/pkg-with-bundle-dependencies"
-            | "@pnpm.e2e/pkg-with-bundle-dependencies-true"
-            | "@pnpm.e2e/pkg-with-bundle-dependencies-false"
-            | "@pnpm.e2e/pkg-with-bundled-dependencies"
-            | "@pnpm.e2e/pkg-with-accidentally-published-catalog-protocol",
-    )
-}
-
-fn in_memory_files(name: &str) -> &'static [(&'static str, &'static str)] {
-    match name {
-        "@pnpm.e2e/with-same-file-in-different-cases" => {
-            &[("Foo.js", "// Foo.js\n"), ("foo.js", "// foo.js\n")]
-        }
-        _ => &[],
-    }
-}
-
-fn bundled_node_modules(root: &Path, manifest: &Value) -> Vec<(PathBuf, Vec<u8>, u32)> {
-    let mut files = Vec::new();
-    for dep in bundled_dependency_names(manifest) {
-        let spec = manifest
-            .get("dependencies")
-            .and_then(|deps| deps.get(&dep))
-            .and_then(Value::as_str)
-            .unwrap_or("*");
-        let Some(version) = resolve_fixture_version(root, &dep, spec) else { continue };
-        let dep_dir = root.join(&dep).join(&version);
-        for entry in fixture_files(&dep_dir) {
-            let relative = entry
-                .path()
-                .strip_prefix(&dep_dir)
-                .expect("bundled dependency entry under dep dir");
-            let archive = Path::new("node_modules").join(&dep).join(relative);
-            let content = fs::read(entry.path()).expect("read bundled dependency file");
-            let mode =
-                file_mode(root, entry.path(), &content).expect("bundled dependency file mode");
-            files.push((archive, content, mode));
-        }
-    }
-    files
-}
-
-fn bundled_dependency_names(manifest: &Value) -> Vec<String> {
-    let bundled =
-        manifest.get("bundleDependencies").or_else(|| manifest.get("bundledDependencies"));
-    match bundled {
-        Some(Value::Bool(true)) => manifest
-            .get("dependencies")
-            .and_then(Value::as_object)
-            .map(|deps| deps.keys().cloned().collect())
-            .unwrap_or_default(),
-        Some(Value::Array(names)) => {
-            names.iter().filter_map(|name| name.as_str().map(String::from)).collect()
-        }
-        _ => Vec::new(),
-    }
-}
-
-fn resolve_fixture_version(root: &Path, dep: &str, spec: &str) -> Option<String> {
-    let range = Range::parse(spec).ok()?;
-    let mut best: Option<(Version, String)> = None;
-    for entry in fs::read_dir(root.join(dep)).ok()? {
-        let raw = entry.ok()?.file_name().to_string_lossy().into_owned();
-        let Ok(version) = Version::parse(&raw) else { continue };
-        if range.satisfies(&version) && best.as_ref().is_none_or(|(best, _)| version > *best) {
-            best = Some((version, raw));
-        }
-    }
-    best.map(|(_, raw)| raw)
-}
-
-fn fixture_files(root: &Path) -> Vec<walkdir::DirEntry> {
-    let mut entries: Vec<_> = WalkDir::new(root)
-        .into_iter()
-        .map(|entry| entry.expect("walk registry package fixtures"))
-        .filter(|entry| entry.file_type().is_file())
-        .collect();
-    entries.sort_by(|left, right| left.path().cmp(right.path()));
-    entries
-}
-
-fn append_file<Writer: Write>(
-    tar: &mut tar::Builder<Writer>,
-    path_in_archive: &Path,
-    content: &[u8],
-    mode: u32,
-) {
-    let mut header = tar::Header::new_gnu();
-    header.set_size(content.len() as u64);
-    header.set_mode(mode);
-    header.set_cksum();
-    tar.append_data(&mut header, path_in_archive, content).expect("append fixture file");
-}
-
-fn file_mode(root: &Path, source: &Path, content: &[u8]) -> io::Result<u32> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = fs::metadata(source)?.permissions().mode() & 0o777;
-        if mode & 0o111 != 0 {
-            return Ok(mode);
-        }
-    }
-    let relative = source.strip_prefix(root).expect("fixture source under root");
-    if content.starts_with(b"#!")
-        || relative.components().any(|component| component.as_os_str() == "bin")
-    {
-        return Ok(0o755);
-    }
-    Ok(0o644)
+        .map(Version::parse)
+        .is_some_and(|parsed| parsed.is_ok())
 }
 
 fn tarball_basename(name: &str) -> String {
-    name.rsplit('/').next().unwrap_or(name).to_string()
+    name.rsplit('/')
+        .next()
+        .unwrap_or(name)
+        .to_string()
 }
 
 fn latest_version<'a>(versions: impl Iterator<Item = &'a String>) -> Option<String> {
     versions
-        .filter_map(|raw| Version::parse(raw).ok().map(|version| (version, raw.clone())))
+        .filter_map(|raw| {
+            Version::parse(raw)
+                .ok()
+                .map(|version| (version, raw.clone()))
+        })
         .max_by(|(left, _), (right, _)| left.cmp(right))
         .map(|(_, raw)| raw)
 }

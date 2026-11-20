@@ -9,16 +9,26 @@
 //! offline and deterministic (outside a supported CI it resolves to "no token"
 //! without a network request).
 
+use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use pnpm_testing_utils::command_env::CommandTestExt;
-use serde_json::{Value, json};
+use pnpr_fixtures::MockConfigPresets;
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     fs,
-    io::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 const STAGE_ID: &str = "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f";
@@ -34,16 +44,26 @@ fn pacquet(workspace: &Path) -> Command {
         .without_env("NPM_CONFIG_OTP")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
-        // These tests turn on publish settings a developer may also have set
-        // globally, so pin every layer below `pnpm-workspace.yaml` to nothing:
-        // `XDG_CONFIG_HOME` points at the workspace, which has no `pnpm/`
-        // subdirectory to read a global `config.yaml` from.
-        .with_env("XDG_CONFIG_HOME", workspace)
-        .without_ambient_pnpm_config()
 }
 
 fn stage(workspace: &Path, args: &[&str]) -> std::process::Output {
-    pacquet(workspace).with_arg("stage").with_args(args).output().expect("spawn pacquet stage")
+    let mut command = pacquet(workspace);
+    apply_test_registry(&mut command, workspace);
+    command
+        .with_arg("stage")
+        .with_args(args)
+        .output()
+        .expect("spawn pacquet stage")
+}
+
+fn apply_test_registry(command: &mut Command, workspace: &Path) {
+    if let Ok(npmrc) = fs::read_to_string(workspace.join(".npmrc"))
+        && let Some(registry) = npmrc
+            .lines()
+            .find_map(|line| line.strip_prefix("registry="))
+    {
+        command.env("PNPM_CONFIG_REGISTRY", registry);
+    }
 }
 
 fn write_project(dir: &Path, registry: &str, manifest: &Value) {
@@ -88,7 +108,10 @@ fn publish_dry_run_reports_that_the_package_would_be_staged() {
         "module.exports = { hooks: { updateConfig: config => ({ ...config, catalogs: { default: { 'is-odd': '3.0.1' } } }) } }",
     )
     .expect("write .pnpmfile.cjs");
-    let mock = server.mock("POST", Matcher::Any).expect(0).create();
+    let mock = server
+        .mock("POST", Matcher::Any)
+        .expect(0)
+        .create();
 
     let output =
         stage(dir.path(), &["publish", "--dry-run", "--no-git-checks", "--reporter=silent"]);
@@ -131,7 +154,7 @@ fn list_stops_paginating_at_the_fail_safe_page_cap() {
         .expect(1000)
         .create();
 
-    let output = stage(dir.path(), &["list", "--json", "--reporter=silent"]);
+    let output = stage(dir.path(), &["list", "--json"]);
 
     mock.assert();
     assert_success(&output);
@@ -161,7 +184,9 @@ fn list_uses_package_scoped_auth_for_package_filters() {
         .expect(1)
         .create();
 
-    let output = pacquet(dir.path())
+    let mut command = pacquet(dir.path());
+    apply_test_registry(&mut command, dir.path());
+    let output = command
         .with_arg("--npmrc-auth-file")
         .with_arg(&auth_file)
         .with_arg("stage")
@@ -188,76 +213,6 @@ fn list_rejects_version_specifiers() {
     );
 }
 
-#[test]
-fn approve_and_reject_send_the_configured_otp_and_stage_headers() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    let approve_mock = server
-        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
-        .match_header("npm-auth-type", "web")
-        .match_header("npm-command", "stage")
-        .match_header("npm-otp", "123456")
-        .with_status(201)
-        .with_body(r#"{"ok":true}"#)
-        .expect(1)
-        .create();
-    let reject_mock = server
-        .mock("DELETE", format!("/-/stage/{STAGE_ID}").as_str())
-        .match_header("npm-auth-type", "web")
-        .match_header("npm-command", "stage")
-        .match_header("npm-otp", "123456")
-        .with_status(204)
-        .expect(1)
-        .create();
-
-    let approve = stage(dir.path(), &["approve", STAGE_ID, "--otp", "123456"]);
-    approve_mock.assert();
-    assert_success(&approve);
-    assert_eq!(
-        String::from_utf8_lossy(&approve.stdout),
-        format!("Staged package {STAGE_ID} approved and published successfully.\n"),
-    );
-
-    let reject = stage(dir.path(), &["reject", STAGE_ID, "--otp", "123456"]);
-    reject_mock.assert();
-    assert_success(&reject);
-    let stdout = String::from_utf8_lossy(&reject.stdout);
-    assert!(
-        stdout.contains(&format!("Staged package {STAGE_ID} has been rejected.")),
-        "stdout: {stdout}",
-    );
-}
-
-/// `stage`'s non-publish subcommands are the ones that answer a 2FA
-/// challenge, so the OTP has to reach them the same way it reaches
-/// `stage publish` — upstream reads the config-resolved `opts.otp` for every
-/// subcommand, not just that one.
-#[test]
-fn approve_sends_an_otp_from_the_environment() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    let approve_mock = server
-        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
-        .match_header("npm-otp", "654321")
-        .with_status(201)
-        .with_body(r#"{"ok":true}"#)
-        .expect(1)
-        .create();
-
-    let approve = pacquet(dir.path())
-        .with_arg("stage")
-        .with_args(["approve", STAGE_ID])
-        .with_env("PNPM_CONFIG_OTP", "654321")
-        .output()
-        .expect("spawn pacquet stage");
-    approve_mock.assert();
-    assert_success(&approve);
-}
-
 /// A staged version of `package_name`, as the `-/stage` listing reports it.
 fn staged_item_of(stage_id: &str, package_name: &str) -> Value {
     json!({
@@ -272,223 +227,10 @@ fn staged_item_of(stage_id: &str, package_name: &str) -> Value {
 }
 
 #[test]
-fn approve_shares_one_one_time_password_across_a_batch() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    let described_mocks: Vec<mockito::Mock> =
-        [(STAGE_ID, "@scope/first"), (SECOND_STAGE_ID, "@scope/second")]
-            .into_iter()
-            .map(|(stage_id, package_name)| {
-                server
-                    .mock("GET", format!("/-/stage/{stage_id}").as_str())
-                    .with_body(staged_item_of(stage_id, package_name).to_string())
-                    .expect(1)
-                    .create()
-            })
-            .collect();
-    let approve_mocks: Vec<mockito::Mock> = [STAGE_ID, SECOND_STAGE_ID]
-        .into_iter()
-        .map(|stage_id| {
-            server
-                .mock("POST", format!("/-/stage/{stage_id}/approve").as_str())
-                .match_header("npm-otp", "123456")
-                .with_status(201)
-                .with_body(r#"{"ok":true}"#)
-                .expect(1)
-                .create()
-        })
-        .collect();
-
-    let output = stage(
-        dir.path(),
-        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
-    );
-
-    for mock in described_mocks.iter().chain(&approve_mocks) {
-        mock.assert();
-    }
-    assert_success(&output);
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        "Approved 2 staged packages successfully.\n",
-    );
-}
-
-/// A workspace whose `@scope/dependent` package depends on its
-/// `@scope/dependency` package.
-fn write_workspace_with_dependency(dir: &Path, registry: &str) {
-    write_registry_config(dir, registry);
-    fs::write(dir.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write pnpm-workspace.yaml");
-    for (location, manifest) in [
-        ("dependency", json!({ "name": "@scope/dependency", "version": "1.0.0" })),
-        (
-            "dependent",
-            json!({
-                "name": "@scope/dependent",
-                "version": "1.0.0",
-                "dependencies": { "@scope/dependency": "workspace:*" },
-            }),
-        ),
-    ] {
-        let package_dir = dir.join("packages").join(location);
-        fs::create_dir_all(&package_dir).expect("create the package directory");
-        fs::write(package_dir.join("package.json"), manifest.to_string())
-            .expect("write package.json");
-    }
-}
-
-/// The dependency is approved first, so a dependency that never reaches the
-/// registry keeps its dependent from being published against it.
-#[test]
-fn approve_skips_a_staged_package_whose_workspace_dependency_could_not_be_approved() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_workspace_with_dependency(dir.path(), &registry);
-    let described_mocks: Vec<mockito::Mock> =
-        [(STAGE_ID, "@scope/dependent"), (SECOND_STAGE_ID, "@scope/dependency")]
-            .into_iter()
-            .map(|(stage_id, package_name)| {
-                server
-                    .mock("GET", format!("/-/stage/{stage_id}").as_str())
-                    .with_body(staged_item_of(stage_id, package_name).to_string())
-                    .expect(1)
-                    .create()
-            })
-            .collect();
-    let dependency_mock = server
-        .mock("POST", format!("/-/stage/{SECOND_STAGE_ID}/approve").as_str())
-        .with_status(409)
-        .with_body(r#"{"error":"version already exists"}"#)
-        .expect_at_least(1)
-        .create();
-    let dependent_mock =
-        server.mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str()).expect(0).create();
-
-    let output = stage(
-        dir.path(),
-        &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
-    );
-
-    for mock in &described_mocks {
-        mock.assert();
-    }
-    dependency_mock.assert();
-    dependent_mock.assert();
-    assert!(!output.status.success(), "an incomplete approval batch must exit non-zero");
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "Approved 0 of 2 staged packages.\n");
-}
-
-#[test]
-fn approve_sends_one_request_for_a_repeated_stage_id() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    let read_mock = server.mock("GET", Matcher::Any).expect(0).create();
-    let approve_mock = server
-        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
-        .match_header("npm-otp", "123456")
-        .with_status(201)
-        .with_body(r#"{"ok":true}"#)
-        .expect(1)
-        .create();
-
-    let output =
-        stage(dir.path(), &["approve", STAGE_ID, STAGE_ID, "--otp", "123456", "--reporter=silent"]);
-
-    read_mock.assert();
-    approve_mock.assert();
-    assert_success(&output);
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        format!("Staged package {STAGE_ID} approved and published successfully.\n"),
-    );
-}
-
-#[test]
-fn approve_without_a_stage_id_requires_an_interactive_terminal() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    let mock = server.mock("GET", Matcher::Any).expect(0).create();
-
-    // The spawned binary has no TTY, so the staged packages cannot be chosen.
-    let output = stage(dir.path(), &["approve"]);
-
-    mock.assert();
-    assert_failure_with_code(&output, "ERR_PNPM_STAGE_ID_REQUIRED");
-}
-
-#[test]
-fn approve_rejects_a_stage_id_that_is_not_a_uuid() {
-    let dir = tempfile::tempdir().expect("workspace");
-    write_registry_config(dir.path(), "http://localhost:4873/");
-
-    let output = stage(dir.path(), &["approve", STAGE_ID, "not-a-uuid"]);
-
-    assert_failure_with_code(&output, "ERR_PNPM_INVALID_STAGE_ID");
-}
-
-#[test]
-fn approve_maps_a_web_auth_challenge_to_the_non_interactive_error() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    server
-        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
-        .with_status(401)
-        .with_body(
-            json!({
-                "authUrl": "https://www.npmjs.com/auth/cli/test-auth-id",
-                "doneUrl": "https://registry.example.com/-/v1/done?authId=test-auth-id",
-            })
-            .to_string(),
-        )
-        .create();
-
-    // The spawned binary has no TTY, so the web-auth challenge cannot be
-    // driven interactively.
-    let output = stage(dir.path(), &["approve", STAGE_ID]);
-
-    assert_failure_with_code(&output, "ERR_PNPM_OTP_NON_INTERACTIVE");
-}
-
-#[test]
-fn approve_surfaces_a_plain_401_as_a_stage_registry_error() {
-    let dir = tempfile::tempdir().expect("workspace");
-    let mut server = mockito::Server::new();
-    let registry = format!("{}/", server.url());
-    write_registry_config(dir.path(), &registry);
-    server
-        .mock("POST", format!("/-/stage/{STAGE_ID}/approve").as_str())
-        .with_status(401)
-        .with_header("www-authenticate", r#"Basic realm="example""#)
-        .with_body(r#"{"error":"unauthorized"}"#)
-        .create();
-
-    let output = stage(dir.path(), &["approve", STAGE_ID]);
-
-    assert_failure_with_code(&output, "ERR_PNPM_STAGE_REGISTRY_ERROR");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains(&format!("Failed to approve staged package {STAGE_ID}")),
-        "stderr: {stderr}",
-    );
-    // miette wraps long lines, so the status clause is asserted separately.
-    assert!(stderr.contains("(status 401 Unauthorized)"), "stderr: {stderr}");
-}
-
-#[test]
 fn download_rejects_traversal_through_the_tarball_manifest_version() {
     let dir = tempfile::tempdir().expect("workspace");
     let outside_base = "stage-download-outside-version";
-    let tarball = gzipped_tarball(&[(
+    let tarball = _utils::gzipped_tarball(&[(
         "package/package.json",
         &json!({
             "name": "@scope/stage-download-version",
@@ -511,7 +253,7 @@ fn download_rejects_traversal_through_the_tarball_manifest_version() {
 fn download_rejects_traversal_through_the_tarball_manifest_name() {
     let dir = tempfile::tempdir().expect("workspace");
     let outside_base = "stage-download-outside-name";
-    let tarball = gzipped_tarball(&[(
+    let tarball = _utils::gzipped_tarball(&[(
         "package/package.json",
         &json!({
             "name": format!("@scope/../../{outside_base}"),
@@ -585,7 +327,10 @@ fn download_registry(
 }
 
 fn outside_tarball_path(download_dir: &Path, basename: &str) -> PathBuf {
-    download_dir.parent().expect("the download dir has a parent").join(format!("{basename}.tgz"))
+    download_dir
+        .parent()
+        .expect("the download dir has a parent")
+        .join(format!("{basename}.tgz"))
 }
 
 /// After a rejected download the workspace must hold only its `.npmrc`.
@@ -593,34 +338,28 @@ fn assert_download_dir_untouched(download_dir: &Path) {
     let entries: Vec<String> = fs::read_dir(download_dir)
         .expect("read the download dir")
         .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     assert_eq!(entries, [".npmrc"], "no tarball may be written on a rejected download");
 }
 
-fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
-    let mut builder = tar::Builder::new(Vec::new());
-    for (path, contents) in entries {
-        let mut header = tar::Header::new_gnu();
-        header.set_size(contents.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        builder.append_data(&mut header, path, contents.as_bytes()).expect("append tar entry");
-    }
-    let tar = builder.into_inner().expect("finish the tar archive");
-    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-    encoder.write_all(&tar).expect("gzip the tarball");
-    encoder.finish().expect("finish the gzip stream")
+fn package_tarball(manifest: &Value) -> Vec<u8> {
+    let manifest = manifest.to_string();
+    _utils::gzipped_tarball(&[("package/package.json", &manifest)])
 }
 
-// --------------------------------------------------------------------
 // End-to-end lifecycle against a hosted in-process pnpr. The shared
 // `pnpm_testing_utils` registry runs in proxy mode and rejects
 // publishes, so these tests serve their own static-mode instance.
-// --------------------------------------------------------------------
 
 /// A hosted pnpr on an ephemeral localhost port, backed by a fresh
-/// storage tempdir (returned so it outlives the test).
+/// storage tempdir (returned so it outlives the test), and its npm registry
+/// URL.
 fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
     let storage = tempfile::tempdir().expect("registry storage");
     let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
@@ -629,8 +368,8 @@ fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
     let listen = listener.local_addr().expect("read the registry listener address");
     let url = format!("http://{listen}/");
     let mut config = pnpr::Config::static_serve(listen, storage.path().to_path_buf());
-    config.public_url = url.trim_end_matches('/').to_string();
-    config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
+    config.http.public_url = url.trim_end_matches('/').to_string();
+    config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
     std::thread::Builder::new()
         .name("stage-e2e-registry".to_string())
         .spawn(move || {
@@ -645,7 +384,7 @@ fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
             });
         })
         .expect("spawn the registry thread");
-    (url, storage)
+    (format!("{url}npm/"), storage)
 }
 
 /// Run one async request against the e2e registry from this synchronous test.
@@ -672,17 +411,24 @@ fn add_user(registry: &str) -> String {
     let body = json!({
         "_id": "org.couchdb.user:alice",
         "name": "alice",
-        "password": "secret",
+        "password": "secret123",
         "email": "alice@example.com",
         "type": "user",
         "roles": [],
     });
     block_on(async {
-        let response =
-            http_client().put(&url).json(&body).send().await.expect("send the adduser request");
+        let response = http_client()
+            .put(&url)
+            .json(&body)
+            .send()
+            .await
+            .expect("send the adduser request");
         assert_eq!(response.status().as_u16(), 201, "adduser must succeed");
         let payload: Value = response.json().await.expect("parse the adduser response");
-        payload["token"].as_str().expect("token in the adduser response").to_owned()
+        payload["token"]
+            .as_str()
+            .expect("token in the adduser response")
+            .to_owned()
     })
 }
 
@@ -712,7 +458,9 @@ fn e2e_workspace(dir: &Path, registry: &str, token: &str, manifest: &Value) -> P
 }
 
 fn stage_with_auth(workspace: &Path, auth_file: &Path, args: &[&str]) -> std::process::Output {
-    pacquet(workspace)
+    let mut command = pacquet(workspace);
+    apply_test_registry(&mut command, workspace);
+    command
         .with_arg("--npmrc-auth-file")
         .with_arg(auth_file)
         .with_arg("stage")
@@ -736,22 +484,22 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         &json!({ "name": "@stage-e2e/lifecycle", "version": "1.0.0" }),
     );
 
-    let publish = stage_with_auth(
-        dir.path(),
-        &auth_file,
-        &["publish", "--json", "--no-git-checks", "--reporter=silent"],
-    );
+    let publish =
+        stage_with_auth(dir.path(), &auth_file, &["publish", "--json", "--no-git-checks"]);
     assert_success(&publish);
     let keyed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&publish.stdout)).expect("keyed JSON output");
     let summary = &keyed["@stage-e2e/lifecycle"];
     assert_eq!(summary["version"], "1.0.0");
-    let stage_id = summary["stageId"].as_str().expect("a stage id").to_owned();
+    let stage_id = summary["stageId"]
+        .as_str()
+        .expect("a stage id")
+        .to_owned();
 
     // Held back: not installable until approved.
     assert_eq!(packument_status(&registry, &token, "@stage-e2e/lifecycle"), 404);
 
-    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json", "--reporter=silent"]);
+    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json"]);
     assert_success(&list);
     let listed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&list.stdout)).expect("list JSON output");
@@ -766,11 +514,7 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
     assert!(stdout.contains("package name: @stage-e2e/lifecycle"), "stdout: {stdout}");
     assert!(stdout.contains("staged by: alice (user)"), "stdout: {stdout}");
 
-    let download = stage_with_auth(
-        dir.path(),
-        &auth_file,
-        &["download", &stage_id, "--json", "--reporter=silent"],
-    );
+    let download = stage_with_auth(dir.path(), &auth_file, &["download", &stage_id, "--json"]);
     assert_success(&download);
     let downloaded: Value = serde_json::from_str(&String::from_utf8_lossy(&download.stdout))
         .expect("download JSON output");
@@ -779,7 +523,12 @@ fn stage_lifecycle_against_pnpr_publishes_only_on_approval() {
         downloaded["@stage-e2e/lifecycle"]["filename"],
         Value::String(expected_filename.clone()),
     );
-    assert!(dir.path().join(&expected_filename).exists(), "the tarball must be written");
+    assert!(
+        dir.path()
+            .join(&expected_filename)
+            .exists(),
+        "the tarball must be written",
+    );
 
     let approve = stage_with_auth(dir.path(), &auth_file, &["approve", &stage_id]);
     assert_success(&approve);
@@ -885,9 +634,82 @@ fn stage_list_paginates_against_pnpr() {
         }
     });
 
-    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json", "--reporter=silent"]);
+    let list = stage_with_auth(dir.path(), &auth_file, &["list", "--json"]);
     assert_success(&list);
     let listed: Value =
         serde_json::from_str(&String::from_utf8_lossy(&list.stdout)).expect("list JSON output");
     assert_eq!(listed.as_array().map(Vec::len), Some(101));
 }
+
+#[test]
+fn stage_publish_json_keeps_stdout_parseable_on_dry_run_empty_workspace_and_error() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(dir.path(), &registry, &json!({ "name": "demo-json", "version": "1.0.0" }));
+
+    let dry_run = stage(dir.path(), &["publish", "--dry-run", "--no-git-checks", "--json"]);
+    assert_success(&dry_run);
+    let dry_run_json: Value =
+        serde_json::from_slice(&dry_run.stdout).expect("dry-run stdout must be pure JSON");
+    assert_eq!(dry_run_json["demo-json"]["version"], "1.0.0");
+
+    let ws = tempfile::tempdir().expect("recursive workspace");
+    fs::write(ws.path().join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
+    fs::write(ws.path().join("pnpm-workspace.yaml"), "packages:\n  - pkg\n")
+        .expect("write pnpm-workspace.yaml");
+    let pkg_dir = ws.path().join("pkg");
+    fs::create_dir_all(&pkg_dir).expect("create pkg dir");
+    fs::write(
+        pkg_dir.join("package.json"),
+        json!({ "name": "already-published", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write pkg package.json");
+    let packument = server
+        .mock("GET", "/already-published")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "name": "already-published",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": {
+                    "1.0.0": {
+                        "name": "already-published",
+                        "version": "1.0.0",
+                        "dist": {
+                            "tarball": format!("{registry}already-published/-/already-published-1.0.0.tgz"),
+                        },
+                    },
+                },
+            })
+            .to_string(),
+        )
+        .create();
+    let mut recursive = pacquet(ws.path());
+    apply_test_registry(&mut recursive, ws.path());
+    let empty_publish = recursive
+        .with_args(["--reporter=default", "-r", "stage", "publish", "--no-git-checks", "--json"])
+        .output()
+        .expect("spawn recursive stage publish");
+    packument.assert();
+    assert_success(&empty_publish);
+    let empty_json: Value = serde_json::from_slice(&empty_publish.stdout)
+        .expect("empty recursive stage publish stdout must be pure JSON");
+    assert_eq!(empty_json, json!({}));
+
+    let bad_dir = tempfile::tempdir().expect("bad workspace");
+    write_project(bad_dir.path(), &registry, &json!({ "name": "missing-version" }));
+    let failed = stage(bad_dir.path(), &["publish", "--no-git-checks", "--json"]);
+    assert!(!failed.status.success(), "missing version must fail");
+    assert!(
+        failed.stderr.is_empty(),
+        "JSON error mode must not print miette output on stderr: {}",
+        String::from_utf8_lossy(&failed.stderr),
+    );
+    let err_json: Value =
+        serde_json::from_slice(&failed.stdout).expect("failed stage --json stdout must be JSON");
+    assert_eq!(err_json["error"]["code"], "ERR_PNPM_PACKAGE_VERSION_NOT_FOUND");
+}
+
+mod approval;

@@ -1,9 +1,6 @@
-import fs, { type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { getAutomaticallyIgnoredBuilds } from '@pnpm/building.commands'
 import {
   type CatalogResolver,
   resolveFromCatalog,
@@ -11,36 +8,29 @@ import {
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
-import { type Config, types } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
-import { createShortHash } from '@pnpm/crypto.hash'
-import { PnpmError } from '@pnpm/error'
+import { getSystemNodeVersion } from '@pnpm/engine.runtime.system-version'
+import { isError, PnpmError } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
-import { logger } from '@pnpm/logger'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
-import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { PackageManifest, PnpmSettings, SupportedArchitectures } from '@pnpm/types'
+import type { PackageManifest, PnpmSettings } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
-import { symlinkDir } from 'symlink-dir'
 
+import { createCacheKey, type DlxCache, findCache, resolveDlxOverrides } from './dlxCache.js'
+import { getOrPrepareDlxCache } from './dlxInstall.js'
 import { makeEnv } from './makeEnv.js'
-import { trackedExeca } from './trackedExeca.js'
+import { trackedExeca, waitForTracked } from './trackedExeca.js'
+
+export { createCacheKey }
 
 export const skipPackageManagerCheck = true
 
 export const commandNames = ['dlx']
-
-/**
- * Test-only env var. When set, the dlx ignored-builds recovery path bypasses
- * the TTY check and forwards `all: true` so `approve-builds` skips its
- * multiselect and confirm prompts. Mirrors the same env var honored by
- * `promptApproveGlobalBuilds` for global installs. Not for production use.
- */
-const AUTO_APPROVE_FOR_TESTS_ENV = 'PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS'
 
 export const shorthands: Record<string, string> = {
   c: '--shell-mode',
@@ -50,6 +40,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'cpu',
+      'ignore-scripts',
       'libc',
       'os',
     ], types),
@@ -75,7 +66,7 @@ export function help (): string {
             name: '--package',
           },
           {
-            description: 'A list of package names that are allowed to run postinstall scripts during installation',
+            description: 'A list of package names that are allowed to run postinstall scripts during installation. Prefix a name with ! to deny its scripts instead',
             name: '--allow-build',
           },
           {
@@ -96,17 +87,112 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registriesByScope' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'minimumReleaseAgeExclude' | 'registriesByScope' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'symlink'> & Partial<Pick<Config, 'blockExoticSubdeps'>> & Partial<Pick<ConfigContext, 'cliOptions'>> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[],
   commands?: CommandHandlerMap
 ): Promise<{ exitCode: number, output?: string }> {
-  if (!command && (!opts.package || opts.package.length === 0)) {
-    return { exitCode: 1, output: help() }
+  if (!command) {
+    if (!opts.package?.length) {
+      return { exitCode: 1, output: help() }
+    }
+    throw new PnpmError('DLX_MISSING_COMMAND', "'pnpm dlx' requires a command to run")
   }
-  const pkgs = opts.package ?? [command]
+  const invocationDir = (opts.cliOptions?.dir as string | undefined) ?? process.cwd()
+  const allowBuildSelectors = add.parseAllowBuildSelectors({ allowBuild: opts.allowBuild })
+  const resolvedOverrides = resolveDlxOverrides(opts.overrides, opts.catalogs)
+  const { resolvedPkgs, resolvedPkgAliases } = await resolveDlxPackages(
+    opts,
+    (opts.package ?? [command]).map((pkg) => add.resolveLocalPackageSpec(pkg, invocationDir))
+  )
+  const enableGlobalVirtualStore = opts.enableGlobalVirtualStore ?? true
+  const cache = findDlxCache(opts, resolvedPkgs, resolvedOverrides)
+  const allowBuilds = add.applyAllowBuildSelectors(
+    Object.fromEntries(resolvedPkgAliases.map(pkg => [pkg, true])),
+    allowBuildSelectors
+  )
+  const cachedDir = await getOrPrepareDlxCache({
+    opts,
+    commands,
+    allowBuilds,
+    resolvedPkgs,
+    resolvedOverrides,
+    enableGlobalVirtualStore,
+  }, cache)
+  const env = createDlxEnv(opts, cachedDir, enableGlobalVirtualStore)
+  const binName = opts.package
+    ? command
+    : await getBinName(cachedDir, opts)
+  return runDlxBin(binName, args, {
+    cwd: invocationDir,
+    env,
+    shellMode: opts.shellMode,
+  })
+}
+
+function findDlxCache (
+  opts: DlxCommandOptions,
+  packages: string[],
+  overrides: Record<string, string> | undefined
+): DlxCache {
+  return findCache({
+    packages,
+    dlxCacheMaxAge: opts.dlxCacheMaxAge,
+    cacheDir: opts.cacheDir,
+    registriesByScope: opts.registriesByScope,
+    allowBuild: opts.allowBuild,
+    supportedArchitectures: opts.supportedArchitectures,
+    nodeVersion: getSystemNodeVersion(),
+    overrides,
+    packageExtensions: opts.packageExtensions,
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
+    minimumReleaseAgeStrict: opts.minimumReleaseAgeStrict,
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
+    trustLockfile: opts.trustLockfile,
+    blockExoticSubdeps: opts.blockExoticSubdeps,
+    ignoreScripts: opts.ignoreScripts,
+  })
+}
+
+type DlxResolve = ReturnType<typeof createResolver>['resolve']
+
+async function resolveDlxPackages (
+  opts: DlxCommandOptions,
+  pkgs: string[]
+): Promise<{ resolvedPkgs: string[], resolvedPkgAliases: string[] }> {
+  const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
+  const resolve = createDlxResolver(opts)
+  const resolvedPkgAliases: string[] = []
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
+  const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
+    const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
+    if (alias == null) return pkg
+    const resolvedBareSpecifier = bareSpecifier != null
+      ? resolveCatalogProtocol(catalogResolver, alias, bareSpecifier)
+      : bareSpecifier
+    resolvedPkgAliases.push(alias)
+    if (resolvedBareSpecifier != null && add.isLocalFilesystemSpecifier(resolvedBareSpecifier)) {
+      return `${alias}@${resolvedBareSpecifier}`
+    }
+    const resolved = await resolve({ alias, bareSpecifier: resolvedBareSpecifier }, {
+      lockfileDir: opts.lockfileDir ?? opts.dir,
+      preferredVersions: {},
+      projectDir: opts.dir,
+      publishedBy,
+      publishedByExclude,
+    })
+    return resolved.id
+  }))
+  return { resolvedPkgs, resolvedPkgAliases }
+}
+
+function createDlxResolver (opts: DlxCommandOptions): DlxResolve {
   const fullMetadata = (
     (
       opts.resolutionMode === 'time-based' ||
@@ -114,7 +200,6 @@ export async function handler (
       Boolean(opts.minimumReleaseAge)
     ) && !opts.registrySupportsTimeField
   )
-  const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs ?? {})
   const { resolve: baseResolve } = createResolver({
     ...opts,
     configByUri: opts.configByUri,
@@ -139,104 +224,12 @@ export async function handler (
   const strictResolution =
     (Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true) ||
     opts.trustPolicy === 'no-downgrade'
-  const resolve = strictResolution ? makeResolutionStrict(baseResolve) : baseResolve
-  const resolvedPkgAliases: string[] = []
-  const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
-  const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
-    const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
-    if (alias == null) return pkg
-    const resolvedBareSpecifier = bareSpecifier != null
-      ? resolveCatalogProtocol(catalogResolver, alias, bareSpecifier)
-      : bareSpecifier
-    resolvedPkgAliases.push(alias)
-    const resolved = await resolve({ alias, bareSpecifier: resolvedBareSpecifier }, {
-      lockfileDir: opts.lockfileDir ?? opts.dir,
-      preferredVersions: {},
-      projectDir: opts.dir,
-      publishedBy,
-      publishedByExclude,
-    })
-    return resolved.id
-  }))
-  const enableGlobalVirtualStore = opts.enableGlobalVirtualStore ?? true
-  let { cacheLink, cacheExists, cachedDir } = findCache({
-    packages: resolvedPkgs,
-    dlxCacheMaxAge: opts.dlxCacheMaxAge,
-    cacheDir: opts.cacheDir,
-    registriesByScope: opts.registriesByScope,
-    allowBuild: opts.allowBuild,
-    supportedArchitectures: opts.supportedArchitectures,
-  })
-  if (!cacheExists) {
-    const allowBuilds = Object.fromEntries([...resolvedPkgAliases, ...(opts.allowBuild ?? [])].map(pkg => [pkg, true]))
-    try {
-      fs.mkdirSync(cachedDir, { recursive: true })
-      await add.handler({
-        ...opts,
-        // Mirror the global install flow: dlx prompts via `approve-builds`
-        // when transitive deps have skipped build scripts, so it must not let
-        // strictDepBuilds (the v11 default) turn that into a hard error.
-        // Without this, `pnpm dlx <pkg>` cannot launch packages whose bin
-        // depends on a postinstall step (e.g. native modules).
-        strictDepBuilds: false,
-        enableGlobalVirtualStore,
-        bin: path.join(cachedDir, 'node_modules/.bin'),
-        dir: cachedDir,
-        lockfileDir: cachedDir,
-        allowBuilds,
-        rootProjectManifestDir: cachedDir,
-        saveProd: true, // dlx will be looking for the package in the "dependencies" field!
-        saveDev: false,
-        saveOptional: false,
-        savePeer: false,
-        symlink: true,
-        workspaceDir: undefined,
-      }, resolvedPkgs)
-      await promptApproveDlxBuilds({ cachedDir, allowBuilds, inheritedOpts: opts }, commands)
-      try {
-        await symlinkDir(cachedDir, cacheLink, { overwrite: true })
-      } catch (error) {
-        // EBUSY/EEXIST/EPERM means that there is another dlx process running in parallel that has acquired the cache link first.
-        // EPERM can happen on Windows when another process has the symlink open while this process tries to unlink it.
-        // The link created by the other process is just as up-to-date as the link the current process was attempting
-        // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
-        // the other link stay. The current process should yield.
-        if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST' && error.code !== 'EPERM')) {
-          throw error
-        }
-      }
-    } catch (err) {
-      // When parallel dlx processes install the same package, the shared global
-      // virtual store can cause spurious failures (e.g. ENOENT from concurrent
-      // directory swaps).  If another process completed the cache in the meantime,
-      // use that instead of failing.
-      const completedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
-      if (completedDir != null) {
-        cachedDir = completedDir
-      } else {
-        // Drop the partially-populated cache so a subsequent dlx run starts
-        // clean instead of reusing a broken install. This is best-effort: on
-        // Windows the just-run install scripts (or antivirus) can briefly hold
-        // handles on freshly written files, so retry with backoff. A cleanup
-        // failure must never mask the original install error, which is the one
-        // worth surfacing — log it and rethrow err. A leftover prepare dir is
-        // harmless: it has a unique name and findCache only trusts the `pkg`
-        // symlink.
-        try {
-          await fs.promises.rm(cachedDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
-        } catch (cleanupErr) {
-          logger.warn({
-            error: cleanupErr as Error,
-            message: `Failed to clean up the dlx cache directory at "${cachedDir}"`,
-            prefix: cachedDir,
-          })
-        }
-        throw err
-      }
-    }
-  }
+  return strictResolution ? makeResolutionStrict(baseResolve) : baseResolve
+}
+
+function createDlxEnv (opts: DlxCommandOptions, cachedDir: string, enableGlobalVirtualStore: boolean): NodeJS.ProcessEnv {
   const binsDir = path.join(cachedDir, 'node_modules/.bin')
-  const env = makeEnv({
+  return makeEnv({
     userAgent: opts.userAgent,
     prependPaths: [binsDir, ...opts.extraBinPaths],
     // The bin's command shim provides NODE_PATH; the loader makes those
@@ -245,19 +238,23 @@ export async function handler (
       ? { NODE_OPTIONS: addEsmNodePathLoaderOption(process.env.NODE_OPTIONS) }
       : {},
   })
-  const binName = opts.package
-    ? command
-    : await getBinName(cachedDir, opts)
+}
+
+async function runDlxBin (
+  binName: string,
+  args: string[],
+  opts: { cwd: string, env: NodeJS.ProcessEnv, shellMode?: boolean }
+): Promise<{ exitCode: number }> {
   try {
     const child = trackedExeca(binName, args, {
-      cwd: process.cwd(),
-      env,
+      cwd: opts.cwd,
+      env: opts.env,
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
     })
-    await child
+    await waitForTracked(child)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'exitCode' in err && err.exitCode != null) {
+    if (isError(err) && 'exitCode' in err && err.exitCode != null) {
       return {
         exitCode: err.exitCode as number,
       }
@@ -285,8 +282,7 @@ async function getBinName (cachedDir: string, opts: Pick<DlxCommandOptions, 'eng
   } catch (err: unknown) {
     // The installed package's `package.json` is unreadable. Observed in the
     // wild for `node@runtime:<version>` whose CAS slot was materialized by
-    // a code path that didn't run pnpm's `appendManifest` (or pacquet's
-    // equivalent runtime-manifest synthesis), leaving the slot without
+    // a code path that didn't run pnpm's `appendManifest`, leaving the slot without
     // the `package.json` runtime archives don't ship themselves. Fall back
     // to the scopeless package name — for single-bin packages (the dlx
     // common case) it matches what `manifest.bin` would have named, and
@@ -294,7 +290,7 @@ async function getBinName (cachedDir: string, opts: Pick<DlxCommandOptions, 'eng
     // from the resolution's bin info is what `execa` resolves against.
     // Multi-bin packages require `--package=<spec> <bin>` to disambiguate,
     // which short-circuits `getBinName` upstream and never enters this path.
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
+    if (isError(err) && 'code' in err && err.code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
       return scopeless(pkgName)
     }
     throw err
@@ -322,148 +318,6 @@ function scopeless (pkgName: string): string {
     return pkgName.split('/')[1]
   }
   return pkgName
-}
-
-/**
- * After a dlx install with `strictDepBuilds: false`, check whether any
- * transitive dependencies had their build scripts skipped and, if so, run
- * the same `approve-builds` flow that `pnpm add -g` uses. Mirrors
- * `promptApproveGlobalBuilds` in @pnpm/global.commands.
- *
- * In non-interactive mode (no TTY, no commands map) this is a no-op and
- * the install is persisted to the dlx cache with builds skipped — same
- * behavior as `pnpm add -g` in CI. Users who need the skipped scripts
- * to run can re-invoke dlx with `--allow-build=<pkg>`, which produces a
- * different cache key and forces a fresh install.
- */
-async function promptApproveDlxBuilds (
-  opts: {
-    cachedDir: string
-    allowBuilds: Record<string, boolean | string>
-    inheritedOpts: object
-  },
-  commands?: CommandHandlerMap
-): Promise<void> {
-  if (!commands?.['approve-builds']) return
-  const autoApproveForTests = process.env[AUTO_APPROVE_FOR_TESTS_ENV] === '1'
-  if (!autoApproveForTests && !process.stdin.isTTY) return
-  const { automaticallyIgnoredBuilds } = await getAutomaticallyIgnoredBuilds({
-    dir: opts.cachedDir,
-    lockfileDir: opts.cachedDir,
-  })
-  if (!automaticallyIgnoredBuilds?.length) return
-  await commands['approve-builds']({
-    ...opts.inheritedOpts,
-    dir: opts.cachedDir,
-    lockfileDir: opts.cachedDir,
-    rootProjectManifestDir: opts.cachedDir,
-    modulesDir: undefined,
-    workspaceDir: undefined,
-    allProjects: undefined,
-    selectedProjectsGraph: undefined,
-    workspacePackagePatterns: undefined,
-    rootProjectManifest: undefined,
-    global: false,
-    pending: false,
-    allowBuilds: opts.allowBuilds,
-    all: autoApproveForTests ? true : undefined,
-  }, [], commands)
-}
-
-function findCache (opts: {
-  packages: string[]
-  cacheDir: string
-  dlxCacheMaxAge: number
-  registriesByScope: Record<string, string>
-  allowBuild?: string[]
-  supportedArchitectures?: SupportedArchitectures
-}): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
-  const dlxCommandCacheDir = createDlxCommandCacheDir(opts)
-  const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
-  const cachedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
-  return {
-    cacheLink,
-    cachedDir: cachedDir ?? getPrepareDir(dlxCommandCacheDir),
-    cacheExists: cachedDir != null,
-  }
-}
-
-function createDlxCommandCacheDir (
-  opts: {
-    packages: string[]
-    registriesByScope: Record<string, string>
-    cacheDir: string
-    allowBuild?: string[]
-    supportedArchitectures?: SupportedArchitectures
-  }
-): string {
-  const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
-  const cacheKey = createCacheKey(opts)
-  const cachePath = path.join(dlxCacheDir, cacheKey)
-  fs.mkdirSync(cachePath, { recursive: true })
-  return cachePath
-}
-
-export function createCacheKey (opts: {
-  packages: string[]
-  registriesByScope: Record<string, string>
-  allowBuild?: string[]
-  supportedArchitectures?: SupportedArchitectures
-}): string {
-  const sortedPkgs = [...opts.packages].sort(lexCompare)
-  const sortedRegistries = Object.entries(opts.registriesByScope).sort(([k1], [k2]) => lexCompare(k1, k2))
-  const args: unknown[] = [sortedPkgs, sortedRegistries]
-  if (opts.allowBuild?.length) {
-    args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })
-  }
-  if (opts.supportedArchitectures) {
-    const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
-    for (const key of supportedArchitecturesKeys) {
-      const value = opts.supportedArchitectures[key]
-      if (!value?.length) continue
-      args.push({
-        supportedArchitectures: {
-          [key]: [...new Set(value)].sort(lexCompare),
-        },
-      })
-    }
-  }
-  const hashStr = JSON.stringify(args)
-  // A short (truncated) hash keeps the dlx cache path short. The full
-  // virtual-store path below it (`<key>/<prepare>/node_modules/.pnpm/<pkgId>/
-  // node_modules/<pkg>`) can otherwise blow past Windows' MAX_PATH (260) and
-  // make lifecycle scripts fail with a `spawn cmd.exe ENOENT` (the cwd no
-  // longer resolves). 128 bits is ample collision resistance for a cache key.
-  return createShortHash(hashStr)
-}
-
-function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | undefined {
-  let stats: Stats
-  let target: string
-  try {
-    stats = fs.lstatSync(cacheLink)
-    if (stats.isSymbolicLink()) {
-      target = fs.realpathSync(cacheLink)
-      if (!target) return undefined
-    } else {
-      return undefined
-    }
-  } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return undefined
-    }
-    throw err
-  }
-  const isValid = stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
-  return isValid ? target : undefined
-}
-
-function getPrepareDir (cachePath: string): string {
-  // base36 (vs hex) keeps this segment short — see createCacheKey for why dlx
-  // path length matters on Windows. time+pid stays unique across concurrent
-  // dlx processes and across a process's own retries of a failed install.
-  const name = `${Date.now().toString(36)}-${process.pid.toString(36)}`
-  return path.join(cachePath, name)
 }
 
 function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, bareSpecifier: string): string {

@@ -27,6 +27,21 @@ export async function fetchPackageInfo (
   opts: Config & ConfigContext,
   packageSpec: string
 ): Promise<ExtendedPackageInfo> {
+  const spec = parseRegistryPackageSpec(packageSpec)
+  const metadata = await fetchFullMetadata(opts, spec.name)
+  const data = pickPackageFromMeta(
+    pickVersionByVersionRange,
+    { preferredVersionSelectors: undefined },
+    metadata,
+    spec
+  )
+  if (!data) {
+    throw new PnpmError('PACKAGE_NOT_FOUND', `No matching version found for ${spec.name}@${spec.fetchSpec}`)
+  }
+  return toExtendedPackageInfo(metadata, data)
+}
+
+function parseRegistryPackageSpec (packageSpec: string): RegistryPackageSpec {
   let parsed: ReturnType<typeof npa>
   try {
     parsed = npa(packageSpec)
@@ -44,12 +59,17 @@ export async function fetchPackageInfo (
     throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name: "${packageSpec}"`)
   }
 
-  const specType = (subSpec?.type ?? 'tag') as 'tag' | 'version' | 'range'
-  const spec: RegistryPackageSpec = {
+  return {
     name: packageName,
     fetchSpec: subSpec?.fetchSpec ?? 'latest',
-    type: specType,
+    type: (subSpec?.type ?? 'tag') as 'tag' | 'version' | 'range',
   }
+}
+
+type PackageMeta = Parameters<typeof pickPackageFromMeta>[2]
+type PackageMetaVersion = NonNullable<ReturnType<typeof pickPackageFromMeta>>
+
+async function fetchFullMetadata (opts: Config & ConfigContext, packageName: string): Promise<PackageMeta> {
   const registry = pickRegistryForPackage(opts.registriesByScope, packageName)
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
@@ -75,17 +95,10 @@ export async function fetchPackageInfo (
   if (fetchResult.notModified) {
     throw new PnpmError('UNEXPECTED_304', `Unexpected 304 response for ${packageName}`)
   }
-  const { meta: metadata } = fetchResult
-  const data = pickPackageFromMeta(
-    pickVersionByVersionRange,
-    { preferredVersionSelectors: undefined },
-    metadata,
-    spec
-  )
-  if (!data) {
-    throw new PnpmError('PACKAGE_NOT_FOUND', `No matching version found for ${packageName}@${spec.fetchSpec}`)
-  }
+  return fetchResult.meta
+}
 
+function toExtendedPackageInfo (metadata: PackageMeta, data: PackageMetaVersion): ExtendedPackageInfo {
   const versions = metadata.versions ? Object.keys(metadata.versions) : []
   const depsCount = data.dependencies ? Object.keys(data.dependencies).length : 0
   const distTags = metadata['dist-tags']

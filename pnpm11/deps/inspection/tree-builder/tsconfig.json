@@ -37,6 +37,9 @@
       "path": "../../../lockfile/fs"
     },
     {
+      "path": "../../../lockfile/peer-edges"
+    },
+    {
       "path": "../../../lockfile/utils"
     },
     {
@@ -50,6 +53,9 @@
     },
     {
       "path": "../../../text/ordinal-comparator"
+    },
+    {
+      "path": "../../../workspace/state"
     },
     {
       "path": "../../path"

@@ -1,16 +1,25 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use pnpm_deps_path::DepPath;
 use pnpm_resolving_resolver_base::ResolveResult;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 
-use crate::{resolve_peers::SharedChain, resolved_tree::PeerDep};
+use crate::{
+    resolve_peers::SharedChain,
+    resolved_tree::PeerSet,
+};
 
 /// Post-peer-resolution graph keyed by depPath.
 ///
 /// Two snapshots of the same package can coexist here with different
 /// keys (e.g. `react-dom@18.0.0(react@18.0.0)` and
-/// `react-dom@18.0.0(react@17.0.0)`) — exactly the case the peer-
+/// `react-dom@18.0.0(react@17.0.0)`), exactly the case the peer-
 /// resolution stage exists to handle.
 pub type DependenciesGraph = HashMap<DepPath, DependenciesGraphNode>;
 
@@ -18,6 +27,8 @@ pub type DependenciesGraph = HashMap<DepPath, DependenciesGraphNode>;
 #[derive(Debug, Clone)]
 pub struct DependenciesGraphNode {
     pub dep_path: DepPath,
+    /// Exact bindings retained before hashing the peer suffix.
+    pub recorded_peer_bindings: Option<Arc<pnpm_lockfile::RecordedPeerBindings>>,
     /// The shared envelope, looked up via `ResolvedTree::packages`. Held
     /// by reference value (cloned) so consumers don't need a separate
     /// map lookup.
@@ -28,24 +39,7 @@ pub struct DependenciesGraphNode {
     /// is built once and read by the install dispatch; nothing
     /// mutates the inner `ResolveResult` after `resolve_peers`.
     pub resolve_result: std::sync::Arc<ResolveResult>,
-    /// `alias → DepPath` edges to children + resolved peers. Children
-    /// inherited from the per-occurrence tree node, peers added during
-    /// peer resolution.
-    pub children: BTreeMap<String, DepPath>,
-    /// Child aliases that originated from `optionalDependencies`.
-    /// This is kept separately from [`Self::children`] because lockfile
-    /// reuse may realize child edges from an existing `pnpm-lock.yaml`
-    /// snapshot whose synthetic manifest no longer carries an
-    /// `optionalDependencies` block.
-    pub optional_children: HashSet<String>,
-    pub peer_dependencies: BTreeMap<String, PeerDep>,
-    /// Names of peers resolved from outside this node's own peer-deps —
-    /// i.e. peers it inherited from its parents' context.
-    pub transitive_peer_dependencies: HashSet<String>,
-    /// Names of peers actually resolved (parents present in the chain).
-    pub resolved_peer_names: HashSet<String>,
     pub depth: i32,
-    pub installable: bool,
     /// `true` when this snapshot has zero unresolved + missing peers,
     /// i.e. its depPath equals its `pkgIdWithPatchHash`.
     pub is_pure: bool,
@@ -56,6 +50,27 @@ pub struct DependenciesGraphNode {
     /// Every peer-variant of the same `pkgIdWithPatchHash` shares the
     /// same value because they share one [`crate::ResolvedPackage`].
     pub optional: bool,
+    pub edges: ResolvedDependencyEdges,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolvedDependencyEdges {
+    /// `alias → DepPath` edges to children + resolved peers. Children
+    /// inherited from the per-occurrence tree node, peers added during
+    /// peer resolution.
+    pub children: BTreeMap<String, DepPath>,
+    /// Child aliases that originated from `optionalDependencies`.
+    /// This is kept separately from [`Self::children`] because lockfile
+    /// reuse may realize child edges from an existing `pnpm-lock.yaml`
+    /// snapshot whose synthetic manifest no longer carries an
+    /// `optionalDependencies` block.
+    pub optional_children: HashSet<String>,
+    pub peer_set: PeerSet,
+    /// Names of peers resolved from outside this node's own peer-deps,
+    /// i.e. peers it inherited from its parents' context.
+    pub transitive_peer_dependencies: HashSet<String>,
+    /// Names of peers actually resolved (parents present in the chain).
+    pub resolved_peer_names: HashSet<String>,
 }
 
 /// Issues collected during peer resolution, simplified to the surface
@@ -75,7 +90,7 @@ pub struct PeerDependencyIssues {
 /// [`PeerDependencyIssues::missing`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MissingPeer {
-    /// The semver range the peer is matched/displayed against — scheme
+    /// The semver range the peer is matched/displayed against, scheme
     /// specifiers are reduced to their version body (`work:5.x.x` → `5.x.x`).
     pub wanted_range: String,
     /// The original specifier used to auto-install this peer when hoisting,
@@ -97,7 +112,7 @@ pub struct PeerDependencyIssue {
     pub found_version: String,
     pub optional: bool,
     pub parents: ParentChain,
-    /// Chain that brought the bad candidate into scope — `parents`
+    /// Chain that brought the bad candidate into scope, `parents`
     /// describes who requires the peer; this describes where the bad
     /// version was found.
     pub resolved_from: ParentChain,
@@ -107,7 +122,7 @@ pub struct PeerDependencyIssue {
 /// record per occurrence; the names are cloned out only when a
 /// consumer materializes the chain via [`Self::to_refs`].
 #[derive(Default, Clone)]
-pub struct ParentChain(pub(crate) SharedChain<String>);
+pub struct ParentChain(pub(crate) SharedChain<Arc<str>>);
 
 impl ParentChain {
     /// Build a chain from names given root importer first.
@@ -115,13 +130,13 @@ impl ParentChain {
     pub fn from_names(names: impl IntoIterator<Item = String>) -> Self {
         let mut chain = SharedChain::default();
         for name in names {
-            chain = chain.pushed(name);
+            chain = chain.pushed(name.into());
         }
         ParentChain(chain)
     }
 
     /// Materialize the chain, root importer first. `version` is empty
-    /// today: the chain pacquet tracks is name-only — populating it
+    /// today: the chain pacquet tracks is name-only, populating it
     /// would need a parallel version chain or a re-lookup against the
     /// tree, and the issue renderer consumes the names primarily.
     #[must_use]
@@ -129,7 +144,7 @@ impl ParentChain {
         self.0
             .to_root_vec()
             .into_iter()
-            .map(|name| ParentPackageRef { name, version: String::new() })
+            .map(|name| ParentPackageRef { name: name.to_string(), version: String::new() })
             .collect()
     }
 }
@@ -144,7 +159,9 @@ impl Eq for ParentChain {}
 
 impl std::fmt::Debug for ParentChain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_list().entries(self.0.to_root_vec()).finish()
+        f.debug_list()
+            .entries(self.0.to_root_vec())
+            .finish()
     }
 }
 

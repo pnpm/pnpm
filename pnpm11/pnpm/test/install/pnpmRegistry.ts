@@ -120,6 +120,23 @@ test('pnpm install resolves optionalDependencies via the pnpr server', async () 
   expect(fs.existsSync('node_modules/is-negative')).toBe(true)
 })
 
+test('pnpm install auto-installs the peers of a peer-only project via the pnpr server', async () => {
+  prepareProject({
+    peerDependencies: {
+      'is-positive': '^1.0.0',
+    },
+  })
+
+  requestCount = 0
+
+  await execPnpm(
+    ['install', `--config.pnprServer=http://localhost:${serverPort}`]
+  )
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+})
+
 test('pnpm install forwards patched dependencies and package extensions to pnpr', async () => {
   prepareProject({
     dependencies: {
@@ -400,6 +417,56 @@ test('pnpm install with pnpr server resolves catalog references in dependencies 
   expect(fs.existsSync('packages/a/node_modules/is-positive')).toBe(true)
 })
 
+test('pnpm install resolves catalog dependencies of an injected workspace override target', async () => {
+  prepareWorkspace([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/target',
+      package: {
+        name: 'target',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': 'catalog:',
+        },
+      },
+    },
+    {
+      location: 'packages/deep/consumer',
+      package: {
+        name: 'consumer',
+        version: '1.0.0',
+        dependencies: {
+          target: '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/**'],
+    catalog: {
+      'is-positive': '1.0.0',
+    },
+    injectWorkspacePackages: true,
+    overrides: {
+      target: 'workspace:./packages/target',
+    },
+  })
+
+  await execPnpm(
+    ['install', `--config.pnprServer=http://localhost:${serverPort}`]
+  )
+
+  expect(fs.existsSync('packages/deep/consumer/node_modules/target/node_modules/is-positive')).toBe(true)
+})
+
 test('pnpm install with pnpr server works in a workspace with multiple projects', async () => {
   prepareWorkspace([
     {
@@ -435,4 +502,234 @@ test('pnpm install with pnpr server works in a workspace with multiple projects'
   // Verify packages were installed in both projects
   expect(fs.existsSync('project-a/node_modules/is-positive')).toBe(true)
   expect(fs.existsSync('project-b/node_modules/is-negative')).toBe(true)
+})
+
+test('pnpm install via the pnpr server records the pnpmfile checksum', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': 'catalog:',
+    },
+  })
+  configurePnprAuth()
+  fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { updateConfig (config) {
+  config.catalogs = { default: { 'is-positive': '1.0.0' } }
+  return config
+} } }`)
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  const lockfile = project.readLockfile()
+  expect(lockfile.pnpmfileChecksum).toBeDefined()
+  expect(lockfile.importers['.'].dependencies?.['is-positive'].version).toBe('1.0.0')
+
+  await execPnpm(['install', '--frozen-lockfile'])
+  project.has('is-positive')
+})
+
+test('pnpm install resolves locally when the pnpmfile defines a readPackage hook', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  configurePnprAuth()
+  fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { readPackage (pkg) {
+  if (pkg.name === 'is-positive') pkg.dependencies = { 'is-negative': '1.0.0' }
+  return pkg
+} } }`)
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBe(0)
+  const lockfile = project.readLockfile()
+  expect(lockfile.pnpmfileChecksum).toBeDefined()
+  expect(lockfile.snapshots['is-positive@1.0.0'].dependencies).toStrictEqual({ 'is-negative': '1.0.0' })
+})
+
+test('a frozen install via the pnpr server rejects a changed pnpmfile', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  configurePnprAuth()
+  fs.writeFileSync('.pnpmfile.cjs', 'module.exports = { hooks: { filterLog: () => true } }')
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+  const recorded = project.readLockfile().pnpmfileChecksum
+  fs.writeFileSync('.pnpmfile.cjs', 'module.exports = { hooks: { filterLog: () => true } } // changed')
+
+  requestCount = 0
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile', `--config.pnprServer=http://localhost:${serverPort}`])
+  ).rejects.toThrow('ERR_PNPM_LOCKFILE_CONFIG_MISMATCH')
+
+  expect(requestCount).toBe(0)
+  expect(project.readLockfile().pnpmfileChecksum).toBe(recorded)
+})
+
+test('pnpm install resolves locally when the pnpmfile defines a preResolution hook', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  configurePnprAuth()
+  fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { preResolution () {
+  require('fs').writeFileSync(__dirname + '/pre-resolution-ran', '')
+} } }`)
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBe(0)
+  expect(fs.existsSync('pre-resolution-ran')).toBe(true)
+})
+
+test('pnpm install with pnprServer falls back locally for file:, link:, and local tarball specs', async () => {
+  prepareProject({
+    name: 'app',
+    version: '1.0.0',
+  })
+
+  const parentDir = path.dirname(process.cwd())
+  const localLibDir = path.join(parentDir, 'local-lib')
+  fs.mkdirSync(localLibDir, { recursive: true })
+  fs.writeFileSync(path.join(localLibDir, 'package.json'), JSON.stringify({
+    name: 'local-lib',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+
+  const linkedLibDir = path.join(parentDir, 'linked-lib')
+  fs.mkdirSync(linkedLibDir, { recursive: true })
+  fs.writeFileSync(path.join(linkedLibDir, 'package.json'), JSON.stringify({
+    name: 'linked-lib',
+    version: '1.0.0',
+  }))
+
+  const packedLibDir = path.join(parentDir, 'packed-lib')
+  fs.mkdirSync(packedLibDir, { recursive: true })
+  fs.writeFileSync(path.join(packedLibDir, 'package.json'), JSON.stringify({
+    name: 'packed-lib',
+    version: '1.0.0',
+  }))
+  await execPnpm(['-C', packedLibDir, 'pack', '--pack-destination', process.cwd()])
+  fs.renameSync('packed-lib-1.0.0.tgz', 'pkg.tgz')
+
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      'local-lib': 'file:../local-lib',
+      'packed-lib': 'file:./pkg.tgz',
+      'linked-lib': 'link:../linked-lib',
+    },
+  }))
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBe(0)
+  expect(fs.existsSync('node_modules/local-lib/package.json')).toBe(true)
+  expect(fs.existsSync('node_modules/packed-lib/package.json')).toBe(true)
+  expect(fs.existsSync('node_modules/linked-lib/package.json')).toBe(true)
+})
+
+test('pnpm install with pnprServer falls back locally for file: specs in overrides', async () => {
+  prepareProject({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  const localOverrideDir = path.join(path.dirname(process.cwd()), 'local-override')
+  fs.mkdirSync(localOverrideDir, { recursive: true })
+  fs.writeFileSync(path.join(localOverrideDir, 'package.json'), JSON.stringify({
+    name: 'is-positive',
+    version: '1.0.0-local',
+  }))
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    overrides: {
+      'is-positive': 'file:../local-override',
+    },
+  })
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBe(0)
+  expect(loadJsonFileSync<{ version: string }>('node_modules/is-positive/package.json').version).toBe('1.0.0-local')
+})
+
+test('a frozen install via the pnpr server rejects a shape-mismatched lockfile without running scripts or poisoning cache', async () => {
+  prepareProject({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+  const cacheDir = path.resolve('cache')
+  const markerPath = path.resolve('ran-postinstall')
+  fs.mkdirSync('alt', { recursive: true })
+  fs.writeFileSync('alt/postinstall.cjs', `require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, 'ran')\n`)
+  fs.writeFileSync('alt/package.json', JSON.stringify({
+    name: 'is-positive',
+    version: '1.0.0',
+    scripts: {
+      postinstall: 'node postinstall.cjs',
+    },
+  }))
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    pnprServer: `http://localhost:${serverPort}`,
+    minimumReleaseAge: 0,
+    allowBuilds: { 'is-positive': true },
+  })
+  writeYamlFileSync(WANTED_LOCKFILE, {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+        },
+      },
+    },
+    packages: {
+      'is-positive@1.0.0': {
+        resolution: { type: 'directory', directory: 'alt' },
+      },
+    },
+    snapshots: {
+      'is-positive@1.0.0': {},
+    },
+  })
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile', `--config.cacheDir=${cacheDir}`])
+  ).rejects.toThrow('ERR_PNPM_RESOLUTION_SHAPE_MISMATCH')
+  expect(fs.existsSync(markerPath)).toBe(false)
+  expect(fs.existsSync(path.join(cacheDir, 'lockfile-verified.jsonl'))).toBe(false)
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile', '--config.trustLockfile=true', `--config.cacheDir=${cacheDir}`])
+  ).rejects.toThrow('ERR_PNPM_RESOLUTION_SHAPE_MISMATCH')
+  expect(fs.existsSync(markerPath)).toBe(false)
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: 0,
+    allowBuilds: { 'is-positive': true },
+  })
+  await expect(
+    execPnpm(['install', '--frozen-lockfile', `--config.cacheDir=${cacheDir}`])
+  ).rejects.toThrow('ERR_PNPM_RESOLUTION_SHAPE_MISMATCH')
+  expect(fs.existsSync(markerPath)).toBe(false)
 })

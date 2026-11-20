@@ -36,6 +36,40 @@ describe('verifySignatures', () => {
     })
   })
 
+  test('verifies the recorded artifact even when registry integrity changed', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', 'sha512-recorded') }] })
+    const result = await verifySignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: 'sha512-recorded' },
+    ], () => undefined, { requireLockfileIntegrity: true })
+    expect(result.verified).toBe(1)
+    expect(result.invalid).toEqual([])
+  })
+
+  test('current registry signature cannot cover a different recorded artifact', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }] })
+    const result = await verifySignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: 'sha512-recorded' },
+    ], () => undefined, { requireLockfileIntegrity: true })
+    expect(result.verified).toBe(0)
+    expect(result.invalid).toHaveLength(1)
+    expect(result.invalid[0].integrity).toBe('sha512-recorded')
+  })
+
+  test('missing lockfile integrity cannot fall back to registry integrity', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }] })
+    const result = await verifySignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0' },
+    ], () => undefined, { requireLockfileIntegrity: true })
+    expect(result.verified).toBe(0)
+    expect(result.invalid[0].reason).toBe('Missing lockfile integrity for signed-pkg@1.0.0')
+  })
+
   test('reports missing signatures when registry provides signing keys', async () => {
     const key = createSigningKey()
     mockRegistryKey(key)
@@ -387,6 +421,52 @@ describe('verifyInstalledPackageSignatures', () => {
     expect(result.failures[0].reason).toContain(SECOND_REGISTRY)
   })
 
+  test('does not retry an unavailable fallback registry', async () => {
+    const key = createSigningKey()
+    let fallbackRequests = 0
+    mockPackument({ signatures: [] })
+    getMockAgent().get(SECOND_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(() => {
+        fallbackRequests++
+        return { statusCode: 502, data: {} }
+      })
+      .persist()
+
+    const result = await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, {
+      retry: { retries: 2, minTimeout: 1, maxTimeout: 1 },
+      fallbackRegistry: SECOND_REGISTRY,
+    })
+
+    expect(result.failures[0]).toMatchObject({ category: 'unreachable' })
+    expect(fallbackRequests).toBe(1)
+  })
+
+  test('keeps primary and fallback retry policies separate when they share a registry', async () => {
+    const key = createSigningKey()
+    let sharedRegistryRequests = 0
+    mockPackument({ signatures: [] })
+    getMockAgent().get(SECOND_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(() => {
+        sharedRegistryRequests++
+        return { statusCode: 502, data: {} }
+      })
+      .persist()
+
+    await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+      { name: 'signed-pkg', registry: SECOND_REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, {
+      retry: { retries: 2, minTimeout: 1, maxTimeout: 1 },
+      fallbackRegistry: SECOND_REGISTRY,
+    })
+
+    expect(sharedRegistryRequests).toBe(4)
+  })
+
   test('reports absent when a reachable fallback registry has no signature either', async () => {
     const key = createSigningKey()
     mockPackument({ signatures: [] })
@@ -423,7 +503,10 @@ describe('verifyInstalledPackageSignatures', () => {
       // A control character inside the password must not split the
       // authority and leak either half of the credentials.
       { name: 'other-pkg', registry: 'https://user:p\rass@registry.example.test/', version: '1.0.0', integrity: INTEGRITY },
-    ], [toRegistryKey(key)], () => undefined, { fallbackRegistry: 'https://user:pass@second-registry.example.test/' })
+    ], [toRegistryKey(key)], () => undefined, {
+      fallbackRegistry: 'https://user:pass@second-registry.example.test/',
+      retry: { minTimeout: 1, maxTimeout: 1 },
+    })
 
     expect(result.verified).toBe(false)
     expect(result.failures[0].registry).toBe(REGISTRY)

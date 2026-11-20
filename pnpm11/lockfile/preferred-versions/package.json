@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.preferred-versions",
-  "version": "1100.0.31",
+  "version": "1100.0.44",
   "description": "Get preferred version from lockfile",
   "keywords": [
     "pnpm",
@@ -29,10 +29,12 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",

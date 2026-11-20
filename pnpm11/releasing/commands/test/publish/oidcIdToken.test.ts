@@ -8,7 +8,13 @@ import {
   IdTokenGitHubJsonInterruptedError,
   IdTokenGitHubJsonInvalidValueError,
   IdTokenGitHubWorkflowIncorrectPermissionsError,
+  IdTokenRegistryAudienceMismatchError,
 } from '../../src/publish/oidc/idToken.js'
+
+function npmIdToken (audience: string | string[]): string {
+  const payload = Buffer.from(JSON.stringify({ aud: audience })).toString('base64url')
+  return `header.${payload}.signature`
+}
 
 describe('getIdToken', () => {
   const registry = 'https://registry.npmjs.org'
@@ -34,12 +40,12 @@ describe('getIdToken', () => {
       ciInfo: { GITHUB_ACTIONS: true },
       fetch: jest.fn() as IdTokenContext['fetch'],
       globalInfo: jest.fn() as IdTokenContext['globalInfo'],
-      process: { env: { NPM_ID_TOKEN: 'test-token-from-env' } },
+      process: { env: { NPM_ID_TOKEN: npmIdToken('npm:registry.npmjs.org') } },
     }
 
     const result = await getIdToken({ context, registry })
 
-    expect(result).toBe('test-token-from-env')
+    expect(result).toBe(npmIdToken('npm:registry.npmjs.org'))
     expect(context.fetch).not.toHaveBeenCalled()
   })
 
@@ -49,13 +55,39 @@ describe('getIdToken', () => {
       ciInfo: { GITHUB_ACTIONS: false, GITLAB: true },
       fetch: jest.fn() as IdTokenContext['fetch'],
       globalInfo: jest.fn() as IdTokenContext['globalInfo'],
-      process: { env: { NPM_ID_TOKEN: 'test-token-gitlab' } },
+      process: { env: { NPM_ID_TOKEN: npmIdToken('npm:registry.npmjs.org') } },
     }
 
     const result = await getIdToken({ context, registry })
 
-    expect(result).toBe('test-token-gitlab')
+    expect(result).toBe(npmIdToken('npm:registry.npmjs.org'))
     expect(context.fetch).not.toHaveBeenCalled()
+  })
+
+  test('rejects NPM_ID_TOKEN when its audience does not match the selected registry', async () => {
+    const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: jest.fn() as IdTokenContext['fetch'],
+      globalInfo: jest.fn() as IdTokenContext['globalInfo'],
+      process: { env: { NPM_ID_TOKEN: npmIdToken('npm:attacker.example') } },
+    }
+
+    await expect(getIdToken({ context, registry })).rejects.toThrow(IdTokenRegistryAudienceMismatchError)
+    expect(context.fetch).not.toHaveBeenCalled()
+  })
+
+  test('accepts a matching audience in an array claim', async () => {
+    const token = npmIdToken(['sigstore', 'npm:registry.npmjs.org'])
+    const context: IdTokenContext = {
+      Date: { now: jest.fn(() => 1000) },
+      ciInfo: { GITHUB_ACTIONS: true },
+      fetch: jest.fn() as IdTokenContext['fetch'],
+      globalInfo: jest.fn() as IdTokenContext['globalInfo'],
+      process: { env: { NPM_ID_TOKEN: token } },
+    }
+
+    await expect(getIdToken({ context, registry })).resolves.toBe(token)
   })
 
   test('returns undefined for GitLab when NPM_ID_TOKEN is not set', async () => {

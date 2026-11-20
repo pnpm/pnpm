@@ -29,7 +29,7 @@ If a maintainer has already applied a `state:` label, **do not silently remove i
 
 ### Repository context that affects readiness
 
-- The repo holds three products: the **TypeScript pnpm CLI** (workspaces outside `pnpm/` and `pnpr/`, frozen at v11 and relocating under `pnpm11/`), the **Rust pacquet port** (`pnpm/`, which becomes pnpm v12), and the **Rust pnpr registry** (`pnpr/`). See `AGENTS.md` / `CLAUDE.md`.
+- The repo holds three products: the **TypeScript pnpm CLI** (workspaces outside `pnpm/` and `pnpr/`, frozen at v11 and relocating under `pnpm11/`), the **Rust pacquet port** (`pnpm/`, which becomes pnpm v12), and the **Rust pnpr registry** (`pnpr/`). See `AGENTS.md`.
 - **pnpm↔pacquet parity:** any user-visible change to the dependency-management commands (`install`, `add`, `update`, `remove`) must land in both the TypeScript and Rust stacks. An issue that requires parity work across both stacks is broader than a single-stack fix — weigh that when deciding between `Ready to implement` and `Ready to spec`.
 - Changes to published TypeScript packages require a changeset; behavior changes generally require tests. An issue whose fix is bounded but well-understood (clear repro, obvious area, single stack) is a strong `Ready to implement` candidate.
 
@@ -164,7 +164,7 @@ Use this format:
 - **Issue:** [identifier and title](URL)
 - **State:** `chosen state`
 - **Applied label:** `exact pnpm label`, or `none — posted clarifying questions` for non-bug `Needs info`
-- **Product / parity:** which stack(s) are affected
+- **Product / parity:** which stacks are affected
 - **Rationale:** 2-4 concise sentences
 - **Next step:** One concrete action
 

@@ -58,9 +58,7 @@ test('a registry whose abbreviated metadata has the time field needs no full met
 
 // Trust checks read trust evidence (_npmUser) that abbreviated metadata
 // never carries, so registrySupportsTimeField does not make abbreviated
-// metadata sufficient for the no-downgrade policy. This matches the
-// self-update code path and pacquet's
-// Config::requires_full_metadata_for_resolution.
+// metadata sufficient for the no-downgrade policy.
 test('trustPolicy requires full metadata even when the registry has the time field in abbreviated metadata', () => {
   expect(shouldFetchFullMetadata({
     trustPolicy: 'no-downgrade',
@@ -130,4 +128,22 @@ test('the filtered mirror is used for a registry that needs full metadata though
 test('nothing is filtered when no registry can need full metadata', () => {
   expect(shouldFilterMetadata({ resolutionMode: 'highest' })).toBe(false)
   expect(shouldFilterMetadata({ resolutionMode: 'time-based', fetchFullMetadata: false })).toBe(false)
+})
+
+test('CreateNewStoreControllerOptions is exported and supports cafile', () => {
+  const options: import('../src/index.js').CreateNewStoreControllerOptions = {
+    cacheDir: '/tmp/cache',
+    storeDir: '/tmp/store',
+    cafile: '/path/to/cafile.pem',
+    configByUri: {},
+    fetchRetries: 2,
+    fetchRetryFactor: 10,
+    fetchRetryMaxtimeout: 60_000,
+    fetchRetryMintimeout: 10_000,
+    offline: false,
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  }
+  expect(options.cafile).toBe('/path/to/cafile.pem')
 })

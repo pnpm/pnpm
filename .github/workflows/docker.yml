@@ -23,6 +23,8 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      # `gh attestation verify` reads the release attestations through the API.
+      attestations: read
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/pnpm
     steps:
@@ -53,63 +55,123 @@ jobs:
             [0-9]*.[0-9]*.[0-9]*) ;;
             *) echo "invalid version: $version" >&2; exit 1 ;;
           esac
-          major="${version%%.*}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "major=$major" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
-      - name: Compute image tags
-        id: tags
-        env:
-          VERSION: ${{ steps.meta.outputs.version }}
-          MAJOR: ${{ steps.meta.outputs.major }}
-          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
-        run: |
-          set -eu
-          tags="${IMAGE}:${VERSION}"
-          if [ "$PRERELEASE" != "true" ]; then
-            tags="${tags},${IMAGE}:${MAJOR},${IMAGE}:latest"
-          fi
-          echo "tags=$tags" >> "$GITHUB_OUTPUT"
-
+      # The digests handed to the image build have to mean more than "this is
+      # what we just downloaded" — the Dockerfile checks the asset against them,
+      # so a digest taken from an unverified download only proves the same bytes
+      # arrived twice. Each asset is verified against its build attestation
+      # first: sigstore-signed, recorded in a public transparency log, and tied
+      # to the release workflow running at the signed tag.
       - name: Compute pnpm tarball checksums
         id: checksums
         env:
           VERSION: ${{ steps.meta.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -eu
+          set -euo pipefail
           base="https://github.com/pnpm/pnpm/releases/download/v${VERSION}"
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+          # Downloads a release asset, verifies its attestation, and prints its
+          # SHA-256. It runs inside `$(...)`, where errexit does not apply, so
+          # the steps are chained explicitly: a failed verification must fail
+          # the call instead of falling through to the hash. The verifier's
+          # report goes to stderr to keep it out of the captured digest.
+          verified_sha() {
+            asset="$workdir/$1"
+            curl -fsSL --retry 3 --retry-delay 2 -o "$asset" "${base}/$1" &&
+            # Pins the signing identity down to the tag, so an asset from a
+            # different release cannot pass on its own valid attestation.
+            # `--cert-identity` is an exact match on the certificate subject;
+            # `--signer-workflow` documents a path only, and a ref appended to
+            # it would be silently dropped if that ever stopped matching.
+            gh attestation verify "$asset" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --cert-identity "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/v${VERSION}" >&2 &&
+            sha256sum "$asset" | awk '{print $1}'
+          }
           for pair in amd64:x64 arm64:arm64; do
             key="${pair%:*}"
             name="${pair#*:}"
-            sha="$(curl -fsSL --retry 3 --retry-delay 2 "${base}/pnpm-linux-${name}.tar.gz" \
-                   | sha256sum | awk '{print $1}')"
+            sha="$(verified_sha "pnpm-linux-${name}.tar.gz")"
             echo "sha_${key}=${sha}" >> "$GITHUB_OUTPUT"
           done
+          # The Alpine image is built only for release lines that ship musl
+          # tarballs for both architectures. Older lines lack the arm64 one.
+          assets="$(gh release view "v${VERSION}" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          alpine=true
+          for name in x64 arm64; do
+            printf '%s\n' "$assets" | grep -qxF "pnpm-linux-${name}-musl.tar.gz" || alpine=false
+          done
+          echo "alpine=${alpine}" >> "$GITHUB_OUTPUT"
+          if [ "$alpine" = true ]; then
+            for pair in amd64:x64 arm64:arm64; do
+              key="${pair%:*}"
+              name="${pair#*:}"
+              sha="$(verified_sha "pnpm-linux-${name}-musl.tar.gz")"
+              echo "sha_musl_${key}=${sha}" >> "$GITHUB_OUTPUT"
+            done
+          fi
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./docker
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
+          tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
           build-args: |
             PNPM_VERSION=${{ steps.meta.outputs.version }}
             PNPM_SHA256_AMD64=${{ steps.checksums.outputs.sha_amd64 }}
             PNPM_SHA256_ARM64=${{ steps.checksums.outputs.sha_arm64 }}
           provenance: mode=max
           sbom: true
+
+      - name: Build and push Alpine
+        if: steps.checksums.outputs.alpine == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./docker
+          file: ./docker/Dockerfile.alpine
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}-alpine
+          build-args: |
+            PNPM_VERSION=${{ steps.meta.outputs.version }}
+            PNPM_SHA256_AMD64=${{ steps.checksums.outputs.sha_musl_amd64 }}
+            PNPM_SHA256_ARM64=${{ steps.checksums.outputs.sha_musl_arm64 }}
+          provenance: mode=max
+          sbom: true
+
+      # Runs after the builds so that every release published in the same
+      # burst is listed by the time this run decides which tags it may move.
+      - name: Move mutable tags
+        if: steps.meta.outputs.prerelease != 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          ALPINE: ${{ steps.checksums.outputs.alpine }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          releases="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                        --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')"
+          moves="$(.github/scripts/docker-image-tags.sh "$IMAGE" "$VERSION" "$ALPINE" <<< "$releases")"
+          while read -r target source; do
+            [ -n "$target" ] || continue
+            docker buildx imagetools create --tag "$target" "$source"
+          done <<< "$moves"

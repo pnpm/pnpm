@@ -1,24 +1,53 @@
 use super::{
-    BuildTaskGraphOptions, ScheduleGraphAsyncOptions, ScheduleGraphOptions, ScheduleTasksOptions,
-    SequenceTasksOptions, TaskCompletion, TaskCycle, TaskGraph, TaskKey, TaskNode,
-    build_task_graph, is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from,
-    reverse_task_graph, schedule_graph, schedule_graph_async, schedule_tasks, sequence_tasks,
+    BuildPipelineTaskGraphOptions,
+    BuildTaskGraphOptions,
+    ScheduleGraphAsyncOptions,
+    ScheduleGraphOptions,
+    ScheduleTasksOptions,
+    SequenceTasksOptions,
+    TaskCompletion,
+    TaskCycle,
+    TaskDeclaration,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    build_pipeline_task_graph,
+    build_task_graph,
+    is_serial_task_graph,
+    render_task_graph_dry_run,
+    resume_task_graph_from,
+    reverse_task_graph,
+    schedule_graph,
+    schedule_graph_async,
+    schedule_tasks,
+    sequence_tasks,
     task_graph_to_json,
 };
 use indexmap::IndexMap;
-use pnpm_config::TaskSettings;
 use pnpm_reporter::LogEvent;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        Condvar, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Condvar,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
 const WORKSPACE_DIR: &str = "/workspace";
+
+mod requested_projects;
 
 fn dir(name: &str) -> PathBuf {
     Path::new(WORKSPACE_DIR).join(name)
@@ -50,24 +79,45 @@ fn project(dependencies: &[&'static str], scripts: &[&'static str]) -> FakeProje
     FakeProject { dependencies: dependencies.to_vec(), scripts: scripts.to_vec() }
 }
 
-fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TaskSettings> {
+#[derive(Default)]
+struct TestTask {
+    depends_on: Option<Vec<String>>,
+    concurrency: Option<i64>,
+}
+
+impl TaskDeclaration for TestTask {
+    fn depends_on(&self) -> Option<&[String]> {
+        self.depends_on.as_deref()
+    }
+
+    fn concurrency(&self) -> Option<i64> {
+        self.concurrency
+    }
+}
+
+fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TestTask> {
     entries
         .iter()
         .map(|(name, depends_on)| {
-            let mut settings = TaskSettings::default();
-            settings.depends_on = depends_on
-                .map(|entries| entries.iter().map(std::string::ToString::to_string).collect());
+            let settings = TestTask {
+                depends_on: depends_on.map(|entries| {
+                    entries
+                        .iter()
+                        .map(std::string::ToString::to_string)
+                        .collect()
+                }),
+                ..TestTask::default()
+            };
             (name.to_string(), settings)
         })
         .collect()
 }
 
-fn tasks_with_concurrency(entries: &[(&str, i64)]) -> IndexMap<String, TaskSettings> {
+fn tasks_with_concurrency(entries: &[(&str, i64)]) -> IndexMap<String, TestTask> {
     entries
         .iter()
         .map(|(name, concurrency)| {
-            let mut settings = TaskSettings::default();
-            settings.concurrency = Some(*concurrency);
+            let settings = TestTask { concurrency: Some(*concurrency), ..TestTask::default() };
             (name.to_string(), settings)
         })
         .collect()
@@ -76,28 +126,253 @@ fn tasks_with_concurrency(entries: &[(&str, i64)]) -> IndexMap<String, TaskSetti
 fn build_graph(
     projects: &[(&'static str, FakeProject)],
     task_name: &str,
-    task_settings: Option<&IndexMap<String, TaskSettings>>,
+    task_settings: Option<&IndexMap<String, TestTask>>,
 ) -> TaskGraph {
     let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.dependencies.iter().map(|dependency| dir(dependency)).collect())
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
         })
         .collect();
     let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
         .iter()
         .map(|(name, project)| {
-            (dir(name), project.scripts.iter().map(std::string::ToString::to_string).collect())
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
         })
         .collect();
     build_task_graph(&BuildTaskGraphOptions {
         project_dependencies: &project_dependencies,
         select_scripts: |project: &Path, task_name: &str| {
-            scripts_by_dir[project].iter().filter(|script| *script == task_name).cloned().collect()
+            scripts_by_dir[project]
+                .iter()
+                .filter(|script| *script == task_name)
+                .cloned()
+                .collect()
         },
         task_name,
+        requested_projects: None,
         tasks: task_settings,
+        is_selector_task: |_| false,
     })
+}
+
+/// [`build_graph`] with a `select_scripts` that reads `/pattern/` task names
+/// as `RegExp` selectors, the way the CLI's run command does.
+fn build_selector_graph(
+    projects: &[(&'static str, FakeProject)],
+    task_name: &str,
+    task_settings: Option<&IndexMap<String, TestTask>>,
+) -> TaskGraph {
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
+        })
+        .collect();
+    let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
+        })
+        .collect();
+    build_task_graph(&BuildTaskGraphOptions {
+        project_dependencies: &project_dependencies,
+        select_scripts: |project: &Path, task_name: &str| {
+            let scripts = &scripts_by_dir[project];
+            if scripts
+                .iter()
+                .any(|script| script == task_name)
+            {
+                return vec![task_name.to_string()];
+            }
+            let Some(pattern) = task_name
+                .strip_prefix('/')
+                .and_then(|body| body.strip_suffix('/'))
+            else {
+                return Vec::new();
+            };
+            let Ok(pattern) = regex::Regex::new(pattern) else {
+                return Vec::new();
+            };
+            scripts
+                .iter()
+                .filter(|script| pattern.is_match(script))
+                .cloned()
+                .collect()
+        },
+        task_name,
+        requested_projects: None,
+        tasks: task_settings,
+        is_selector_task: |name| name.starts_with('/') && name.ends_with('/'),
+    })
+}
+
+#[test]
+fn regexp_selector_seeds_a_task_per_matched_script_with_its_own_depends_on() {
+    let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/test/",
+        Some(&settings),
+    );
+
+    assert!(!graph.contains_key(&key("a", "/test/")));
+    let test_task = &graph[&key("a", "test")];
+    assert_eq!(test_task.scripts, vec!["test"]);
+    assert_eq!(test_task.dependencies, vec![key("a", "build")]);
+    assert!(test_task.requested);
+    assert!(!graph[&key("a", "build")].requested);
+    assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
+}
+
+#[test]
+fn regexp_selector_orders_matched_scripts_that_depend_on_each_other() {
+    let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
+    let mut graph = build_selector_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/^(build|test)$/",
+        Some(&settings),
+    );
+
+    assert!(!graph.contains_key(&key("a", "/^(build|test)$/")));
+    assert!(graph[&key("a", "build")].requested);
+    assert!(graph[&key("a", "test")].requested);
+    assert_eq!(graph[&key("a", "test")].dependencies, vec![key("a", "build")]);
+    assert_eq!(graph[&key("a", "build")].dependencies, vec![key("b", "build")]);
+    let order = sequence(&mut graph).expect("acyclic");
+    let position = |task: TaskKey| {
+        order
+            .iter()
+            .position(|found| *found == task)
+            .unwrap()
+    };
+    assert!(position(key("b", "build")) < position(key("a", "build")));
+    assert!(position(key("a", "build")) < position(key("a", "test")));
+}
+
+#[test]
+fn regexp_selector_with_no_matched_script_is_a_pass_through_that_depends_on_nothing() {
+    let settings = tasks(&[("lint", None)]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["lint"])), ("b", project(&[], &["lint", "test"]))],
+        "/test/",
+        Some(&settings),
+    );
+
+    let pass_through = &graph[&key("a", "/test/")];
+    assert!(pass_through.requested);
+    assert!(pass_through.scripts.is_empty());
+    assert!(pass_through.dependencies.is_empty());
+    assert!(graph[&key("b", "test")].requested);
+    assert!(!graph.contains_key(&key("b", "/test/")));
+}
+
+#[test]
+fn regexp_selector_without_tasks_stays_one_task_per_project() {
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["test"])), ("b", project(&[], &["test", "test:unit"]))],
+        "/test/",
+        None,
+    );
+
+    assert_eq!(graph[&key("a", "/test/")].dependencies, vec![key("b", "/test/")]);
+    assert_eq!(graph[&key("b", "/test/")].scripts, vec!["test", "test:unit"]);
+}
+
+#[test]
+fn an_exact_tasks_entry_under_the_selector_name_keeps_it_one_task() {
+    let settings = tasks(&[("/test/", Some(&["build"])), ("test", None)]);
+    let graph =
+        build_selector_graph(&[("a", project(&[], &["build", "test"]))], "/test/", Some(&settings));
+
+    assert_eq!(graph[&key("a", "/test/")].dependencies, vec![key("a", "build")]);
+    assert_eq!(graph[&key("a", "/test/")].scripts, vec!["test"]);
+}
+
+#[test]
+fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
+    // `app` depends on `lib`; only `app` is requested, so `lib` gets no
+    // requested tasks of its own, but `app#build`'s `^build` edge still
+    // pulls `lib#build` in, keeping the graph (and so a cache key built
+    // over it) identical to what an unnarrowed run resolves.
+    let projects =
+        [("lib", project(&[], &["build", "lint"])), ("app", project(&["lib"], &["build", "lint"]))];
+    let project_dependencies: IndexMap<PathBuf, Vec<PathBuf>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.dependencies
+                    .iter()
+                    .map(|dependency| dir(dependency))
+                    .collect(),
+            )
+        })
+        .collect();
+    let scripts_by_dir: HashMap<PathBuf, Vec<String>> = projects
+        .iter()
+        .map(|(name, project)| {
+            (
+                dir(name),
+                project.scripts
+                    .iter()
+                    .map(std::string::ToString::to_string)
+                    .collect(),
+            )
+        })
+        .collect();
+    let requested = [dir("app")];
+    let graph = build_pipeline_task_graph(&BuildPipelineTaskGraphOptions {
+        project_dependencies: &project_dependencies,
+        select_scripts: |project: &Path, task_name: &str| {
+            scripts_by_dir[project]
+                .iter()
+                .filter(|script| *script == task_name)
+                .cloned()
+                .collect()
+        },
+        task_names: &["build", "lint"],
+        requested_projects: Some(&requested),
+        tasks: None::<&IndexMap<String, TestTask>>,
+    });
+    let mut keys: Vec<TaskKey> = graph.keys().cloned().collect();
+    keys.sort_by(|left, right| {
+        (&left.project, &left.task_name).cmp(&(&right.project, &right.task_name))
+    });
+    assert_eq!(
+        keys,
+        vec![key("app", "build"), key("app", "lint"), key("lib", "build"), key("lib", "lint")],
+    );
+    assert!(graph[&key("app", "build")].requested);
+    assert!(graph[&key("app", "lint")].requested);
+    assert!(!graph[&key("lib", "build")].requested);
+    // Pulled by `app#lint`'s default `^lint`, not requested.
+    assert!(!graph[&key("lib", "lint")].requested);
+    assert_eq!(graph[&key("app", "build")].dependencies, vec![key("lib", "build")]);
 }
 
 #[test]
@@ -152,7 +427,13 @@ fn task_carries_its_configured_concurrency_limit_into_the_graph() {
         Some(&settings),
     );
 
-    assert_eq!(graph.values().map(|node| node.concurrency).collect::<Vec<_>>(), vec![Some(1); 2]);
+    assert_eq!(
+        graph
+            .values()
+            .map(|node| node.concurrency)
+            .collect::<Vec<_>>(),
+        vec![Some(1); 2],
+    );
 }
 
 #[test]
@@ -251,6 +532,38 @@ fn resume_drops_exact_completed_tasks_when_state_is_available() {
     assert!(resumed.contains_key(&key("dependency", "build")));
     assert!(!resumed.contains_key(&key("completed", "build")));
     assert_eq!(resumed[&key("anchor", "build")].dependencies, vec![key("dependency", "build")]);
+}
+
+#[test]
+fn resume_anchors_every_task_an_expanded_selector_requested_in_the_project() {
+    let settings = tasks(&[("build", Some(&["^build"])), ("test", Some(&["build"]))]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["build", "test"])), ("b", project(&[], &["build", "test"]))],
+        "/^(build|test)$/",
+        Some(&settings),
+    );
+
+    let resumed = resume_task_graph_from(graph, &dir("a"), "/^(build|test)$/", None);
+
+    assert!(!resumed.contains_key(&key("b", "build")));
+    assert!(resumed.contains_key(&key("a", "build")));
+    assert!(resumed.contains_key(&key("a", "test")));
+    assert!(resumed.contains_key(&key("b", "test")));
+    assert!(resumed[&key("a", "build")].dependencies.is_empty());
+    assert_eq!(resumed[&key("a", "test")].dependencies, vec![key("a", "build")]);
+}
+
+#[test]
+fn a_script_named_like_the_selector_keeps_its_default_dependency() {
+    let settings = tasks(&[("lint", None)]);
+    let graph = build_selector_graph(
+        &[("a", project(&["b"], &["/build/"])), ("b", project(&[], &["/build/"]))],
+        "/build/",
+        Some(&settings),
+    );
+
+    assert_eq!(graph[&key("a", "/build/")].scripts, vec!["/build/"]);
+    assert_eq!(graph[&key("a", "/build/")].dependencies, vec![key("b", "/build/")]);
 }
 
 #[test]
@@ -389,11 +702,17 @@ fn scheduler_runs_tasks_in_dependency_order() {
             concurrency: 4,
             bail: true,
             run_task: &|node| {
-                order.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                order
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
                 TaskCompletion::Passed
             },
             on_task_skipped: &|node| {
-                skipped.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                skipped
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
             },
         },
     );
@@ -515,7 +834,9 @@ fn task_waiting_for_a_concurrency_permit_stays_undispatched_after_bail() {
             concurrency: 3,
             bail: true,
             run_task: &|node| {
-                ran.lock().unwrap().push(node.project.clone());
+                ran.lock()
+                    .unwrap()
+                    .push(node.project.clone());
                 TaskCompletion::Failed
             },
             on_task_skipped: &|_| {},
@@ -564,8 +885,14 @@ fn graph_scheduler_does_not_wait_for_an_unrelated_slow_branch() {
     let mut started = ran.clone();
     started.sort_unstable();
     assert_eq!(started, vec!["dependent", "fast", "slow"]);
-    let fast = ran.iter().position(|node| *node == "fast").unwrap();
-    let dependent = ran.iter().position(|node| *node == "dependent").unwrap();
+    let fast = ran
+        .iter()
+        .position(|node| *node == "fast")
+        .unwrap();
+    let dependent = ran
+        .iter()
+        .position(|node| *node == "dependent")
+        .unwrap();
     assert!(fast < dependent, "dependent starts after the dependency it waits on: {ran:?}");
 }
 
@@ -616,7 +943,9 @@ fn scheduler_without_bail_skips_transitive_dependents_of_a_failure() {
             concurrency: 1,
             bail: false,
             run_task: &|node| {
-                ran.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                ran.lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
                 if node.project == dir("b") {
                     TaskCompletion::Failed
                 } else {
@@ -624,7 +953,10 @@ fn scheduler_without_bail_skips_transitive_dependents_of_a_failure() {
                 }
             },
             on_task_skipped: &|node| {
-                skipped.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                skipped
+                    .lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
             },
         },
     );
@@ -653,7 +985,9 @@ fn scheduler_with_bail_dispatches_nothing_after_a_failure() {
             concurrency: 1,
             bail: true,
             run_task: &|node| {
-                ran.lock().unwrap().push(node.project.to_string_lossy().into_owned());
+                ran.lock()
+                    .unwrap()
+                    .push(node.project.to_string_lossy().into_owned());
                 if node.project == dir("a") {
                     TaskCompletion::Failed
                 } else {

@@ -5,7 +5,7 @@ import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'
-import type { ProjectRootDir } from '@pnpm/types'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { writeJsonFileSync } from 'write-json-file'
 
@@ -2019,10 +2019,7 @@ test('injected local packages are deduped', async () => {
 // `ENOENT: copyfile '...node_modules/.bin/<tool>'`. `runLifecycleHooksConcurrently`
 // scanned the existing injected node_modules and added absolute paths under
 // it to the filesMap; the importer's fast path then wiped the target before
-// reading from those paths. Fixed by keeping storeController.importPackage
-// but passing keepModulesDir: true, so importIndexedDir skips the
-// destructive makeEmptyDir fast path (#11088) and preserves the target's
-// existing node_modules (bin links + transitive deps) instead.
+// reading from those paths (pnpm/pnpm#11088).
 test('inject local package with prepare script + bin-having dep does not crash on re-import', async () => {
   const project1Manifest = {
     name: 'project-1',
@@ -2100,4 +2097,445 @@ test('inject local package with prepare script + bin-having dep does not crash o
   expect(() => projects['project-2'].has('project-1')).not.toThrow()
   expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/built.txt'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/node_modules/.bin/hello-world-js-bin'))).toBeTruthy()
+})
+
+test('injectWorkspacePackages injects a workspace dependency declared with a relative path', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:../project-1',
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(importers, testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+    injectWorkspacePackages: true,
+  }))
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.importers['project-2'].dependencies?.['project-1']).toEqual({
+    specifier: 'workspace:../project-1',
+    version: 'file:project-1',
+  })
+  expect(fs.lstatSync(path.resolve('project-2/node_modules/project-1')).isSymbolicLink()).toBe(true)
+  expect(fs.realpathSync('project-2/node_modules/project-1')).toBe(path.resolve('node_modules/.pnpm/project-1@file+project-1/node_modules/project-1'))
+})
+
+test('injectWorkspacePackages resolves a relative workspace dependency of an injected project from its own directory', async () => {
+  const allProjects = prepareProjectWithRelativeWorkspaceDependency({})
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+    injectWorkspacePackages: true,
+  }))
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.snapshots['lib-b@file:libs/lib-b'].dependencies).toEqual({
+    'lib-a': 'file:libs/lib-a',
+  })
+})
+
+test('a relative workspace dependency of a project injected via dependenciesMeta stays linked', async () => {
+  const allProjects = prepareProjectWithRelativeWorkspaceDependency({ 'lib-b': { injected: true } })
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+  }))
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.snapshots['lib-b@file:libs/lib-b'].dependencies?.['lib-a']).toMatch(/^link:/)
+})
+
+function prepareProjectWithRelativeWorkspaceDependency (dependenciesMeta: ProjectManifest['dependenciesMeta']): ProjectOptions[] {
+  const libAManifest = {
+    name: 'lib-a',
+    version: '1.0.0',
+  }
+  const libBManifest = {
+    name: 'lib-b',
+    version: '1.0.0',
+    dependencies: {
+      'lib-a': 'workspace:../lib-a',
+    },
+  }
+  const mainManifest = {
+    name: 'main',
+    version: '1.0.0',
+    dependencies: {
+      'lib-b': 'workspace:../../libs/lib-b',
+    },
+    dependenciesMeta,
+  }
+  preparePackages([
+    {
+      location: 'libs/lib-a',
+      package: libAManifest,
+    },
+    {
+      location: 'libs/lib-b',
+      package: libBManifest,
+    },
+    {
+      location: 'apps/main',
+      package: mainManifest,
+    },
+  ])
+  return [
+    {
+      buildIndex: 0,
+      manifest: libAManifest,
+      rootDir: path.resolve('libs/lib-a') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: libBManifest,
+      rootDir: path.resolve('libs/lib-b') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: mainManifest,
+      rootDir: path.resolve('apps/main') as ProjectRootDir,
+    },
+  ]
+}
+
+test('inject local package that publishes from a directory built by prepare', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    scripts: {
+      // The publish directory does not exist until `prepare` creates it,
+      // after the injected copy is linked (pnpm/pnpm#7811).
+      prepare: 'pwd > prepare-cwd.txt && mkdir -p dist && cp package.json dist/ && echo "// built" > dist/index.js',
+    },
+    publishConfig: {
+      directory: 'dist',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+  }))
+
+  // prepare ran in project-1 and built the publish directory.
+  expect(fs.existsSync(path.resolve('project-1/dist/index.js'))).toBeTruthy()
+  // The injected copy is packed from the publish directory, so the built
+  // file is at the copy's root and dist/ is not nested inside it.
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/dist'))).toBeFalsy()
+})
+
+test('inject local package that publishes from a directory built by prepare, alongside a file: dependency on its root', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    scripts: {
+      prepare: 'mkdir -p dist && cp package.json dist/ && echo "// built" > dist/index.js',
+    },
+    publishConfig: {
+      directory: 'dist',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  // A `file:` dependency bypasses the `workspace:` protocol's publish-directory
+  // redirect, so this copy is injected from project-1's root, not its dist/.
+  const project3Manifest = {
+    name: 'project-3',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'file:../project-1',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+    {
+      location: 'project-3',
+      package: project3Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project3Manifest,
+      rootDir: path.resolve('project-3') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+  }))
+
+  // The `workspace:` dependency's copy is packed from the publish directory.
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/dist'))).toBeFalsy()
+  // The `file:` dependency's copy is packed from the project root, unaffected
+  // by the publish-directory redirect.
+  expect(fs.existsSync(path.resolve('project-3/node_modules/project-1/dist/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-3/node_modules/project-1/index.js'))).toBeFalsy()
+})
+
+// The directory fetcher tolerates a missing publish directory and returns an
+// empty files map, so `prepare` can build it after the injected copy is in
+// place. Reinstalling a consumer while that directory is transiently missing
+// must not treat the resulting empty files map as a reason to overwrite an
+// already-materialized injected copy with nothing.
+test('reinstalling after the publish directory is deleted does not wipe the injected copy', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    scripts: {
+      prepare: 'mkdir -p dist && cp package.json dist/ && echo "// built" > dist/index.js',
+    },
+    publishConfig: {
+      directory: 'dist',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+  }))
+
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
+
+  rimrafSync(path.resolve('project-1/dist'))
+
+  // Reinstall only project-2, so project-1's `prepare` does not rerun and
+  // rebuild the deleted publish directory before the injected copy is
+  // refreshed from it.
+  await mutateModules([importers[1]], testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+  }))
+
+  expect(fs.existsSync(path.resolve('project-2/node_modules/project-1/index.js'))).toBeTruthy()
+})
+
+// https://github.com/pnpm/pnpm/issues/17781
+test('an injected package is not replaced by the workspace project when that would resolve an optional peer the consumer rejected', async () => {
+  const libManifest = {
+    name: 'lib',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/has-optional-y-v2-peer-user-carrier': '1.0.0',
+    },
+  }
+  const appManifest = {
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      lib: 'workspace:1.0.0',
+      '@pnpm/y': '1.0.0',
+    },
+    dependenciesMeta: {
+      lib: { injected: true },
+    },
+  }
+  const providerManifest = {
+    name: 'provider',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/y-v2-peer-user-carrier': '1.0.0',
+      '@pnpm.e2e/y-v2-peer-user': '1.0.0',
+      '@pnpm/y': '2.0.0',
+    },
+  }
+  preparePackages([
+    { location: 'lib', package: libManifest },
+    { location: 'app', package: appManifest },
+    { location: 'provider', package: providerManifest },
+  ])
+  const allProjects: ProjectOptions[] = [
+    { buildIndex: 0, manifest: libManifest, rootDir: path.resolve('lib') as ProjectRootDir },
+    { buildIndex: 0, manifest: appManifest, rootDir: path.resolve('app') as ProjectRootDir },
+    { buildIndex: 0, manifest: providerManifest, rootDir: path.resolve('provider') as ProjectRootDir },
+  ]
+  await mutateModules(
+    allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })),
+    testDefaults({ autoInstallPeers: true, allProjects, dedupeInjectedDeps: true })
+  )
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.importers.lib.dependencies?.['@pnpm.e2e/has-optional-y-v2-peer-user-carrier']?.version)
+    .toMatch(/^1\.0\.0\(@pnpm\.e2e\/y-v2-peer-user-carrier@1\.0\.0/)
+  expect(lockfile.importers.app.dependencies?.lib.version).toMatch(/^file:lib/)
+  expect(lockfile.snapshots['lib@file:lib'].dependencies).toEqual({ '@pnpm.e2e/has-optional-y-v2-peer-user-carrier': '1.0.0' })
 })

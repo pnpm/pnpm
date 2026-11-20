@@ -1,16 +1,16 @@
 //! Parses the `workspace:` family of bare specifiers:
 //!
-//! - `workspace:*` / `workspace:^` / `workspace:~` — pick the highest
+//! - `workspace:*` / `workspace:^` / `workspace:~`, pick the highest
 //!   matching version from the workspace, with the version token kept
 //!   verbatim so the npm resolver can translate it to a range when it
 //!   rewrites the specifier.
-//! - `workspace:1.2.3` / `workspace:^1.2.3` — exact / range against
+//! - `workspace:1.2.3` / `workspace:^1.2.3`, exact / range against
 //!   workspace siblings.
-//! - `workspace:<alias>@<version>` / `workspace:@scope/<alias>@<version>`
-//!   — npm-alias form, used when the importer wants to install a
+//! - `workspace:<alias>@<version>` / `workspace:@scope/<alias>@<version>`,
+//!   npm-alias form, used when the importer wants to install a
 //!   workspace package under a different local name.
 //!
-//! The parser is deliberately permissive — it just splits the
+//! The parser is deliberately permissive; it just splits the
 //! `<alias>@<version>` shape. Validity of `<version>` (semver vs.
 //! `*`/`^`/`~`/empty) is the caller's responsibility; see
 //! `pnpm-workspace-range-resolver`'s `resolve_workspace_range` for
@@ -18,7 +18,7 @@
 
 use std::fmt;
 
-/// Parsed `workspace:` bare specifier — a record of `(alias, version)`
+/// Parsed `workspace:` bare specifier, a record of `(alias, version)`
 /// plus a `Display` impl that round-trips back to the original
 /// `workspace:` form.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -26,7 +26,7 @@ pub struct WorkspaceSpec {
     /// The optional `<alias>` portion of `workspace:<alias>@<version>`.
     /// `None` for the un-aliased `workspace:<version>` form.
     pub alias: Option<String>,
-    /// The `<version>` portion — `*`, `^`, `~`, the empty string, an
+    /// The `<version>` portion, `*`, `^`, `~`, the empty string, an
     /// exact version, or a semver range. Kept as a raw string so the
     /// caller can decide how to interpret it.
     pub version: String,
@@ -63,11 +63,24 @@ impl fmt::Display for WorkspaceSpec {
     }
 }
 
+/// Whether a `workspace:` specifier names a directory path that the
+/// local resolver reads.
+#[must_use]
+pub fn is_workspace_path_specifier(bare_specifier: &str) -> bool {
+    let Some(path) = bare_specifier.strip_prefix("workspace:") else {
+        return false;
+    };
+    path.starts_with('.')
+        || path.starts_with('/')
+        || matches!(path.as_bytes(), [drive, b':', b'/' | b'\\', ..] if drive.is_ascii_alphabetic())
+}
+
 /// Split the post-`workspace:` portion into `(alias?, version)` per the
 /// `[^._/][^@]*@` shape: the alias must start with a character that is
 /// **not** `.`, `_`, or `/`, be at least one character long, and be
-/// followed by a literal `@`.
-fn split_alias_version(suffix: &str) -> (Option<&str>, &str) {
+/// followed by a literal `@`. The borrowed form of [`WorkspaceSpec::parse`].
+#[must_use]
+pub fn split_alias_version(suffix: &str) -> (Option<&str>, &str) {
     let mut chars = suffix.char_indices();
     let Some((_, first)) = chars.next() else {
         return (None, suffix);

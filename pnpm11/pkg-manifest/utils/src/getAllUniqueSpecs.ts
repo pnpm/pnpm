@@ -3,19 +3,23 @@ import type { DependencyManifest } from '@pnpm/types'
 import { getAllDependenciesFromManifest } from './getAllDependenciesFromManifest.js'
 
 export function getAllUniqueSpecs (manifests: DependencyManifest[]): Record<string, string> {
-  const allSpecs: Record<string, string> = {}
+  const allSpecs = new Map<string, string>()
   const ignored = new Set<string>()
   for (const manifest of manifests) {
     const specs = getAllDependenciesFromManifest(manifest)
     for (const [name, spec] of Object.entries(specs)) {
       if (ignored.has(name)) continue
-      if (allSpecs[name] != null && allSpecs[name] !== spec || spec.includes(':')) {
+      if (isConflictingOrProtocolSpec(allSpecs.get(name), spec)) {
         ignored.add(name)
-        delete allSpecs[name]
+        allSpecs.delete(name)
         continue
       }
-      allSpecs[name] = spec
+      allSpecs.set(name, spec)
     }
   }
-  return allSpecs
+  return Object.fromEntries(allSpecs)
+}
+
+function isConflictingOrProtocolSpec (previousSpec: string | undefined, spec: string): boolean {
+  return previousSpec != null && previousSpec !== spec || spec.includes(':')
 }

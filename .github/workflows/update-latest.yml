@@ -18,6 +18,15 @@ on:
 
 permissions: {}
 
+# Runs write the npm dist-tags and then the GitHub "Latest" release. Overlapping
+# runs could interleave those writes and leave the two pointing at different
+# versions, and cancelling a run could stop it between them. The default queue
+# keeps one pending run and cancels it when another dispatch arrives.
+concurrency:
+  group: update-latest
+  cancel-in-progress: false
+  queue: max
+
 env:
   # Passed to each command as `--registry`, which is the only form pnpm reads;
   # it ignores `npm_config_registry`.
@@ -34,10 +43,11 @@ jobs:
   validate:
     name: Validate ${{ github.event.inputs.version }} and ${{ github.event.inputs.tag }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    permissions: {}
+    permissions:
+      contents: read  # to read the GitHub release
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+      uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -82,6 +92,25 @@ jobs:
             fi
             ;;
         esac
+    # mark-latest-release moves the GitHub "Latest" badge to this release, and
+    # the announcement jobs link to it, so it must be public before npm moves.
+    # A token without push access cannot see drafts, so a draft reads as missing.
+    - name: Verify the GitHub release is published
+      if: ${{ inputs.tag == 'latest' }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        VERSION: ${{ github.event.inputs.version }}
+      run: |
+        set -euo pipefail
+        if ! state="$(gh release view "v${VERSION}" --json isDraft,isPrerelease --jq '"\(.isDraft) \(.isPrerelease)"')"; then
+          echo "::error::No published GitHub release v${VERSION}. Publish its draft before tagging it latest."
+          exit 1
+        fi
+        if [ "$state" != "false false" ]; then
+          echo "::error::GitHub release v${VERSION} is a draft or a prerelease (isDraft isPrerelease: ${state}). Publish it as a full release before tagging it latest."
+          exit 1
+        fi
   # Upgrading onto a version reads its published manifest and platform packages,
   # so a release that is only broken as an upgrade target fails here and nowhere
   # earlier — and the dist-tag move below is the last point at which it can still
@@ -97,7 +126,7 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+      uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -136,14 +165,10 @@ jobs:
           cd "$work"
           mkdir -p "$work/from"
           printf '{"name":"pnpm-upgrade-check","version":"0.0.0","private":true}\n' >"$work/from/package.json"
-          # `--allow-build` is what makes this install the starting point rather
-          # than a fake one: pnpm blocks dependency build scripts by default, and
-          # `@pnpm/exe`'s setup.js is what swaps its placeholder bin for the real
-          # native. Without it every run reproduces the exact breakage this gate
-          # exists to catch (the placeholder surviving) and blames the release.
+          # Both v12 wrappers need install scripts to set up their native binary.
           pn add "${package}@${FROM}" \
             --dir "$work/from" \
-            --allow-build=@pnpm/exe \
+            --allow-build="$package" \
             --registry="$REGISTRY"
           # Drive through the bin shim rather than a path into the package: the
           # entry point differs by major (pnpm.cjs in v10, pnpm.mjs in v11) and
@@ -196,11 +221,11 @@ jobs:
     environment: release
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-    - uses: garnet-org/action@3d47f4a9004f7356c980a0e8d420ef5984750e3c # v2.2.0
+    - uses: garnet-org/action@673a06d87748bec49e4d8df22d371b2a3420aba4 # v2.5.2
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
-      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+      uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -226,12 +251,56 @@ jobs:
           pn dist-tag add "@pnpm/exe@${VERSION}" "${TAG}" --registry="$REGISTRY"
         fi
 
+  # The badge follows the npm `latest` dist-tag, so it moves here, after the
+  # dist-tag, rather than when the release is published: a published release
+  # has not passed verify-upgrade yet. It is set from the registry, not from the
+  # inputs, so every dispatch also corrects a badge that a manually published
+  # release took (https://github.com/pnpm/pnpm/issues/18134).
+  mark-latest-release:
+    name: Mark the npm latest version as the latest GitHub release
+    needs: tag-in-registry
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: write  # to set the "Latest" release
+    steps:
+    - name: Mark the release as latest
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        VERSION: ${{ github.event.inputs.version }}
+        TAG: ${{ github.event.inputs.tag }}
+      run: |
+        set -euo pipefail
+        # The registry can serve the dist-tags from before tag-in-registry for
+        # a short while, and marking that version would pass the check below.
+        for _ in 1 2 3 4 5 6; do
+          latest="$(curl -fsS "${REGISTRY}-/package/pnpm/dist-tags" | jq -r .latest)"
+          if [ "$TAG" != latest ] || [ "$latest" = "$VERSION" ]; then
+            break
+          fi
+          sleep 10
+        done
+        if [ "$TAG" = latest ] && [ "$latest" != "$VERSION" ]; then
+          echo "::error::The registry still reports ${latest} as latest, expected ${VERSION}."
+          exit 1
+        fi
+        if ! printf '%s\n' "$latest" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+          echo "::error::Could not read the latest version of pnpm from the registry. Got: ${latest}"
+          exit 1
+        fi
+        gh release edit "v${latest}" --latest
+        actual="$(gh api "repos/${GH_REPO}/releases/latest" --jq .tag_name)"
+        if [ "$actual" != "v${latest}" ]; then
+          echo "::error::The latest GitHub release is ${actual}, expected v${latest}."
+          exit 1
+        fi
+
   publish-to-winget:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: vedantmgoyal9/winget-releaser@7bd472be23763def6e16bd06cc8b1cdfab0e2fd5 # 2026-03-15 pin, no longer on a named ref # zizmor: ignore[ref-version-mismatch]
+      - uses: vedantmgoyal9/winget-releaser@b7370d4d152efdce803a26cc6ca9eee58cb2ad54 # 2026-03-15 pin, no longer on a named ref # zizmor: ignore[ref-version-mismatch]
         with:
           identifier: pnpm.pnpm
           version: ${{ github.event.inputs.version }}
@@ -260,12 +329,15 @@ jobs:
     steps:
       - name: Send toot to Mastodon
         id: mastodon
-        uses: cbrgm/mastodon-github-action@9ba8763f1daa436d73fb76abbc3e8b2ac8dfa943 # v2.2.4
+        uses: cbrgm/mastodon-github-action@69546c2a09678575ded3a0ac3a28f10ca38a759d # v2.2.6
         with:
+          # The instance and the token are `with:` inputs, not environment
+          # variables: the action turns each input into an argv entry for the
+          # container, and reads nothing from the environment. Supplied any
+          # other way they arrive empty, and posting fails on a URL of "".
+          url: "https://fosstodon.org/"
+          access-token: ${{ secrets.MASTODON_ACCESS_TOKEN }}
           message: |
             pnpm@${{ github.event.inputs.version }} is out!
             https://github.com/pnpm/pnpm/releases/tag/v${{ github.event.inputs.version }}
           visibility: "public"
-        env:
-          MASTODON_URL: "https://fosstodon.org/"
-          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }} # access token

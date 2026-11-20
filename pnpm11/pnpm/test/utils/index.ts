@@ -1,6 +1,7 @@
 import { add as addDistTag } from './distTags.js'
 import {
   binDir,
+  createEnv,
   execPnpm,
   execPnpmSync,
   execPnpx,
@@ -11,12 +12,14 @@ import {
   spawnPnpx,
   waitForPnpmExit,
 } from './execPnpm.js'
+import { writeFakeBin } from './fakeBin.js'
 import { pathToLocalPkg } from './localPkg.js'
 import testDefaults from './testDefaults.js'
 
 export {
   addDistTag,
   binDir,
+  createEnv,
   execPnpm,
   execPnpmSync,
   execPnpx,
@@ -28,4 +31,5 @@ export {
   spawnPnpx,
   testDefaults,
   waitForPnpmExit,
+  writeFakeBin,
 }

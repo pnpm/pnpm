@@ -1,8 +1,5 @@
 //! Defines [`Catalog`] and [`Catalogs`], the normalized in-memory shape
-//! every other catalogs crate consumes. Both are plain typed maps —
-//! name to version specifier, and catalog name to catalog — so pacquet
-//! exposes them as `BTreeMap` aliases. The `"default"` catalog is just
-//! the well-known key inside [`Catalogs`]; no separate field is needed.
+//! every other catalogs crate consumes.
 
 use std::collections::BTreeMap;
 

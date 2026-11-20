@@ -12,8 +12,9 @@ fn identical_frame_produces_empty_diff() {
 fn unchanged_sticky_line_not_rewritten() {
     let mut diff = Diff::new(120);
     diff.update("Lockfile passes supply-chain policies (verified 1h ago)\nProgress: resolved 10\n");
-    let output = diff
-        .update("Lockfile passes supply-chain policies (verified 1h ago)\nProgress: resolved 11\n");
+    let output = diff.update(
+        "Lockfile passes supply-chain policies (verified 1h ago)\nProgress: resolved 11\n",
+    );
     assert!(!output.contains("Lockfile"), "sticky line must not be reprinted: {output:?}");
 }
 
@@ -65,7 +66,7 @@ fn inline_diff_skipped_for_ansi_lines() {
 fn inline_diff_skipped_for_short_common_affix() {
     let mut diff = Diff::new(120);
     // Same length, but the unchanged prefix + suffix is only 4 chars
-    // (left=2, right=2) — at the `left + right <= 4` threshold, an inline
+    // (left=2, right=2), at the `left + right <= 4` threshold, an inline
     // diff isn't worth it, so the whole line is rewritten.
     diff.update("AB0000000000CD\n");
     let output = diff.update("AB1111111111CD\n");
@@ -134,7 +135,7 @@ fn multiple_progress_ticks() {
 
     for tick in 11..=15 {
         let output = diff.update(&format!("Progress: resolved {tick}\n"));
-        // Each tick should write the changed digit(s) but not the full line.
+        // Each tick should write the changed digits but not the full line.
         assert!(
             !output.contains("Progress"),
             "tick {tick} does not rewrite unchanged prefix: {output:?}",

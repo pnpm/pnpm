@@ -1,12 +1,20 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::fs;
 
 #[test]
 fn link_fails_without_paths() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -15,7 +23,10 @@ fn link_fails_without_paths() {
     )
     .expect("write package.json");
 
-    let output = pacquet.with_arg("link").output().expect("spawn pacquet link");
+    let output = pacquet
+        .with_arg("link")
+        .output()
+        .expect("spawn pacquet link");
     assert!(!output.status.success(), "link without paths must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -28,8 +39,13 @@ fn link_fails_without_paths() {
 
 #[test]
 fn ln_alias_fails_without_paths() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -38,7 +54,10 @@ fn ln_alias_fails_without_paths() {
     )
     .expect("write package.json");
 
-    let output = pacquet.with_arg("ln").output().expect("spawn pacquet ln");
+    let output = pacquet
+        .with_arg("ln")
+        .output()
+        .expect("spawn pacquet ln");
     assert!(!output.status.success(), "ln alias without paths must fail");
 
     drop((root, mock_instance));
@@ -46,8 +65,13 @@ fn ln_alias_fails_without_paths() {
 
 #[test]
 fn link_fails_with_nonexistent_target() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -58,7 +82,12 @@ fn link_fails_with_nonexistent_target() {
 
     let output = pacquet
         .with_arg("link")
-        .with_arg(workspace.join("definitely-missing-target").to_string_lossy().as_ref())
+        .with_arg(
+            workspace
+                .join("definitely-missing-target")
+                .to_string_lossy()
+                .as_ref(),
+        )
         .output()
         .expect("spawn pacquet link");
     assert!(!output.status.success(), "link to nonexistent path must fail");
@@ -73,8 +102,13 @@ fn link_fails_with_nonexistent_target() {
 
 #[test]
 fn link_succeeds_with_valid_target() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -91,7 +125,11 @@ fn link_succeeds_with_valid_target() {
     )
     .expect("write target package.json");
 
-    pacquet.with_arg("link").with_arg("../target-project").assert().success();
+    pacquet
+        .with_arg("link")
+        .with_arg("../target-project")
+        .assert()
+        .success();
 
     let manifest =
         pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
@@ -105,8 +143,13 @@ fn link_succeeds_with_valid_target() {
 
 #[test]
 fn link_succeeds_with_absolute_path() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -123,7 +166,11 @@ fn link_succeeds_with_absolute_path() {
     )
     .expect("write target package.json");
 
-    pacquet.with_arg("link").with_arg(target_dir.to_string_lossy().as_ref()).assert().success();
+    pacquet
+        .with_arg("link")
+        .with_arg(target_dir.to_string_lossy().as_ref())
+        .assert()
+        .success();
 
     let manifest =
         pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
@@ -136,8 +183,13 @@ fn link_succeeds_with_absolute_path() {
 
 #[test]
 fn link_succeeds_with_multiple_targets() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -162,7 +214,12 @@ fn link_succeeds_with_multiple_targets() {
     )
     .expect("write target package.json");
 
-    pacquet.with_arg("link").with_arg("../multi-a").with_arg("../multi-b").assert().success();
+    pacquet
+        .with_arg("link")
+        .with_arg("../multi-a")
+        .with_arg("../multi-b")
+        .assert()
+        .success();
 
     let manifest =
         pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
@@ -176,8 +233,13 @@ fn link_succeeds_with_multiple_targets() {
 
 #[test]
 fn link_fails_target_no_name() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -194,8 +256,11 @@ fn link_fails_target_no_name() {
     )
     .expect("write target package.json");
 
-    let output =
-        pacquet.with_arg("link").with_arg("../target-project-no-name").output().expect("spawn");
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../target-project-no-name")
+        .output()
+        .expect("spawn");
     assert!(!output.status.success(), "link to target without name must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -207,9 +272,140 @@ fn link_fails_target_no_name() {
 }
 
 #[test]
+fn link_refuses_invalid_target_name_without_writing() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), &manifest).expect("write package.json");
+    let read_workspace_yaml = || {
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read pnpm-workspace.yaml")
+    };
+    let workspace_yaml = read_workspace_yaml();
+
+    let target_dir = root.path().join("invalid-name");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "mcp-use server", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../invalid-name")
+        .output()
+        .expect("spawn");
+    assert!(!output.status.success(), "link to a target with an invalid name must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_INVALID_DEPENDENCY_NAME"), "stderr: {stderr}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+        manifest,
+    );
+    assert_eq!(read_workspace_yaml(), workspace_yaml);
+
+    drop((root, mock_instance));
+}
+
+/// A relative path is resolved against the directory the command runs in,
+/// not against the nearest `package.json` above it.
+#[test]
+fn link_resolves_relative_path_from_current_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+    let tools_dir = workspace.join("tools");
+    let target_dir = tools_dir.join("lib");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "tools-lib", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write target package.json");
+
+    pacquet
+        .with_current_dir(&tools_dir)
+        .with_arg("link")
+        .with_arg("./lib")
+        .assert()
+        .success();
+
+    let manifest =
+        pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+            .expect("read manifest");
+    let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
+    assert_eq!(deps["tools-lib"], "link:tools/lib");
+
+    drop((root, mock_instance));
+}
+
+/// `pnpm link .` in a directory without a `package.json` must not link the
+/// project above it into itself.
+#[test]
+fn link_dot_in_directory_without_manifest_does_not_link_parent_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), &manifest).expect("write package.json");
+    let read_workspace_yaml = || {
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read pnpm-workspace.yaml")
+    };
+    let workspace_yaml = read_workspace_yaml();
+    let packages_dir = workspace.join("packages");
+    fs::create_dir_all(&packages_dir).expect("create packages dir");
+
+    let output = pacquet
+        .with_current_dir(&packages_dir)
+        .with_arg("link")
+        .with_arg(".")
+        .output()
+        .expect("spawn pacquet link");
+    assert!(!output.status.success(), "linking a directory without package.json must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("No package.json found"), "stderr: {stderr}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+        manifest,
+    );
+    assert_eq!(read_workspace_yaml(), workspace_yaml);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn ln_alias_succeeds_with_valid_target() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -226,7 +422,11 @@ fn ln_alias_succeeds_with_valid_target() {
     )
     .expect("write target package.json");
 
-    pacquet.with_arg("ln").with_arg("../ln-target").assert().success();
+    pacquet
+        .with_arg("ln")
+        .with_arg("../ln-target")
+        .assert()
+        .success();
 
     let manifest =
         pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
@@ -242,8 +442,13 @@ fn ln_alias_succeeds_with_valid_target() {
 /// `overrides:` block (mirroring pnpm), not just in `dependencies`.
 #[test]
 fn link_persists_override_to_workspace_yaml() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -260,7 +465,11 @@ fn link_persists_override_to_workspace_yaml() {
     )
     .expect("write target package.json");
 
-    pacquet.with_arg("link").with_arg("../override-target").assert().success();
+    pacquet
+        .with_arg("link")
+        .with_arg("../override-target")
+        .assert()
+        .success();
 
     let workspace_yaml =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
@@ -280,8 +489,13 @@ fn link_persists_override_to_workspace_yaml() {
 /// even though the existing spec is a registry range.
 #[test]
 fn link_existing_dependency_writes_override_only() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -303,13 +517,20 @@ fn link_existing_dependency_writes_override_only() {
     )
     .expect("write target package.json");
 
-    pacquet.with_arg("link").with_arg("../target-project").assert().success();
+    pacquet
+        .with_arg("link")
+        .with_arg("../target-project")
+        .assert()
+        .success();
 
     let manifest =
         pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
             .expect("read manifest");
     assert!(
-        manifest.value().get("dependencies").is_none(),
+        manifest
+            .value()
+            .get("dependencies")
+            .is_none(),
         "no dependencies entry should be added when already declared elsewhere",
     );
     let dev_deps = manifest.value()["devDependencies"].as_object().expect("devDependencies exist");
@@ -324,12 +545,197 @@ fn link_existing_dependency_writes_override_only() {
 
     // The install succeeded despite the registry-spec devDependency, which is
     // only possible because the in-memory override rewrote it to the local
-    // `link:` — confirm the symlink was created rather than a registry fetch.
+    // `link:`, confirm the symlink was created rather than a registry fetch.
     let linked = workspace.join("node_modules").join("target-project");
     assert!(
-        fs::symlink_metadata(&linked).is_ok_and(|meta| meta.file_type().is_symlink()),
+        fs::symlink_metadata(&linked)
+            .map(|meta| meta.file_type())
+            .is_ok_and(|file_type| file_type.is_symlink()),
         "node_modules/target-project must be a symlink created from the link override",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn link_warns_about_peer_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("linked-with-peer-deps");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "linked-with-peer-deps",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "some-peer-dependency": "1.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_args(["--reporter=ndjson", "link", "../linked-with-peer-deps"])
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    let warn_events: Vec<serde_json::Value> = stderr
+        .lines()
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
+        .filter(|val| {
+            val.get("name").and_then(serde_json::Value::as_str) == Some("pnpm")
+                && val.get("level").and_then(serde_json::Value::as_str) == Some("warn")
+        })
+        .collect();
+
+    assert_eq!(
+        warn_events.len(),
+        1,
+        "expected exactly 1 warn event on pnpm channel, got:\n{stderr}",
+    );
+    let warn_event = &warn_events[0];
+    let message = warn_event
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .expect("message string");
+    assert!(
+        message.contains("has the following peerDependencies specified in its package.json"),
+        "message must warn about peerDependencies:\n{message}",
+    );
+    assert!(
+        message.contains("The linked in dependency will not resolve the peer dependencies from the target node_modules."),
+        "message must explain the limitation:\n{message}",
+    );
+    assert!(
+        message.contains(r#"To resolve this, you may use the "file:" protocol to reference the local dependency."#),
+        "message must suggest file: protocol:\n{message}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn link_does_not_warn_when_peer_dependencies_empty() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("linked-with-empty-peer-deps");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "linked-with-empty-peer-deps",
+            "version": "1.0.0",
+            "peerDependencies": {}
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../linked-with-empty-peer-deps")
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}\n{stderr}");
+    assert!(
+        !combined.contains("has the following peerDependencies specified in its package.json"),
+        "output must not warn about empty peerDependencies:\n{combined}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[tokio::test]
+async fn link_sanitizes_control_characters_in_peer_deps_warning() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("linked-with-control-chars");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "malicious-pkg",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "react\x1b[0m\r\n": "^18.0.0\x1b[32m\r"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_arg("link")
+        .with_arg("../linked-with-control-chars")
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}\n{stderr}");
+
+    assert!(
+        combined.contains("The package malicious-pkg, which you have just pnpm linked"),
+        "sanitized package name must be in output:\n{combined}",
+    );
+    assert!(
+        combined.contains("react@^18.0.0"),
+        "sanitized peer dependency must be in output:\n{combined}",
+    );
+    assert!(
+        !combined.contains('\x1b'),
+        "output must not contain ANSI escape sequence:\n{combined}",
+    );
+    assert!(!combined.contains('\r'), "output must not contain carriage return:\n{combined}");
 
     drop((root, mock_instance));
 }

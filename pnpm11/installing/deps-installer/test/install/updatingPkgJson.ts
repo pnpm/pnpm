@@ -48,8 +48,8 @@ test('saveDev scoped module to package.json (@scoped/exports-function)', async (
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@scoped/exports-function'], testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
 
-  const m = project.requireModule('@scoped/exports-function')
-  expect(typeof m).toBe('function')
+  const moduleExports = project.requireModule('@scoped/exports-function')
+  expect(typeof moduleExports).toBe('function')
 
   expect(manifest.devDependencies).toStrictEqual({ '@scoped/exports-function': '^4.1.1' })
 })

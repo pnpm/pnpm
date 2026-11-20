@@ -1,8 +1,19 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use serde_json::{Value, json};
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
@@ -47,11 +58,13 @@ fn generated_changesets(workspace: &Path) -> Vec<std::path::PathBuf> {
     let changeset_dir = workspace.join(".changeset");
     let Ok(entries) = fs::read_dir(changeset_dir) else { return Vec::new() };
     let mut paths = entries
-        .map(|entry| entry.expect("read changeset entry").path())
+        .map(|entry| entry.expect("read changeset entry"))
+        .map(|value| value.path())
         .filter(|path| {
             path.file_name()
                 .and_then(OsStr::to_str)
-                .is_some_and(|name| name.starts_with("pnpm-update-") && name.ends_with(".md"))
+                .filter(|name| name.starts_with("pnpm-update-"))
+                .is_some_and(|name| name.ends_with(".md"))
         })
         .collect::<Vec<_>>();
     paths.sort();
@@ -254,7 +267,9 @@ fn update_changeset_warns_and_skips_when_config_is_missing() {
         String::from_utf8_lossy(&output.stderr),
     );
     assert!(
-        rendered.contains("No changeset was generated") && rendered.contains("config.json"),
+        rendered.contains("No changeset was generated")
+            && rendered.contains(".changeset")
+            && rendered.contains("versioning"),
         "missing-config warning was not printed: {rendered}",
     );
     assert!(!workspace.join(".changeset").exists());
@@ -327,10 +342,13 @@ fn update_changeset_reports_malformed_config_with_a_stable_error() {
     assert!(!output.status.success(), "malformed config must fail the update");
     let stderr = String::from_utf8_lossy(&output.stderr);
     // miette wraps long diagnostic lines at the terminal width, which on
-    // Windows CI splits the long temp path — and the `config.json` within it —
+    // Windows CI splits the long temp path (and the `config.json` within it)
     // across lines. Drop whitespace and the box-drawing continuation marker so
     // the substring check doesn't depend on where the wrap lands.
-    let unwrapped: String = stderr.chars().filter(|&c| !c.is_whitespace() && c != '│').collect();
+    let unwrapped: String = stderr
+        .chars()
+        .filter(|&c| !c.is_whitespace() && c != '│')
+        .collect();
     assert!(
         unwrapped.contains("ERR_PNPM_INVALID_CHANGESET_CONFIG")
             && unwrapped.contains("config.json"),
@@ -389,6 +407,126 @@ fn update_changeset_supports_a_package_outside_a_workspace() {
     assert_eq!(
         generated_changeset_text(&workspace),
         "---\n\"project\": patch\n---\n\nUpdate dependencies.\n",
+    );
+    drop((root, anchor));
+}
+
+#[test]
+fn update_changeset_generates_without_config_json_when_changeset_directory_exists() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(
+        &workspace,
+        json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    fs::create_dir_all(workspace.join(".changeset")).expect("create .changeset directory");
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "--latest", "--changeset"]).assert().success();
+
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"project\": patch\n---\n\nUpdate dependencies.\n",
+    );
+    drop((root, anchor));
+}
+
+#[test]
+fn update_changeset_creates_changeset_dir_when_versioning_is_configured_in_workspace_yaml() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, root_workspace_manifest());
+    append_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\nversioning: {}\n");
+    write_manifest(
+        &workspace.join("packages/project-1"),
+        json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    write_manifest(
+        &workspace.join("packages/versionless"),
+        json!({
+            "name": "versionless",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+    write_manifest(
+        &workspace.join("packages/non-semver"),
+        json!({
+            "name": "non-semver",
+            "version": "not-semver",
+            "dependencies": { (DEP): "^100.0.0" },
+        }),
+    );
+
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(!workspace.join(".changeset").exists());
+    pacquet(&workspace, ["update", "-r", "--latest", "--changeset"]).assert().success();
+
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"project-1\": patch\n---\n\nUpdate dependencies.\n",
+    );
+    pacquet(&workspace, ["change", "status"]).assert().success();
+    drop((root, anchor));
+}
+
+#[test]
+fn update_changeset_honors_versioning_ignore_with_and_without_changeset_config() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, root_workspace_manifest());
+    append_workspace_yaml(
+        &workspace,
+        "packages:\n  - 'packages/*'\nversioning:\n  ignore:\n    - 'ignored-by-name'\n    - './packages/ignored-by-dir'\n",
+    );
+    for (dir_name, pkg_name) in [
+        ("project-1", "project-1"),
+        ("ignored-by-name", "ignored-by-name"),
+        ("ignored-by-dir", "ignored-pkg-in-dir"),
+        ("ignored-by-config", "ignored-by-config"),
+    ] {
+        write_manifest(
+            &workspace.join("packages").join(dir_name),
+            json!({
+                "name": pkg_name,
+                "version": "1.0.0",
+                "dependencies": { (DEP): "^100.0.0" },
+            }),
+        );
+    }
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "-r", "--latest", "--changeset"]).assert().success();
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"ignored-by-config\": patch\n\"project-1\": patch\n---\n\nUpdate dependencies.\n",
+    );
+
+    for path in generated_changesets(&workspace) {
+        fs::remove_file(path).expect("remove first generated changeset");
+    }
+    for dir_name in ["project-1", "ignored-by-name", "ignored-by-dir", "ignored-by-config"] {
+        let pkg_name = if dir_name == "ignored-by-dir" { "ignored-pkg-in-dir" } else { dir_name };
+        write_manifest(
+            &workspace.join("packages").join(dir_name),
+            json!({
+                "name": pkg_name,
+                "version": "1.0.0",
+                "dependencies": { (DEP): "^100.0.0" },
+            }),
+        );
+    }
+    write_changeset_config(&workspace, json!({ "ignore": ["ignored-by-config"] }));
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(&workspace, ["update", "-r", "--latest", "--changeset"]).assert().success();
+
+    assert_eq!(
+        generated_changeset_text(&workspace),
+        "---\n\"project-1\": patch\n---\n\nUpdate dependencies.\n",
     );
     drop((root, anchor));
 }

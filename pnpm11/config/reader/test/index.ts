@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { afterAll, afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import type { Config } from '@pnpm/config.reader'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { esmNodePathLoaderImportFlag } from '@pnpm/exec.esm-node-path-loader'
@@ -15,7 +15,7 @@ import PATH from 'path-name'
 import { symlinkDir } from 'symlink-dir'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn(), getBranchesContainingHead: jest.fn(() => Promise.resolve([])) }))
 
 const { getConfig, parsePackageManager } = await import('@pnpm/config.reader')
 const { getCurrentBranch } = await import('@pnpm/network.git-utils')
@@ -36,12 +36,19 @@ for (const suffix of [
   delete process.env[`pnpm_config_${suffix}`]
   delete process.env[`PNPM_CONFIG_${suffix.toUpperCase()}`]
 }
+// The developer's global config.yaml would replace the defaults these tests
+// assert, so the global config is read from an empty directory instead.
+const isolatedConfigHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-config-reader-'))
+process.env.XDG_CONFIG_HOME = isolatedConfigHome
+afterAll(() => {
+  fs.rmSync(isolatedConfigHome, { recursive: true, force: true })
+})
 
 const env = {
   PNPM_HOME: import.meta.dirname,
   [PATH]: path.join(import.meta.dirname, 'bin'),
 }
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 const testOnPosix = isWindows() ? test.skip : test
 
 test('getConfig()', async () => {
@@ -57,17 +64,112 @@ test('getConfig()', async () => {
   expect(config.fetchRetryFactor).toBe(10)
   expect(config.fetchRetryMintimeout).toBe(10000)
   expect(config.fetchRetryMaxtimeout).toBe(60000)
+  expect(config.maxTarballUnpackedSize).toBe(4294967296)
   // nodeVersion should not have a default value.
   // When not specified, the package-is-installable package detects nodeVersion automatically.
   expect(config.nodeVersion).toBeUndefined()
 })
+
+test('onlyInheritDlxSettingsFromLocal inherits nodeDownloadMirrors from pnpm-workspace.yaml', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
+    shamefullyHoist: true,
+  })
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+  })
+  expect(config.nodeDownloadMirrors).toStrictEqual({ release: 'https://mirror.example/nodejs/' })
+  expect(config.shamefullyHoist).not.toBe(true)
+})
+
+test('onlyInheritDlxSettingsFromLocal does not inherit non-release nodeDownloadMirrors from pnpm-workspace.yaml', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeDownloadMirrors: {
+      release: 'https://mirror.example/nodejs/',
+      nightly: 'https://mirror.example/nightly/',
+    },
+  })
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+  })
+  // Only the `release` channel publishes a signed SHASUMS256.txt, so a
+  // workspace may not redirect the unsigned channels for a runtime dlx runs.
+  expect(config.nodeDownloadMirrors?.release).toBe('https://mirror.example/nodejs/')
+  expect(config.nodeDownloadMirrors?.nightly).not.toBe('https://mirror.example/nightly/')
+})
+
+test('onlyInheritDlxSettingsFromLocal isolates workspaceDir, execution settings, and project .npmrc proxy/TLS flags', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    pnpmfile: './evil-hook.cjs',
+    globalPnpmfile: './evil-global-hook.cjs',
+    scriptShell: './evil-shell.sh',
+    cacheDir: './evil-cache',
+    storeDir: './evil-store',
+    ignoreScripts: true,
+    registry: 'https://workspace.example/npm/',
+  })
+  fs.writeFileSync('.npmrc', [
+    'https-proxy=http://evil-proxy.example:8080',
+    'strict-ssl=false',
+    'local-address=127.0.0.2',
+  ].join('\n'))
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+    env: {},
+  })
+  expect(config.workspaceDir).toBeUndefined()
+  expect(config.pnpmfile).toBeUndefined()
+  expect(config.globalPnpmfile).toBeUndefined()
+  expect(config.scriptShell).toBeUndefined()
+  expect(config.ignoreScripts).not.toBe(true)
+  expect(config.cacheDir).not.toContain('evil-cache')
+  expect(config.storeDir).toBeUndefined()
+  expect(config.httpsProxy).toBeUndefined()
+  expect(config.strictSsl).toBeUndefined()
+  expect(config.localAddress).toBeUndefined()
+  expect(config.registry).toBe('https://workspace.example/npm/')
+})
+
+const runningNodeMajor = Number(process.versions.node.split('.')[0])
 
 test.each([
   { field: 'devEngines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
   { field: 'devEngines' as const, version: '22.20.0', onFail: 'error' as const, expected: '22.20.0' },
   { field: 'devEngines' as const, version: '^22.0.0', onFail: 'download' as const, expected: '22.0.0' },
   { field: 'engines' as const, version: '22.20.0', onFail: 'download' as const, expected: '22.20.0' },
-])('when $field is $version and onFail is $onFail, nodeVersion is set to $expected', async ({ field, version, onFail, expected }) => {
+  { field: 'devEngines' as const, version: `>=${runningNodeMajor - 1}.0.0`, onFail: 'error' as const, expected: undefined },
+  { field: 'devEngines' as const, version: `^${runningNodeMajor + 1}.0.0`, onFail: 'error' as const, expected: undefined },
+  { field: 'engines' as const, version: '>=22.12.0', onFail: 'warn' as const, expected: undefined },
+  { field: 'devEngines' as const, version: 22 as unknown as string, onFail: 'download' as const, expected: undefined },
+  { field: 'devEngines' as const, version: { major: 22 } as unknown as string, onFail: 'download' as const, expected: undefined },
+])('when $field is $version and onFail is $onFail, nodeVersion is $expected', async ({ field, version, onFail, expected }) => {
   prepare({
     [field]: {
       runtime: {
@@ -87,6 +189,60 @@ test.each([
   })
 
   expect(config.nodeVersion).toBe(expected)
+})
+
+test.each([
+  { cliOptions: {}, expected: '24.0.0' },
+  { cliOptions: { production: true }, expected: '24.0.0' },
+  { cliOptions: { dev: true }, expected: '22.0.0' },
+])('nodeVersion follows the runtime of the first included dependency group with $cliOptions', async ({ cliOptions, expected }) => {
+  prepare({
+    devEngines: { runtime: { name: 'node', version: '22.0.0', onFail: 'download' } },
+    engines: { runtime: { name: 'node', version: '24.0.0', onFail: 'download' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe(expected)
+})
+
+test('nodeVersion prefers a downloaded runtime over an exact runtime pin of an earlier group', async () => {
+  prepare({
+    devEngines: { runtime: { name: 'node', version: '24.0.0', onFail: 'download' } },
+    engines: { runtime: { name: 'node', version: '20.0.0', onFail: 'warn' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBe('24.0.0')
+})
+
+test('nodeVersion ignores a runtime dependency without an engines runtime field', async () => {
+  prepare({
+    dependencies: { node: 'runtime:^24.0.0' },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.nodeVersion).toBeUndefined()
 })
 
 test('nodeVersion from config takes priority over devEngines.runtime', async () => {
@@ -126,6 +282,21 @@ test('nodeVersion is read from the PNPM_CONFIG_NODE_VERSION environment variable
   })
 
   expect(config.nodeVersion).toBe('20.0.0')
+})
+
+test('an invalid URL in PNPM_CONFIG_REGISTRY is ignored', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_REGISTRY: 'not a url',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.registriesByScope.default).toBe('https://registry.npmjs.org/')
 })
 
 test('nodeVersion from PNPM_CONFIG_NODE_VERSION takes priority over devEngines.runtime', async () => {
@@ -183,6 +354,18 @@ test('initVersion is read from the PNPM_CONFIG_INIT_VERSION environment variable
   })
 
   expect(config.initVersion).toBe('2.0.0')
+})
+
+test('forceIgnoresPlatform defaults to true', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.forceIgnoresPlatform).toBe(true)
 })
 
 test('maxSockets falls back to npm\'s default', async () => {
@@ -352,6 +535,57 @@ test('runtimeOnFail=ignore overrides an existing onFail=download and removes nod
   expect(context.rootProjectManifest?.devDependencies?.node).toBeUndefined()
 })
 
+test('runtimeOnFail=download overrides devEngines.runtime range and sets nodeVersion to range minimum', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '>=22.12.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { config, context } = await getConfig({
+    cliOptions: {
+      'runtime-on-fail': 'download',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.runtimeOnFail).toBe('download')
+  expect(config.nodeVersion).toBe('22.12.0')
+  expect(context.rootProjectManifest?.devDependencies?.node).toBe('runtime:>=22.12.0')
+})
+
+test('runtimeOnFail=ignore from pnpm-workspace.yaml overrides onFail=download and leaves nodeVersion undefined for a range', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '>=22.12.0',
+        onFail: 'download',
+      },
+    },
+  })
+  fs.writeFileSync('pnpm-workspace.yaml', 'runtimeOnFail: ignore\n', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    workspaceDir: process.cwd(),
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.runtimeOnFail).toBe('ignore')
+  expect(config.nodeVersion).toBeUndefined()
+})
+
 test('devEngines.packageManager without onFail resolves to the documented pmOnFail default "download" (#11676)', async () => {
   prepare({
     devEngines: {
@@ -391,6 +625,55 @@ test('devEngines.packageManager with explicit onFail is respected (regression gu
   })
 
   expect(context.wantedPackageManager?.onFail).toBe('error')
+})
+
+test('lockfileDir does not hide the engine pins declared at the workspace root', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '11.0.0',
+        onFail: 'error',
+      },
+      runtime: {
+        name: 'node',
+        version: '20.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('lf')
+
+  const { context } = await getConfig({
+    cliOptions: { 'lockfile-dir': 'lf' },
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.rootProjectManifest).toBeUndefined()
+  expect(context.wantedPackageManager).toMatchObject({
+    name: 'pnpm',
+    version: '11.0.0',
+    onFail: 'error',
+  })
+  expect(context.enginePinManifest?.devEngines?.runtime).toMatchObject({
+    name: 'node',
+    version: '20.0.0',
+  })
+})
+
+test('without lockfileDir the engine pin manifest is the root project manifest itself', async () => {
+  prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '11.0.0', onFail: 'error' },
+    },
+  })
+
+  const { context } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.enginePinManifest).toBe(context.rootProjectManifest)
 })
 
 describe('"packageManager" / "devEngines.packageManager" conflict warning', () => {
@@ -477,7 +760,7 @@ describe('"packageManager" / "devEngines.packageManager" conflict warning', () =
     })
     const warning = warnings.find(w => w.includes('different package managers'))
     expect(warning).toBeDefined()
-    // eslint-disable-next-line no-control-regex
+    // eslint-disable-next-line no-control-regex -- asserts that no control characters are left
     expect(warning).not.toMatch(/[\u0000-\u001f\u007f]/)
     expect(warning).toContain('"packageManager" (evi l)')
   })
@@ -543,6 +826,20 @@ test('throw error if --shared-workspace-lockfile is used with --global', async (
     code: 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL',
     message: 'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"',
   })
+})
+
+test('warn if --shared-workspace-lockfile is used outside a workspace', async () => {
+  const { warnings } = await getConfig({
+    cliOptions: {
+      'shared-workspace-lockfile': true,
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(warnings).toContain('The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found.')
 })
 
 test('throw error if --lockfile-dir is used with --global', async () => {
@@ -1093,23 +1390,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     fs.mkdirSync(configDir, { recursive: true })
     writeYamlFileSync(path.join(configDir, 'config.yaml'), { pnprServer: null })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let context: { explicitlySetKeys: Set<string> }
-    let warnings: string[]
-    try {
-      ;({ context, warnings } = await getConfig({
-        cliOptions: {},
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { context, warnings } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     expect(context.explicitlySetKeys.has('pnprServer')).toBe(true)
     expect(warnings).not.toContainEqual(expect.stringContaining('pnprServer'))
@@ -1221,24 +1506,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       bail: false,
     })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let warnings: string[]
-    try {
-      ;({ warnings } = await getConfig({
-        cliOptions: {},
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      // Assigning `undefined` would store the string "undefined", leaving every
-      // later test in this file resolving configDir under `undefined/pnpm`.
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { warnings } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     const aboutConfigDir = warnings.filter((warning) => warning.includes('"configDir"'))
     expect(aboutConfigDir).not.toEqual([])
@@ -1288,30 +1560,21 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     const configDir = path.join(xdgConfigHome, 'pnpm')
     fs.mkdirSync(configDir, { recursive: true })
     writeYamlFileSync(path.join(configDir, 'config.yaml'), {
+      globalPackagesConfig: { allowBuilds: { esbuild: true } },
       globalShims: { node: true },
       minimumReleaseAg: 100,
       nodeLinker: 'hoisted',
       bail: false,
     })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let warnings: string[]
-    try {
-      ;({ warnings } = await getConfig({
-        cliOptions: {},
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { warnings } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     const unrecognized = warnings.find((warning) => warning.includes('in the global config file') && warning.includes('are not recognized by this version of pnpm'))
+    expect(unrecognized).toContain('"globalPackagesConfig" (a pnpm v12 setting)')
     expect(unrecognized).toContain('"globalShims" (a pnpm v12 setting)')
     expect(unrecognized).toContain('"minimumReleaseAg" (did you mean "minimumReleaseAge"?)')
     const movable = warnings.find((warning) => warning.includes('Move them to a project-level pnpm-workspace.yaml'))
@@ -1333,22 +1596,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     }
     writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let config: Config
-    try {
-      ;({ config } = await getConfig({
-        cliOptions: { 'config-dir': '/tmp/from-cli', dir: process.cwd() },
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { config } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: { 'config-dir': '/tmp/from-cli', dir: process.cwd() },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     expect(config.configDir).not.toBe('/tmp/from-cli')
     // The dedicated flags and the keys the global file does take are unaffected.
@@ -1419,6 +1671,99 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
 
     expect(config.modulesDir).toBe('custom_modules')
     expect(config.storeDir).toBe('/tmp/project-store')
+  })
+
+  test('the executables directory and the extra bin paths follow modulesDir', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.bin).toBe(path.resolve('vendor/.bin'))
+    expect(config.extraBinPaths).toStrictEqual([path.resolve('vendor/.bin')])
+  })
+
+  test('a global that did not come from the command line keeps the local executables directory', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: { ...env, PNPM_CONFIG_GLOBAL: 'true' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.global).toBe(true)
+    expect(config.bin).toBe(path.resolve('vendor/.bin'))
+  })
+
+  test("a packageConfigs entry moves the workspace root's extra bin paths", async () => {
+    prepareEmpty()
+    fs.writeFileSync('package.json', JSON.stringify({ name: 'root', version: '1.0.0' }), 'utf8')
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+      sharedWorkspaceLockfile: false,
+      packageConfigs: { root: { modulesDir: 'node_modules' } },
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.extraBinPaths).toStrictEqual([path.resolve('node_modules/.bin')])
+  })
+
+  test('a shared lockfile leaves the extra bin paths on the workspace modulesDir', async () => {
+    prepareEmpty()
+    fs.writeFileSync('package.json', JSON.stringify({ name: 'root', version: '1.0.0' }), 'utf8')
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+      packageConfigs: { root: { modulesDir: 'node_modules' } },
+    })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.extraBinPaths).toStrictEqual([path.resolve('vendor/.bin')])
+  })
+
+  test('--global points the executables directory at the global one', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', {
+      ...machineLocations,
+      modulesDir: 'vendor',
+    })
+
+    const { config } = await getConfig({
+      cliOptions: { global: true },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+    })
+
+    expect(config.bin).toBe(path.join(config.pnpmHomeDir, 'bin'))
   })
 })
 
@@ -1585,10 +1930,31 @@ test('registries in current directory\'s .npmrc have bigger priority then global
   expect(config.packageManagerRegistries?.default).toBe('https://default.com/')
 })
 
-test('project .npmrc does not expand env variables in registry URLs', async () => {
+test.each([
+  ['registry'],
+  ['@scope:registry'],
+])('project .npmrc fails on an env variable in the %s URL', async (key) => {
   prepare()
 
-  fs.writeFileSync('.npmrc', 'registry=https://registry.example.com/${PNPM_TEST_TOKEN}/\n', 'utf8')
+  fs.writeFileSync('.npmrc', `${key}=https://registry.example.com/\${PNPM_TEST_TOKEN}/\n`, 'utf8')
+
+  await expect(getConfig({
+    cliOptions: {},
+    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED',
+    message: expect.stringContaining(`The "${key}" registry URL in`),
+  })
+})
+
+test('project .npmrc does not expand env variables in URL-scoped keys', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', '//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken=token\n', 'utf8')
 
   const { config, warnings } = await getConfig({
     cliOptions: {},
@@ -1599,56 +1965,22 @@ test('project .npmrc does not expand env variables in registry URLs', async () =
     },
   })
 
-  expect(config.registriesByScope.default).not.toBe('https://registry.example.com/secret/')
-  expect(JSON.stringify(config.registriesByScope)).not.toContain('secret')
+  expect(Object.keys(config.authConfig).join('\n')).not.toContain('secret')
   expect(warnings).toEqual(expect.arrayContaining([
-    expect.stringContaining('Ignored project-level request destination "registry"'),
+    expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
   ]))
-  // The warning should guide the user toward a trusted source and the docs.
-  const registryWarning = warnings.find((w) => w.includes('Ignored project-level request destination "registry"')) ?? ''
-  expect(registryWarning).toContain('~/.npmrc')
-  expect(registryWarning).toContain('pnpm config set "registry" <value>')
-  expect(registryWarning).toContain('https://pnpm.io/npmrc')
+  const urlScopedWarning = warnings.find((w) => w.includes('//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken')) ?? ''
+  expect(urlScopedWarning).toContain('https://pnpm.io/npmrc')
 })
 
-test('project .npmrc does not expand env variables in scoped registry URLs or URL-scoped keys', async () => {
+test('ignored project .npmrc warnings do not print the userinfo of URL-scoped keys', async () => {
   prepare()
 
   fs.writeFileSync('.npmrc', [
-    '@scope:registry=https://registry.example.com/${PNPM_TEST_TOKEN}/',
-    '//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken=token',
+    '//user:password@registry.example.com/${PNPM_TEST_TOKEN}/:_authToken=token',
+    '//user:password@attacker.example/:_authToken=${PNPM_TEST_TOKEN}',
     '',
   ].join('\n'), 'utf8')
-
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  expect(config.registriesByScope['@scope']).toBeUndefined()
-  expect(Object.keys(config.authConfig).join('\n')).not.toContain('secret')
-  expect(warnings).toEqual(expect.arrayContaining([
-    expect.stringContaining('Ignored project-level request destination "@scope:registry"'),
-    expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
-  ]))
-  // When the key itself contains a ${...} placeholder, the warning must not
-  // embed it in a runnable `pnpm config set "<key>"` command — a shell would
-  // expand the placeholder on copy-paste.
-  const urlScopedWarning = warnings.find((w) => w.includes('//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken')) ?? ''
-  expect(urlScopedWarning).not.toContain('pnpm config set "')
-  expect(urlScopedWarning).toContain('~/.npmrc')
-})
-
-test('the warning never embeds a shell-unsafe key in a runnable pnpm config set command', async () => {
-  prepare()
-
-  // A malicious repository could craft a key with shell metacharacters; the
-  // suggested copy-paste command must not become a command-injection vector.
-  fs.writeFileSync('.npmrc', '//$(touch pwned)`id`/:_authToken=${PNPM_TEST_TOKEN}\n', 'utf8')
 
   const { warnings } = await getConfig({
     cliOptions: {},
@@ -1659,9 +1991,11 @@ test('the warning never embeds a shell-unsafe key in a runnable pnpm config set 
     },
   })
 
-  const unsafeWarning = warnings.find((w) => w.includes('$(touch pwned)')) ?? ''
-  expect(unsafeWarning).not.toBe('')
-  expect(unsafeWarning).not.toContain('pnpm config set "')
+  expect(warnings).toEqual(expect.arrayContaining([
+    expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
+    expect.stringContaining('Ignored project-level auth setting "//attacker.example/:_authToken"'),
+  ]))
+  expect(warnings.join('\n')).not.toContain('user:password')
 })
 
 test('project .npmrc does not expand env variables in auth values', async () => {
@@ -1711,10 +2045,7 @@ test('project .npmrc does not expand env variables in auth values', async () => 
     expect.stringContaining('Ignored project-level auth setting "cert"'),
     expect.stringContaining('Ignored project-level auth setting "key"'),
   ]))
-  // The warning should tell the user how to migrate the credential.
   const authWarning = warnings.find((w) => w.includes('Ignored project-level auth setting "//attacker.example/:_authToken"')) ?? ''
-  expect(authWarning).toContain('pnpm config set "//attacker.example/:_authToken" <value>')
-  expect(authWarning).toContain('~/.npmrc')
   expect(authWarning).toContain('https://pnpm.io/npmrc')
 })
 
@@ -1815,30 +2146,48 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
     noProxy: '${PNPM_TEST_TOKEN}.example.com',
     proxy: 'http://attacker.example/${PNPM_TEST_TOKEN}/',
     noproxy: '${PNPM_TEST_TOKEN}.example.com',
-    registries: {
-      default: 'https://private.example.com/${PNPM_TEST_TOKEN}/',
-      '@scope': 'https://scope.example.com/${PNPM_TEST_TOKEN}/',
-    },
-    namedRegistries: {
-      work: 'https://work.example.com/${PNPM_TEST_TOKEN}/',
-    },
   })
 
-  const { config } = await getConfig({
+  const { config, warnings } = await getConfig({
     cliOptions: {},
     env: { ...env, PNPM_TEST_TOKEN: 'secret' },
     packageManager: { name: 'pnpm', version: '1.0.0' },
     workspaceDir: process.cwd(),
   })
 
-  expect(config.registriesByScope.default).not.toBe('https://private.example.com/secret/')
-  expect(config.registriesByScope['@scope']).toBeUndefined()
-  expect(config.registriesByPrefix).toBeUndefined()
   expect(config.pnprServer).toBeUndefined()
   expect(config.httpsProxy).toBeUndefined()
   expect(config.httpProxy).toBeUndefined()
   expect(config.noProxy).toBeUndefined()
   expect(JSON.stringify(config)).not.toContain('secret')
+  expect(warnings).toEqual(expect.arrayContaining(
+    ['pnprServer', 'httpsProxy', 'httpProxy', 'noProxy', 'proxy', 'noproxy']
+      .map((setting) => expect.stringContaining(`Ignored "${setting}" in pnpm-workspace.yaml`))
+  ))
+})
+
+// https://github.com/pnpm/pnpm/issues/17762
+test.each([
+  ['the default registry', { registry: 'https://${PNPM_TEST_TOKEN}.example.com/' }, 'registry'],
+  ['the default route', { registries: { default: 'https://${PNPM_TEST_TOKEN}.example.com/' } }, "registries['default']"],
+  ['a scope route', { registries: { '@scope': 'https://scope.example.com/${PNPM_TEST_TOKEN}/' } }, "registries['@scope']"],
+  ['a named registry', { namedRegistries: { work: 'https://work.example.com/${PNPM_TEST_TOKEN}/' } }, "namedRegistries['work']"],
+  ['a declaration with scopes', { registries: { 'https://${PNPM_TEST_TOKEN}.example.com/': { scopes: ['@scope'] } } }, "registries['https://${PNPM_TEST_TOKEN}.example.com/']"],
+  ['a declaration with a prefix', { registries: { 'https://${PNPM_TEST_TOKEN}.example.com/': { prefix: 'work' } } }, "registries['https://${PNPM_TEST_TOKEN}.example.com/']"],
+])('pnpm-workspace.yaml fails on an env variable in the URL of %s', async (_caseName, settings, setting) => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', settings)
+
+  await expect(getConfig({
+    cliOptions: {},
+    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED',
+    message: `The "${setting}" registry URL in "pnpm-workspace.yaml" contains an environment variable`,
+  })
 })
 
 // `pnpm login` turns `scope` into a `@scope:registry` route in the global
@@ -2037,6 +2386,216 @@ test('package manager bootstrap registries ignore project workspace registries',
     strictSsl: true,
   })
   expect(config.packageManagerNetworkConfig?.configByUri['//project.example.com/']).toBeUndefined()
+})
+
+test('the global config.yaml sets strictSsl and localAddress for the package manager bootstrap, pnpm-workspace.yaml does not', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'strict-ssl=true',
+    'local-address=10.0.0.1',
+    '',
+  ].join('\n'), 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    localAddress: '10.0.0.3',
+    strictSsl: true,
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    { localAddress: '10.0.0.2', strictSsl: false },
+    { cliOptions: { userconfig: path.resolve('user.npmrc') }, workspaceDir: process.cwd() }
+  )
+
+  expect(config.strictSsl).toBe(true)
+  expect(config.localAddress).toBe('10.0.0.3')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    localAddress: '10.0.0.2',
+    strictSsl: false,
+  })
+})
+
+test('PNPM_CONFIG_STRICT_SSL and PNPM_CONFIG_LOCAL_ADDRESS set the package manager bootstrap over the global config.yaml', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    { localAddress: '10.0.0.2', strictSsl: true },
+    {
+      env: { PNPM_CONFIG_LOCAL_ADDRESS: '10.0.0.5', PNPM_CONFIG_STRICT_SSL: 'false' },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.strictSsl).toBe(false)
+  expect(config.localAddress).toBe('10.0.0.5')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    localAddress: '10.0.0.5',
+    strictSsl: false,
+  })
+})
+
+test('the command line sets strictSsl and localAddress for the package manager bootstrap over the global config.yaml and the environment, in either spelling', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    { strictSsl: true },
+    {
+      cliOptions: { localAddress: '10.0.0.6', 'strict-ssl': false },
+      env: { PNPM_CONFIG_LOCAL_ADDRESS: '10.0.0.5' },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.strictSsl).toBe(false)
+  expect(config.localAddress).toBe('10.0.0.6')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    localAddress: '10.0.0.6',
+    strictSsl: false,
+  })
+})
+
+test('the global config.yaml sets the proxy for the package manager bootstrap, pnpm-workspace.yaml does not', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'https-proxy=http://npmrc-https.example.com:8080/',
+    'http-proxy=http://npmrc-http.example.com:8080/',
+    'no-proxy=npmrc.example.com',
+    '',
+  ].join('\n'), 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    httpProxy: 'http://project-http.example.com:8080/',
+    httpsProxy: 'http://project-https.example.com:8080/',
+    noProxy: 'project.example.com',
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      httpProxy: 'http://global-http.example.com:8080/',
+      httpsProxy: 'http://global-https.example.com:8080/',
+      noProxy: 'global.example.com',
+    },
+    { cliOptions: { userconfig: path.resolve('user.npmrc') }, workspaceDir: process.cwd() }
+  )
+
+  expect(config.httpsProxy).toBe('http://project-https.example.com:8080/')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://global-http.example.com:8080/',
+    httpsProxy: 'http://global-https.example.com:8080/',
+    noProxy: 'global.example.com',
+  })
+})
+
+test('an https proxy from the global config.yaml is the http proxy of the package manager bootstrap too', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    { httpsProxy: 'http://global-https.example.com:8080/' },
+    { env: { HTTP_PROXY: 'http://env-http.example.com:8080/' }, workspaceDir: process.cwd() }
+  )
+
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://global-https.example.com:8080/',
+    httpsProxy: 'http://global-https.example.com:8080/',
+  })
+})
+
+test('PNPM_CONFIG_HTTPS_PROXY, PNPM_CONFIG_HTTP_PROXY, and PNPM_CONFIG_NO_PROXY set the package manager bootstrap over the global config.yaml', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      httpProxy: 'http://global-http.example.com:8080/',
+      httpsProxy: 'http://global-https.example.com:8080/',
+      noProxy: 'global.example.com',
+    },
+    {
+      env: {
+        PNPM_CONFIG_HTTP_PROXY: 'http://env-http.example.com:8080/',
+        PNPM_CONFIG_HTTPS_PROXY: 'http://env-https.example.com:8080/',
+        PNPM_CONFIG_NO_PROXY: 'env.example.com',
+      },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.httpsProxy).toBe('http://env-https.example.com:8080/')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://env-http.example.com:8080/',
+    httpsProxy: 'http://env-https.example.com:8080/',
+    noProxy: 'env.example.com',
+  })
+})
+
+test('the command line sets the proxy for the package manager bootstrap over the global config.yaml and the environment, in either spelling', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      httpProxy: 'http://global-http.example.com:8080/',
+      noProxy: 'global.example.com',
+    },
+    {
+      cliOptions: {
+        'http-proxy': 'http://cli-http.example.com:8080/',
+        httpsProxy: 'http://cli-https.example.com:8080/',
+        noProxy: 'cli.example.com',
+      },
+      env: { PNPM_CONFIG_HTTPS_PROXY: 'http://env-https.example.com:8080/' },
+      workspaceDir: process.cwd(),
+    }
+  )
+
+  expect(config.httpsProxy).toBe('http://cli-https.example.com:8080/')
+  expect(config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://cli-http.example.com:8080/',
+    httpsProxy: 'http://cli-https.example.com:8080/',
+    noProxy: 'cli.example.com',
+  })
+})
+
+test.each([
+  ['an empty noProxy in the global config.yaml', { noProxy: '' }, {}],
+  ['noProxy: false in the global config.yaml', { noProxy: false }, {}],
+  ['an array in PNPM_CONFIG_NO_PROXY', {}, { PNPM_CONFIG_NO_PROXY: '["array.example.com"]' }],
+])('%s leaves NO_PROXY in effect for the package manager bootstrap', async (_name, globalConfigYaml, pnpmConfigEnv) => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'no-proxy=npmrc.example.com\n', 'utf8')
+  const { config } = await getConfigWithGlobalYaml(globalConfigYaml, {
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: { ...pnpmConfigEnv, NO_PROXY: 'env.example.com' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.noProxy).toBe('env.example.com')
+})
+
+test('the legacy proxy and noproxy of the global config.yaml and PNPM_CONFIG_* reach the package manager bootstrap', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', [
+    'proxy=http://npmrc-legacy.example.com:8080/',
+    'noproxy=npmrc.example.com',
+    '',
+  ].join('\n'), 'utf8')
+  const cliOptions = { userconfig: path.resolve('user.npmrc') }
+
+  const fromYaml = await getConfigWithGlobalYaml(
+    { proxy: 'http://global-legacy.example.com:8080/', noproxy: 'global.example.com' },
+    { cliOptions, workspaceDir: process.cwd() }
+  )
+  expect(fromYaml.config.packageManagerNetworkConfig).toMatchObject({
+    httpProxy: 'http://global-legacy.example.com:8080/',
+    httpsProxy: 'http://global-legacy.example.com:8080/',
+    noProxy: 'global.example.com',
+  })
+
+  const disabledByEnv = await getConfigWithGlobalYaml(
+    { proxy: 'http://global-legacy.example.com:8080/' },
+    { cliOptions, env: { PNPM_CONFIG_PROXY: 'false', HTTPS_PROXY: 'http://env.example.com:8080/' }, workspaceDir: process.cwd() }
+  )
+  expect(disabledByEnv.config.packageManagerNetworkConfig?.httpsProxy).toBeUndefined()
+  expect(disabledByEnv.config.packageManagerNetworkConfig?.httpProxy).toBeUndefined()
 })
 
 test('CLI --registry overrides pnpm-workspace.yaml registries.default (#10099)', async () => {
@@ -2363,6 +2922,29 @@ test('host-keyed pnpm_config__auth rejects deprecated basic-auth fields', async 
   })).rejects.toThrow('only "authToken" is supported')
 })
 
+test('pnpm_config__auth skips a field under a registry URL that is not a scope', async () => {
+  prepareEmpty()
+
+  // The global config is shared by every pnpm on the machine, so a field a
+  // later version defines must not stop this one. Scope keys stay strict.
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          authToken: 'credential-only',
+          '@': { authToken: 'registry-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('registry-token')
+  expect(warnings).toContain('Ignoring the unknown field "authToken" under https://json-test.example/ in _auth')
+})
+
 test('pnpm_config__auth token overrides a project .npmrc token for the same host', async () => {
   prepareEmpty()
 
@@ -2443,11 +3025,11 @@ test('global config.yaml registries cannot redirect pnpm_config__auth routes', a
     },
   })
 
-  const { config } = await getConfig({
+  // `getConfigDir` reads `process.env`, not the env passed to `getConfig`.
+  const { config } = await withEnv({ XDG_CONFIG_HOME: path.resolve('.config') }, async () => getConfig({
     cliOptions: {},
     env: {
       ...env,
-      XDG_CONFIG_HOME: path.resolve('.config'),
       pnpm_config__auth: JSON.stringify({
         'https://registry.npmjs.org': {
           '@victim-scope': { authToken: 'secret-token' },
@@ -2456,7 +3038,7 @@ test('global config.yaml registries cannot redirect pnpm_config__auth routes', a
     },
     packageManager: { name: 'pnpm', version: '1.0.0' },
     workspaceDir: process.cwd(),
-  })
+  }))
 
   // `_auth` routes sit above global config.yaml in the registries merge, so a
   // user's global registry alias cannot rebind an `_auth` token's host.
@@ -2507,8 +3089,15 @@ test('pnpm_config__auth registry URL with credentials or query aborts the load w
 
 test('pnpm_config__auth invalid scope name aborts the load', async () => {
   prepareEmpty()
-  const error = await expectAuthError({ 'https://json-test.example': { org: { authToken: 'token' } } })
+  const error = await expectAuthError({ 'https://json-test.example': { '@org/pkg': { authToken: 'token' } } })
   expect(error.message).toContain('scope must be')
+})
+
+test('pnpm_config__auth scope missing its @ aborts the load', async () => {
+  prepareEmpty()
+  // A typo, not a field a later pnpm defines: dropping it would drop the scope's route.
+  const error = await expectAuthError({ 'https://json-test.example': { org: { authToken: 'token' } } })
+  expect(error.message).toContain('did you mean "@org"?')
 })
 
 test('pnpm_config__auth scope value that is not an auth object aborts the load', async () => {
@@ -2745,6 +3334,134 @@ test('pnpm_config__auth env default registry wins over pnpm-workspace.yaml defau
   expect(config.registry).toBe('https://my-npm-proxy.example/')
 })
 
+test('pnpm_config__auth preserves default registry when multiple registries and scoped registries configured (pnpm/pnpm#15530)', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://nexus.abc.de/repository/npm-hosted/': { scopes: ['@abc'] },
+      'https://nexus.abc.de/repository/mode2-npm-hosted/': { scopes: ['@pong'] },
+    },
+  })
+  fs.writeFileSync('.npmrc', 'registry=https://nexus.abc.de/repository/npm-public/\n')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://nexus.abc.de/repository/npm-public/': { '@': { authToken: 'token-public' } },
+        'https://nexus.abc.de/repository/npm-hosted/': { '@': { authToken: 'token-abc' } },
+        'https://nexus.abc.de/repository/mode2-npm-hosted/': { '@': { authToken: 'token-pong' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope.default).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope['@abc']).toBe('https://nexus.abc.de/repository/npm-hosted/')
+  expect(config.registriesByScope['@pong']).toBe('https://nexus.abc.de/repository/mode2-npm-hosted/')
+  expect(config.authConfig['//nexus.abc.de/repository/npm-public/:_authToken']).toBe('token-public')
+  expect(config.authConfig['//nexus.abc.de/repository/npm-hosted/:_authToken']).toBe('token-abc')
+  expect(config.authConfig['//nexus.abc.de/repository/mode2-npm-hosted/:_authToken']).toBe('token-pong')
+})
+
+test('pnpm_config__auth picks the same default registry for pnpm itself when a trusted .npmrc declares the registries', async () => {
+  prepareEmpty()
+  fs.writeFileSync('user.npmrc', 'registry=https://public.example/\n@abc:registry=https://hosted.example/\n')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://public.example/': { '@': { authToken: 'token-public' } },
+        'https://hosted.example/': { '@': { authToken: 'token-abc' } },
+        'https://other.example/': { '@': { authToken: 'token-other' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.registriesByScope.default).toBe('https://public.example/')
+  expect(config.packageManagerRegistries?.default).toBe('https://public.example/')
+  expect(config.packageManagerRegistries?.['@abc']).toBe('https://hosted.example/')
+})
+
+test('pnpm_config__auth frees the old registry of a scope it re-routes for the default registry', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: { 'https://old-scope.example/': { scopes: ['@abc'] } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://new-scope.example/': { '@abc': { authToken: 'token-abc' } },
+        'https://old-scope.example/': { '@': { authToken: 'token-default' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://old-scope.example/')
+  expect(config.registriesByScope['@abc']).toBe('https://new-scope.example/')
+})
+
+test('pnpm_config__auth scoped-only registries do not overwrite default registry', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      'https://nexus.abc.de/repository/mode2-npm-hosted/': { scopes: ['@pong'] },
+    },
+  })
+  fs.writeFileSync('.npmrc', 'registry=https://nexus.abc.de/repository/npm-public/\n')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://nexus.abc.de/repository/mode2-npm-hosted/': { '@': { authToken: 'token-pong' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope.default).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope['@pong']).toBe('https://nexus.abc.de/repository/mode2-npm-hosted/')
+})
+
+test('pnpm_config__auth preserves declared default when multiple unscoped registries present', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'registry=https://nexus.abc.de/repository/npm-public/\n')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://nexus.abc.de/repository/npm-public/': { '@': { authToken: 'tok-1' } },
+        'https://other.example.com/': { '@': { authToken: 'tok-2' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registry).toBe('https://nexus.abc.de/repository/npm-public/')
+  expect(config.registriesByScope.default).toBe('https://nexus.abc.de/repository/npm-public/')
+})
+
 test('pnpm_config__auth env scoped registry wins over pnpm-workspace.yaml scoped registry', async () => {
   prepareEmpty()
 
@@ -2944,6 +3661,63 @@ test('_auth from the global config yaml configures registry auth and routing', a
   expect(config.registriesByScope['@org']).toBe('https://json-test.example/')
 })
 
+describe.each(['environment', 'global config'] as const)('_auth token environment expansion from %s', (source) => {
+  test.each([
+    ['${TOKEN}', { TOKEN: 'secret-token' }, 'secret-token'],
+    ['prefix-${TOKEN}-suffix', { TOKEN: 'secret-token' }, 'prefix-secret-token-suffix'],
+    ['${MISSING-fallback}', {}, 'fallback'],
+    ['${TOKEN:-fallback}', { TOKEN: '' }, 'fallback'],
+    ['${TOKEN-fallback}', { TOKEN: '' }, ''],
+    ['\\${TOKEN}', { TOKEN: 'secret-token' }, '${TOKEN}'],
+  ])('expands %s for default and scoped credentials', async (authToken, tokenEnv, expected) => {
+    prepareEmpty()
+    const auth = {
+      'https://json-test.example': {
+        '@': { authToken },
+        '@org': { authToken },
+      },
+    }
+    const { config, warnings } = await getConfigWithGlobalYaml(
+      source === 'global config' ? { _auth: auth } : {},
+      { env: { ...tokenEnv, ...(source === 'environment' ? { pnpm_config__auth: JSON.stringify(auth) } : {}) } }
+    )
+
+    expect(config.authConfig['//json-test.example/:_authToken']).toBe(expected)
+    expect(config.authConfig['//json-test.example/:@org:_authToken']).toBe(expected)
+    expect(config.registriesByScope.default).toBe('https://json-test.example/')
+    expect(config.registriesByScope['@org']).toBe('https://json-test.example/')
+    expect(warnings).toEqual([])
+  })
+
+  test.each([undefined, ''])('warns safely about unresolved tokens when the value is %s', async (token) => {
+    prepareEmpty()
+    const auth = {
+      'https://json-test.example': {
+        '@': { authToken: '${TOKEN}' },
+        '@org': { authToken: '${SECRET}-${TOKEN}' },
+      },
+    }
+    const { config, warnings } = await getConfigWithGlobalYaml(
+      source === 'global config' ? { _auth: auth } : {},
+      {
+        env: {
+          TOKEN: token,
+          SECRET: 'do-not-log-this-token',
+          ...(source === 'environment' ? { pnpm_config__auth: JSON.stringify(auth) } : {}),
+        },
+      }
+    )
+
+    expect(config.authConfig['//json-test.example/:_authToken']).toBe('')
+    expect(config.authConfig['//json-test.example/:@org:_authToken']).toBe('do-not-log-this-token-')
+    expect(warnings).toEqual([
+      'Failed to replace env in config: ${TOKEN} in _auth.authToken',
+      'Failed to replace env in config: ${TOKEN} in _auth.authToken',
+    ])
+    expect(warnings.join(' ')).not.toContain('do-not-log-this-token')
+  })
+})
+
 test('pnpm_config__auth env wins over global yaml _auth on the same key', async () => {
   prepareEmpty()
 
@@ -3066,6 +3840,93 @@ test('a scope declared in pnpm-workspace.yaml beats the global _auth file', asyn
   expect(config.registriesByScope['@org']).toBe('https://project-choice.example/')
 })
 
+test('a registry declared in the project .npmrc beats the global _auth file', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'registry=http://project-choice.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registry).toBe('http://project-choice.example/')
+  expect(config.registriesByScope.default).toBe('http://project-choice.example/')
+  // The credential still reaches the registry it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('skipping unreadable settings leaves out only the _auth source that fails', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  }, { env: { pnpm_config__auth: '{ not json' }, skipUnreadableSettings: true })
+
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('skipping a workspace file that fails partway does not make minimumReleaseAge strict', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: 60,
+    catalog: { foo: '1.0.0' },
+    catalogs: { default: { foo: '2.0.0' } },
+  })
+
+  const { config } = await getConfigWithGlobalYaml({}, { workspaceDir: process.cwd(), skipUnreadableSettings: true })
+
+  expect(config.minimumReleaseAge).not.toBe(60)
+  expect(config.minimumReleaseAgeStrict).not.toBe(true)
+})
+
+test('a scope declared in the project .npmrc beats the global _auth file', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', '@org:registry=https://from-npmrc.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://from-npmrc.example/')
+  // Nothing declares the default registry, so the stored credential still routes it.
+  expect(config.registry).toBe('https://private.example/')
+})
+
+test('a registry declared in the user .npmrc beats the global _auth file in the package-manager registries', async () => {
+  prepareEmpty()
+
+  const userNpmrc = path.resolve('user-npmrc')
+  fs.writeFileSync(userNpmrc, 'registry=https://user-choice.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { cliOptions: { 'npmrc-auth-file': userNpmrc } }
+  )
+
+  expect(config.registry).toBe('https://user-choice.example/')
+  expect(config.packageManagerRegistries?.default).toBe('https://user-choice.example/')
+})
+
 test('a registry declared in the global config beats its own _auth file', async () => {
   prepareEmpty()
 
@@ -3097,6 +3958,26 @@ test('a scope declared in the global config beats its own _auth file', async () 
 
   expect(config.registriesByScope['@org']).toBe('https://global-org.example/')
   expect(config.authConfig['//private.example/:@org:_authToken']).toBe('stored-org-token')
+})
+
+test('an _auth file credential for a scoped registry does not become the default registry', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: { 'https://hosted.example/': { scopes: ['@abc'] } },
+  })
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://hosted.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  }, { workspaceDir: process.cwd() })
+
+  expect(config.registry).toBe('https://registry.npmjs.org/')
+  expect(config.registriesByScope.default).toBe('https://registry.npmjs.org/')
+  expect(config.registriesByScope['@abc']).toBe('https://hosted.example/')
+  expect(config.authConfig['//hosted.example/:_authToken']).toBe('stored-token')
 })
 
 test('an uncontested _auth file route reaches the package-manager registries too', async () => {
@@ -3175,7 +4056,7 @@ test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry
 
 async function getConfigWithGlobalYaml (
   globalConfigYaml: Record<string, unknown>,
-  opts: { cliOptions?: Record<string, unknown>, env?: Record<string, string | undefined>, workspaceDir?: string } = {}
+  opts: { cliOptions?: Record<string, unknown>, env?: Record<string, string | undefined>, workspaceDir?: string, skipUnreadableSettings?: boolean } = {}
 ) {
   const configHome = path.resolve('xdg-config')
   fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
@@ -3188,6 +4069,7 @@ async function getConfigWithGlobalYaml (
       env: { ...env, ...opts.env, XDG_CONFIG_HOME: configHome },
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: opts.workspaceDir,
+      skipUnreadableSettings: opts.skipUnreadableSettings,
     })
     return { config, warnings }
   } finally {
@@ -3266,8 +4148,7 @@ describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
   test('only drops the unresolved placeholder, preserving resolved ones and defaults', async () => {
     // Same value contains one resolvable placeholder, one unresolved bare placeholder,
     // and one placeholder with a `-default` fallback. The unresolved one becomes ''
-    // but the other two must still expand. Guards against the original implementation
-    // that stripped every `${...}` on any substitution failure.
+    // but the other two must still expand.
     fs.writeFileSync(
       userconfig,
       '//registry.test/:_authToken=${SET}-${UNSET}-${DEFAULTED-fallback}\n',
@@ -3833,7 +4714,7 @@ test.skip('read only supported settings from config', async () => {
   })
 
   expect(config.storeDir).toBe('__store__')
-  // @ts-expect-error
+  // @ts-expect-error -- foo is not a Config field
   expect(config['foo']).toBeUndefined() // NOTE: This line current fails as there are yet a way to verify fields in pnpm-workspace.yaml
   expect(config.authConfig['foo']).toBe('bar')
 })
@@ -3849,7 +4730,7 @@ test('all CLI options are added to the config', async () => {
     },
   })
 
-  // @ts-expect-error
+  // @ts-expect-error -- fooBar is not a Config field
   expect(config['fooBar']).toBe('qar')
 })
 
@@ -4468,7 +5349,7 @@ testOnPosix('NODE_PATH points to the virtual store of the workspace root when pn
 test('return a warning when the .npmrc has an env variable that does not exist', async () => {
   prepare()
 
-  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8')
+  fs.writeFileSync('.npmrc', 'https-proxy=${ENV_VAR_123}', 'utf8')
   const { warnings } = await getConfig({
     cliOptions: {},
     packageManager: {
@@ -4478,14 +5359,117 @@ test('return a warning when the .npmrc has an env variable that does not exist',
   })
 
   const expected = [
-    expect.stringContaining('Ignored project-level request destination "registry"'),
+    expect.stringContaining('Ignored project-level request destination "https-proxy"'),
   ]
 
   expect(warnings).toEqual(expect.arrayContaining(expected))
 })
 
+test('collect warnings into the caller-provided array when config loading fails', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_auth=${ENV_VAR_123}:not-base64', 'utf8')
+  const warnings: string[] = []
+
+  await expect(getConfig({
+    cliOptions: { userconfig },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_AUTH_INVALID_BASE64' })
+
+  expect(warnings).toEqual([expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}')])
+})
+
+test('collect .npmrc warnings into the caller-provided array when pnpm_config__auth is malformed', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_authToken=${ENV_VAR_123}', 'utf8')
+  const warnings: string[] = []
+
+  await expect(getConfig({
+    cliOptions: { userconfig },
+    env: { pnpm_config__auth: '{' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_AUTH_SETTING' })
+
+  expect(warnings).toEqual([expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}')])
+})
+
+test.each([
+  [undefined, '${EMPTY_TOKEN}', '', true],
+  ['', '${EMPTY_TOKEN}', '', true],
+  ['set-token', '${EMPTY_TOKEN}', 'set-token', false],
+  ['', '\\${EMPTY_TOKEN}', '${EMPTY_TOKEN}', false],
+  ['', '\\\\\\\\${EMPTY_TOKEN}', '\\', true],
+  ['', '${EMPTY_TOKEN:-fallback}', 'fallback', false],
+  ['', '${EMPTY_TOKEN-fallback}', '', false],
+  [undefined, '${EMPTY_TOKEN?}', '', false],
+  ['', '${EMPTY_TOKEN?}', '', false],
+  ['set-token', '${EMPTY_TOKEN?}', 'set-token', false],
+  ['', '\\${EMPTY_TOKEN?}', '${EMPTY_TOKEN?}', false],
+])('trusted .npmrc auth variable %p in %p', async (token, value, expected, warns) => {
+  prepare()
+
+  fs.writeFileSync('auth.npmrc', `//registry.example/:_authToken=${value}\n`, 'utf8')
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: { ...process.env, EMPTY_TOKEN: token, PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('auth.npmrc') },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  const envWarnings = warnings.filter(warning => warning.startsWith('Failed to replace env in config:'))
+  expect(envWarnings).toEqual(warns
+    ? ['Failed to replace env in config: ${EMPTY_TOKEN} in .npmrc key "_authToken"']
+    : [])
+  expect(config.authConfig['//registry.example/:_authToken']).toBe(expected)
+})
+
+test.each([
+  [undefined, 'localhost'],
+  ['internal.example,', 'internal.example,localhost'],
+])('optional .npmrc env variable %p in a user-level setting', async (extraNoProxy, expected) => {
+  prepare()
+
+  fs.writeFileSync('user.npmrc', 'no-proxy=${EXTRA_NO_PROXY?}localhost\n', 'utf8')
+  const { config, warnings } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: { ...process.env, EXTRA_NO_PROXY: extraNoProxy },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(warnings.filter(warning => warning.startsWith('Failed to replace env in config:'))).toEqual([])
+  expect(config.noProxy).toBe(expected)
+})
+
+test.each([undefined, '', 'dummy-token'])('expanded .npmrc auth key warning for %p', async (token) => {
+  prepare()
+  fs.writeFileSync('auth.npmrc', '${AUTH_KEY}=${AUTH_TOKEN}', 'utf8')
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...process.env,
+      AUTH_KEY: '//registry.example/:_authToken',
+      AUTH_TOKEN: token,
+      PNPM_CONFIG_NPMRC_AUTH_FILE: path.resolve('auth.npmrc'),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+  expect(warnings).toEqual(token
+    ? []
+    : ['Failed to replace env in config: ${AUTH_TOKEN} in .npmrc key "_authToken"'])
+})
+
 test('return a warning if a package.json has workspaces field but there is no pnpm-workspaces.yaml file', async () => {
-  const prefix = f.find('pkg-using-workspaces')
+  const prefix = testFixtures.find('pkg-using-workspaces')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     packageManager: {
@@ -4500,7 +5484,7 @@ test('return a warning if a package.json has workspaces field but there is no pn
 })
 
 test('do not return a warning if a package.json has workspaces field and there is a pnpm-workspace.yaml file', async () => {
-  const prefix = f.find('pkg-using-workspaces')
+  const prefix = testFixtures.find('pkg-using-workspaces')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     workspaceDir: prefix,
@@ -4513,7 +5497,7 @@ test('do not return a warning if a package.json has workspaces field and there i
 })
 
 test('return a warning if a package.json has a legacy "pnpm" field with ignored settings', async () => {
-  const prefix = f.find('pkg-with-legacy-pnpm-field')
+  const prefix = testFixtures.find('pkg-with-legacy-pnpm-field')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     packageManager: {
@@ -4528,7 +5512,7 @@ test('return a warning if a package.json has a legacy "pnpm" field with ignored 
 })
 
 test('do not return a warning if a package.json "pnpm" field only contains keys that are still actively read (e.g. "pnpm.app")', async () => {
-  const prefix = f.find('pkg-with-pnpm-app-field')
+  const prefix = testFixtures.find('pkg-with-pnpm-app-field')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     packageManager: {
@@ -4541,7 +5525,7 @@ test('do not return a warning if a package.json "pnpm" field only contains keys 
 })
 
 test('do not return a warning if a package.json "pnpm" field only contains keys unrelated to migrated settings (e.g. set by third-party tooling)', async () => {
-  const prefix = f.find('pkg-with-unknown-pnpm-field')
+  const prefix = testFixtures.find('pkg-with-unknown-pnpm-field')
   const { warnings } = await getConfig({
     cliOptions: { dir: prefix },
     packageManager: {
@@ -4582,7 +5566,7 @@ test('project .npmrc does not expand env variables into registry keys', async ()
 
   const { config, warnings } = await getConfig({
     cliOptions: {
-      dir: f.find('has-env-in-key'),
+      dir: testFixtures.find('has-env-in-key'),
     },
     packageManager: {
       name: 'pnpm',
@@ -4598,7 +5582,7 @@ test('project .npmrc does not expand env variables into registry keys', async ()
 })
 
 test('settings from pnpm-workspace.yaml are read', async () => {
-  const workspaceDir = f.find('settings-in-workspace-yaml')
+  const workspaceDir = testFixtures.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
@@ -4613,7 +5597,7 @@ test('settings from pnpm-workspace.yaml are read', async () => {
 })
 
 test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
-  const workspaceDir = f.find('settings-in-workspace-yaml')
+  const workspaceDir = testFixtures.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
@@ -4630,7 +5614,7 @@ test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect
 
 // shamefullyHoist → publicHoistPattern conversion is done in @pnpm/cli.utils
 test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {
-  const workspaceDir = f.find('settings-in-workspace-yaml')
+  const workspaceDir = testFixtures.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
@@ -4645,7 +5629,7 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
 })
 
 test('settings gitBranchLockfile in pnpm-workspace.yaml should take effect', async () => {
-  const workspaceDir = f.find('settings-in-workspace-yaml')
+  const workspaceDir = testFixtures.find('settings-in-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
@@ -4685,11 +5669,9 @@ test('loads setting from environment variable pnpm_config_*', async () => {
 })
 
 // The two boolean rows only pin down parsing, not runtime meaning. `false` turns the
-// check off. Bare `true` turns the check on but selects none of the four actions, because
-// `runDepsStatusCheck` switches on the string modes alone. That is the behavior pnpm has
-// always had for this setting, and `VerifyDepsBeforeRun` in `Config.ts` keeps `true` out of
-// the type on purpose. The Rust config crate models it the same way, as a `True` variant that
-// maps to no action (`pnpm/crates/config/src/lib.rs`). Keep these rows as a record of what the
+// check off. Bare `true` turns the check on but selects no action, because
+// `runDepsStatusCheck` switches on the string modes alone. `VerifyDepsBeforeRun` in
+// `Config.ts` keeps `true` out of the type on purpose. Keep these rows as a record of what the
 // parser returns; do not read them as a promise that bare `true` does an install.
 test.each([
   ['install', 'install'],
@@ -4712,6 +5694,73 @@ test.each([
     workspaceDir: process.cwd(),
   })
   expect(config.verifyDepsBeforeRun).toBe(expectedValue)
+})
+
+test('loads nodeDownloadMirrors from environment variable pnpm_config_node_download_mirrors', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    nodeDownloadMirrors: {
+      release: 'https://yaml.example.com/release/',
+    },
+  })
+
+  async function getNodeDownloadMirrors (env: NodeJS.ProcessEnv, cliOptions: Record<string, unknown> = {}): Promise<Record<string, string> | undefined> {
+    const { config } = await getConfig({
+      cliOptions,
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+    return config.nodeDownloadMirrors
+  }
+
+  expect(await getNodeDownloadMirrors({})).toStrictEqual({
+    release: 'https://yaml.example.com/release/',
+  })
+  expect(await getNodeDownloadMirrors({
+    pnpm_config_node_download_mirrors: '{"release":"https://mirror.example.com/release/","rc":"https://mirror.example.com/rc/"}',
+  })).toStrictEqual({
+    release: 'https://mirror.example.com/release/',
+    rc: 'https://mirror.example.com/rc/',
+  })
+  expect(await getNodeDownloadMirrors({
+    PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS: '{"release":"https://upper.example.com/release/"}',
+  })).toStrictEqual({
+    release: 'https://upper.example.com/release/',
+  })
+  expect(await getNodeDownloadMirrors({
+    PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS: '{"release":"https://upper.example.com/release/"}',
+  }, {
+    nodeDownloadMirrors: { release: 'https://cli.example.com/release/' },
+  })).toStrictEqual({
+    release: 'https://cli.example.com/release/',
+  })
+})
+
+test('maxTarballUnpackedSize is read from pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', { maxTarballUnpackedSize: 1048576 })
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+  expect(config.maxTarballUnpackedSize).toBe(1048576)
+})
+
+test('maxTarballUnpackedSize is read from the environment', async () => {
+  prepareEmpty()
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: { pnpm_config_max_tarball_unpacked_size: '2048' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+  expect(config.maxTarballUnpackedSize).toBe(2048)
 })
 
 test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {
@@ -5041,6 +6090,7 @@ describe('global config.yaml', () => {
       registrySupportsTimeField: true,
       sideEffectsCache: false,
       strictDepBuilds: true,
+      forceIgnoresPlatform: false,
       useStderr: true,
       verifyDepsBeforeRun: 'error',
       verifyStoreIntegrity: false,
@@ -5069,6 +6119,7 @@ describe('global config.yaml', () => {
     expect(config.registrySupportsTimeField).toBe(true)
     expect(config.sideEffectsCache).toBe(false)
     expect(config.strictDepBuilds).toBe(true)
+    expect(config.forceIgnoresPlatform).toBe(false)
     expect(config.useStderr).toBe(true)
     expect(config.verifyDepsBeforeRun).toBe('error')
     expect(config.verifyStoreIntegrity).toBe(false)
@@ -5076,6 +6127,108 @@ describe('global config.yaml', () => {
     expect(config.virtualStoreDir).toBe('/custom/.pnpm')
     expect(config.virtualStoreDirMaxLength).toBe(80)
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
+  })
+
+  test('resolves a path-like scriptShell from pnpm-workspace.yaml against the workspace root', async () => {
+    prepareEmpty()
+    writeYamlFileSync('pnpm-workspace.yaml', { scriptShell: './workspace-shell.sh' })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scriptShell).toBe(path.join(process.cwd(), 'workspace-shell.sh'))
+  })
+
+  test('keeps a path-like scriptShell from global config.yaml unresolved', async () => {
+    prepareEmpty()
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', { scriptShell: './global-shell.sh' })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.scriptShell).toBe('./global-shell.sh')
+  })
+
+  test('keeps a path-like scriptShell from PNPM_CONFIG_* unresolved', async () => {
+    prepareEmpty()
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        PNPM_CONFIG_SCRIPT_SHELL: './env-shell.sh',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.scriptShell).toBe('./env-shell.sh')
+  })
+
+  test('reads nodeDownloadMirrors from global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      nodeDownloadMirrors: {
+        release: 'https://mirror.example.com/release/',
+      },
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.nodeDownloadMirrors).toStrictEqual({
+      release: 'https://mirror.example.com/release/',
+    })
+    expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
+  })
+
+  test('rejects a non-string nodeDownloadMirrors value in global config.yaml', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      nodeDownloadMirrors: {
+        release: 42,
+      },
+    })
+
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    await expect(getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })).rejects.toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_SETTING',
+      message: 'The "nodeDownloadMirrors.release" setting should be a string, but got number',
+    }))
   })
 
   test('warns when global config.yaml contains settings that are not allowed in the global config', async () => {
@@ -5242,6 +6395,102 @@ test('proxy settings are still read from .npmrc', async () => {
   expect(config.httpsProxy).toBe('http://npmrc-proxy.example.com:8080')
   expect(config.httpProxy).toBe('http://npmrc-proxy.example.com:8080')
   expect(config.noProxy).toBe('internal.example.com')
+})
+
+test('package manager downloads use the legacy proxy when https-proxy is false', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=false\nproxy=http://legacy-proxy.example.com:8080', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://legacy-proxy.example.com:8080')
+})
+
+test('package manager downloads use the legacy proxy when https-proxy is empty', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=\nproxy=http://legacy-proxy.example.com:8080', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://legacy-proxy.example.com:8080')
+})
+
+test('package manager downloads ignore the environment proxy when proxy is false', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=false\nproxy=false', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {
+      HTTP_PROXY: 'http://env-proxy.example.com:8080',
+      HTTPS_PROXY: 'http://env-proxy.example.com:8080',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBeUndefined()
+  expect(config.packageManagerNetworkConfig?.httpProxy).toBeUndefined()
+})
+
+test('package manager downloads use the environment proxy when proxy is null', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'proxy=null', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {
+      HTTPS_PROXY: 'http://env-proxy.example.com:8080',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpsProxy).toBe('http://env-proxy.example.com:8080')
+})
+
+test('package manager downloads use the https proxy when http-proxy is false', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('user.npmrc', 'https-proxy=http://https-proxy.example.com:8080\nhttp-proxy=false', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: { userconfig: path.resolve('user.npmrc') },
+    env: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.packageManagerNetworkConfig?.httpProxy).toBe('http://https-proxy.example.com:8080')
 })
 
 test('an empty legacy proxy setting in .npmrc falls through to the environment', async () => {
@@ -5643,10 +6892,7 @@ test('GVS: global config.yaml dangerouslyAllowAllBuilds is preserved when no wor
     // For global installs, enableGlobalVirtualStore defaults to true.
     expect(config.enableGlobalVirtualStore).toBe(true)
     // The key assertion: global config.yaml policy should NOT be wiped by the GVS
-    // allowBuilds = {} default. Previously this block set allowBuilds
-    // before globalDepsBuildConfig was re-applied, so hasDependencyBuildOptions
-    // saw allowBuilds = {} and skipped re-application, silently losing
-    // dangerouslyAllowAllBuilds.
+    // allowBuilds = {} default.
     expect(config.dangerouslyAllowAllBuilds).toBe(true)
     // allowBuilds should remain null — dangerouslyAllowAllBuilds IS the policy
     expect(config.allowBuilds).toBeUndefined()
@@ -5812,6 +7058,25 @@ test('catalogPrune overrides its former name', async () => {
   expect(config.catalogPrune).toBe(false)
 })
 
+test('trustPolicyExcludePrune is read from pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    trustPolicyExcludePrune: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.trustPolicyExcludePrune).toBe(true)
+})
+
 test('getConfig() routes the scopes and the prefix a registry declares', async () => {
   prepareEmpty()
 
@@ -5957,8 +7222,8 @@ test('getConfig() redacts credentials in the unmatched registries warning', asyn
 
 test('getConfig() never expands an env placeholder in a registries key from a workspace manifest', async () => {
   // pnpm-workspace.yaml is repo-controlled. Expanding `${VAR}` in a registry
-  // URL there is how a token would reach an attacker-chosen host, so the entry
-  // is dropped rather than expanded — and nothing echoes the secret either.
+  // URL there is how a token would reach an attacker-chosen host, so the load
+  // fails rather than expanding it, and the error does not echo the secret.
   prepareEmpty()
   process.env.PNPM_TEST_REGISTRY_TOKEN = 'super-secret-token'
 
@@ -5969,18 +7234,17 @@ test('getConfig() never expands an env placeholder in a registries key from a wo
   })
 
   try {
-    const { config, warnings } = await getConfig({
+    const error = await getConfig({
       cliOptions: {},
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
       },
       workspaceDir: process.cwd(),
-    })
+    }).catch((err: unknown) => err)
 
-    expect(config.registryOptionsByUrl).toBeUndefined()
-    expect(JSON.stringify(config)).not.toContain('super-secret-token')
-    expect(warnings.join('\n')).not.toContain('super-secret-token')
+    expect(error).toMatchObject({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' })
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain('super-secret-token')
   } finally {
     delete process.env.PNPM_TEST_REGISTRY_TOKEN
   }
@@ -6138,8 +7402,7 @@ test('getConfig() prefers the canonical remote tier whichever spelling comes fir
 
 test('getConfig() lets sideEffectsCacheReadonly block writes on its own', async () => {
   // `sideEffectsCache` defaults to true, so deriving writes from it alone left
-  // the readonly setting with no effect on writing at all — which pacquet has
-  // always enforced and this stack did not.
+  // the readonly setting with no effect on writing at all.
   prepareEmpty()
   writeYamlFileSync('pnpm-workspace.yaml', { sideEffectsCacheReadonly: true })
 
@@ -6198,7 +7461,7 @@ test('getConfig() prefers the canonical org across the two remote spellings', as
  * inherited, and the tests after it would silently run against a different
  * environment than the ones before.
  */
-async function withEnv (values: Record<string, string | undefined>, run: () => Promise<void>): Promise<void> {
+async function withEnv<Result> (values: Record<string, string | undefined>, run: () => Promise<Result>): Promise<Result> {
   const previous = Object.keys(values).map((name): [string, string | undefined] => [name, process.env[name]])
   for (const [name, value] of Object.entries(values)) {
     if (value === undefined) {
@@ -6208,7 +7471,7 @@ async function withEnv (values: Record<string, string | undefined>, run: () => P
     }
   }
   try {
-    await run()
+    return await run()
   } finally {
     for (const [name, value] of previous) {
       if (value === undefined) {
@@ -6296,4 +7559,55 @@ test('getConfig() does not fall back to a valid older variable when the canonica
       workspaceDir: process.cwd(),
     })).rejects.toThrow(/PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS/)
   })
+})
+
+test('getConfig() reads externalDependencies and autoInstallPeersFromHighestMatch from pnpm-workspace.yaml without warnings', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    autoInstallPeersFromHighestMatch: true,
+    externalDependencies: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
+  })
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(warnings).toStrictEqual([])
+  expect(config.autoInstallPeersFromHighestMatch).toBe(true)
+  expect(config.externalDependencies).toStrictEqual(new Set(['@pnpm.e2e/dep-of-pkg-with-1-dep']))
+})
+
+test('getConfig() with --global skips project .npmrc and anchors rootProjectManifestDir at globalPkgDir', async () => {
+  prepareEmpty()
+  const cwd = fs.realpathSync(process.cwd())
+  const pnpmHome = path.join(cwd, 'pnpm-home')
+  const binDir = path.join(pnpmHome, 'bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  fs.writeFileSync('.npmrc', 'registry=https://untrusted-project.example/\n', 'utf8')
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'untrusted-project',
+    version: '1.0.0',
+    packageManager: 'yarn@4.0.0',
+    workspaces: ['packages/*'],
+  }), 'utf8')
+
+  const { config, context, warnings } = await getConfig({
+    cliOptions: { global: true },
+    env: {
+      ...process.env,
+      PNPM_HOME: pnpmHome,
+      [PATH]: `${binDir}${path.delimiter}${process.env[PATH] ?? ''}`,
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.dir).toBe(cwd)
+  expect(context.rootProjectManifestDir).toBe(config.globalPkgDir)
+  expect(context.rootProjectManifest).toBeUndefined()
+  expect(context.wantedPackageManager).toMatchObject({ name: 'yarn', version: '4.0.0' })
+  expect(config.registry).not.toBe('https://untrusted-project.example/')
+  expect(warnings.some((warning) => warning.includes('"workspaces" field in package.json'))).toBe(false)
 })

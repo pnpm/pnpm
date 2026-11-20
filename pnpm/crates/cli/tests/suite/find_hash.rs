@@ -1,4 +1,5 @@
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_store_dir::store_index::StoreIndex;
 use pnpm_testing_utils::bin::CommandTempCwd;
 
@@ -26,20 +27,32 @@ fn find_hash_fixture(store_index: &StoreIndex) -> (String, String, String) {
 
 #[test]
 fn find_hash_works() {
-    let CommandTempCwd { mut pacquet, workspace, root: _root, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        workspace,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     // 1. Install a package to populate the store index
-    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+    pacquet
+        .with_arg("add")
+        .with_arg("is-odd@3.0.1")
+        .assert()
+        .success();
 
     let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
     let store_index = StoreIndex::open_readonly_in(&store_dir).unwrap();
     let (valid_hash, expected_name, expected_version) = find_hash_fixture(&store_index);
 
     // 2. Run find-hash with the valid hash
-    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
-    pacquet2.current_dir(&workspace);
-    let output = pacquet2.arg("find-hash").arg(&valid_hash).assert().success();
+    let pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
+    let output = pacquet2
+        .with_arg("find-hash")
+        .with_arg(&valid_hash)
+        .assert()
+        .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
 
     println!("STDOUT: {stdout}");
@@ -54,60 +67,83 @@ fn find_hash_works() {
 
 #[test]
 fn should_fail_on_missing_hash() {
-    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } =
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
         CommandTempCwd::init().add_mocked_registry();
     // Install a package first so the store index exists.
-    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+    pacquet
+        .with_arg("add")
+        .with_arg("is-odd@3.0.1")
+        .assert()
+        .success();
     // Use a valid-length hex string that no file matches. Create a fresh
     // command so the args from `add` don't carry over.
-    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
-    pacquet2.current_dir(&workspace);
-    let output = pacquet2.arg("find-hash").arg("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").assert().failure();
+    let pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
+    let output = pacquet2.with_arg("find-hash").with_arg("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").assert().failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("ERR_PNPM_INVALID_FILE_HASH"));
 }
 
 #[test]
 fn should_fail_on_invalid_base64() {
-    let CommandTempCwd { mut pacquet, root: _root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let output = pacquet.arg("find-hash").arg("sha512-InvalidBase64!!!").assert().failure();
+    let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init().add_mocked_registry();
+    let output = pacquet
+        .with_arg("find-hash")
+        .with_arg("sha512-InvalidBase64!!!")
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("Failed to decode base64 hash"));
 }
 
 #[test]
 fn should_fail_on_oversized_base64() {
-    let CommandTempCwd { mut pacquet, root: _root, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, root: _root, .. } = CommandTempCwd::init().add_mocked_registry();
     let hash = format!("sha512-{}", "A".repeat(1_000));
-    let output = pacquet.arg("find-hash").arg(hash).assert().failure();
+    let output = pacquet
+        .with_arg("find-hash")
+        .with_arg(hash)
+        .assert()
+        .failure();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(stderr.contains("sha512 base64 payload has 1000 character(s)"));
 }
 
 #[test]
 fn find_hash_works_with_base64() {
-    let CommandTempCwd { mut pacquet, workspace, root: _root, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        workspace,
+        root: _root,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.arg("add").arg("is-odd@3.0.1").assert().success();
+    pacquet
+        .with_arg("add")
+        .with_arg("is-odd@3.0.1")
+        .assert()
+        .success();
 
     let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir);
     let store_index = StoreIndex::open_readonly_in(&store_dir).unwrap();
     let (hex_hash, expected_name, expected_version) = find_hash_fixture(&store_index);
 
-    // Convert hex to base64
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
     let bytes = (0..hex_hash.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&hex_hash[i..i + 2], 16).unwrap())
         .collect::<Vec<u8>>();
     let base64_hash = format!("sha512-{}", BASE64.encode(&bytes));
 
-    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
-    pacquet2.current_dir(&workspace);
-    let output = pacquet2.arg("find-hash").arg(&base64_hash).assert().success();
+    let pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
+    let output = pacquet2
+        .with_arg("find-hash")
+        .with_arg(&base64_hash)
+        .assert()
+        .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
 
     println!("STDOUT: {stdout}");

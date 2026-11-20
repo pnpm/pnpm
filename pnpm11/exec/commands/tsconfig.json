@@ -34,6 +34,9 @@
       "path": "../../cli/utils"
     },
     {
+      "path": "../../config/parse-overrides"
+    },
+    {
       "path": "../../config/reader"
     },
     {
@@ -64,10 +67,16 @@
       "path": "../../engine/runtime/system-version"
     },
     {
+      "path": "../../fs/dir-lock"
+    },
+    {
       "path": "../../installing/client"
     },
     {
       "path": "../../installing/commands"
+    },
+    {
+      "path": "../../log/group"
     },
     {
       "path": "../../pkg-manifest/reader"
@@ -97,6 +106,12 @@
       "path": "../../workspace/projects-filter"
     },
     {
+      "path": "../../workspace/projects-graph"
+    },
+    {
+      "path": "../../workspace/projects-reader"
+    },
+    {
       "path": "../../workspace/projects-sorter"
     },
     {
@@ -107,6 +122,9 @@
     },
     {
       "path": "../lifecycle"
+    },
+    {
+      "path": "../npm-lifecycle"
     },
     {
       "path": "../pnpm-cli-runner"

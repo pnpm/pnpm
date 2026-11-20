@@ -6,7 +6,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { preparePackages } from '@pnpm/prepare'
-import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, getReadmeRank, isPreferredReadme, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
 import type { ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -143,20 +143,130 @@ test('skipManifestObfuscation does not mutate the original manifest', async () =
   })
 })
 
-test('readme added to published manifest', async () => {
-  await withTempProjectReadme('readme content', async (projectDir) => {
-    expect(await createExportableManifest(projectDir, {
+test('the original publishConfig is not mutated', async () => {
+  const manifest: ProjectManifest = {
+    name: 'foo',
+    version: '1.0.0',
+    publishConfig: {
+      main: './dist/index.js',
+      access: 'public',
+    },
+  }
+
+  expect(await createExportableManifest(process.cwd(), manifest, defaultOpts)).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    main: './dist/index.js',
+    publishConfig: {
+      access: 'public',
+    },
+  })
+
+  expect(manifest.publishConfig).toStrictEqual({
+    main: './dist/index.js',
+    access: 'public',
+  })
+})
+
+test.each(['README.md', 'README', 'readme.markdown'])(
+  'readme added to published manifest from %s',
+  async (readmeFileName) => {
+    await withTempProjectReadme('readme content', async (projectDir) => {
+      expect(await createExportableManifest(projectDir, {
+        name: 'foo',
+        version: '1.0.0',
+      }, {
+        ...defaultOpts,
+        embedReadme: true,
+      })).toStrictEqual({
+        name: 'foo',
+        version: '1.0.0',
+        readme: 'readme content',
+      })
+    }, readmeFileName)
+  }
+)
+
+test.each(['README', 'README.md', 'README.markdown', 'README.mdown', 'README.a', 'README.'])(
+  'recognizes npm README filename %s',
+  (name) => {
+    expect(getReadmeRank(name)).toBeDefined()
+  }
+)
+
+// cspell:disable-next-line
+test.each(['readme', 'README.txt', 'README.md.bak', 'NOTREADME.md', 'README.am', 'README.aa'])(
+  'rejects non-README filename %s',
+  (name) => {
+    expect(getReadmeRank(name)).toBeUndefined()
+  }
+)
+
+test('README ties break in UTF-16 code-unit order', () => {
+  const markdown = getReadmeRank('README.markdown')!
+  expect(isPreferredReadme({ fileName: 'README.\u{1F600}.md', rank: markdown }, { fileName: 'README.\uE000.md', rank: markdown })).toBe(true)
+  expect(isPreferredReadme({ fileName: 'README.\uE000.md', rank: markdown }, { fileName: 'README.\u{1F600}.md', rank: markdown })).toBe(false)
+})
+
+test('README.md is preferred over other README candidates', async () => {
+  await withTempProjectReadme('preferred', async (projectDir) => {
+    await fs.promises.writeFile(path.join(projectDir, 'readme.markdown'), 'markdown fallback', 'utf8')
+    await fs.promises.writeFile(path.join(projectDir, 'README'), 'bare fallback', 'utf8')
+
+    const manifest = await createExportableManifest(projectDir, {
       name: 'foo',
       version: '1.0.0',
     }, {
       ...defaultOpts,
       embedReadme: true,
-    })).toStrictEqual({
+    })
+    expect(manifest.readme).toBe('preferred')
+  })
+})
+
+test('README.md is preferred over bare README', async () => {
+  await withTempProjectReadme('preferred', async (projectDir) => {
+    await fs.promises.writeFile(path.join(projectDir, 'README'), 'bare fallback', 'utf8')
+    const manifest = await createExportableManifest(projectDir, {
       name: 'foo',
       version: '1.0.0',
-      readme: 'readme content',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
     })
+    expect(manifest.readme).toBe('preferred')
   })
+})
+
+test('the lowest Markdown README name is embedded', async () => {
+  await withTempProjectReadme('mdown', async (projectDir) => {
+    await fs.promises.writeFile(path.join(projectDir, 'README.markdown'), 'markdown', 'utf8')
+    await fs.promises.writeFile(path.join(projectDir, 'README.a'), 'a', 'utf8')
+
+    const manifest = await createExportableManifest(projectDir, {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+    })
+    expect(manifest.readme).toBe('a')
+  }, 'README.mdown')
+})
+
+test('a Markdown README is preferred over bare README', async () => {
+  await withTempProjectReadme('bare fallback', async (projectDir) => {
+    await fs.promises.writeFile(path.join(projectDir, 'readme.markdown'), 'markdown fallback', 'utf8')
+
+    const manifest = await createExportableManifest(projectDir, {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+    })
+    expect(manifest.readme).toBe('markdown fallback')
+  }, 'README')
 })
 
 ;(process.platform === 'win32' ? test.skip : test)('readme is not embedded when README.md is a symlink pointing outside the project', async () => {
@@ -183,10 +293,14 @@ test('readme added to published manifest', async () => {
   }
 })
 
-async function withTempProjectReadme<T> (readmeContent: string, fn: (projectDir: string) => Promise<T>): Promise<T> {
+async function withTempProjectReadme<Result> (
+  readmeContent: string,
+  fn: (projectDir: string) => Promise<Result>,
+  readmeFileName = 'README.md'
+): Promise<Result> {
   const projectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
   try {
-    await fs.promises.writeFile(path.join(projectDir, 'README.md'), readmeContent, 'utf8')
+    await fs.promises.writeFile(path.join(projectDir, readmeFileName), readmeContent, 'utf8')
     return await fn(projectDir)
   } finally {
     await fs.promises.rm(projectDir, { recursive: true, force: true })
@@ -487,5 +601,197 @@ test('checks for version', async () => {
   await expect(createExportableManifest(process.cwd(), manifest, { catalogs: {} })).rejects.toMatchObject({
     code: 'ERR_PNPM_MISSING_REQUIRED_FIELD',
     field: 'version',
+  })
+})
+
+test('resolves workspace dependencies using workspacePackages when node_modules is absent (pnpm/pnpm#6567)', async () => {
+  const manifest: ProjectManifest = {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:^',
+      'pkg-c': 'workspace:*',
+      'my-alias': 'workspace:pkg-d@~',
+    },
+    peerDependencies: {
+      'pkg-b': 'workspace:>= || ^2.0.0',
+    },
+  }
+
+  const workspacePackages = [
+    { manifest: { name: 'pkg-b', version: '1.2.3' }, rootDir: '/root/b' },
+    { manifest: { name: 'pkg-c', version: '2.3.4' }, rootDir: '/root/c' },
+    { manifest: { name: 'pkg-d', version: '3.4.5' }, rootDir: '/root/d' },
+  ]
+
+  const exported = await createExportableManifest('/nonexistent-project-dir', manifest, {
+    catalogs: {},
+    workspacePackages,
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    'pkg-b': '^1.2.3',
+    'pkg-c': '2.3.4',
+    'my-alias': 'npm:pkg-d@~3.4.5',
+  })
+  expect(exported.peerDependencies).toStrictEqual({
+    'pkg-b': '>=1.2.3 || ^2.0.0',
+  })
+})
+
+test('throws CANNOT_RESOLVE_WORKSPACE_PROTOCOL when node_modules and workspacePackages both lack the dependency', async () => {
+  const manifest: ProjectManifest = {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }
+
+  await expect(createExportableManifest('/nonexistent-project-dir', manifest, {
+    catalogs: {},
+    workspacePackages: [],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+  })
+})
+
+test('reports a missing version field on a workspace dependency instead of "not installed"', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-no-version-dep-'))
+  const depDir = path.join(projectDir, 'node_modules', 'pkg-b')
+  fs.mkdirSync(depDir, { recursive: true })
+  fs.writeFileSync(path.join(depDir, 'package.json'), JSON.stringify({ name: 'pkg-b' }))
+
+  const manifest: ProjectManifest = {
+    name: 'pkg-a',
+    version: '1.0.0',
+    peerDependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }
+
+  await expect(createExportableManifest(projectDir, manifest, { catalogs: {} })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+    message: expect.stringContaining('has no "version" field'),
+    hint: 'Add a "version" field to the package.json of "pkg-b".',
+  })
+})
+
+test('resolves a scoped peerDependency from workspacePackages (pnpm/pnpm#4164)', async () => {
+  const exported = await createExportableManifest('/nonexistent-project-dir', {
+    name: '@scope/pkg-a',
+    version: '1.0.0',
+    peerDependencies: {
+      '@scope/prettier-config': 'workspace:*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: '@scope/prettier-config', version: '2.0.0' }, rootDir: '/root/prettier' },
+    ],
+  })
+
+  expect(exported.peerDependencies).toStrictEqual({
+    '@scope/prettier-config': '2.0.0',
+  })
+})
+
+test('reports a missing version on a scoped peerDependency from workspacePackages (pnpm/pnpm#4164)', async () => {
+  await expect(createExportableManifest('/nonexistent-project-dir', {
+    name: '@scope/pkg-a',
+    version: '1.0.0',
+    peerDependencies: {
+      '@scope/eslint-config': 'workspace:~',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: '@scope/eslint-config' }, rootDir: '/root/eslint' },
+    ],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+    message: expect.stringContaining('has no "version" field'),
+  })
+})
+
+test('reports a missing name when the installed manifest has only a version', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-no-name-dep-'))
+  const depDir = path.join(projectDir, 'node_modules', 'pkg-b')
+  fs.mkdirSync(depDir, { recursive: true })
+  fs.writeFileSync(path.join(depDir, 'package.json'), JSON.stringify({ version: '1.0.0' }))
+
+  await expect(createExportableManifest(projectDir, {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: 'pkg-b' }, rootDir: '/root/b' },
+    ],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+    message: expect.stringContaining('has no "name" field'),
+  })
+})
+
+test('a versioned workspace package replaces an earlier name-only entry', async () => {
+  const exported = await createExportableManifest('/nonexistent-project-dir', {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: 'pkg-b' }, rootDir: '/root/b-incomplete' },
+      { manifest: { name: 'pkg-b', version: '2.0.0' }, rootDir: '/root/b' },
+    ],
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    'pkg-b': '2.0.0',
+  })
+})
+
+test('the first complete workspace package wins over a later complete entry', async () => {
+  const exported = await createExportableManifest('/nonexistent-project-dir', {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      'pkg-b': 'workspace:*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: 'pkg-b', version: '1.0.0' }, rootDir: '/root/b-first' },
+      { manifest: { name: 'pkg-b', version: '2.0.0' }, rootDir: '/root/b-second' },
+    ],
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    'pkg-b': '1.0.0',
+  })
+})
+
+test('the missing version hint uses the workspace package name for an alias', async () => {
+  await expect(createExportableManifest('/nonexistent-project-dir', {
+    name: 'pkg-a',
+    version: '1.0.0',
+    dependencies: {
+      alias: 'workspace:pkg-b@*',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: 'pkg-b' }, rootDir: '/root/b' },
+    ],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+    message: expect.stringContaining('has no "version" field'),
+    hint: 'Add a "version" field to the package.json of "pkg-b".',
   })
 })

@@ -5,22 +5,32 @@
 //! versions, and pick the one (or the set) matching a user-supplied
 //! selector. The selector may be:
 //!
-//! - `latest` or an empty selector — the first entry in the index
-//!   (the newest published build on that channel).
-//! - `lts` — the newest entry tagged with any LTS codename.
-//! - An LTS codename (`argon`, `iron`, ...) — `*` within that codename.
-//! - A semver range — pick the [`max_satisfying`] version.
+//! - `latest` or an empty selector, the newest stable entry in the
+//!   index, or the first entry when the index has no stable entry (the
+//!   newest build on a prerelease channel such as `nightly`).
+//! - `lts`, the newest entry tagged with any LTS codename.
+//! - An LTS codename (`argon`, `iron`, ...), `*` within that codename.
+//! - A semver range, pick the [`max_satisfying_stable_first`] version.
 
 use std::sync::Arc;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use node_semver::{Range, Version};
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use serde::Deserialize;
 
 /// Pattern matched against archive entries pacquet strips out of the
-/// Node.js tarball — `npm`, `npx`, and `corepack` ship with Node but
+/// Node.js tarball, `npm`, `npx`, and `corepack` ship with Node but
 /// pnpm manages its own package managers, so the install layer
 /// excludes them.
 pub const NODE_EXTRAS_IGNORE_PATTERN: &str = r"^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$)";
@@ -29,7 +39,7 @@ pub const NODE_EXTRAS_IGNORE_PATTERN: &str = r"^(?:(?:lib/)?node_modules/(?:npm|
 ///
 /// `version` arrives with a leading `v`; pacquet strips it at the
 /// deserialization boundary. `lts` is either `false` (non-LTS build)
-/// or a string codename — JSON deserialization needs the union shape.
+/// or a string codename, JSON deserialization needs the union shape.
 #[derive(Debug, Clone)]
 pub(crate) struct NodeVersion {
     pub(crate) version: String,
@@ -71,7 +81,7 @@ pub enum ResolveNodeVersionError {
 ///
 /// `node_mirror_base_url` falls back to the official `release` channel
 /// when `None`. Returns `Ok(None)` when the index is reachable but no
-/// version satisfies the selector — the caller raises
+/// version satisfies the selector, the caller raises
 /// `ERR_PNPM_NODEJS_VERSION_NOT_FOUND`.
 pub async fn resolve_node_version(
     http_client: &ThrottledClient,
@@ -97,10 +107,10 @@ pub async fn resolve_node_version_with_auth(
 ) -> Result<Option<String>, ResolveNodeVersionError> {
     let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     if is_latest_selector(version_spec) {
-        return Ok(all_versions.first().map(|version| version.version.clone()));
+        return Ok(latest_version(&all_versions));
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
-    Ok(max_satisfying(&versions, &range))
+    Ok(max_satisfying_stable_first(&versions, &range))
 }
 
 /// Pick every Node.js version a selector accepts against a mirror.
@@ -132,14 +142,13 @@ pub async fn resolve_node_versions_with_auth(
 ) -> Result<Vec<String>, ResolveNodeVersionError> {
     let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     let Some(version_spec) = version_spec else {
-        return Ok(all_versions.into_iter().map(|version| version.version).collect());
-    };
-    if is_latest_selector(version_spec) {
         return Ok(all_versions
             .into_iter()
-            .next()
-            .map(|version| vec![version.version])
-            .unwrap_or_default());
+            .map(|version| version.version)
+            .collect());
+    };
+    if is_latest_selector(version_spec) {
+        return Ok(latest_version(&all_versions).into_iter().collect());
     }
     let (versions, range) = filter_versions(&all_versions, version_spec);
     let Ok(parsed_range) = Range::parse(&range) else { return Ok(Vec::new()) };
@@ -150,6 +159,17 @@ pub async fn resolve_node_versions_with_auth(
                 .is_ok_and(|parsed| satisfies_with_prereleases(&parsed, &parsed_range))
         })
         .collect())
+}
+
+fn latest_version(versions: &[NodeVersion]) -> Option<String> {
+    versions
+        .iter()
+        .find(|version| {
+            Version::parse(&version.version)
+                .is_ok_and(|parsed| parsed.pre_release.is_empty())
+        })
+        .or_else(|| versions.first())
+        .map(|version| version.version.clone())
 }
 
 async fn fetch_all_versions(
@@ -172,13 +192,18 @@ async fn fetch_all_versions(
             status: response.status.as_u16(),
         });
     }
-    let raw: Vec<RawNodeVersion> = serde_json::from_slice(&response.body).map_err(|error| {
-        ResolveNodeVersionError::DecodeIndex { url: url.clone(), error: Arc::new(error) }
-    })?;
+    let raw: Vec<RawNodeVersion> = serde_json::from_slice(&response.body)
+        .map_err(|error| ResolveNodeVersionError::DecodeIndex {
+            url: url.clone(),
+            error: Arc::new(error),
+        })?;
     Ok(raw
         .into_iter()
         .map(|entry| NodeVersion {
-            version: entry.version.strip_prefix('v').unwrap_or(&entry.version).to_string(),
+            version: entry.version
+                .strip_prefix('v')
+                .unwrap_or(&entry.version)
+                .to_string(),
             lts: lts_codename(entry.lts),
         })
         .collect())
@@ -216,22 +241,41 @@ fn filter_versions(versions: &[NodeVersion], version_selector: &str) -> (Vec<Str
             versions
                 .iter()
                 .filter(|version| {
-                    version.lts.as_deref().is_some_and(|name| name.eq_ignore_ascii_case(&wanted))
+                    version.lts
+                        .as_deref()
+                        .is_some_and(|name| name.eq_ignore_ascii_case(&wanted))
                 })
                 .map(|version| version.version.clone())
                 .collect(),
             "*".to_string(),
         );
     }
-    (versions.iter().map(|version| version.version.clone()).collect(), version_selector.to_string())
+    (
+        versions
+            .iter()
+            .map(|version| version.version.clone())
+            .collect(),
+        version_selector.to_string(),
+    )
 }
 
 /// A selector is a "tag" only when it parses as neither a `Version`
 /// nor a `Range`. The punctuation check that a full dist-tag validator
-/// would run is skipped — [`filter_versions`]'s only consumer is the
+/// would run is skipped, [`filter_versions`]'s only consumer is the
 /// LTS-codename branch, and codenames are alphabetic.
 fn is_dist_tag(selector: &str) -> bool {
     Version::parse(selector).is_err() && Range::parse(selector).is_err()
+}
+
+fn max_satisfying_stable_first(versions: &[String], range: &str) -> Option<String> {
+    let stable_versions: Vec<String> = versions
+        .iter()
+        .filter(|version| {
+            Version::parse(version).is_ok_and(|parsed| parsed.pre_release.is_empty())
+        })
+        .cloned()
+        .collect();
+    max_satisfying(&stable_versions, range).or_else(|| max_satisfying(versions, range))
 }
 
 fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
@@ -255,7 +299,7 @@ fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
 /// non-prerelease comparators.
 ///
 /// `node-semver`'s [`Version::satisfies`] rejects prerelease versions
-/// against non-prerelease comparators by default — for example
+/// against non-prerelease comparators by default, for example
 /// `18.0.0-rc.1` against `^18.0.0` returns `false`. JavaScript's
 /// `semver` library exposes an `includePrerelease` opt-in that lets
 /// that pairing match, which node version resolution enables

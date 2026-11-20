@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.pkg-requires-build",
-  "version": "1100.0.16",
+  "version": "1100.0.23",
   "description": "Checks if a package requires to be built",
   "keywords": [
     "pnpm",
@@ -26,11 +26,12 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "compile": "tsgo --build && pn lint --fix"
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {

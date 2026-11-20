@@ -1,4 +1,9 @@
-use super::{ParsePkgVerPeerError, PkgVerPeer, Prefix, VersionPart};
+use super::{
+    ParsePkgVerPeerError,
+    PkgVerPeer,
+    Prefix,
+    VersionPart,
+};
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
@@ -95,13 +100,16 @@ fn deserialize_ok() {
 
 #[test]
 fn parse_to_string() {
-    let case =
-        |input| decode_encode_case(input, |input| input.parse().unwrap(), ToString::to_string);
-    case("1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)");
-    case("1.21.3(react@17.0.2)");
-    case("1.21.3-rc.0(react@17.0.2)");
-    case("1.21.3");
-    case("1.21.3-rc.0");
+    for input in [
+        "1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)",
+        "1.21.3(react@17.0.2)",
+        "1.21.3-rc.0(react@17.0.2)",
+        "1.21.3",
+        "1.21.3-rc.0",
+    ] {
+        let parsed: PkgVerPeer = input.parse().unwrap();
+        assert_eq!(parsed.to_string(), input);
+    }
 }
 
 #[test]
@@ -110,7 +118,12 @@ fn deserialize_serialize() {
         decode_encode_case(
             input,
             |input| serde_saphyr::from_str(input).unwrap(),
-            |ver_peer| serde_saphyr::to_string(&ver_peer).unwrap().trim().to_string(),
+            |ver_peer| {
+                crate::serialize_yaml::to_string(&ver_peer)
+                    .unwrap()
+                    .trim()
+                    .to_string()
+            },
         );
     };
     case("1.21.3(@types/react@17.0.49)(react-dom@17.0.2)(react@17.0.2)");
@@ -124,10 +137,7 @@ fn deserialize_serialize() {
 /// front of the semver (e.g. `node@runtime:22.0.0` in the
 /// lockfile's `packages:` / `snapshots:` keys). Pacquet's parser
 /// must accept the prefix and preserve it through Display so a
-/// `serde_saphyr` round-trip stays byte-stable. Pre-runtime
-/// callers that only read `version()` continue to see the bare
-/// semver — the prefix is exposed separately via
-/// [`PkgVerPeer::prefix`].
+/// `serde_saphyr` round-trip stays byte-stable.
 #[test]
 fn parse_runtime_prefix_round_trips() {
     let parsed: PkgVerPeer = "runtime:22.0.0".parse().expect("parse runtime version");
@@ -141,7 +151,7 @@ fn parse_runtime_prefix_round_trips() {
 /// The `runtime:` prefix composes with the peer-dependency suffix.
 /// In real lockfiles a runtime entry never carries a peer (pnpm
 /// doesn't write one), but pacquet's parser doesn't need to make
-/// that assumption — pin the combinatorial behavior here so a
+/// that assumption, pin the combinatorial behavior here so a
 /// future runtime-with-peer fixture parses cleanly rather than
 /// erroring.
 #[test]
@@ -163,7 +173,7 @@ fn parse_bare_semver_has_no_prefix() {
 }
 
 /// A version string that *looks* like a prefix mid-name (i.e.
-/// `1.21.3-runtime:`) must NOT be parsed as a `runtime:` prefix —
+/// `1.21.3-runtime:`) must NOT be parsed as a `runtime:` prefix,
 /// the prefix detection is anchored at the start. This pins the
 /// `strip_prefix` choice (vs. e.g. `contains`) so a regression
 /// can't accidentally widen the match.
@@ -175,7 +185,7 @@ fn parse_runtime_substring_in_version_is_not_a_prefix() {
     assert_eq!(parsed.version_semver(), Some(&"1.21.3-runtime".parse::<Version>().unwrap()));
 }
 
-/// Serde round-trip on a runtime version — pacquet stores
+/// Serde round-trip on a runtime version, pacquet stores
 /// `PkgVerPeer` inside `ResolvedDependencySpec`, `PkgNameVerPeer`,
 /// and others; their serde proxies through `PkgVerPeer`'s
 /// `try_from = "Cow<str>"` / `into = "String"` impls, so this
@@ -185,7 +195,10 @@ fn serde_round_trip_runtime_prefix() {
     let parsed: PkgVerPeer = serde_saphyr::from_str("runtime:22.0.0").expect("deserialize runtime");
     assert_eq!(parsed.prefix(), Prefix::Runtime);
     assert_eq!(parsed.version_semver(), Some(&"22.0.0".parse::<Version>().unwrap()));
-    let serialized = serde_saphyr::to_string(&parsed).expect("serialize").trim().to_string();
+    let serialized = serde_saphyr::to_string(&parsed)
+        .expect("serialize")
+        .trim()
+        .to_string();
     assert_eq!(serialized, "runtime:22.0.0");
 }
 
@@ -216,7 +229,10 @@ fn serde_round_trip_file_prefix() {
     let parsed: PkgVerPeer =
         serde_saphyr::from_str("file:packages/pkg(peer@1.0.0)").expect("deserialize file");
     assert_eq!(parsed.version(), &VersionPart::File("packages/pkg".to_string()));
-    let serialized = serde_saphyr::to_string(&parsed).expect("serialize").trim().to_string();
+    let serialized = serde_saphyr::to_string(&parsed)
+        .expect("serialize")
+        .trim()
+        .to_string();
     assert_eq!(serialized, "file:packages/pkg(peer@1.0.0)");
 }
 

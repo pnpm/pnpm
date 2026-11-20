@@ -1,6 +1,10 @@
 use crate::{
     WebAuthTimeoutError,
-    capabilities::{Clock, Sleep, WebAuthFetch},
+    capabilities::{
+        Clock,
+        Sleep,
+        WebAuthFetch,
+    },
 };
 
 #[cfg(test)]
@@ -45,8 +49,8 @@ pub struct WebAuthFetchResponse {
     /// Whether the registry's body exceeded the provider's read cap and was
     /// therefore not fully materialized. A capped body cannot be parsed as
     /// the intended small token object, so [`token`](Self::token) reports it
-    /// as carrying no token. Surfacing the cap here — rather than discarding
-    /// the body inside the provider — keeps the size-limit feature reachable
+    /// as carrying no token. Surfacing the cap here (rather than discarding
+    /// the body inside the provider) keeps the size-limit feature reachable
     /// through the `WebAuthFetch` dependency-injection seam that the `login`
     /// and `publish` flows are tested with.
     pub truncated: bool,
@@ -74,8 +78,8 @@ impl WebAuthFetchResponse {
 /// `new TextDecoder().decode(...)` does: losslessly (invalid UTF-8 becomes
 /// U+FFFD rather than a hard failure) and stripping a single leading BOM,
 /// which `serde_json` would otherwise reject. Living here in the pure,
-/// directly-tested [`token`](WebAuthFetchResponse::token) path — rather than
-/// in the un-fakeable provider `fetch` — keeps the decode reachable through
+/// directly-tested [`token`](WebAuthFetchResponse::token) path (rather than
+/// in the un-fakeable provider `fetch`) keeps the decode reachable through
 /// the [`WebAuthFetch`] dependency-injection seam.
 fn decode_token_body(bytes: &[u8]) -> String {
     let mut decoded = String::from_utf8_lossy(bytes).into_owned();
@@ -86,7 +90,7 @@ fn decode_token_body(bytes: &[u8]) -> String {
 }
 
 /// Whether a response with this `ok` / `status` carries the token in its
-/// body — i.e. a successful non-`202` response. The poll treats a `202` as
+/// body, i.e. a successful non-`202` response. The poll treats a `202` as
 /// "still waiting" and any non-success status as a transient failure, so
 /// their bodies are never read; a provider uses this to skip materializing
 /// (and, for a live transport, transferring) a body the poll would ignore.
@@ -133,21 +137,27 @@ where
         let Ok(response) = Sys::fetch(&done_url, &fetch_options).await else {
             continue;
         };
-        if !response.ok {
-            continue;
-        }
-
-        if response.status == 202 {
+        if response.status == 202 && response.ok {
             // Registry is still waiting for authentication.
             wait_for_retry_after::<Sys>(&response, start_time, timeout_ms).await?;
             continue;
         }
-
-        match response.token() {
-            Ok(Some(token)) if !token.is_empty() => return Ok(token),
-            _ => continue,
+        if let Some(token) = issued_token(&response) {
+            return Ok(token);
         }
     }
+}
+
+/// The token a successful poll carries, if the registry has issued one.
+fn issued_token(response: &WebAuthFetchResponse) -> Option<String> {
+    if !response.ok {
+        return None;
+    }
+    response
+        .token()
+        .ok()
+        .flatten()
+        .filter(|token| !token.is_empty())
 }
 
 /// Honor a 202 response's `Retry-After` header by sleeping the

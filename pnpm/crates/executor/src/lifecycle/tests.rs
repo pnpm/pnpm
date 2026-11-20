@@ -1,14 +1,31 @@
 use super::{
-    LifecycleScriptError, RunPostinstallHooks, STREAMED_OUTPUT_CHUNK_BYTES, StreamedScript,
+    LifecycleScriptError,
+    RunPostinstallHooks,
+    StreamedScript,
+    install_stage_script,
+    output::{
+        PumpLink,
+        STREAMED_OUTPUT_CHUNK_BYTES,
+    },
+    read_lifecycle_manifest,
     run_postinstall_hooks,
 };
-use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
 use pnpm_reporter::{
-    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter, SilentReporter,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
 };
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, fs, io::Cursor, sync::Mutex};
+use std::{
+    collections::HashMap,
+    fs,
+    io::Cursor,
+    sync::Mutex,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -19,7 +36,10 @@ fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -34,6 +54,7 @@ fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
         .pump_stream(
             Cursor::new(vec![b'a'; STREAMED_OUTPUT_CHUNK_BYTES + trailing_bytes]),
             LifecycleStdio::Stdout,
+            PumpLink::new().0,
         )
         .join()
         .expect("output pump");
@@ -58,10 +79,7 @@ fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
 /// other tests have independent buffers.
 ///
 /// Unix-only: the script body uses `;` and `1>&2`, which `cmd /d /s /c`
-/// (the default shell pacquet now picks on Windows, per item `#4`)
-/// does not interpret the same way. Windows e2e coverage for
-/// lifecycle spawning is a follow-up — for now the cmd path is
-/// exercised by the unit tests in [`crate::shell`].
+/// does not interpret the same way.
 #[cfg(unix)]
 #[test]
 fn lifecycle_emits_script_stdio_and_exit_in_order() {
@@ -71,7 +89,10 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -87,21 +108,27 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: None,
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
         dep_path: "/x@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -143,25 +170,35 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     // Stdio events between Script and Exit. Match by line content rather
     // than by index because the order between stdout and stderr is
     // race-y (each pumps from its own thread).
-    let stdio: Vec<_> = captured
-        .iter()
-        .filter_map(|event| match event {
-            LogEvent::Lifecycle(l) => match &l.message {
-                LifecycleMessage::Stdio { line, stdio, .. } => Some((stdio, line.as_str())),
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect();
+    let stdio = stdio_lines(&captured);
     dbg!(&stdio);
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
         "stdout 'HELLO' must be emitted: {stdio:?}",
     );
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
+}
+
+/// The `(stream, line)` pairs of every stdio event a run emitted.
+#[cfg(unix)]
+fn stdio_lines(captured: &[LogEvent]) -> Vec<(&LifecycleStdio, &str)> {
+    captured
+        .iter()
+        .filter_map(|event| {
+            let LogEvent::Lifecycle(lifecycle) = event else { return None };
+            let LifecycleMessage::Stdio { line, stdio, .. } = &lifecycle.message else {
+                return None;
+            };
+            Some((stdio, line.as_str()))
+        })
+        .collect()
 }
 
 #[cfg(unix)]
@@ -173,7 +210,10 @@ fn lifecycle_events_carry_optional_flag() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -189,21 +229,27 @@ fn lifecycle_events_carry_optional_flag() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: None,
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
         dep_path: "/opt@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: true,
     };
 
@@ -244,7 +290,10 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -260,21 +309,27 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: None,
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
         dep_path: "/y@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -308,21 +363,27 @@ fn lifecycle_runs_under_silent_reporter() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: None,
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
         dep_path: "/z@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -338,21 +399,27 @@ fn missing_manifest_returns_false() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: None,
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
         dep_path: "/missing@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
@@ -361,89 +428,80 @@ fn missing_manifest_returns_false() {
 }
 
 /// Unix-only: relies on `printf` and `$VAR` expansion, which `cmd`
-/// (the Windows default per item `#4`) doesn't speak. Env stamping
-/// itself is platform-agnostic and covered by the unit tests in
-/// [`crate::make_env`].
+/// doesn't speak. Env stamping itself is platform-agnostic and covered
+/// by the unit tests in [`crate::make_env`].
 #[cfg(unix)]
 #[test]
 fn child_sees_stamped_npm_package_and_preserves_user_config() {
-    /// RAII guard that restores a process env var to its pre-test
-    /// value on drop, so an assertion failure can't leak the seed
-    /// into sibling tests — nor clobber a value the env already had.
-    struct EnvGuard {
-        key: &'static str,
-        prev: Option<std::ffi::OsString>,
-    }
-    impl EnvGuard {
-        fn new(key: &'static str) -> Self {
-            EnvGuard { key, prev: std::env::var_os(key) }
-        }
-    }
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            // SAFETY: nextest runs each test in its own thread, so the
-            // only risk is sibling tests calling `env::vars()`
-            // concurrently — this `Drop` still runs on panic.
-            unsafe {
-                match self.prev.take() {
-                    Some(value) => std::env::set_var(self.key, value),
-                    None => std::env::remove_var(self.key),
-                }
-            }
-        }
-    }
-    let _user_guard = EnvGuard::new("npm_config_platform_arch");
-    let _auth_guard = EnvGuard::new("npm_config__authtoken");
-    // SAFETY: nextest runs each test in its own thread, so the only
-    // risk is sibling tests calling `env::vars()` concurrently — the
-    // guards' `Drop` removes the vars even on panic.
-    unsafe {
-        std::env::set_var("npm_config_platform_arch", "x64");
-        std::env::set_var("npm_config__authtoken", "should-not-leak");
-    }
+    use super::run_lifecycle_hook;
+    use std::fmt::Write as _;
 
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
     let dump_path = pkg_root.join("env.dump");
 
+    const DUMP_LINES: &[(&str, &str)] = &[
+        ("stage", "$npm_lifecycle_event"),
+        ("script", "$npm_lifecycle_script"),
+        ("name", "$npm_package_name"),
+        ("ver", "$npm_package_version"),
+        ("config", "$npm_package_config_myKey"),
+        ("init_cwd", "$INIT_CWD"),
+        ("user", "$npm_config_platform_arch"),
+        ("auth", "$npm_config__authtoken"),
+    ];
+    // `printf`, not `echo`, so the line endings are consistent across shells.
+    let mut template = String::new();
+    let mut arguments = String::new();
+    for (label, expression) in DUMP_LINES {
+        write!(template, r"{label}=%s\n").expect("write to a String");
+        write!(arguments, r#" "{expression}""#).expect("write to a String");
+    }
+    let script = format!("printf '{template}'{arguments} > '{}'", dump_path.display());
     let manifest = serde_json::json!({
         "name": "stamp-target",
         "version": "9.9.9",
         "config": { "myKey": "myValue" },
-        "scripts": {
-            // printf, not echo, so the line endings are deterministic
-            // across shells.
-            "postinstall": format!(
-                r#"printf 'stage=%s\nscript=%s\nname=%s\nver=%s\nconfig=%s\ninit_cwd=%s\nuser=%s\nauth=%s\n' "$npm_lifecycle_event" "$npm_lifecycle_script" "$npm_package_name" "$npm_package_version" "$npm_package_config_myKey" "$INIT_CWD" "$npm_config_platform_arch" "$npm_config__authtoken" > {}"#,
-                dump_path.display(),
-            ),
-        },
     });
-    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+    let mut parent_env: HashMap<String, String> =
+        [("npm_config_platform_arch", "x64"), ("npm_config__authtoken", "should-not-leak")]
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect();
+    // The hook finds its shell along `PATH`.
+    if let Ok(path) = std::env::var("PATH") {
+        parent_env.insert("PATH".to_string(), path);
+    }
 
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: None,
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
         dep_path: "/stamp-target@9.9.9",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
-    let ran = run_postinstall_hooks::<SilentReporter>(&opts).expect("postinstall");
-    assert!(ran, "run_postinstall_hooks must report at least one script ran: ran={ran}");
+    run_lifecycle_hook::<SilentReporter>("postinstall", &script, &opts, &manifest, &parent_env)
+        .expect("postinstall");
 
     let dump = fs::read_to_string(&dump_path).expect("read env dump");
 
@@ -455,7 +513,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         ("config", "myValue"),
         ("init_cwd", expected_init_cwd.as_ref()),
         ("user", "x64"), // user-defined npm_config_* is preserved
-        ("auth", ""),    // auth npm_config_* is stripped — child sees empty string
+        ("auth", ""),    // auth npm_config_* is stripped, child sees empty string
     ];
     for (k, v) in expected_pairs {
         let line = format!("{k}={v}\n");
@@ -474,28 +532,35 @@ fn malformed_manifest_propagates_error() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: None,
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
         dep_path: "/malformed@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: false,
+
         optional: false,
     };
 
     let err = run_postinstall_hooks::<SilentReporter>(&opts).expect_err("malformed JSON must fail");
     eprintln!("ERR: {err}");
     let LifecycleScriptError::ReadManifest {
-        source: PackageManifestError::Parse { path, .. }, ..
+        source: PackageManifestError::Parse { path, .. },
+        ..
     } = &err
     else {
         panic!("expected ReadManifest(Parse), got {err:?}")
@@ -503,10 +568,49 @@ fn malformed_manifest_propagates_error() {
     assert_eq!(path, &pkg_root.join("package.json"));
 }
 
+#[test]
+fn lifecycle_manifest_prefers_package_json_over_package_yaml() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    fs::write(
+        pkg_root.join("package.json"),
+        serde_json::json!({ "scripts": { "pnpm:devPreinstall": "from-json" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(pkg_root.join("package.yaml"), "scripts:\n  pnpm:devPreinstall: from-yaml\n")
+        .expect("write package.yaml");
+
+    let manifest = read_lifecycle_manifest(pkg_root)
+        .expect("read lifecycle manifest")
+        .expect("manifest exists");
+    assert_eq!(manifest["scripts"]["pnpm:devPreinstall"], "from-json");
+}
+
+#[test]
+fn malformed_package_yaml_reports_the_selected_manifest() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    let package_yaml = pkg_root.join("package.yaml");
+    fs::write(&package_yaml, "scripts:\n  [not valid yaml\n")
+        .expect("write malformed package.yaml");
+
+    let err = read_lifecycle_manifest(pkg_root).expect_err("malformed YAML must fail");
+    let LifecycleScriptError::ReadManifest {
+        path: error_path,
+        source: PackageManifestError::ParseYaml { path, .. },
+    } = &err
+    else {
+        panic!("expected ReadManifest(ParseYaml), got {err:?}")
+    };
+    assert_eq!(error_path, &package_yaml.display().to_string());
+    assert_eq!(path, &package_yaml);
+}
+
 /// The emulator path pumps output through its own line sink rather than
 /// the child-process pumps, so it needs its own proof that a script's
 /// stdout, stderr, and non-zero exit still reach the reporter. Runs
 /// everywhere: the emulated shell is the same on every platform.
+#[cfg_attr(not(feature = "shell-emulator"), ignore = "requires shell emulation")]
 #[test]
 fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -515,7 +619,10 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
     struct RecordingReporter;
     impl Reporter for RecordingReporter {
         fn emit(event: &LogEvent) {
-            EVENTS.lock().expect("lock").push(event.clone());
+            EVENTS
+                .lock()
+                .expect("lock")
+                .push(event.clone());
         }
     }
 
@@ -531,21 +638,27 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
     let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: None,
+            shell_emulator: true,
+            wd_bin_dir: None,
+        },
         dep_path: "/emulated@1.0.0",
         pkg_root,
         root_modules_dir: pkg_root,
-        init_cwd: pkg_root,
-        extra_bin_paths: &extra_bin_paths,
-        extra_env: &extra_env,
-        node_execpath: None,
-        npm_execpath: None,
-        node_gyp_path: None,
-        user_agent: None,
+
         unsafe_perm: true,
-        node_gyp_bin: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        shell_emulator: true,
+
         optional: false,
     };
 
@@ -592,11 +705,187 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
         .collect();
     dbg!(&stdio);
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stdout && *l == "HELLO"),
         "stdout 'HELLO' must be emitted: {stdio:?}",
     );
     assert!(
-        stdio.iter().any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
+        stdio
+            .iter()
+            .any(|(s, l)| **s == LifecycleStdio::Stderr && *l == "BAD"),
         "stderr 'BAD' must be emitted: {stdio:?}",
     );
+}
+
+#[test]
+#[cfg_attr(not(windows), ignore = "only Windows bounds a working directory")]
+fn shell_emulator_runs_an_external_command_from_a_long_package_root() {
+    let root = tempdir().expect("create temp dir");
+    let mut pkg_root = root
+        .path()
+        .join("workspace")
+        .join("..")
+        .join("v11")
+        .join("links")
+        .join("@pnpm.e2e")
+        .join("pre-and-postinstall-scripts-example")
+        .join("1.0.0")
+        .join("18ee99614ef3696a0b10d1d9893d9ec41c393462eec96e154981c3d9cca0c268")
+        .join("node_modules")
+        .join("@pnpm.e2e")
+        .join("pre-and-postinstall-scripts-example");
+    while native_path_len(&pkg_root) <= 260 {
+        pkg_root = pkg_root.join("p");
+    }
+    fs::create_dir_all(&pkg_root).expect("create long package root");
+    let manifest = serde_json::json!({
+        "name": "emulated-long-path",
+        "version": "1.0.0",
+        "scripts": {
+            "postinstall": r#"node -e "require('fs').writeFileSync('built.txt', 'ok')""#,
+        },
+    });
+    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+
+    let extra_env: HashMap<String, String> = HashMap::new();
+    let extra_bin_paths = Vec::new();
+    let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: &pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: None,
+            shell_emulator: true,
+            wd_bin_dir: None,
+        },
+        dep_path: "/emulated-long-path@1.0.0",
+        pkg_root: &pkg_root,
+        root_modules_dir: &pkg_root,
+        unsafe_perm: true,
+        optional: false,
+    };
+
+    assert!(run_postinstall_hooks::<SilentReporter>(&opts).expect("run postinstall"));
+    assert_eq!(fs::read_to_string(pkg_root.join("built.txt")).expect("read artifact"), "ok");
+}
+
+fn native_path_len(path: &std::path::Path) -> usize {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        path.as_os_str().encode_wide().count()
+    }
+    #[cfg(not(windows))]
+    {
+        path.as_os_str().len()
+    }
+}
+
+/// `better-sqlite3` v13 ships a prebuilt binary for every platform it supports
+/// and sets `gypfile: false` so no package manager rebuilds it from source.
+#[test]
+fn gypfile_false_suppresses_the_synthesized_node_gyp_rebuild() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    fs::write(pkg_root.join("binding.gyp"), "{'targets':[]}").expect("write binding.gyp");
+
+    let manifest = serde_json::json!({ "name": "prebuilt", "version": "1.0.0" });
+    fs::write(pkg_root.join("package.json"), manifest.to_string()).expect("write manifest");
+    assert_eq!(install_stage_script(&manifest, pkg_root).as_deref(), Some("node-gyp rebuild"));
+
+    let opted_out = serde_json::json!({ "name": "prebuilt", "version": "1.0.0", "gypfile": false });
+    fs::write(pkg_root.join("package.json"), opted_out.to_string()).expect("write manifest");
+    assert_eq!(install_stage_script(&opted_out, pkg_root), None);
+}
+
+#[test]
+fn gypfile_false_leaves_an_explicit_install_script_alone() {
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    fs::write(pkg_root.join("binding.gyp"), "{'targets':[]}").expect("write binding.gyp");
+
+    let manifest = serde_json::json!({
+        "name": "custom-build",
+        "version": "1.0.0",
+        "gypfile": false,
+        "scripts": { "install": "node install.js" },
+    });
+    assert_eq!(install_stage_script(&manifest, pkg_root).as_deref(), Some("node install.js"));
+}
+
+/// Environment names are case-sensitive on POSIX, so a `Path` variable is a
+/// variable of its own: it neither supplies the script's `PATH` nor gets
+/// dropped from the script's environment.
+/// <https://github.com/pnpm/pnpm/issues/16308>
+#[cfg(unix)]
+#[test]
+fn path_in_another_case_does_not_stand_in_for_path() {
+    use super::run_lifecycle_hook;
+
+    let dir = tempdir().expect("create temp dir");
+    let pkg_root = dir.path();
+    let dump_path = pkg_root.join("env.dump");
+    let script =
+        format!(r#"printf 'PATH=%s\nPath=%s\n' "$PATH" "$Path" > '{}'"#, dump_path.display());
+    let manifest = serde_json::json!({ "name": "path-case", "version": "1.0.0" });
+
+    let extra_env: HashMap<String, String> = HashMap::new();
+    let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
+    let opts = RunPostinstallHooks {
+        environment: crate::ScriptEnvironment {
+            init_cwd: pkg_root,
+            node_execpath: None,
+            npm_execpath: None,
+            node_gyp_path: None,
+            user_agent: None,
+            extra_env: &extra_env,
+        },
+        execution: crate::ScriptExecutionOptions {
+            extra_bin_paths: &extra_bin_paths,
+            node_gyp_bin: None,
+            shell: Some(std::path::Path::new("/bin/sh")),
+            shell_emulator: false,
+            wd_bin_dir: None,
+        },
+        dep_path: "/path-case@1.0.0",
+        pkg_root,
+        root_modules_dir: pkg_root,
+
+        unsafe_perm: true,
+
+        optional: false,
+    };
+    let script_env = |parent_env: &[(&str, &str)]| -> (String, String) {
+        let parent_env: HashMap<String, String> = parent_env
+            .iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect();
+        run_lifecycle_hook::<SilentReporter>("postinstall", &script, &opts, &manifest, &parent_env)
+            .expect("postinstall");
+        let dump = fs::read_to_string(&dump_path).expect("read env dump");
+        let value = |name: &str| {
+            dump.lines()
+                .find_map(|line| line.strip_prefix(name)?.strip_prefix('='))
+                .unwrap_or_else(|| panic!("no {name} line in dump:\n{dump}"))
+                .to_string()
+        };
+        (value("PATH"), value("Path"))
+    };
+
+    let (path, other_case) = script_env(&[("Path", "/decoy/bin")]);
+    assert!(!path.contains("/decoy/bin"), "Path supplied the script's PATH: {path}");
+    assert_eq!(other_case, "/decoy/bin");
+
+    let (path, other_case) = script_env(&[("PATH", "/usr/bin:/bin"), ("Path", "/decoy/bin")]);
+    assert!(path.ends_with(":/usr/bin:/bin"), "the script's PATH lost PATH: {path}");
+    assert!(!path.contains("/decoy/bin"), "Path supplied the script's PATH: {path}");
+    assert_eq!(other_case, "/decoy/bin");
 }

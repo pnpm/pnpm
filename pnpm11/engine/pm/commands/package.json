@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.pm.commands",
-  "version": "1102.1.0",
+  "version": "1102.1.15",
   "description": "pnpm commands for self-updating and setting up pnpm",
   "keywords": [
     "pnpm",
@@ -25,14 +25,15 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "test": "pn compile && pn .test",
-    "compile": "tsgo --build && pn lint --fix",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@inquirer/prompts": "catalog:",
     "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/building.during-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
@@ -42,6 +43,8 @@
     "@pnpm/deps.graph-hasher": "workspace:*",
     "@pnpm/deps.security.signatures": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.npm-lifecycle": "workspace:*",
+    "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/global.commands": "workspace:*",
     "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
@@ -50,7 +53,7 @@
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
-    "@pnpm/os.env.path-extender": "catalog:",
+    "@pnpm/os.env.path-extender": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/shell.path": "workspace:*",

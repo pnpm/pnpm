@@ -3,6 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { renderHelp } from 'render-help'
 
 import { envList } from './envList.js'
+import { envRemove } from './envRemove.js'
 import { envUse } from './envUse.js'
 import type { NvmNodeCommandOptions } from './node.js'
 
@@ -27,17 +28,7 @@ export function help (): string {
     descriptionLists: [
       {
         title: 'Commands',
-        list: [
-          {
-            description: 'Installs the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well. This sets this version of Node.js as the current version.',
-            name: 'use',
-          },
-          {
-            description: 'List remote Node.js versions available to install.',
-            name: 'list',
-            shortAlias: 'ls',
-          },
-        ],
+        list: getEnvCommands(),
       },
       {
         title: 'Options',
@@ -51,20 +42,45 @@ export function help (): string {
       },
     ],
     url: docsUrl('env'),
-    usages: [
-      'pnpm env use --global 24',
-      'pnpm env use --global lts',
-      'pnpm env use --global krypton',
-      'pnpm env use --global latest',
-      'pnpm env use --global rc/24',
-      'pnpm env list',
-      'pnpm env list 24',
-      'pnpm env list lts',
-      'pnpm env list krypton',
-      'pnpm env list latest',
-      'pnpm env list rc/24',
-    ],
+    usages: getEnvUsages(),
   })
+}
+
+function getEnvCommands () {
+  return [
+    {
+      description: 'Installs the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well. This sets this version of Node.js as the current version.',
+      name: 'use',
+    },
+    {
+      description: 'Removes the specified version of Node.js.',
+      name: 'remove',
+      shortAlias: 'rm',
+    },
+    {
+      description: 'List remote Node.js versions available to install.',
+      name: 'list',
+      shortAlias: 'ls',
+    },
+  ]
+}
+
+function getEnvUsages (): string[] {
+  return [
+    'pnpm env use --global 24',
+    'pnpm env use --global lts',
+    'pnpm env use --global krypton',
+    'pnpm env use --global latest',
+    'pnpm env use --global rc/24',
+    'pnpm env remove --global 24',
+    'pnpm env rm --global 24',
+    'pnpm env list',
+    'pnpm env list 24',
+    'pnpm env list lts',
+    'pnpm env list krypton',
+    'pnpm env list latest',
+    'pnpm env list rc/24',
+  ]
 }
 
 export async function handler (opts: NvmNodeCommandOptions, params: string[]): Promise<string | { exitCode: number } | void> {
@@ -73,7 +89,9 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]): P
       hint: help(),
     })
   }
-  if (opts.global && !opts.bin) {
+  // `use` links Node into the global bin, which only a standalone pnpm install
+  // owns. `remove` deletes copies pnpm already stored and does not need that bin.
+  if (opts.global && !opts.bin && params[0] === 'use') {
     throw new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalone installation script', {
       hint: 'If you want to manage Node.js with pnpm, you need to remove any Node.js that was installed by other tools, then install pnpm using one of the standalone scripts that are provided on the installation page: https://pnpm.io/installation',
     })
@@ -81,6 +99,13 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]): P
   switch (params[0]) {
     case 'use': {
       await envUse(opts, params.slice(1))
+      return
+    }
+    case 'remove':
+    case 'rm':
+    case 'uninstall':
+    case 'un': {
+      await envRemove(opts, params.slice(1))
       return
     }
     case 'list':

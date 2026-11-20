@@ -25,7 +25,6 @@ export function setCachedCanResolve (customResolver: CustomResolver, cacheKey: s
 
 /**
  * Check if a custom resolver can resolve a wanted dependency, using cache when available
- * This centralizes the cache check/call/store logic
  */
 export async function checkCustomResolverCanResolve (
   customResolver: CustomResolver,
@@ -35,14 +34,11 @@ export async function checkCustomResolverCanResolve (
 
   const cacheKey = getCustomResolverCacheKey(wantedDependency)
 
-  // Check cache first
   const cached = getCachedCanResolve(customResolver, cacheKey)
   if (cached !== undefined) return cached
 
-  // Call canResolve and handle sync/async (await works for both)
   const canResolve = await customResolver.canResolve(wantedDependency)
 
-  // Cache the result
   setCachedCanResolve(customResolver, cacheKey, canResolve)
 
   return canResolve

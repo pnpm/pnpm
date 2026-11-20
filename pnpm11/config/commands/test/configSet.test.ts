@@ -219,6 +219,55 @@ test('config set pnpm-specific setting using the location=project option', async
   })
 })
 
+// https://github.com/pnpm/pnpm/issues/13757
+test('config set with location=project from a workspace sub-package writes to the workspace root', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
+  const subPackageDir = path.join(tmp, 'packages/a')
+  fs.mkdirSync(subPackageDir, { recursive: true })
+
+  await config.handler(createConfigCommandOpts({
+    dir: subPackageDir,
+    workspaceDir: tmp,
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', 'virtual-store-dir', '.pnpm'])
+
+  expect(readYamlFileSync(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+    packages: ['packages/*'],
+    virtualStoreDir: '.pnpm',
+  })
+  expect(fs.existsSync(path.join(subPackageDir, 'pnpm-workspace.yaml'))).toBeFalsy()
+})
+
+// https://github.com/pnpm/pnpm/issues/13757
+test('config set with location=project from a workspace sub-package keeps .npmrc settings in the current directory', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
+  const subPackageDir = path.join(tmp, 'packages/a')
+  fs.mkdirSync(subPackageDir, { recursive: true })
+
+  await config.handler(createConfigCommandOpts({
+    dir: subPackageDir,
+    workspaceDir: tmp,
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    authConfig: {},
+  }), ['set', 'registry', 'https://npm-registry.example.com/'])
+
+  expect(readIniFileSync(path.join(subPackageDir, '.npmrc'))).toEqual({
+    registry: 'https://npm-registry.example.com/',
+  })
+  expect(fs.existsSync(path.join(subPackageDir, 'pnpm-workspace.yaml'))).toBeFalsy()
+})
+
 test('config delete with location=project, when delete the last setting from pnpm-workspace.yaml, would delete the file itself', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')

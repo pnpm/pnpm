@@ -9,8 +9,8 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { symlinkDirSync } from 'symlink-dir'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
-const f = fixtures(import.meta.dirname)
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
+const testFixtures = fixtures(import.meta.dirname)
 
 const DEFAULT_OPTIONS = {
   argv: {
@@ -46,7 +46,7 @@ const DEFAULT_OPTIONS = {
 test('prune removes external link that is not in package.json', async () => {
   const project = prepare(undefined)
   const storeDir = path.resolve('store')
-  f.copy('local-pkg', 'local')
+  testFixtures.copy('local-pkg', 'local')
 
   symlinkDirSync(path.resolve('local'), path.join('node_modules/local-pkg'))
 
@@ -113,6 +113,41 @@ test('prune removes dev dependencies', async () => {
   project.hasNot('.pnpm/is-negative@1.0.0')
 })
 
+test('prune --prod does not run prepare scripts (pnpm/pnpm#4770)', async () => {
+  await using server = await createTestIpcServer()
+
+  const project = prepare({
+    name: 'test-prune-prod-skips-prepare',
+    version: '0.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+    devDependencies: { 'is-negative': '1.0.0' },
+    scripts: {
+      preinstall: server.sendLineScript('preinstall'),
+      install: server.sendLineScript('install'),
+      postinstall: server.sendLineScript('postinstall'),
+      preprepare: server.sendLineScript('preprepare'),
+      prepare: `node -e "require('is-negative')" && ${server.sendLineScript('prepare')}`,
+      postprepare: server.sendLineScript('postprepare'),
+    },
+  })
+  const opts = {
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    storeDir: path.resolve('store'),
+  }
+
+  await install.handler(opts)
+  expect(server.getLines()).toStrictEqual(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'])
+  server.clear()
+
+  await prune.handler({ ...opts, dev: false })
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(server.getLines()).toStrictEqual(['preinstall', 'install', 'postinstall'])
+})
+
 test('prune: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
   await using server = await createTestIpcServer()
 
@@ -121,11 +156,9 @@ test('prune: ignores all the lifecycle scripts when --ignore-scripts is used', a
     version: '0.0.0',
 
     scripts: {
-      // eslint-disable:object-literal-sort-keys
       preinstall: server.sendLineScript('preinstall'),
       prepare: server.sendLineScript('prepare'),
       postinstall: server.sendLineScript('postinstall'),
-      // eslint-enable:object-literal-sort-keys
     },
   })
 
@@ -153,4 +186,6 @@ test('cliOptionsTypes', () => {
   expect(prune.cliOptionsTypes()).toHaveProperty('dev')
   expect(prune.cliOptionsTypes()).toHaveProperty('ignore-scripts')
   expect(prune.cliOptionsTypes()).toHaveProperty('optional')
+  expect(prune.cliOptionsTypes()).toHaveProperty('recursive')
+  expect(prune.rcOptionsTypes()).not.toHaveProperty('recursive')
 })

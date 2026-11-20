@@ -44,7 +44,7 @@ docker run --rm -p 7677:7677 \
 Then point pnpm at it:
 
 ```sh
-pnpm config set registry http://localhost:7677
+pnpm config set registry http://localhost:7677/npm/
 ```
 
 ## Build locally

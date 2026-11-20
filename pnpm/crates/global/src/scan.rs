@@ -2,16 +2,38 @@
 //! directory and the details needed to list, update, and remove them.
 
 use crate::read_package_json;
-use pnpm_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest};
+use pnpm_cmd_shim::{
+    Command,
+    FsReadDir,
+    FsReadFile,
+    FsWalkFiles,
+    Host,
+    PackageBinSource,
+    get_bins_from_package_manifest,
+};
 use pnpm_fs::is_symlink_or_junction;
-use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
+use pnpm_package_manifest::{
+    PackageManifestError,
+    parse_manifest_bytes,
+};
+use pnpm_package_name::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
+    fs::DirEntry,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// A single global install group: a hash symlink pointing at an install
@@ -29,13 +51,18 @@ impl GlobalPackageInfo {
     /// Whether `alias` is one of this group's direct dependencies.
     #[must_use]
     pub fn has_alias(&self, alias: &str) -> bool {
-        self.dependencies.iter().any(|(name, _)| name == alias)
+        self.dependencies
+            .iter()
+            .any(|(name, _)| name == alias)
     }
 
     /// The direct-dependency aliases of this group.
     #[must_use]
     pub fn aliases(&self) -> Vec<String> {
-        self.dependencies.iter().map(|(name, _)| name.clone()).collect()
+        self.dependencies
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 }
 
@@ -52,8 +79,7 @@ pub struct InstalledGlobalPackage {
 ///
 /// A missing directory yields an empty list; any other read error (e.g.
 /// permission denied) is surfaced so callers don't mistake an unreadable
-/// global dir for "no global packages." Only `ENOENT` returns `[]`; every
-/// other error propagates.
+/// global dir for "no global packages."
 pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageInfo>> {
     let entries = match std::fs::read_dir(global_dir) {
         Ok(entries) => entries,
@@ -73,7 +99,10 @@ pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageIn
             continue;
         }
         result.push(GlobalPackageInfo {
-            hash: entry.file_name().to_string_lossy().into_owned(),
+            hash: entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned(),
             install_dir,
             dependencies,
         });
@@ -86,7 +115,9 @@ pub fn find_global_package(
     global_dir: &Path,
     alias: &str,
 ) -> io::Result<Option<GlobalPackageInfo>> {
-    Ok(scan_global_packages(global_dir)?.into_iter().find(|pkg| pkg.has_alias(alias)))
+    Ok(scan_global_packages(global_dir)?
+        .into_iter()
+        .find(|pkg| pkg.has_alias(alias)))
 }
 
 /// Read the installed details (alias, version, manifest) for every direct
@@ -115,26 +146,92 @@ fn installed_packages(
         .iter()
         .filter_map(|(alias, _)| {
             let manifest = read_package_json(&modules_dir.join(alias))?;
-            let version =
-                manifest.get("version").and_then(Value::as_str).unwrap_or_default().to_string();
+            let version = manifest
+                .get("version")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
             Some(InstalledGlobalPackage { alias: alias.clone(), version, manifest })
         })
         .collect()
 }
 
-/// The bin names installed by a group (deduplicated).
-#[must_use]
-pub fn get_installed_bin_names(info: &GlobalPackageInfo) -> Vec<String> {
+/// The bins installed by a group, including their executable paths.
+///
+/// A group whose `node_modules` is wholly absent owns no bins, and neither
+/// does a declared dependency whose directory under `node_modules` is absent,
+/// a link left dangling by a pruned store included: no bin can resolve
+/// through a directory that is not there. Every dependency directory that
+/// does exist must hold a readable, valid manifest: returning a partial set
+/// would make destructive callers mistake unknown ownership for an unowned
+/// bin.
+pub fn get_installed_bins(info: &GlobalPackageInfo) -> Result<Vec<Command>, PackageManifestError> {
+    get_installed_bins_with_fs::<Host>(info)
+}
+
+/// The bin names installed by a group (deduplicated). See [`get_installed_bins`].
+pub fn get_installed_bin_names(
+    info: &GlobalPackageInfo,
+) -> Result<Vec<String>, PackageManifestError> {
+    get_installed_bin_names_with_fs::<Host>(info)
+}
+
+fn get_installed_bin_names_with_fs<Sys>(
+    info: &GlobalPackageInfo,
+) -> Result<Vec<String>, PackageManifestError>
+where
+    Sys: FsReadFile + FsWalkFiles + FsReadDir,
+{
+    Ok(get_installed_bins_with_fs::<Sys>(info)?
+        .into_iter()
+        .map(|bin| bin.name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect())
+}
+
+fn get_installed_bins_with_fs<Sys>(
+    info: &GlobalPackageInfo,
+) -> Result<Vec<Command>, PackageManifestError>
+where
+    Sys: FsReadFile + FsWalkFiles + FsReadDir,
+{
     let modules_dir = info.install_dir.join("node_modules");
-    let mut bins = BTreeSet::new();
+    if !dir_exists::<Sys>(&modules_dir)? {
+        return Ok(Vec::new());
+    }
+    let mut bins = Vec::new();
     for (alias, _) in &info.dependencies {
         let dep_dir = modules_dir.join(alias);
-        let Some(manifest) = read_package_json(&dep_dir) else { continue };
-        for command in get_bins_from_package_manifest::<Host>(&manifest, &dep_dir) {
-            bins.insert(command.name);
-        }
+        let manifest_path = dep_dir.join("package.json");
+        let bytes = match Sys::read_file(&manifest_path) {
+            Ok(bytes) => bytes,
+            Err(source) => {
+                // Probing after the read rather than before also covers a
+                // link pruned while the scan runs.
+                if source.kind() == io::ErrorKind::NotFound && !dir_exists::<Sys>(&dep_dir)? {
+                    continue;
+                }
+                return Err(PackageManifestError::Read { path: manifest_path, source });
+            }
+        };
+        let manifest = parse_manifest_bytes(&bytes)
+            .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
+        bins.extend(get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir));
     }
-    bins.into_iter().collect()
+    Ok(bins)
+}
+
+/// Whether `dir` is there to be listed. Only `NotFound` reads as absent;
+/// every other error surfaces, so unreadable ownership is never mistaken
+/// for unowned. Probing through the capability rather than `std::fs` keeps
+/// a fake that models a readable tree on the per-manifest paths.
+fn dir_exists<Sys: FsReadDir>(dir: &Path) -> Result<bool, PackageManifestError> {
+    match Sys::read_dir(dir).map(|_| ()) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(source) => Err(PackageManifestError::Read { path: dir.to_path_buf(), source }),
+    }
 }
 
 /// Read the directly-installed packages of an install directory as
@@ -159,7 +256,10 @@ pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
 /// is read, so it is included alongside regular dependencies.
 #[must_use]
 pub fn read_direct_dependency_aliases(install_dir: &Path) -> Vec<String> {
-    read_direct_dependencies(install_dir).into_iter().map(|(alias, _)| alias).collect()
+    read_direct_dependencies(install_dir)
+        .into_iter()
+        .map(|(alias, _)| alias)
+        .collect()
 }
 
 /// The validated `(alias, spec)` pairs of an install directory's direct
@@ -172,14 +272,25 @@ pub fn read_direct_dependencies(install_dir: &Path) -> Vec<(String, String)> {
 }
 
 /// Remove install directories under `global_dir` that no hash symlink
-/// points at. A 5-minute safety window avoids racing a concurrent install
-/// which has created its dir but not yet its symlink.
+/// points at.
 pub fn clean_orphaned_install_dirs(global_dir: &Path) {
     let Ok(entries) = std::fs::read_dir(global_dir) else { return };
     let entries: Vec<_> = entries.flatten().collect();
+    let referenced = symlink_targets(&entries);
 
-    let mut referenced = BTreeSet::new();
+    let now = SystemTime::now();
     for entry in &entries {
+        if is_orphaned_install_dir(entry, &referenced, now) {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// The canonical install directories the hash symlinks among `entries`
+/// point at.
+fn symlink_targets(entries: &[DirEntry]) -> BTreeSet<PathBuf> {
+    let mut referenced = BTreeSet::new();
+    for entry in entries {
         let path = entry.path();
         let Ok(true) = is_symlink_or_junction(&path) else {
             continue;
@@ -188,35 +299,40 @@ pub fn clean_orphaned_install_dirs(global_dir: &Path) {
             referenced.insert(real);
         }
     }
+    referenced
+}
 
+/// A 5-minute safety window keeps a concurrent install that has created its
+/// directory but not yet its symlink out of the orphan set.
+fn is_orphaned_install_dir(
+    entry: &DirEntry,
+    referenced: &BTreeSet<PathBuf>,
+    now: SystemTime,
+) -> bool {
     const SAFETY_WINDOW: Duration = Duration::from_mins(5);
-    let now = SystemTime::now();
-    for entry in &entries {
-        let Ok(file_type) = entry.file_type() else { continue };
-        if !file_type.is_dir() {
-            continue;
-        }
-        let dir_path = entry.path();
-        let Ok(canonical) = std::fs::canonicalize(&dir_path) else { continue };
-        if referenced.contains(&canonical) {
-            continue;
-        }
-        if recently_created(&dir_path, now, SAFETY_WINDOW) {
-            continue;
-        }
-        let _ = std::fs::remove_dir_all(&dir_path);
+    let Ok(file_type) = entry.file_type() else { return false };
+    if !file_type.is_dir() {
+        return false;
     }
+    let dir_path = entry.path();
+    let Ok(canonical) = std::fs::canonicalize(&dir_path) else { return false };
+    !referenced.contains(&canonical) && !recently_created(&dir_path, now, SAFETY_WINDOW)
 }
 
 fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool {
     let Ok(metadata) = std::fs::metadata(dir_path) else { return true };
-    // Use max(created, modified) as the dir's age — the closest portable
+    // Use max(created, modified) as the dir's age, the closest portable
     // proxies std exposes for birthtime / ctime.
     let created = metadata.created().ok();
     let modified = metadata.modified().ok();
-    let newest = [created, modified].into_iter().flatten().max();
+    let newest = [created, modified]
+        .into_iter()
+        .flatten()
+        .max();
     match newest {
-        Some(time) => now.duration_since(time).map_or(true, |age| age < window),
+        Some(time) => now
+            .duration_since(time)
+            .map_or(true, |age| age < window),
         None => true,
     }
 }
@@ -227,8 +343,8 @@ fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool 
 /// The aliases become directory names under `node_modules` at every
 /// downstream join site (list, conflict-check, remove, update), so a
 /// tampered group `package.json` could otherwise use an alias like `../x`
-/// or an absolute path to escape the install directory. Validating here —
-/// the single point where aliases enter the scan — closes that for every
+/// or an absolute path to escape the install directory. Validating here
+/// (the single point where aliases enter the scan) closes that for every
 /// consumer, using the same [`is_valid_dependency_alias`] check the
 /// resolver applies to direct dependencies.
 fn dependencies_of(manifest: &Value) -> Vec<(String, String)> {
@@ -238,7 +354,14 @@ fn dependencies_of(manifest: &Value) -> Vec<(String, String)> {
         .map(|deps| {
             deps.iter()
                 .filter(|(alias, _)| is_valid_dependency_alias(alias))
-                .map(|(alias, spec)| (alias.clone(), spec.as_str().unwrap_or_default().to_string()))
+                .map(|(alias, spec)| {
+                    (
+                        alias.clone(),
+                        spec.as_str()
+                            .unwrap_or_default()
+                            .to_string(),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default()

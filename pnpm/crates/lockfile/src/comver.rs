@@ -1,6 +1,16 @@
-use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, num::ParseIntError, str::FromStr};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    borrow::Cow,
+    num::ParseIntError,
+    str::FromStr,
+};
 
 /// Information of the top-level field `lockfileVersion`.
 ///

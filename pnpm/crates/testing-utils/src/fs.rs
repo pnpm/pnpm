@@ -1,17 +1,31 @@
 use pipe_trait::Pipe;
 use pnpm_workspace_state::load_workspace_state;
 use std::{
-    fs, io,
-    path::Path,
-    time::{Duration, SystemTime},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
+use tempfile::TempDir;
 use walkdir::WalkDir;
 
 #[must_use]
 pub fn get_filenames_in_folder(path: &Path) -> Vec<String> {
     let mut files = fs::read_dir(path)
         .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+        .map(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .to_string()
+        })
         .collect::<Vec<_>>();
 
     files.sort();
@@ -54,17 +68,100 @@ pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
     pnpm_fs::is_symlink_or_junction(path)
 }
 
+/// Symlink a file, on whichever platform.
+///
+/// [`pnpm_fs::symlink_dir`] has a junction to fall back on where Windows
+/// would otherwise need the symlink privilege. A file symlink has no such
+/// fallback, so this needs that privilege, which the Windows CI runners
+/// grant.
+pub fn symlink_file(original: &Path, link: &Path) -> io::Result<()> {
+    #[cfg(windows)]
+    return std::os::windows::fs::symlink_file(original, link);
+
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(original, link);
+}
+
 /// Check if a file is executable.
 #[cfg(unix)]
 #[must_use]
 pub fn is_path_executable(path: &Path) -> bool {
-    use std::{fs::File, os::unix::prelude::*};
+    use std::{
+        fs::File,
+        os::unix::prelude::*,
+    };
     let mode = File::open(path)
         .expect("open the file")
         .metadata()
         .expect("get metadata of the file")
         .mode();
     mode & 0b001_001_001 != 0
+}
+
+/// A record of which on-disk file a path named at one point in time, so a
+/// later check can tell a file an install reused from one it replaced.
+///
+/// The record is a hard link, taken in a directory outside the tree under
+/// test, and [`Self::is_intact`] compares the two paths with `same_file`.
+/// Unix could keep the inode number instead, but `std` exposes the Windows
+/// equivalent only behind an unstable feature.
+pub struct SameFileWitness {
+    path: PathBuf,
+    /// Owns the directory the link lives in, so the link goes away with
+    /// the witness.
+    dir: TempDir,
+}
+
+impl SameFileWitness {
+    /// Link `path` from a directory of its own under `witness_dir`, which
+    /// has to be on the same filesystem as `path` and outside whatever the
+    /// step under test rewrites.
+    #[must_use]
+    pub fn take(path: &Path, witness_dir: &Path) -> Self {
+        let dir = TempDir::new_in(witness_dir).expect("create the witness directory");
+        let link = dir.path().join("link");
+        fs::hard_link(path, &link)
+            .unwrap_or_else(|error| panic!("link {path:?} from {link:?}: {error}"));
+        SameFileWitness { path: path.to_path_buf(), dir }
+    }
+
+    /// Whether the path still names the file it named when the witness was
+    /// taken.
+    #[must_use]
+    pub fn is_intact(&self) -> bool {
+        same_file::is_same_file(&self.path, self.dir.path().join("link")).unwrap_or(false)
+    }
+}
+
+/// A record of which on-disk directory a path named at one point in time,
+/// so a later check can tell a directory an install left alone from one it
+/// removed and wrote again.
+///
+/// The record is a sentinel file planted inside the directory, because a
+/// directory cannot be hard-linked the way [`SameFileWitness`] links a
+/// file, and `std` exposes the Windows file index only behind an unstable
+/// feature.
+pub struct DirWitness {
+    sentinel: PathBuf,
+}
+
+impl DirWitness {
+    /// Plant the sentinel in `dir`, which has to be a directory the step
+    /// under test either keeps whole or replaces, never merges into.
+    #[must_use]
+    pub fn take(dir: &Path) -> Self {
+        let sentinel = dir.join(".dir-witness");
+        fs::write(&sentinel, "")
+            .unwrap_or_else(|error| panic!("plant the sentinel in {dir:?}: {error}"));
+        DirWitness { sentinel }
+    }
+
+    /// Whether the path still names the directory it named when the
+    /// witness was taken.
+    #[must_use]
+    pub fn is_intact(&self) -> bool {
+        self.sentinel.exists()
+    }
 }
 
 /// The gap that separates two mtimes on every filesystem the tests run on.
@@ -83,15 +180,19 @@ pub fn mtime_ms(path: &Path) -> i64 {
         .pipe(fs::metadata)
         .and_then(|metadata| metadata.modified())
         .unwrap_or_else(|error| panic!("stat {path:?}: {error}"));
-    modified.duration_since(SystemTime::UNIX_EPOCH).map_or_else(
-        |error| panic!("mtime of {path:?} predates the Unix epoch: {error}"),
-        |elapsed| {
+    modified
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|elapsed| {
             let millis = elapsed.as_millis();
-            millis.pipe(i64::try_from).unwrap_or_else(|_| {
-                panic!("mtime of {path:?} is {millis} ms past the epoch, beyond an i64 timestamp")
-            })
-        },
-    )
+            millis
+                .pipe(i64::try_from)
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "mtime of {path:?} is {millis} ms past the epoch, beyond an i64 timestamp",
+                    )
+                })
+        })
+        .unwrap_or_else(|error| panic!("mtime of {path:?} predates the Unix epoch: {error}"))
 }
 
 /// Set `path`'s mtime to `ms` milliseconds since the Unix epoch.
@@ -105,7 +206,7 @@ pub fn set_mtime_ms(path: &Path, ms: i64) {
 }
 
 /// Set `path`'s mtime to `modified`, keeping whatever sub-millisecond
-/// precision the filesystem stores — the granularity [`set_mtime_ms`]
+/// precision the filesystem stores, the granularity [`set_mtime_ms`]
 /// cannot express, and the one a same-millisecond mtime collision needs.
 pub fn set_mtime(path: &Path, modified: SystemTime) {
     fs::OpenOptions::new()
@@ -176,7 +277,8 @@ pub fn bump_mtime(path: &Path) {
 fn recorded_validation_timestamp(path: &Path) -> i64 {
     path.ancestors()
         .skip(1)
-        .find_map(|dir| load_workspace_state(dir).expect("read the workspace state"))
+        .map(load_workspace_state)
+        .find_map(|load_workspace_state| load_workspace_state.expect("read the workspace state"))
         .unwrap_or_else(|| panic!("no workspace state above {path:?} to bump the mtime past"))
         .last_validated_timestamp
 }

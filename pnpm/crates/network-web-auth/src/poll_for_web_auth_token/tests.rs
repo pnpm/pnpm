@@ -1,6 +1,12 @@
 use std::{
-    cell::{Cell, RefCell},
-    future::{self, Future},
+    cell::{
+        Cell,
+        RefCell,
+    },
+    future::{
+        self,
+        Future,
+    },
     rc::Rc,
 };
 
@@ -8,10 +14,19 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 use super::{
-    WebAuthFetchOptions, WebAuthFetchResponse, WebAuthRetryOptions, WebAuthTokenPollParams,
-    body_may_carry_token, poll_for_web_auth_token,
+    WebAuthFetchOptions,
+    WebAuthFetchResponse,
+    WebAuthRetryOptions,
+    WebAuthTokenPollParams,
+    body_may_carry_token,
+    poll_for_web_auth_token,
 };
-use crate::capabilities::{Clock, Sleep, WebAuthFetch, WebAuthFetchError};
+use crate::capabilities::{
+    Clock,
+    Sleep,
+    WebAuthFetch,
+    WebAuthFetchError,
+};
 
 #[test]
 fn body_may_carry_token_only_for_a_successful_non_202() {
@@ -44,10 +59,7 @@ fn token_decodes_an_invalid_utf8_body_lossily() {
     body.extend_from_slice(br#"b"}"#);
     let response =
         WebAuthFetchResponse { ok: true, status: 200, retry_after: None, body, truncated: false };
-    assert_eq!(
-        response.token().expect("parse the lossily-decoded body"),
-        Some("a\u{FFFD}b".to_owned()),
-    );
+    assert_eq!(response.token().expect("parse the lossily-decoded body"), Some("a�b".to_owned()));
 }
 
 /// A leading UTF-8 BOM is stripped before parsing, matching the TypeScript
@@ -68,7 +80,7 @@ type FetchScript =
     Box<dyn FnMut(&str, &WebAuthFetchOptions) -> Result<WebAuthFetchResponse, WebAuthFetchError>>;
 
 /// How the [`Sleep`] fake moves the [`Clock`] fake forward. The two share
-/// the `TIME` cell so a test can drive the timeout deterministically —
+/// the `TIME` cell so a test can drive the timeout deterministically,
 /// mirroring the TS tests where `setTimeout` mutates the same `time`
 /// variable `Date.now` reads.
 #[derive(Clone, Copy)]
@@ -202,7 +214,7 @@ fn ok_json(body: &serde_json::Value) -> WebAuthFetchResponse {
 
 /// A `200` response whose body the provider capped at the size limit. Its
 /// body carries a real token, so a poll that still ignores it proves the
-/// truncation — not a missing token — is what makes it keep waiting.
+/// truncation (not a missing token) is what makes it keep waiting.
 fn ok_truncated() -> WebAuthFetchResponse {
     WebAuthFetchResponse {
         ok: true,
@@ -255,7 +267,8 @@ async fn passes_done_url_and_fetch_options_to_fetch() {
     let captured = Rc::new(RefCell::new(Vec::<(String, WebAuthFetchOptions)>::new()));
     let sink = Rc::clone(&captured);
     set_fetch(Box::new(move |url, options| {
-        sink.borrow_mut().push((url.to_owned(), options.clone()));
+        sink.borrow_mut()
+            .push((url.to_owned(), options.clone()));
         Ok(ok_token("tok"))
     }));
     let options = WebAuthFetchOptions {
@@ -348,8 +361,7 @@ async fn caps_retry_after_additional_delay_to_remaining_timeout() {
     set_fetch(Box::new(|_url, _options| Ok(ok_202(Some("60")))));
 
     // A 10s budget so the 60s Retry-After gets capped.
-    poll_for_web_auth_token::<Fake>(params(Some(10_000)))
-        .await
+    poll_for_web_auth_token::<Fake>(params(Some(10_000))).await
         .expect_err("polling should time out");
 
     let sleeps = recorded_sleeps();
@@ -364,8 +376,7 @@ async fn throws_timeout_error_when_timeout_expires_during_retry_after_wait() {
     set_sleep_behavior(SleepBehavior::AdvanceByMs);
     set_fetch(Box::new(|_url, _options| Ok(ok_202(Some("100")))));
 
-    let error = poll_for_web_auth_token::<Fake>(params(Some(5000)))
-        .await
+    let error = poll_for_web_auth_token::<Fake>(params(Some(5000))).await
         .expect_err("polling should time out");
 
     assert_eq!(error.timeout, 5000);
@@ -448,7 +459,11 @@ async fn continues_polling_when_response_body_was_truncated() {
         Ok(if counter.get() == 1 { ok_truncated() } else { ok_token("tok") })
     }));
 
-    let token = None.pipe(params).pipe(poll_for_web_auth_token::<Fake>).await.expect("a token");
+    let token = None
+        .pipe(params)
+        .pipe(poll_for_web_auth_token::<Fake>)
+        .await
+        .expect("a token");
 
     assert_eq!(token, "tok");
     assert_eq!(calls.get(), 2);
@@ -510,8 +525,7 @@ async fn uses_custom_timeout_value() {
     set_sleep_behavior(SleepBehavior::AdvanceByFixed(2000));
     set_fetch(Box::new(|_url, _options| Ok(ok_202(None))));
 
-    let error = poll_for_web_auth_token::<Fake>(params(Some(3000)))
-        .await
+    let error = poll_for_web_auth_token::<Fake>(params(Some(3000))).await
         .expect_err("polling should time out");
 
     assert_eq!(error.timeout, 3000);
@@ -564,8 +578,7 @@ async fn throws_timeout_error_when_remaining_time_is_zero_during_retry_after() {
         Ok(if counter.get() == 1 { ok_202(Some("10")) } else { ok_202(None) })
     }));
 
-    let error = poll_for_web_auth_token::<Fake>(params(Some(2000)))
-        .await
+    let error = poll_for_web_auth_token::<Fake>(params(Some(2000))).await
         .expect_err("polling should time out");
 
     assert_eq!(error.timeout, 2000);

@@ -36,14 +36,8 @@ export class IncompleteStringLiteralError extends ParseErrorBase {
 }
 
 export const parseStringLiteral: Tokenize<StringLiteral> = source => {
-  let quote: StringLiteralQuote
-  if (source[0] === '"') {
-    quote = '"'
-  } else if (source[0] === "'") {
-    quote = "'"
-  } else {
-    return undefined
-  }
+  const quote = detectQuote(source[0])
+  if (quote == null) return undefined
 
   source = source.slice(1)
   let content = ''
@@ -55,11 +49,7 @@ export const parseStringLiteral: Tokenize<StringLiteral> = source => {
 
     if (escaped) {
       escaped = false
-      const realChar = STRING_LITERAL_ESCAPES[char]
-      if (!realChar) {
-        throw new UnsupportedEscapeSequenceError(char)
-      }
-      content += realChar
+      content += resolveEscapedChar(char)
       continue
     }
 
@@ -76,4 +66,17 @@ export const parseStringLiteral: Tokenize<StringLiteral> = source => {
   }
 
   throw new IncompleteStringLiteralError(quote)
+}
+
+function detectQuote (firstChar: string | undefined): StringLiteralQuote | undefined {
+  if (firstChar === '"' || firstChar === "'") return firstChar
+  return undefined
+}
+
+function resolveEscapedChar (char: string): string {
+  const realChar = STRING_LITERAL_ESCAPES[char]
+  if (!realChar) {
+    throw new UnsupportedEscapeSequenceError(char)
+  }
+  return realChar
 }

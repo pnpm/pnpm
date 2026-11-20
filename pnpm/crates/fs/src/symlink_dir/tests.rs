@@ -8,9 +8,18 @@
 use super::symlink_dir;
 #[cfg(windows)]
 use super::to_native_separators;
-use super::{ForceSymlinkOutcome, force_symlink_dir, read_symlink_dir};
+use super::{
+    ForceSymlinkOutcome,
+    TriedOnce,
+    force_absolute_symlink_dir,
+    force_symlink_dir,
+    read_symlink_dir,
+};
 #[cfg(windows)]
-use super::{is_reparse_point, relative_target_for};
+use super::{
+    is_reparse_point,
+    relative_target_for,
+};
 use std::fs;
 use tempfile::tempdir;
 
@@ -18,8 +27,14 @@ use tempfile::tempdir;
 #[test]
 fn unix_symlink_contents_are_relative_to_link_parent() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("packages").join("pkg-a");
-    let link = root.path().join("node_modules").join("pkg-a");
+    let target = root
+        .path()
+        .join("packages")
+        .join("pkg-a");
+    let link = root
+        .path()
+        .join("node_modules")
+        .join("pkg-a");
     fs::create_dir_all(&target).expect("create target dir");
     fs::create_dir_all(link.parent().unwrap()).expect("create link parent");
 
@@ -32,6 +47,50 @@ fn unix_symlink_contents_are_relative_to_link_parent() {
         "symlink contents must be the relative path from link parent to target",
     );
     assert!(link.exists(), "symlink must resolve to an existing directory");
+}
+
+#[test]
+fn force_absolute_symlink_dir_keeps_the_target_as_given() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("store").join("env");
+    let link = root
+        .path()
+        .join("project")
+        .join(".venv");
+    fs::create_dir_all(&target).expect("create target dir");
+    fs::create_dir_all(link.parent().unwrap()).expect("create link parent");
+
+    force_absolute_symlink_dir(&target, &link).expect("first link");
+    let outcome = force_absolute_symlink_dir(&target, &link).expect("second link");
+    assert!(outcome.reused, "an up-to-date absolute link is reused");
+
+    let contents = read_symlink_dir(&link).expect("read the link");
+    eprintln!("contents: {}", contents.display());
+    assert!(contents.is_absolute(), "link contents must be the target as given");
+    assert_eq!(
+        dunce::canonicalize(&contents).unwrap(),
+        dunce::canonicalize(&target).unwrap(),
+        "link contents must resolve to the target",
+    );
+}
+
+#[test]
+fn force_symlink_dir_resolves_parent_components_in_link_and_target() {
+    let root = tempdir().expect("create temp dir");
+    let workspace = root.path().join("apps/desktop");
+    fs::create_dir_all(&workspace).unwrap();
+    let target = root.path().join("libs/b");
+    let link = workspace.join("../../libs/a/node_modules/b");
+    fs::create_dir_all(&target).unwrap();
+
+    force_symlink_dir(&target, &link).unwrap();
+
+    assert_eq!(fs::canonicalize(&link).unwrap(), fs::canonicalize(&target).unwrap());
+    #[cfg(unix)]
+    assert_eq!(fs::read_link(&link).unwrap(), std::path::Path::new("../../b"));
+    let outcome = force_symlink_dir(&workspace.join("../../libs/b"), &link).unwrap();
+    eprintln!("reuse outcome: {outcome:?}");
+    assert!(outcome.reused);
 }
 
 #[test]
@@ -57,6 +116,24 @@ fn force_symlink_dir_returns_reused_when_already_pointing_at_target() {
 }
 
 #[test]
+fn force_symlink_reuses_an_up_to_date_link_without_a_create_attempt() {
+    fn refuse_to_create(_: &std::path::Path, _: &std::path::Path) -> std::io::Result<()> {
+        Err(std::io::Error::other("create attempted"))
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target dir");
+    force_symlink_dir(&target, &link).expect("create the link");
+
+    let outcome = super::force_symlink(&target, &link, refuse_to_create)
+        .expect("an up-to-date link is reused without a create");
+
+    assert_eq!(outcome, ForceSymlinkOutcome { reused: true, warning: None });
+}
+
+#[test]
 fn force_symlink_inner_surfaces_concurrent_cleanup_warnings() {
     fn create_then_warn(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
         super::symlink_dir(target, link)?;
@@ -71,8 +148,9 @@ fn force_symlink_inner_surfaces_concurrent_cleanup_warnings() {
     let link = root.path().join("link");
     fs::create_dir_all(&target).expect("create target");
 
-    let outcome = super::force_symlink_inner(&target, &link, false, create_then_warn)
-        .expect("completed link should be reused");
+    let outcome =
+        super::force_symlink_inner(&target, &link, TriedOnce::default(), create_then_warn)
+            .expect("completed link should be reused");
 
     assert!(outcome.reused);
     assert_eq!(outcome.warning.as_deref(), Some("staged junction cleanup failed"));
@@ -107,7 +185,7 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     fs::write(&link, b"squatting on the link slot").expect("seed occupant file");
 
     let outcome = force_symlink_dir(&target, &link).expect("force_symlink_dir succeeds");
-    assert!(!outcome.reused, "we wrote a fresh link over an occupant — not a reuse");
+    assert!(!outcome.reused, "we wrote a fresh link over an occupant, not a reuse");
     assert!(outcome.warning.is_some(), "warning must be set when an occupant was moved aside");
     let warning = outcome.warning.unwrap();
     assert!(
@@ -156,9 +234,10 @@ fn remove_occupant_clears_files_directories_and_missing_paths() {
     fs::create_dir_all(dir.join("nested")).expect("seed dir");
     fs::write(dir.join("nested/file"), b"occupant").expect("seed nested file");
 
-    super::remove_occupant(&file).expect("remove file occupant");
-    super::remove_occupant(&dir).expect("remove dir occupant");
-    super::remove_occupant(&root.path().join("missing")).expect("missing path is not an error");
+    super::replace::remove_occupant(&file).expect("remove file occupant");
+    super::replace::remove_occupant(&dir).expect("remove dir occupant");
+    super::replace::remove_occupant(&root.path().join("missing"))
+        .expect("missing path is not an error");
 
     for path in [&file, &dir] {
         let error = fs::symlink_metadata(path).expect_err("occupant should be gone");
@@ -168,25 +247,40 @@ fn remove_occupant_clears_files_directories_and_missing_paths() {
 
 #[test]
 fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinations() {
-    use std::io::{Error, ErrorKind};
+    use std::io::{
+        Error,
+        ErrorKind,
+    };
 
     for kind in
         [ErrorKind::AlreadyExists, ErrorKind::DirectoryNotEmpty, ErrorKind::PermissionDenied]
     {
-        assert!(super::rename_error_allows_destination_removal(&Error::from(kind)), "{kind:?}");
+        assert!(
+            super::replace::rename_error_allows_destination_removal(&Error::from(kind)),
+            "{kind:?}",
+        );
     }
     assert_eq!(
-        super::rename_error_allows_destination_removal(&Error::from(ErrorKind::ResourceBusy)),
-        cfg!(windows),
+        super::replace::rename_error_allows_destination_removal(&Error::from(
+            ErrorKind::ResourceBusy
+        )),
+        crate::retry::file_locks_are_transient(),
     );
-    assert!(!super::rename_error_allows_destination_removal(&Error::from(ErrorKind::NotFound)));
+    assert!(!super::replace::rename_error_allows_destination_removal(&Error::from(
+        ErrorKind::NotFound
+    )));
 }
 
 #[test]
 fn force_symlink_dir_creates_missing_parent_directories() {
     let root = tempdir().expect("create temp dir");
     let target = root.path().join("target");
-    let link = root.path().join("deeply").join("nested").join("modules").join("link");
+    let link = root
+        .path()
+        .join("deeply")
+        .join("nested")
+        .join("modules")
+        .join("link");
     fs::create_dir_all(&target).expect("create target");
     assert!(!link.parent().unwrap().exists(), "parent chain must be missing before the call");
 
@@ -217,13 +311,19 @@ fn windows_scoped_alias_path_gets_native_separators() {
     let mixed = std::path::Path::new(r"C:\store\v11\links\@\pkg\1.0.0\hash\node_modules")
         .join("@scope/name");
     assert!(
-        mixed.as_os_str().to_string_lossy().contains('/'),
+        mixed
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "the join must leave a forward slash for the rewrite to remove: {mixed:?}",
     );
 
     let native = to_native_separators(&mixed);
     assert!(
-        !native.as_os_str().to_string_lossy().contains('/'),
+        !native
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "no forward slash may survive into the symlink syscall: {native:?}",
     );
     assert_eq!(
@@ -241,7 +341,10 @@ fn windows_verbatim_path_forward_slashes_are_rewritten() {
         std::path::Path::new(r"\\?\C:\store\v11\links\@\pkg\1.0.0\hash\node_modules\@scope/name");
     let native = to_native_separators(verbatim);
     assert!(
-        !native.as_os_str().to_string_lossy().contains('/'),
+        !native
+            .as_os_str()
+            .to_string_lossy()
+            .contains('/'),
         "no forward slash may survive into the symlink syscall: {native:?}",
     );
     assert_eq!(
@@ -259,7 +362,7 @@ fn windows_native_path_is_borrowed_unchanged() {
 }
 
 /// Regression for the Windows failure where a symlink's parent slot is a
-/// dangling junction — the shape a tar-based CI cache restore leaves
+/// dangling junction, the shape a tar-based CI cache restore leaves
 /// behind (tar can't round-trip a Windows reparse point). The child link
 /// can't be created through the dangling junction, and `create_dir_all`
 /// can't rebuild the slot because the junction still occupies it (it
@@ -270,14 +373,23 @@ fn windows_native_path_is_borrowed_unchanged() {
 #[test]
 fn windows_force_symlink_dir_repairs_dangling_junction_parent() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("dep").join("node_modules").join("dep");
+    let target = root
+        .path()
+        .join("store")
+        .join("dep")
+        .join("node_modules")
+        .join("dep");
     fs::create_dir_all(&target).expect("create target dir");
 
     // Build a slot `node_modules` that is a dangling junction: point it at
     // a directory, then delete that directory. Windows keeps the reparse
-    // point (with the directory attribute) but its target is now missing —
+    // point (with the directory attribute) but its target is now missing,
     // the state a cache restore leaves behind.
-    let node_modules = root.path().join("store").join("consumer").join("node_modules");
+    let node_modules = root
+        .path()
+        .join("store")
+        .join("consumer")
+        .join("node_modules");
     let junction_target = root.path().join("gone");
     fs::create_dir_all(node_modules.parent().unwrap()).expect("create slot dir");
     fs::create_dir_all(&junction_target).expect("create junction target");
@@ -301,22 +413,24 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
     fs::create_dir_all(&target).expect("create target");
 
     for iteration in 0..10 {
-        let link = root.path().join(format!("link-{iteration}"));
+        let link = root
+            .path()
+            .join(format!("link-{iteration}"));
         let barrier = std::sync::Barrier::new(32);
         let outcomes = std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..32)
-                .map(|_| {
-                    scope.spawn(|| {
-                        barrier.wait();
-                        super::force_symlink_inner(
-                            &target,
-                            &link,
-                            false,
-                            super::windows::create_junction,
-                        )
-                    })
-                })
-                .collect();
+            let worker = || {
+                barrier.wait();
+                super::force_symlink_inner(
+                    &target,
+                    &link,
+                    TriedOnce::default(),
+                    super::windows::create_junction,
+                )
+            };
+            let mut handles = Vec::with_capacity(32);
+            for _ in 0..32 {
+                handles.push(scope.spawn(worker));
+            }
             handles
                 .into_iter()
                 .map(|handle| handle.join().expect("junction worker panicked"))
@@ -328,7 +442,10 @@ fn windows_concurrent_junction_creation_reuses_one_link() {
             .map(|result| result.expect("concurrent junction creation must succeed"))
             .collect();
         assert_eq!(
-            outcomes.iter().filter(|outcome| !outcome.reused).count(),
+            outcomes
+                .iter()
+                .filter(|outcome| !outcome.reused)
+                .count(),
             1,
             "one worker must create the junction and every other worker must reuse it",
         );
@@ -350,7 +467,7 @@ fn windows_rename_failure_with_missing_destination_is_not_reusable() {
     fs::create_dir(&staging).expect("create staged junction stand-in");
 
     let rename_error = std::io::Error::from(std::io::ErrorKind::AlreadyExists);
-    let error = super::windows::discard_staging_after_rename(&staging, &link, rename_error);
+    let error = super::windows::discard_staging_after_commit(&staging, &link, rename_error);
 
     assert_ne!(
         error.kind(),
@@ -358,6 +475,76 @@ fn windows_rename_failure_with_missing_destination_is_not_reusable() {
         "a genuine rename failure with no destination must not look like a reusable link",
     );
     assert!(!staging.exists(), "the staged junction must be cleaned up");
+}
+
+/// `junction::create` makes the staging directory before it writes the
+/// reparse point. A target too long for the reparse buffer fails after
+/// that, and the staging directory must not stay behind
+/// (pnpm/tasks#279).
+#[cfg(windows)]
+#[test]
+fn windows_failed_junction_leaves_no_staging_directory() {
+    let root = tempdir().expect("create temp dir");
+    let parent = root.path().join("node_modules");
+    fs::create_dir(&parent).expect("create link parent");
+    let link = parent.join("pkg");
+    // 25 components of 200 characters exceed the buffer's ~4,000 characters.
+    let target = root
+        .path()
+        .join(vec!["t".repeat(200); 25].join(r"\"));
+
+    let error = super::windows::create_junction(&target, &link)
+        .expect_err("a target longer than the reparse buffer must fail");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput, "{error}");
+    let leftovers: Vec<_> = fs::read_dir(&parent)
+        .expect("read link parent")
+        .map(|entry| entry.expect("read entry"))
+        .map(|entry| entry.file_name())
+        .collect();
+    assert!(leftovers.is_empty(), "no staging directory may remain: {leftovers:?}");
+}
+
+/// An editor or dev server holding a file under a directory installed by
+/// another package manager keeps that directory from being moved aside.
+#[cfg(windows)]
+#[test]
+fn windows_locked_occupant_error_names_the_directory() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+    fs::create_dir_all(&link).expect("create occupant dir");
+    let held_file = link.join("index.d.ts");
+    fs::write(&held_file, "").expect("seed occupant file");
+    // Permit normal reads and writes, but omit FILE_SHARE_DELETE.
+    let _handle = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0x1 | 0x2)
+        .open(&held_file)
+        .expect("hold the occupant file");
+
+    let started = std::time::Instant::now();
+    let error = force_symlink_dir(&target, &link).expect_err("a held occupant cannot be moved");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    let message = error.to_string();
+    assert!(
+        message.contains(&format!(r#""{}""#, link.display())),
+        "the error must name the directory: {message}",
+    );
+    assert!(message.contains("in use by another process"), "the error must say why: {message}");
+    let os_error = std::error::Error::source(&error)
+        .and_then(|source| source.downcast_ref::<std::io::Error>())
+        .and_then(std::io::Error::raw_os_error);
+    assert!(
+        matches!(os_error, Some(5 | 32 | 33)),
+        "the rename error must stay the source: {os_error:?}",
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(10), "took {:?}", started.elapsed());
+    assert!(held_file.is_file(), "the occupant must stay in place");
 }
 
 #[cfg(windows)]
@@ -385,8 +572,8 @@ fn windows_error_directory_falls_back_to_junctions() {
     assert!(!super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(123)));
 }
 
-/// `ERROR_PRIVILEGE_NOT_HELD` (1314) — symlink creation without
-/// Developer Mode or elevation — maps to `Uncategorized`, not
+/// `ERROR_PRIVILEGE_NOT_HELD` (1314) (symlink creation without
+/// Developer Mode or elevation) maps to `Uncategorized`, not
 /// `PermissionDenied`, so the fallback must match the raw os error
 /// ([pnpm/pnpm#13694](https://github.com/pnpm/pnpm/issues/13694)).
 #[cfg(windows)]
@@ -400,8 +587,16 @@ fn windows_privilege_not_held_falls_back_to_junctions() {
 #[test]
 fn force_symlink_dir_links_a_scoped_alias() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("node_modules").join("@scope").join("name");
-    let modules = root.path().join("app").join("node_modules");
+    let target = root
+        .path()
+        .join("store")
+        .join("node_modules")
+        .join("@scope")
+        .join("name");
+    let modules = root
+        .path()
+        .join("app")
+        .join("node_modules");
     let link = modules.join("@scope/name");
     fs::create_dir_all(&target).expect("create target dir");
 
@@ -411,6 +606,24 @@ fn force_symlink_dir_links_a_scoped_alias() {
     let resolved_link = fs::canonicalize(&link).expect("canonicalize the scoped symlink");
     let resolved_target = fs::canonicalize(&target).expect("canonicalize target");
     assert_eq!(resolved_link, resolved_target);
+}
+
+/// The standard library reads a junction like a symlink, so the helpers
+/// need no junction-specific fallback.
+#[cfg(windows)]
+#[test]
+fn a_junction_reads_as_a_symlink() {
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+    junction::create(&target, &link).expect("create junction");
+
+    assert!(super::is_symlink_or_junction(&link).expect("lstat the junction"));
+    assert_eq!(
+        fs::canonicalize(read_symlink_dir(&link).expect("read the junction")).unwrap(),
+        fs::canonicalize(&target).unwrap(),
+    );
 }
 
 #[test]
@@ -423,8 +636,8 @@ fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
     force_symlink_dir(&target, &link).expect("write link");
     let read = read_symlink_dir(&link).expect("read back the link");
     // On Unix the read-back content matches what `symlink_dir`
-    // computed (relative). On Windows true symlinks read back as
-    // absolute; junctions get normalized by the `junction` crate.
+    // computed (relative). On Windows both true symlinks and
+    // junctions read back as absolute.
     // Both must canonicalize to the same target.
     let resolved_read = if read.is_absolute() {
         fs::canonicalize(&read)
@@ -445,8 +658,18 @@ fn read_symlink_dir_reads_back_what_force_symlink_dir_wrote() {
 #[test]
 fn force_symlink_dir_reuses_relative_link_across_parents() {
     let root = tempdir().expect("create temp dir");
-    let target = root.path().join("store").join("b@2").join("node_modules").join("b");
-    let link = root.path().join("store").join("a@1").join("node_modules").join("b");
+    let target = root
+        .path()
+        .join("store")
+        .join("b@2")
+        .join("node_modules")
+        .join("b");
+    let link = root
+        .path()
+        .join("store")
+        .join("a@1")
+        .join("node_modules")
+        .join("b");
     fs::create_dir_all(&target).expect("create target dir");
 
     let first = force_symlink_dir(&target, &link).expect("first call");
@@ -465,5 +688,512 @@ fn force_symlink_dir_reuses_relative_link_across_parents() {
         second,
         ForceSymlinkOutcome { reused: true, warning: None },
         "an up-to-date relative link must be reused, not rewritten",
+    );
+}
+
+/// The race behind the Windows failures of the concurrent global-virtual-store
+/// install suite: the create loses to another installer, and by the time this
+/// one looks, that installer's link is gone again. The conflict `initial_err`
+/// reports no longer exists, so the create is worth reissuing.
+#[test]
+fn force_symlink_inner_reissues_a_create_whose_conflict_has_gone() {
+    fn conflict_once_then_create(
+        target: &std::path::Path,
+        link: &std::path::Path,
+    ) -> std::io::Result<()> {
+        thread_local! {
+            static CONFLICTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        }
+        if !CONFLICTED.with(|conflicted| conflicted.replace(true)) {
+            return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
+        }
+        super::symlink_dir(target, link)
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+
+    let outcome =
+        super::force_symlink_inner(&target, &link, TriedOnce::default(), conflict_once_then_create)
+            .expect("a conflict that is gone must not fail the link");
+
+    eprintln!("outcome: {outcome:?}");
+    assert!(!outcome.reused, "the retry created the link, so it is not a reuse");
+    eprintln!("link {} -> target {}", link.display(), target.display());
+    assert_eq!(
+        fs::canonicalize(&link).expect("canonicalize the link"),
+        fs::canonicalize(&target).expect("canonicalize the target"),
+        "the link must resolve to the target",
+    );
+}
+
+/// The reissue is spent once. A create that keeps reporting a conflict over a
+/// path holding nothing has to surface that, not recurse forever.
+#[test]
+fn force_symlink_inner_surfaces_a_conflict_that_never_materializes() {
+    fn always_conflicts(_: &std::path::Path, _: &std::path::Path) -> std::io::Result<()> {
+        Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists))
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("real");
+    let link = root.path().join("link");
+    fs::create_dir_all(&target).expect("create target");
+
+    let error = super::force_symlink_inner(&target, &link, TriedOnce::default(), always_conflicts)
+        .expect_err("a conflict that never resolves must surface");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+}
+
+/// The unlink-and-recreate of a stale link is spent once. A filesystem that
+/// reports the unlink done but keeps serving the stale link (a virtual
+/// `node_modules` mapped from a lockfile does) gets an error back, not another
+/// unlink: every pass is a stack frame, and the passes would not end.
+#[cfg(unix)]
+#[test]
+fn force_symlink_inner_gives_up_on_a_stale_link_that_survives_removal() {
+    fn stale_link_survives(_: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
+        // Put the stale link back before reporting the conflict, the way a
+        // filesystem that ignores the unlink looks to the caller.
+        let stale_target = link.with_file_name("old-target");
+        match std::os::unix::fs::symlink(&stale_target, link) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+        Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists))
+    }
+
+    let root = tempdir().expect("create temp dir");
+    let stale_target = root.path().join("old-target");
+    let fresh_target = root.path().join("new-target");
+    let link = root.path().join("link");
+    fs::create_dir_all(&stale_target).expect("create stale target");
+    fs::create_dir_all(&fresh_target).expect("create fresh target");
+
+    let error =
+        super::force_symlink_inner(&fresh_target, &link, TriedOnce::default(), stale_link_survives)
+            .expect_err("a stale link that survives its removal must surface the conflict");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+    assert!(
+        error.to_string().contains("still does after it was removed"),
+        "the error names the stale link that could not be retargeted: {error}",
+    );
+}
+
+/// A share that refuses links gets advice, since nothing pnpm does on the
+/// link itself can get past the refusal (pnpm/pnpm#17747). The kind and the
+/// OS error stay as they were.
+#[cfg(windows)]
+#[test]
+fn windows_refused_link_on_a_share_suggests_the_hoisted_linker() {
+    let link = std::path::Path::new(r"\\server\share\project\node_modules\pkg");
+    let refusal = std::io::Error::from_raw_os_error(5);
+
+    let error = super::windows::explain_network_share_refusal(link, refusal);
+
+    assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    let message = error.to_string();
+    assert!(message.contains("nodeLinker: hoisted"), "the error must say what to do: {message}");
+    assert!(
+        message.contains("Workspace packages are linked"),
+        "the hoisted advice must not promise a link-free install: {message}",
+    );
+    let os_error = std::error::Error::source(error.get_ref().expect("wrapped error"))
+        .and_then(|source| source.downcast_ref::<std::io::Error>())
+        .and_then(std::io::Error::raw_os_error);
+    assert_eq!(os_error, Some(5), "the refusal must stay the source");
+}
+
+/// Only a refusal on a share gets the advice: a local link or another kind
+/// of failure has a different cause.
+#[cfg(windows)]
+#[test]
+fn windows_other_link_failures_are_not_blamed_on_a_share() {
+    let local = std::path::Path::new(r"C:\project\node_modules\pkg");
+    let error =
+        super::windows::explain_network_share_refusal(local, std::io::Error::from_raw_os_error(5));
+    assert_eq!(error.raw_os_error(), Some(5), "a local refusal stays as it was");
+
+    let share = std::path::Path::new(r"\\server\share\project\node_modules\pkg");
+    let error = super::windows::explain_network_share_refusal(
+        share,
+        std::io::Error::from(std::io::ErrorKind::NotFound),
+    );
+    assert!(!error.to_string().contains("nodeLinker"), "a missing parent is not a refusal");
+}
+
+/// The `junction` crate prefixes `\??\` to the full path, so a plain UNC
+/// target goes to it in verbatim form (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_junction_target_for_a_unc_path_is_verbatim() {
+    use std::path::Path;
+
+    assert_eq!(
+        super::windows::junction_target(Path::new(r"\\server\share\project\node_modules\.pnpm")),
+        Path::new(r"\\?\UNC\server\share\project\node_modules\.pnpm"),
+    );
+    for unchanged in [
+        r"Z:\project\node_modules\.pnpm",
+        r"\\?\C:\project\node_modules\.pnpm",
+        r"\\?\UNC\server\share\project",
+    ] {
+        assert_eq!(super::windows::junction_target(Path::new(unchanged)), Path::new(unchanged));
+    }
+}
+
+/// A junction to a UNC path holds `\??\UNC\server\…`, which reads back as
+/// the UNC path. `\??\` put in front of the `\\server` form would read back
+/// as `\\?\\\server\…` and name nothing (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_junction_to_a_unc_path_holds_the_unc_target() {
+    let root = tempdir().expect("create temp dir");
+    let link = root.path().join("link");
+    let target = std::path::Path::new(r"\\server\share\project\node_modules\.pnpm\pkg");
+
+    super::windows::create_junction(target, &link).expect("create the junction");
+
+    assert_eq!(fs::read_link(&link).expect("read the junction"), target);
+}
+
+/// A symlink that an earlier install left on a share is found by its reparse
+/// tag, since the standard library reports a junction as a symlink too
+/// (pnpm/tasks#304). Creating the symlink needs Developer Mode or an
+/// elevated process, which CI has.
+#[cfg(windows)]
+#[test]
+fn windows_reparse_tag_tells_a_symlink_from_a_junction() {
+    use super::windows::IO_REPARSE_TAG_MOUNT_POINT;
+    const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir(&target).expect("create target");
+    let junction = root.path().join("junction");
+    super::windows::create_junction(&target, &junction).expect("create the junction");
+
+    assert_eq!(super::windows::reparse_tag(&junction), Some(IO_REPARSE_TAG_MOUNT_POINT));
+    assert_eq!(super::windows::reparse_tag(&target), None, "a plain directory has no tag");
+    assert!(
+        super::windows::is_link_kind_usable(&junction, &target),
+        "a local junction is reusable",
+    );
+
+    let symlink = root.path().join("symlink");
+    match std::os::windows::fs::symlink_dir(&target, &symlink) {
+        Ok(()) => assert_eq!(
+            super::windows::reparse_tag(&symlink),
+            Some(super::windows::IO_REPARSE_TAG_SYMLINK),
+        ),
+        Err(error) if error.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD) => {
+            eprintln!("skipping the symlink half: this process may not create symlinks");
+        }
+        Err(error) => panic!("create the symlink: {error}"),
+    }
+}
+
+/// The reuse check on a share reads a junction as `fs::read_link` does and
+/// fails for anything else, so a warm install tells a junction from a symlink
+/// without an extra open (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_read_junction_target_reads_only_junctions() {
+    const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir(&target).expect("create target");
+    let local = root.path().join("local");
+    super::windows::create_junction(&target, &local).expect("create a local junction");
+    let unc = root.path().join("unc");
+    super::windows::create_junction(std::path::Path::new(r"\\server\share\pkg"), &unc)
+        .expect("create a junction to a UNC path");
+
+    for junction in [&local, &unc] {
+        assert_eq!(
+            super::windows::read_junction_target(junction).expect("read the junction"),
+            fs::read_link(junction).expect("read_link the junction"),
+        );
+    }
+    super::windows::read_junction_target(&target).expect_err("a directory is not a junction");
+
+    let symlink = root.path().join("symlink");
+    match std::os::windows::fs::symlink_dir(&target, &symlink) {
+        Ok(()) => {
+            super::windows::read_junction_target(&symlink).expect_err("a symlink is not reusable");
+        }
+        Err(error) if error.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD) => {
+            eprintln!("skipping the symlink half: this process may not create symlinks");
+        }
+        Err(error) => panic!("create the symlink: {error}"),
+    }
+}
+
+/// Links on a real share: the kind of link that can be opened there is
+/// written, a matching link of the other kind left by an earlier install is
+/// replaced, and a package opens through the result. Where neither kind can
+/// be opened, the link fails and says what to do. No share is available in
+/// CI, so this runs only when `PNPM_TEST_NETWORK_SHARE_DIR` names a writable
+/// directory on one (a mapped drive or a UNC path):
+/// `PNPM_TEST_NETWORK_SHARE_DIR=Z:\tmp cargo nextest run -p pnpm-fs
+/// --run-ignored only -E 'test(on_a_real_share)'` (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+#[ignore = "needs a network share named by PNPM_TEST_NETWORK_SHARE_DIR"]
+fn windows_links_on_a_real_share_can_be_opened() {
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
+
+    use super::windows::IO_REPARSE_TAG_MOUNT_POINT;
+
+    let share = std::env::var_os("PNPM_TEST_NETWORK_SHARE_DIR")
+        .expect("set PNPM_TEST_NETWORK_SHARE_DIR to a directory on a network share");
+    let root = tempfile::tempdir_in(share).expect("create a temp dir on the share");
+    assert!(
+        crate::mapped_drive_path::network_share_cached(root.path()).is_some(),
+        "PNPM_TEST_NETWORK_SHARE_DIR must be on a network share",
+    );
+    let target = root.path().join(r"node_modules\.pnpm\pkg@1.0.0\node_modules\pkg");
+    fs::create_dir_all(&target).expect("create target");
+    fs::write(target.join("index.js"), "module.exports = 1").expect("write a package file");
+    let link = root.path().join(r"node_modules\pkg");
+    let kind = probe(root.path(), None).expect("probe the share");
+    eprintln!("links on this share: {kind:?}");
+    assert_eq!(
+        fs::read_dir(root.path()).expect("list the probed directory").count(),
+        1,
+        "the probe must leave nothing behind",
+    );
+
+    // What an earlier install wrote: a matching link of the other kind.
+    let (wanted_tag, stale_tag) = match kind {
+        ShareLinks::Junction => {
+            std::os::windows::fs::symlink_dir(relative_target_for(&target, &link), &link)
+                .expect(
+                    "create the symlink to replace (needs Developer Mode or the symlink privilege)",
+                );
+            (IO_REPARSE_TAG_MOUNT_POINT, super::windows::IO_REPARSE_TAG_SYMLINK)
+        }
+        ShareLinks::Symlink => {
+            super::windows::create_junction(&target, &link)
+                .expect("create the junction to replace");
+            (super::windows::IO_REPARSE_TAG_SYMLINK, IO_REPARSE_TAG_MOUNT_POINT)
+        }
+        ShareLinks::Unusable(_) => {
+            let error = force_symlink_dir(&target, &link).expect_err("no link can be opened here");
+            assert_eq!(error.kind(), std::io::ErrorKind::Unsupported);
+            let message = error.to_string();
+            assert!(message.contains("cannot be opened"), "{message}");
+            assert!(message.contains("nodeLinker: hoisted"), "{message}");
+            assert!(fs::symlink_metadata(&link).is_err(), "no link may be left behind");
+            return;
+        }
+    };
+    assert_eq!(super::windows::reparse_tag(&link), Some(stale_tag), "the starting link");
+
+    let outcome = force_symlink_dir(&target, &link).expect("link on the share");
+
+    assert!(!outcome.reused, "a link of the kind that can't be opened is replaced");
+    assert_eq!(super::windows::reparse_tag(&link), Some(wanted_tag));
+    assert_eq!(
+        fs::read_to_string(link.join("index.js")).expect("open a file through the link"),
+        "module.exports = 1",
+    );
+    let outcome = force_symlink_dir(&target, &link).expect("link again");
+    assert!(outcome.reused, "the link that can be opened is reused");
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_share_link_probe_finds_a_working_kind_and_cleans_up() {
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
+
+    let root = tempdir().expect("create temp dir");
+
+    let kind = probe(root.path(), None).expect("probe a local directory");
+
+    assert!(matches!(kind, ShareLinks::Junction), "{kind:?}");
+    assert_eq!(
+        fs::read_dir(root.path()).expect("list the probed directory").count(),
+        0,
+        "the probe must leave nothing behind",
+    );
+}
+
+/// A target on another drive or share is probed where it is, since a
+/// junction there is followed by the server and a symlink by the client.
+#[cfg(windows)]
+#[test]
+fn windows_share_link_probe_links_to_the_target_directory() {
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
+
+    let links = tempdir().expect("create temp dir for the links");
+    let targets = tempdir().expect("create temp dir for the targets");
+
+    let kind = probe(links.path(), Some(targets.path())).expect("probe a local directory");
+
+    assert!(matches!(kind, ShareLinks::Junction), "{kind:?}");
+    for dir in [links.path(), targets.path()] {
+        assert_eq!(
+            fs::read_dir(dir).expect("list a probed directory").count(),
+            0,
+            "the probe must leave nothing behind in {dir:?}",
+        );
+    }
+}
+
+/// The caller answers `NotFound` by creating the link's parent and trying
+/// again, so a missing target must not report it.
+#[cfg(windows)]
+#[test]
+fn windows_share_link_probe_to_a_missing_target_is_unusable() {
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
+
+    let links = tempdir().expect("create temp dir for the links");
+    let missing = links.path().join("missing");
+
+    let kind = probe(links.path(), Some(&missing)).expect("probe a missing target");
+
+    assert!(matches!(kind, ShareLinks::Unusable(_)), "{kind:?}");
+    assert!(!missing.exists(), "the probe must not create the target");
+}
+
+/// `junction::create` can fail after creating the directory it turns into a
+/// junction, and that directory would open like a working link.
+#[cfg(windows)]
+#[test]
+fn windows_share_link_attempt_replaces_what_a_locked_attempt_left() {
+    use std::{
+        cell::Cell,
+        io,
+    };
+
+    const ERROR_SHARING_VIOLATION: i32 = 32;
+    let root = tempdir().expect("create temp dir");
+    let target = root.path().join("target");
+    fs::create_dir(&target).expect("create target");
+    let link = root.path().join("link");
+    let attempts = Cell::new(0);
+
+    super::share_links::try_link(&link, |link| {
+        attempts.set(attempts.get() + 1);
+        if attempts.get() == 1 {
+            fs::create_dir(link)?;
+            return Err(io::Error::from_raw_os_error(ERROR_SHARING_VIOLATION));
+        }
+        super::windows::create_junction(&target, link)
+    })
+    .expect("the second attempt links");
+
+    assert_eq!(attempts.get(), 2);
+    assert_eq!(
+        super::windows::reparse_tag(&link),
+        Some(super::windows::IO_REPARSE_TAG_MOUNT_POINT),
+    );
+}
+
+/// The caller answers `NotFound` by creating the link's parent and trying
+/// again.
+#[cfg(windows)]
+#[test]
+fn windows_share_link_probe_reports_a_missing_directory() {
+    let root = tempdir().expect("create temp dir");
+
+    let error = super::share_links::probe(&root.path().join("missing"), None)
+        .expect_err("the directory does not exist");
+
+    assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+}
+
+/// The error for a share where no link can be opened already says what to
+/// do, so it isn't wrapped in the advice for a refused link.
+#[cfg(windows)]
+#[test]
+fn windows_unusable_share_links_error_is_not_explained_twice() {
+    let link = std::path::Path::new(r"\\server\share\project\node_modules\pkg");
+    let unusable = super::share_links::UnusableShareLinksError {
+        junction: "junction failure".to_string(),
+        symlink: "symlink failure".to_string(),
+    };
+
+    let error = super::windows::explain_network_share_refusal(
+        link,
+        std::io::Error::new(std::io::ErrorKind::Unsupported, unusable),
+    );
+
+    let message = error.to_string();
+    assert!(
+        message.starts_with("Links created on this network share cannot be opened"),
+        "{message}",
+    );
+    assert!(
+        message.contains("junction failure") && message.contains("symlink failure"),
+        "{message}",
+    );
+    assert_eq!(message.matches("nodeLinker: hoisted").count(), 1, "{message}");
+}
+
+/// Relative targets are resolved before the UNC check, since a UNC working
+/// directory turns them into UNC paths.
+#[cfg(windows)]
+#[test]
+fn windows_junction_target_resolves_a_relative_path() {
+    let resolved = super::windows::junction_target(std::path::Path::new(r"pkg\dir"));
+    assert!(resolved.is_absolute(), "{resolved:?}");
+    assert!(resolved.ends_with(r"pkg\dir"), "{resolved:?}");
+}
+
+/// Links on a share get the kind that works on that share, so the per-link
+/// check must name the share of a UNC path without asking Windows, the same
+/// for every spelling of it, and a local drive must not count
+/// (pnpm/tasks#304).
+#[cfg(windows)]
+#[test]
+fn windows_links_on_a_share_are_recognized() {
+    use crate::mapped_drive_path::{
+        NetworkShare,
+        network_share_cached,
+    };
+    use std::path::Path;
+
+    let share = Some(NetworkShare::Unc(r"server\share".into()));
+    assert_eq!(network_share_cached(Path::new(r"\\server\share\project\node_modules\pkg")), share);
+    assert_eq!(
+        network_share_cached(Path::new(r"\\?\UNC\SERVER\Share\project\node_modules")),
+        share,
+    );
+    assert_ne!(network_share_cached(Path::new(r"\\server\other\project")), share);
+    let local = tempdir().expect("create temp dir");
+    assert_eq!(network_share_cached(local.path()), None, "the temp dir is on a local drive");
+}
+
+#[test]
+fn distinguishes_non_links_from_ownership_read_failures() {
+    assert!(super::is_non_link_read_error(&std::io::Error::from(std::io::ErrorKind::InvalidInput)));
+    assert!(!super::is_non_link_read_error(&std::io::Error::from(
+        std::io::ErrorKind::PermissionDenied,
+    )));
+}
+
+#[test]
+fn recognizes_the_windows_non_reparse_point_error_only_on_windows() {
+    assert_eq!(
+        super::is_non_link_read_error(&std::io::Error::from_raw_os_error(4390)),
+        cfg!(windows),
     );
 }

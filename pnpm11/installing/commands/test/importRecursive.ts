@@ -1,16 +1,18 @@
 /// <reference path="../../../__typings__/index.d.ts" />
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { importCommand } from '@pnpm/installing.commands'
+import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { temporaryDirectory } from 'tempy'
 
-const f = fixtures(import.meta.dirname)
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
+const testFixtures = fixtures(import.meta.dirname)
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const TMP = temporaryDirectory()
 
 const DEFAULT_OPTS = {
@@ -46,11 +48,11 @@ const DEFAULT_OPTS = {
 }
 
 test('import from shared yarn.lock of monorepo', async () => {
-  f.prepare('workspace-has-shared-yarn-lock')
+  testFixtures.prepare('workspace-has-shared-yarn-lock')
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -70,11 +72,11 @@ test('import from shared yarn.lock of monorepo', async () => {
 })
 
 test('import from shared package-lock.json of monorepo', async () => {
-  f.prepare('workspace-has-shared-package-lock-json')
+  testFixtures.prepare('workspace-has-shared-package-lock-json')
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -94,11 +96,11 @@ test('import from shared package-lock.json of monorepo', async () => {
 })
 
 test('import from shared npm-shrinkwrap.json of monorepo', async () => {
-  f.prepare('workspace-has-shared-npm-shrinkwrap-json')
+  testFixtures.prepare('workspace-has-shared-npm-shrinkwrap-json')
   const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
     allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
@@ -115,4 +117,82 @@ test('import from shared npm-shrinkwrap.json of monorepo', async () => {
   // node_modules is not created
   project.hasNot('is-positive')
   project.hasNot('is-negative')
+})
+
+test('import keeps the root project on the version pinned by yarn.lock when another project allows a newer one', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/bravo-dep': '^1.0.0' },
+  }))
+  fs.writeFileSync('yarn.lock', `# yarn lockfile v1
+
+
+"@pnpm.e2e/bravo-dep@^1.0.0":
+  version "1.0.0"
+`)
+  fs.mkdirSync('packages/foo', { recursive: true })
+  fs.writeFileSync('packages/foo/package.json', JSON.stringify({
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/bravo-dep': '^1.0.1' },
+  }))
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
+    allProjectsGraph,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+    lockfileDir: process.cwd(),
+    dir: process.cwd(),
+  }, [])
+
+  const { importers } = assertProject(process.cwd()).readLockfile()
+  expect(importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.0')
+  expect(importers['packages/foo'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.1.0')
+})
+
+test('import keeps the version pinned by a nested yarn.lock', async () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - packages/*\n')
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'root',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/bravo-dep': '^1.0.0' },
+  }))
+  fs.writeFileSync('yarn.lock', `# yarn lockfile v1
+
+
+"@pnpm.e2e/bravo-dep@^1.0.0":
+  version "1.0.0"
+`)
+  fs.mkdirSync('packages/foo', { recursive: true })
+  fs.writeFileSync('packages/foo/package.json', JSON.stringify({
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/bravo-dep': '^1.0.1' },
+  }))
+  fs.writeFileSync('packages/foo/yarn.lock', `# yarn lockfile v1
+
+
+"@pnpm.e2e/bravo-dep@^1.0.1":
+  version "1.0.1"
+`)
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- filtered projects lack the buildIndex that the handler's allProjects type requires
+    allProjectsGraph,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+    lockfileDir: process.cwd(),
+    dir: process.cwd(),
+  }, [])
+
+  const { importers } = assertProject(process.cwd()).readLockfile()
+  expect(importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.0')
+  expect(importers['packages/foo'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
 })

@@ -5,7 +5,10 @@
 use std::{
     cell::RefCell,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 
@@ -14,8 +17,15 @@ use pnpm_network_web_auth_testing::web_auth_fake;
 use pretty_assertions::assert_eq;
 
 use super::{
-    LoginError, login,
-    support::{PromptScript, ReadScript, client, login_fake, opts},
+    LoginError,
+    login,
+    support::{
+        PromptScript,
+        ReadScript,
+        client,
+        login_fake,
+        opts,
+    },
 };
 
 #[tokio::test]
@@ -44,7 +54,9 @@ async fn should_throw_in_non_interactive_terminal_when_web_login_is_unsupported(
     assert!(matches!(err, LoginError::NonInteractive), "got {err:?}");
     assert_eq!(err.to_string(), "The login command requires an interactive terminal");
     assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_LOGIN_NON_INTERACTIVE"),
     );
 }

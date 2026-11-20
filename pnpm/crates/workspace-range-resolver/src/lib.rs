@@ -1,8 +1,9 @@
 //! Picks the best workspace-sibling version for one of the `workspace:`
-//! range tokens — `*`, `^`, `~`, the empty string, or an arbitrary
+//! range tokens, `*`, `^`, `~`, the empty string, or an arbitrary
 //! semver range.
 
-use node_semver::{Range, Version};
+use node_semver::Version;
+use pnpm_semver_include_prerelease::parse_strict_semver_range;
 
 /// Pick the highest workspace-sibling version matching `range`.
 ///
@@ -13,14 +14,35 @@ use node_semver::{Range, Version};
 /// prereleases are excluded unless the range itself carries a
 /// prerelease tag.
 ///
+/// A version identical to `range` wins over semver matches, so a saved
+/// `workspace:1` keeps pointing at a project whose version is `1` even
+/// when another copy is at `1.2.3`. Versions that are not valid semver,
+/// such as `1` or `1.0`, also match the sentinel tokens when no semver
+/// version is present.
+///
 /// Returns the matching raw version string (one of the entries in
 /// `versions`) or `None` when nothing satisfies.
 #[must_use]
 pub fn resolve_workspace_range(range: &str, versions: &[String]) -> Option<String> {
     if is_wildcard(range) {
-        return max_version_including_prerelease(versions);
+        return max_version_including_prerelease(versions).or_else(|| max_by_utf16(versions));
+    }
+    if versions
+        .iter()
+        .any(|version| version == range)
+    {
+        return Some(range.to_string());
     }
     max_satisfying(versions, range)
+}
+
+/// Compares UTF-16 code units so the pick matches JavaScript's default
+/// string sort in the TypeScript CLI.
+fn max_by_utf16(versions: &[String]) -> Option<String> {
+    versions
+        .iter()
+        .max_by(|left, right| left.encode_utf16().cmp(right.encode_utf16()))
+        .cloned()
 }
 
 fn is_wildcard(range: &str) -> bool {
@@ -45,7 +67,7 @@ fn max_version_including_prerelease(versions: &[String]) -> Option<String> {
 /// Highest version satisfying `range`. Prereleases are excluded unless
 /// the range itself contains a prerelease tag.
 fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
-    let parsed_range = Range::parse(range).ok()?;
+    let parsed_range = parse_strict_semver_range(range)?;
     let range_allows_prereleases = range_allows_prereleases(range);
     let mut best: Option<(Version, &str)> = None;
     for raw in versions {

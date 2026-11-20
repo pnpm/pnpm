@@ -50,6 +50,7 @@ export function pickRegistryContext (source: RegistryContext): RegistryContext {
     registriesByScope: source.registriesByScope,
     registriesByPrefix: source.registriesByPrefix,
     registryOptionsByUrl: source.registryOptionsByUrl,
+    lockedRegistriesByScope: source.lockedRegistriesByScope,
   }
 }
 
@@ -108,38 +109,60 @@ interface RegistryRoutes {
   registryOptionsByUrl?: Record<string, RegistryOptions>
 }
 
-/**
- * A registry's `prefix` field holds one name, so when several prefixes route
- * to the same URL the alphabetically last one is shown — sorted here rather
- * than left to insertion order, so both CLI implementations pick the same
- * one.
- */
 function buildRegistryDeclarations (context: RegistryRoutes): Record<string, RegistryDeclaration> {
   const declarations: Record<string, RegistryDeclaration> = {}
   const declarationFor = (registry: string): RegistryDeclaration => (declarations[registry] ??= {})
-  for (const [scope, registry] of Object.entries(context.registriesByScope ?? {})) {
+
+  applyScopeRoutes(declarationFor, context.registriesByScope)
+  applyPrefixRoutes(declarationFor, context.registriesByPrefix)
+  applyRegistryOptions(declarationFor, context.registryOptionsByUrl)
+
+  return declarations
+}
+
+function applyScopeRoutes (
+  declarationFor: (registry: string) => RegistryDeclaration,
+  registriesByScope?: Record<string, string>
+): void {
+  for (const [scope, registry] of Object.entries(registriesByScope ?? {})) {
     const declaration = declarationFor(registry)
     declaration.scopes = [...declaration.scopes ?? [], scope === 'default' ? DEFAULT_REGISTRY_SCOPE : scope]
   }
-  for (const [prefix, registry] of Object.entries(context.registriesByPrefix ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-    declarationFor(registry).prefix = prefix
+}
+
+function applyPrefixRoutes (
+  declarationFor: (registry: string) => RegistryDeclaration,
+  registriesByPrefix?: Record<string, string>
+): void {
+  const sortedPrefixEntries = Object.entries(registriesByPrefix ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  for (const [prefix, registry] of sortedPrefixEntries) {
+    const declaration = declarationFor(registry)
+    if (declaration.prefix == null) {
+      declaration.prefix = prefix
+    } else {
+      (declaration.aliases ??= []).push(prefix)
+    }
   }
-  for (const [registry, options] of Object.entries(context.registryOptionsByUrl ?? {})) {
+}
+
+function applyRegistryOptions (
+  declarationFor: (registry: string) => RegistryDeclaration,
+  registryOptionsByUrl?: Record<string, RegistryOptions>
+): void {
+  for (const [registry, options] of Object.entries(registryOptionsByUrl ?? {})) {
     if (options.serverType != null) declarationFor(registry).serverType = options.serverType
     if (options.supportsTimeField != null) declarationFor(registry).supportsTimeField = options.supportsTimeField
   }
-  return declarations
 }
 
 function sortRegistryDeclarations (declarations: Record<string, RegistryDeclaration>): Record<string, RegistryDeclaration> {
   const sorted: Record<string, RegistryDeclaration> = {}
   for (const registry of Object.keys(declarations).sort()) {
-    const { serverType, supportsTimeField, scopes, prefix } = declarations[registry]
+    const { serverType, supportsTimeField } = declarations[registry]
     sorted[registry] = {
       ...(serverType != null ? { serverType } : {}),
       ...(supportsTimeField != null ? { supportsTimeField } : {}),
-      ...(scopes != null ? { scopes: [...scopes].sort() } : {}),
-      ...(prefix != null ? { prefix } : {}),
+      ...sortRegistryRoutes(declarations[registry]),
     }
   }
   return sorted
@@ -173,4 +196,12 @@ export function registrySupportsTimeField (
   return registryContext.registryOptionsByUrl?.[normalizeRegistryUrl(registry)]?.supportsTimeField
     ?? registryContext.registrySupportsTimeField
     ?? false
+}
+
+function sortRegistryRoutes ({ scopes, prefix, aliases }: RegistryDeclaration): RegistryDeclaration {
+  return {
+    ...(scopes != null ? { scopes: [...scopes].sort() } : {}),
+    ...(prefix != null ? { prefix } : {}),
+    ...(aliases != null ? { aliases: [...aliases].sort() } : {}),
+  }
 }

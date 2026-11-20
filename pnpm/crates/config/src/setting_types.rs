@@ -1,0 +1,361 @@
+pub use workspace::{
+    CatalogMode,
+    PackageImportMethod,
+};
+
+pub use pnpm_resolving_resolver_base::{
+    LinkWorkspacePackages,
+    ResolutionMode,
+    SaveWorkspaceProtocol,
+    TrustPolicy,
+};
+pub use pnpm_workspace_state::RuntimeOnFail;
+
+use super::{
+    Deserialize,
+    Serialize,
+};
+
+/// Controls ANSI color rendering in CLI output.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ColorMode {
+    Always,
+    #[default]
+    Auto,
+    Never,
+}
+
+/// Accepted values of pnpm's `loglevel` setting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum LogLevel {
+    Silent,
+    Error,
+    Warn,
+    Info,
+    Debug,
+}
+
+/// Accepted values of pnpm's `reporter` setting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ReporterType {
+    Default,
+    AppendOnly,
+    Ndjson,
+    Silent,
+}
+
+/// Which CLI flag one entry in [`Config::filter_order`](crate::Config::filter_order)
+/// came from, preserving the relative order of interleaved `--filter` and
+/// `--filter-prod` flags.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilterSource {
+    Filter,
+    FilterProd,
+}
+
+impl<'de> Deserialize<'de> for ColorMode {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Value {
+            Bool(bool),
+            Mode(Mode),
+        }
+
+        #[derive(Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        enum Mode {
+            Always,
+            Auto,
+            Never,
+        }
+
+        Ok(match Value::deserialize(deserializer)? {
+            Value::Bool(true) | Value::Mode(Mode::Always) => ColorMode::Always,
+            Value::Bool(false) | Value::Mode(Mode::Never) => ColorMode::Never,
+            Value::Mode(Mode::Auto) => ColorMode::Auto,
+        })
+    }
+}
+
+/// `virtualStoreType`: where the virtual store lives, and therefore who
+/// shares it.
+///
+/// Orthogonal to [`NodeLinker`], which picks how a project consumes the
+/// store: `pnp` and `isolated` both work with either type, and `hoisted`
+/// writes no virtual store at all, so the setting is inert there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum VirtualStoreType {
+    /// One store per machine, under `<store-dir>/links`. Slots are keyed
+    /// by a dependency-graph hash, so every project resolving a package
+    /// the same way links to one directory.
+    Global,
+
+    /// One store per project, at `<project>/node_modules/.pnpm`. Slots
+    /// are keyed by the flat `<name>@<version>` form.
+    Project,
+}
+
+impl VirtualStoreType {
+    /// The `enableGlobalVirtualStore` spelling of this setting.
+    #[must_use]
+    pub fn is_global(self) -> bool {
+        matches!(self, VirtualStoreType::Global)
+    }
+
+    /// The type a given `enableGlobalVirtualStore` value selects.
+    #[must_use]
+    pub fn from_enable_global(enable_global: bool) -> Self {
+        if enable_global { VirtualStoreType::Global } else { VirtualStoreType::Project }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodeLinker {
+    /// dependencies are symlinked from a virtual store at `node_modules/.pnpm`.
+    #[default]
+    Isolated,
+
+    /// flat `node_modules` without symlinks is created. Same as the `node_modules` created by npm or
+    /// Yarn Classic.
+    Hoisted,
+
+    /// no `node_modules`. Plug'n'Play is an innovative strategy for Node that is used by
+    /// Yarn Berry. It is recommended to also set symlink setting to false when using pnp as
+    /// your linker.
+    Pnp,
+    Loaded,
+}
+
+/// What an install does with `node_modules/.package-map.json`
+/// (`nodePackageMap.mode`).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodePackageMapMode {
+    /// No map is written, and an install removes one an earlier install left.
+    #[default]
+    Off,
+    /// The map is written for other tools; Node does not load it.
+    WriteOnly,
+    /// The map is written and Node loads it in pnpm-managed scripts through
+    /// `--experimental-package-map`.
+    Load,
+}
+
+impl NodePackageMapMode {
+    /// The mode the deprecated boolean `nodeExperimentalPackageMap` selects.
+    #[must_use]
+    pub fn from_experimental_flag(enabled: bool) -> Self {
+        if enabled { Self::Load } else { Self::Off }
+    }
+
+    #[must_use]
+    pub fn writes(self) -> bool {
+        !matches!(self, Self::Off)
+    }
+
+    #[must_use]
+    pub fn loads(self) -> bool {
+        matches!(self, Self::Load)
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodePackageMapType {
+    #[default]
+    Standard,
+    Loose,
+}
+
+/// Controls how far dependencies are hoisted under
+/// `nodeLinker: hoisted`, mirroring yarn's `nmHoistingLimits`.
+///
+/// Given workspace package `A` → `B` → `C`:
+/// - [`HoistingLimits::None`]: hoist as far as possible
+///   (`/node_modules/B`, `/node_modules/C`).
+/// - [`HoistingLimits::Workspaces`]: hoist only as far as each
+///   workspace package (`/packages/A/node_modules/{B,C}`).
+/// - [`HoistingLimits::Dependencies`]: hoist only up to each
+///   workspace package's direct dependencies
+///   (`/packages/A/node_modules/B/node_modules/C`).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HoistingLimits {
+    #[default]
+    None,
+    Workspaces,
+    Dependencies,
+}
+
+/// What to do when the project's `packageManager` /
+/// `devEngines.packageManager` field doesn't match the running pnpm.
+///
+/// The setting is `'download' | 'error' | 'warn' | 'ignore'`. `download`
+/// switches to the pinned version, `error` aborts, `warn` prints a
+/// warning, and `ignore` skips the check entirely.
+///
+/// `pnpm with current <cmd>` runs `<cmd>` with `pmOnFail` forced to
+/// [`PmOnFail::Ignore`] via the `pnpm_config_pm_on_fail` env var.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PmOnFail {
+    Download,
+    Error,
+    Warn,
+    Ignore,
+}
+
+impl PmOnFail {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Download => "download",
+            Self::Error => "error",
+            Self::Warn => "warn",
+            Self::Ignore => "ignore",
+        }
+    }
+}
+
+/// The module system `pnpm init` records for the package it scaffolds.
+///
+/// `module` writes `"type": "module"`; `commonjs` is Node's default and
+/// leaves the field out of the manifest.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InitType {
+    #[default]
+    Module,
+    Commonjs,
+}
+
+/// What `pnpm run` / `pnpm exec` do when `node_modules` is out of sync
+/// with the lockfile before running a script.
+///
+/// The setting is `'install' | 'warn' | 'error' | 'prompt' | false`.
+/// pnpm's rc type also admits a bare boolean: `true` runs the check but
+/// takes none of the four actions on an out-of-sync verdict, so it is
+/// modeled explicitly rather than mapped to an action.
+///
+/// Every script pnpm spawns gets `pnpm_config_verify_deps_before_run=false`
+/// in its env, and that env var overrides every other source of this
+/// setting; otherwise a script invoking `pnpm run` would re-enter the
+/// check and, under `install`, recurse through the spawned install's own
+/// lifecycle scripts (pnpm/pnpm#10060).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum VerifyDepsBeforeRun {
+    Install,
+    Warn,
+    Error,
+    Prompt,
+    True,
+    #[default]
+    False,
+}
+
+impl VerifyDepsBeforeRun {
+    /// Whether the deps-status check runs at all before a script.
+    #[must_use]
+    pub fn is_enabled(self) -> bool {
+        self != VerifyDepsBeforeRun::False
+    }
+}
+
+impl std::str::FromStr for VerifyDepsBeforeRun {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "install" => Ok(VerifyDepsBeforeRun::Install),
+            "warn" => Ok(VerifyDepsBeforeRun::Warn),
+            "error" => Ok(VerifyDepsBeforeRun::Error),
+            "prompt" => Ok(VerifyDepsBeforeRun::Prompt),
+            "true" => Ok(VerifyDepsBeforeRun::True),
+            "false" => Ok(VerifyDepsBeforeRun::False),
+            _ => Err(()),
+        }
+    }
+}
+
+impl serde::Serialize for VerifyDepsBeforeRun {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            VerifyDepsBeforeRun::Install => serializer.serialize_str("install"),
+            VerifyDepsBeforeRun::Warn => serializer.serialize_str("warn"),
+            VerifyDepsBeforeRun::Error => serializer.serialize_str("error"),
+            VerifyDepsBeforeRun::Prompt => serializer.serialize_str("prompt"),
+            VerifyDepsBeforeRun::True => serializer.serialize_bool(true),
+            VerifyDepsBeforeRun::False => serializer.serialize_bool(false),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for VerifyDepsBeforeRun {
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
+    where
+        De: serde::Deserializer<'de>,
+    {
+        use serde::de::{
+            self,
+            Visitor,
+        };
+        use std::fmt;
+
+        struct V;
+        impl Visitor<'_> for V {
+            type Value = VerifyDepsBeforeRun;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(r#"a boolean or one of "install", "warn", "error", "prompt""#)
+            }
+            fn visit_bool<DeError: de::Error>(self, value: bool) -> Result<Self::Value, DeError> {
+                Ok(if value { VerifyDepsBeforeRun::True } else { VerifyDepsBeforeRun::False })
+            }
+            fn visit_str<DeError: de::Error>(self, value: &str) -> Result<Self::Value, DeError> {
+                value
+                    .parse()
+                    .map_err(|()| {
+                        DeError::invalid_value(
+                            de::Unexpected::Str(value),
+                            &r#"true, false, "install", "warn", "error", or "prompt""#,
+                        )
+                    })
+            }
+        }
+        deserializer.deserialize_any(V)
+    }
+}
+
+/// Minimum advisory severity shown by `pnpm audit`.
+///
+/// The command-level default is `low`, so [`Config::audit_level`](crate::settings::Config::audit_level) stays
+/// optional and the audit command applies the fallback when the setting is
+/// unset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuditLevel {
+    Info,
+    Low,
+    Moderate,
+    High,
+    Critical,
+}
+
+/// `auditConfig` from `pnpm-workspace.yaml`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AuditConfig {
+    /// GHSA identifiers that `pnpm audit` should suppress in the rendered
+    /// report.
+    pub ignore_ghsas: Vec<String>,
+}
+
+mod workspace;

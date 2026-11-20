@@ -147,7 +147,7 @@ describe('lockfile minimumReleaseAge verification', () => {
       policy: Record<string, unknown>
     })
     const lockfilePath = path.resolve('pnpm-lock.yaml')
-    const recordForLockfile = records.find((r) => r.lockfile.path === lockfilePath)
+    const recordForLockfile = records.find((record) => record.lockfile.path === lockfilePath)
     expect(recordForLockfile).toBeDefined()
     expect(recordForLockfile!.policy).toMatchObject({ minimumReleaseAge: 1 })
 
@@ -163,7 +163,7 @@ describe('lockfile minimumReleaseAge verification', () => {
   })
 
   test('loose mode rejects immature lockfile entries that are not on minimumReleaseAgeExclude', () => {
-    // The verifier now runs in loose mode too, so a lockfile produced under
+    // The verifier runs in loose mode too, so a lockfile produced under
     // no policy that still has immature pins is rejected the same way
     // strict mode would reject it. The expected workflow is: the loose-mode
     // auto-collect (during fresh resolution) populates the exclude list, and

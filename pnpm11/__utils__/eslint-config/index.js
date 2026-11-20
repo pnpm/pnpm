@@ -7,7 +7,20 @@ import n from 'eslint-plugin-n'
 import promise from 'eslint-plugin-promise'
 import noDupeConditions from './no-dupe-conditions.js'
 import noObjectMethodsOnMap from './no-object-methods-on-map.js'
+import perfectionist from './perfectionist/index.js'
 import jestPlugin from 'eslint-plugin-jest'
+
+// The rules that limit the size and shape of code. The limits are the ones
+// the Rust workspace sets for perfectionist in `dylint.toml`.
+export const sizeAndShapeRules = {
+  'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
+  'perfectionist/excessive-cognitive-complexity': ['error', { maxComplexity: 10 }],
+  'perfectionist/excessive-nesting': ['error', { maxDepth: 3 }],
+  'perfectionist/overly-complex-condition': ['error', { maxOperators: 5 }],
+  'perfectionist/overly-long-function': ['error', { maxLines: 40 }],
+  'perfectionist/overly-long-method-chain': ['error', { maxCalls: 9 }],
+  'perfectionist/too-many-local-bindings': ['error', { maxBindings: 12 }],
+}
 
 export default tseslint.config(
   js.configs.recommended,
@@ -16,7 +29,7 @@ export default tseslint.config(
     files: ['**/*.ts'],
 
     linterOptions: {
-      reportUnusedDisableDirectives: true,
+      reportUnusedDisableDirectives: 'error',
     },
 
     languageOptions: {
@@ -40,6 +53,7 @@ export default tseslint.config(
         },
       },
       jest: jestPlugin,
+      perfectionist,
     },
 
     rules: {
@@ -62,6 +76,8 @@ export default tseslint.config(
         devDependencies: ['**/pnpm/src/**', '**/test/**', '**/src/**/*.test.ts'],
       }],
       'import-x/no-default-export': 'error',
+      'import-x/first': 'error',
+      'import-x/no-duplicates': 'error',
 
       // Stylistic rules (migrated from @typescript-eslint)
       '@stylistic/indent': ['error', 2, {
@@ -139,7 +155,11 @@ export default tseslint.config(
       '@typescript-eslint/no-misused-promises': 'off',
       '@typescript-eslint/dot-notation': 'off',
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/ban-ts-comment': ['error', {
+        'ts-expect-error': 'allow-with-description',
+        'ts-ignore': true,
+        'ts-nocheck': true,
+      }],
       '@typescript-eslint/explicit-module-boundary-types': 'error',
       '@typescript-eslint/only-throw-error': 'off',
       '@typescript-eslint/no-confusing-void-expression': 'off',
@@ -154,7 +174,8 @@ export default tseslint.config(
       '@typescript-eslint/unbound-method': 'off',
       '@typescript-eslint/no-unnecessary-type-parameters': 'off',
       '@typescript-eslint/no-extraneous-class': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': ['error', { considerDefaultExhaustiveForUnions: true }],
       '@typescript-eslint/prefer-promise-reject-errors': 'off',
       '@typescript-eslint/no-deprecated': 'off',
       '@typescript-eslint/no-unused-vars': ['error', {
@@ -188,6 +209,18 @@ export default tseslint.config(
       // Custom rules
       'conditions/no-dupe-conditions': 'error',
       'conditions/no-object-methods-on-map': 'error',
+
+      // Ports of the perfectionist rules the Rust workspace enforces
+      ...sizeAndShapeRules,
+      'perfectionist/allow-directives-without-reason': 'error',
+      'perfectionist/bare-issue-reference': 'error',
+      'perfectionist/single-letter-closure-param': 'error',
+      'perfectionist/single-letter-function-param': 'error',
+      'perfectionist/single-letter-generic': 'error',
+      'perfectionist/single-letter-let-binding': 'error',
+      'perfectionist/unicode-ellipsis-in-comments': 'error',
+      'perfectionist/unpinned-repo-ref': 'error',
+      'n/no-process-exit': 'error',
 
       // Jest rules
       'jest/no-standalone-expect': 'off',
@@ -227,6 +260,12 @@ export default tseslint.config(
     rules: {
       'jest/no-standalone-expect': 'off',
       'jest/expect-expect': 'off',
+      // A test file grows with its scenarios, and a test binds its fixtures by
+      // nature. The Rust workspace exempts tests from these limits too.
+      'max-lines': 'off',
+      'perfectionist/overly-long-function': 'off',
+      'perfectionist/overly-long-method-chain': 'off',
+      'perfectionist/too-many-local-bindings': 'off',
     },
   }
 )

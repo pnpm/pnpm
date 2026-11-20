@@ -1,8 +1,16 @@
 use super::{
-    GitCommandRunner, GitResolveRefError, GitRunError, looks_like_version_tag, parse_ls_remote,
+    GitCommandRunner,
+    GitResolveRefError,
+    GitRunError,
+    looks_like_version_tag,
+    parse_ls_remote,
     resolve_ref,
 };
-use std::{future::Future, pin::Pin, sync::Mutex};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::Mutex,
+};
 
 struct Stub {
     result: Result<String, String>,
@@ -14,8 +22,15 @@ impl GitCommandRunner for Stub {
         repo: &'a str,
         ref_: Option<&'a str>,
     ) -> Pin<Box<dyn Future<Output = Result<String, GitRunError>> + Send + 'a>> {
-        self.last_args.lock().unwrap().push((repo.to_string(), ref_.map(str::to_string)));
-        Box::pin(async move { self.result.clone().map_err(|message| GitRunError { message }) })
+        self.last_args
+            .lock()
+            .unwrap()
+            .push((repo.to_string(), ref_.map(str::to_string)));
+        Box::pin(async move {
+            self.result
+                .clone()
+                .map_err(|message| GitRunError { message })
+        })
     }
 }
 fn stub(stdout: &str) -> Stub {
@@ -34,13 +49,21 @@ async fn full_commit_returns_unchanged_without_network() {
     .await
     .expect("resolved");
     assert_eq!(commit, "163360a8d3ae6bee9524541043197ff356f8ed99");
-    assert!(stub.last_args.lock().unwrap().is_empty(), "no ls-remote for full commit");
+    assert!(
+        stub.last_args
+            .lock()
+            .unwrap()
+            .is_empty(),
+        "no ls-remote for full commit",
+    );
 }
 
 #[tokio::test]
 async fn branch_lookup_uses_refs_heads() {
     let stub = stub("4c39fbc124cd4944ee51cb082ad49320fab58121\trefs/heads/canary\n");
-    let commit = resolve_ref(&stub, "https://example.com/repo.git", "canary", None).await.unwrap();
+    let commit = resolve_ref(&stub, "https://example.com/repo.git", "canary", None)
+        .await
+        .unwrap();
     assert_eq!(commit, "4c39fbc124cd4944ee51cb082ad49320fab58121");
 }
 
@@ -125,8 +148,8 @@ fn parse_ls_remote_ignores_blank_lines() {
 
 const AUTHENTICATED_REPO: &str = "https://hunter2:x-oauth-basic@github.com/foo/bar.git";
 
-/// The whole `user:pass@` goes, not just one half of it — a GitHub token is
-/// the *user* in `<token>:x-oauth-basic@` — while the part of the URL that
+/// The whole `user:pass@` goes, not just one half of it, a GitHub token is
+/// the *user* in `<token>:x-oauth-basic@`, while the part of the URL that
 /// tells the reader which repository failed stays.
 #[track_caller]
 fn assert_repo_redacted(err: &GitResolveRefError) {

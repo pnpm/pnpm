@@ -4,7 +4,7 @@ import readline from 'node:readline'
 import { input, password as passwordPrompt } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, types as allTypes } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetch } from '@pnpm/network.fetch'
 import {
@@ -18,6 +18,7 @@ import {
   withOtpHandling,
 } from '@pnpm/network.web-auth'
 import { addUser, AddUserHttpError, AddUserNoTokenError } from '@pnpm/registry-access.client'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFile } from 'read-ini-file'
 import { renderHelp } from 'render-help'
@@ -106,6 +107,7 @@ export interface LoginFetchResponseHeaders {
 
 export interface LoginFetchOptions {
   method?: 'GET' | 'POST' | 'PUT'
+  redirect?: RequestRedirect
   headers?: Record<string, string>
   body?: string
   retry?: {
@@ -174,7 +176,6 @@ export async function login ({ context = DEFAULT_CONTEXT, opts }: LoginParams): 
     timeout: opts.fetchTimeout,
   }
 
-  // Try web-based login first, fall back to classic login
   let token: string
   try {
     token = await webLogin({ context, fetchOptions, registry })
@@ -215,6 +216,21 @@ function readUrlField (body: unknown, field: 'loginUrl' | 'doneUrl'): string | u
  * Whether `url` contains a Unicode control character (the C0 controls, DEL,
  * or the C1 controls) — the same set pacquet rejects via `char::is_control`.
  */
+/**
+ * Prints the registry's `npm-notice` header, such as the code a web login asks
+ * the user to type in the browser. The text is registry-controlled, so control
+ * and formatting characters are removed first, and a notice that is empty
+ * afterwards is skipped.
+ */
+function reportNotices (headers: LoginFetchResponseHeaders, globalInfo: (message: string) => void): void {
+  const notice = headers.get('npm-notice')
+  if (notice == null) return
+  const sanitized = sanitizeInline(notice)
+  if (sanitized !== '') {
+    globalInfo(sanitized)
+  }
+}
+
 function containsControlCharacters (url: string): boolean {
   for (const char of url) {
     const codePoint = char.codePointAt(0) ?? 0
@@ -286,6 +302,8 @@ async function webLogin ({
     throw new UnsafeLoginUrlError()
   }
 
+  reportNotices(response.headers, globalInfo)
+
   // A non-TTY stdout (a CI log, a pipe) cannot render the QR code block, so
   // print the URL on its own.
   globalInfo(process.stdout.isTTY
@@ -320,19 +338,7 @@ async function classicLogin ({
     throw new LoginNonInteractiveError()
   }
 
-  let username: string
-  let password: string
-  let email: string
-  try {
-    username = await enquirer.input({ message: 'Username:' })
-    password = await enquirer.password({ message: 'Password:' })
-    email = await enquirer.input({ message: 'Email (this IS public):' })
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name === 'ExitPromptError') {
-      throw new PnpmError('LOGIN_CANCELED', 'Login canceled')
-    }
-    throw err
-  }
+  const { username, password, email } = await promptForCredentials(enquirer)
 
   if (!username || !password || !email) {
     throw new LoginMissingCredentialsError()
@@ -341,35 +347,79 @@ async function classicLogin ({
   const token = await withOtpHandling({
     context,
     fetchOptions,
-    operation: async (otp?: string) => {
-      try {
-        const result = await addUser({
-          username,
-          password,
-          email,
-          otp,
-          registryUrl: registry,
-          fetch,
-        })
-        return result.token
-      } catch (err) {
-        if (err instanceof AddUserHttpError) {
-          if (err.status === 401 && err.responseHeaders.get('www-authenticate')?.includes('otp')) {
-            throw SyntheticOtpError.fromUnknownBody(globalWarn, err.responseJson)
-          }
-          throw new ClassicLoginError(err.status, err.responseText)
-        }
-        if (err instanceof AddUserNoTokenError) {
-          throw new LoginNoTokenError()
-        }
-        throw err
-      }
-    },
+    operation: async (otp?: string) => addUserOrThrowLoginError({
+      credentials: { username, password, email },
+      fetch,
+      globalWarn,
+      otp,
+      registry,
+    }),
   })
 
   globalInfo(`Logged in as ${username}`)
 
   return token
+}
+
+interface LoginCredentials {
+  username: string
+  password: string
+  email: string
+}
+
+async function promptForCredentials (enquirer: LoginContext['enquirer']): Promise<LoginCredentials> {
+  try {
+    const username = await enquirer.input({ message: 'Username:' })
+    const password = await enquirer.password({ message: 'Password:' })
+    const email = await enquirer.input({ message: 'Email (this IS public):' })
+    return { username, password, email }
+  } catch (err: unknown) {
+    if (isError(err) && err.name === 'ExitPromptError') {
+      throw new PnpmError('LOGIN_CANCELED', 'Login canceled')
+    }
+    throw err
+  }
+}
+
+interface AddUserOptions {
+  credentials: LoginCredentials
+  fetch: LoginContext['fetch']
+  globalWarn: LoginContext['globalWarn']
+  otp?: string
+  registry: string
+}
+
+async function addUserOrThrowLoginError ({
+  credentials,
+  fetch,
+  globalWarn,
+  otp,
+  registry,
+}: AddUserOptions): Promise<string> {
+  try {
+    const result = await addUser({
+      ...credentials,
+      otp,
+      registryUrl: registry,
+      fetch,
+    })
+    return result.token
+  } catch (err) {
+    throw toLoginError(err, globalWarn)
+  }
+}
+
+function toLoginError (err: unknown, globalWarn: LoginContext['globalWarn']): unknown {
+  if (err instanceof AddUserHttpError) {
+    if (err.status === 401 && err.responseHeaders.get('www-authenticate')?.includes('otp')) {
+      return SyntheticOtpError.fromUnknownBody(globalWarn, err.responseJson)
+    }
+    return new ClassicLoginError(err.status, err.responseText)
+  }
+  if (err instanceof AddUserNoTokenError) {
+    return new LoginNoTokenError()
+  }
+  return err
 }
 
 class LoginNonInteractiveError extends PnpmError {

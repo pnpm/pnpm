@@ -32,7 +32,7 @@ export interface ScheduleTasksOptions {
 }
 
 export interface ScheduleGraphOptions<Node> {
-  /** When `true`, the first failure stops the run: nothing further is dispatched and the scheduler settles at once. */
+  /** See {@link ScheduleTasksOptions.bail}. */
   bail: boolean
   /** Maximum number of graph nodes whose work may be in flight. */
   concurrency?: number
@@ -106,24 +106,82 @@ interface ConcurrencyGroup<Node> {
   waitingHead: number
 }
 
+interface Scheduler<Node> {
+  opts: ScheduleGraphOptions<Node>
+  concurrency: number
+  concurrencyLimit?: (node: Node) => ConcurrencyLimit | undefined
+  pendingDependencyCount: Map<Node, number>
+  dependents: Map<Node, Node[]>
+  /**
+   * Drained by index: shift() moves every remaining element, which is
+   * quadratic over a workspace-sized queue.
+   */
+  ready: Node[]
+  readyHead: number
+  active: number
+  pumping: boolean
+  blocked: Set<Node>
+  stopDispatch: boolean
+  unsettled: number
+  nodeConcurrencyGroups: Map<Node, string>
+  concurrencyGroups: Map<string, ConcurrencyGroup<Node>>
+  /**
+   * A rejection violates runTask's contract; held here so the run still
+   * fails with it rather than silently resolving. First error wins: a
+   * rejection landing only after something else already stopped the run is
+   * abandoned along with the rest of the in-flight work, exactly as a
+   * second script failure after a bail is.
+   */
+  contractViolation?: { error: unknown }
+  resolve: () => void
+}
+
 async function scheduleGraphWithConcurrencyLimits<Node> (
   graph: DependencyGraph<Node>,
   opts: ScheduleGraphOptions<Node>,
   concurrencyLimit?: (node: Node) => ConcurrencyLimit | undefined
 ): Promise<void> {
-  // A rejection violates runTask's contract; held here so the run still
-  // fails with it rather than silently resolving. First error wins: a
-  // rejection landing only after something else already stopped the run is
-  // abandoned along with the rest of the in-flight work, exactly as a
-  // second script failure after a bail is.
-  let contractViolation: unknown
-  let rejected = false
   const concurrency = normalizeConcurrency(opts.concurrency)
+  const { pendingDependencyCount, dependents } = indexOrderedDependencies(graph)
+  const scheduler: Scheduler<Node> = {
+    opts,
+    concurrency,
+    concurrencyLimit,
+    pendingDependencyCount,
+    dependents,
+    ready: [],
+    readyHead: 0,
+    active: 0,
+    pumping: false,
+    blocked: new Set(),
+    stopDispatch: false,
+    unsettled: graph.size,
+    nodeConcurrencyGroups: new Map(),
+    concurrencyGroups: new Map(),
+    resolve: () => {},
+  }
+  for (const [node, count] of pendingDependencyCount) {
+    if (count === 0) makeReady(scheduler, node)
+  }
+  await new Promise<void>((resolve) => {
+    scheduler.resolve = resolve
+    pump(scheduler)
+  })
+  if (scheduler.contractViolation != null) {
+    throw scheduler.contractViolation.error
+  }
+}
+
+/**
+ * Counts each node's dependencies and indexes its dependents, keeping only
+ * the edges that point backward in the graph sequencer's order.
+ */
+function indexOrderedDependencies<Node> (graph: DependencyGraph<Node>): {
+  pendingDependencyCount: Map<Node, number>
+  dependents: Map<Node, Node[]>
+} {
   const pendingDependencyCount = new Map<Node, number>()
   const dependents = new Map<Node, Node[]>()
-  const ready: Node[] = []
-  const nodeConcurrencyGroups = new Map<Node, string>()
-  const concurrencyGroups = new Map<string, ConcurrencyGroup<Node>>()
   const order = graphSequencer(graph).order
   const orderIndex = new Map(order.map((node, index) => [node, index]))
   for (const [node, dependencies] of graph) {
@@ -132,150 +190,161 @@ async function scheduleGraphWithConcurrencyLimits<Node> (
     )
     pendingDependencyCount.set(node, orderedDependencies.length)
     for (const dependency of orderedDependencies) {
-      let list = dependents.get(dependency)
-      if (list == null) {
-        dependents.set(dependency, list = [])
-      }
-      list.push(node)
+      addDependent(dependents, dependency, node)
     }
   }
-  const blocked = new Set<Node>()
-  let stopDispatch = false
-  let unsettled = graph.size
+  return { pendingDependencyCount, dependents }
+}
 
-  const makeReady = (node: Node): void => {
-    const concurrency = concurrencyLimit?.(node)
-    if (concurrency == null) {
-      ready.push(node)
-      return
-    }
-    nodeConcurrencyGroups.set(node, concurrency.group)
-    let group = concurrencyGroups.get(concurrency.group)
-    if (group == null) {
-      concurrencyGroups.set(concurrency.group, group = {
-        limit: concurrency.limit,
-        reserved: 0,
-        waiting: [],
-        waitingHead: 0,
-      })
-    }
-    if (group.reserved < group.limit) {
-      group.reserved++
-      ready.push(node)
-    } else {
-      group.waiting.push(node)
-    }
+function addDependent<Node> (dependents: Map<Node, Node[]>, dependency: Node, dependent: Node): void {
+  let list = dependents.get(dependency)
+  if (list == null) {
+    dependents.set(dependency, list = [])
   }
+  list.push(dependent)
+}
 
-  const releaseConcurrency = (node: Node): void => {
-    const groupName = nodeConcurrencyGroups.get(node)
-    if (groupName == null) return
-    const group = concurrencyGroups.get(groupName)!
-    group.reserved--
-    if (group.waitingHead < group.waiting.length) {
-      group.reserved++
-      ready.push(group.waiting[group.waitingHead++])
-    }
+function makeReady<Node> (scheduler: Scheduler<Node>, node: Node): void {
+  const concurrency = scheduler.concurrencyLimit?.(node)
+  if (concurrency == null) {
+    scheduler.ready.push(node)
+    return
   }
-
-  for (const [node, count] of pendingDependencyCount) {
-    if (count === 0) makeReady(node)
+  scheduler.nodeConcurrencyGroups.set(node, concurrency.group)
+  const group = getOrCreateConcurrencyGroup(scheduler.concurrencyGroups, concurrency)
+  if (group.reserved < group.limit) {
+    group.reserved++
+    scheduler.ready.push(node)
+  } else {
+    group.waiting.push(node)
   }
+}
 
-  await new Promise<void>((resolve) => {
-    const settleIfDone = (): void => {
-      // Task runs may opt out because a watch-style script never finishes.
-      // Command pipelines retain their prior Promise.all behavior by waiting
-      // for work that was already dispatched.
-      if (unsettled === 0 || (stopDispatch && (opts.finishInFlight === false || active === 0))) {
-        resolve()
-      }
-    }
-    const complete = (node: Node): void => {
-      unsettled--
-      for (const dependent of dependents.get(node) ?? []) {
-        const remaining = pendingDependencyCount.get(dependent)! - 1
-        pendingDependencyCount.set(dependent, remaining)
-        if (remaining === 0 && !blocked.has(dependent)) {
-          makeReady(dependent)
-        }
-      }
-    }
-    // A failed task's transitive dependents can never become ready (their
-    // dependency count never reaches zero), so they are settled here as
-    // skipped instead.
-    const block = (node: Node): void => {
-      const stack = [node]
-      while (stack.length > 0) {
-        for (const dependent of dependents.get(stack.pop()!) ?? []) {
-          if (blocked.has(dependent)) continue
-          blocked.add(dependent)
-          unsettled--
-          opts.onNodeSkipped(dependent)
-          stack.push(dependent)
-        }
-      }
-    }
-    const settle = (node: Node, completion: TaskCompletion): void => {
-      switch (completion) {
-        case 'passed':
-          complete(node)
-          break
-        case 'failed':
-          if (opts.bail) {
-            unsettled--
-            stopDispatch = true
-          } else if (opts.continueOnFailure === true) {
-            complete(node)
-          } else {
-            unsettled--
-            block(node)
-          }
-          break
-        case 'aborted':
-          unsettled--
-          stopDispatch = true
-          break
-      }
-    }
-    // An explicit queue rather than recursion: a workspace-long chain of
-    // pass-through tasks completes synchronously, and call depth must not
-    // grow with chain length. Drained by index: shift() moves every
-    // remaining element, which is quadratic over a workspace-sized queue.
-    let head = 0
-    let active = 0
-    let pumping = false
-    const pump = (): void => {
-      if (pumping) return
-      pumping = true
-      while (!stopDispatch && active < concurrency && head < ready.length) {
-        const node = ready[head++]
-        active++
-        opts.runNode(node).then((completion) => {
-          active--
-          releaseConcurrency(node)
-          settle(node, completion)
-          pump()
-        }, (error: unknown) => {
-          active--
-          releaseConcurrency(node)
-          // runTask's contract is to never reject; treated as an abort, and
-          // the error resurfaces once the scheduler settles.
-          if (!rejected) {
-            rejected = true
-            contractViolation = error
-          }
-          settle(node, 'aborted')
-          pump()
-        })
-      }
-      pumping = false
-      settleIfDone()
-    }
-    pump()
+function getOrCreateConcurrencyGroup<Node> (
+  concurrencyGroups: Map<string, ConcurrencyGroup<Node>>,
+  concurrency: ConcurrencyLimit
+): ConcurrencyGroup<Node> {
+  let group = concurrencyGroups.get(concurrency.group)
+  if (group == null) {
+    concurrencyGroups.set(concurrency.group, group = {
+      limit: concurrency.limit,
+      reserved: 0,
+      waiting: [],
+      waitingHead: 0,
+    })
+  }
+  return group
+}
+
+function releaseConcurrency<Node> (scheduler: Scheduler<Node>, node: Node): void {
+  const groupName = scheduler.nodeConcurrencyGroups.get(node)
+  if (groupName == null) return
+  const group = scheduler.concurrencyGroups.get(groupName)!
+  group.reserved--
+  if (group.waitingHead < group.waiting.length) {
+    group.reserved++
+    scheduler.ready.push(group.waiting[group.waitingHead++])
+  }
+}
+
+/**
+ * An explicit queue rather than recursion: a workspace-long chain of
+ * pass-through tasks completes synchronously, and call depth must not grow
+ * with chain length.
+ */
+function pump<Node> (scheduler: Scheduler<Node>): void {
+  if (scheduler.pumping) return
+  scheduler.pumping = true
+  while (canDispatch(scheduler)) {
+    dispatch(scheduler, scheduler.ready[scheduler.readyHead++])
+  }
+  scheduler.pumping = false
+  settleIfDone(scheduler)
+}
+
+function canDispatch<Node> (scheduler: Scheduler<Node>): boolean {
+  return !scheduler.stopDispatch &&
+    scheduler.active < scheduler.concurrency &&
+    scheduler.readyHead < scheduler.ready.length
+}
+
+function dispatch<Node> (scheduler: Scheduler<Node>, node: Node): void {
+  scheduler.active++
+  scheduler.opts.runNode(node).then((completion) => {
+    finishNode(scheduler, node, completion)
+  }, (error: unknown) => {
+    // runTask's contract is to never reject; treated as an abort, and
+    // the error resurfaces once the scheduler settles.
+    scheduler.contractViolation ??= { error }
+    finishNode(scheduler, node, 'aborted')
   })
-  if (rejected) {
-    throw contractViolation
+}
+
+function finishNode<Node> (scheduler: Scheduler<Node>, node: Node, completion: TaskCompletion): void {
+  scheduler.active--
+  releaseConcurrency(scheduler, node)
+  settle(scheduler, node, completion)
+  pump(scheduler)
+}
+
+function settleIfDone<Node> (scheduler: Scheduler<Node>): void {
+  // Task runs may opt out because a watch-style script never finishes.
+  // Command pipelines wait for work that was already dispatched.
+  const inFlightSettled = scheduler.opts.finishInFlight === false || scheduler.active === 0
+  if (scheduler.unsettled === 0 || (scheduler.stopDispatch && inFlightSettled)) {
+    scheduler.resolve()
+  }
+}
+
+function settle<Node> (scheduler: Scheduler<Node>, node: Node, completion: TaskCompletion): void {
+  switch (completion) {
+    case 'passed':
+      complete(scheduler, node)
+      break
+    case 'failed':
+      if (scheduler.opts.bail) {
+        scheduler.unsettled--
+        scheduler.stopDispatch = true
+      } else if (scheduler.opts.continueOnFailure === true) {
+        complete(scheduler, node)
+      } else {
+        scheduler.unsettled--
+        block(scheduler, node)
+      }
+      break
+    case 'aborted':
+      scheduler.unsettled--
+      scheduler.stopDispatch = true
+      break
+  }
+}
+
+function complete<Node> (scheduler: Scheduler<Node>, node: Node): void {
+  scheduler.unsettled--
+  for (const dependent of scheduler.dependents.get(node) ?? []) {
+    const remaining = scheduler.pendingDependencyCount.get(dependent)! - 1
+    scheduler.pendingDependencyCount.set(dependent, remaining)
+    if (remaining === 0 && !scheduler.blocked.has(dependent)) {
+      makeReady(scheduler, dependent)
+    }
+  }
+}
+
+/**
+ * A failed task's transitive dependents can never become ready (their
+ * dependency count never reaches zero), so they are settled here as skipped
+ * instead.
+ */
+function block<Node> (scheduler: Scheduler<Node>, node: Node): void {
+  const stack = [node]
+  while (stack.length > 0) {
+    for (const dependent of scheduler.dependents.get(stack.pop()!) ?? []) {
+      if (scheduler.blocked.has(dependent)) continue
+      scheduler.blocked.add(dependent)
+      scheduler.unsettled--
+      scheduler.opts.onNodeSkipped(dependent)
+      stack.push(dependent)
+    }
   }
 }
 

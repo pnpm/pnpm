@@ -135,6 +135,158 @@ describe('the registered loader', () => {
     expect(result.stderr.toString()).toContain('ERR_PACKAGE_PATH_NOT_EXPORTED')
   })
 
+  test('the fallback leaves the importer as parentURL for hooks registered after it', () => {
+    // An alias resolver like the tsconfig paths hook in pnpm/pnpm#16979. NODE_OPTIONS
+    // imports register before command-line ones, so the alias hook runs first and
+    // reads context.parentURL after the pnpm hook's fallback fails.
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    fs.mkdirSync(path.join(tmp, 'store', 'node_modules'), { recursive: true })
+    fs.mkdirSync(path.join(tmp, 'src', 'generated'), { recursive: true })
+    fs.writeFileSync(path.join(tmp, 'src', 'generated', 'index.mjs'), 'export const x = 1')
+    fs.writeFileSync(path.join(tmp, 'main.mjs'), `\
+import { x } from '@/generated/index.mjs'
+console.log(import.meta.url)
+console.log('resolved', x)
+`)
+    // Like the pnpm hook, the alias hook falls back to module.register() where
+    // module.registerHooks() is missing, so both hooks are in the same chain.
+    fs.writeFileSync(path.join(tmp, 'alias-hook.mjs'), `\
+import module from 'node:module'
+import { resolveSync } from './alias-resolve.mjs'
+if (module.registerHooks) {
+  module.registerHooks({ resolve: resolveSync })
+} else {
+  module.register('./alias-resolve.mjs', import.meta.url)
+}
+`)
+    fs.writeFileSync(path.join(tmp, 'alias-resolve.mjs'), `\
+import { writeFileSync } from 'node:fs'
+function resolveAlias (specifier, context, error) {
+  if (error?.code !== 'ERR_MODULE_NOT_FOUND' || !specifier.startsWith('@/')) throw error
+  writeFileSync('parent-url.txt', context.parentURL)
+  return new URL('src/' + specifier.slice(2), context.parentURL).href
+}
+export function resolveSync (specifier, context, nextResolve) {
+  try {
+    return nextResolve(specifier, context)
+  } catch (error) {
+    return nextResolve(resolveAlias(specifier, context, error), context)
+  }
+}
+export async function resolve (specifier, context, nextResolve) {
+  try {
+    return await nextResolve(specifier, context)
+  } catch (error) {
+    return nextResolve(resolveAlias(specifier, context, error), context)
+  }
+}
+`)
+
+    const result = spawnSync(process.execPath, ['--import', './alias-hook.mjs', 'main.mjs'], {
+      cwd: tmp,
+      env: {
+        ...process.env,
+        NODE_PATH: path.join(tmp, 'store', 'node_modules'),
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.stderr.toString()).toBe('')
+    expect(result.status).toBe(0)
+    const [mainUrl, printed] = result.stdout.toString().trim().split(/\r?\n/)
+    expect(fs.readFileSync(path.join(tmp, 'parent-url.txt'), 'utf8')).toBe(mainUrl)
+    expect(printed).toBe('resolved 1')
+  })
+
+  test.each([
+    ['with NODE_PATH', { NODE_PATH: os.tmpdir() }, []],
+    ['without NODE_PATH', { NODE_PATH: '' }, []],
+    // A user condition also reaches the entry point's resolution.
+    ['with --conditions=require', { NODE_PATH: '' }, ['--conditions=require']],
+  ])('runs an entry point through a CommonJS require hook %s', (_name, nodePathEnv, nodeArgs) => {
+    // Mirrors how ts-node runs a .ts entry point: it registers a
+    // require.extensions hook, then reruns the main module.
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    const runner = path.join(tmp, 'runner.js')
+    fs.writeFileSync(runner, `\
+require.extensions['.custom'] = (module, filename) => module._compile('console.log("custom-loaded")', filename)
+process.argv[1] = require('node:path').join(__dirname, 'entry.custom')
+require('node:module').runMain()
+`)
+    fs.writeFileSync(path.join(tmp, 'entry.custom'), 'not JavaScript')
+
+    const result = spawnSync(process.execPath, [...nodeArgs, runner], {
+      env: {
+        ...process.env,
+        ...nodePathEnv,
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.stderr.toString()).toBe('')
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString().trim()).toBe('custom-loaded')
+  })
+
+  test.each([
+    {
+      loads: 'a .ts file through a require.extensions hook',
+      file: 'lib.ts',
+      contents: 'not JavaScript',
+      hook: 'require.extensions[\'.ts\'] = (module, filename) => module._compile(\'module.exports = "ts-hook"\', filename)',
+      expected: 'ts-hook',
+    },
+    {
+      loads: 'a .json file as JSON',
+      file: 'data.json',
+      contents: '"json-loaded"',
+      hook: '',
+      expected: 'json-loaded',
+    },
+  ])('require() from a module compiled from a string loads $loads', ({ file, contents, hook, expected }) => {
+    // Mirrors how Next.js loads next.config.ts: a module created with
+    // `new Module()` has no filename, so its require() calls reach the resolve
+    // hook without a parentURL, like the entry point does, and resolve
+    // relative specifiers from the working directory (pnpm/pnpm#18261).
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    fs.writeFileSync(path.join(tmp, 'runner.js'), `\
+const Module = require('node:module')
+const path = require('node:path')
+${hook}
+const filename = path.join(__dirname, 'compiled.js')
+const compiled = new Module(filename, module)
+compiled.paths = Module._nodeModulePaths(__dirname)
+compiled._compile('module.exports = require("./${file}")', filename)
+console.log(compiled.exports)
+`)
+    fs.writeFileSync(path.join(tmp, file), contents)
+
+    const result = spawnSync(process.execPath, ['runner.js'], {
+      cwd: tmp,
+      env: {
+        ...process.env,
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.stderr.toString()).toBe('')
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString().trim()).toBe(expected)
+  })
+
+  test('still detects module syntax in a .js entry point outside a module package', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    const script = path.join(tmp, 'main.js')
+    fs.writeFileSync(script, 'import path from "node:path"\nconsole.log(typeof path.join)')
+
+    const result = spawnSync(process.execPath, [script], {
+      env: {
+        ...process.env,
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.stderr.toString()).toBe('')
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString().trim()).toBe('function')
+  })
+
   test('still fails cleanly when the specifier is nowhere on NODE_PATH', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
     const script = path.join(tmp, 'main.mjs')

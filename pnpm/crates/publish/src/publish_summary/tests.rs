@@ -1,4 +1,8 @@
-use super::{PackedPkgInfo, create_publish_summary, extract_bundled_dependencies};
+use super::{
+    PackedPkgInfo,
+    create_publish_summary,
+    extract_bundled_dependencies,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 

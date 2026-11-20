@@ -13,6 +13,12 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/normalize-registries"
     },
     {

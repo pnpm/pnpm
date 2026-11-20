@@ -9,34 +9,43 @@
 
 use crate::Lockfile;
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    iter,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl Lockfile {
     /// File name a branch lockfile for `branch` is written under.
     ///
     /// A branch name is not a file name: it may contain slashes, and the
-    /// filesystem may be case-insensitive. Every character outside
+    /// filesystem may be case-insensitive. Every UTF-16 code unit outside
     /// `[A-Za-z0-9_.-]` becomes `!` and the result is lowercased, so two
     /// branches differing only in case cannot claim the same file with
-    /// different spellings.
+    /// different spellings. Counting UTF-16 code units, so that a character
+    /// outside the Basic Multilingual Plane becomes `!!`, matches the name
+    /// pnpm v11 gives the same branch.
     #[must_use]
     pub fn git_branch_file_name(branch: &str) -> String {
-        let stringified: String = branch
-            .chars()
-            .map(|char| match char {
-                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' | '-' => char.to_ascii_lowercase(),
-                _ => '!',
-            })
-            .collect();
+        let mut stringified = String::with_capacity(branch.len());
+        for char in branch.chars() {
+            match char {
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.' | '-' => {
+                    stringified.push(char.to_ascii_lowercase());
+                }
+                _ => stringified.extend(iter::repeat_n('!', char.len_utf16())),
+            }
+        }
         format!("pnpm-lock.{stringified}.yaml")
     }
 
     /// Whether `file_name` names a branch lockfile.
     ///
     /// Both dots are literal and the branch segment is non-empty, which
-    /// keeps `pnpm-lock.yaml` itself — and unrelated files — out of the
+    /// keeps `pnpm-lock.yaml` itself (and unrelated files) out of the
     /// scan that feeds merging and [`Self::clean_git_branch_lockfiles`].
     #[must_use]
     pub fn is_git_branch_file_name(file_name: &str) -> bool {
@@ -59,7 +68,11 @@ impl Lockfile {
         let mut paths = Vec::new();
         for entry in entries {
             let entry = entry?;
-            if entry.file_name().to_str().is_some_and(Lockfile::is_git_branch_file_name) {
+            if entry
+                .file_name()
+                .to_str()
+                .is_some_and(Lockfile::is_git_branch_file_name)
+            {
                 paths.push(entry.path());
             }
         }
@@ -69,7 +82,7 @@ impl Lockfile {
         Ok(paths)
     }
 
-    /// Delete every branch lockfile in `lockfile_dir` — what an install
+    /// Delete every branch lockfile in `lockfile_dir`, what an install
     /// under `mergeGitBranchLockfiles` does once it has folded them into
     /// `pnpm-lock.yaml`.
     pub fn clean_git_branch_lockfiles(lockfile_dir: &Path) -> io::Result<()> {

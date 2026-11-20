@@ -1,24 +1,41 @@
 //! Resolve a package manager's version specifier and materialize it,
 //! returning what a caller needs to run it.
 
+use crate::{
+    engine_pm::{
+        channel::{
+            BinaryChannel,
+            Channel,
+            EnginePackages,
+            PackageManager,
+        },
+        error::EngineError,
+        install::{
+            engine_env_root,
+            install_engine_to_store,
+        },
+        resolve::resolve_release,
+    },
+    shim_dispatch::{
+        MaterializedRuntime,
+        materialize_runtime,
+    },
+};
 use miette::Context;
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
-use std::path::{Path, PathBuf};
-
-use crate::{
-    engine_pm::{
-        channel::{BinaryChannel, Channel, EnginePackages, PackageManager},
-        error::EngineError,
-        install::{engine_env_root, install_engine_to_store},
-        resolve::resolve_release,
+use pnpm_store_dir::PrivateInstall;
+use std::{
+    ffi::OsStr,
+    path::{
+        Path,
+        PathBuf,
     },
-    shim_dispatch::materialize_runtime,
 };
 
 /// The Node.js line a JavaScript package manager runs on when the host has
-/// no `node` of its own. LTS is the conservative pick, and — being a stable
-/// release — it is the one channel whose archives carry Node's own
+/// no `node` of its own. LTS is the conservative pick, and (being a stable
+/// release) it is the one channel whose archives carry Node's own
 /// publisher signatures.
 const MANAGED_NODE_SPEC: &str = "lts";
 
@@ -29,18 +46,27 @@ pub(crate) struct ProvisionedEngine {
     /// Directories to prepend to `PATH` before spawning it, most
     /// significant first.
     pub(crate) bin_dirs: Vec<PathBuf>,
+    /// The private directories the engine, and the runtime it runs on,
+    /// were installed into when their shared slots were held. They are
+    /// removed when dropped, so they live for as long as the engine may
+    /// run.
+    pub(crate) _private_installs: Vec<PrivateInstall>,
 }
 
 impl ProvisionedEngine {
     /// The executable for the command `name`, falling back to the
     /// engine's main program when it publishes no such command.
     ///
-    /// A package manager publishes more than one — `npx` alongside `npm` —
+    /// A package manager publishes more than one (`npx` alongside `npm`)
     /// so the one the user typed is what runs. Only the engine's own
     /// directory answers: a managed Node.js behind it ships an `npm` and
     /// an `npx` of its own, which are not the versions that were asked
-    /// for.
+    /// for. The main program's own name runs the main program, which may be
+    /// a native binary its bin only wraps.
     pub(crate) fn command(&self, name: &str) -> PathBuf {
+        if self.program.file_stem() == Some(OsStr::new(name)) {
+            return self.program.clone();
+        }
         self.bin_dirs
             .first()
             .and_then(|bin_dir| engine_bin(bin_dir, name))
@@ -69,7 +95,7 @@ pub(crate) async fn provision<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<ProvisionedEngine> {
     match pm.channel(version_spec) {
         Channel::Registry { package } => {
-            provision_from_registry::<Reporter>(config, pm, package, version_spec).await
+            Box::pin(provision_from_registry::<Reporter>(config, pm, package, version_spec)).await
         }
         Channel::Binary(binary) => provision_binary(config, binary, version_spec).await,
     }
@@ -87,13 +113,20 @@ async fn provision_binary(
         BinaryChannel::Bun => "bun",
         BinaryChannel::Yarn => "yarn",
     };
-    let program =
+    let runtime =
         materialize_runtime(&config.state_dir, name.to_string(), version_spec.to_string()).await?;
-    let bin_dir = program.parent().ok_or_else(|| EngineError::MissingEngineBin {
-        name,
-        dir: program.display().to_string(),
-    })?;
-    Ok(ProvisionedEngine { bin_dirs: vec![bin_dir.to_path_buf()], program })
+    let bin_dir = runtime.bin
+        .parent()
+        .ok_or_else(|| EngineError::MissingEngineBin {
+            name,
+            dir: runtime.bin.display().to_string(),
+        })?;
+    let bin_dirs = vec![bin_dir.to_path_buf()];
+    Ok(ProvisionedEngine {
+        program: runtime.bin,
+        bin_dirs,
+        _private_installs: runtime.private_install.into_iter().collect(),
+    })
 }
 
 async fn provision_from_registry<Reporter: self::Reporter + 'static>(
@@ -105,7 +138,7 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     let name = pm.name();
     let resolved = resolve_release(config, pm, package, version_spec).await?;
     let env_root = engine_env_root(config, pm)?;
-    let bin_dir = Box::pin(install_engine_to_store::<Reporter>(
+    let engine = Box::pin(install_engine_to_store::<Reporter>(
         config,
         pm,
         &env_root,
@@ -119,38 +152,39 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     ))
     .await?;
 
-    let program = engine_bin(&bin_dir, name).ok_or_else(|| EngineError::MissingEngineBin {
-        name,
-        dir: bin_dir.display().to_string(),
-    })?;
+    let program = engine.program(pm)?;
 
-    let mut bin_dirs = vec![bin_dir];
+    let mut bin_dirs = vec![engine.bin_dir];
+    let mut private_installs: Vec<_> = engine.private_install.into_iter().collect();
     let packages = pm
         .engine_packages(&resolved.version)
         .ok_or_else(|| miette::miette!("{name}@{} is not a registry engine", resolved.version))?;
-    if let Some(node_bin_dir) = node_bin_dir(config, packages).await? {
-        bin_dirs.push(node_bin_dir);
+    if let Some(node) = managed_node(config, packages).await? {
+        bin_dirs.extend(node.bin.parent().map(Path::to_path_buf));
+        private_installs.extend(node.private_install);
     }
-    Ok(ProvisionedEngine { program, bin_dirs })
+    Ok(ProvisionedEngine { program, bin_dirs, _private_installs: private_installs })
 }
 
-/// The directory holding a `node` for a JavaScript engine to run on, or
-/// `None` when the engine needs none — either because it is a native
-/// binary, or because the host already has a `node` on `PATH`.
+/// A `node` for a JavaScript engine to run on, or `None` when the engine
+/// needs none; either because it is a native binary, or because the host
+/// already has a `node` on `PATH`.
 ///
 /// A machine that only ever installed pnpm has no Node.js at all, and npm
 /// and Yarn cannot start without one, so pnpm installs the runtime it
 /// already knows how to manage rather than failing.
-async fn node_bin_dir(
+async fn managed_node(
     config: &Config,
     packages: EnginePackages,
-) -> miette::Result<Option<PathBuf>> {
+) -> miette::Result<Option<MaterializedRuntime>> {
     if packages.links_native_binary || which::which("node").is_ok() {
         return Ok(None);
     }
-    let node =
-        materialize_runtime(&config.state_dir, "node".to_string(), MANAGED_NODE_SPEC.to_string())
-            .await
-            .wrap_err("install a Node.js runtime to run the package manager with")?;
-    Ok(node.parent().map(Path::to_path_buf))
+    materialize_runtime(&config.state_dir, "node".to_string(), MANAGED_NODE_SPEC.to_string())
+        .await
+        .wrap_err("install a Node.js runtime to run the package manager with")
+        .map(Some)
 }
+
+#[cfg(test)]
+mod tests;

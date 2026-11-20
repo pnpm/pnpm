@@ -1,16 +1,19 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { linkBinsOfPackages } from '@pnpm/bins.linker'
+import { getBinsToLink, getExtraNodePaths, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { removeBin } from '@pnpm/bins.remover'
-import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { PnpmError } from '@pnpm/error'
-import { getHashLink, getInstalledBinNames, type GlobalPackageInfo } from '@pnpm/global.packages'
+import type { Config } from '@pnpm/config.reader'
+import { isError, PnpmError } from '@pnpm/error'
+import { getHashLink, type GlobalPackageBinSnapshot } from '@pnpm/global.packages'
 import { globalWarn } from '@pnpm/logger'
 import type { DependencyManifest } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 import { symlinkDir } from 'symlink-dir'
+
+import { getErrorMessage } from './errorMessage.js'
+
+export type GlobalNodePathOptions = Pick<Config, 'extendNodePath' | 'hoistPattern' | 'nodeLinker'>
 
 export interface ActivateGlobalInstallOptions {
   installDir: string
@@ -18,10 +21,12 @@ export interface ActivateGlobalInstallOptions {
   globalBinDir: string
   pkgs: Array<{ manifest: DependencyManifest, location: string }>
   binsToSkip: Set<string>
+  requiredBinNames?: Set<string>
+  nodePathOptions: GlobalNodePathOptions
 }
 
 export interface CleanupReplacedGlobalInstallsOptions {
-  groups: GlobalPackageInfo[]
+  groups: GlobalPackageBinSnapshot[]
   globalDir: string
   globalBinDir: string
   activeHash: string
@@ -53,7 +58,11 @@ export async function activateGlobalInstall (
     // has to write the shims whose target actually changed, which for an
     // update of the same commands is none of them.
     await swapHashLink(opts.installDir, opts.hashLink)
-    await linkBinsOfPackages(hashLinkedPkgs(opts), opts.globalBinDir, { excludeBins: opts.binsToSkip })
+    await linkBinsOfPackages(hashLinkedPkgs(opts), opts.globalBinDir, {
+      excludeBins: opts.binsToSkip,
+      extraNodePaths: getHoistedNodePaths(opts),
+    })
+    await ensureRequiredBinTargets(opts.requiredBinNames, prepared.actualBins)
     await removeSlotsOfMissingBins(opts, prepared.actualBins)
   } catch (activationError) {
     try {
@@ -101,46 +110,41 @@ export async function cleanupReplacedGlobalInstalls (
 // aborting the remaining cleanup.
 async function cleanupReplacedGlobalInstall (
   opts: CleanupReplacedGlobalInstallsOptions,
-  group: GlobalPackageInfo
+  groupSnapshot: GlobalPackageBinSnapshot
 ): Promise<unknown[]> {
-  const errors: unknown[] = []
-  let binNames: string[]
-  try {
-    binNames = await getInstalledBinNames(group)
-  } catch (err) {
-    // The install directory is the only record of which bins the group
-    // owns, so removing it now would strand them on PATH forever. Leave
-    // the group intact for a later run to clean up.
-    return [err]
-  }
-  let binRemovalFailed = false
-  for (const binName of binNames) {
-    if (opts.activatedBins.has(binName) || opts.protectedBins.has(binName)) continue
-    try {
-      await removeBin(path.join(opts.globalBinDir, binName)) // eslint-disable-line no-await-in-loop -- Each removal must settle before cleanup continues.
-    } catch (err) {
-      errors.push(err)
-      binRemovalFailed = true
-    }
-  }
-  // A bin that could not be removed is only discoverable through the
-  // group's manifests, so keep the group until every one of them is gone.
-  if (binRemovalFailed) return errors
+  const { info: group, binNames } = groupSnapshot
+  const errors = await removeReplacedBins(opts, binNames)
+  // The group's install directory is what a later run reads its ownership
+  // from, so keep the group until every one of its bins is gone.
+  if (errors.length > 0) return errors
   if (group.hash !== opts.activeHash) {
-    try {
-      await fs.promises.rm(getHashLink(opts.globalDir, group.hash), { force: true })
-    } catch (err) {
-      errors.push(err)
-    }
+    await collectFailure(errors, () => fs.promises.rm(getHashLink(opts.globalDir, group.hash), { force: true }))
   }
   if (isSubdir(opts.globalDir, group.installDir)) {
-    try {
-      await fs.promises.rm(group.installDir, { recursive: true, force: true })
-    } catch (err) {
-      errors.push(err)
-    }
+    await collectFailure(errors, () => fs.promises.rm(group.installDir, { recursive: true, force: true }))
   }
   return errors
+}
+
+async function removeReplacedBins (
+  opts: CleanupReplacedGlobalInstallsOptions,
+  binNames: Iterable<string>
+): Promise<unknown[]> {
+  const errors: unknown[] = []
+  for (const binName of binNames) {
+    if (opts.activatedBins.has(binName) || opts.protectedBins.has(binName)) continue
+    // eslint-disable-next-line no-await-in-loop -- Each removal must settle before cleanup continues.
+    await collectFailure(errors, () => removeBin(path.join(opts.globalBinDir, binName)))
+  }
+  return errors
+}
+
+async function collectFailure (errors: unknown[], step: () => Promise<unknown>): Promise<void> {
+  try {
+    await step()
+  } catch (err) {
+    errors.push(err)
+  }
 }
 
 /**
@@ -157,6 +161,21 @@ function hashLinkedPkgs (opts: ActivateGlobalInstallOptions): ActivateGlobalInst
 }
 
 /**
+ * The group's packages live in the global virtual store, where Node cannot
+ * walk up to the group's hidden hoisted modules directory, so the shims put
+ * it on `NODE_PATH`. It is addressed through the hash link, like the shim
+ * targets.
+ */
+function getHoistedNodePaths (opts: ActivateGlobalInstallOptions): string[] {
+  return getExtraNodePaths({
+    extendNodePath: opts.nodePathOptions.extendNodePath,
+    hoistPattern: opts.nodePathOptions.hoistPattern,
+    nodeLinker: opts.nodePathOptions.nodeLinker ?? 'isolated',
+    hoistedModulesDir: path.join(opts.hashLink, 'node_modules', '.pnpm', 'node_modules'),
+  })
+}
+
+/**
  * Point `hashLink` at `target`, replacing any existing link in a single
  * step so a concurrent command never observes it missing. Windows cannot
  * rename over an existing junction, so there the replacement is not
@@ -168,9 +187,13 @@ async function swapHashLink (target: string, hashLink: string): Promise<void> {
     return
   }
   await fs.promises.mkdir(path.dirname(hashLink), { recursive: true })
+  const [linkParent, linkTarget] = await Promise.all([
+    fs.promises.realpath(path.dirname(hashLink)),
+    fs.promises.realpath(target),
+  ])
   const stagedLink = `${hashLink}.${process.pid}.tmp`
   await fs.promises.rm(stagedLink, { force: true, recursive: true })
-  await fs.promises.symlink(path.relative(path.dirname(hashLink), target), stagedLink, 'dir')
+  await fs.promises.symlink(path.relative(linkParent, linkTarget), stagedLink, 'dir')
   try {
     await fs.promises.rename(stagedLink, hashLink)
   } catch (err) {
@@ -186,6 +209,7 @@ async function prepareGlobalInstall (
   try {
     const actualBins = await getActualBins(opts)
     const actualBinNames = new Set(actualBins.keys())
+    ensureRequiredBinNames(opts.requiredBinNames, actualBinNames)
     // The backup directory lives in the global bin directory, which the
     // linker would otherwise be the first to create.
     await fs.promises.mkdir(opts.globalBinDir, { recursive: true })
@@ -216,31 +240,62 @@ async function prepareGlobalInstall (
   }
 }
 
-/** The commands the group declares, mapped to the file each one runs. */
-async function getActualBins (opts: ActivateGlobalInstallOptions): Promise<Map<string, string>> {
+/**
+ * Resolves commands not skipped whose target files exist. Missing targets are
+ * omitted, while package-manifest resolution and filesystem errors propagate.
+ */
+async function getActualBins (
+  opts: Pick<ActivateGlobalInstallOptions, 'pkgs' | 'binsToSkip'>
+): Promise<Map<string, string>> {
   const actualBins = new Map<string, string>()
-  const binsByPackage = await Promise.all(opts.pkgs.map(async ({ manifest, location }) => {
-    return getBinsFromPackageManifest(manifest, location)
-  }))
-  for (const bins of binsByPackage) {
-    for (const { name, path: binPath } of bins) {
-      if (!opts.binsToSkip.has(name)) actualBins.set(name, binPath)
-    }
+  const bins = await getBinsToLink(opts.pkgs, opts.binsToSkip)
+  const existing = await Promise.all(bins.map(async ({ path: binPath }) => binTargetExists(binPath)))
+  for (const [index, { name, path: binPath }] of bins.entries()) {
+    if (existing[index]) actualBins.set(name, binPath)
   }
   return actualBins
 }
 
+export async function getActualBinNames (
+  opts: Pick<ActivateGlobalInstallOptions, 'pkgs' | 'binsToSkip'>
+): Promise<Set<string>> {
+  return new Set((await getActualBins(opts)).keys())
+}
+
+async function ensureRequiredBinTargets (
+  required: Set<string> | undefined,
+  actualBins: Map<string, string>
+): Promise<void> {
+  const requiredBins = [...required ?? []].map((name) => [name, actualBins.get(name)] as const)
+  const existing = await Promise.all(requiredBins.map(async ([, binPath]) => binPath != null && binTargetExists(binPath)))
+  const missing = requiredBins
+    .filter(([, binPath], index) => binPath == null || !existing[index])
+    .map(([name]) => name)
+    .sort()
+  if (missing.length > 0) throwMissingBinTargets(missing)
+}
+
+function ensureRequiredBinNames (required: Set<string> | undefined, actual: Set<string>): void {
+  const missing = [...required ?? []].filter((name) => !actual.has(name)).sort()
+  if (missing.length > 0) throwMissingBinTargets(missing)
+}
+
+function throwMissingBinTargets (missing: string[]): never {
+  throw new PnpmError(
+    'GLOBAL_BIN_TARGET_MISSING',
+    `Global bin targets disappeared during activation: ${missing.join(', ')}`
+  )
+}
+
 /**
- * Drop the slots of commands the linker could not create because the file
- * the manifest points at is missing, so a replaced install leaves no shim
- * behind for a command that cannot run.
+ * Drop the slots of commands whose target disappeared during activation.
  */
 async function removeSlotsOfMissingBins (
   opts: ActivateGlobalInstallOptions,
   actualBins: Map<string, string>
 ): Promise<void> {
   const missing = (await Promise.all([...actualBins].map(async ([name, binPath]) => {
-    return await pathExists(binPath) ? [] : [name]
+    return await binTargetExists(binPath) ? [] : [name]
   }))).flat()
   for (const name of missing) {
     await removeBin(path.join(opts.globalBinDir, name)) // eslint-disable-line no-await-in-loop -- Each removal must settle before the next.
@@ -266,7 +321,7 @@ async function backupBinSlots (opts: {
   }
   const savedBinSlots: SavedBinSlot[] = []
   for (const [index, original] of originals.entries()) {
-    const savedBinSlot = await backupBinSlot({ // eslint-disable-line no-await-in-loop
+    const savedBinSlot = await backupBinSlot({ // eslint-disable-line no-await-in-loop -- stops at the first failed backup instead of racing the rest against the backup directory's removal
       original,
       backup: path.join(opts.backupDir, String(index)),
     })
@@ -377,15 +432,16 @@ async function pathExists (target: string): Promise<boolean> {
   }
 }
 
-function isErrorWithCode (err: unknown, code: string): boolean {
-  return util.types.isNativeError(err) && 'code' in err && err.code === code
+async function binTargetExists (target: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(target)
+    return true
+  } catch (err) {
+    if (isErrorWithCode(err, 'ENOENT')) return false
+    throw err
+  }
 }
 
-function getErrorMessage (err: unknown): string {
-  if (util.types.isNativeError(err)) return err.message
-  try {
-    return String(err)
-  } catch {
-    return 'Unknown error'
-  }
+function isErrorWithCode (err: unknown, code: string): boolean {
+  return isError(err) && 'code' in err && err.code === code
 }

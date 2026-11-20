@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli.utils'
 import { PnpmError } from '@pnpm/error'
-import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/network.fetch'
 import { renderHelp } from 'render-help'
 
 import { normalizeRegistryUrl } from '../common.js'
@@ -23,29 +23,40 @@ export async function handler (opts: StarOptions, params: string[]): Promise<str
   const registryUrl = normalizeRegistryUrl(opts.registriesByScope?.default ?? 'https://registry.npmjs.org/')
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const authHeader = getAuthHeaderForRegistry(opts.configByUri, registryUrl)
+  const ctx: StarsRequestContext = { registryUrl, fetchFromRegistry, authHeader }
 
-  let username = params[0]
-  if (!username) {
-    if (!authHeader) {
-      throw new PnpmError('STARS_UNAUTHORIZED', 'You must be logged in to list your starred packages')
-    }
-    username = await fetchWhoami(registryUrl, fetchFromRegistry, authHeader)
+  if (params[0]) {
+    return fetchUserStars(ctx, params[0])
   }
-
-  if (!params[0]) {
-    const starUrl = new URL('./-/user/v1/star', registryUrl).href
-    const response = await fetchFromRegistry(starUrl, {
-      authHeaderValue: authHeader,
-    })
-    if (response.ok) {
-      const starsData = await response.json() as string[] | Record<string, unknown>
-      if (Array.isArray(starsData)) return starsData.join('\n')
-      if (typeof starsData === 'object' && starsData !== null) {
-        return Object.keys(starsData).join('\n')
-      }
-    }
+  if (!authHeader) {
+    throw new PnpmError('STARS_UNAUTHORIZED', 'You must be logged in to list your starred packages')
   }
+  const username = await fetchWhoami(registryUrl, fetchFromRegistry, authHeader)
+  const ownStars = await fetchOwnStars(ctx)
+  return ownStars ?? fetchUserStars(ctx, username)
+}
 
+interface StarsRequestContext {
+  registryUrl: string
+  fetchFromRegistry: FetchFromRegistry
+  authHeader: string | undefined
+}
+
+async function fetchOwnStars ({ registryUrl, fetchFromRegistry, authHeader }: StarsRequestContext): Promise<string | undefined> {
+  const starUrl = new URL('./-/user/v1/star', registryUrl).href
+  const response = await fetchFromRegistry(starUrl, {
+    authHeaderValue: authHeader,
+  })
+  if (!response.ok) return undefined
+  const starsData = await response.json() as string[] | Record<string, unknown>
+  if (Array.isArray(starsData)) return starsData.join('\n')
+  if (typeof starsData === 'object' && starsData !== null) {
+    return Object.keys(starsData).join('\n')
+  }
+  return undefined
+}
+
+async function fetchUserStars ({ registryUrl, fetchFromRegistry, authHeader }: StarsRequestContext, username: string): Promise<string> {
   const starsUrl = new URL(`./-/user/${encodeURIComponent(username)}/stars`, registryUrl).href
   let response = await fetchFromRegistry(starsUrl, {
     authHeaderValue: authHeader,

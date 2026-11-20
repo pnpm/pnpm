@@ -1,9 +1,19 @@
 use crate::{
-    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout,
-    safe_join_modules_dir::safe_join_modules_dir, symlink_package,
+    SkippedSnapshots,
+    SymlinkPackageError,
+    VirtualStoreLayout,
+    safe_join_modules_dir::safe_join_modules_dir,
+    symlink_package,
 };
-use pnpm_lockfile::{PkgName, SnapshotDepRef};
-use std::{collections::HashMap, path::Path};
+use pnpm_lockfile::{
+    PkgName,
+    SnapshotDepRef,
+    join_package_root_link,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 /// Create symlink layout of dependencies for a package in a virtual dir.
 ///
@@ -29,57 +39,79 @@ pub fn create_symlink_layout(
     virtual_node_modules_dir: &Path,
 ) -> Result<(), SymlinkPackageError> {
     // Serial iteration: the symlink work per snapshot is small (a
-    // handful of entries), so fanning out to rayon here would just add
+    // handful of entries), so fanning out to rayon here would only add
     // task-scheduling overhead without a wider work queue to amortise
     // it against. This stage runs single-threaded on a `spawn_blocking`
     // worker (see `CreateVirtualStore::run`).
     let deps = dependencies.into_iter().flatten();
-    let opt_deps =
-        optional_dependencies.filter(|_| include_optional_dependencies).into_iter().flatten();
-    deps.chain(opt_deps).try_for_each(|(alias_name, dep_ref)| {
-        if alias_name == self_name {
-            return Ok(());
-        }
-        // A `link:` dep has no slot of its own: it points at a
-        // directory outside the virtual store, named relative to the
-        // lockfile. The importer's own copy is installed by the
-        // symlink-direct-dependencies stage, but a snapshot that
-        // depends on one still needs the link inside *its* slot —
-        // without it the dependency is simply absent, and Node only
-        // finds it when the slot happens to sit under the importer's
-        // `node_modules` and the upward walk reaches the importer's
-        // copy. Under the global virtual store the slot lives in the
-        // shared store, that walk never reaches the project, and the
-        // dependency goes missing at runtime.
-        if let Some(link_target) = dep_ref.as_link_target() {
-            let Some(lockfile_dir) = layout.lockfile_dir() else {
+    let opt_deps = optional_dependencies
+        .filter(|_| include_optional_dependencies)
+        .into_iter()
+        .flatten();
+    deps.chain(opt_deps)
+        .try_for_each(|(alias_name, dep_ref)| {
+            if alias_name == self_name {
+                return Ok(());
+            }
+            if let Some(target) = dep_ref.package_root_link_target() {
+                return link_into_package(virtual_node_modules_dir, self_name, alias_name, target);
+            }
+            // A `link:` dep has no slot of its own: it points at a
+            // directory outside the virtual store, named relative to the
+            // lockfile. The importer's own copy is installed by the
+            // symlink-direct-dependencies stage, but a snapshot that
+            // depends on one still needs the link inside *its* slot,
+            // without it the dependency is absent, and Node only
+            // finds it when the slot happens to sit under the importer's
+            // `node_modules` and the upward walk reaches the importer's
+            // copy. Under the global virtual store the slot lives in the
+            // shared store, that walk never reaches the project, and the
+            // dependency goes missing at runtime.
+            if let Some(link_target) = dep_ref.as_link_target() {
+                let Some(lockfile_dir) = layout.lockfile_dir() else {
+                    return Ok(());
+                };
+                let symlink_path =
+                    safe_join_modules_dir(virtual_node_modules_dir, &alias_name.to_string())
+                        .map_err(SymlinkPackageError::InvalidAlias)?;
+                return symlink_package(&lockfile_dir.join(link_target), &symlink_path).map(drop);
+            }
+            let Some(target) = dep_ref.resolve(alias_name) else {
                 return Ok(());
             };
+            if skipped.contains(&target) {
+                return Ok(());
+            }
+            // Both names are lockfile-derived and untrusted: `target.name`
+            // is the resolved package's own name and `alias_name` is the
+            // dependency key. A traversal-shaped name (`@x/../../...`) would
+            // otherwise let the symlink target or the symlink itself escape
+            // the slot's `node_modules`, so guard each join.
+            let symlink_target = safe_join_modules_dir(
+                &layout.slot_dir(&target).join("node_modules"),
+                &target.name.to_string(),
+            )
+            .map_err(SymlinkPackageError::InvalidAlias)?;
             let symlink_path =
                 safe_join_modules_dir(virtual_node_modules_dir, &alias_name.to_string())
                     .map_err(SymlinkPackageError::InvalidAlias)?;
-            return symlink_package(&lockfile_dir.join(link_target), &symlink_path).map(drop);
-        }
-        let Some(target) = dep_ref.resolve(alias_name) else {
-            return Ok(());
-        };
-        if skipped.contains(&target) {
-            return Ok(());
-        }
-        // Both names are lockfile-derived and untrusted: `target.name`
-        // is the resolved package's own name and `alias_name` is the
-        // dependency key. A traversal-shaped name (`@x/../../...`) would
-        // otherwise let the symlink target or the symlink itself escape
-        // the slot's `node_modules`, so guard each join.
-        let symlink_target = safe_join_modules_dir(
-            &layout.slot_dir(&target).join("node_modules"),
-            &target.name.to_string(),
-        )
+            symlink_package(&symlink_target, &symlink_path).map(drop)
+        })
+}
+
+/// Link `alias_name` in the slot to `target`, a directory inside the slot's
+/// own package, for a `link:<root>/...` dependency.
+fn link_into_package(
+    virtual_node_modules_dir: &Path,
+    self_name: &PkgName,
+    alias_name: &PkgName,
+    target: &str,
+) -> Result<(), SymlinkPackageError> {
+    let package_dir = safe_join_modules_dir(virtual_node_modules_dir, &self_name.to_string())
         .map_err(SymlinkPackageError::InvalidAlias)?;
-        let symlink_path = safe_join_modules_dir(virtual_node_modules_dir, &alias_name.to_string())
-            .map_err(SymlinkPackageError::InvalidAlias)?;
-        symlink_package(&symlink_target, &symlink_path).map(drop)
-    })
+    let symlink_path = safe_join_modules_dir(virtual_node_modules_dir, &alias_name.to_string())
+        .map_err(SymlinkPackageError::InvalidAlias)?;
+    symlink_package(&join_package_root_link(&package_dir, target), &symlink_path).map(drop)
 }
 
 #[cfg(test)]

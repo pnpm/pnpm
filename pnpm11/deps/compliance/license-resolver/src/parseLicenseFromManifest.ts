@@ -33,7 +33,7 @@ function parseLicenseField (field: unknown): string | undefined {
   if (Array.isArray(field)) {
     const types = field
       .map(extractLicenseType)
-      .filter((t): t is string => !!t)
+      .filter((licenseType): licenseType is string => !!licenseType)
     if (types.length === 0) return undefined
     if (types.length === 1) return types[0]
     return `(${types.join(' OR ')})`

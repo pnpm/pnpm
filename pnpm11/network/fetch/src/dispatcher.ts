@@ -1,17 +1,27 @@
-import net from 'node:net'
-import tls from 'node:tls'
 import { URL } from 'node:url'
 
-import { nerfDart } from '@pnpm/config.registry-auth-key'
 import { PnpmError } from '@pnpm/error'
+import { isNoProxy, pickSettingByUrl } from '@pnpm/network.config'
 import type { TlsConfig } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
-import { SocksClient } from 'socks'
 import { Agent, type Dispatcher, getGlobalDispatcher, ProxyAgent, setGlobalDispatcher } from 'undici'
+
+import { createSocksConnector } from './socksConnector.js'
 
 const DEFAULT_MAX_SOCKETS = 50
 const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
 const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
+
+/**
+ * Default of the `fetch-timeout` setting: how long a request may make no
+ * progress before it fails.
+ *
+ * It is an inactivity timeout, not a deadline for the whole request: undici
+ * restarts the body timer on every chunk that arrives, so a big tarball may
+ * take as long as the connection needs. A total deadline would abort healthy
+ * downloads on slow connections (https://github.com/pnpm/pnpm/issues/14604).
+ */
+export const DEFAULT_FETCH_TIMEOUT = 60_000
 
 // Set an optimized global dispatcher so that requests without custom options
 // (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
@@ -24,6 +34,8 @@ const GLOBAL_DISPATCHER = new Agent({
   connections: DEFAULT_MAX_SOCKETS,
   keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
   keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
+  headersTimeout: DEFAULT_FETCH_TIMEOUT,
+  bodyTimeout: DEFAULT_FETCH_TIMEOUT,
   connect: {
     autoSelectFamily: true,
   },
@@ -37,35 +49,51 @@ setGlobalDispatcher(GLOBAL_DISPATCHER)
 // headers serve no purpose and must be stripped.
 // See https://github.com/pnpm/pnpm/issues/11572
 function stripSecFetchHeaders (dispatch: Dispatcher['dispatch']): Dispatcher['dispatch'] {
-  return (opts, handler) => {
-    if (opts.headers) {
-      if (Array.isArray(opts.headers)) {
-        // Flat array format: [key1, val1, key2, val2, ...]
-        const filtered: string[] = []
-        for (let i = 0; i < opts.headers.length; i += 2) {
-          if (!opts.headers[i].toLowerCase().startsWith('sec-fetch-')) {
-            filtered.push(opts.headers[i], opts.headers[i + 1])
-          }
-        }
-        opts = { ...opts, headers: filtered }
-      } else if (typeof opts.headers === 'object') {
-        // undici also accepts an iterable of [key, value] pairs (e.g. a Map or
-        // web Headers). Use that iterator when present; otherwise fall back to
-        // Object.entries for plain IncomingHttpHeaders objects.
-        const entries = Symbol.iterator in opts.headers
-          ? (opts.headers as Iterable<[string, string | string[] | undefined]>)
-          : Object.entries(opts.headers as Record<string, string | string[] | undefined>)
-        const headers: Record<string, string | string[] | undefined> = {}
-        for (const [key, value] of entries) {
-          if (!key.toLowerCase().startsWith('sec-fetch-')) {
-            headers[key] = value
-          }
-        }
-        opts = { ...opts, headers }
-      }
-    }
-    return dispatch(opts, handler)
+  return (opts, handler) => dispatch(withoutSecFetchHeaders(opts), handler)
+}
+
+type HeaderValue = string | string[] | undefined
+
+function withoutSecFetchHeaders (opts: Dispatcher.DispatchOptions): Dispatcher.DispatchOptions {
+  if (!opts.headers) return opts
+  if (Array.isArray(opts.headers)) {
+    return { ...opts, headers: filterFlatHeaders(opts.headers) }
   }
+  if (typeof opts.headers === 'object') {
+    return { ...opts, headers: filterHeaderEntries(opts.headers) }
+  }
+  return opts
+}
+
+// Flat array format: [key1, val1, key2, val2, ...]
+function filterFlatHeaders (headers: string[]): string[] {
+  const filtered: string[] = []
+  for (let nameIndex = 0; nameIndex < headers.length; nameIndex += 2) {
+    if (!isSecFetchHeader(headers[nameIndex])) {
+      filtered.push(headers[nameIndex], headers[nameIndex + 1])
+    }
+  }
+  return filtered
+}
+
+function filterHeaderEntries (headers: object): Record<string, HeaderValue> {
+  // undici also accepts an iterable of [key, value] pairs (e.g. a Map or
+  // web Headers). Use that iterator when present; otherwise fall back to
+  // Object.entries for plain IncomingHttpHeaders objects.
+  const entries = Symbol.iterator in headers
+    ? (headers as Iterable<[string, HeaderValue]>)
+    : Object.entries(headers as Record<string, HeaderValue>)
+  const filtered: Record<string, HeaderValue> = {}
+  for (const [key, value] of entries) {
+    if (!isSecFetchHeader(key)) {
+      filtered[key] = value
+    }
+  }
+  return filtered
+}
+
+function isSecFetchHeader (headerName: string): boolean {
+  return headerName.toLowerCase().startsWith('sec-fetch-')
 }
 
 const DISPATCHER_CACHE = new LRUCache<string, Dispatcher>({
@@ -86,6 +114,10 @@ export interface DispatcherOptions {
   localAddress?: string
   maxSockets?: number
   strictSsl?: boolean
+  /**
+   * How long the request may make no progress before it fails, in
+   * milliseconds. `0` disables it. Defaults to {@link DEFAULT_FETCH_TIMEOUT}.
+   */
   timeout?: number
   httpProxy?: string
   httpsProxy?: string
@@ -123,18 +155,33 @@ export async function destroyDispatchers (): Promise<void> {
  * Returns undefined if no special configuration is needed (to use global dispatcher).
  */
 export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher | undefined {
-  // If no special options are set, use the global dispatcher
   if (!needsCustomDispatcher(opts)) {
     return undefined
   }
 
   const parsedUri = new URL(uri)
 
-  if ((opts.httpProxy || opts.httpsProxy) && !checkNoProxy(parsedUri, opts)) {
+  if ((opts.httpProxy || opts.httpsProxy) && !isNoProxy(uri, opts.noProxy)) {
     const proxyDispatcher = getProxyDispatcher(parsedUri, opts)
     if (proxyDispatcher) return proxyDispatcher
   }
   return getNonProxyDispatcher(parsedUri, opts)
+}
+
+/**
+ * The origin a request to `uri` opens its connection to: the proxy's when
+ * one applies, so requests sharing a proxy share its origin.
+ */
+export function getConnectionOrigin (uri: URL, opts: DispatcherOptions): string {
+  const proxy = uri.protocol === 'https:' ? opts.httpsProxy : opts.httpProxy
+  if (!proxy || isNoProxy(uri.href, opts.noProxy)) return uri.origin
+  const proxyUrl = parseProxyUrl(proxy, uri.protocol)
+  // `URL.origin` is "null" for non-special schemes such as socks5:.
+  return `${proxyUrl.protocol}//${proxyUrl.host}`
+}
+
+function inactivityTimeout (opts: DispatcherOptions): number {
+  return opts.timeout ?? DEFAULT_FETCH_TIMEOUT
 }
 
 function hasClientCertificates (certs?: ClientCertificates): boolean {
@@ -178,15 +225,7 @@ function parseProxyUrl (proxy: string, protocol: string): URL {
 }
 
 
-function getSocksProxyType (protocol: string): 4 | 5 {
-  switch (protocol.replace(':', '')) {
-    case 'socks4':
-    case 'socks4a':
-      return 4
-    default:
-      return 5
-  }
-}
+export type TlsOptions = Pick<DispatcherOptions, 'ca' | 'cert' | 'key'>
 
 function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatcher | null {
   const isHttps = parsedUri.protocol === 'https:'
@@ -195,34 +234,43 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
   if (!proxy) return null
 
   const proxyUrl = parseProxyUrl(proxy, parsedUri.protocol)
-
-  const sslConfig = pickSettingByUrl(opts.clientCertificates, parsedUri.href)
-  const { ca, cert, key: certKey } = { ...opts, ...sslConfig }
+  const tlsConfig = pickTlsConfig(parsedUri, opts)
 
   const key = [
     `proxy:${proxyUrl.protocol}//${proxyUrl.username}:${proxyUrl.password}@${proxyUrl.host}:${proxyUrl.port}`,
+    ...getDispatcherKeyParts(isHttps, opts, tlsConfig),
+  ].join(':')
+
+  return getCachedDispatcher(key, () => proxyUrl.protocol.startsWith('socks')
+    ? createSocksDispatcher(proxyUrl, parsedUri, opts, tlsConfig)
+    : createHttpProxyDispatcher(proxyUrl, isHttps, opts, tlsConfig)
+  )
+}
+
+function pickTlsConfig (parsedUri: URL, opts: DispatcherOptions): TlsOptions {
+  const sslConfig = pickTlsSettingByUrl(opts.clientCertificates, parsedUri.href)
+  const { ca, cert, key } = { ...opts, ...sslConfig }
+  return { ca, cert, key }
+}
+
+function getDispatcherKeyParts (isHttps: boolean, opts: DispatcherOptions, tlsConfig: TlsOptions): string[] {
+  return [
     `https:${isHttps.toString()}`,
+    `timeout:${inactivityTimeout(opts).toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
-    `ca:${(isHttps && ca?.toString()) || '-'}`,
-    `cert:${(isHttps && cert?.toString()) || '-'}`,
-    `key:${(isHttps && certKey?.toString()) || '-'}`,
-  ].join(':')
+    `ca:${(isHttps && tlsConfig.ca?.toString()) || '-'}`,
+    `cert:${(isHttps && tlsConfig.cert?.toString()) || '-'}`,
+    `key:${(isHttps && tlsConfig.key?.toString()) || '-'}`,
+  ]
+}
 
+function getCachedDispatcher (key: string, createDispatcher: () => Dispatcher): Dispatcher {
   if (DISPATCHER_CACHE.has(key)) {
     return DISPATCHER_CACHE.get(key)!
   }
-
-  let dispatcher: Dispatcher
-
-  if (proxyUrl.protocol.startsWith('socks')) {
-    dispatcher = createSocksDispatcher(proxyUrl, parsedUri, opts, { ca, cert, key: certKey })
-  } else {
-    dispatcher = createHttpProxyDispatcher(proxyUrl, isHttps, opts, { ca, cert, key: certKey })
-  }
-
-  dispatcher = dispatcher.compose(stripSecFetchHeaders)
+  const dispatcher = createDispatcher().compose(stripSecFetchHeaders)
   DISPATCHER_CACHE.set(key, dispatcher)
   return dispatcher
 }
@@ -231,7 +279,7 @@ function createHttpProxyDispatcher (
   proxyUrl: URL,
   isHttps: boolean,
   opts: DispatcherOptions,
-  tlsConfig: { ca?: string | string[] | Buffer, cert?: string | string[] | Buffer, key?: string | Buffer }
+  tlsConfig: TlsOptions
 ): Dispatcher {
   return new ProxyAgent({
     uri: proxyUrl.href,
@@ -239,6 +287,9 @@ function createHttpProxyDispatcher (
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    connectTimeout: inactivityTimeout(opts),
+    headersTimeout: inactivityTimeout(opts),
+    bodyTimeout: inactivityTimeout(opts),
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     requestTls: isHttps
@@ -261,95 +312,51 @@ function createSocksDispatcher (
   proxyUrl: URL,
   targetUri: URL,
   opts: DispatcherOptions,
-  tlsConfig: { ca?: string | string[] | Buffer, cert?: string | string[] | Buffer, key?: string | Buffer }
+  tlsConfig: TlsOptions
 ): Dispatcher {
-  const isHttps = targetUri.protocol === 'https:'
-  const socksType = getSocksProxyType(proxyUrl.protocol)
-  const proxyHost = proxyUrl.hostname
-  const proxyPort = parseInt(proxyUrl.port, 10) || (socksType === 4 ? 1080 : 1080)
+  const timeout = inactivityTimeout(opts)
 
   return new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    headersTimeout: timeout,
+    bodyTimeout: timeout,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
-    connect: async (connectOpts, callback) => {
-      try {
-        const { socket } = await SocksClient.createConnection({
-          proxy: {
-            host: proxyHost,
-            port: proxyPort,
-            type: socksType,
-            userId: proxyUrl.username ? decodeURIComponent(proxyUrl.username) : undefined,
-            password: proxyUrl.password ? decodeURIComponent(proxyUrl.password) : undefined,
-          },
-          command: 'connect',
-          destination: {
-            host: connectOpts.hostname!,
-            port: parseInt(String(connectOpts.port!), 10),
-          },
-        })
-
-        if (isHttps) {
-          const tlsOpts: tls.ConnectionOptions = {
-            socket: socket as net.Socket,
-            servername: connectOpts.hostname!,
-            ca: tlsConfig.ca,
-            cert: tlsConfig.cert,
-            key: tlsConfig.key,
-            rejectUnauthorized: opts.strictSsl ?? true,
-          }
-          const tlsSocket = tls.connect(tlsOpts)
-          tlsSocket.on('secureConnect', () => {
-            callback(null, tlsSocket)
-          })
-          tlsSocket.on('error', (err) => {
-            callback(err, null)
-          })
-        } else {
-          callback(null, socket as net.Socket)
-        }
-      } catch (err) {
-        callback(err as Error, null)
-      }
-    },
+    // undici applies its own `connectTimeout` only to the connector it builds
+    // itself, so this one bounds the SOCKS handshake and the TLS handshake
+    // that follows it.
+    connect: createSocksConnector({
+      proxyUrl,
+      isHttps: targetUri.protocol === 'https:',
+      strictSsl: opts.strictSsl,
+      tlsConfig,
+      timeout,
+    }),
   })
 }
 
 function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatcher {
   const isHttps = parsedUri.protocol === 'https:'
+  const tlsConfig = pickTlsConfig(parsedUri, opts)
+  const key = getDispatcherKeyParts(isHttps, opts, tlsConfig).join(':')
+  return getCachedDispatcher(key, () => createDirectAgent(isHttps, opts, tlsConfig))
+}
 
-  const sslConfig = pickSettingByUrl(opts.clientCertificates, parsedUri.href)
-  const { ca, cert, key: certKey } = { ...opts, ...sslConfig }
-
-  const key = [
-    `https:${isHttps.toString()}`,
-    `local-address:${opts.localAddress ?? '>no-local-address<'}`,
-    `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
-    `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
-    `ca:${(isHttps && ca?.toString()) || '-'}`,
-    `cert:${(isHttps && cert?.toString()) || '-'}`,
-    `key:${(isHttps && certKey?.toString()) || '-'}`,
-  ].join(':')
-
-  if (DISPATCHER_CACHE.has(key)) {
-    return DISPATCHER_CACHE.get(key)!
-  }
-
-  const connectTimeout = typeof opts.timeout !== 'number' || opts.timeout === 0
-    ? 0
-    : opts.timeout + 1
-
-  const agent = new Agent({
+function createDirectAgent (isHttps: boolean, opts: DispatcherOptions, tlsConfig: TlsOptions): Dispatcher {
+  const timeout = inactivityTimeout(opts)
+  return new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-    connectTimeout,
+    connectTimeout: timeout,
+    headersTimeout: timeout,
+    bodyTimeout: timeout,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: isHttps
       ? {
         autoSelectFamily: true,
-        ca,
-        cert,
-        key: certKey,
+        ca: tlsConfig.ca,
+        cert: tlsConfig.cert,
+        key: tlsConfig.key,
         rejectUnauthorized: opts.strictSsl ?? true,
         localAddress: opts.localAddress,
       }
@@ -358,85 +365,7 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
         localAddress: opts.localAddress,
       },
   })
-
-  const dispatcher = agent.compose(stripSecFetchHeaders)
-  DISPATCHER_CACHE.set(key, dispatcher)
-  return dispatcher
 }
 
-function checkNoProxy (parsedUri: URL, opts: { noProxy?: boolean | string }): boolean {
-  const host = parsedUri.hostname
-    .split('.')
-    .filter(x => x)
-    .reverse()
-  if (typeof opts.noProxy === 'string') {
-    const noproxyArr = opts.noProxy.split(',').map(s => s.trim())
-    return noproxyArr.some(no => {
-      const noParts = no
-        .split('.')
-        .filter(x => x)
-        .reverse()
-      if (noParts.length === 0) {
-        return false
-      }
-      for (let i = 0; i < noParts.length; i++) {
-        if (host[i] !== noParts[i]) {
-          return false
-        }
-      }
-      return true
-    })
-  }
-  return opts.noProxy === true
-}
-
-/**
- * Pick SSL/TLS configuration by URL using nerf-dart matching.
- * This matches the behavior of @pnpm/network.config's pickSettingByUrl.
- */
-function pickSettingByUrl<T> (
-  settings: Record<string, T> | undefined,
-  uri: string
-): T | undefined {
-  if (!settings) return undefined
-
-  // Try exact match first
-  if (settings[uri]) return settings[uri]
-
-  // Use nerf-dart format for matching (e.g., //registry.npmjs.org/)
-  const nerf = nerfDart(uri)
-  if (settings[nerf]) return settings[nerf]
-
-  // Try without port
-  const parsedUrl = new URL(uri)
-  const withoutPort = removePort(parsedUrl)
-  if (settings[withoutPort]) return settings[withoutPort]
-
-  // Try progressively shorter nerf-dart paths
-  const maxParts = Object.keys(settings).reduce((max, key) => {
-    const parts = key.split('/').length
-    return parts > max ? parts : max
-  }, 0)
-  const parts = nerf.split('/')
-  for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
-    const key = `${parts.slice(0, i).join('/')}/`
-    if (settings[key]) {
-      return settings[key]
-    }
-  }
-
-  // If the URL had a port, try again without it
-  if (withoutPort !== uri) {
-    return pickSettingByUrl(settings, withoutPort)
-  }
-
-  return undefined
-}
-
-function removePort (parsedUrl: URL): string {
-  if (parsedUrl.port === '') return parsedUrl.href
-  const copy = new URL(parsedUrl.href)
-  copy.port = ''
-  const res = copy.toString()
-  return res.endsWith('/') ? res : `${res}/`
-}
+const pickTlsSettingByUrl = <Setting>(settings: Record<string, Setting> | undefined, uri: string): Setting | undefined =>
+  pickSettingByUrl(settings, uri, { skipFalsyValues: true })

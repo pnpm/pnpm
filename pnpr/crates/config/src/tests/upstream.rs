@@ -1,0 +1,447 @@
+use super::{
+    AUTHORIZATION,
+    Ecosystem,
+    FeatureOverrides,
+    IndexMap,
+    Interval,
+    Path,
+    RegistryError,
+    TokenEnv,
+    UpstreamAuthFile,
+    UpstreamAuthType,
+    UpstreamConfig,
+    auth_header,
+    listen,
+    load_with_graph,
+    load_with_graph_and_overrides,
+    resolve_upstream,
+    upstream_config_file,
+};
+
+#[test]
+fn upstream_bearer_token_becomes_bearer_authorization() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: Some("abc123".to_string().into()),
+        token_env: None,
+    };
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("bearer token resolves");
+    assert_eq!(auth_header(&upstream), Some("Bearer abc123"));
+}
+
+#[test]
+fn upstream_basic_token_becomes_basic_authorization_verbatim() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Basic,
+        token: Some("dXNlcjpwYXNz".to_string().into()),
+        token_env: None,
+    };
+    let upstream = resolve_upstream("priv", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("basic token resolves");
+    assert_eq!(auth_header(&upstream), Some("Basic dXNlcjpwYXNz"));
+}
+
+#[test]
+fn upstream_token_env_true_reads_npm_token() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: None,
+        token_env: Some(TokenEnv::Flag(true)),
+    };
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("token_env: true reads NPM_TOKEN");
+    assert_eq!(auth_header(&upstream), Some("Bearer default-env-token"));
+}
+
+#[test]
+fn upstream_token_env_named_reads_that_var() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: None,
+        token_env: Some(TokenEnv::Named("CUSTOM_TOKEN".to_string())),
+    };
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("named token_env reads that var");
+    assert_eq!(auth_header(&upstream), Some("Bearer custom-env-token"));
+}
+
+#[test]
+fn upstream_literal_token_beats_token_env() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: Some("literal".to_string().into()),
+        token_env: Some(TokenEnv::Named("CUSTOM_TOKEN".to_string())),
+    };
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect("literal token wins");
+    assert_eq!(auth_header(&upstream), Some("Bearer literal"));
+}
+
+#[test]
+fn upstream_custom_headers_are_forwarded() {
+    let headers = IndexMap::from_iter([("x-custom".to_string(), "value".to_string())]);
+    let upstream = resolve_upstream("npmjs", upstream_config_file(None, headers))
+        .expect("custom headers resolve");
+    assert_eq!(
+        upstream.headers
+            .get("x-custom")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "value",
+    );
+    assert!(auth_header(&upstream).is_none());
+}
+
+#[test]
+fn upstream_custom_authorization_header_overrides_auth_block() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: Some("from-auth".to_string().into()),
+        token_env: None,
+    };
+    let headers =
+        IndexMap::from_iter([("authorization".to_string(), "Basic override".to_string())]);
+    let upstream = resolve_upstream("npmjs", upstream_config_file(Some(auth), headers))
+        .expect("custom header overrides auth-derived one");
+    assert_eq!(auth_header(&upstream), Some("Basic override"));
+}
+
+#[test]
+fn upstream_auth_without_resolvable_token_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: None,
+        token_env: Some(TokenEnv::Named("UNSET_VAR".to_string())),
+    };
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("missing token must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn upstream_auth_with_empty_literal_token_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: Some(String::new().into()),
+        token_env: None,
+    };
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("an empty token must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn upstream_auth_with_empty_env_token_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: None,
+        token_env: Some(TokenEnv::Named("EMPTY_TOKEN".to_string())),
+    };
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("an empty env token must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn upstream_token_env_false_resolves_no_token_and_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: None,
+        token_env: Some(TokenEnv::Flag(false)),
+    };
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("token_env: false reads nothing, so an auth block must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn upstream_auth_token_with_control_char_is_a_config_error() {
+    let auth = UpstreamAuthFile {
+        r#type: UpstreamAuthType::Bearer,
+        token: Some("bad\ntoken".to_string().into()),
+        token_env: None,
+    };
+    let err = resolve_upstream("npmjs", upstream_config_file(Some(auth), IndexMap::new()))
+        .expect_err("a token that is not a valid header value must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn upstream_invalid_custom_header_name_is_a_config_error() {
+    let headers = IndexMap::from_iter([("bad header".to_string(), "value".to_string())]);
+    let err = resolve_upstream("npmjs", upstream_config_file(None, headers))
+        .expect_err("a header name with a space must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn upstream_invalid_custom_header_value_is_a_config_error() {
+    let headers = IndexMap::from_iter([("x-custom".to_string(), "bad\nvalue".to_string())]);
+    let err = resolve_upstream("npmjs", upstream_config_file(None, headers))
+        .expect_err("a header value with a control char must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn from_yaml_str_resolves_upstream_auth_and_headers() {
+    let yaml = r"
+registryEnv: [CUSTOM_TOKEN, ORG_NAME]
+registries:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    auth:
+      type: bearer
+      token: '${CUSTOM_TOKEN}'
+    headers:
+      X-Org: '${ORG_NAME}'
+";
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
+    let upstream = &config.routing.upstreams["npmjs"];
+    assert_eq!(
+        upstream.headers
+            .get(AUTHORIZATION)
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "Bearer custom-env-token",
+    );
+    assert_eq!(
+        upstream.headers
+            .get("x-org")
+            .unwrap()
+            .to_str()
+            .unwrap(),
+        "acme",
+    );
+}
+
+#[test]
+fn parses_cors_origins_and_upstream_search() {
+    let yaml = r"
+cors:
+  allowedOrigins:
+    - https://npmx.dev
+    - http://localhost:3000/
+registries:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    search: true
+";
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(
+        config.http.cors.allowed_origins(),
+        ["https://npmx.dev".to_string(), "http://localhost:3000".to_string()],
+    );
+    assert!(config.routing.upstreams["npmjs"].search);
+}
+
+/// A `public` upstream is fetched anonymously, so *any* custom header (not just
+/// `Authorization`, but a credential smuggled through `X-Api-Key`) must fail
+/// closed rather than be sent to a supposedly-public origin.
+#[test]
+fn from_yaml_str_rejects_public_upstream_with_custom_headers() {
+    for header in ["Authorization: Bearer leaked", "X-Api-Key: secret"] {
+        let yaml = format!(
+            "\
+storage: ./s
+registries:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    headers:
+      {header}
+",
+        );
+        let err = load_with_graph(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("public upstream with a custom header must be rejected");
+        assert!(err.to_string().contains("headers"), "unexpected error for {header:?}: {err}");
+    }
+}
+
+/// With the registry disabled, an upstream registry whose credential cannot
+/// resolve must not fail startup, the tier never talks to that upstream. The
+/// registry still joins the (validated) graph; only its serving config is
+/// skipped.
+#[test]
+fn cli_disable_registry_skips_upstream_registry_credentials_but_keeps_the_graph() {
+    let yaml = "\
+storage: ./s
+registryEnv: [PNPR_DEFINITELY_UNSET_TOKEN_VAR]
+registries:
+  corp:
+    type: upstream
+    url: https://corp.example/npm/
+    auth:
+      type: bearer
+      tokenEnv: PNPR_DEFINITELY_UNSET_TOKEN_VAR
+  main:
+    type: router
+    sources: [corp]
+";
+    let overrides = FeatureOverrides {
+        disable_registry: true,
+        disable_resolver: false,
+        disable_artifacts: false,
+        disable_pipeline: false,
+    };
+    let config =
+        load_with_graph_and_overrides(yaml, Path::new("/x"), Some(listen()), None, overrides)
+            .expect("a resolver-only tier must not fail on unused upstream credentials");
+    assert!(config.routing.upstreams.is_empty(), "credentials must not be resolved or carried");
+    assert!(
+        config.routing.registries.get("main").is_some(),
+        "the graph is still built and validated",
+    );
+}
+
+#[test]
+fn upstream_packages_map_bounds_the_namespace() {
+    let yaml = "\
+storage: ./s
+registries:
+  corp:
+    type: upstream
+    url: https://npm.corp.example/
+    packages:
+      '@corp/*': {}
+";
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
+    assert_eq!(
+        config.routing.registries.resolve("corp", Ecosystem::Npm, "@corp/tool"),
+        Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },
+    );
+    assert_eq!(
+        config.routing.registries.resolve("corp", Ecosystem::Npm, "lodash"),
+        Resolved::Unclaimed,
+    );
+}
+
+#[test]
+fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
+    let upstream = resolve_upstream("npmjs", upstream_config_file(None, IndexMap::new())).unwrap();
+    // An unset `packument_ttl` defers to the global packument TTL (`None` here),
+    // while the rest fall back to verdaccio's documented defaults.
+    assert_eq!(upstream.packument_ttl, None);
+    assert_eq!(upstream.requests.timeout, UpstreamConfig::DEFAULT_TIMEOUT);
+    assert_eq!(upstream.requests.max_packument_size, UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE);
+    assert_eq!(upstream.requests.max_fails, UpstreamConfig::DEFAULT_MAX_FAILS);
+    assert_eq!(upstream.requests.fail_timeout, UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
+    assert!(upstream.cache);
+    assert!(!upstream.search);
+}
+
+#[test]
+fn resolve_upstream_config_parses_explicit_knobs() {
+    use std::time::Duration;
+    let mut file = upstream_config_file(None, IndexMap::new());
+    file.packument_ttl = Some(Interval("10m".to_string()));
+    file.timeout = Some(Interval("45s".to_string()));
+    file.max_fails = Some(5);
+    file.fail_timeout = Some(Interval("1m".to_string()));
+    file.cache = Some(false);
+    file.search = true;
+    let upstream = resolve_upstream("npmjs", file).unwrap();
+    assert_eq!(upstream.packument_ttl, Some(Duration::from_mins(10)));
+    assert_eq!(upstream.requests.timeout, Duration::from_secs(45));
+    assert_eq!(upstream.requests.max_fails, 5);
+    assert_eq!(upstream.requests.fail_timeout, Duration::from_mins(1));
+    assert!(!upstream.cache);
+    assert!(upstream.search);
+}
+
+#[test]
+fn resolve_upstream_config_rejects_an_unparsable_interval() {
+    let mut file = upstream_config_file(None, IndexMap::new());
+    file.packument_ttl = Some(Interval("whenever".to_string()));
+    let err = resolve_upstream("npmjs", file).unwrap_err();
+    assert!(
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.to_lowercase().contains("packumentttl")),
+        "expected an InvalidConfig naming the offending field, got {err:?}",
+    );
+}
+
+#[test]
+fn upstream_resolves_bearer_auth_and_access() {
+    let yaml = r"
+registries:
+  corp:
+    type: upstream
+    url: https://npm.corp.example/
+    auth:
+      type: bearer
+      token: '${CUSTOM_TOKEN}'
+registryEnv: [CUSTOM_TOKEN]
+";
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
+    let upstream = &config.routing.upstreams["corp"];
+    assert_eq!(upstream.url, "https://npm.corp.example/");
+    assert_eq!(auth_header(upstream), Some("Bearer custom-env-token"));
+    assert!(!upstream.public);
+}
+
+#[test]
+fn upstream_resolves_basic_auth_and_access() {
+    let yaml = r"
+registries:
+  corp:
+    type: upstream
+    url: https://npm.corp.example/
+    auth:
+      type: basic
+      token: '${BASIC_TOKEN}'
+registryEnv: [BASIC_TOKEN]
+";
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
+    let upstream = &config.routing.upstreams["corp"];
+    assert_eq!(auth_header(upstream), Some("Basic dXNlcjpwYXNz"));
+    assert!(!upstream.public);
+}
+
+#[test]
+fn public_upstream_registry_carries_no_access_credential() {
+    let yaml = r"
+registries:
+  corp:
+    type: upstream
+    url: https://npm.corp.example/
+    public: true
+";
+    let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.routing.upstreams["corp"].public);
+}
+
+#[test]
+fn max_packument_size_is_resolved_and_validated() {
+    for (value, expected) in
+        [("2 MiB", Some(2 * 1024 * 1024)), ("17", Some(17)), ("0", None), ("invalid", None)]
+    {
+        let yaml = format!(
+            r"
+registries:
+  example:
+    type: upstream
+    url: https://registry.example.test
+    public: true
+    maxPackumentSize: {value}
+",
+        );
+        let result = load_with_graph(&yaml, Path::new("/x"), listen(), None);
+        match expected {
+            Some(expected) => assert_eq!(
+                result.unwrap().routing.upstreams["example"].requests.max_packument_size,
+                expected,
+            ),
+            None => assert!(result.is_err()),
+        }
+    }
+}

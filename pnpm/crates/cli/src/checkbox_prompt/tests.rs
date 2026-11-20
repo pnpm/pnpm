@@ -1,5 +1,15 @@
-use super::{CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme, KeyOutcome};
-use console::{Key, strip_ansi_codes};
+use super::{
+    CheckboxChoice,
+    CheckboxItem,
+    CheckboxPrompt,
+    CheckboxTheme,
+    KeyOutcome,
+    in_active_cyan,
+};
+use console::{
+    Key,
+    strip_ansi_codes,
+};
 
 fn separator(text: &str) -> CheckboxItem<&'static str> {
     CheckboxItem::Separator(text.to_string())
@@ -10,6 +20,7 @@ fn choice(value: &'static str) -> CheckboxItem<&'static str> {
         name: format!("{value} 1.0.0 ❯ 2.0.0"),
         short: value.to_string(),
         value,
+        description: None,
     })
 }
 
@@ -39,11 +50,17 @@ fn press(prompt: &mut CheckboxPrompt<&'static str>, keys: &[Key]) -> KeyOutcome 
 }
 
 fn selected(prompt: &CheckboxPrompt<&'static str>) -> Vec<&'static str> {
-    prompt.selected_choices().map(|choice| choice.value).collect()
+    prompt
+        .selected_choices()
+        .map(|choice| choice.value)
+        .collect()
 }
 
 fn frame_lines(prompt: &CheckboxPrompt<&'static str>) -> Vec<String> {
-    strip_ansi_codes(&prompt.render_frame()).lines().map(str::to_string).collect()
+    strip_ansi_codes(&prompt.render_frame())
+        .lines()
+        .map(str::to_string)
+        .collect()
 }
 
 #[test]
@@ -62,13 +79,16 @@ fn moving_skips_separators_and_wraps_around() {
     let mut prompt = grouped_prompt();
 
     press(&mut prompt, &[Key::ArrowDown, Key::ArrowDown]);
-    assert_eq!(prompt.active, 6, "the second move steps over the devDependencies headings");
+    assert_eq!(
+        prompt.viewport.active, 6,
+        "the second move steps over the devDependencies headings",
+    );
 
     press(&mut prompt, &[Key::ArrowDown]);
-    assert_eq!(prompt.active, 2, "moving past the end wraps to the first choice");
+    assert_eq!(prompt.viewport.active, 2, "moving past the end wraps to the first choice");
 
     press(&mut prompt, &[Key::Char('k')]);
-    assert_eq!(prompt.active, 6, "moving before the start wraps to the last choice");
+    assert_eq!(prompt.viewport.active, 6, "moving before the start wraps to the last choice");
 }
 
 #[test]
@@ -104,7 +124,7 @@ fn a_digit_toggles_that_choice_counting_choices_only() {
     press(&mut prompt, &[Key::Char('3')]);
 
     assert_eq!(selected(&prompt), ["baz"]);
-    assert_eq!(prompt.active, 6);
+    assert_eq!(prompt.viewport.active, 6);
 }
 
 #[test]
@@ -161,11 +181,8 @@ fn the_answer_names_the_selection_by_its_short_form() {
 
 #[test]
 fn the_theme_picks_the_icons() {
-    let mut prompt = grouped_prompt().theme(CheckboxTheme {
-        checked: "●".to_string(),
-        unchecked: "○".to_string(),
-        highlight_active: false,
-    });
+    let mut prompt = grouped_prompt()
+        .theme(CheckboxTheme { checked: "●".to_string(), unchecked: "○".to_string() });
 
     press(&mut prompt, &[Key::Char(' ')]);
 
@@ -174,14 +191,24 @@ fn the_theme_picks_the_icons() {
     assert_eq!(lines[4], " ○ bar 1.0.0 ❯ 2.0.0");
 }
 
+#[test]
+fn the_active_row_cyan_survives_the_rows_own_resets() {
+    let line = "❯○ foo 1.0.0 ❯ 2.\u{1b}[32m1.0\u{1b}[39m \u{1b}[1mweb\u{1b}[0m https://example.com";
+
+    assert_eq!(
+        in_active_cyan(line),
+        "\u{1b}[36m❯○ foo 1.0.0 ❯ 2.\u{1b}[32m1.0\u{1b}[39m\u{1b}[36m \u{1b}[1mweb\u{1b}[0m\u{1b}[36m https://example.com\u{1b}[39m",
+    );
+}
+
 /// The page scrolls to keep the cursor on it. When the rows directly
-/// above the cursor are separators — a group's heading and column
-/// header — they scroll on with it, so a group is never shown without
+/// above the cursor are separators (a group's heading and column
+/// header) they scroll on with it, so a group is never shown without
 /// its title.
 #[test]
 fn the_page_follows_the_cursor_and_keeps_the_headings_above_it() {
     let mut prompt = grouped_prompt();
-    prompt.page_size = 3;
+    prompt.viewport.page_size = 3;
 
     let page = |prompt: &CheckboxPrompt<&'static str>| frame_lines(prompt)[1..4].to_vec();
     assert_eq!(page(&prompt), [" ── dependencies ──", "   Package", "❯◯ foo 1.0.0 ❯ 2.0.0"]);
@@ -210,4 +237,37 @@ fn a_prompt_without_choices_cannot_run() {
 
     let error = prompt.interact().expect_err("no choice to make");
     assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+}
+
+#[test]
+fn shows_the_active_choice_description_cut_to_a_page() {
+    let description = (1..=14)
+        .map(|line| format!("line {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let described = CheckboxItem::Choice(CheckboxChoice {
+        name: "b".to_string(),
+        short: "b".to_string(),
+        value: "b",
+        description: Some(description),
+    });
+    let mut prompt = CheckboxPrompt::new("Pick", vec![choice("a"), described]);
+    assert!(!prompt.render_frame().contains("line 1"));
+
+    prompt.handle_key(&Key::ArrowDown);
+    let frame = prompt.render_frame();
+
+    assert!(frame.contains(" line 12"), "{frame}");
+    assert!(!frame.contains("line 13"), "{frame}");
+    assert!(frame.contains("2 more lines"), "{frame}");
+}
+
+#[test]
+fn descriptions_take_rows_from_the_list_so_the_frame_fits() {
+    use super::layout_for;
+    assert_eq!(layout_for(Some(24), false), (18, 0));
+    assert_eq!(layout_for(Some(24), true), (9, 7));
+    assert_eq!(layout_for(Some(60), true), (40, 12));
+    let (page, description) = layout_for(Some(10), true);
+    assert!(page + description + 2 <= 10 - 6, "{page} + {description}");
 }

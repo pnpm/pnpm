@@ -1,5 +1,9 @@
 use crate::path_util::lexical_join;
-use std::path::{Path, PathBuf};
+use pnpm_workspace_projects_graph::lexical_normalize;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A single parsed `--filter` selector.
 ///
@@ -12,13 +16,6 @@ pub struct ProjectSelector {
     /// `!`-prefixed: the matched projects are subtracted from the
     /// selection rather than added.
     pub exclude: bool,
-    /// `^` modifier: exclude the matched project itself, keeping only
-    /// its dependencies / dependents.
-    pub exclude_self: bool,
-    /// Trailing `...`: also select the matched projects' dependencies.
-    pub include_dependencies: bool,
-    /// Leading `...`: also select the matched projects' dependents.
-    pub include_dependents: bool,
     /// Name glob (`@pnpm.e2e/*`, `foo`, ...).
     pub name_pattern: Option<String>,
     /// Directory selector (`./pkg`, `{packages/*}`), resolved against
@@ -28,53 +25,60 @@ pub struct ProjectSelector {
     /// production dependencies only. Not produced by parsing.
     pub follow_prod_deps_only: bool,
     /// Overrides how [`Self::parent_dir`] matches, for a selector pnpm
-    /// generates rather than the user writing it. `None` — every parsed
-    /// selector — follows the mode the whole filter pass runs in, which
+    /// generates rather than the user writing it. `None` (every parsed
+    /// selector) follows the mode the whole filter pass runs in, which
     /// `legacyDirFiltering` chooses. Not produced by parsing.
     pub use_glob_dir_filtering: Option<bool>,
+    pub traversal: DependencyTraversal,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct DependencyTraversal {
+    /// `^` modifier: exclude the matched project itself, keeping only
+    /// its dependencies / dependents.
+    pub exclude_self: bool,
+    /// Trailing `...`: also select the matched projects' dependencies.
+    pub include_dependencies: bool,
+    /// Leading `...`: also select the matched projects' dependents.
+    pub include_dependents: bool,
+}
+
+/// A selector with its `!`, `...` and `^` modifiers taken off.
+struct SelectorModifiers<'a> {
+    leading: &'a str,
+    raw: &'a str,
+    trailing: &'a str,
+    exclude: bool,
+    exclude_self: bool,
+    include_dependencies: bool,
+    include_dependents: bool,
 }
 
 /// Parse one raw `--filter` selector string against `prefix` (the
 /// directory that directory-selectors resolve relative to).
 pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelector {
-    let mut raw = raw_selector;
-
-    let mut exclude = false;
-    if let Some(rest) = raw.strip_prefix('!') {
-        exclude = true;
-        raw = rest;
-    }
-
-    let mut exclude_self = false;
-    let include_dependencies = raw.ends_with("...");
-    if include_dependencies {
-        raw = &raw[..raw.len() - 3];
-        if let Some(rest) = raw.strip_suffix('^') {
-            exclude_self = true;
-            raw = rest;
-        }
-    }
-
-    let include_dependents = raw.starts_with("...");
-    if include_dependents {
-        raw = &raw[3..];
-        if let Some(rest) = raw.strip_prefix('^') {
-            exclude_self = true;
-            raw = rest;
-        }
-    }
+    let SelectorModifiers {
+        raw,
+        exclude,
+        exclude_self,
+        include_dependencies,
+        include_dependents,
+        ..
+    } = strip_selector_modifiers(raw_selector);
 
     match match_selector_pattern(raw) {
         Some(SelectorParts { name, brace_inner, bracket_inner }) => ProjectSelector {
             diff: bracket_inner.map(str::to_string),
             exclude,
-            exclude_self,
-            include_dependencies,
-            include_dependents,
             name_pattern: name.map(str::to_string),
             parent_dir: brace_inner.map(|inner| lexical_join(prefix, inner)),
             follow_prod_deps_only: false,
             use_glob_dir_filtering: None,
+            traversal: crate::parse_project_selector::DependencyTraversal {
+                exclude_self,
+                include_dependencies,
+                include_dependents,
+            },
         },
         None => {
             if is_selector_by_location(raw) {
@@ -92,6 +96,87 @@ pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelec
                 }
             }
         }
+    }
+}
+
+/// Rewrite a directory selector resolved against `from_prefix` so it selects
+/// the same directory when resolved against `to_prefix`. Name and diff-only
+/// selectors are returned unchanged.
+#[must_use]
+pub fn rebase_project_selector(raw_selector: &str, from_prefix: &Path, to_prefix: &Path) -> String {
+    if from_prefix == to_prefix {
+        return raw_selector.to_string();
+    }
+    let SelectorModifiers { leading, raw, trailing, .. } = strip_selector_modifiers(raw_selector);
+    match match_selector_pattern(raw) {
+        Some(SelectorParts {
+            name,
+            brace_inner: Some(brace_inner),
+            bracket_inner,
+        }) => {
+            let Some(rebased) = rebase_dir(brace_inner, from_prefix, to_prefix) else {
+                return raw_selector.to_string();
+            };
+            let name = name.unwrap_or_default();
+            let bracket = bracket_inner
+                .map(|inner| format!("[{inner}]"))
+                .unwrap_or_default();
+            format!("{leading}{name}{{{rebased}}}{bracket}{trailing}")
+        }
+        None if is_selector_by_location(raw) => {
+            let Some(rebased) = rebase_dir(raw, from_prefix, to_prefix) else {
+                return raw_selector.to_string();
+            };
+            let location =
+                if is_selector_by_location(&rebased) { rebased } else { format!("./{rebased}") };
+            format!("{leading}{location}{trailing}")
+        }
+        _ => raw_selector.to_string(),
+    }
+}
+
+fn rebase_dir(raw_dir: &str, from_prefix: &Path, to_prefix: &Path) -> Option<String> {
+    let target = lexical_join(from_prefix, raw_dir);
+    let to_prefix = lexical_normalize(to_prefix);
+    let rel = pathdiff::diff_paths(&target, &to_prefix)?;
+    let normalized = rel.to_string_lossy().replace('\\', "/");
+    Some(if normalized.is_empty() { ".".to_string() } else { normalized })
+}
+
+/// Peel the leading `!` and the `...`/`^` traversal modifiers from a selector,
+/// leaving the pattern they apply to.
+fn strip_selector_modifiers(raw_selector: &str) -> SelectorModifiers<'_> {
+    let mut start = 0;
+    let mut end = raw_selector.len();
+    let exclude = raw_selector[start..end].starts_with('!');
+    if exclude {
+        start += 1;
+    }
+    let mut exclude_self = false;
+    let include_dependencies = raw_selector[start..end].ends_with("...");
+    if include_dependencies {
+        end -= 3;
+        if raw_selector[start..end].ends_with('^') {
+            exclude_self = true;
+            end -= 1;
+        }
+    }
+    let include_dependents = raw_selector[start..end].starts_with("...");
+    if include_dependents {
+        start += 3;
+        if raw_selector[start..end].starts_with('^') {
+            exclude_self = true;
+            start += 1;
+        }
+    }
+    SelectorModifiers {
+        leading: &raw_selector[..start],
+        raw: &raw_selector[start..end],
+        trailing: &raw_selector[end..],
+        exclude,
+        exclude_self,
+        include_dependencies,
+        include_dependents,
     }
 }
 
@@ -163,7 +248,8 @@ fn name_candidate_lengths(input: &str) -> Vec<usize> {
 fn match_groups(rest: &str) -> Option<(Option<&str>, Option<&str>)> {
     let (brace_inner, rest) = match_delimited(rest, '{', '}')?;
     let (bracket_inner, rest) = match_delimited(rest, '[', ']')?;
-    rest.is_empty().then_some((brace_inner, bracket_inner))
+    rest.is_empty()
+        .then_some((brace_inner, bracket_inner))
 }
 
 /// Match an optional `<open><inner><close>` group at the start of

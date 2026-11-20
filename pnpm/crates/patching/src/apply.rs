@@ -1,22 +1,46 @@
+pub use preview::{
+    MANIFEST_FILE_NAME,
+    PatchPreview,
+    preview_patch,
+};
+
+mod atomic_write;
+mod preview;
 mod tolerant;
 
-use derive_more::{Display, Error};
-use diffy::patch_set::{FileOperation, ParseOptions, PatchSet};
+use atomic_write::write_atomic_with_mode;
+use derive_more::{
+    Display,
+    Error,
+};
+use diffy::{
+    Patch,
+    patch_set::{
+        FileMode,
+        FileOperation,
+        FilePatch,
+        ParseOptions,
+        PatchSet,
+    },
+};
 use miette::Diagnostic;
 use std::{
-    fs::{self, OpenOptions, Permissions},
-    io::{self, Write},
-    path::{Component, Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// Error from [`apply_patch_to_dir`].
 ///
-/// Surfaces three diagnostic codes:
+/// Diagnostic codes:
 ///
-/// - `ERR_PNPM_PATCH_NOT_FOUND` — the patch file is missing.
-/// - `ERR_PNPM_INVALID_PATCH` — the patch file can't be parsed.
-/// - `ERR_PNPM_PATCH_FAILED` — a hunk wouldn't apply, the target
+/// - `ERR_PNPM_PATCH_NOT_FOUND`, the patch file is missing.
+/// - `ERR_PNPM_INVALID_PATCH`, the patch file can't be parsed.
+/// - `ERR_PNPM_PATCH_FAILED`, a hunk wouldn't apply, the target
 ///   file is missing, or an IO error hit a target path.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum PatchApplyError {
@@ -53,63 +77,30 @@ pub enum PatchApplyError {
 /// Apply a unified-diff patch file to every modified/created/deleted
 /// file inside `patched_dir`.
 ///
-/// Uses [`diffy`] for parsing and applying — pure Rust, no subprocess,
+/// Uses [`diffy`] for parsing and applying, pure Rust, no subprocess,
 /// no Node, cross-platform. Running `patch` or `git apply` directly
 /// would be simpler, but `patch` is not available on Windows and
 /// `git apply` is hard to execute on a subdirectory of an existing
 /// repository, so an in-process applier sidesteps both problems.
 ///
-/// Supported file operations: `Modify`, `Create`, `Delete`.
+/// Supported file operations: `Modify`, `Create`, `Delete`, `Rename`.
 ///
-/// File paths in the patch are stripped one level
-/// (`diffy::FileOperation::strip_prefix(1)`) to drop the conventional
-/// `a/` and `b/` prefixes git uses, then validated against
+/// File paths in the patch are read with the `a/` and `b/` prefixes git
+/// uses dropped, then validated against
 /// `patched_dir`: absolute paths, `..` segments, and (on Windows)
 /// drive prefixes / root components are rejected as
-/// `ERR_PNPM_PATCH_FAILED`. A patch file is attacker-controlled
-/// data — an `a/../../outside` header would otherwise let it
-/// read, write, or delete outside the package directory.
-///
-/// `Modify` writes the patched content via a sibling temp file +
-/// `rename` (the same pattern
-/// [`pnpm_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs)
-/// uses for the lockfile), which both makes the rewrite crash-safe
-/// — a failed write leaves the original on disk instead of an empty
-/// dirent — and breaks any hardlink (or reflink) back to the
-/// content-addressable store as a side effect of the rename creating
-/// a new dirent → inode mapping. A plain truncating write would
-/// otherwise corrupt the store copy that every other snapshot of the
-/// same package shares, and leak patched content into sibling
-/// snapshots. The patched output lives in the side-effects cache
-/// after this call returns; nothing requires the store copy to carry
-/// it. The temp file is chmoded to match the original before rename so
-/// patched shebang scripts in `bin/` keep their executable bit
-/// atomically — no window where the file has the wrong mode.
+/// `ERR_PNPM_PATCH_FAILED`.
 pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
 ) -> Result<(), PatchApplyError> {
-    // Read the patch file. ENOENT becomes `ERR_PNPM_PATCH_NOT_FOUND`.
-    // Every other IO error surfaces with the same diagnostic code but a
-    // different variant so the underlying `io::Error` chain is preserved.
-    let bytes = match fs::read(patch_file_path) {
-        Ok(b) => b,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            return Err(PatchApplyError::PatchNotFound { path: patch_file_path.to_path_buf() });
-        }
-        Err(source) => {
-            return Err(PatchApplyError::ReadPatchFile {
-                path: patch_file_path.to_path_buf(),
-                source,
-            });
-        }
-    };
-    // Lossy UTF-8 to match Node `fs.readFile(path, 'utf8')` (the
-    // same decoding [`create_hex_hash_from_file`] uses), so a patch
-    // file with stray bytes still parses.
-    //
-    // [`create_hex_hash_from_file`]: crate::create_hex_hash_from_file
-    let text = String::from_utf8_lossy(&bytes);
+    let canonical_dir = fs::canonicalize(patched_dir)
+        .map_err(|source| PatchApplyError::PatchFailed {
+            patch_file_path: patch_file_path.to_path_buf(),
+            patched_dir: patched_dir.to_path_buf(),
+            message: format!("canonicalize {}: {source}", patched_dir.display()),
+        })?;
+    let text = read_patch_text(patch_file_path)?;
 
     let patches = PatchSet::parse(&text, ParseOptions::gitdiff());
     for file_patch_result in patches {
@@ -117,268 +108,344 @@ pub fn apply_patch_to_dir(
             patch_file_path: patch_file_path.to_path_buf(),
             message: source.to_string(),
         })?;
-        apply_one_file(patched_dir, patch_file_path, &file_patch)?;
+        apply_one_file(patched_dir, &canonical_dir, patch_file_path, &file_patch)?;
     }
     Ok(())
+}
+
+/// Read a patch file and apply the tolerances that let the patch files
+/// pnpm meets in the wild through [`PatchSet::parse`].
+///
+/// [`tolerant`] owns the tolerances; this is only the order it expects
+/// them in, kept in one place so the apply and preview paths cannot drift.
+pub(super) fn read_patch_text(patch_file_path: &Path) -> Result<String, PatchApplyError> {
+    let text = read_patch_file(patch_file_path)?;
+    Ok(tolerant::drop_context_no_newline_markers(tolerant::strip_cr_from_extended_headers(text)))
+}
+
+/// Read a patch file, mapping a missing file to
+/// `ERR_PNPM_PATCH_NOT_FOUND`.
+///
+/// Decoded lossily to match Node `fs.readFile(path, 'utf8')` (the same
+/// decoding [`create_hex_hash_from_file`] uses), so a patch file with
+/// stray bytes still parses.
+///
+/// [`create_hex_hash_from_file`]: crate::create_hex_hash_from_file
+fn read_patch_file(patch_file_path: &Path) -> Result<String, PatchApplyError> {
+    match fs::read(patch_file_path) {
+        Ok(bytes) => Ok(String::from_utf8_lossy(&bytes).into_owned()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            Err(PatchApplyError::PatchNotFound { path: patch_file_path.to_path_buf() })
+        }
+        Err(source) => {
+            Err(PatchApplyError::ReadPatchFile { path: patch_file_path.to_path_buf(), source })
+        }
+    }
 }
 
 fn apply_one_file(
     patched_dir: &Path,
+    canonical_dir: &Path,
     patch_file_path: &Path,
-    file_patch: &diffy::patch_set::FilePatch<'_, str>,
+    file_patch: &FilePatch<'_, str>,
 ) -> Result<(), PatchApplyError> {
-    // Strip the conventional `a/` / `b/` prefix so the path inside
-    // the patch maps onto a relative path under `patched_dir`.
-    let operation = file_patch.operation().strip_prefix(1);
+    let operation = package_relative_operation(file_patch);
+    let apply = FileApply { patched_dir, canonical_dir, patch_file_path };
 
-    let failed = |message: String| PatchApplyError::PatchFailed {
-        patch_file_path: patch_file_path.to_path_buf(),
-        patched_dir: patched_dir.to_path_buf(),
-        message,
+    let text_patch = || {
+        file_patch
+            .patch()
+            .as_text()
+            .ok_or_else(|| apply.failed("binary patch is not supported".to_string()))
     };
-
-    // Reject patch paths that try to escape `patched_dir`: absolute
-    // paths, `..` segments, and (on Windows) drive-letter prefixes
-    // and root components. A patch is attacker-controlled data —
-    // an `a/../../outside` header could otherwise read, write, or
-    // delete files outside the package directory.
-    let resolve_target = |rel: &Path| -> Result<PathBuf, PatchApplyError> {
-        if rel.is_absolute()
-            || rel.components().any(|c| {
-                matches!(c, Component::ParentDir | Component::RootDir | Component::Prefix(_))
-            })
-        {
-            return Err(failed(format!("patch path escapes target dir: {}", rel.display())));
-        }
-        Ok(patched_dir.join(rel))
-    };
-
     match operation {
-        FileOperation::Modify { modified, .. } => {
-            let target = resolve_target(Path::new(modified.as_ref()))?;
-            // Capture the original mode so the rewritten file keeps
-            // it. `fs::write` after `fs::remove_file` creates a fresh
-            // inode whose mode is governed by the process umask, which
-            // would otherwise drop the executable bit on patched
-            // shebang scripts in `bin/`.
-            let permissions = fs::metadata(&target)
-                .map(|m| m.permissions())
-                .map_err(|source| failed(format!("stat {}: {source}", target.display())))?;
-            // Read as bytes and lossy-decode so non-UTF-8 bytes
-            // turn into U+FFFD rather than failing the patch.
-            // Matches how the patch file itself is read (see
-            // [`apply_patch_to_dir`]) and Node `fs.readFile(..., 'utf8')`.
-            let bytes = fs::read(&target)
-                .map_err(|source| failed(format!("read {}: {source}", target.display())))?;
-            let original = String::from_utf8_lossy(&bytes).into_owned();
-            let text_patch = file_patch
-                .patch()
-                .as_text()
-                .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let updated = match tolerant::apply(&original, text_patch) {
-                Ok(updated) => updated,
-                Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => {
-                    // File is already in the post-patch state — reverse
-                    // applies cleanly, so treat as no-op.
-                    return Ok(());
-                }
-                Err(message) => {
-                    return Err(failed(format!("apply to {}: {message}", target.display())));
-                }
-            };
-            // Stage the patched bytes in a sibling temp file, then
-            // atomically rename over the target. `rename` creates a new
-            // dirent → inode mapping at `target`, which both:
-            //
-            //   1. **Breaks the hardlink to the store.** Files in
-            //      `node_modules/.pnpm/<slot>/node_modules/<pkg>` are
-            //      hardlinked (or reflinked) from the content-
-            //      addressable store; a plain truncating `fs::write`
-            //      would mutate the shared inode, corrupting the store
-            //      copy and every other snapshot's hardlink to it. The
-            //      patched output is captured by the side-effects cache
-            //      after this returns; nothing requires the store copy
-            //      to carry it.
-            //   2. **Is crash-safe.** If the write fails after we've
-            //      unlinked the target, the package is broken until
-            //      reinstall — `unlink → write` would have that
-            //      window. With temp + rename, a mid-write failure
-            //      just leaves a stale temp file (cleaned up best-
-            //      effort) and the original target intact, so the next
-            //      install can retry from the same baseline.
-            write_atomic_with_mode(&target, updated.as_bytes(), &permissions)
-                .map_err(|source| failed(format!("write {}: {source}", target.display())))?;
-        }
-        FileOperation::Create(path) => {
-            let target = resolve_target(Path::new(path.as_ref()))?;
-            let text_patch = file_patch
-                .patch()
-                .as_text()
-                .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let created = tolerant::apply("", text_patch)
-                .map_err(|message| failed(format!("create {}: {message}", target.display())))?;
-            // A "new file" patch (`--- /dev/null`) means the target is
-            // expected NOT to exist. Refusing to overwrite matches
-            // `patch`'s and `git apply`'s behavior — silently clobbering
-            // a real file would be a data-loss footgun if the patch was
-            // authored against the wrong base.
-            //
-            // Idempotency exception: if the target already contains
-            // exactly the post-patch content, the patch has already
-            // been applied (e.g. a re-run) and we no-op.
-            if target.try_exists().unwrap_or(false) {
-                let existing = fs::read(&target)
-                    .map_err(|source| failed(format!("read {}: {source}", target.display())))?;
-                if String::from_utf8_lossy(&existing) == created {
-                    return Ok(());
-                }
-                return Err(failed(format!(
-                    "cannot create {}: target already exists",
-                    target.display(),
-                )));
-            }
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).map_err(|source| {
-                    failed(format!("create parent of {}: {source}", target.display()))
-                })?;
-            }
-            fs::write(&target, created)
-                .map_err(|source| failed(format!("write {}: {source}", target.display())))?;
-        }
+        FileOperation::Modify { modified, .. } => apply.modify(
+            &apply.resolve_target(Path::new(modified.as_ref()))?,
+            text_patch()?,
+            file_patch.new_mode(),
+        ),
+        FileOperation::Create(path) => apply.create(
+            &apply.resolve_target(Path::new(path.as_ref()))?,
+            text_patch()?,
+            file_patch.new_mode(),
+        ),
         FileOperation::Delete(path) => {
-            let target = resolve_target(Path::new(path.as_ref()))?;
-            // Validate that the existing file matches the patch
-            // before unlinking — a stale or wrong-target patch
-            // would otherwise silently delete the wrong file.
-            // diffy::apply on a delete patch produces the empty
-            // string when every hunk matches.
-            //
-            // Lossy UTF-8 decoding for the same reason as the
-            // `Modify` branch above: match the patch-file reader
-            // and Node's `fs.readFile(..., 'utf8')`.
-            //
-            // Idempotency: a missing target means the file was
-            // already removed by an earlier apply of the same
-            // patch — treat as no-op.
-            let bytes = match fs::read(&target) {
-                Ok(b) => b,
-                Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
-                Err(source) => {
-                    return Err(failed(format!("read {}: {source}", target.display())));
-                }
-            };
-            let original = String::from_utf8_lossy(&bytes).into_owned();
-            let text_patch = file_patch
-                .patch()
-                .as_text()
-                .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let after = tolerant::apply(&original, text_patch)
-                .map_err(|message| failed(format!("apply to {}: {message}", target.display())))?;
-            if !after.is_empty() {
-                return Err(failed(format!(
-                    "delete patch left {} non-empty after apply ({} bytes remain)",
-                    target.display(),
-                    after.len(),
-                )));
-            }
-            fs::remove_file(&target)
-                .map_err(|source| failed(format!("delete {}: {source}", target.display())))?;
+            apply.delete(&apply.resolve_target(Path::new(path.as_ref()))?, text_patch()?)
         }
-        FileOperation::Rename { .. } | FileOperation::Copy { .. } => {
-            return Err(failed(
-                "rename/copy operations in patches are not yet supported".to_string(),
-            ));
+        FileOperation::Rename { from, to } => apply.rename(
+            &apply.resolve_target(Path::new(from.as_ref()))?,
+            &apply.resolve_target(Path::new(to.as_ref()))?,
+            text_patch()?,
+            file_patch.new_mode(),
+        ),
+        FileOperation::Copy { .. } => {
+            Err(apply.failed("copy operations in patches are not yet supported".to_string()))
         }
     }
-    Ok(())
 }
 
-/// Atomic write: stage `content` in a sibling temp file (with
-/// `permissions` applied before the rename so the final file has the
-/// right mode atomically), then `rename` over `target`. Mirrors the
-/// pattern in
-/// [`pnpm_lockfile::save_lockfile::write_atomic`](../../lockfile/src/save_lockfile.rs):
-/// `create_new(true)` rather than `create + truncate` so we never
-/// follow a symlink or truncate a file an attacker (or a crashed prior
-/// install) pre-seeded at our predicted temp path; on `AlreadyExists`
-/// the counter advances and we retry up to `MAX_TEMP_ATTEMPTS` times.
+/// The record's operation with paths relative to the patched directory.
 ///
-/// `rename` is atomic on Unix and replaces in-place on Windows, so an
-/// IO failure mid-write leaves either the original file or the
-/// rewritten one — never an empty dirent. **This is atomic against IO
-/// errors, not against power loss**: we don't `fsync` the temp file
-/// or the parent directory, so a host crash between rename and the
-/// kernel's writeback flush can lose the rename. This matches Node's
-/// `fs.writeFileSync` semantics — it doesn't fsync either, and a
-/// partially-written patched install is recoverable by re-running
-/// `pnpm install` anyway.
-///
-/// As a side effect, `rename` creates a fresh inode at `target`,
-/// breaking any hardlink the path previously shared with the content-
-/// addressable store; the store inode (and every other hardlink to it)
-/// stays untouched.
-fn write_atomic_with_mode(
-    target: &Path,
-    content: &[u8],
-    permissions: &Permissions,
-) -> io::Result<()> {
-    /// Sixteen fresh counter values is plenty — under benign
-    /// conditions we never collide; under shared-store-across-
-    /// containers the chance of 16 consecutive same-pid same-counter
-    /// collisions is negligible. Matches the constant in
-    /// `pnpm_lockfile::save_lockfile::write_atomic`.
-    const MAX_TEMP_ATTEMPTS: usize = 16;
+/// Git prefixes the `diff --git`, `---` and `+++` paths with `a/` and `b/`,
+/// which are stripped, but writes `rename from` and `rename to` bare.
+pub(super) fn package_relative_operation<'patch>(
+    file_patch: &'patch FilePatch<'_, str>,
+) -> FileOperation<'patch, str> {
+    match file_patch.operation() {
+        rename @ FileOperation::Rename { .. } => rename.clone(),
+        operation => operation.strip_prefix(1),
+    }
+}
 
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let pid = std::process::id();
-    let parent = target.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = target
-        .file_name()
-        .map_or_else(|| String::from("patched"), |name| name.to_string_lossy().into_owned());
+/// One patch record being applied to one file of `patched_dir`.
+struct FileApply<'a> {
+    patched_dir: &'a Path,
+    canonical_dir: &'a Path,
+    patch_file_path: &'a Path,
+}
 
-    let mut last_already_exists: Option<io::Error> = None;
-    for _ in 0..MAX_TEMP_ATTEMPTS {
-        let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.pacquet-tmp"));
-
-        let mut file = match OpenOptions::new().write(true).create_new(true).open(&tmp) {
-            Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                last_already_exists = Some(error);
-                continue;
-            }
-            Err(error) => return Err(error),
-        };
-
-        if let Err(error) = file.write_all(content) {
-            drop(file);
-            let _ = fs::remove_file(&tmp);
-            return Err(error);
+impl FileApply<'_> {
+    fn failed(&self, message: String) -> PatchApplyError {
+        PatchApplyError::PatchFailed {
+            patch_file_path: self.patch_file_path.to_path_buf(),
+            patched_dir: self.patched_dir.to_path_buf(),
+            message,
         }
-        // Close before chmod / rename. Required on Windows: `MoveFileEx`
-        // over a still-open source handle fails with a sharing
-        // violation. Not strictly required on Unix but matches the
-        // pattern in `save_lockfile::write_atomic`. No `sync_all`: this
-        // routine is atomic against IO errors, not power loss — see
-        // the `fn` doc above.
-        drop(file);
-
-        if let Err(error) = fs::set_permissions(&tmp, permissions.clone()) {
-            let _ = fs::remove_file(&tmp);
-            return Err(error);
-        }
-
-        return fs::rename(&tmp, target).inspect_err(|_| {
-            let _ = fs::remove_file(&tmp);
-        });
     }
 
-    Err(last_already_exists.unwrap_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "exhausted temp-path attempts for atomic patch write",
-        )
-    }))
+    /// Reject patch paths that try to escape `patched_dir`: absolute paths,
+    /// `..` segments, drive-letter prefixes, root components, or intermediate
+    /// directory symlinks traversing outside `patched_dir`.
+    fn resolve_target(&self, rel: &Path) -> Result<PathBuf, PatchApplyError> {
+        let escapes = rel.is_absolute()
+            || rel
+                .components()
+                .any(|component| {
+                    matches!(
+                        component,
+                        Component::ParentDir | Component::RootDir | Component::Prefix(_),
+                    )
+                });
+        if escapes {
+            return Err(self.failed(format!("patch path escapes target dir: {}", rel.display())));
+        }
+        self.ensure_parents_within_dir(rel)?;
+        Ok(self.patched_dir.join(rel))
+    }
+
+    fn ensure_parents_within_dir(&self, rel: &Path) -> Result<(), PatchApplyError> {
+        let Some(parent) = rel.parent() else {
+            return Ok(());
+        };
+        let mut current = self.canonical_dir.to_path_buf();
+        for component in parent.components() {
+            current.push(component);
+            self.check_ancestor_symlink(&mut current, rel)?;
+        }
+        Ok(())
+    }
+
+    fn check_ancestor_symlink(
+        &self,
+        current: &mut PathBuf,
+        rel: &Path,
+    ) -> Result<(), PatchApplyError> {
+        if current.symlink_metadata().is_err() {
+            return Ok(());
+        }
+        let canonical = fs::canonicalize(&current)
+            .map_err(|source| {
+                self.failed(format!("canonicalize {}: {source}", current.display()))
+            })?;
+        if !canonical.starts_with(self.canonical_dir) {
+            return Err(self.failed(format!(
+                "patch path escapes target dir via symlink: {}",
+                rel.display(),
+            )));
+        }
+        *current = canonical;
+        Ok(())
+    }
+
+    fn modify(
+        &self,
+        target: &Path,
+        text_patch: &Patch<'_, str>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        let permissions = atomic_write::modify_permissions(target, new_mode)
+            .map_err(|source| self.failed(format!("stat {}: {source}", target.display())))?;
+        let bytes = fs::read(target)
+            .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
+        let original = String::from_utf8_lossy(&bytes).into_owned();
+        let updated = match tolerant::apply(&original, text_patch) {
+            Ok(updated) => updated,
+            // File is already in the post-patch state, reverse applies
+            // cleanly. If the patch requested a mode change that is not yet
+            // reflected, or the target is still a symlink, re-write atomically
+            // to break store hardlinks and safely isolate without mutating inodes in-place.
+            Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => {
+                if atomic_write::needs_mode_change(target, new_mode) || target.is_symlink() {
+                    original
+                } else {
+                    return Ok(());
+                }
+            }
+            Err(message) => {
+                return Err(self.failed(format!("apply to {}: {message}", target.display())));
+            }
+        };
+        // `rename` creates a new dirent → inode mapping at `target`, which
+        // breaks the hardlink to the store. Files in
+        // `node_modules/.pnpm/<slot>/node_modules/<pkg>` are
+        // hardlinked (or reflinked) from the content-
+        // addressable store; a plain truncating `fs::write`
+        // would mutate the shared inode, corrupting the store
+        // copy and every other snapshot's hardlink to it. The
+        // patched output is captured by the side-effects cache
+        // after this returns; nothing requires the store copy
+        // to carry it.
+        write_atomic_with_mode(target, updated.as_bytes(), Some(&permissions))
+            .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
+    }
+
+    /// An existing `to` is not overwritten, for the reason [`Self::create`]
+    /// gives. A missing `from` means an earlier apply of the same patch
+    /// already moved it. A rename without hunks or a mode change only moves
+    /// the entry, so its bytes are never decoded and a symlink stays a
+    /// symlink rather than being replaced by what it points at.
+    fn rename(
+        &self,
+        from: &Path,
+        to: &Path,
+        text_patch: &Patch<'_, str>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        if from.symlink_metadata().is_ok() {
+            if to.symlink_metadata().is_ok() {
+                let (from, to) = (from.display(), to.display());
+                return Err(self.failed(format!(
+                    "cannot rename {from} to {to}: target already exists",
+                )));
+            }
+            self.create_parent_dir(to)?;
+            fs::rename(from, to)
+                .map_err(|source| {
+                    self.failed(format!("rename {} to {}: {source}", from.display(), to.display()))
+                })?;
+        } else if to.symlink_metadata().is_err() {
+            let (from, to) = (from.display(), to.display());
+            return Err(self.failed(format!("cannot rename {from} to {to}: neither exists")));
+        }
+        if text_patch.hunks().is_empty() && !atomic_write::needs_mode_change(to, new_mode) {
+            return Ok(());
+        }
+        self.modify(to, text_patch, new_mode)
+    }
+
+    /// A "new file" patch (`--- /dev/null`) means the target is expected NOT
+    /// to exist. Refusing to overwrite matches `patch`'s and `git apply`'s
+    /// behavior, silently clobbering a real file would be a data-loss
+    /// footgun if the patch was authored against the wrong base.
+    ///
+    /// Idempotency exception: if the target already contains exactly the
+    /// post-patch content, the patch has already been applied (e.g. a
+    /// re-run) and this is a no-op.
+    fn create(
+        &self,
+        target: &Path,
+        text_patch: &Patch<'_, str>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        let created = tolerant::apply("", text_patch)
+            .map_err(|message| self.failed(format!("create {}: {message}", target.display())))?;
+        let exists = target.symlink_metadata().is_ok();
+        if exists && self.existing_file_matches(target, &created, new_mode)? {
+            return Ok(());
+        }
+        self.create_parent_dir(target)?;
+        let permissions = atomic_write::create_permissions(new_mode);
+        write_atomic_with_mode(target, created.as_bytes(), permissions.as_ref())
+            .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
+    }
+
+    fn create_parent_dir(&self, target: &Path) -> Result<(), PatchApplyError> {
+        let Some(parent) = target.parent() else { return Ok(()) };
+        fs::create_dir_all(parent)
+            .map_err(|source| {
+                self.failed(format!("create parent of {}: {source}", target.display()))
+            })
+    }
+
+    fn existing_file_matches(
+        &self,
+        target: &Path,
+        created: &str,
+        new_mode: Option<&FileMode>,
+    ) -> Result<bool, PatchApplyError> {
+        if target.is_symlink() {
+            let target = target.display();
+            return Err(self.failed(format!("cannot create {target}: target already exists")));
+        }
+        let existing = fs::read(target)
+            .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
+        if String::from_utf8_lossy(&existing) != created {
+            let target = target.display();
+            return Err(self.failed(format!("cannot create {target}: target already exists")));
+        }
+        Ok(!atomic_write::needs_mode_change(target, new_mode))
+    }
+
+    fn delete(&self, target: &Path, text_patch: &Patch<'_, str>) -> Result<(), PatchApplyError> {
+        self.check_delete_preimage(target, text_patch)?;
+        match fs::remove_file(target) {
+            Ok(()) => Ok(()),
+            // A missing target means the file was already removed by an
+            // earlier apply of the same patch.
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(source) => Err(self.failed(format!("delete {}: {source}", target.display()))),
+        }
+    }
+
+    /// A delete block that carries hunks is validated against the file on
+    /// disk before unlinking, a stale or wrong-target patch would otherwise
+    /// silently delete the wrong file. `diffy::apply` on such a patch
+    /// produces the empty string when every hunk matches.
+    ///
+    /// `git diff --irreversible-delete`, which `pnpm patch` and
+    /// `pnpm patch-commit` run, writes the header of a deleted file without
+    /// its preimage. There are no hunks to check then, so the file is
+    /// unlinked on the header alone, as pnpm 11 does for every deletion.
+    fn check_delete_preimage(
+        &self,
+        target: &Path,
+        text_patch: &Patch<'_, str>,
+    ) -> Result<(), PatchApplyError> {
+        if text_patch.hunks().is_empty() {
+            return Ok(());
+        }
+        // Lossy UTF-8 decoding for the same reason as `modify`: match the
+        // patch-file reader and Node's `fs.readFile(..., 'utf8')`.
+        let bytes = match fs::read(target) {
+            Ok(bytes) => bytes,
+            // Already removed by an earlier apply of the same patch.
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(source) => {
+                return Err(self.failed(format!("read {}: {source}", target.display())));
+            }
+        };
+        let original = String::from_utf8_lossy(&bytes).into_owned();
+        let after = tolerant::apply(&original, text_patch)
+            .map_err(|message| self.failed(format!("apply to {}: {message}", target.display())))?;
+        if after.is_empty() {
+            return Ok(());
+        }
+        Err(self.failed(format!(
+            "delete patch left {} non-empty after apply ({} bytes remain)",
+            target.display(),
+            after.len(),
+        )))
+    }
 }
 
 #[cfg(test)]

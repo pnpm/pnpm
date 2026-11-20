@@ -19,16 +19,16 @@ interface StageRequestParams {
   otp?: string
 }
 
-export async function stageJsonRequest<T> (
+export async function stageJsonRequest<ResponseBody> (
   context: StageContext,
   params: { url: string, action: string }
-): Promise<T> {
+): Promise<ResponseBody> {
   const response = await stageRequest(context, {
     url: params.url,
     action: params.action,
     init: { method: 'GET' },
   })
-  return await response.json() as T
+  return await response.json() as ResponseBody
 }
 
 export interface StageOtpSession {

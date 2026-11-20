@@ -28,6 +28,7 @@ on:
       - 'pnpm11/**'
       - 'package.json'
       - 'pnpm-workspace.yaml'
+      - '.config/pnpm/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/benchmark.yml'
 
@@ -66,15 +67,15 @@ jobs:
         git checkout "origin/pr-${PR_NUMBER}"
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
-    - name: Install pnpm and Node
-      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
-      with:
-        runtime: node@26.8.1
-
     - name: Install Rust Toolchain
       uses: $/.github/actions/rustup
       with:
         shared-key: pnpm-benchmark
+
+    - name: Install pnpm and Node
+      uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
+      with:
+        runtime: node@26.13.1
 
     - name: Install hyperfine
       uses: $/.github/actions/binstall
@@ -94,7 +95,7 @@ jobs:
 
     - name: Install Bencher CLI
       if: steps.bench.outputs.bench_dir != ''
-      uses: bencherdev/bencher@8d75325c3bc59403a2186a056b472c4f49d42838 # v0.6.12
+      uses: bencherdev/bencher@b2484bc6734c8e6da4fad141bd13527a11da3988 # v0.6.17
 
     - name: Upload results to Bencher
       if: steps.bench.outputs.bench_dir != ''

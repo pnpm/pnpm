@@ -24,7 +24,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 const IS_WINDOWS = isWindows()
 
 const testOnNonWindows = IS_WINDOWS ? test.skip : test
@@ -58,7 +58,7 @@ test.skip('ignoring some files in the dependency', async () => {
 test('writes a package map for Node.js package-map resolution', async () => {
   const project = prepareEmpty()
 
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false, nodeExperimentalPackageMap: true }))
 
   const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
   const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
@@ -73,8 +73,59 @@ test('writes a package map for Node.js package-map resolution', async () => {
   project.has('.package-map.json')
 
   fs.rmSync(path.resolve('node_modules/.package-map.json'))
-  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true }))
+  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true, nodeExperimentalPackageMap: true }))
   project.has('.package-map.json')
+})
+
+test('does not write a package map unless nodeExperimentalPackageMap is set', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+
+  project.hasNot('.package-map.json')
+})
+
+test('does not write a package map for the hoisted node linker unless nodeExperimentalPackageMap is set', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  project.hasNot('.package-map.json')
+})
+
+test('removes a package map left by an install that had nodeExperimentalPackageMap on', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeExperimentalPackageMap: true,
+  }))
+  project.has('.package-map.json')
+
+  // `pnpm run` hands the map to Node whenever the file is there, so a map
+  // the install stopped maintaining must not survive it.
+  await install(manifest, testDefaults({ fastUnpack: false }))
+
+  project.hasNot('.package-map.json')
+})
+
+test('removes a package map when a resolving install stops writing one', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeExperimentalPackageMap: true,
+  }))
+  project.has('.package-map.json')
+
+  // Adding a dependency resolves rather than restoring, which is the other
+  // install path that has to clean the map up.
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/foo@100.0.0'], testDefaults({ fastUnpack: false }))
+
+  project.hasNot('.package-map.json')
 })
 
 test('writes a package map that resolves against the global virtual store layout', async () => {
@@ -83,6 +134,7 @@ test('writes a package map that resolves against the global virtual store layout
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
   }))
@@ -102,6 +154,7 @@ test('writes a package map that resolves against the global virtual store layout
   rimrafSync('node_modules')
   await install(manifest, testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     frozenLockfile: true,
@@ -117,6 +170,7 @@ test('writes a loose package map for Node.js package-map resolution', async () =
     '@pnpm.e2e/pkg-with-1-dep@100.0.0',
   ], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodePackageMapType: 'loose',
   }))
 
@@ -133,6 +187,7 @@ test('writes a package map for hoisted node linker from the real layout', async 
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
   }))
 
@@ -157,6 +212,7 @@ test('writes a loose package map for hoisted node linker', async () => {
     '@pnpm.e2e/pkg-with-1-dep@100.0.0',
   ], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
     nodePackageMapType: 'loose',
   }))
@@ -251,7 +307,7 @@ test('does not write or inject a package map when modules directory creation is 
 testOnNode27Plus('package map can resolve package dependencies at runtime with Node.js', async () => {
   prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false, nodeExperimentalPackageMap: true }))
 
   const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
   const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
@@ -287,6 +343,7 @@ testOnNode27Plus('hoisted package map can resolve package dependencies at runtim
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
   }))
 
@@ -325,6 +382,7 @@ testOnNode27Plus('hoisted package map blocks undeclared hoisted dependencies at 
     '@pnpm.e2e/pkg-with-1-dep@100.0.0',
   ], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
   }))
 
@@ -360,6 +418,7 @@ testOnNode27Plus('loose hoisted package map allows undeclared hoisted dependenci
     '@pnpm.e2e/pkg-with-1-dep@100.0.0',
   ], testDefaults({
     fastUnpack: false,
+    nodeExperimentalPackageMap: true,
     nodeLinker: 'hoisted',
     nodePackageMapType: 'loose',
   }))
@@ -468,9 +527,9 @@ test('no dependencies (@pnpm.e2e/function-with-clone)', async () => {
     } as ProjectManifest,
   }))
 
-  const m = project.requireModule('@pnpm.e2e/function-with-clone')
-  expect(typeof m).toBe('function')
-  expect(typeof m.clone).toBe('function')
+  const moduleExports = project.requireModule('@pnpm.e2e/function-with-clone')
+  expect(typeof moduleExports).toBe('function')
+  expect(typeof moduleExports.clone).toBe('function')
 })
 
 test('only the new packages are added', async () => {
@@ -499,13 +558,13 @@ test('scoped package with custom registry', async () => {
   await addDependenciesToPackage({}, ['@scoped/peer'], testDefaults({
     // setting an incorrect default registry URL
     authConfig: {
-      '@scoped:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      '@scoped:registry': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     },
     registry: 'http://localhost:9999/',
   }))
 
-  const m = project.requireModule('@scoped/peer/package.json')
-  expect(m).toBeTruthy()
+  const moduleExports = project.requireModule('@scoped/peer/package.json')
+  expect(moduleExports).toBeTruthy()
 })
 
 test('modules without version spec, with custom tag config', async () => {
@@ -612,8 +671,8 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/test-pnpm-issue219@1.0.3'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('@pnpm.e2e/test-pnpm-issue219')
-  expect(m).toBe('test-pnpm-issue219,@zkochan/test-pnpm-issue219')
+  const moduleExports = project.requireModule('@pnpm.e2e/test-pnpm-issue219')
+  expect(moduleExports).toBe('test-pnpm-issue219,@zkochan/test-pnpm-issue219')
 })
 
 test('idempotency', async () => {
@@ -683,8 +742,8 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async () => {
   // store should be pruned to have this removed
   project.storeHas('flatten', '1.0.2')
 
-  const m = project.requireModule('magic-hook/package.json')
-  expect(m.version).toBe('0.1.0')
+  const moduleExports = project.requireModule('magic-hook/package.json')
+  expect(moduleExports.version).toBe('0.1.0')
 })
 
 test('overwriting (@pnpm.e2e/multi-version-b@3.0.0 with @pnpm.e2e/multi-version-b@latest)', async () => {
@@ -795,9 +854,9 @@ test('circular deps', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/circular-deps-1-of-2'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('@pnpm.e2e/circular-deps-1-of-2/mirror')
+  const moduleExports = project.requireModule('@pnpm.e2e/circular-deps-1-of-2/mirror')
 
-  expect(m()).toBe('@pnpm.e2e/circular-deps-1-of-2')
+  expect(moduleExports()).toBe('@pnpm.e2e/circular-deps-1-of-2')
 
   expect(fs.existsSync(path.join('node_modules', '@pnpm.e2e/circular-deps-1-of-2', 'node_modules', '@pnpm.e2e/circular-deps-2-of-2', 'node_modules', '@pnpm.e2e/circular-deps-1-of-2'))).toBeFalsy()
 })
@@ -811,9 +870,9 @@ test('concurrent circular deps', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/circular-iterator@2.0.0'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('@pnpm.e2e/circular-iterator')
+  const moduleExports = project.requireModule('@pnpm.e2e/circular-iterator')
 
-  expect(m).toBeTruthy()
+  expect(moduleExports).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+circular-iterator@2.0.0/node_modules/@pnpm.e2e/circular-ext'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+circular-iterator@2.0.1/node_modules/@pnpm.e2e/circular-ext'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+circular-ext@0.10.31/node_modules/@pnpm.e2e/circular-iterator'))).toBeTruthy()
@@ -827,17 +886,17 @@ test('concurrent installation of the same packages', async () => {
   // of babek-core
   await addDependenciesToPackage({}, ['babel-core@6.21.0'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('babel-core')
+  const moduleExports = project.requireModule('babel-core')
 
-  expect(m).toBeTruthy()
+  expect(moduleExports).toBeTruthy()
 })
 
 test('big with dependencies and circular deps (babel-preset-2015)', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['babel-preset-es2015@6.3.13'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('babel-preset-es2015')
-  expect(typeof m).toBe('object')
+  const moduleExports = project.requireModule('babel-preset-es2015')
+  expect(typeof moduleExports).toBe('object')
 })
 
 test('compiled modules (ursa@0.9.1)', async () => {
@@ -850,8 +909,8 @@ test('compiled modules (ursa@0.9.1)', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['ursa@0.9.1'], testDefaults())
 
-  const m = project.requireModule('ursa')
-  expect(typeof m).toBe('object')
+  const moduleExports = project.requireModule('ursa')
+  expect(typeof moduleExports).toBe('object')
 })
 
 test('bin specified in the directories property linked to .bin folder', async () => {
@@ -986,7 +1045,7 @@ test('ignores drive case in store path', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['rimraf@2.5.1'],
-    testDefaults({ storeDir: storePathUpper }, null, null, { ignoreFile: () => {} }) // eslint-disable-line:no-empty
+    testDefaults({ storeDir: storePathUpper }, null, null, { ignoreFile: () => {} })
   )
   await addDependenciesToPackage(manifest, ['is-negative'], testDefaults({ storeDir: storePathLower }))
 })
@@ -1055,9 +1114,9 @@ test('lockfile locks npm dependencies', async () => {
     status: 'found_in_store',
   }))
 
-  const m = project.requireModule('.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json')
+  const moduleExports = project.requireModule('.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json')
 
-  expect(m.version).toBe('100.0.0')
+  expect(moduleExports.version).toBe('100.0.0')
 })
 
 test('self-require should work', async () => {
@@ -1109,7 +1168,7 @@ test('install a dependency with * range', async () => {
 test('should throw error when trying to install a package without name', async () => {
   prepareEmpty()
   await expect(
-    addDependenciesToPackage({}, [`file:${f.find('missing-pkg-name.tgz')}`], testDefaults())
+    addDependenciesToPackage({}, [`file:${testFixtures.find('missing-pkg-name.tgz')}`], testDefaults())
   ).rejects.toThrow(/^Can't install .*: Missing package name$/)
 })
 
@@ -1121,8 +1180,8 @@ test('rewrites node_modules created by npm', async () => {
 
   const { updatedManifest: manifest } = await install({}, testDefaults())
 
-  const m = project.requireModule('rimraf')
-  expect(typeof m).toBe('function')
+  const moduleExports = project.requireModule('rimraf')
+  expect(typeof moduleExports).toBe('function')
   project.isExecutable('.bin/rimraf')
 
   await execa('npm', ['install', '-f', 'rimraf@2.5.1', '@types/node', '--save'])
@@ -1422,9 +1481,9 @@ test('ignore files in node_modules', async () => {
     testDefaults({ fastUnpack: false, reporter })
   )
 
-  const m = project.requireModule('lodash')
-  expect(typeof m).toBe('function')
-  expect(typeof m.clone).toBe('function')
+  const moduleExports = project.requireModule('lodash')
+  expect(typeof moduleExports).toBe('function')
+  expect(typeof moduleExports.clone).toBe('function')
   expect(fs.readFileSync('node_modules/foo', 'utf8')).toBe('x')
 })
 
@@ -1476,7 +1535,7 @@ test('installing with no symlinks with PnP', async () => {
     })
   )
 
-  expect([...fs.readdirSync(path.resolve('node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.package-map.json', '.pnpm'])
+  expect([...fs.readdirSync(path.resolve('node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.pnpm'])
   expect([...fs.readdirSync(path.resolve('node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
 
   expect(project.readCurrentLockfile()).toBeTruthy()

@@ -5,7 +5,11 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS";
@@ -18,7 +22,11 @@ const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS";
 #[cfg(unix)]
 fn shim_command(root: &TempDir, cwd: &Path, name: &str, target: &str) -> Command {
     let shim = install_shim(&root.path().join("global-bin"), name, target.as_bytes());
-    Command::new(shim)
+    isolated_in(Command::new(shim), root, cwd)
+}
+
+fn isolated_in(command: Command, root: &TempDir, cwd: &Path) -> Command {
+    command
         .without_ambient_pnpm_config()
         .with_current_dir(cwd)
         .with_env("PNPM_HOME", root.path().join("pnpm-home"))
@@ -66,19 +74,39 @@ fn prepare_local_and_global_from(
     provider: &str,
 ) -> (std::path::PathBuf, std::path::PathBuf) {
     let project = root.path().join("project");
-    write_script(&project.join("node_modules").join(provider).join("cli.sh"), "local");
+    write_script(
+        &project
+            .join("node_modules")
+            .join(provider)
+            .join("cli.sh"),
+        "local",
+    );
     fs::write(
-        project.join("node_modules").join(provider).join("package.json"),
+        project
+            .join("node_modules")
+            .join(provider)
+            .join("package.json"),
         serde_json::json!({ "name": provider, "version": "1.0.0" }).to_string(),
     )
     .unwrap();
-    let bin = project.join("node_modules").join(".bin").join(name);
+    let bin = project
+        .join("node_modules")
+        .join(".bin")
+        .join(name);
     fs::create_dir_all(bin.parent().unwrap()).unwrap();
     std::os::unix::fs::symlink(format!("../{provider}/cli.sh"), &bin).unwrap();
-    let global_target = root.path().join("global").join("node_modules").join(name).join("cli.sh");
+    let global_target = root
+        .path()
+        .join("global")
+        .join("node_modules")
+        .join(name)
+        .join("cli.sh");
     write_script(&global_target, "global");
     fs::write(
-        global_target.parent().unwrap().join("package.json"),
+        global_target
+            .parent()
+            .unwrap()
+            .join("package.json"),
         serde_json::json!({ "name": name, "version": "1.0.0" }).to_string(),
     )
     .unwrap();
@@ -150,13 +178,207 @@ fn bypass_env_skips_the_project_bin() {
     assert_eq!(stdout.trim(), "global");
 }
 
+/// A shim launched while another dispatch prepares its program, such as the
+/// `node --version` probe of a runtime install, runs the global target and
+/// passes the marker on. The dispatch that set the marker keeps it from the
+/// program it runs.
+#[cfg(unix)]
+#[test]
+fn a_shim_inside_a_dispatch_preparation_runs_the_global_target() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    write_script(&global_target, "global-[$PNPM_SHIM_PREPARING]");
+    write_script(&project.join("node_modules/tool/cli.sh"), "local-[$PNPM_SHIM_PREPARING]");
+    let command = || {
+        shim_command(&root, &project, "tool", global_target.to_str().unwrap())
+            .with_env(AUTO_TRUST_ENV, "1")
+            .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+    };
+    let stdout =
+        |output: &std::process::Output| String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    let outside = command().assert().success();
+    assert_eq!(stdout(outside.get_output()), "local-[]");
+
+    let inside = command()
+        .with_env("PNPM_SHIM_PREPARING", "1")
+        .assert()
+        .success();
+    assert_eq!(stdout(inside.get_output()), "global-[1]");
+}
+
+/// A Bun install keys its store slots by the host's Node.js major, so it
+/// probes `node --version` through `PATH`, and `PATH` here finds the `node`
+/// shim first, in a project that pins Node.js too. The probe must reach the
+/// global `node` rather than dispatch the project's pin, which could wait
+/// on the install that is waiting for it.
+#[cfg(unix)]
+#[test]
+fn a_runtime_install_does_not_dispatch_its_own_shim_again() {
+    use pipe_trait::Pipe;
+
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let node_version = "24.0.0-rc.4";
+    let _node_mocks = crate::install_runtimes::mock_node_release(&mut server, node_version);
+    let _bun_mocks = mock_bun_release(&mut server, BUN_VERSION);
+    let (project, node_global_target) = runtime_pin_project(&root, &server, node_version, ".nvmrc");
+    let config = root.path().join("config/pnpm/config.yaml");
+    let config_yaml = format!(
+        "{}registry: '{url}/'\ntools:\n  bun:\n    mirror: '{url}/bun-mirror'\n",
+        fs::read_to_string(&config).unwrap(),
+        url = server.url(),
+    );
+    fs::write(&config, config_yaml).unwrap();
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "devEngines": { "runtime": { "name": "bun", "version": BUN_VERSION } },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let global_runs = root.path().join("global-runs");
+    write_script(&node_global_target, &format!("global >> '{}'", global_runs.display()));
+    install_shim(
+        &root.path().join("global-bin"),
+        "node",
+        node_global_target
+            .to_str()
+            .unwrap()
+            .as_bytes(),
+    );
+    let bun_global_target = root.path().join("global/node_modules/bun/bin/bun");
+    write_script(&bun_global_target, "global-bun");
+    fs::write(
+        root.path().join("global/node_modules/bun/package.json"),
+        serde_json::json!({ "name": "bun", "version": "1.0.0" }).to_string(),
+    )
+    .unwrap();
+    let path = std::iter::once(root.path().join("global-bin"))
+        .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()))
+        .pipe(std::env::join_paths)
+        .unwrap();
+    let stdout = root.path().join("stdout");
+    let stderr = root.path().join("stderr");
+
+    // A regression can loop through new processes, so the shim leads a
+    // group of its own and the whole group dies at the end, not only the
+    // shim. Its output goes to files: a surviving descendant would hold a
+    // pipe open.
+    let mut command = shim_command(&root, &project, "bun", bun_global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node": true, "bun": "always"}"#)
+        .with_env("PATH", path)
+        .with_stdout(fs::File::create(&stdout).unwrap().into())
+        .with_stderr(fs::File::create(&stderr).unwrap().into());
+    std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    let mut shim = command.spawn().unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_mins(1);
+    let status = loop {
+        if let Some(status) = shim.try_wait().unwrap() {
+            break Some(status);
+        }
+        if std::time::Instant::now() >= deadline {
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let group = i32::try_from(shim.id()).unwrap();
+    // SAFETY: the group is the one this test's shim leads.
+    unsafe {
+        libc::killpg(group, libc::SIGKILL);
+    }
+    if status.is_none() {
+        shim.wait().unwrap();
+    }
+    eprintln!("{}", fs::read_to_string(&stderr).unwrap());
+
+    let status = status.expect("the dispatch must finish, not wait on itself");
+    assert!(status.success(), "the dispatch must succeed: {status:?}");
+    // The fixture's `bun` prints nothing; the global one prints its name.
+    assert_eq!(fs::read_to_string(&stdout).unwrap(), "", "the pinned Bun must run");
+    assert!(global_runs.exists(), "the probe must run the global node");
+}
+
+#[cfg(unix)]
+const BUN_VERSION: &str = "1.2.19";
+
+/// Serve Bun `version` the way a fresh resolution fetches it: the `bun`
+/// packument from the registry, then the release's `SHASUMS256.txt` and
+/// the host's archive from `tools.bun.mirror` at `/bun-mirror`. The
+/// archive's `bun` is a script that prints nothing.
+#[cfg(unix)]
+fn mock_bun_release(server: &mut mockito::Server, version: &str) -> [mockito::Mock; 3] {
+    use sha2::{
+        Digest,
+        Sha256,
+    };
+    use std::io::Write;
+
+    let arch = match pnpm_graph_hasher::host_arch() {
+        "arm64" => "aarch64",
+        arch => arch,
+    };
+    let stem = format!("bun-{}-{arch}", pnpm_graph_hasher::host_platform());
+    let mut archive = Vec::new();
+    {
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut archive));
+        let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored)
+            .unix_permissions(0o100_755);
+        writer
+            .start_file(format!("{stem}/bun"), options)
+            .unwrap();
+        writer.write_all(b"#!/bin/sh\n").unwrap();
+        writer.finish().unwrap();
+    }
+    let digest = format!("{:x}", Sha256::digest(&archive));
+    let release = format!("/bun-mirror/bun-v{version}");
+    let packument = serde_json::json!({
+        "name": "bun",
+        "dist-tags": { "latest": version },
+        "versions": {
+            version: {
+                "name": "bun",
+                "version": version,
+                "dist": {
+                    "integrity": "sha512-AAAA",
+                    "tarball": format!("{}/bun/-/bun-{version}.tgz", server.url()),
+                },
+            },
+        },
+    });
+    [
+        server
+            .mock("GET", "/bun")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(packument.to_string())
+            .create(),
+        server
+            .mock("GET", format!("{release}/SHASUMS256.txt").as_str())
+            .with_status(200)
+            .with_body(format!("{digest}  {stem}.zip\n"))
+            .create(),
+        server
+            .mock("GET", format!("{release}/{stem}.zip").as_str())
+            .with_status(200)
+            .with_body(archive)
+            .create(),
+    ]
+}
+
 #[cfg(unix)]
 #[test]
 fn shim_args_reach_the_target() {
     use std::os::unix::fs::PermissionsExt;
     let root = tempfile::tempdir().unwrap();
     let (project, global_target) = prepare_local_and_global(&root, "tool");
-    let script = project.join("node_modules").join("tool").join("cli.sh");
+    let script = project
+        .join("node_modules")
+        .join("tool")
+        .join("cli.sh");
     fs::write(&script, "#!/bin/sh\necho \"$@\"\n").unwrap();
     fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
     let output = shim_command(&root, &project, "tool", global_target.to_str().unwrap())
@@ -179,16 +401,175 @@ fn missing_global_target_reports_not_found() {
     assert_eq!(output.get_output().status.code(), Some(127));
 }
 
-/// A project that pins Node.js gets the pinned version fetched into the
-/// global virtual store instead of using the project `.bin` or global target.
 #[cfg(unix)]
 #[test]
-fn runtime_pin_downloads_node_on_demand() {
+fn nvmrc_runtime_pin_downloads_node_on_demand() {
+    version_file_runtime_pin_downloads_node_on_demand(".nvmrc");
+}
+
+#[cfg(unix)]
+#[test]
+fn node_version_file_runtime_pin_downloads_node_on_demand() {
+    version_file_runtime_pin_downloads_node_on_demand(".node-version");
+}
+
+#[cfg(unix)]
+fn version_file_runtime_pin_downloads_node_on_demand(file_name: &str) {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();
     let version = "24.0.0-rc.4";
     let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let (project, global_target) = runtime_pin_project(&root, &server, version, file_name);
 
+    shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+        .assert()
+        .success()
+        .stderr("");
+    let environment = managed_runtime_environment(&root);
+    let package_dir = fs::canonicalize(environment.join("node_modules/node")).unwrap();
+    let global_store = fs::canonicalize(root.path().join("store/v11/links")).unwrap();
+    assert!(package_dir.starts_with(global_store));
+    assert!(!root.path().join("cache/dlx").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn an_inherited_lockfile_dir_does_not_move_the_runtime_install() {
+    runtime_pin_survives_inherited_setting("PNPM_CONFIG_LOCKFILE_DIR", None);
+}
+
+#[cfg(unix)]
+#[test]
+fn an_inherited_virtual_store_only_still_links_the_runtime() {
+    runtime_pin_survives_inherited_setting("PNPM_CONFIG_VIRTUAL_STORE_ONLY", Some("true"));
+}
+
+#[cfg(unix)]
+#[test]
+fn an_inherited_symlink_false_still_links_the_runtime() {
+    runtime_pin_survives_inherited_setting("PNPM_CONFIG_SYMLINK", Some("false"));
+}
+
+/// A `PNPM_CONFIG_*` variable that a parent pnpm exports reaches the
+/// dispatch. The runtime install must still land in its environment and
+/// run. `None` sets the variable to a directory outside the environment.
+#[cfg(unix)]
+fn runtime_pin_survives_inherited_setting(name: &str, value: Option<&str>) {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let (project, global_target) = runtime_pin_project(&root, &server, version, ".nvmrc");
+    let outside = root.path().join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    let value = value.map(std::ffi::OsString::from).unwrap_or_else(|| outside.into_os_string());
+
+    // The mocked release's `node` prints nothing; the global and local
+    // fallbacks each print their name.
+    shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+        .with_env(name, value)
+        .assert()
+        .success()
+        .stdout("");
+    let environment = managed_runtime_environment(&root);
+    assert!(environment.join("pnpm-lock.yaml").is_file());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_held_runtime_lock_installs_the_runtime_privately() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let (project, global_target) = runtime_pin_project(&root, &server, version, ".nvmrc");
+    // The mocked release's `node` prints nothing; the global and local
+    // fallbacks each print their name, so empty output is the pinned
+    // runtime's signature.
+    let dispatch = || {
+        shim_command(&root, &project, "node", global_target.to_str().unwrap())
+            .with_env(AUTO_TRUST_ENV, "1")
+            .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+            .assert()
+            .success()
+            .stdout("");
+    };
+    // A first dispatch names the runtime's environment, and with it its
+    // lock.
+    dispatch();
+    let environment = managed_runtime_environment(&root);
+    fs::remove_dir_all(&environment).unwrap();
+    fs::remove_dir_all(root.path().join("store/v11/links")).unwrap();
+    // A lock directory with no liveness record is one an older pnpm
+    // holds, and counts as held until it ages out.
+    fs::create_dir_all(environment.with_extension("lock")).unwrap();
+
+    dispatch();
+
+    // The shared path would have re-created the environment around the slot.
+    assert!(
+        !environment.exists(),
+        "the held environment must not be entered: {}",
+        environment.display(),
+    );
+    let left_behind: Vec<_> = fs::read_dir(root.path().join("store/v11/tmp/private"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .collect();
+    assert!(
+        left_behind.is_empty(),
+        "the private install is removed once the runtime has run: {left_behind:?}",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_runtime_install_skips_the_global_pnpmfile() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = crate::install_runtimes::mock_node_release(&mut server, version);
+    let (project, global_target) = runtime_pin_project(&root, &server, version, ".nvmrc");
+    let marker = root.path().join("pnpmfile-loaded");
+    let pnpmfile = root.path().join("global-pnpmfile.cjs");
+    fs::write(
+        &pnpmfile,
+        format!(
+            "require('fs').writeFileSync({marker:?}, '')\nmodule.exports = {{ hooks: {{}} }}\n",
+        ),
+    )
+    .unwrap();
+    let config_yaml = root.path().join("config/pnpm/config.yaml");
+    let config = fs::read_to_string(&config_yaml).unwrap();
+    fs::write(&config_yaml, format!("{config}globalPnpmfile: {}\n", pnpmfile.display())).unwrap();
+
+    shim_command(&root, &project, "node", global_target.to_str().unwrap())
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+        .assert()
+        .success()
+        .stdout("");
+    assert!(!marker.exists(), "the runtime install must not load the global pnpmfile");
+}
+
+/// A project pinning Node.js `version` through `file_name`, whose own
+/// configuration must not reach the runtime install: a repo-controlled
+/// store or mirror could feed the dispatcher a poisoned artifact, so
+/// both entries here would fail a test if honored. Returns the project
+/// and the global `node` the shim falls back to.
+#[cfg(unix)]
+fn runtime_pin_project(
+    root: &TempDir,
+    server: &mockito::Server,
+    version: &str,
+    file_name: &str,
+) -> (std::path::PathBuf, std::path::PathBuf) {
     let config_dir = root.path().join("config").join("pnpm");
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(
@@ -203,9 +584,6 @@ fn runtime_pin_downloads_node_on_demand() {
     .unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    // The project's own configuration must not reach the runtime install:
-    // a repo-controlled store or mirror could feed the dispatcher a
-    // poisoned artifact. Both entries here would fail the test if honored.
     fs::write(
         project.join("pnpm-workspace.yaml"),
         format!(
@@ -215,39 +593,38 @@ fn runtime_pin_downloads_node_on_demand() {
     )
     .unwrap();
     write_script(&project.join("node_modules/.bin/node"), "compromised-local-bin");
-    fs::write(
-        project.join("package.json"),
-        serde_json::json!({
-            "devEngines": { "runtime": { "name": "node", "version": version } },
-        })
-        .to_string(),
-    )
-    .unwrap();
-    let global_target =
-        root.path().join("global").join("node_modules").join("node").join("bin").join("node");
+    fs::write(project.join(file_name), format!("v{version}\n")).unwrap();
+    let global_target = root
+        .path()
+        .join("global")
+        .join("node_modules")
+        .join("node")
+        .join("bin")
+        .join("node");
     write_script(&global_target, "global");
     fs::write(
-        global_target.parent().unwrap().parent().unwrap().join("package.json"),
+        global_target
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("package.json"),
         serde_json::json!({ "name": "node", "version": "1.0.0" }).to_string(),
     )
     .unwrap();
+    (project, global_target)
+}
 
-    shim_command(&root, &project, "node", global_target.to_str().unwrap())
-        .with_env(AUTO_TRUST_ENV, "1")
-        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
-        .assert()
-        .success();
+/// The environment the dispatcher installed a managed runtime through.
+#[cfg(unix)]
+fn managed_runtime_environment(root: &TempDir) -> std::path::PathBuf {
     let environments = root.path().join("state/pnpm/global-shim-runtimes");
-    let package_dir = fs::read_dir(&environments)
+    fs::read_dir(&environments)
         .expect("the runtime environment should exist")
         .flatten()
-        .map(|entry| entry.path().join("node_modules/node"))
-        .find(|path| path.exists())
-        .expect("the runtime environment should link Node.js");
-    let package_dir = fs::canonicalize(package_dir).unwrap();
-    let global_store = fs::canonicalize(root.path().join("store/v11/links")).unwrap();
-    assert!(package_dir.starts_with(global_store));
-    assert!(!root.path().join("cache/dlx").exists());
+        .map(|entry| entry.path())
+        .find(|path| path.join("node_modules/node").exists())
+        .expect("the runtime environment should link Node.js")
 }
 
 /// A same-named bin provided by a *different* package must not shadow
@@ -267,7 +644,7 @@ fn lookalike_package_does_not_shadow_the_global_bin() {
 }
 
 /// `globalShims: false` in the global config.yaml disables dispatch
-/// immediately — no relinking required.
+/// immediately, no relinking required.
 #[cfg(unix)]
 #[test]
 fn global_shims_setting_off_disables_dispatch() {
@@ -398,13 +775,16 @@ fn write_lockfile_verified_record(root: &TempDir, project: &Path) {
         "verifiedAt": "2026-01-01T00:00:00.000Z",
         "policy": { "tarballUrlBinding": true, "integrityRequired": true },
     });
-    let cache_dir = root.path().join("cache-home").join("pnpm");
+    let cache_dir = root
+        .path()
+        .join("cache-home")
+        .join("pnpm");
     fs::create_dir_all(&cache_dir).unwrap();
     fs::write(cache_dir.join("lockfile-verified.jsonl"), format!("{record}\n")).unwrap();
 }
 
 /// A `pnpm-workspace.yaml` in an ancestor of the pnpm home must not
-/// influence dispatch — only `<home>/pnpm-workspace.yaml` itself may.
+/// influence dispatch, only `<home>/pnpm-workspace.yaml` itself may.
 #[cfg(unix)]
 #[test]
 fn ancestors_of_the_pnpm_home_cannot_set_the_mode() {
@@ -458,13 +838,15 @@ fn global_fallback_preserves_quoted_shebang_arguments() {
     fs::create_dir_all(&cwd).unwrap();
 
     let output = shim_command(&root, &cwd, "tool", target.to_str().unwrap())
-        .arg("forwarded with spaces")
+        .with_arg("forwarded with spaces")
         .output()
         .unwrap();
 
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
-    let lines: Vec<_> =
-        String::from_utf8_lossy(&output.stdout).lines().map(str::to_string).collect();
+    let lines: Vec<_> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect();
     assert_eq!(lines.first().map(String::as_str), Some("<--label>"));
     assert_eq!(lines.get(1).map(String::as_str), Some("<value with spaces>"));
     assert_eq!(lines.get(2).map(String::as_str), Some(format!("<{}>", target.display()).as_str()));
@@ -485,29 +867,13 @@ fn global_fallback_prefers_the_sibling_interpreter() {
     let cwd = root.path().join("outside");
     fs::create_dir_all(&cwd).unwrap();
 
-    let output =
-        shim_command(&root, &cwd, "tool", target.to_str().unwrap()).arg("--flag").output().unwrap();
-
-    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "sibling node");
-}
-
-/// No shell sits between the caller and the target, so an environment
-/// entry whose name is not a shell identifier reaches the target intact.
-#[cfg(unix)]
-#[test]
-fn native_shim_preserves_non_shell_identifier_environment_variables() {
-    let root = tempfile::tempdir().unwrap();
-    let printenv = which::which("printenv").expect("the test needs `printenv` on PATH");
-
-    let output = shim_command(&root, root.path(), "node", printenv.to_str().unwrap())
-        .arg("TEST-VAR")
-        .env("TEST-VAR", "123")
+    let output = shim_command(&root, &cwd, "tool", target.to_str().unwrap())
+        .with_arg("--flag")
         .output()
         .unwrap();
 
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "123");
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "sibling node");
 }
 
 /// A shim whose target is not recorded, or points back at the shim, must
@@ -521,7 +887,10 @@ fn a_shim_without_a_readable_target_fails() {
     let shim = shim_command(&root, &cwd, "tool", "placeholder").get_program().to_owned();
     fs::write(root.path().join("global-bin/.pnpm-shim-v1-tool-target"), b"pkg:not a name").unwrap();
 
-    let output = Command::new(&shim).with_current_dir(&cwd).output().unwrap();
+    let output = Command::new(&shim)
+        .with_current_dir(&cwd)
+        .output()
+        .unwrap();
     assert_eq!(output.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot read the global target"));
 
@@ -530,10 +899,40 @@ fn a_shim_without_a_readable_target_fails() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("points back at the shim"));
 }
 
+/// `pnpm setup` links the `pnpm` shim and the bin of the global `pnpm`
+/// package from one executable, so both are hard links of the same file.
+#[test]
+fn a_shim_runs_a_target_that_is_a_hard_link_of_it() {
+    let root = tempfile::tempdir().unwrap();
+    let cwd = root.path().join("outside");
+    fs::create_dir_all(&cwd).unwrap();
+    let target = root
+        .path()
+        .join(format!("global/node_modules/pnpm/pnpm{}", std::env::consts::EXE_SUFFIX));
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    #[cfg(unix)]
+    let command = shim_command(&root, &cwd, "pnpm", target.to_str().unwrap());
+    #[cfg(windows)]
+    let command = windows_shim_command(&root, &cwd, "pnpm", &target);
+    fs::hard_link(command.get_program(), &target).unwrap();
+
+    let output = command
+        .with_arg("--version")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), pnpm_config::PNPM_VERSION);
+}
+
 #[cfg(windows)]
 fn windows_shim_command(root: &TempDir, cwd: &Path, name: &str, target: &Path) -> Command {
     use std::os::windows::ffi::OsStrExt as _;
-    let encoded = target.as_os_str().encode_wide().flat_map(u16::to_le_bytes).collect::<Vec<_>>();
+    let encoded = target
+        .as_os_str()
+        .encode_wide()
+        .flat_map(u16::to_le_bytes)
+        .collect::<Vec<_>>();
     let shim = install_shim(&root.path().join("global-bin"), name, &encoded);
     Command::new(shim)
         .without_ambient_pnpm_config()
@@ -542,78 +941,6 @@ fn windows_shim_command(root: &TempDir, cwd: &Path, name: &str, target: &Path) -
         .with_env("XDG_STATE_HOME", root.path().join("state"))
         .with_env("XDG_CONFIG_HOME", root.path().join("config"))
         .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
-}
-
-/// A `.cmd` target dispatches to the project's own copy and falls back
-/// to the global one, in both cases through `cmd.exe`'s own argument
-/// handling.
-#[cfg(windows)]
-#[test]
-fn native_shim_dispatches_and_falls_back_to_cmd_targets() {
-    let root = tempfile::tempdir().unwrap();
-    let project = root.path().join("project");
-    let outside = root.path().join("outside");
-    let local_package = project.join("node_modules/tool");
-    let local_target = local_package.join("cli.cmd");
-    let local_bin = project.join("node_modules/.bin");
-    let global_package = root.path().join("global/node_modules/tool");
-    let global_target = global_package.join("cli.cmd");
-    fs::create_dir_all(&local_package).unwrap();
-    fs::create_dir_all(&local_bin).unwrap();
-    fs::create_dir_all(&global_package).unwrap();
-    fs::create_dir_all(&outside).unwrap();
-    fs::write(local_package.join("package.json"), r#"{"name":"tool"}"#).unwrap();
-    fs::write(global_package.join("package.json"), r#"{"name":"tool"}"#).unwrap();
-    fs::write(&local_target, "@ECHO local:%*\r\n").unwrap();
-    fs::write(&global_target, "@ECHO global:%*\r\n").unwrap();
-    fs::write(local_bin.join("tool"), format!("# cmd-shim-target={}\n", local_target.display()))
-        .unwrap();
-    fs::write(local_bin.join("tool.cmd"), format!("@CALL \"{}\" %*\r\n", local_target.display()))
-        .unwrap();
-
-    let local = windows_shim_command(&root, &project, "tool", &global_target)
-        .arg("value with spaces")
-        .env(AUTO_TRUST_ENV, "1")
-        .env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
-        .output()
-        .unwrap();
-    let local_stdout = String::from_utf8_lossy(&local.stdout);
-    assert!(
-        local.status.success() && local_stdout.contains("local:"),
-        "stdout:\n{local_stdout}\nstderr:\n{}",
-        String::from_utf8_lossy(&local.stderr),
-    );
-    assert!(local_stdout.contains("value with spaces"), "stdout:\n{local_stdout}");
-
-    let global = windows_shim_command(&root, &outside, "tool", &global_target)
-        .arg("value with spaces")
-        .output()
-        .unwrap();
-    let global_stdout = String::from_utf8_lossy(&global.stdout);
-    assert!(
-        global.status.success() && global_stdout.contains("global:"),
-        "stdout:\n{global_stdout}\nstderr:\n{}",
-        String::from_utf8_lossy(&global.stderr),
-    );
-    assert!(global_stdout.contains("value with spaces"), "stdout:\n{global_stdout}");
-}
-
-#[cfg(windows)]
-#[test]
-fn native_shim_runs_the_global_executable_fallback() {
-    let root = tempfile::tempdir().unwrap();
-    let outside = root.path().join("outside");
-    fs::create_dir_all(&outside).unwrap();
-    let global_target = std::env::var_os("ComSpec").expect("ComSpec should identify cmd.exe");
-
-    let output = windows_shim_command(&root, &outside, "node", Path::new(&global_target))
-        .args(["/d", "/c", "echo native-fallback"])
-        .env("PNPM_CONFIG_GLOBAL_SHIMS", "true")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
-    assert!(String::from_utf8_lossy(&output.stdout).contains("native-fallback"));
 }
 
 /// The bin dir a self-update by an earlier pnpm 12 leaves behind: the
@@ -639,180 +966,11 @@ fn install_legacy_shim(global_bin: &Path, name: &str, target: &str) -> std::path
     shim
 }
 
-#[cfg(unix)]
-#[test]
-fn legacy_shim_launch_dispatches_and_migrates_the_bin_dir() {
-    let root = tempfile::tempdir().unwrap();
-    let (project, global_target) = prepare_local_and_global(&root, "tool");
-    let global_bin = root.path().join("global-bin");
-    let other = install_legacy_shim(&global_bin, "other", "pkg:other");
-    let shim = install_legacy_shim(&global_bin, "tool", global_target.to_str().unwrap());
-    fs::write(project.join("node_modules/tool/cli.sh"), "#!/bin/sh\nprintf '<%s>\\n' \"$@\"\n")
-        .unwrap();
-    let launch = |shim: &Path| {
-        Command::new(shim)
-            .without_ambient_pnpm_config()
-            .without_env("PNPM_SHIM_BYPASS")
-            .with_current_dir(&project)
-            .with_env("PNPM_HOME", root.path().join("pnpm-home"))
-            .with_env("XDG_STATE_HOME", root.path().join("state"))
-            .with_env("XDG_CONFIG_HOME", root.path().join("config"))
-            .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
-            .with_env(AUTO_TRUST_ENV, "1")
-            .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
-            .with_args(["--flag", "value with spaces"])
-            .output()
-            .unwrap()
-    };
-
-    let first = launch(&shim);
-    assert!(first.status.success(), "stderr:\n{}", String::from_utf8_lossy(&first.stderr));
-    assert_eq!(String::from_utf8_lossy(&first.stdout).trim(), "<--flag>\n<value with spaces>");
-
-    let executable_len = fs::metadata(assert_cmd::cargo::cargo_bin("pnpm")).unwrap().len();
-    for name in ["tool", "other"] {
-        assert_eq!(
-            fs::metadata(global_bin.join(name)).unwrap().len(),
-            executable_len,
-            "the legacy {name} shim must have become the executable",
-        );
-    }
-    assert_eq!(
-        fs::read(global_bin.join(".pnpm-shim-v1-tool-target")).unwrap(),
-        global_target.as_os_str().as_encoded_bytes(),
-    );
-    assert_eq!(fs::read(global_bin.join(".pnpm-shim-v1-other-target")).unwrap(), b"pkg:other");
-    assert!(!global_bin.join(".pnpm-shim-v1").exists());
-
-    let second = launch(&shim);
-    assert!(second.status.success(), "stderr:\n{}", String::from_utf8_lossy(&second.stderr));
-    assert_eq!(String::from_utf8_lossy(&second.stdout).trim(), "<--flag>\n<value with spaces>");
-    let unprovided = launch(&other);
-    assert!(!unprovided.status.success());
-    assert!(String::from_utf8_lossy(&unprovided.stderr).contains("ERR_PNPM_SHIM_NO_TARGET"));
-}
-
-#[cfg(unix)]
-#[test]
-fn legacy_dispatcher_rejects_a_shim_from_another_directory() {
-    let root = tempfile::tempdir().unwrap();
-    let dispatcher_bin = root.path().join("dispatcher-bin");
-    install_legacy_shim(&dispatcher_bin, "own", "pkg:own");
-    let foreign_bin = root.path().join("foreign-bin");
-    let foreign_shim = install_legacy_shim(&foreign_bin, "tool", "/bin/true");
-
-    let output = Command::new(dispatcher_bin.join(".pnpm-shim-v1"))
-        .arg("--shim")
-        .arg("tool")
-        .arg(&foreign_shim)
-        .arg("/bin/true")
-        .arg("--")
-        .output()
-        .unwrap();
-
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("legacy shim path") && stderr.contains("executing dispatcher"),
-        "stderr:\n{stderr}",
-    );
-    assert!(foreign_bin.join(".pnpm-shim-v1").exists());
-    assert!(fs::read(&foreign_shim).unwrap().starts_with(b"#!"));
-}
-
-#[cfg(unix)]
-#[test]
-fn legacy_shim_dispatches_without_waiting_for_the_migration_lock() {
-    let root = tempfile::tempdir().unwrap();
-    let target = root.path().join("target");
-    write_script(&target, "launched");
-    let global_bin = root.path().join("global-bin");
-    let shim = install_legacy_shim(&global_bin, "tool", target.to_str().unwrap());
-    let lock_dir = global_bin.join(".pnpm-global-bin.lock");
-    fs::create_dir(&lock_dir).unwrap();
-    fs::write(lock_dir.join("owner"), "held-by-test").unwrap();
-
-    let output = Command::new(&shim)
-        .without_ambient_pnpm_config()
-        .without_env("PNPM_SHIM_BYPASS")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "launched");
-    assert!(global_bin.join(".pnpm-shim-v1").exists());
-    assert!(fs::read(&shim).unwrap().starts_with(b"#!"));
-}
-
-/// A shim an earlier pnpm 12 wrote for the package is migrated before the
-/// slot check, so re-adding the package repairs it instead of reporting a
-/// conflict.
-#[cfg(unix)]
-#[test]
-fn adding_a_shim_migrates_the_legacy_shim_for_the_same_package() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let root = tempfile::tempdir().unwrap();
-    let project = root.path().join("project");
-    fs::create_dir_all(&project).unwrap();
-    let global_bin = root.path().join("pnpm-home").join("bin");
-    fs::create_dir_all(&global_bin).unwrap();
-    let dispatcher = global_bin.join(".pnpm-shim-v1");
-    fs::write(&dispatcher, "#!/bin/sh\nexit 1\n").unwrap();
-    let legacy = global_bin.join("yarn");
-    fs::write(
-        &legacy,
-        "#!/bin/sh\nexit 1\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:yarn\n",
-    )
-    .unwrap();
-    fs::set_permissions(&legacy, fs::Permissions::from_mode(0o755)).unwrap();
-
-    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
-
-    assert!(stdout_of(&added).contains("yarn, yarnpkg"));
-    assert_eq!(fs::read(global_bin.join(".pnpm-shim-v1-yarn-target")).unwrap(), b"pkg:yarn");
-    assert_eq!(
-        fs::metadata(&legacy).unwrap().len(),
-        fs::metadata(assert_cmd::cargo::cargo_bin("pnpm")).unwrap().len(),
-        "the legacy shell shim must have become the executable",
-    );
-    assert!(!dispatcher.exists());
-}
-
-/// Removing a package's shims also finds the one an earlier pnpm 12 wrote.
-#[cfg(unix)]
-#[test]
-fn removing_a_shim_migrates_the_legacy_shim_first() {
-    let root = tempfile::tempdir().unwrap();
-    let project = root.path().join("project");
-    fs::create_dir_all(&project).unwrap();
-    let global_bin = root.path().join("pnpm-home").join("bin");
-    fs::create_dir_all(&global_bin).unwrap();
-    let legacy = global_bin.join("yarn");
-    fs::write(
-        &legacy,
-        "#!/bin/sh\nexit 1\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:yarn\n",
-    )
-    .unwrap();
-
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
-
-    assert!(stdout_of(&removed).contains("Removed yarn"));
-    assert!(!legacy.exists());
-    assert!(!global_bin.join(".pnpm-shim-v1-yarn-target").exists());
-}
-
-/// A `pnpm` invocation against an isolated pnpm home, for the commands
-/// that manage shims rather than dispatch through one.
+/// A `pnpm` invocation against the isolated pnpm home a [`shim_command`]
+/// of `root` dispatches from, for the commands that manage shims or the
+/// store rather than dispatch through one.
 fn pnpm_command(root: &TempDir, cwd: &Path) -> Command {
-    Command::cargo_bin("pnpm")
-        .unwrap()
-        .without_ambient_pnpm_config()
-        .with_current_dir(cwd)
-        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
-        .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
-        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+    isolated_in(Command::cargo_bin("pnpm").unwrap(), root, cwd)
 }
 
 fn stdout_of(output: &std::process::Output) -> String {
@@ -827,27 +985,52 @@ fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let global_bin = root.path().join("pnpm-home").join("bin");
+    let global_bin = root
+        .path()
+        .join("pnpm-home")
+        .join("bin");
 
-    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let added = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
     assert!(stdout_of(&added).contains("yarn, yarnpkg"));
     let exe = std::env::consts::EXE_SUFFIX;
-    assert!(global_bin.join(format!("yarn{exe}")).exists());
-    assert!(global_bin.join(format!("yarnpkg{exe}")).exists());
+    assert!(
+        global_bin
+            .join(format!("yarn{exe}"))
+            .exists(),
+    );
+    assert!(
+        global_bin
+            .join(format!("yarnpkg{exe}"))
+            .exists(),
+    );
     let config =
         fs::read_to_string(root.path().join("config/pnpm/config.yaml")).expect("read config.yaml");
     assert!(config.contains("yarn: auto"), "{config}");
 
-    let listed = pnpm_command(&root, &project).with_args(["shim", "ls"]).output().unwrap();
+    let listed = pnpm_command(&root, &project)
+        .with_args(["shim", "ls"])
+        .output()
+        .unwrap();
     assert!(stdout_of(&listed).contains("yarn (auto): yarn, yarnpkg"));
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
     assert!(stdout_of(&removed).contains("Removed yarn, yarnpkg"));
     let left: Vec<_> = fs::read_dir(&global_bin)
         .into_iter()
         .flatten()
         .flatten()
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
         .filter(|name| name.starts_with("yarn"))
         .collect();
     assert!(left.is_empty(), "{left:?}");
@@ -857,7 +1040,7 @@ fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
 }
 
 /// `globalShims: false` turns every context-aware shim off, so a shim
-/// added under it would sit on `PATH` doing nothing — and recording the
+/// added under it would sit on `PATH` doing nothing, and recording the
 /// opt-in would replace that off switch with a record that turns the
 /// built-in runtime shims back on. The command says so instead.
 #[test]
@@ -869,16 +1052,21 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(config_dir.join("config.yaml"), "globalShims: false\n").unwrap();
 
-    let refused =
-        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let refused = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(!refused.status.success());
     let stderr = String::from_utf8_lossy(&refused.stderr);
     assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{stderr}");
     assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
-    // Nothing was linked at all — not the bare shim, not a Windows
+    // Nothing was linked at all, not the bare shim, not a Windows
     // flavor, not the dispatcher beside them.
-    let global_bin = root.path().join("pnpm-home").join("bin");
+    let global_bin = root
+        .path()
+        .join("pnpm-home")
+        .join("bin");
     let linked: Vec<_> = fs::read_dir(&global_bin)
         .into_iter()
         .flatten()
@@ -889,22 +1077,32 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
 
     // Removing shims under it still works, and still leaves the setting
     // as the user wrote it.
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
 }
 
 /// Removing a shim the record never held changes nothing, so it writes
-/// nothing — spelling the built-in defaults into the user's
+/// nothing, spelling the built-in defaults into the user's
 /// configuration is not what `pnpm shim rm` was asked to do.
 #[test]
 fn removing_a_shim_that_was_never_recorded_leaves_the_config_alone() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let config = root.path().join("config").join("pnpm").join("config.yaml");
+    let config = root
+        .path()
+        .join("config")
+        .join("pnpm")
+        .join("config.yaml");
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert!(stdout_of(&removed).contains("No shims for yarn"));
@@ -923,7 +1121,10 @@ fn removing_a_disabled_shim_does_not_enable_it() {
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(config_dir.join("config.yaml"), "globalShims:\n  node: false\n").unwrap();
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "node"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "node"])
+        .output()
+        .unwrap();
 
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert_eq!(
@@ -944,8 +1145,10 @@ fn removing_a_disabled_shim_clears_it_when_nothing_would_switch_on() {
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(config_dir.join("config.yaml"), "globalShims:\n  typescript: false\n").unwrap();
 
-    let removed =
-        pnpm_command(&root, &project).with_args(["shim", "rm", "typescript"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "typescript"])
+        .output()
+        .unwrap();
 
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
@@ -971,7 +1174,10 @@ fn removing_a_shim_under_a_higher_precedence_disable_records_no_defaults() {
         .unwrap();
     fs::write(pnpm_home.join("pnpm-workspace.yaml"), "globalShims: false\n").unwrap();
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     let config = fs::read_to_string(config_dir.join("config.yaml")).unwrap();
@@ -1001,7 +1207,10 @@ fn adding_a_shim_under_a_higher_precedence_disable_is_refused() {
         } else {
             command = command.with_env("PNPM_CONFIG_GLOBAL_SHIMS", "false");
         }
-        let refused = command.with_args(["shim", "add", "yarn"]).output().unwrap();
+        let refused = command
+            .with_args(["shim", "add", "yarn"])
+            .output()
+            .unwrap();
 
         assert!(!refused.status.success(), "{label}");
         let stderr = String::from_utf8_lossy(&refused.stderr);
@@ -1027,21 +1236,34 @@ fn adding_a_shim_over_another_package_s_bin_is_refused() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let global_bin = root.path().join("pnpm-home").join("bin");
+    let global_bin = root
+        .path()
+        .join("pnpm-home")
+        .join("bin");
 
-    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let added = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
     assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
-    let readded =
-        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let readded = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
     assert!(readded.status.success(), "{}", String::from_utf8_lossy(&readded.stderr));
 
-    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+    let removed = pnpm_command(&root, &project)
+        .with_args(["shim", "rm", "yarn"])
+        .output()
+        .unwrap();
     assert!(removed.status.success(), "{}", String::from_utf8_lossy(&removed.stderr));
     assert!(!global_bin.join("yarn").exists());
     let installed_globally = "#!/bin/sh\necho a global install\n";
     fs::write(global_bin.join("yarn"), installed_globally).unwrap();
-    let refused =
-        pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+    let refused = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
+        .output()
+        .unwrap();
 
     assert!(!refused.status.success());
     let stderr = String::from_utf8_lossy(&refused.stderr);
@@ -1050,7 +1272,7 @@ fn adding_a_shim_over_another_package_s_bin_is_refused() {
 }
 
 /// Nothing installed the package behind the shim, so a project that
-/// neither pins nor depends on it has nothing to run — and the shim says
+/// neither pins nor depends on it has nothing to run, and the shim says
 /// so instead of falling through to whatever else is on `PATH`.
 #[cfg(unix)]
 #[test]
@@ -1060,23 +1282,34 @@ fn a_shim_without_a_project_target_reports_it() {
     fs::create_dir_all(&project).unwrap();
     fs::write(project.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#).unwrap();
 
-    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
-    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
-    let output = Command::new(root.path().join("pnpm-home").join("bin").join("yarn"))
-        .without_ambient_pnpm_config()
-        .with_current_dir(&project)
-        .with_env("PNPM_HOME", root.path().join("pnpm-home"))
-        .with_env("XDG_STATE_HOME", root.path().join("state"))
-        .with_env("XDG_CONFIG_HOME", root.path().join("config"))
-        // The dispatched shim must not reach into the developer's cache
-        // either, whatever it decides to run.
-        .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
-        .with_arg("--version")
+    let added = pnpm_command(&root, &project)
+        .with_args(["shim", "add", "yarn"])
         .output()
         .unwrap();
+    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
+    let output = Command::new(
+        root.path()
+            .join("pnpm-home")
+            .join("bin")
+            .join("yarn"),
+    )
+    .without_ambient_pnpm_config()
+    .with_current_dir(&project)
+    .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+    .with_env("XDG_STATE_HOME", root.path().join("state"))
+    .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+    // The dispatched shim must not reach into the developer's cache
+    // either, whatever it decides to run.
+    .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+    .with_arg("--version")
+    .output()
+    .unwrap();
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("ERR_PNPM_SHIM_NO_TARGET"), "{stderr}");
     assert!(stderr.contains("yarn"), "{stderr}");
 }
+
+mod migration;
+mod runtime_diagnostics;

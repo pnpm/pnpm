@@ -1,11 +1,7 @@
-import { Buffer } from 'node:buffer'
-import util from 'node:util'
-
-import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
+import { PnpmError } from '@pnpm/error'
 import type { RegistryServerType } from '@pnpm/types'
 
 const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/'
-const SHA512_INTEGRITY_LENGTH = 'sha512-'.length + 88
 
 /**
  * registry.npmjs.org is the one registry whose layout pnpm knows without being
@@ -25,70 +21,20 @@ export interface TarballUrlOptions {
   serverType?: RegistryServerType
 }
 
-export interface IntegrityAddress {
-  algorithm: 'sha512'
-  digest: Buffer
-}
-
-export function isIntegrityAddressedRegistryTarballUrl (
-  tarball: string,
-  integrity: string,
-  registry: string
-): boolean {
-  const expected = getIntegrityAddressedTarballUrl(integrity, registry)
-  if (expected == null) return false
-  try {
-    return new URL(tarball).toString() === expected
-  } catch {
-    return false
-  }
-}
-
-export function getIntegrityAddressedTarballUrl (
-  integrity: unknown,
-  registry: string
-): string | undefined {
-  const parsed = parseIntegrityAddress(integrity)
-  if (parsed == null) return undefined
-  return new URL(
-    `-/tarballs/${parsed.algorithm}/${parsed.digest.toString('base64url')}`,
-    normalizeRegistry(registry)
-  ).toString()
-}
-
-export function parseIntegrityAddress (integrity: unknown): IntegrityAddress | undefined {
-  if (typeof integrity !== 'string' || integrity.length !== SHA512_INTEGRITY_LENGTH) return undefined
-  let parsed: ReturnType<typeof parseIntegrity>
-  try {
-    parsed = parseIntegrity(integrity)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_PNPM_INVALID_INTEGRITY') {
-      return undefined
-    }
-    throw err
-  }
-  if (
-    parsed.algorithm !== 'sha512' ||
-    parsed.hexDigest.length !== 128 ||
-    formatIntegrity(parsed.algorithm, parsed.hexDigest) !== integrity
-  ) return undefined
-  return {
-    algorithm: parsed.algorithm,
-    digest: Buffer.from(parsed.hexDigest, 'hex'),
-  }
-}
-
-export function isValidTarballRevision (revision: unknown): revision is number {
-  return typeof revision === 'number' &&
-    Number.isSafeInteger(revision) &&
-    revision > 0
+/**
+ * Registry revisions (`dist.revision` metadata, `+rN` version selectors, and
+ * lockfile `revision` fields) address uncompressed tar resources, which this
+ * pnpm cannot install.
+ */
+export function createRegistryRevisionsUnsupportedError (message: string): PnpmError {
+  return new PnpmError('REGISTRY_REVISIONS_UNSUPPORTED', message, {
+    hint: 'Registry revisions are supported by pnpm v12 and later.',
+  })
 }
 
 /**
  * Build the canonical tarball URL of an npm package — i.e. the URL pnpm derives
- * from a package's name, version, and registry. Vendored from the
- * `get-npm-tarball-url` package so the logic and its inverse
- * ({@link isCanonicalRegistryTarballUrl}) live together in the monorepo.
+ * from a package's name, version, and registry.
  *
  * This is the single source of the URL shape: the lockfile writer drops a
  * tarball URL only when this function rebuilds it, and the lockfile reader
@@ -101,6 +47,9 @@ export function getNpmTarballUrl (
   opts?: TarballUrlOptions
 ): string {
   const registry = normalizeRegistry(opts?.registry)
+  // The pnpr layout addresses the version by its exact key, build metadata
+  // included; `.tgz` filenames drop it.
+  if (opts?.serverType === 'pnpr') return `${registry}${pkgName}@${pkgVersion}`
   // Artifactory keeps the scope in the filename of a scoped package's tarball
   // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
   const filenameName = opts?.serverType === 'artifactory' ? pkgName : getScopelessName(pkgName)
@@ -161,7 +110,7 @@ function getScopelessName (name: string): string {
   return name.split('/')[1]
 }
 
-// Strips only a leading http(s) scheme so URLs are compared protocol-insensitively
+// Strips only a leading HTTP or HTTPS scheme so URLs are compared protocol-insensitively
 // without truncating on a later `://` in the path or query.
 function removeProtocol (url: string): string {
   return url.replace(/^https?:\/\//i, '')

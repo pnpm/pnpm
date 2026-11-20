@@ -1,0 +1,20 @@
+extends: existence
+message: "Replace '%s' with a measurement, or remove it."
+link: https://developers.google.com/style/excessive-claims
+level: error
+ignorecase: true
+tokens:
+  - blazing(?:ly)? fast
+  - lightning fast
+  - seamless(?:ly)?
+  - robust
+  - powerful
+  - cutting[- ]edge
+  - state[- ]of[- ]the[- ]art
+  - game[- ]chang(?:er|ing)
+  - best[- ]in[- ]class
+  - world[- ]class
+  - significantly
+  - dramatically
+  - drastically
+  - super fast

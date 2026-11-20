@@ -6,12 +6,12 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import normalize from 'normalize-path'
 
-interface DirDirEntry {
+export interface DirDirEntry {
   entryType: 'directory'
   entries: Record<string, DirEntry>
 }
 
-type DirEntry = {
+export type DirEntry = {
   entryType: 'index'
   depPath: string
 } | {
@@ -74,18 +74,18 @@ function createVirtualStoreDir (lockfile: LockfileObject): Record<string, DirEnt
 
 function addDirEntry (target: Record<string, DirEntry>, subPath: string[] | string, newEntry: DirEntry): void {
   const subPathArray = typeof subPath === 'string' ? subPath.split('/') : subPath
-  const p = subPathArray.shift()!
+  const entryName = subPathArray.shift()!
   if (subPathArray.length > 0) {
-    if (!target[p]) {
-      target[p] = {
+    if (!target[entryName]) {
+      target[entryName] = {
         entryType: 'directory',
         entries: {},
       } as DirEntry
-    } else if (target[p].entryType !== 'directory') {
+    } else if (target[entryName].entryType !== 'directory') {
       throw new Error()
     }
-    addDirEntry((target[p] as DirDirEntry).entries, subPathArray, newEntry)
+    addDirEntry((target[entryName] as DirDirEntry).entries, subPathArray, newEntry)
   } else {
-    target[p] = newEntry
+    target[entryName] = newEntry
   }
 }

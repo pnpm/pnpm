@@ -1,4 +1,8 @@
-use super::{BundledDependencies, PackageMetadata, StringOrList};
+use super::{
+    BundledDependencies,
+    PackageMetadata,
+    StringOrList,
+};
 use crate::serialize_yaml;
 use text_block_macros::text_block;
 
@@ -48,7 +52,11 @@ fn libc_shape_is_preserved() {
     for input in ["libc: glibc\n", "libc: [glibc]\n"] {
         let metadata: PackageMetadata = serde_saphyr::from_str(&make_metadata(input)).unwrap();
         let yaml = serialize_yaml::to_string(&metadata).unwrap();
-        assert!(yaml.lines().any(|line| line.trim_start() == input.trim()), "{yaml}");
+        assert!(
+            yaml.lines()
+                .any(|line| line.trim_start() == input.trim()),
+            "{yaml}",
+        );
     }
 }
 
@@ -71,7 +79,7 @@ fn bundled_dependencies_from_the_legacy_spelling() {
 }
 
 // Upstream writes whichever of the two keys holds a nonempty list or `true`,
-// preferring `bundledDependencies` — so a `false` or empty list under the
+// preferring `bundledDependencies`, so a `false` or empty list under the
 // preferred key does not veto the legacy one.
 #[test]
 fn bundled_dependencies_falls_through_a_false_to_the_legacy_spelling() {

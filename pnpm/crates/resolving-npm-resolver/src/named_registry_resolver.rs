@@ -15,29 +15,46 @@
 //! alias) because the resolver looks the auth header up by the
 //! resolved registry URL, not the alias name.
 
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-    sync::Arc,
+use std::collections::{
+    HashMap,
+    HashSet,
 };
 
-use pnpm_config::NeedsFullMetadataFor;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_lockfile::{
+    DeclaredRegistryPrefixes,
+    registry_server_type,
+};
+
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
 };
 
 use crate::{
     npm_resolver::{
-        BuildResolveResult, PickFromRegistryOptions, RegistryPick, build_resolve_result,
-        calc_specifier_from, no_matching_version, pick_from_registry_with_guard,
-        revision_specifier, swallowed_as_no_latest, validate_revision_selector,
+        PickFromRegistryOptions,
+        RegistryPick,
+        no_matching_version,
+        pick_from_registry_with_guard,
+        swallowed_as_no_latest,
+        validate_revision_selector,
     },
     parse_bare_specifier::{
-        NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
+        NamedRegistryPackageSpec,
+        parse_named_registry_specifier_to_registry_package_spec,
     },
-    pick_package::{PackageMetaCache, PickPackageContext},
+    pick_package::{
+        OfflineStoreView,
+        PackageMetaCache,
+    },
     pick_package_from_meta::RegistryPackageSpec,
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
@@ -60,42 +77,25 @@ const NAMED_REGISTRY_RESOLVED_VIA: &str = "named-registry";
 pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// Merged map of `<alias> → <registry URL>`. Built-in entries
     /// (`gh:` → GitHub Packages) plus any user-supplied overrides
-    /// from `pnpm-workspace.yaml#namedRegistries`. Already validated
-    /// — every URL parses and is http(s).
+    /// from `pnpm-workspace.yaml#namedRegistries`. Already validated;
+    /// every URL parses and is HTTP or HTTPS.
     pub registries_by_prefix: HashMap<String, String>,
     /// Precomputed key set of [`Self::registries_by_prefix`]. The parser
     /// checks aliases against this set per call, so caching it
     /// avoids rebuilding the set for every resolve.
     pub registry_names: HashSet<String>,
-    pub http_client: Arc<ThrottledClient>,
-    pub auth_headers: Arc<AuthHeaders>,
-    pub meta_cache: Arc<Cache>,
-    /// Shared per-cache-key packument fetch serializer. See
-    /// [`crate::PackumentFetchLocker`]. Same handle as the sibling
-    /// [`crate::NpmResolver`] so concurrent picks for the same
-    /// `(registry, name)` across resolvers coalesce.
-    pub fetch_locker: crate::PackumentFetchLocker,
-    /// Shared per-`(pkg_name, version)` manifest JSON cache. See
-    /// [`crate::PickedManifestCache`]. Same handle as the sibling
-    /// [`crate::NpmResolver`].
-    pub picked_manifest_cache: crate::PickedManifestCache,
-    pub cache_dir: Option<PathBuf>,
-    pub offline: bool,
-    pub prefer_offline: bool,
-    pub ignore_missing_time_field: bool,
-    /// Install-wide bias toward full metadata. Threaded through to
-    /// [`PickPackageContext::full_metadata`].
-    pub full_metadata: bool,
-    /// Per-registry answer to the same question. A prefix-addressed registry
-    /// is declared like any other, so it is exempted like any other.
-    pub needs_full_metadata_for: Option<NeedsFullMetadataFor>,
-    /// When full metadata is forced, read and write pnpm's filtered
-    /// full-metadata mirror.
-    pub filter_metadata: bool,
-    /// Retry budget threaded through to
-    /// [`PickPackageContext::retry_opts`]. Same `fetch-retries`-sourced
-    /// budget the sibling [`crate::NpmResolver`] uses.
-    pub retry_opts: RetryOpts,
+    /// The scope routes plain ranges resolve through, `default` included.
+    /// The key prefix of a resolved package depends on where a plain range
+    /// of its name routes (see
+    /// [`DeclaredRegistryPrefixes::alias_key_prefix`]).
+    pub registries: HashMap<String, String>,
+    /// The prefixes the project declares, which decide the prefix a
+    /// resolved id carries.
+    pub declared_prefixes: DeclaredRegistryPrefixes,
+    pub metadata: crate::RegistryMetadataClient<Cache>,
+    pub format: crate::RegistryMetadataFormat,
+    pub cache_policy: crate::MetadataCachePolicy,
+    pub store_view: Option<OfflineStoreView>,
 }
 
 impl<Cache: PackageMetaCache + 'static> Resolver for NamedRegistryResolver<Cache> {
@@ -125,16 +125,9 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let Some(bare_specifier) = wanted_dependency.bare_specifier.as_deref() else {
             return Ok(None);
         };
-        let default_tag = opts.default_tag.as_deref().unwrap_or("latest");
-
-        let parsed = parse_named_registry_specifier_to_registry_package_spec(
-            bare_specifier,
-            &self.registry_names,
-            wanted_dependency.alias.as_deref(),
-            default_tag,
-        )
-        .map_err(|err| Box::new(err) as ResolveError)?;
-        let Some(NamedRegistryPackageSpec { spec, registry_name }) = parsed else {
+        let Some(NamedRegistryPackageSpec { spec, registry_name }) =
+            self.parse_specifier(wanted_dependency, opts, bare_specifier)?
+        else {
             return Ok(None);
         };
         validate_revision_selector(&spec)?;
@@ -153,44 +146,50 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             }
         };
 
-        let result = build_resolve_result(BuildResolveResult {
-            meta: &picked.meta,
-            picked: &picked.version,
-            spec: &spec,
-            alias: Some(spec.name.as_str()),
+        crate::npm_resolver::RegistryResolutionSource {
             resolved_via: NAMED_REGISTRY_RESOLVED_VIA,
             registry,
-            registry_name: Some(registry_name.as_str()),
-            published_by: opts.published_by,
-            published_by_exclude: opts.published_by_exclude.as_ref(),
-            picked_manifest_cache: &self.picked_manifest_cache,
-            // The entry stays a named-registry dependency, so it
-            // round-trips under the `<alias>:` protocol prefix.
-            calculated_specifier: revision_specifier(
+            registry_name: self.key_prefix(&registry_name, registry, &spec.name),
+            server_type: registry_server_type(&self.format.registry_options_by_url, registry),
+        }
+        .build_result(
+            &picked,
+            &opts.policy,
+            &self.metadata.picked_manifest_cache,
+            crate::npm_resolver::ResolvedSpecifier::prefixed(
                 wanted_dependency,
                 opts,
                 &spec,
-                Some(&format!("{registry_name}:")),
+                &format!("{registry_name}:"),
                 &spec.name,
-                &picked.version.version,
-            )
-            .or_else(|| {
-                calc_specifier_from(wanted_dependency, opts, &spec).map(
-                    |(bare_specifier, default_pin)| {
-                        crate::calc_prefixed_specifier(
-                            &format!("{registry_name}:"),
-                            &spec.name,
-                            bare_specifier,
-                            wanted_dependency.alias.as_deref(),
-                            &picked.version,
-                            default_pin,
-                        )
-                    },
-                )
-            }),
-        })?;
+                &picked.version,
+            ),
+        )
+        .map(Some)
+    }
 
-        Ok(Some(result))
+    /// See [`DeclaredRegistryPrefixes::alias_key_prefix`].
+    fn key_prefix<'a>(&'a self, alias: &'a str, registry: &str, name: &str) -> Option<&'a str> {
+        let routed_registry = pnpm_lockfile::registry_for_package(&self.registries, name, None);
+        self.declared_prefixes.alias_key_prefix(alias, registry, routed_registry)
+    }
+
+    fn parse_specifier(
+        &self,
+        wanted_dependency: &WantedDependency,
+        opts: &ResolveOptions,
+        bare_specifier: &str,
+    ) -> Result<Option<NamedRegistryPackageSpec>, ResolveError> {
+        let default_tag = opts.version.default_tag.as_deref().unwrap_or("latest");
+
+        let parsed = parse_named_registry_specifier_to_registry_package_spec(
+            bare_specifier,
+            &self.registry_names,
+            wanted_dependency.alias.as_deref(),
+            default_tag,
+        )
+        .map_err(|err| Box::new(err) as ResolveError)?;
+        Ok(parsed)
     }
 
     async fn resolve_latest_impl(
@@ -204,7 +203,8 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         }
         let mut resolve_opts = opts.clone();
         if !query.compatible {
-            resolve_opts.update = UpdateBehavior::Latest;
+            resolve_opts.refresh.update = UpdateBehavior::Latest;
+            resolve_opts.version.latest_current_version.clone_from(&query.current_version);
         }
         let result = match self.resolve_impl(&wanted, &resolve_opts).await {
             Ok(result) => result,
@@ -216,14 +216,13 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let Some(result) = result else {
             return Ok(None);
         };
-        if result
-            .policy_violation
+        if result.policy_violation
             .as_ref()
             .is_some_and(|violation| violation.code == MINIMUM_RELEASE_AGE_VIOLATION_CODE)
         {
             return Ok(Some(LatestInfo { latest_manifest: None }));
         }
-        Ok(Some(LatestInfo { latest_manifest: result.manifest }))
+        Ok(Some(LatestInfo { latest_manifest: result.package.manifest }))
     }
 
     async fn pick_from_registry(
@@ -233,43 +232,13 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         opts: &ResolveOptions,
         optional: bool,
     ) -> Result<RegistryPick, ResolveError> {
-        let overlay_selectors =
-            crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
-        let base_selectors =
-            overlay_selectors.as_ref().or_else(|| opts.preferred_versions.get(&spec.name));
-        let ctx = PickPackageContext {
-            http_client: &self.http_client,
-            auth_headers: &self.auth_headers,
-            meta_cache: self.meta_cache.as_ref(),
-            fetch_locker: &self.fetch_locker,
-            cache_dir: self.cache_dir.as_deref(),
-            offline: self.offline,
-            prefer_offline: self.prefer_offline,
-            ignore_missing_time_field: self.ignore_missing_time_field,
-            full_metadata: self.full_metadata,
-            needs_full_metadata_for: self.needs_full_metadata_for.as_deref(),
-            filter_metadata: self.filter_metadata,
-            retry_opts: self.retry_opts,
-        };
-
-        let picked = pick_from_registry_with_guard(
-            &ctx,
-            PickFromRegistryOptions {
-                registry,
-                spec,
-                preferred_version_selectors: base_selectors,
-                published_by: opts.published_by,
-                published_by_exclude: opts.published_by_exclude.as_ref(),
-                pick_lowest_version: opts.pick_lowest_version,
-                include_latest_tag: opts.update == UpdateBehavior::Latest,
-                dry_run: opts.dry_run,
-                optional,
-                update_checksums: opts.update_checksums || opts.update == UpdateBehavior::Patches,
-                trust_policy: opts.trust_policy,
-                package_version_guard: opts.package_version_guard.as_ref(),
-            },
-        )
-        .await?;
+        let selectors = crate::preferred_overlay::preferred_selectors(opts, &spec.name);
+        let base_selectors = selectors.as_deref();
+        let ctx =
+            self.metadata.pick_context(&self.format, self.cache_policy, self.store_view.as_ref());
+        let pick_opts =
+            PickFromRegistryOptions::new(registry, spec, opts, base_selectors, optional, None);
+        let picked = pick_from_registry_with_guard(&ctx, pick_opts).await?;
         if let RegistryPick::Picked(picked) = &picked {
             crate::preferred_overlay::warn_once_on_held_back_update(
                 opts,

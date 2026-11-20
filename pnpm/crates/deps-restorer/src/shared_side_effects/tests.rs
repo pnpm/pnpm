@@ -1,5 +1,12 @@
-use super::{package_version, parse_macos_product_version, validate_windows_kernel_version};
+use super::{
+    package_version,
+    platform::validate_windows_kernel_version,
+};
+use crate::shared_side_effects::platform::parse_macos_product_version;
+#[cfg(not(windows))]
+use command_extra::CommandExtra;
 use pnpm_lockfile::PackageKey;
+use std::collections::HashMap;
 
 #[test]
 fn parses_macos_product_versions() {
@@ -27,7 +34,7 @@ fn package_identity_uses_the_manifest_version_for_non_registry_sources() {
 /// The skip that keeps a restore from re-fetching content the store already
 /// has depends on the artifact's digest and mode naming the same CAS path the
 /// store wrote. Nothing else would notice them drifting apart: the lookup
-/// would simply always miss and every install would download again.
+/// would always miss and every install would download again.
 ///
 /// `0o744` is here even though a manifest carrying it is refused before
 /// hydration ever sees it. The two sides must agree on their own terms rather
@@ -37,8 +44,14 @@ fn package_identity_uses_the_manifest_version_for_non_registry_sources() {
 /// the store already held.
 #[test]
 fn an_artifact_digest_addresses_the_file_the_store_wrote() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-    use sha2::{Digest as _, Sha512};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
+    use sha2::{
+        Digest as _,
+        Sha512,
+    };
 
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
@@ -48,12 +61,14 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
     let digest = pnpm_pnpr_client::blob_id(&integrity).unwrap();
     let mut located_by_mode = Vec::new();
     for mode in [0o755, 0o644, 0o744] {
-        let (written, _) =
-            store_dir.write_cas_file(bytes, pnpm_fs::file_mode::is_executable(mode)).unwrap();
+        let written = store_dir
+            .write_cas_file(bytes, pnpm_fs::file_mode::is_executable(mode))
+            .unwrap()
+            .file;
         let located = store_dir
             .cas_file_path_by_mode(&digest, mode)
             .expect("an artifact digest must address a CAS path");
-        assert_eq!(located, written, "mode {mode:o}");
+        assert_eq!(located, written.path, "mode {mode:o}");
         assert!(located.is_file(), "mode {mode:o}");
         located_by_mode.push((mode, located));
     }
@@ -69,13 +84,19 @@ fn an_artifact_digest_addresses_the_file_the_store_wrote() {
 /// installing whatever happens to sit there.
 #[tokio::test]
 async fn corrupted_store_content_is_not_reused() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-    use sha2::{Digest as _, Sha512};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
+    use sha2::{
+        Digest as _,
+        Sha512,
+    };
 
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
     let bytes = b"addon".as_slice();
-    let (path, _) = store_dir.write_cas_file(bytes, true).unwrap();
+    let path = store_dir.write_cas_file(bytes, true).unwrap().file;
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(bytes)));
     let digest = pnpm_pnpr_client::blob_id(&integrity).unwrap();
     assert!(super::store_holds(&path, &digest).await.unwrap());
@@ -94,13 +115,19 @@ async fn corrupted_store_content_is_not_reused() {
 /// path is a miss the download and CAS write can repair.
 #[tokio::test]
 async fn a_non_regular_file_is_not_reused_as_store_content() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-    use sha2::{Digest as _, Sha512};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
+    use sha2::{
+        Digest as _,
+        Sha512,
+    };
 
     let store = tempfile::tempdir().unwrap();
     let store_dir = pnpm_store_dir::StoreDir::new(store.path());
     let bytes = b"addon".as_slice();
-    let (path, _) = store_dir.write_cas_file(bytes, true).unwrap();
+    let path = store_dir.write_cas_file(bytes, true).unwrap().file;
     let integrity = format!("sha512-{}", BASE64.encode(Sha512::digest(bytes)));
     let digest = pnpm_pnpr_client::blob_id(&integrity).unwrap();
 
@@ -112,7 +139,11 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
     {
         let fifo = store.path().join("fifo");
         assert!(
-            std::process::Command::new("mkfifo").arg(&fifo).status().unwrap().success(),
+            std::process::Command::new("mkfifo")
+                .with_arg(&fifo)
+                .status()
+                .unwrap()
+                .success(),
             "mkfifo is needed to plant a FIFO at a store path",
         );
         assert!(
@@ -131,37 +162,191 @@ async fn a_non_regular_file_is_not_reused_as_store_content() {
     }
 }
 
+/// A persisted symlink entry is backed by the CAS blob that holds its target,
+/// which the overlay names by the link's path rather than by the blob's.
+#[tokio::test]
+async fn a_persisted_symlink_entry_is_valid_while_its_target_blob_is_stored() {
+    use pnpm_store_dir::{
+        CafsFileInfo,
+        SYMLINK_MODE,
+        SideEffectsDiff,
+        SideEffectsOverlay,
+    };
+
+    let store = tempfile::tempdir().unwrap();
+    let store_dir = pnpm_store_dir::StoreDir::new(store.path());
+    let target = b"addon.node";
+    let pnpm_store_dir::WrittenFile { file: path, hash, .. } =
+        store_dir.write_cas_file(target, false).unwrap();
+    let link = "build/addon-alias.node".to_string();
+    let diff = SideEffectsDiff {
+        added: Some(HashMap::from([(
+            link.clone(),
+            CafsFileInfo {
+                checked_at: None,
+                digest: format!("{hash:x}"),
+                mode: SYMLINK_MODE,
+                size: target.len() as u64,
+            },
+        )])),
+        deleted: None,
+        remote_origin: None,
+    };
+    let overlay = SideEffectsOverlay {
+        files: std::sync::Arc::default(),
+        symlinks: HashMap::from([(link, "addon.node".to_string())]),
+    };
+    assert!(
+        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
+            .await
+            .unwrap(),
+    );
+    assert!(
+        !super::stored_remote_side_effects_blobs_are_valid(
+            &store_dir,
+            &diff,
+            &SideEffectsOverlay::default(),
+        )
+        .await
+        .unwrap(),
+        "an overlay that does not restore the link does not stand for the row",
+    );
+
+    std::fs::remove_file(&path).unwrap();
+    assert!(
+        !super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
+            .await
+            .unwrap(),
+    );
+}
+
+/// pnpm/pnpm#17543: the check that stats a persisted overlay's blobs
+/// records their modes on the files every snapshot of the overlay shares.
+#[tokio::test]
+#[cfg(unix)]
+async fn checking_a_persisted_overlay_records_the_modes_it_read() {
+    use pnpm_store_dir::{
+        CafsFileInfo,
+        SideEffectsDiff,
+        SideEffectsOverlay,
+    };
+    use std::os::unix::fs::MetadataExt;
+
+    let store = tempfile::tempdir().unwrap();
+    let store_dir = pnpm_store_dir::StoreDir::new(store.path());
+    let built = b"built output";
+    let pnpm_store_dir::WrittenFile { file: blob, hash, .. } =
+        store_dir.write_cas_file(built, false).unwrap();
+    let name = "build/out.js".to_string();
+    let diff = SideEffectsDiff {
+        added: Some(HashMap::from([(
+            name.clone(),
+            CafsFileInfo {
+                checked_at: None,
+                digest: format!("{hash:x}"),
+                mode: 0o644,
+                size: built.len() as u64,
+            },
+        )])),
+        deleted: None,
+        remote_origin: None,
+    };
+    let overlay = SideEffectsOverlay::from(HashMap::from([(
+        name.clone(),
+        pnpm_fs::StoreFile::new(blob.path.clone()),
+    )]));
+    let shared = overlay.clone();
+
+    assert!(
+        super::stored_remote_side_effects_blobs_are_valid(&store_dir, &diff, &overlay)
+            .await
+            .unwrap(),
+    );
+
+    let on_disk = std::fs::metadata(&blob.path).unwrap().mode();
+    assert_eq!(shared.files[&name].mode(), Some(on_disk));
+}
+
 /// A restore only happens where the remote cache applies at all. Unsupported
 /// libc, operating-system, and architecture combinations have no restore to
 /// observe, so the platform gates below make that boundary visible to tests.
 mod restore {
-    use crate::{AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot};
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use crate::{
+        AllowBuildPolicy,
+        RequiresBuildBySnapshot,
+        SideEffectsMapsBySnapshot,
+    };
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
     use p256::{
         SecretKey,
-        pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
+        pkcs8::{
+            EncodePrivateKey as _,
+            EncodePublicKey as _,
+        },
     };
-    use pnpm_config::{Config, RemoteSideEffectsCacheSettings};
-    use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+    use pnpm_config::{
+        Config,
+        RemoteCacheSettings,
+        RemoteSideEffectsCacheSettings,
+    };
+    use pnpm_lockfile::{
+        ImporterDepVersion,
+        PackageKey,
+        PackageMetadata,
+        ProjectSnapshot,
+        ResolvedDependencySpec,
+        SnapshotEntry,
+    };
     use pnpm_pnpr_client::{
-        ARTIFACT_KIND, ArtifactFile, ArtifactManifest, ArtifactPayload, ArtifactSubject,
-        BuilderProfile, CompatibilityConstraints, OwnerScope, ResolveArtifactsRequest,
+        ARTIFACT_KIND,
+        ArtifactBlobSource,
+        ArtifactCandidate,
+        ArtifactFile,
+        ArtifactManifest,
+        ArtifactPayload,
+        ArtifactPublication,
+        ArtifactStore,
+        ArtifactSubject,
+        BuilderProfile,
+        CompatibilityConstraints,
+        OwnerScope,
+        ResolveArtifactsRequest,
         SignedArtifactEnvelope,
+        TurborepoArtifactStore,
     };
     use pnpm_shared_artifact_protocol::{
-        ArtifactVariant, ResolveArtifactsResponse, ResolvedArtifact,
+        ArtifactVariant,
+        ResolveArtifactsResponse,
+        ResolvedArtifact,
     };
-    use pnpm_store_dir::{CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, StoreDir};
-    use sha2::{Digest as _, Sha512};
-    use std::{
-        collections::{BTreeMap, HashMap, HashSet},
-        path::PathBuf,
+    use pnpm_store_dir::{
+        CafsFileInfo,
+        RemoteSideEffectsOrigin,
+        SYMLINK_MODE,
+        SideEffectsDiff,
+        StoreDir,
+    };
+    use pnpm_testing_utils::turborepo_cache::TurborepoCache;
+    use sha2::{
+        Digest as _,
+        Sha512,
+    };
+    use std::collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
     };
 
     const PACKAGE: &str = "native-addon";
     const SNAPSHOT: &str = "native-addon@1.0.0";
     const BUILT_FILE: &str = "build/addon.node";
     const BUILT_MODE: u32 = 0o755;
+    /// A symlink the build created next to [`BUILT_FILE`], pointing at it.
+    const LINK_PATH: &str = "build/addon-alias.node";
+    const LINK_TARGET: &[u8] = b"addon.node";
     const KEY_ID: &str = "acme-2026";
     const ORGANIZATION: &str = "acme";
     /// Seeds the fixture signing key. The trust root the config carries is
@@ -186,6 +371,20 @@ mod restore {
             (SNAPSHOT.parse().expect("snapshot key"), SnapshotEntry::default()),
             (NODE_RUNTIME.parse().expect("runtime key"), SnapshotEntry::default()),
         ])
+    }
+
+    /// A root importer that pins [`NODE_RUNTIME`].
+    fn importers() -> HashMap<String, ProjectSnapshot> {
+        let node: PackageKey = NODE_RUNTIME.parse().expect("runtime key");
+        let spec = ResolvedDependencySpec {
+            specifier: "runtime:22.0.0".to_string(),
+            version: ImporterDepVersion::Regular(node.suffix),
+        };
+        let importer = ProjectSnapshot {
+            dependencies: Some(std::iter::once((node.name, spec)).collect()),
+            ..Default::default()
+        };
+        HashMap::from([(".".to_string(), importer)])
     }
 
     fn packages() -> HashMap<PackageKey, PackageMetadata> {
@@ -219,8 +418,43 @@ mod restore {
 
     fn public_key() -> String {
         BASE64.encode(
-            secret_key().public_key().to_public_key_der().expect("fixture public key").as_bytes(),
+            secret_key()
+                .public_key()
+                .to_public_key_der()
+                .expect("fixture public key")
+                .as_bytes(),
         )
+    }
+
+    /// The one built file, as an artifact lists it.
+    fn built_manifest() -> ArtifactManifest {
+        ArtifactManifest {
+            added: vec![ArtifactFile {
+                path: BUILT_FILE.to_string(),
+                integrity: integrity_of(built_bytes()),
+                mode: BUILT_MODE,
+                size: built_bytes().len() as u64,
+            }],
+            deleted: Vec::new(),
+        }
+    }
+
+    /// The blobs behind [`built_manifest`], keyed by integrity as the blob
+    /// endpoint is asked for them.
+    fn built_blobs() -> BTreeMap<String, Vec<u8>> {
+        BTreeMap::from([(integrity_of(built_bytes()), built_bytes().to_vec())])
+    }
+
+    /// [`built_manifest`] plus the symlink at [`LINK_PATH`].
+    fn linked_manifest() -> ArtifactManifest {
+        let mut manifest = built_manifest();
+        manifest.added.push(ArtifactFile {
+            path: LINK_PATH.to_string(),
+            integrity: integrity_of(LINK_TARGET),
+            mode: SYMLINK_MODE,
+            size: LINK_TARGET.len() as u64,
+        });
+        manifest
     }
 
     /// Sign the artifact the server offers for `request`'s one candidate.
@@ -229,13 +463,32 @@ mod restore {
     /// both are derived from the host's node major and the lockfile, and the
     /// client discards any variant that does not match the candidate it asked
     /// about.
-    fn signed_response(request: &[u8], compatibility_tag: &str) -> String {
+    fn signed_response(
+        request: &[u8],
+        compatibility_tag: &str,
+        manifest: ArtifactManifest,
+    ) -> String {
         let request: ResolveArtifactsRequest =
             serde_json::from_slice(request).expect("resolve request");
         let [candidate] = request.candidates.as_slice() else {
             panic!("expected exactly one candidate, got {}", request.candidates.len());
         };
-        let bytes = built_bytes();
+        let envelope = signed_envelope(candidate, compatibility_tag, manifest);
+        let response = ResolveArtifactsResponse {
+            artifacts: vec![ResolvedArtifact {
+                key: candidate.key.clone(),
+                variants: vec![ArtifactVariant { envelope }],
+            }],
+        };
+        serde_json::to_string(&response).expect("serialize response")
+    }
+
+    /// The fixture build of `candidate`, signed by the fixture key.
+    fn signed_envelope(
+        candidate: &ArtifactCandidate,
+        compatibility_tag: &str,
+        manifest: ArtifactManifest,
+    ) -> SignedArtifactEnvelope {
         let payload = ArtifactPayload {
             kind: ARTIFACT_KIND.to_string(),
             subject: candidate.subject.clone(),
@@ -250,33 +503,21 @@ mod restore {
             compatibility: CompatibilityConstraints::Tagged {
                 tags: vec![compatibility_tag.to_string()],
             },
-            manifest: ArtifactManifest {
-                added: vec![ArtifactFile {
-                    path: BUILT_FILE.to_string(),
-                    integrity: integrity_of(bytes),
-                    mode: BUILT_MODE,
-                    size: bytes.len() as u64,
-                }],
-                deleted: Vec::new(),
-            },
+            manifest,
         };
         // Signed the way a publisher signs, so the fixture cannot drift from
-        // the wire format the client verifies — and so a payload this test
+        // the wire format the client verifies, and so a payload this test
         // builds wrong fails here rather than being silently discarded as an
         // unverifiable variant.
-        let envelope = SignedArtifactEnvelope::sign(
+        SignedArtifactEnvelope::sign(
             &payload,
             KEY_ID,
-            secret_key().to_pkcs8_der().expect("fixture private key").as_bytes(),
+            secret_key()
+                .to_pkcs8_der()
+                .expect("fixture private key")
+                .as_bytes(),
         )
-        .expect("sign the fixture payload");
-        let response = ResolveArtifactsResponse {
-            artifacts: vec![ResolvedArtifact {
-                key: candidate.key.clone(),
-                variants: vec![ArtifactVariant { envelope }],
-            }],
-        };
-        serde_json::to_string(&response).expect("serialize response")
+        .expect("sign the fixture payload")
     }
 
     #[test]
@@ -305,20 +546,15 @@ mod restore {
                 environment: BTreeMap::new(),
             },
             compatibility: CompatibilityConstraints::Tagged { tags: supported_tags.clone() },
-            manifest: ArtifactManifest {
-                added: vec![ArtifactFile {
-                    path: BUILT_FILE.to_string(),
-                    integrity: integrity_of(built_bytes()),
-                    mode: BUILT_MODE,
-                    size: built_bytes().len() as u64,
-                }],
-                deleted: Vec::new(),
-            },
+            manifest: built_manifest(),
         };
         let envelope = SignedArtifactEnvelope::sign(
             &payload,
             KEY_ID,
-            secret_key().to_pkcs8_der().unwrap().as_bytes(),
+            secret_key()
+                .to_pkcs8_der()
+                .unwrap()
+                .as_bytes(),
         )
         .unwrap();
         let diff = SideEffectsDiff {
@@ -366,84 +602,203 @@ mod restore {
         ),);
     }
 
-    /// Restore against a server that offers the artifact, asserting that the
-    /// blob endpoint was hit exactly `expected_downloads` times, and return
-    /// the path the resulting overlay maps the built file to.
-    async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> PathBuf {
-        let snapshots = snapshots();
-        let packages = packages();
-        let platform = super::super::artifact_platform(&snapshots)
-            .expect("the host compatibility floor must be readable on a supported platform");
-        assert_eq!(
-            platform.node_major(),
-            22,
-            "the lockfile's Node pin, not the machine's Node, must decide the platform",
-        );
-        let mut supported_tags = platform.supported_tags().expect("supported tags");
-        let compatibility_tag = supported_tags.swap_remove(0);
+    /// Restore against a server that offers the built file, asserting that
+    /// the blob endpoint was hit exactly `expected_downloads` times, and
+    /// return the file the resulting overlay maps the built file to.
+    async fn restore(store_dir: &StoreDir, expected_downloads: usize) -> pnpm_fs::StoreFile {
+        let side_effects =
+            apply(store_dir, built_manifest(), built_blobs(), expected_downloads).await;
+        restored_overlay(&side_effects).files
+            .get(BUILT_FILE)
+            .expect("the built file must be in the overlay")
+            .clone()
+    }
+
+    /// pnpm/pnpm#17543: every snapshot of the group gets a copy of the
+    /// overlay, so the mode staging read must already be on it.
+    fn assert_restored_mode_is_known(restored: &pnpm_fs::StoreFile) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let on_disk = std::fs::metadata(&restored.path).expect("stat restored").mode();
+            assert_eq!(restored.mode().map(|mode| mode & 0o777), Some(on_disk & 0o777));
+        }
+        #[cfg(not(unix))]
+        let _ = restored;
+    }
+
+    /// The one overlay a restore recorded for the fixture snapshot.
+    fn restored_overlay(
+        side_effects: &SideEffectsMapsBySnapshot,
+    ) -> &pnpm_store_dir::SideEffectsOverlay {
+        let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+        let maps = side_effects.get(&snapshot_key).expect("the snapshot must be restored");
+        let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
+            panic!("expected one cache key, got {}", maps.len());
+        };
+        overlay
+    }
+
+    /// Apply the shared cache against a server that offers `manifest` for
+    /// the one snapshot and serves `blobs` by integrity, asserting that the
+    /// blob endpoint was hit exactly `expected_downloads` times.
+    async fn apply(
+        store_dir: &StoreDir,
+        manifest: ArtifactManifest,
+        blobs: BTreeMap<String, Vec<u8>>,
+        expected_downloads: usize,
+    ) -> SideEffectsMapsBySnapshot {
+        let compatibility_tag = fixture_platform_tag();
 
         let mut server = mockito::Server::new_async().await;
         let handshake = server
             .mock("GET", "/-/pnpr")
             .with_header("content-type", "application/json")
-            .with_body(r#"{"pnpr":{"versions":[0],"artifacts":[0]}}"#)
+            .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[0],"features":["projectTransforms"]},"artifacts":{"versions":[0]}}}}"#)
             .create_async()
             .await;
         let resolve = server
             .mock("POST", "/-/pnpr/v0/artifacts/resolve")
             .with_header("content-type", "application/json")
             .with_body_from_request(move |request| {
-                signed_response(request.body().expect("resolve body"), &compatibility_tag).into()
+                signed_response(
+                    request.body().expect("resolve body"),
+                    &compatibility_tag,
+                    manifest.clone(),
+                )
+                .into()
             })
             .create_async()
             .await;
         let blob = server
-            .mock("POST", "/-/pnpr/v0/artifacts/blob")
-            .with_body(built_bytes())
+            .mock("GET", mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blobs/[^/]+/".into()))
+            .with_body_from_request(move |request| {
+                let (_, segment) = request
+                    .path()
+                    .rsplit_once('/')
+                    .expect("blob path");
+                blobs
+                    .iter()
+                    .find(|(integrity, _)| {
+                        url::form_urlencoded::byte_serialize(integrity.as_bytes())
+                            .collect::<String>()
+                            == segment
+                    })
+                    .expect("a blob the manifest names")
+                    .1
+                    .clone()
+            })
             .expect(expected_downloads)
             .create_async()
             .await;
 
-        let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
-        let mut side_effects = SideEffectsMapsBySnapshot::new();
-        let (store_index_writer, store_index_writer_task) =
-            pnpm_store_dir::StoreIndexWriter::spawn_disabled();
-        super::super::apply_shared_side_effects(super::super::ApplySharedSideEffectsOptions {
-            config: &config(&server.url(), store_dir),
-            snapshots: &snapshots,
-            packages: &packages,
-            requires_build_by_snapshot: &RequiresBuildBySnapshot::from([(
-                snapshot_key.clone(),
-                true,
-            )]),
-            allow_build_policy: &AllowBuildPolicy::new(
-                HashSet::from([PACKAGE.to_string()]),
-                HashSet::new(),
-                false,
-            ),
-            base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
-            side_effects_maps_by_snapshot: &mut side_effects,
-            side_effects_by_snapshot: &HashMap::new(),
-            remote_side_effects_quarantine_by_snapshot: &HashMap::new(),
-            store_index_keys_by_snapshot: &HashMap::from([(
-                snapshot_key.clone(),
-                "row".to_string(),
-            )]),
-            store_index_writer: &store_index_writer,
-        })
-        .await;
-        drop(store_index_writer);
-        store_index_writer_task.await.unwrap().unwrap();
+        let side_effects = apply_with_config(&config(&server.url(), store_dir)).await;
 
         handshake.assert_async().await;
         resolve.assert_async().await;
         blob.assert_async().await;
+        side_effects
+    }
 
-        let maps = side_effects.get(&snapshot_key).expect("the snapshot must be restored");
-        let [overlay] = maps.values().collect::<Vec<_>>()[..] else {
-            panic!("expected one cache key, got {}", maps.len());
-        };
-        overlay.get(BUILT_FILE).expect("the built file must be in the overlay").clone()
+    /// The tag a build of the fixture on this machine is published under.
+    fn fixture_platform_tag() -> String {
+        let platform = super::super::artifact_platform(&importers())
+            .expect("the host compatibility floor must be readable on a supported platform");
+        assert_eq!(
+            platform.node_major(),
+            22,
+            "the lockfile's Node pin, not the machine's Node, must decide the platform",
+        );
+        platform
+            .supported_tags()
+            .expect("supported tags")
+            .swap_remove(0)
+    }
+
+    /// The candidate an install of the fixture asks the remote cache about.
+    /// Its input key is derived from the lockfile and the host, so it is
+    /// learned from a lookup rather than rebuilt here.
+    async fn requested_candidate(store_dir: &StoreDir) -> ArtifactCandidate {
+        let mut server = mockito::Server::new_async().await;
+        let _handshake = server
+            .mock("GET", "/-/pnpr")
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"pnpr":{"protocols":{"resolver":{"versions":[0],"features":["projectTransforms"]},"artifacts":{"versions":[0]}}}}"#)
+            .create_async()
+            .await;
+        let requested = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let _resolve = server
+            .mock("POST", "/-/pnpr/v0/artifacts/resolve")
+            .with_header("content-type", "application/json")
+            .with_body_from_request({
+                let requested = std::sync::Arc::clone(&requested);
+                move |request| {
+                    *requested.lock().unwrap() = Some(request.body().unwrap().clone());
+                    br#"{"artifacts":[]}"#.to_vec()
+                }
+            })
+            .create_async()
+            .await;
+        apply_with_config(&config(&server.url(), store_dir)).await;
+        let body = requested
+            .lock()
+            .unwrap()
+            .take()
+            .expect("the install looked the fixture up");
+        let request: ResolveArtifactsRequest = serde_json::from_slice(&body).unwrap();
+        request.candidates
+            .into_iter()
+            .next()
+            .expect("one candidate")
+    }
+
+    /// Apply the shared cache for the fixture snapshot under `config`.
+    async fn apply_with_config(config: &Config) -> SideEffectsMapsBySnapshot {
+        let snapshots = snapshots();
+        let importers = importers();
+        let packages = packages();
+        let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+        let mut side_effects = SideEffectsMapsBySnapshot::new();
+        let (store_index_writer, store_index_writer_task) =
+            pnpm_store_dir::StoreIndexWriter::spawn_disabled();
+        super::super::apply_shared_side_effects(
+            super::super::ApplySharedSideEffectsOptions {
+                cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
+                    base_cas_paths: &HashMap::from([(
+                        snapshot_key.clone(),
+                        std::sync::Arc::default(),
+                    )]),
+                    cold_snapshots: None,
+                    by_snapshot: &HashMap::new(),
+                    quarantine_by_snapshot: &HashMap::new(),
+                    store_index_keys_by_snapshot: &HashMap::from([(
+                        snapshot_key.clone(),
+                        "row".to_string(),
+                    )]),
+                },
+                config,
+                wanted: (&snapshots, &packages),
+                supported_architectures: None,
+                requires_build_by_snapshot: &RequiresBuildBySnapshot::from([(
+                    snapshot_key.clone(),
+                    true,
+                )]),
+                allow_build_policy: &AllowBuildPolicy::new(
+                    HashSet::from([PACKAGE.to_string()]),
+                    HashSet::new(),
+                    false,
+                ),
+
+                side_effects_maps_by_snapshot: &mut side_effects,
+
+                store_index_writer: &store_index_writer,
+            },
+            &importers,
+        )
+        .await;
+        drop(store_index_writer);
+        store_index_writer_task.await.unwrap().unwrap();
+        side_effects
     }
 
     #[tokio::test]
@@ -465,11 +820,13 @@ mod restore {
 
         let restored = restore(&store_dir, 1).await;
 
-        let (written, _) = store_dir
+        let written = store_dir
             .write_cas_file(built_bytes(), true)
-            .expect("re-writing the same bytes names the same path");
-        assert_eq!(restored, written);
-        assert_eq!(std::fs::read(&restored).expect("read restored"), built_bytes());
+            .expect("re-writing the same bytes names the same path")
+            .file;
+        assert_eq!(restored.path, written.path);
+        assert_eq!(std::fs::read(&restored.path).expect("read restored"), built_bytes());
+        assert_restored_mode_is_known(&restored);
     }
 
     /// Same restore, same server as its sibling above; only the seeded store
@@ -491,10 +848,307 @@ mod restore {
     async fn content_the_store_already_holds_is_not_downloaded() {
         let store = tempfile::tempdir().expect("tempdir");
         let store_dir = StoreDir::new(store.path());
-        let (seeded, _) = store_dir.write_cas_file(built_bytes(), true).expect("seed the store");
+        let seeded = store_dir
+            .write_cas_file(built_bytes(), true)
+            .expect("seed the store")
+            .file;
 
         let restored = restore(&store_dir, 0).await;
 
-        assert_eq!(restored, seeded);
+        assert_eq!(restored.path, seeded.path);
+        assert_restored_mode_is_known(&restored);
+    }
+
+    /// The restore above, served by a server that speaks the Turborepo Remote
+    /// Cache API instead of a pnpr server.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn a_build_stored_on_a_turborepo_server_is_restored() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let candidate = requested_candidate(&store_dir).await;
+        let cache = TurborepoCache::start();
+        let envelope = signed_envelope(&candidate, &fixture_platform_tag(), built_manifest());
+        let build = tempfile::tempdir().expect("tempdir");
+        let built = build.path().join("addon.node");
+        std::fs::write(&built, built_bytes()).expect("write the built file");
+        ArtifactStore::Turborepo(TurborepoArtifactStore::new(cache.url(), None, None).unwrap())
+            .publish_artifact(&ArtifactPublication {
+                key: candidate.key.clone(),
+                envelope,
+                blobs: vec![ArtifactBlobSource {
+                    integrity: integrity_of(built_bytes()),
+                    size: built_bytes().len() as u64,
+                    path: built,
+                }],
+            })
+            .await
+            .expect("publish the fixture build");
+
+        let mut config = config("http://pnpr.invalid", &store_dir);
+        config.pnpr_server = None;
+        config.remote_cache = Some(Box::new(RemoteCacheSettings {
+            url: Some(cache.url().to_string()),
+            ..Default::default()
+        }));
+        let side_effects = apply_with_config(&config).await;
+
+        let restored = restored_overlay(&side_effects).files
+            .get(BUILT_FILE)
+            .expect("the built file must be in the overlay");
+        assert_eq!(std::fs::read(restored).expect("read restored"), built_bytes());
+    }
+
+    /// An artifact that names no files is a build whose whole effect landed
+    /// outside the package directory. See `SideEffectsDiff::is_empty` for
+    /// why it must leave the snapshot unbuilt rather than stand in for the
+    /// build.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn an_artifact_with_nothing_to_restore_leaves_the_snapshot_unbuilt() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let empty = ArtifactManifest { added: Vec::new(), deleted: Vec::new() };
+
+        let side_effects = apply(&store_dir, empty, BTreeMap::new(), 0).await;
+
+        let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+        assert!(
+            !side_effects.contains_key(&snapshot_key),
+            "an empty artifact must not count as built: {side_effects:?}",
+        );
+    }
+
+    /// A symlink travels as an added entry whose blob is its target, and the
+    /// restore records it as a link to create rather than a file to write.
+    /// Windows cannot create the link, so there the artifact is rejected and
+    /// the package is built locally.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn a_recorded_symlink_is_restored_as_a_link() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let mut blobs = built_blobs();
+        blobs.insert(integrity_of(LINK_TARGET), LINK_TARGET.to_vec());
+
+        let side_effects = apply(&store_dir, linked_manifest(), blobs, 2).await;
+
+        if cfg!(windows) {
+            let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+            assert!(
+                !side_effects.contains_key(&snapshot_key),
+                "a symlink artifact must not count as built on Windows: {side_effects:?}",
+            );
+            return;
+        }
+        let overlay = restored_overlay(&side_effects);
+        assert!(overlay.files.contains_key(BUILT_FILE));
+        assert!(!overlay.files.contains_key(LINK_PATH), "{:?}", overlay.files);
+        assert_eq!(
+            overlay.symlinks,
+            HashMap::from([(LINK_PATH.to_string(), "addon.node".to_string())]),
+        );
+    }
+
+    /// The publisher's config: the consumer config plus the fixture signing
+    /// key, so the artifacts it signs verify against `trusted_keys`.
+    fn publishing_config(server: &str, store_dir: &StoreDir) -> Config {
+        let mut config = config(server, store_dir);
+        let settings = config.remote_side_effects_cache.as_mut().expect("cache settings");
+        settings.publish = Some(true);
+        settings.key_id = Some(KEY_ID.to_string());
+        settings.builder_id = Some("ci/main/1".to_string());
+        settings.private_key = Some(
+            BASE64.encode(
+                secret_key()
+                    .to_pkcs8_der()
+                    .expect("fixture private key")
+                    .as_bytes(),
+            ),
+        );
+        config
+    }
+
+    /// Answer every blob a publication checks for as missing, and accept its
+    /// upload. Returns the upload mock.
+    async fn accept_blob_uploads(server: &mut mockito::ServerGuard) -> mockito::Mock {
+        server
+            .mock("HEAD", mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blobs/".into()))
+            .with_status(404)
+            .create_async()
+            .await;
+        server
+            .mock("PUT", mockito::Matcher::Regex("^/-/pnpr/v0/artifacts/blobs/".into()))
+            .with_status(201)
+            .create_async()
+            .await
+    }
+
+    /// Publish `diff` for the fixture snapshot from a blocking thread, the
+    /// way the build phase does.
+    async fn publish(config: Config, store_dir: StoreDir, diff: SideEffectsDiff) {
+        tokio::task::spawn_blocking(move || {
+            let publisher = super::super::shared_side_effects_publisher(&config, &importers())
+                .expect("the config enables publishing on a supported platform");
+            let snapshot_key: PackageKey = SNAPSHOT.parse().expect("snapshot key");
+            let packages = packages();
+            let graph = HashMap::from([(
+                snapshot_key.clone(),
+                pnpm_graph_hasher::DepsGraphNode {
+                    full_pkg_id: SNAPSHOT.to_string(),
+                    children: indexmap::IndexMap::new(),
+                },
+            )]);
+            publisher.publish(
+                &snapshot_key,
+                packages.get(&snapshot_key).expect("package metadata"),
+                &graph,
+                None,
+                diff,
+                &store_dir,
+            )
+        })
+        .await
+        .expect("publish thread")
+        .expect("publish");
+    }
+
+    /// A build that changed nothing inside its package is not shared: a
+    /// consumer could restore nothing from it, and would skip its own build
+    /// for nothing. The built diff that follows proves the endpoint is
+    /// reachable, so the silence above is the guard and not the harness.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn a_diff_with_nothing_to_restore_is_not_published() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let mut server = mockito::Server::new_async().await;
+        let config = publishing_config(&server.url(), &store_dir);
+        let uploads = accept_blob_uploads(&mut server).await;
+
+        let untouched = server
+            .mock("PUT", "/-/pnpr/v0/artifacts")
+            .expect(0)
+            .create_async()
+            .await;
+        let empty = SideEffectsDiff { added: None, deleted: None, remote_origin: None };
+        publish(config.clone(), store_dir.clone(), empty).await;
+        untouched.assert_async().await;
+        untouched.remove_async().await;
+
+        let published = server
+            .mock("PUT", "/-/pnpr/v0/artifacts")
+            .expect(1)
+            .create_async()
+            .await;
+        store_dir
+            .write_cas_file(built_bytes(), true)
+            .expect("seed the built file");
+        let built = SideEffectsDiff {
+            added: Some(HashMap::from([(
+                BUILT_FILE.to_string(),
+                CafsFileInfo {
+                    checked_at: None,
+                    digest: pnpm_pnpr_client::blob_id(&integrity_of(built_bytes())).unwrap(),
+                    mode: BUILT_MODE,
+                    size: built_bytes().len() as u64,
+                },
+            )])),
+            deleted: None,
+            remote_origin: None,
+        };
+        publish(config, store_dir, built).await;
+        published.assert_async().await;
+        uploads.assert_async().await;
+    }
+
+    /// A build that created a symlink is shared like any other.
+    #[tokio::test]
+    #[cfg_attr(
+        not(any(
+            all(
+                target_os = "linux",
+                target_env = "gnu",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", any(target_arch = "x86_64", target_arch = "aarch64")),
+            all(target_os = "windows", any(target_arch = "x86_64", target_arch = "aarch64"))
+        )),
+        ignore = "the remote side-effects cache only serves glibc Linux, macOS, and Windows on x64 and arm64"
+    )]
+    async fn a_diff_with_a_symlink_is_published() {
+        let store = tempfile::tempdir().expect("tempdir");
+        let store_dir = StoreDir::new(store.path());
+        let mut server = mockito::Server::new_async().await;
+        let config = publishing_config(&server.url(), &store_dir);
+        let uploads = accept_blob_uploads(&mut server).await;
+        let published = server
+            .mock("PUT", "/-/pnpr/v0/artifacts")
+            .expect(1)
+            .create_async()
+            .await;
+        store_dir.write_cas_file(LINK_TARGET, false).expect("seed the link target");
+        let linked = SideEffectsDiff {
+            added: Some(HashMap::from([(
+                LINK_PATH.to_string(),
+                CafsFileInfo {
+                    checked_at: None,
+                    digest: pnpm_pnpr_client::blob_id(&integrity_of(LINK_TARGET)).unwrap(),
+                    mode: SYMLINK_MODE,
+                    size: LINK_TARGET.len() as u64,
+                },
+            )])),
+            deleted: None,
+            remote_origin: None,
+        };
+
+        publish(config, store_dir, linked).await;
+
+        published.assert_async().await;
+        uploads.assert_async().await;
     }
 }

@@ -1,6 +1,9 @@
-pub use pnpm_detect_libc::{host_arch, host_platform};
+pub use pnpm_detect_libc::{
+    host_arch,
+    host_platform,
+};
 
-/// Compute pnpm's `ENGINE_NAME` string — the same value pnpm uses
+/// Compute pnpm's `ENGINE_NAME` string, the same value pnpm uses
 /// as the side-effects cache key prefix.
 ///
 /// The format is `<platform>;<arch>;node<major>`, where `platform`
@@ -35,7 +38,7 @@ pub fn engine_name(node_major: u32, platform: Option<&str>, arch: Option<&str>) 
 ///   first `.`) isn't a parseable `u32`.
 ///
 /// Callers should fall back to either a sentinel cache key (which
-/// won't match any pnpm-written entry — safe) or skip the
+/// won't match any pnpm-written entry, safe) or skip the
 /// cache-read entirely when this returns `None`.
 #[must_use]
 pub fn detect_node_major() -> Option<u32> {
@@ -49,22 +52,60 @@ pub fn detect_node_major() -> Option<u32> {
 /// detection fails for any of the reasons listed on
 /// [`detect_node_major`].
 ///
-/// Used by `pnpm-package-is-installable`'s `check_engine` to
-/// evaluate `engines.node` ranges. Pacquet's installability check
-/// needs the full version, not just the major, because ranges like
-/// `>=14.18.0` would otherwise spuriously reject `14.17.x`.
+/// Pacquet's installability check needs the full version, not just the
+/// major, because ranges like `>=14.18.0` would otherwise spuriously
+/// reject `14.17.x`.
 #[must_use]
 pub fn detect_node_version() -> Option<String> {
     let raw = detect_node_version_raw()?;
-    Some(raw.strip_prefix('v').unwrap_or(&raw).to_string())
+    Some(
+        raw.strip_prefix('v')
+            .unwrap_or(&raw)
+            .to_string(),
+    )
 }
 
+/// The probe's answer for the life of the process. `node` resolves
+/// through the process's own `PATH`, which the CLI never rewrites, so
+/// every caller sees the same binary. Probing once matters for a
+/// workspace whose projects keep their own lockfiles: each project's
+/// install asks twice (the installability host and the engine name),
+/// and on macOS concurrent launches of one binary serialize, so under
+/// the per-project concurrency every probe waited on the others.
 fn detect_node_version_raw() -> Option<String> {
-    let output = std::process::Command::new("node").arg("--version").output().ok()?;
+    static CACHED: ProbeOnce = ProbeOnce::new();
+    CACHED.get_or_probe(spawn_node_version_probe)
+}
+
+/// A probe result that is computed at most once. Callers that arrive
+/// while the first probe is still running wait for its answer instead
+/// of probing themselves.
+struct ProbeOnce(std::sync::OnceLock<Option<String>>);
+
+impl ProbeOnce {
+    const fn new() -> Self {
+        Self(std::sync::OnceLock::new())
+    }
+
+    fn get_or_probe(&self, probe: impl FnOnce() -> Option<String>) -> Option<String> {
+        self.0.get_or_init(probe).clone()
+    }
+}
+
+fn spawn_node_version_probe() -> Option<String> {
+    let output = crate::process::Command::new("node")
+        .arg("--version")
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }
-    Some(std::str::from_utf8(&output.stdout).ok()?.trim().to_string())
+    Some(
+        std::str::from_utf8(&output.stdout)
+            .ok()?
+            .trim()
+            .to_string(),
+    )
 }
 
 /// Parse `v22.11.0`-style output from `node --version` to the major
@@ -82,9 +123,9 @@ fn parse_node_version_output(stdout: &str) -> Option<u32> {
 /// pnpm's `'glibc' | 'musl' | null` (with `null` translated to
 /// `"unknown"` so the call site stays infallible):
 ///
-/// - `"musl"` — musl-based Linux.
-/// - `"glibc"` — glibc-based Linux.
-/// - `"unknown"` — non-Linux host (macOS, Windows, BSD, etc.) or
+/// - `"musl"`, musl-based Linux.
+/// - `"glibc"`, glibc-based Linux.
+/// - `"unknown"`, non-Linux host (macOS, Windows, BSD, etc.) or
 ///   detection failure. `check_platform` treats this as "skip libc
 ///   constraint".
 ///

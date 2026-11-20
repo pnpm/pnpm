@@ -36,6 +36,39 @@ test('resolveFromGit() passes GIT_TERMINAL_PROMPT=0 to prevent interactive crede
   )
 })
 
+test('resolveFromGit() runs ssh in batch mode so a passphrase prompt cannot block the resolution', async () => {
+  jest.mocked(execa).mockClear()
+  await withoutSshOverrides(async () => {
+    await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/zkochan/is-negative.git#master' })
+  })
+  expect(jest.mocked(execa)).toHaveBeenCalledWith(
+    'git',
+    expect.any(Array),
+    expect.objectContaining({
+      env: expect.objectContaining({
+        GIT_SSH_COMMAND: 'ssh -o BatchMode=yes',
+      }),
+    })
+  )
+})
+
+test('resolveFromGit() keeps the ssh command the user configured', async () => {
+  jest.mocked(execa).mockClear()
+  await withoutSshOverrides(async () => {
+    process.env.GIT_SSH_COMMAND = 'ssh -i deploy_key'
+    await resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/zkochan/is-negative.git#master' })
+  })
+  expect(jest.mocked(execa)).toHaveBeenCalledWith(
+    'git',
+    expect.any(Array),
+    expect.objectContaining({
+      env: expect.objectContaining({
+        GIT_SSH_COMMAND: 'ssh -i deploy_key',
+      }),
+    })
+  )
+})
+
 test('resolveFromGit() with commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99' })
   expect(resolveResult).toStrictEqual({
@@ -50,12 +83,8 @@ test('resolveFromGit() with commit', async () => {
 })
 
 test('resolveFromGit() with no commit', async () => {
-  // This is repeated twice because there was a bug which caused the specifier
-  // to contain the commit hash on second call.
-  // The issue occurred because .hosted field (which is class from the 'hosted-git-info' package)
-  // was mutated. A 'committish' field was added to it.
-  for (let i = 0; i < 2; i++) {
-    const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative' }) // eslint-disable-line no-await-in-loop
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const resolveResult = await resolveFromGit({ bareSpecifier: 'zkochan/is-negative' }) // eslint-disable-line no-await-in-loop -- the second call checks that the first one did not modify the parsed specifier
     expect(resolveResult).toStrictEqual({
       id: 'https://codeload.github.com/zkochan/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
       normalizedBareSpecifier: 'github:zkochan/is-negative',
@@ -207,7 +236,7 @@ test.skip('resolveFromGit() with range semver (v-prefixed tag)', async () => {
 test('resolveFromGit() with sub folder', async () => {
   const headCommit = '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
   mockGit(async (args: string[]) => {
     if (args.includes('--exit-code')) {
@@ -231,7 +260,7 @@ test('resolveFromGit() with sub folder', async () => {
 test('resolveFromGit() with both sub folder and branch', async () => {
   const betaCommit = '777e8a3e78cc89bbf41fb3fd9f6cf922d5463313'
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
   mockGit(async (args: string[]) => {
     if (args.includes('--exit-code')) {
@@ -377,13 +406,13 @@ test('resolveFromGit() gitlab with colon in the URL', async () => {
   })
 })
 
-// Regression test for #11533: the tarball URL must not contain `%2F`,
+// Regression test for pnpm/pnpm#11533: the tarball URL must not contain `%2F`,
 // otherwise GitLab returns 406 and Node refuses to import the package
 // (the encoded slash ends up in the virtual store directory name).
 test('resolveFromGit() gitlab tarball uses /-/archive/ URL without encoded slash', async () => {
   const headCommit = '988c61e11dc8d9ca0b5580cb15291951812549dc'
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
   mockGit(async () => ({ stdout: `${headCommit}\tHEAD` }))
   const resolveResult = await resolveFromGit({ bareSpecifier: 'https://gitlab.com/pnpmjs/git-resolver' })
@@ -398,7 +427,7 @@ test('resolveFromGit() gitlab tarball uses /-/archive/ URL without encoded slash
   })
 })
 
-// This test stopped working. Probably an environmental issue.
+// This test stopped working. The cause looks environmental.
 test.skip('resolveFromGit() gitlab with commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
   expect(resolveResult).toStrictEqual({
@@ -412,7 +441,7 @@ test.skip('resolveFromGit() gitlab with commit', async () => {
   })
 })
 
-// This test stopped working. Probably an environmental issue.
+// This test stopped working. The cause looks environmental.
 test.skip('resolveFromGit() gitlab with no commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver' })
   const result = await lsRemote(['--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
@@ -427,7 +456,7 @@ test.skip('resolveFromGit() gitlab with no commit', async () => {
   })
 })
 
-// This test stopped working. Probably an environmental issue.
+// This test stopped working. The cause looks environmental.
 test.skip('resolveFromGit() gitlab with branch', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#master' })
   const result = await lsRemote(['--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
@@ -442,7 +471,7 @@ test.skip('resolveFromGit() gitlab with branch', async () => {
   })
 })
 
-// This test stopped working. Probably an environmental issue.
+// This test stopped working. The cause looks environmental.
 test.skip('resolveFromGit() gitlab with tag', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#0.3.4' })
   expect(resolveResult).toStrictEqual({
@@ -653,14 +682,86 @@ test('a missing git binary is reported as one', async () => {
   expect(err.message).toBe('Failed to resolve git dependency "zkochan/is-negative#master": git ls-remote failed: `git` executable not found on PATH. Install git to resolve git-hosted packages.')
 })
 
-test('an unreachable SSH remote carries no transport substitution hint', async () => {
+test('an unreachable SSH remote that refuses the key explains ssh-agent and a local HTTPS rewrite', async () => {
   mockFetchAsPrivate()
   mockGit(async () => {
     throw new Error('Permission denied (publickey)')
   })
   const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/foo/bar.git' }))
   expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
+  expect(err.message).toContain('Permission denied (publickey)')
+  expect(err.hint).toContain('ssh-add -l')
+  expect(err.hint).toContain('Git refused the SSH key for github.com')
+  expect(err.hint).toContain('git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"')
+  // The opposite rewrite is the hint for an HTTPS remote, and would send this
+  // failure back at the transport that just refused the key.
+  expect(err.hint).not.toContain('url."git@github.com:".insteadOf')
+})
+
+test('an unreachable SSH remote that is not a key refusal carries no auth hint', async () => {
+  mockFetchAsPrivate()
+  mockGit(async () => {
+    throw new Error('ssh: connect to host github.com port 22: Connection refused')
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+ssh://git@github.com/foo/bar.git' }))
+  expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
   expect(err.hint).toBeUndefined()
+})
+
+test('a publickey refusal keeps brackets around an IPv6 host', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'ssh://git@[2001:db8::1]:2222/foo/bar.git',
+  }))
+  expect(err.hint).toContain('git config --global url."https://[2001:db8::1]/".insteadOf "ssh://git@[2001:db8::1]:2222/"')
+})
+
+test('a connection failure to a host named publickey carries no auth hint', async () => {
+  mockGit(async () => {
+    throw new Error('ssh: connect to host publickey.example.com port 22: Connection refused')
+  })
+  const err = await resolveFailure(resolveFromGit({ bareSpecifier: 'git+ssh://git@publickey.example.com/foo/bar.git' }))
+  expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
+  expect(err.hint).toBeUndefined()
+})
+
+test('a publickey refusal does not offer a shell command for a host that cannot be pasted safely', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'ssh://git@-evil.example/foo/bar.git',
+  }))
+  expect(err.code).toBe('ERR_PNPM_GIT_RESOLVE_FAILED')
+  expect(err.hint).toBeUndefined()
+})
+
+test('a publickey refusal offers no HTTPS rewrite for an SSH user other than git', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'git+ssh://deploy-key@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo',
+  }))
+  expect(err.hint).toContain('ssh-add -l')
+  expect(err.hint).toContain('git-codecommit.us-east-1.amazonaws.com')
+  expect(err.hint).not.toContain('insteadOf')
+  expect(err.hint).not.toContain('deploy-key')
+})
+
+test('a publickey refusal redacts a password embedded in the SSH URL', async () => {
+  mockGit(async () => {
+    throw new Error('Permission denied (publickey)')
+  })
+  const err = await resolveFailure(resolveFromGit({
+    bareSpecifier: 'ssh://git:s3cr3t-t0ken@git.example.com/foo/bar.git',
+  }))
+  expect(err.hint).toContain('ssh-add -l')
+  expect(err.hint).toContain('git config --global url."https://git.example.com/".insteadOf "ssh://git@git.example.com/"')
+  expect(err.hint).not.toContain('s3cr3t-t0ken')
+  expect(err.message).not.toContain('s3cr3t-t0ken')
 })
 
 test('resolve an explicit SSH specifier over SSH when only SSH access works', async () => {
@@ -823,23 +924,25 @@ cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
 
 function mockGit (run: (args: string[]) => Promise<{ stdout: string }>): void {
   jest.mocked(execa).mockImplementation(((file: string, args?: readonly string[], opts?: { env?: NodeJS.ProcessEnv }) => {
+    expect(file).toBe('git')
+    // The lookup of the ssh command selected through git configuration.
+    if (args?.[0] === 'config') return Promise.reject(new Error('core.sshCommand is not configured'))
     // Every git invocation has to disable the terminal credential prompt,
     // otherwise a repository that needs credentials blocks the command.
-    expect(file).toBe('git')
     expect(opts?.env?.GIT_TERMINAL_PROMPT).toBe('0')
     return run(args ? [...args] : [])
-  }) as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  }) as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock stands in for the overloaded execa signature
 }
 
 function mockFetchAsPublic (): void {
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: true } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
 }
 
 function mockFetchAsPrivate (): void {
   jest.mocked(fetchWithDispatcher).mockImplementation(async (_url, _opts) => {
-    return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any -- the mock returns a partial Response
   })
 }
 
@@ -892,4 +995,24 @@ const REPO_REFS: Record<string, Array<[commit: string, ref: string]>> = {
     ['2fce895ee534a38989bb67fdb8684f520827f614', 'refs/heads/deadbeef'],
     ['2fce895ee534a38989bb67fdb8684f520827f614', 'refs/heads/main'],
   ],
+}
+
+async function withoutSshOverrides (fn: () => Promise<void>): Promise<void> {
+  const original = { GIT_SSH: process.env.GIT_SSH, GIT_SSH_COMMAND: process.env.GIT_SSH_COMMAND }
+  setEnv({ GIT_SSH: undefined, GIT_SSH_COMMAND: undefined })
+  try {
+    await fn()
+  } finally {
+    setEnv(original)
+  }
+}
+
+function setEnv (vars: Record<string, string | undefined>): void {
+  for (const [name, value] of Object.entries(vars)) {
+    if (value === undefined) {
+      delete process.env[name]
+    } else {
+      process.env[name] = value
+    }
+  }
 }

@@ -1,21 +1,45 @@
 //! Ports of the TypeScript `bundledDependencies` install suite
 //! (`installing/deps-installer/test/install/bundledDependencies.ts`).
 
+pub use _utils::{
+    append_workspace_yaml_key,
+    assert_bin_linked,
+    pacquet_in,
+};
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{BundledDependencies, Lockfile, PackageMetadata};
-use pnpm_testing_utils::{bin::CommandTempCwd, fs::is_symlink_or_junction};
-use std::{fs, path::Path};
+use pnpm_lockfile::{
+    BundledDependencies,
+    Lockfile,
+    PackageMetadata,
+};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    fixtures::tarball_entries,
+    fs::is_symlink_or_junction,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 use crate::_utils;
-pub use _utils::{append_workspace_yaml_key, pacquet_in};
 
 #[test]
 fn bundled_dependencies_are_kept_out_of_the_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"])
+        .assert()
+        .success();
 
     assert_bin_linked(&workspace.join(
         "node_modules/@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin",
@@ -36,10 +60,18 @@ fn bundled_dependencies_are_kept_out_of_the_lockfile() {
 
 #[test]
 fn bundle_dependencies_spelling_is_kept_out_of_the_lockfile() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0"])
+        .assert()
+        .success();
 
     assert_bin_linked(&workspace.join(
         "node_modules/@pnpm.e2e/pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin",
@@ -58,8 +90,13 @@ fn bundle_dependencies_spelling_is_kept_out_of_the_lockfile() {
 
 #[test]
 fn bundle_dependencies_true_is_recorded_as_true() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     pacquet
         .with_args(["add", "@pnpm.e2e/pkg-with-bundle-dependencies-true@1.0.0"])
@@ -83,7 +120,10 @@ fn bundle_dependencies_true_is_recorded_as_true() {
     // The boolean form has to survive a round trip through the lockfile,
     // both to parse at all and to keep driving the bundled-bin linking.
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
     assert_bin_linked(&bundled_bin);
 
     drop((root, npmrc_info)); // cleanup
@@ -91,8 +131,13 @@ fn bundle_dependencies_true_is_recorded_as_true() {
 
 #[test]
 fn bundled_bins_are_linked_under_the_hoisted_linker() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
 
@@ -128,10 +173,18 @@ fn bundled_bins_are_linked_under_the_hoisted_linker() {
 
 #[test]
 fn bundle_dependencies_false_is_not_recorded() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundle-dependencies-false"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/pkg-with-bundle-dependencies-false"])
+        .assert()
+        .success();
 
     let lockfile = read_wanted_lockfile(&workspace);
     assert_eq!(
@@ -149,14 +202,25 @@ fn bundle_dependencies_false_is_not_recorded() {
 
 #[test]
 fn bundled_dependencies_survive_a_lockfile_rewrite() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
-    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"])
+        .assert()
+        .success();
 
     // Adding an unrelated package rewrites the lockfile while the first
     // entry's resolution is reused rather than resolved again.
-    pacquet_in(&workspace).with_args(["add", "@pnpm.e2e/foo@100.0.0"]).assert().success();
+    pacquet_in(&workspace)
+        .with_args(["add", "@pnpm.e2e/foo@100.0.0"])
+        .assert()
+        .success();
 
     let lockfile = read_wanted_lockfile(&workspace);
     assert_eq!(
@@ -168,25 +232,102 @@ fn bundled_dependencies_survive_a_lockfile_rewrite() {
     drop((root, npmrc_info)); // cleanup
 }
 
-/// A linked bin means something different per platform: Unix has the
-/// executable bit on the extensionless shim, while Windows has no such bit and
-/// instead relies on the `.cmd` / `.ps1` launchers written next to it. Assert
-/// whichever of the two actually makes the bin invocable on the host.
-fn assert_bin_linked(shim: &Path) {
-    assert!(shim.exists(), "the bundled dependency's bin must be linked at {shim:?}");
-    #[cfg(unix)]
-    assert!(
-        pnpm_testing_utils::fs::is_path_executable(shim),
-        "the bundled dependency's bin shim at {shim:?} must be executable",
+/// Covers <https://github.com/pnpm/pnpm/issues/7411>.
+#[test]
+fn local_tarball_with_bundled_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+
+    write_tarball_bundling_hello_world_js_bin(
+        &workspace.join("pkg.tgz"),
+        &serde_json::json!({
+            "name": "@pnpm.e2e/pkg-with-bundled-dependencies",
+            "version": "1.0.0",
+            "bundledDependencies": ["@pnpm.e2e/hello-world-js-bin"],
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+        }),
     );
-    #[cfg(windows)]
-    for extension in ["cmd", "ps1"] {
-        let launcher = shim.with_file_name(format!(
-            "{}.{extension}",
-            shim.file_name().expect("bin shim has a file name").to_string_lossy(),
-        ));
-        assert!(launcher.exists(), "the bin shim at {shim:?} needs its {extension} launcher");
-    }
+
+    pacquet
+        .with_args(["add", "file:pkg.tgz"])
+        .assert()
+        .success();
+
+    let lockfile = read_wanted_lockfile(&workspace);
+    assert_eq!(
+        package(&lockfile, "@pnpm.e2e/pkg-with-bundled-dependencies@file:pkg.tgz")
+            .bundled_dependencies,
+        Some(BundledDependencies::Names(vec!["@pnpm.e2e/hello-world-js-bin".to_string()])),
+    );
+    assert!(!has_any_version_of(&lockfile, "@pnpm.e2e/hello-world-js-bin"));
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+#[test]
+fn local_tarball_with_bundle_dependencies_true() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+
+    write_tarball_bundling_hello_world_js_bin(
+        &workspace.join("pkg.tgz"),
+        &serde_json::json!({
+            "name": "@pnpm.e2e/pkg-with-bundle-dependencies-true",
+            "version": "1.0.0",
+            "bundleDependencies": true,
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "*" },
+        }),
+    );
+
+    pacquet
+        .with_args(["add", "file:pkg.tgz"])
+        .assert()
+        .success();
+
+    let lockfile = read_wanted_lockfile(&workspace);
+    assert_eq!(
+        package(&lockfile, "@pnpm.e2e/pkg-with-bundle-dependencies-true@file:pkg.tgz")
+            .bundled_dependencies,
+        Some(BundledDependencies::Boolean(true)),
+    );
+    assert!(!has_any_version_of(&lockfile, "@pnpm.e2e/hello-world-js-bin"));
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// Writes a package tarball laid out like the registry fixtures' packed
+/// output: `manifest` plus `@pnpm.e2e/hello-world-js-bin` under its
+/// `node_modules`.
+fn write_tarball_bundling_hello_world_js_bin(path: &Path, manifest: &serde_json::Value) {
+    let manifest = manifest.to_string();
+    let bundled_manifest = serde_json::json!({
+        "name": "@pnpm.e2e/hello-world-js-bin",
+        "version": "1.0.0",
+        "bin": "./index.js",
+    })
+    .to_string();
+    let tarball = tarball_entries(&[
+        ("package/package.json", manifest.as_bytes()),
+        (
+            "package/node_modules/@pnpm.e2e/hello-world-js-bin/package.json",
+            bundled_manifest.as_bytes(),
+        ),
+        (
+            "package/node_modules/@pnpm.e2e/hello-world-js-bin/index.js",
+            b"#!/usr/bin/env node\nconsole.log('Hello world!')\n",
+        ),
+    ]);
+    fs::write(path, tarball).expect("write tarball");
 }
 
 fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
@@ -196,8 +337,7 @@ fn read_wanted_lockfile(workspace: &Path) -> Lockfile {
 }
 
 fn package<'a>(lockfile: &'a Lockfile, key: &str) -> &'a PackageMetadata {
-    lockfile
-        .packages
+    lockfile.packages
         .as_ref()
         .expect("lockfile has packages")
         .iter()
@@ -206,8 +346,21 @@ fn package<'a>(lockfile: &'a Lockfile, key: &str) -> &'a PackageMetadata {
 }
 
 fn has_package(lockfile: &Lockfile, key: &str) -> bool {
-    lockfile
-        .packages
+    lockfile.packages
         .as_ref()
-        .is_some_and(|packages| packages.keys().any(|candidate| candidate.to_string() == key))
+        .is_some_and(|packages| {
+            packages
+                .keys()
+                .any(|candidate| candidate.to_string() == key)
+        })
+}
+
+fn has_any_version_of(lockfile: &Lockfile, name: &str) -> bool {
+    lockfile.packages
+        .as_ref()
+        .is_some_and(|packages| {
+            packages
+                .keys()
+                .any(|candidate| candidate.name.to_string() == name)
+        })
 }

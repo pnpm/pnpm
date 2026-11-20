@@ -1,7 +1,14 @@
 use super::background_drop;
 use std::{
-    sync::mpsc::{Receiver, RecvTimeoutError, Sender},
-    thread::{self, ThreadId},
+    sync::mpsc::{
+        Receiver,
+        RecvTimeoutError,
+        Sender,
+    },
+    thread::{
+        self,
+        ThreadId,
+    },
     time::Duration,
 };
 
@@ -11,7 +18,9 @@ struct DropProbe {
 
 impl Drop for DropProbe {
     fn drop(&mut self) {
-        self.dropped_on.send(thread::current().id()).expect("report the dropping thread");
+        self.dropped_on
+            .send(thread::current().id())
+            .expect("report the dropping thread");
     }
 }
 

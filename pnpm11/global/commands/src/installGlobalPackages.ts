@@ -2,7 +2,7 @@ import { tryReadProjectManifest } from '@pnpm/cli.utils'
 import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
 import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
-import type { IgnoredBuilds, IncludedDependencies, ProjectId, ProjectRootDir } from '@pnpm/types'
+import type { IgnoredBuilds, IncludedDependencies, ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 export interface ResolutionPolicyViolation {
   name: string
@@ -32,7 +32,7 @@ export interface InstallGlobalPackagesOptions extends CreateStoreControllerOptio
   include: IncludedDependencies
   includeDirect?: IncludedDependencies
   omitSummaryLog?: boolean
-  rootProjectManifest?: unknown
+  rootProjectManifest?: ProjectManifest
   rootProjectManifestDir?: string
   saveDev?: boolean
   saveExact?: boolean
@@ -50,10 +50,8 @@ export async function installGlobalPackages (
   params: string[]
 ): Promise<InstallGlobalPackagesResult> {
   const store = await createStoreController(opts)
-  let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
-  if (manifest == null) {
-    manifest = {}
-  }
+  const { manifest: manifestFromDisk, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
+  const manifest = opts.rootProjectManifest ?? manifestFromDisk ?? {}
   const installOpts = {
     ...opts,
     allowBuilds: { ...opts.allowBuilds },
@@ -93,7 +91,13 @@ function resolvedDirectVersions (
 ): Record<string, string> {
   const versions: Record<string, string> = {}
   for (const [alias, resolution] of Object.entries(dependencies ?? {})) {
-    versions[alias] = resolution.split('(')[0]
+    const withoutPeers = resolution.split('(')[0]
+    if (withoutPeers.startsWith('runtime:')) {
+      versions[alias] = withoutPeers.slice('runtime:'.length)
+      continue
+    }
+    const atIndex = withoutPeers.lastIndexOf('@')
+    versions[alias] = atIndex > 0 ? withoutPeers.slice(atIndex + 1) : withoutPeers
   }
   return versions
 }

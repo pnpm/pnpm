@@ -1,0 +1,5 @@
+{
+  "name": "@pnpm.e2e/internal-child",
+  "version": "1.0.0",
+  "main": "index.js"
+}

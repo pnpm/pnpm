@@ -1,5 +1,9 @@
-use crate::cli_args::access::{AccessArgs, escaped_package_name, normalize_registry_url};
+use crate::cli_args::access::AccessArgs;
 use pnpm_config::Config;
+use pnpm_network::{
+    escaped_package_name,
+    normalize_registry_url,
+};
 
 #[tokio::test]
 async fn test_normalize_registry_url() {
@@ -263,4 +267,235 @@ async fn test_deprecated_restricted_form_resolves_to_set_status() {
         }
     };
     assert_eq!(result, Some("set_status"));
+}
+
+/// A team is `<scope>:<team>` whether or not the scope carries its `@`;
+/// only a `:`-less `@name` is an organization.
+#[test]
+fn list_packages_url_classifies_each_entity() {
+    let url = |param: &str| {
+        super::registry::list_packages_url("https://registry.example/", &[param.into()])
+    };
+    assert_eq!(url("@scope:team"), "https://registry.example/-/team/scope/team/package?format=cli");
+    assert_eq!(url("scope:team"), "https://registry.example/-/team/scope/team/package?format=cli");
+    assert_eq!(url("@org"), "https://registry.example/-/org/org/package?format=cli");
+    assert_eq!(url("someone"), "https://registry.example/-/user/someone/package?format=cli");
+    assert_eq!(
+        super::registry::list_packages_url("https://registry.example/", &[]),
+        "https://registry.example/-/-/package?format=cli",
+    );
+}
+
+#[test]
+fn list_packages_url_preserves_path_prefix() {
+    let url = |param: &str| {
+        super::registry::list_packages_url("https://registry.example/npm/", &[param.into()])
+    };
+    assert_eq!(
+        url("@scope:team"),
+        "https://registry.example/npm/-/team/scope/team/package?format=cli",
+    );
+    assert_eq!(url("@org"), "https://registry.example/npm/-/org/org/package?format=cli");
+    assert_eq!(
+        super::registry::list_packages_url("https://registry.example/npm/", &[]),
+        "https://registry.example/npm/-/-/package?format=cli",
+    );
+}
+
+#[test]
+fn access_endpoints_preserve_path_prefix() {
+    assert_eq!(
+        super::registry::package_access_url("https://registry.example/npm/", "@scope/pkg"),
+        "https://registry.example/npm/-/package/@scope%2fpkg/access",
+    );
+    assert_eq!(
+        super::registry::team_package_url("https://registry.example/npm/", "scope", "team"),
+        "https://registry.example/npm/-/team/scope/team/package",
+    );
+    assert_eq!(
+        super::registry::package_collaborators_url(
+            "https://registry.example/npm/",
+            "@scope/pkg",
+            Some("alice"),
+        ),
+        "https://registry.example/npm/-/package/@scope%2fpkg/collaborators?format=cli&user=alice",
+    );
+}
+
+#[test]
+fn target_registry_for_action_uses_scoped_registry_by_default() {
+    let registries = std::collections::HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "get_status",
+            &[String::from("@myorg/foo")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "get_status",
+            &[String::from("unscoped")],
+        ),
+        "https://registry.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "set_status",
+            &[String::from("status=public"), String::from("@myorg/foo")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "set_mfa",
+            &[String::from("mfa=automation"), String::from("@myorg/foo")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "grant",
+            &[String::from("read-only"), String::from("@myorg:team"), String::from("@myorg/foo"),],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "revoke",
+            &[String::from("@myorg:team"), String::from("@myorg/foo")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "list_packages",
+            &[String::from("@myorg")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "list_packages",
+            &[String::from("@myorg:team")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "list_packages",
+            &[String::from("myorg:team")],
+        ),
+        "https://scoped.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            None,
+            "list_packages",
+            &[String::from("someone")],
+        ),
+        "https://registry.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(&registries, None, "list_packages", &[]),
+        "https://registry.example/npm/",
+    );
+}
+
+#[test]
+fn target_registry_for_action_honors_registry_override() {
+    let registries = std::collections::HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@myorg".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let override_url = Some("https://override.example/npm/");
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            override_url,
+            "get_status",
+            &[String::from("@myorg/foo")],
+        ),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            override_url,
+            "set_status",
+            &[String::from("status=public"), String::from("@myorg/foo")],
+        ),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            override_url,
+            "grant",
+            &[String::from("read-only"), String::from("@myorg:team"), String::from("@myorg/foo"),],
+        ),
+        "https://override.example/npm/",
+    );
+    assert_eq!(
+        super::registry::target_registry_for_action(
+            &registries,
+            override_url,
+            "list_packages",
+            &[String::from("@myorg")],
+        ),
+        "https://override.example/npm/",
+    );
+}
+
+#[tokio::test]
+async fn grant_names_the_access_command_and_sends_the_otp() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("PUT", "/-/team/myscope/myteam/package")
+        .match_header("npm-command", "access")
+        .match_header("npm-otp", "123456")
+        .match_body(mockito::Matcher::Json(serde_json::json!({
+            "package": "@myscope/pkg",
+            "permissions": "read-only",
+        })))
+        .with_status(201)
+        .create_async()
+        .await;
+
+    let output = AccessArgs {
+        registry: Some(format!("{}/", server.url())),
+        json: false,
+        otp: Some("123456".to_string()),
+        params: ["grant", "read-only", "@myscope:myteam", "@myscope/pkg"]
+            .map(String::from)
+            .to_vec(),
+    }
+    .run(&Config::default())
+    .await
+    .expect("grant succeeds");
+
+    assert_eq!(output.as_deref(), Some("+@myscope:myteam (read-only): @myscope/pkg"));
+    mock.assert_async().await;
 }

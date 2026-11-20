@@ -16,6 +16,12 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../building/pkg-requires-build"
+    },
+    {
+      "path": "../../building/policy"
+    },
+    {
       "path": "../../cli/utils"
     },
     {
@@ -40,6 +46,9 @@
       "path": "../../crypto/integrity"
     },
     {
+      "path": "../../deps/graph-builder"
+    },
+    {
       "path": "../../deps/path"
     },
     {
@@ -47,6 +56,9 @@
     },
     {
       "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
     },
     {
       "path": "../../global/packages"

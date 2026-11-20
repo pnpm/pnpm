@@ -59,9 +59,7 @@ export function getSystemRuntimeVersion (name: RuntimeName): string | undefined 
  *
  * 1. `nodeVersion` argument when provided. Callers use this to thread
  *    a project-pinned runtime (`engines.runtime` / `devEngines.runtime`)
- *    through to the hash — see `findRuntimeNodeVersion` /
- *    `readSnapshotRuntimePin` in `@pnpm/deps.path` for the helpers
- *    that extract the value from a lockfile or graph node.
+ *    through to the hash.
  * 2. {@link getSystemNodeVersion} — the `node` on the user's `PATH`,
  *    or `process.version` when not SEA-bundled.
  * 3. `process.version` as a last-resort fallback when the host has

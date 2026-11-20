@@ -1,11 +1,24 @@
-use pnpm_lockfile::{LockfileResolution, PkgNameVer, RegistryResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgNameVer,
+    RegistryResolution,
+};
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
-    Resolver, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use ssri::Integrity;
 
-use crate::{DefaultResolver, SpecNotSupportedByAnyResolverError};
+use crate::{
+    DefaultResolver,
+    SpecNotSupportedByAnyResolverError,
+};
 
 fn fake_resolution() -> LockfileResolution {
     LockfileResolution::Registry(RegistryResolution {
@@ -42,15 +55,18 @@ impl Resolver for PrefixResolver {
             let name_ver = fake_name_ver();
             Ok(Some(ResolveResult {
                 id: (&name_ver).into(),
-                name_ver: Some(name_ver),
-                latest: None,
-                published_at: None,
-                manifest: None,
                 resolution: fake_resolution(),
                 resolved_via: self.tag.to_string(),
                 normalized_bare_specifier: None,
                 alias: wanted_dependency.alias.clone(),
                 policy_violation: None,
+                package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                    name_ver: Some(name_ver),
+                    latest: None,
+                    published_at: None,
+                    manifest: None,
+                    non_deprecated_alternative: None,
+                },
             }))
         })
     }
@@ -151,7 +167,11 @@ fn spec_not_supported_renders_alias_and_bare_specifier() {
 async fn resolve_latest_returns_none_when_chain_empty() {
     let resolver = DefaultResolver::new(vec![]);
     let opts = ResolveOptions::default();
-    let query = LatestQuery { wanted_dependency: WantedDependency::default(), compatible: false };
+    let query = LatestQuery {
+        wanted_dependency: WantedDependency::default(),
+        compatible: false,
+        current_version: None,
+    };
 
     let info = resolver.resolve_latest(&query, &opts).await.expect("latest doesn't error");
     assert!(info.is_none(), "resolve_latest should fall through to None on an empty chain");

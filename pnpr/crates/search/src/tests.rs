@@ -1,4 +1,11 @@
-use super::{parse_query, parse_size};
+use super::{
+    SearchParams,
+    SearchText,
+    parse_from,
+    parse_params,
+    parse_query,
+    parse_size,
+};
 
 #[test]
 fn parses_text_query() {
@@ -37,9 +44,6 @@ fn empty_text_is_no_query() {
 
 #[test]
 fn malformed_pair_doesnt_abort_parse() {
-    // A pair with no `=` (e.g. trailing `&` or an unkeyed value)
-    // used to short-circuit the whole parse with `?`. Now we just
-    // skip it.
     assert_eq!(parse_query("flag&text=foo").as_deref(), Some("foo"));
     assert_eq!(parse_query("text=foo&trailing").as_deref(), Some("foo"));
 }
@@ -51,4 +55,125 @@ fn size_clamps() {
     assert_eq!(parse_size("size=9999", 20), 250);
     assert_eq!(parse_size("size=garbage", 20), 20);
     assert_eq!(parse_size("", 20), 20);
+}
+
+#[test]
+fn parses_pagination() {
+    assert_eq!(parse_from("text=foo&from=25&size=10"), 25);
+    assert_eq!(parse_from("text=foo&from=invalid"), 0);
+    assert_eq!(parse_from("text=foo"), 0);
+}
+
+#[test]
+fn parses_package_search_params() {
+    assert_eq!(
+        parse_params("text=foo&from=20&size=10", 20),
+        Some(SearchParams { text: SearchText::Package("foo".to_string()), from: 20, size: 10 }),
+    );
+}
+
+#[test]
+fn parses_maintainer_search_params() {
+    assert_eq!(
+        parse_params("text=maintainer%3Aalice&size=1", 20),
+        Some(SearchParams { text: SearchText::Maintainer("alice".to_string()), from: 0, size: 1 }),
+    );
+}
+
+#[test]
+fn browsing_requires_an_explicit_flag() {
+    assert_eq!(parse_query("browse=true&size=1"), Some(String::new()));
+    assert_eq!(parse_query("text=&browse=true"), Some(String::new()));
+    assert_eq!(parse_query("browse=true&text=demo"), Some("demo".to_string()));
+    for query in ["browse=false", "browse=", "text=browse%3Dtrue&browse=false"] {
+        assert!(!super::browse_requested(query));
+    }
+    assert!(parse_query("browse=false").is_none());
+}
+
+#[test]
+fn search_projects_maintainers_to_npm_usernames() {
+    use serde_json::json;
+
+    let maintainers = json!([
+        { "name": "example-owner", "email": "owner@example.com" },
+        { "username": "example-user", "name": "Display Name" },
+        { "username": null, "name": "example-fallback", "email": null },
+        { "email": "unknown@example.com" },
+        { "name": 42 },
+        null,
+    ]);
+    for packument in [
+        json!({ "maintainers": maintainers, "versions": { "1.0.0": {} } }),
+        json!({ "versions": { "1.0.0": { "maintainers": maintainers } } }),
+    ] {
+        let entry = super::build_search_entry("example-package", &packument).unwrap();
+        assert_eq!(
+            entry["package"]["maintainers"],
+            json!([
+                { "username": "example-owner", "email": "owner@example.com" },
+                { "username": "example-user" },
+                { "username": "example-fallback" },
+            ]),
+        );
+        assert!(entry["package"].get("links").is_none());
+    }
+}
+
+#[test]
+fn malformed_maintainers_do_not_produce_invalid_search_users() {
+    use serde_json::json;
+
+    for maintainers in [json!(null), json!({ "name": "example-owner" }), json!(42)] {
+        let packument = json!({ "maintainers": maintainers, "versions": { "1.0.0": {} } });
+        let entry = super::build_search_entry("@example/private-package", &packument).unwrap();
+        assert_eq!(entry["package"]["maintainers"], json!([]));
+        assert!(entry["package"].get("links").is_none());
+    }
+    let without_maintainers = json!({ "versions": { "1.0.0": {} } });
+    let entry = super::build_search_entry("example-package", &without_maintainers).unwrap();
+    assert_eq!(entry["package"]["maintainers"], json!([]));
+}
+
+#[test]
+fn search_projects_publisher_to_npm_username_without_user_id() {
+    use serde_json::json;
+
+    let packument = json!({
+        "versions": {
+            "1.0.0": {
+                "_npmUser": {
+                    "name": "example-publisher",
+                    "userId": "account-1",
+                    "email": "publisher@example.com",
+                },
+            },
+        },
+    });
+    let entry = super::build_search_entry("example-package", &packument).unwrap();
+    assert_eq!(
+        entry["package"]["publisher"],
+        json!({ "username": "example-publisher", "email": "publisher@example.com" }),
+    );
+    assert!(entry["package"]["publisher"].get("userId").is_none());
+
+    for invalid in [json!(null), json!({ "userId": "account-1" }), json!(42)] {
+        let packument = json!({ "versions": { "1.0.0": { "_npmUser": invalid } } });
+        let entry = super::build_search_entry("example-package", &packument).unwrap();
+        assert!(entry["package"].get("publisher").is_none());
+    }
+}
+
+#[test]
+fn packuments_without_versions_are_omitted_from_search() {
+    use serde_json::json;
+
+    for packument in [
+        json!({ "name": "empty-package", "versions": {} }),
+        json!({ "name": "empty-package", "maintainers": [{ "name": "example-owner" }], "versions": {} }),
+        json!({ "name": "missing-versions" }),
+    ] {
+        assert!(super::build_search_entry("empty-package", &packument).is_none());
+        assert!(!super::packument_has_maintainer(&packument, "example-owner"));
+    }
 }

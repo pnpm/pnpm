@@ -17,7 +17,7 @@ Logging is done the same way as in bole. To listed for logs, use `streamParser` 
 a new parser with `createStreamParser()`.
 
 ```typescript
-import logger, {streamParser} from '@pnpm/logger'
+import { logger, streamParser } from '@pnpm/logger'
 
 logger.debug({ foo: 'bar' })
 

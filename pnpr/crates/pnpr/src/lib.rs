@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! pnpm-compatible npm registry server.
 //!
 //! Implements a tiny verdaccio-shaped proxy: a [`router`] exposes a
@@ -7,26 +10,109 @@
 //!
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
-mod resolver;
-mod server;
+// The streamed resolve spawns the engine's whole resolve-and-fetch future
+// graph; proving it `Send` walks deeper than rustc's default limit.
+#![recursion_limit = "256"]
 
+pub mod archive_gc;
+pub mod cache_maintenance;
+pub mod cli_commands;
+pub mod config_check;
+pub mod htpasswd_import;
+pub mod logging;
+pub mod migrate_storage;
+pub mod verify;
+
+pub use cli_commands::{
+    Command,
+    ConfigSubcommand,
+    FeatureArgs,
+    GrantsSubcommand,
+    OsvArgs,
+    RegistriesSubcommand,
+    ServerArgs,
+    parse_cli_interval,
+    run_command,
+};
 pub use pnpr_auth::{
-    AuthState, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend, UserStore,
+    AuthState,
+    PasswordChange,
+    SqliteAuth,
+    TokenBackend,
+    TokenRecord,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
     identify,
 };
 pub use pnpr_config::{
-    AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource,
-    DEFAULT_CONFIG_YAML, FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig,
-    LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess,
-    PublicRoute, RegistryFeature, ResolverFeature, RoutePolicy, S3Settings, SqlBackendSettings,
-    Teams, TokensConfig, UpstreamConfig, default_cache_dir,
+    AccessSpec,
+    ArtifactsFeature,
+    AuthConfig,
+    BackendConfig,
+    Config,
+    ConfigSource,
+    CorsConfig,
+    DEFAULT_CONFIG_YAML,
+    FeatureOverrides,
+    HostedConfig,
+    HostedStoreConfig,
+    IpNetwork,
+    LibsqlSettings,
+    LogConfig,
+    LogFormat,
+    LogLevel,
+    MaxUsers,
+    OsvConfig,
+    PublicRoute,
+    RegistryFeature,
+    ResolverFeature,
+    RoutePolicy,
+    S3Settings,
+    SqlBackendSettings,
+    StorageAccess,
+    TokensConfig,
+    UiConfig,
+    UpstreamConfig,
+    UsersConfig,
+    default_cache_dir,
 };
-pub use pnpr_error::{RegistryError, Result};
-pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
+pub use pnpr_error::{
+    RegistryError,
+    Result,
+};
+pub use pnpr_policy::{
+    AccessList,
+    AccessToken,
+    Identity,
+    PackageRule,
+    PackageRules,
+};
 pub use pnpr_registry::{
-    ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
+    ConcreteKind,
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    RegistryConfigError,
+    Resolved,
 };
-pub use pnpr_storage::journal::recover_publish_journal;
 pub use server::{
-    router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,
+    prepare_storage,
+    router,
+    router_with_auth,
+    serve,
+    serve_listener,
+    serve_listener_with,
+    try_router,
+    try_router_with_auth,
 };
+
+mod audit;
+mod config_validation;
+mod grants_command;
+mod hosted_storage;
+mod registries_command;
+mod resolver;
+mod server;

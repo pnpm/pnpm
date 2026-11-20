@@ -309,6 +309,338 @@ test('linking bins of local projects when node-linker is set to hoisted', async 
   expect(fs.existsSync('project-1/node_modules/.bin/project-2')).toBeTruthy()
 })
 
+// https://github.com/pnpm/pnpm/issues/7568
+test('bins of a nested package are removed when the package is deduped into the root node_modules', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  let project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '0.0.0',
+    },
+  }
+  preparePackages([project1Manifest, project2Manifest])
+  const installProjects = () => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    nodeLinker: 'hoisted',
+  }))
+
+  await installProjects()
+  expect(loadJsonFileSync<{ version: string }>('project-2/node_modules/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
+  expect(readBinEntries('project-2')).not.toHaveLength(0)
+
+  project2Manifest = {
+    ...project2Manifest,
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  await installProjects()
+
+  expect(fs.existsSync('project-2/node_modules/@pnpm.e2e/hello-world-js-bin')).toBeFalsy()
+  expect(readBinEntries('project-2')).toStrictEqual([])
+  expect(readBinEntries('.')).not.toHaveLength(0)
+})
+
+test('a project dependency that is not hoisted goes in the project modules directory set by modulesDir', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '0.0.0',
+    },
+  }
+  preparePackages([project1Manifest, project2Manifest])
+  const installProjects = (opts: { force: boolean }) => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    force: opts.force,
+    modulesDir: 'vendor',
+    nodeLinker: 'hoisted',
+  }))
+
+  await installProjects({ force: false })
+  expect(loadJsonFileSync<{ version: string }>('vendor/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('1.0.0')
+  expect(loadJsonFileSync<{ version: string }>('project-2/vendor/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
+  expect(fs.existsSync('project-2/node_modules')).toBeFalsy()
+  expect(fs.readdirSync('project-2/vendor/.bin')).toContain('hello-world-js-bin')
+
+  for (const modulesDir of ['vendor', 'project-2/vendor']) {
+    fs.mkdirSync(path.join(modulesDir, 'stray'))
+    fs.writeFileSync(path.join(modulesDir, 'stray/package.json'), JSON.stringify({ name: 'stray', version: '1.0.0' }))
+  }
+  await installProjects({ force: true })
+
+  for (const modulesDir of ['vendor', 'project-2/vendor']) {
+    expect(fs.existsSync(path.join(modulesDir, 'stray'))).toBeFalsy()
+    expect(fs.existsSync(path.join(modulesDir, '.ignored/stray/package.json'))).toBeTruthy()
+  }
+})
+
+test('an install removes a project dependency that an earlier layout left in the project node_modules', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  let project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '0.0.0',
+    },
+  }
+  preparePackages([project1Manifest, project2Manifest])
+  const installProjects = () => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    modulesDir: 'vendor',
+    nodeLinker: 'hoisted',
+  }))
+  await installProjects()
+
+  // Only the recorded locations name the copy in node_modules.
+  const legacyCopy = 'project-2/node_modules/@pnpm.e2e/hello-world-js-bin'
+  fs.mkdirSync(path.dirname(legacyCopy), { recursive: true })
+  fs.renameSync('project-2/vendor/@pnpm.e2e/hello-world-js-bin', legacyCopy)
+  const modulesFile = loadJsonFileSync<{ hoistedLocations: Record<string, string[]> }>('vendor/.modules.yaml')
+  const recordedCopy = path.join('project-2', 'vendor', '@pnpm.e2e', 'hello-world-js-bin')
+  expect(Object.values(modulesFile.hoistedLocations).flat()).toContain(recordedCopy)
+  for (const locations of Object.values(modulesFile.hoistedLocations)) {
+    locations.forEach((location, index) => {
+      if (location === recordedCopy) locations[index] = path.normalize(legacyCopy)
+    })
+  }
+  modulesFile.hoistedLocations['not-a-package@1.0.0'] = ['', '.', 'project-1']
+  fs.writeFileSync('vendor/.modules.yaml', JSON.stringify(modulesFile))
+
+  project2Manifest = {
+    ...project2Manifest,
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '~0.0.0',
+    },
+  }
+  await installProjects()
+
+  expect(fs.existsSync(legacyCopy)).toBeFalsy()
+  expect(loadJsonFileSync<{ version: string }>('project-2/vendor/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
+  expect(fs.existsSync('project-1/package.json')).toBeTruthy()
+  expect(fs.existsSync('project-2/package.json')).toBeTruthy()
+})
+
+test('a project dependency that is not hoisted stays in the project node_modules when modulesDir is absolute', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '0.0.0',
+    },
+  }
+  preparePackages([project1Manifest, project2Manifest])
+  const modulesDir = path.resolve('shared-modules')
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    modulesDir,
+    nodeLinker: 'hoisted',
+  }))
+
+  expect(loadJsonFileSync<{ version: string }>(path.join(modulesDir, '@pnpm.e2e/hello-world-js-bin/package.json')).version).toBe('1.0.0')
+  expect(loadJsonFileSync<{ version: string }>('project-2/node_modules/@pnpm.e2e/hello-world-js-bin/package.json').version).toBe('0.0.0')
+})
+
+test('the orphan scan leaves alone a modules directory that is not inside its importer', async () => {
+  const manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  preparePackages([manifest])
+  fs.mkdirSync('stray')
+  fs.writeFileSync('stray/package.json', JSON.stringify({ name: 'stray', version: '1.0.0' }))
+  const installProject = (opts: { force: boolean }) => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+    ],
+    force: opts.force,
+    modulesDir: '.',
+    nodeLinker: 'hoisted',
+  }))
+
+  await installProject({ force: false })
+  await installProject({ force: true })
+
+  expect(fs.existsSync('stray/package.json')).toBeTruthy()
+  expect(fs.existsSync('project-1/package.json')).toBeTruthy()
+})
+
+test('the orphan scan leaves alone a modules directory that holds a project', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+  }
+  preparePackages([
+    project1Manifest,
+    { location: 'packages/foo', package: project2Manifest },
+  ])
+  fs.mkdirSync('packages/stray')
+  fs.writeFileSync('packages/stray/package.json', JSON.stringify({ name: 'stray', version: '1.0.0' }))
+  const installProjects = (opts: { force: boolean }) => mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('packages/foo') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('packages/foo') as ProjectRootDir,
+      },
+    ],
+    force: opts.force,
+    modulesDir: 'packages',
+    nodeLinker: 'hoisted',
+  }))
+
+  await installProjects({ force: false })
+  await installProjects({ force: true })
+
+  expect(fs.existsSync('packages/foo/package.json')).toBeTruthy()
+  expect(fs.existsSync('packages/stray/package.json')).toBeTruthy()
+})
+
+function readBinEntries (projectDir: string): string[] {
+  return fs.readdirSync(path.join(projectDir, 'node_modules/.bin'))
+    .filter((entry) => entry.startsWith('hello-world-js-bin'))
+}
+
 test('peerDependencies should be installed when autoInstallPeers is set to true and nodeLinker is set to hoisted', async () => {
   prepareEmpty()
   await install({
@@ -336,4 +668,36 @@ test('installing with hoisted node-linker a package that is a peer dependency of
   project.has('@pnpm.e2e/peer-of-itself')
   const lockfile = project.readLockfile()
   expect(lockfile.packages['@pnpm.e2e/peer-of-itself@1.0.0'].peerDependencies).toBeFalsy()
+})
+
+const testOnPosixAsNonRoot = process.platform === 'win32' || process.getuid?.() === 0 ? test.skip : test
+
+// The next install trusts a recorded location, so an install that stops while
+// replacing one must not leave it recorded.
+testOnPosixAsNonRoot('an interrupted install forgets the hoisted locations it replaces', async () => {
+  prepareEmpty()
+  const manifest = (version: string) => ({
+    dependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': version,
+      'is-positive': '1.0.0',
+    },
+  })
+  await install(manifest('100.0.0'), testDefaults({ nodeLinker: 'hoisted' }))
+  fs.writeFileSync('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/witness', '')
+
+  // A read-only scope directory stops the linker before it replaces the package.
+  fs.chmodSync('node_modules/@pnpm.e2e', 0o555)
+  try {
+    await expect(install(manifest('100.1.0'), testDefaults({ nodeLinker: 'hoisted' }))).rejects.toThrow()
+  } finally {
+    fs.chmodSync('node_modules/@pnpm.e2e', 0o755)
+  }
+
+  const { hoistedLocations } = loadJsonFileSync<{ hoistedLocations: Record<string, string[]> }>('node_modules/.modules.yaml')
+  expect(hoistedLocations['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeUndefined()
+  expect(hoistedLocations['is-positive@1.0.0']).toStrictEqual([path.join('node_modules', 'is-positive')])
+
+  await install(manifest('100.0.0'), testDefaults({ nodeLinker: 'hoisted' }))
+  expect(fs.existsSync('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/witness')).toBe(false)
+  expect(loadJsonFileSync<{ version: string }>('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json').version).toBe('100.0.0')
 })

@@ -1,5 +1,6 @@
+import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import type { CatalogSnapshots } from '@pnpm/lockfile.types'
+import type { CatalogSnapshots, ProjectSnapshot } from '@pnpm/lockfile.types'
 
 import type { ResolvedDirectDependency } from './resolveDependencyTree.js'
 
@@ -25,6 +26,30 @@ export function getCatalogSnapshots (
   }
 
   return catalogSnapshots
+}
+
+/**
+ * Copies the entries of `prevCatalogs` that `importers` use into
+ * `catalogSnapshots`, where the resolution recorded none. The importers are
+ * the ones the resolution kept without resolving them, such as projects
+ * missing from disk in a sparse checkout.
+ */
+export function addCatalogEntriesOfImporters (
+  catalogSnapshots: CatalogSnapshots,
+  importers: readonly ProjectSnapshot[],
+  prevCatalogs: CatalogSnapshots | undefined
+): void {
+  if (prevCatalogs == null) return
+  for (const importer of importers) {
+    for (const [alias, specifier] of Object.entries(importer.specifiers ?? {})) {
+      const catalogName = parseCatalogProtocol(specifier)
+      if (catalogName == null) continue
+      const entry = prevCatalogs[catalogName]?.[alias]
+      if (entry == null) continue
+      const snapshotForSingleCatalog = (catalogSnapshots[catalogName] ??= {})
+      snapshotForSingleCatalog[alias] ??= entry
+    }
+  }
 }
 
 function isCatalogedDep (dep: ResolvedDirectDependency): dep is ResolvedDirectDependency & { catalogLookup: Required<ResolvedDirectDependency>['catalogLookup'] } {

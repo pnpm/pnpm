@@ -2,18 +2,23 @@
 //!
 //! An override value of `$foo` means "whatever specifier the root
 //! manifest declares for `foo`". The reference is resolved while config
-//! is read, so every downstream consumer — the read-package hook that
-//! rewrites manifests, the `overrides:` map written to
-//! `pnpm-lock.yaml`, and the lockfile freshness check that compares the
-//! two — works with the concrete specifier.
+//! is read, so every downstream consumer works with the concrete
+//! specifier.
 //!
 //! The syntax is deprecated in favor of catalogs, but pnpm still
 //! honors it.
 
 use crate::workspace_yaml::LoadWorkspaceYamlError;
 use indexmap::IndexMap;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use std::{collections::HashMap, path::Path};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 /// The dependency groups a `$dep-name` reference may point at, in
 /// merge order: a name declared in more than one of them resolves to
@@ -26,22 +31,26 @@ const REFERENCEABLE_GROUPS: [DependencyGroup; 3] =
 ///
 /// A workspace root without a manifest declares no dependencies, so
 /// every reference then fails to resolve. A manifest that exists but
-/// cannot be read or parsed propagates its own error instead — the
+/// cannot be read or parsed propagates its own error instead, the
 /// unreadable file is what the user has to fix.
-pub(crate) fn resolve_version_references(
+pub fn resolve_version_references(
     overrides: &mut IndexMap<String, String>,
     root_dir: &Path,
 ) -> Result<(), LoadWorkspaceYamlError> {
-    if !overrides.values().any(|spec| spec.starts_with('$')) {
+    if !overrides
+        .values()
+        .any(|spec| spec.starts_with('$'))
+    {
         return Ok(());
     }
-    let root_manifest = match PackageManifest::from_path(root_dir.join("package.json")) {
-        Ok(manifest) => Some(manifest),
-        Err(PackageManifestError::NoImporterManifestFound(_)) => None,
-        Err(source) => {
-            return Err(LoadWorkspaceYamlError::ReadRootManifest { source: Box::new(source) });
-        }
-    };
+    let root_manifest =
+        match PackageManifest::from_path(pnpm_package_manifest::project_manifest_path(root_dir)) {
+            Ok(manifest) => Some(manifest),
+            Err(PackageManifestError::NoImporterManifestFound(_)) => None,
+            Err(source) => {
+                return Err(LoadWorkspaceYamlError::ReadRootManifest { source: Box::new(source) });
+            }
+        };
     let direct_dependencies: HashMap<&str, &str> = root_manifest
         .as_ref()
         .map(|manifest| manifest.dependencies(REFERENCEABLE_GROUPS).collect())

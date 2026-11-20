@@ -12,20 +12,23 @@ export function createPackagesSearcher (queries: string[], finders?: Finder[]): 
       return true
     }
     if (finders == null) return false
-    const messages: string[] = []
-    let found = false
-    for (const finder of finders) {
-      const result = finder(pkg)
-      if (result) {
-        found = true
-        if (typeof result === 'string') {
-          messages.push(result)
-        }
-      }
-    }
-    if (messages.length) return messages.join('\n')
-    return found
+    return runFinders(finders, pkg)
   }
+}
+
+function runFinders (finders: Finder[], pkg: FinderContext): boolean | string {
+  const messages: string[] = []
+  let found = false
+  for (const finder of finders) {
+    const result = finder(pkg)
+    if (!result) continue
+    found = true
+    if (typeof result === 'string') {
+      messages.push(result)
+    }
+  }
+  if (messages.length) return messages.join('\n')
+  return found
 }
 
 type MatchFunction = (entry: string) => boolean

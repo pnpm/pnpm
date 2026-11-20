@@ -1,11 +1,13 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, expect, jest, test } from '@jest/globals'
 import type { MutateModulesOptions, ProjectOptions } from '@pnpm/installing.deps-installer'
+import { logger } from '@pnpm/logger'
 import type { ResolveViaPnprServerOptions, ResolveViaPnprServerResult } from '@pnpm/pnpr.client'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
@@ -86,6 +88,35 @@ test("pnpr forwards a single project's name and version", async () => {
   }))
 })
 
+test('pnpr forwards publishConfig for a single project', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = {
+    name: 'lib',
+    version: '1.2.3',
+    publishConfig: { directory: 'dist', linkDirectory: false },
+  }
+
+  await install(manifest, createOptions(workspaceRoot, rootDir))
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    publishConfig: { directory: 'dist', linkDirectory: false },
+  }))
+})
+
+test("pnpr forwards a project's peer dependencies so the server can auto-install them", async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3', peerDependencies: { 'is-positive': '^1.0.0' } }
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await install(manifest, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    peerDependencies: { 'is-positive': '^1.0.0' },
+  }))
+})
+
 test('pnpr forwards catalogs and overrides so the server can resolve catalog references', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
@@ -111,7 +142,7 @@ test("pnpr forwards every workspace project's name and version", async () => {
     version: '1.0.0',
     dependencies: { lib: 'workspace:*' },
   }
-  const libManifest: ProjectManifest = { name: 'lib', version: '2.0.0' }
+  const libManifest: ProjectManifest = { name: 'lib', version: '2.0.0', publishConfig: { directory: 'dist' } }
   preparePackages([
     { location: 'packages/app', package: appManifest },
     { location: 'packages/lib', package: libManifest },
@@ -137,23 +168,85 @@ test("pnpr forwards every workspace project's name and version", async () => {
       dir: 'packages/app',
       name: 'app',
       version: '1.0.0',
+      publishConfig: undefined,
       dependencies: { lib: 'workspace:*' },
       devDependencies: undefined,
       optionalDependencies: undefined,
+      peerDependencies: undefined,
     },
     {
       dir: 'packages/lib',
       name: 'lib',
       version: '2.0.0',
+      publishConfig: { directory: 'dist', linkDirectory: undefined },
       dependencies: undefined,
       devDependencies: undefined,
       optionalDependencies: undefined,
+      peerDependencies: undefined,
     },
   ])
   for (const project of projects ?? []) {
     expect(path.isAbsolute(project.dir)).toBe(false)
     expect(project.dir).not.toContain('\\')
   }
+})
+
+test('pnpr runs the root pnpm:devPreinstall before requesting the resolution', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const marker = path.join(workspaceRoot, 'dev-preinstall-ran')
+  const manifest: ProjectManifest = {
+    name: 'app',
+    version: '1.0.0',
+    scripts: { 'pnpm:devPreinstall': `node -e "require('fs').writeFileSync('${marker.replace(/\\/g, '/')}', '')"` },
+  }
+  let markerExistedAtResolution: boolean | undefined
+  resolveViaPnprServer.mockImplementationOnce(async (options) => {
+    markerExistedAtResolution = fs.existsSync(marker)
+    return resolveViaPnprServer.getMockImplementation()!(options)
+  })
+
+  await install(manifest, createOptions(workspaceRoot, rootDir))
+
+  expect(markerExistedAtResolution).toBe(true)
+})
+
+test('pnpr skips the root pnpm:devPreinstall when devDependencies are excluded', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const marker = path.join(workspaceRoot, 'dev-preinstall-ran')
+  const manifest: ProjectManifest = {
+    name: 'app',
+    version: '1.0.0',
+    scripts: { 'pnpm:devPreinstall': `node -e "require('fs').writeFileSync('${marker.replace(/\\/g, '/')}', '')"` },
+  }
+
+  await install(manifest, createOptions(workspaceRoot, rootDir, {
+    include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+  }))
+
+  expect(resolveViaPnprServer).toHaveBeenCalled()
+  expect(fs.existsSync(marker)).toBe(false)
+})
+
+test('mutateModules detaches its reporter after a pnpr install', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
+  const reportedMessages: unknown[] = []
+  const options = createOptions(workspaceRoot, rootDir, {
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+    reporter: (logObj) => {
+      reportedMessages.push((logObj as { message?: unknown }).message)
+    },
+  })
+
+  await mutateModules([{ mutation: 'install', rootDir }], options)
+  logger.info({ message: 'logged after the install', prefix: rootDir })
+  await new Promise((resolve) => setTimeout(resolve, 50))
+
+  expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
+  expect(reportedMessages).not.toContain('logged after the install')
 })
 
 test('pnpr returns the resolution policy violations the install command reacts to', async () => {
@@ -240,69 +333,6 @@ test('pnpr runs under trustPolicy instead of refusing the install', async () => 
   expect(resolveViaPnprServer).toHaveBeenCalledTimes(1)
 })
 
-test('updatePatches is delegated to pnpr', async () => {
-  const workspaceRoot = prepareEmpty().dir()
-  const rootDir = workspaceRoot as ProjectRootDir
-  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
-  const options = createOptions(workspaceRoot, rootDir)
-
-  await install(manifest, {
-    ...options,
-    depth: Infinity,
-    update: true,
-    updatePatches: true,
-  })
-
-  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
-    updatePatches: true,
-  }))
-})
-
-test('a complete updatePatches mutation is delegated to pnpr', async () => {
-  const workspaceRoot = prepareEmpty().dir()
-  const rootDir = workspaceRoot as ProjectRootDir
-  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
-  const options = createOptions(workspaceRoot, rootDir, {
-    allProjects: [{ buildIndex: 0, manifest, rootDir }],
-  })
-
-  await mutateModules([{ mutation: 'install', rootDir, updatePatches: true }], options)
-
-  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
-    updatePatches: true,
-  }))
-})
-
-test('an updatePatches install with a depth limit stays on the client', async () => {
-  const workspaceRoot = prepareEmpty().dir()
-  const rootDir = workspaceRoot as ProjectRootDir
-  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
-  const options = createOptions(workspaceRoot, rootDir)
-
-  await install(manifest, { ...options, depth: 0, update: true, updatePatches: true })
-
-  expect(resolveViaPnprServer).not.toHaveBeenCalled()
-})
-
-test('an updatePatches mutation with filtered dependency groups stays on the client', async () => {
-  const workspaceRoot = prepareEmpty().dir()
-  const rootDir = workspaceRoot as ProjectRootDir
-  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
-  const options = createOptions(workspaceRoot, rootDir, {
-    allProjects: [{ buildIndex: 0, manifest, rootDir }],
-    depth: Infinity,
-    includeDirect: {
-      dependencies: true,
-      devDependencies: false,
-      optionalDependencies: false,
-    },
-  })
-
-  await mutateModules([{ mutation: 'install', rootDir, update: true, updatePatches: true }], options)
-
-  expect(resolveViaPnprServer).not.toHaveBeenCalled()
-})
-
 test('unsupported direct update modes stay on the client', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
@@ -310,23 +340,6 @@ test('unsupported direct update modes stay on the client', async () => {
   const options = createOptions(workspaceRoot, rootDir)
 
   await install(manifest, { ...options, update: true })
-
-  expect(resolveViaPnprServer).not.toHaveBeenCalled()
-})
-
-test('a partial updatePatches mutation stays on the client', async () => {
-  const workspaceRoot = prepareEmpty().dir()
-  const rootDir = workspaceRoot as ProjectRootDir
-  const otherRootDir = path.join(workspaceRoot, 'other') as ProjectRootDir
-  const manifest: ProjectManifest = { name: 'app', version: '1.2.3' }
-  const options = createOptions(workspaceRoot, rootDir, {
-    allProjects: [
-      { buildIndex: 0, manifest, rootDir },
-      { buildIndex: 1, manifest: { name: 'other', version: '1.0.0' }, rootDir: otherRootDir },
-    ],
-  })
-
-  await mutateModules([{ mutation: 'install', rootDir, updatePatches: true }], options)
 
   expect(resolveViaPnprServer).not.toHaveBeenCalled()
 })
@@ -356,6 +369,32 @@ test.each(pnprResolutionSettings)('a mutation forwards %s to pnpr', async (_sett
   expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining(expected))
 })
 
+test('a mutation without allProjects resolves locally', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify({
+    name: 'app',
+    version: '1.2.3',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await mutateModules([{ mutation: 'install', rootDir }], options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(fs.readFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'utf8')).toContain('is-positive@1.0.0')
+})
+
+test('a mutation without allProjects rejects a project that has no manifest', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const options = createOptions(workspaceRoot, rootDir)
+
+  await expect(mutateModules([{ mutation: 'install', rootDir }], options)).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND',
+  })
+})
+
 function createOptions (
   workspaceRoot: string,
   rootDir: ProjectRootDir,
@@ -373,3 +412,151 @@ function createOptions (
   storeControllers.push(options.storeController)
   return options
 }
+
+test.each([false, true])('pnpr materialization keeps configured modules and bin directories (mutation: %s)', async (mutation) => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  const manifest: ProjectManifest = { name: 'app', version: '1.0.0', dependencies: { tool: 'workspace:./tool' } }
+  fs.mkdirSync(path.join(rootDir, 'tool'))
+  fs.writeFileSync(path.join(rootDir, 'tool/package.json'), JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'bin.js' }))
+  fs.writeFileSync(path.join(rootDir, 'tool/bin.js'), '#!/usr/bin/env node\nconsole.log("tool")\n')
+  const modulesDir = mutation ? 'private' : 'vendor'
+  const binsDir = path.join(rootDir, 'commands')
+  const options = createOptions(workspaceRoot, rootDir, {
+    lockfileOnly: false,
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+    modulesDir: 'vendor',
+    allProjects: [{ buildIndex: 0, manifest, rootDir, modulesDir, binsDir }],
+  })
+  resolveViaPnprServer.mockResolvedValueOnce({
+    lockfile: {
+      lockfileVersion: '9.0',
+      importers: { ['.' as ProjectId]: { specifiers: { tool: 'workspace:./tool' }, dependencies: { tool: 'link:tool' } } },
+      packages: {},
+    },
+    stats: { totalPackages: 0 },
+  })
+
+  if (mutation) {
+    await mutateModules([{ mutation: 'install', rootDir }], options)
+  } else {
+    await install(manifest, { ...options, binsDir })
+  }
+
+  expect(fs.realpathSync(path.join(rootDir, modulesDir, 'tool'))).toBe(fs.realpathSync(path.join(rootDir, 'tool')))
+  expect(fs.existsSync(path.join(binsDir, 'tool'))).toBe(true)
+  expect(fs.existsSync(path.join(rootDir, 'node_modules/tool'))).toBe(false)
+})
+
+test('pnpr does not freeze an empty lockfile under frozenLockfileIfExists', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.writeFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n")
+  const options = createOptions(workspaceRoot, rootDir, {
+    frozenLockfileIfExists: true,
+    hooks: { calculatePnpmfileChecksum: async () => 'pnpmfile-checksum' },
+  })
+
+  await install({ name: 'app', version: '1.0.0' }, options)
+
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({ frozenLockfile: false }))
+  expect(fs.readFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'utf8')).toContain('pnpmfileChecksum: pnpmfile-checksum')
+})
+
+test.each([
+  [false, 'rejects'],
+  [true, 'accepts'],
+])('a frozen pnpr install with ignoreLockfileSettingsChecks: %s %s a changed pnpmfile checksum', async (ignoreLockfileSettingsChecks) => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.writeFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n\npnpmfileChecksum: old-checksum\n\nimporters:\n\n  .: {}\n")
+  const options = createOptions(workspaceRoot, rootDir, {
+    frozenLockfile: true,
+    hooks: { calculatePnpmfileChecksum: async () => 'new-checksum' },
+    ignoreLockfileSettingsChecks,
+  })
+
+  const installing = install({ name: 'app', version: '1.0.0' }, options)
+
+  if (ignoreLockfileSettingsChecks) {
+    await installing
+    expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({ frozenLockfile: true }))
+  } else {
+    await expect(installing).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_CONFIG_MISMATCH' })
+    expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  }
+})
+
+test('pnpr forwards every registry alias with a canonical key prefix', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  await install({ name: 'app', version: '1.0.0' }, createOptions(workspaceRoot, rootDir, {
+    registriesByPrefix: {
+      zeta: 'https://npm.corp.example/',
+      work: 'https://npm.corp.example/',
+    },
+  }))
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    registries: expect.objectContaining({ 'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] } }),
+  }))
+})
+
+test.each(['file:./local-lib', 'link:./local-lib', './local-lib'])('install falls back locally without calling pnpr when manifest declares %s', async (specifier) => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.mkdirSync(path.join(rootDir, 'local-lib'))
+  fs.writeFileSync(path.join(rootDir, 'local-lib/package.json'), JSON.stringify({ name: 'local-lib', version: '1.0.0' }))
+  const warnings: string[] = []
+  const options = createOptions(workspaceRoot, rootDir, {
+    lockfileOnly: false,
+    reporter: (logObj) => {
+      if (logObj.level === 'warn' && 'message' in logObj && typeof logObj.message === 'string') {
+        warnings.push(logObj.message)
+      }
+    },
+  })
+
+  await install({ name: 'app', version: '1.0.0', dependencies: { 'local-lib': specifier } }, options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(rootDir, 'node_modules/local-lib/package.json'))).toBe(true)
+  expect(warnings).toEqual([
+    expect.stringContaining(`cannot resolve local dependency "${specifier}"`),
+  ])
+})
+
+test('mutateModules falls back locally without calling pnpr when adding an aliasless file: dependency', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.mkdirSync(path.join(rootDir, 'local-lib'))
+  fs.writeFileSync(path.join(rootDir, 'local-lib/package.json'), JSON.stringify({ name: 'local-lib', version: '1.0.0' }))
+  const manifest: ProjectManifest = { name: 'app', version: '1.0.0' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    lockfileOnly: false,
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+  })
+
+  await mutateModules([{ mutation: 'installSome', rootDir, dependencySelectors: ['file:./local-lib'] }], options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(rootDir, 'node_modules/local-lib/package.json'))).toBe(true)
+})
+
+test('install with pnprServer and frozenStore falls back locally for file: dependencies instead of throwing store conflict', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.mkdirSync(path.join(rootDir, 'local-lib'))
+  fs.writeFileSync(path.join(rootDir, 'local-lib/package.json'), JSON.stringify({ name: 'local-lib', version: '1.0.0' }))
+  const manifest: ProjectManifest = { name: 'app', version: '1.0.0', dependencies: { 'local-lib': 'file:./local-lib' } }
+
+  // Populate the store first, then rerun with frozenStore + pnprServer.
+  await install(manifest, createOptions(workspaceRoot, rootDir, { pnprServer: undefined, lockfileOnly: false }))
+  await install(manifest, createOptions(workspaceRoot, rootDir, {
+    frozenLockfile: true,
+    frozenStore: true,
+    lockfileOnly: false,
+  }))
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(rootDir, 'node_modules/local-lib/package.json'))).toBe(true)
+})

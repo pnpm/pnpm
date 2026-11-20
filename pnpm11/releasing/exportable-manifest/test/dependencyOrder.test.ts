@@ -4,9 +4,9 @@ import { setImmediate as tick } from 'node:timers/promises'
 import { beforeEach, expect, jest, test } from '@jest/globals'
 import type { ProjectManifest } from '@pnpm/types'
 
-interface Deferred<T> {
-  promise: Promise<T>
-  resolve: (value: T) => void
+interface Deferred<Value> {
+  promise: Promise<Value>
+  resolve: (value: Value) => void
 }
 
 interface ManifestRead {
@@ -70,9 +70,9 @@ test('workspace dependencies preserve declaration order when manifest reads reso
   })
 })
 
-function deferred<T> (): Deferred<T> {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+function deferred<Value> (): Deferred<Value> {
+  let resolve!: (value: Value) => void
+  const promise = new Promise<Value>((resolvePromise) => {
     resolve = resolvePromise
   })
   return { promise, resolve }

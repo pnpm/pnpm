@@ -1,26 +1,73 @@
 use super::{
-    FsGlobalRemoval, GlobalInstallCleanup, GlobalRemovalTransaction, activation::FsRename,
-    check_virtual_shim_conflicts, commit_global_removal, infer_local_package_alias,
-    is_windows_drive_path, replacement_aliases, resolve_local_param,
-    should_replace_existing_package, split_comma_separated, update_selectors,
+    FsGlobalRemoval,
+    GlobalPackageBinSnapshot,
+    GlobalUpdateMode,
+    RangeSpecStyle,
+    Version,
+    activation::FsRename,
+    apply_runtime_range_bumps,
+    check_virtual_shim_conflicts,
+    global_group_config,
+    has_pnpm_cli_dependency,
+    infer_local_package_alias,
+    replacement_aliases,
+    should_replace_existing_package,
+    snapshot_global_package,
+    update_selectors,
+};
+use crate::{
+    cli_args::{
+        global::{
+            cleanup::{
+                FsRemoveDirAll,
+                discard_install_dir_on_error_with_fs,
+            },
+            remove::{
+                GlobalInstallCleanup,
+                GlobalRemovalTransaction,
+                commit_global_removal,
+            },
+            selectors::{
+                is_windows_drive_path,
+                resolve_local_param,
+                split_comma_separated,
+            },
+        },
+        shim::record_virtual_shim_state,
+    },
+    shim_dispatch::{
+        ShimTarget,
+        install_native_shim,
+        remove_native_shim,
+    },
 };
 use miette::IntoDiagnostic;
-use pnpm_cmd_shim::{Host as CmdShimHost, PackageBinSource, remove_bin as remove_cmd_shim};
-use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    PackageBinSource,
+    remove_bin as remove_cmd_shim,
+};
+use pnpm_config::Config;
+use pnpm_fs::{
+    force_symlink_dir,
+    remove_symlink_dir,
+};
 use pnpm_global::GlobalPackageInfo;
 use serde_json::json;
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;
-
-use crate::{
-    cli_args::shim::record_virtual_shim_state,
-    shim_dispatch::{ShimTarget, install_native_shim, remove_native_shim},
-};
 
 struct BinRemovalFailure;
 struct HashRemovalFailure;
@@ -164,8 +211,11 @@ fn later_hash_cleanup_failure_restores_earlier_groups() {
     let first_group =
         fixture.seed_group(GlobalGroupSpec { alias: "first", hash: "first-hash", bin: "first" });
     let groups = vec![first_group.clone(), fixture.group.clone()];
-    let affected_bin_names =
-        fixture.affected_bin_names.iter().cloned().chain(["first".to_string()]).collect();
+    let affected_bin_names = fixture.affected_bin_names
+        .iter()
+        .cloned()
+        .chain(["first".to_string()])
+        .collect();
     let bins_to_keep = HashSet::new();
     let cleanup = fixture.cleanup(&bins_to_keep);
     let transaction = GlobalRemovalTransaction {
@@ -183,8 +233,8 @@ fn later_hash_cleanup_failure_restores_earlier_groups() {
         fs::read(fixture.global_bin_dir.join("first")).expect("read first bin"),
         b"old first\n",
     );
-    assert!(pnpm_global::get_hash_link(&fixture.global_pkg_dir, &first_group.hash).exists());
-    assert!(first_group.install_dir.exists());
+    assert!(pnpm_global::get_hash_link(&fixture.global_pkg_dir, &first_group.info.hash).exists());
+    assert!(first_group.info.install_dir.exists());
 }
 
 #[test]
@@ -195,33 +245,89 @@ fn detects_windows_drive_paths() {
 }
 
 #[test]
-fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
+fn latest_update_uses_the_latest_tag_for_plain_npm_alias_and_runtime_dependencies() {
     let dependencies = vec![
         ("private-linked-pkg".to_string(), "link:/home/user/private-linked-pkg".to_string()),
         ("local-tarball-pkg".to_string(), "file:/home/user/local-tarball-pkg.tgz".to_string()),
         ("git-pkg".to_string(), "github:user/git-pkg".to_string()),
         ("remote-tarball-pkg".to_string(), "https://example.com/pkg.tgz".to_string()),
         ("aliased-pkg".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("scoped-alias".to_string(), "npm:@scope/pkg@1.0.0".to_string()),
+        ("same-name-npm".to_string(), "npm:^1.0.0".to_string()),
+        ("same-name-exact".to_string(), "npm:1.0.0".to_string()),
         ("named-registry-pkg".to_string(), "gh:^3.0.0".to_string()),
+        ("node".to_string(), "runtime:^20.0.0".to_string()),
+        ("deno".to_string(), "runtime:^1.40.0".to_string()),
+        ("bun".to_string(), "runtime:1.1.0".to_string()),
         ("foo".to_string(), "^1.0.0".to_string()),
         ("bar".to_string(), "next".to_string()),
     ];
     assert_eq!(
-        update_selectors(&dependencies, true, &HashMap::new()),
+        update_selectors(&dependencies, GlobalUpdateMode::Latest, &HashMap::new()),
         vec![
             "private-linked-pkg@link:/home/user/private-linked-pkg",
             "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
             "git-pkg@github:user/git-pkg",
             "remote-tarball-pkg@https://example.com/pkg.tgz",
-            "aliased-pkg@npm:other-pkg@^2.0.0",
+            "aliased-pkg@npm:other-pkg@latest",
+            "scoped-alias@npm:@scope/pkg@latest",
+            "same-name-npm@npm:same-name-npm@latest",
+            "same-name-exact@npm:same-name-exact@latest",
             "named-registry-pkg@gh:^3.0.0",
-            "foo",
-            "bar",
+            "node@runtime:latest",
+            "deno@runtime:latest",
+            "bun@runtime:latest",
+            "foo@latest",
+            "bar@latest",
         ],
     );
     assert_eq!(
-        update_selectors(&dependencies, false, &HashMap::new()),
-        dependencies.iter().map(|(alias, spec)| format!("{alias}@{spec}")).collect::<Vec<String>>(),
+        update_selectors(&dependencies, GlobalUpdateMode::DeclaredRange, &HashMap::new()),
+        dependencies
+            .iter()
+            .map(|(alias, spec)| format!("{alias}@{spec}"))
+            .collect::<Vec<String>>(),
+    );
+}
+
+#[test]
+fn tag_update_uses_the_tag_only_for_plain_version_dependencies() {
+    let dependencies = vec![
+        ("private-linked-pkg".to_string(), "link:/home/user/private-linked-pkg".to_string()),
+        ("aliased-pkg".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("named-registry-pkg".to_string(), "gh:^3.0.0".to_string()),
+        ("node".to_string(), "runtime:^20.0.0".to_string()),
+        ("git-shorthand-pkg".to_string(), "user/repo".to_string()),
+        ("relative-path-pkg".to_string(), "../local-pkg".to_string()),
+        ("foo".to_string(), "^1.0.0".to_string()),
+        ("bar".to_string(), "latest".to_string()),
+    ];
+    assert_eq!(
+        update_selectors(&dependencies, GlobalUpdateMode::Tag("next"), &HashMap::new()),
+        vec![
+            "private-linked-pkg@link:/home/user/private-linked-pkg",
+            "aliased-pkg@npm:other-pkg@^2.0.0",
+            "named-registry-pkg@gh:^3.0.0",
+            "node@runtime:^20.0.0",
+            "git-shorthand-pkg@user/repo",
+            "relative-path-pkg@../local-pkg",
+            "foo@next",
+            "bar@next",
+        ],
+    );
+    let pins = HashMap::from([("foo".to_string(), "1.5.0".to_string())]);
+    assert_eq!(
+        update_selectors(&dependencies[6..], GlobalUpdateMode::Tag("next"), &pins),
+        vec!["foo@1.5.0", "bar@next"],
+    );
+}
+
+#[test]
+fn latest_update_preserves_node_prerelease_channels() {
+    let dependencies = vec![("node".to_string(), "runtime:22.0.0-rc.1".to_string())];
+    assert_eq!(
+        update_selectors(&dependencies, GlobalUpdateMode::Latest, &HashMap::new()),
+        vec!["node@runtime:rc/latest"],
     );
 }
 
@@ -231,11 +337,28 @@ fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
 fn a_pinned_dependency_is_held_at_its_installed_version() {
     let dependencies = vec![
         ("prerelease".to_string(), "^2.0.0".to_string()),
+        ("aliased".to_string(), "npm:other-pkg@^2.0.0".to_string()),
+        ("same-name-exact".to_string(), "npm:1.0.0".to_string()),
+        ("node".to_string(), "runtime:^22.0.0".to_string()),
         ("stable".to_string(), "^1.0.0".to_string()),
     ];
-    let pins = HashMap::from([("prerelease".to_string(), "2.0.0".to_string())]);
+    let pins = HashMap::from([
+        ("prerelease".to_string(), "2.0.0".to_string()),
+        ("aliased".to_string(), "2.5.0".to_string()),
+        ("same-name-exact".to_string(), "1.5.0".to_string()),
+        ("node".to_string(), "22.4.0".to_string()),
+    ]);
 
-    assert_eq!(update_selectors(&dependencies, true, &pins), vec!["prerelease@2.0.0", "stable"]);
+    assert_eq!(
+        update_selectors(&dependencies, GlobalUpdateMode::Latest, &pins),
+        vec![
+            "prerelease@2.0.0",
+            "aliased@npm:other-pkg@2.5.0",
+            "same-name-exact@npm:same-name-exact@1.5.0",
+            "node@runtime:22.4.0",
+            "stable@latest",
+        ],
+    );
 }
 
 #[test]
@@ -343,11 +466,83 @@ fn exact_aliases_still_replace_mixed_groups() {
     ));
 }
 
+#[test]
+fn ownership_snapshot_preserves_manifest_diagnostic_codes() {
+    struct FailingFreshInstallCleanup;
+
+    impl FsRemoveDirAll for FailingFreshInstallCleanup {
+        fn remove_dir_all(_: &Path) -> io::Result<()> {
+            Err(io::Error::from(io::ErrorKind::PermissionDenied))
+        }
+    }
+
+    let root = tempfile::tempdir().expect("create ownership fixture");
+    let info = GlobalPackageInfo {
+        hash: "hash".to_string(),
+        install_dir: root.path().to_path_buf(),
+        dependencies: vec![("dependency".to_string(), "1.0.0".to_string())],
+    };
+    let manifest_path = root.path().join("node_modules/dependency/package.json");
+
+    let empty =
+        snapshot_global_package(info.clone()).expect("a group without node_modules owns no bins");
+    assert!(empty.bin_names.is_empty());
+
+    // A dependency directory without its manifest still fails closed.
+    std::fs::create_dir_all(root.path().join("node_modules/dependency"))
+        .expect("create dependency directory");
+
+    let missing = snapshot_global_package(info.clone())
+        .err()
+        .expect("a missing ownership manifest must fail");
+    let missing: &(dyn miette::Diagnostic + Send + Sync) = missing.as_ref();
+    assert_eq!(
+        miette::Diagnostic::code(missing).map(|code| code.to_string()),
+        Some("ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR".to_string()),
+    );
+
+    let missing = snapshot_global_package(info.clone())
+        .err()
+        .expect("a missing ownership manifest must fail");
+    let cleanup_error = discard_install_dir_on_error_with_fs::<FailingFreshInstallCleanup, (), _>(
+        root.path(),
+        Err(missing),
+    )
+    .expect_err("a fresh install that cannot be discarded must fail");
+    let cleanup_diagnostic: &(dyn miette::Diagnostic + Send + Sync) = cleanup_error.as_ref();
+    let install_diagnostic = miette::Diagnostic::diagnostic_source(cleanup_diagnostic)
+        .expect("cleanup failure retains the install diagnostic");
+    assert_eq!(
+        miette::Diagnostic::code(install_diagnostic).map(|code| code.to_string()),
+        Some("ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR".to_string()),
+    );
+    let cleanup_reports = miette::Diagnostic::related(cleanup_diagnostic)
+        .expect("cleanup failure reports the remaining artifact")
+        .collect::<Vec<_>>();
+    assert_eq!(cleanup_reports.len(), 1);
+    assert!(
+        cleanup_reports[0]
+            .to_string()
+            .contains(&root.path().display().to_string()),
+    );
+
+    std::fs::create_dir_all(manifest_path.parent().expect("manifest parent"))
+        .expect("create dependency directory");
+    std::fs::write(manifest_path, "{").expect("write malformed ownership manifest");
+    let malformed =
+        snapshot_global_package(info).err().expect("a malformed ownership manifest must fail");
+    let malformed: &(dyn miette::Diagnostic + Send + Sync) = malformed.as_ref();
+    assert_eq!(
+        miette::Diagnostic::code(malformed).map(|code| code.to_string()),
+        Some("ERR_PNPM_PACKAGE_MANIFEST_SERIALIZATION_ERROR".to_string()),
+    );
+}
+
 struct GlobalRemovalFixture {
     _root: TempDir,
     global_pkg_dir: PathBuf,
     global_bin_dir: PathBuf,
-    group: GlobalPackageInfo,
+    group: GlobalPackageBinSnapshot,
     affected_bin_names: HashSet<String>,
 }
 
@@ -399,7 +594,7 @@ impl GlobalRemovalFixture {
             _root: root,
             global_pkg_dir,
             global_bin_dir,
-            group,
+            group: snapshot_global_package(group).expect("snapshot fixture group ownership"),
             affected_bin_names: HashSet::from(["owner".to_string(), "other".to_string()]),
         }
     }
@@ -425,7 +620,7 @@ impl GlobalRemovalFixture {
         }
     }
 
-    fn seed_group(&self, spec: GlobalGroupSpec<'_>) -> GlobalPackageInfo {
+    fn seed_group(&self, spec: GlobalGroupSpec<'_>) -> GlobalPackageBinSnapshot {
         let install_dir = self.global_pkg_dir.join(format!("install-{}", spec.alias));
         let package_dir = install_dir.join("node_modules").join(spec.alias);
         fs::create_dir_all(&package_dir).expect("create installed package directory");
@@ -452,7 +647,7 @@ impl GlobalRemovalFixture {
             &pnpm_global::get_hash_link(&self.global_pkg_dir, &group.hash),
         )
         .expect("seed global hash link");
-        group
+        snapshot_global_package(group).expect("snapshot seeded group ownership")
     }
 
     fn assert_package_commands_restored(&self) {
@@ -464,12 +659,17 @@ impl GlobalRemovalFixture {
             fs::read(self.global_bin_dir.join("other")).expect("read other bin"),
             b"old other\n",
         );
-        assert!(pnpm_global::get_hash_link(&self.global_pkg_dir, &self.group.hash).exists());
-        assert!(self.group.install_dir.exists());
+        assert!(pnpm_global::get_hash_link(&self.global_pkg_dir, &self.group.info.hash).exists());
+        assert!(self.group.info.install_dir.exists());
         let backup_count = fs::read_dir(&self.global_bin_dir)
             .expect("read global bin directory")
             .filter_map(Result::ok)
-            .filter(|entry| entry.file_name().to_string_lossy().starts_with(".pnpm-bin-backup-"))
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".pnpm-bin-backup-")
+            })
             .count();
         assert_eq!(backup_count, 0);
     }
@@ -492,4 +692,164 @@ fn create_local_package(root: &Path, directory_name: &str, manifest: &str) -> Pa
     std::fs::write(package_dir.join("package.json"), manifest)
         .expect("write local package manifest");
     package_dir
+}
+
+#[test]
+fn a_group_config_carries_the_persisted_minimum_release_age_excludes() {
+    let dir = TempDir::new().expect("temp dir");
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "minimumReleaseAgeExclude:\n  - foo@2.0.0\n")
+        .expect("write the group manifest");
+    let mut base = Config::new();
+    base.minimum_release_age_exclude = Some(vec!["bar@1.0.0".to_string()]);
+
+    let config =
+        global_group_config(&base, dir.path(), dir.path(), None).expect("build the group config");
+
+    assert_eq!(
+        config.minimum_release_age_exclude,
+        Some(vec!["bar@1.0.0".to_string(), "foo@2.0.0".to_string()]),
+    );
+}
+
+/// A group installed after an earlier group of the same command moved the
+/// legacy decisions into the global `config.yaml` still sees them, although
+/// the base config was loaded before the move.
+#[test]
+fn a_group_config_reads_the_decisions_recorded_after_the_base_config_loaded() {
+    let config_dir = TempDir::new().expect("config dir");
+    let global_pkg_dir = TempDir::new().expect("global packages dir");
+    fs::write(
+        config_dir.path().join("config.yaml"),
+        "globalPackagesConfig:\n  permissions:\n    esbuild:\n      build: true\n",
+    )
+    .expect("write the global config");
+    let mut base = Config::new();
+    base.config_dir = Some(config_dir.path().to_path_buf());
+
+    let config = global_group_config(&base, global_pkg_dir.path(), global_pkg_dir.path(), None)
+        .expect("build the group config");
+
+    assert_eq!(config.allow_builds.get("esbuild"), Some(&true));
+}
+
+/// The legacy decisions sit below every layer the loader applied, so they
+/// cannot turn on what the environment turned off.
+#[test]
+fn a_group_config_keeps_an_explicit_build_policy_over_the_legacy_one() {
+    let global_pkg_dir = TempDir::new().expect("global packages dir");
+    fs::write(
+        global_pkg_dir.path().join("pnpm-workspace.yaml"),
+        "dangerouslyAllowAllBuilds: true\nallowBuilds:\n  esbuild: true\n",
+    )
+    .expect("write the legacy settings");
+    let mut base = Config::new();
+    base.allow_builds.insert("esbuild".to_string(), false);
+    base.explicit_settings.insert(
+        "dangerouslyAllowAllBuilds".to_string(),
+        serde_json::Value::Bool(false),
+    );
+
+    let config = global_group_config(&base, global_pkg_dir.path(), global_pkg_dir.path(), None)
+        .expect("build the group config");
+
+    assert!(!config.dangerously_allow_all_builds);
+    assert_eq!(config.allow_builds.get("esbuild"), Some(&false));
+}
+
+#[test]
+fn a_group_config_resolves_hoisted_dependencies_from_its_own_install_dir() {
+    let dir = TempDir::new().expect("temp dir");
+    let mut base = Config::new();
+    base.extra_env.insert("NODE_PATH".to_string(), "/caller/node_modules".to_string());
+
+    let config =
+        global_group_config(&base, dir.path(), dir.path(), None).expect("build the group config");
+
+    assert!(config.enable_global_virtual_store);
+    assert_eq!(config.global_virtual_store_dir, base.store_dir.links());
+    let node_path = config.extra_env.get("NODE_PATH").expect("NODE_PATH is set");
+    assert!(!node_path.contains("/caller/"), "{node_path}");
+    assert!(
+        node_path.contains(
+            &dir.path()
+                .join("node_modules")
+                .display()
+                .to_string()
+        ),
+        "{node_path}",
+    );
+}
+
+#[test]
+fn update_selectors_preserve_deno_bun_ranges_and_ignore_non_runtime_tools() {
+    let deps = vec![
+        ("node".to_string(), "runtime:rc/^20.0.0".to_string()),
+        ("deno".to_string(), "runtime:^1.40.0".to_string()),
+        ("bun".to_string(), "runtime:1.1.0".to_string()),
+        ("custom".to_string(), "tool:1.0.0".to_string()),
+    ];
+    let initial = update_selectors(&deps, GlobalUpdateMode::Latest, &HashMap::new());
+    assert_eq!(
+        initial,
+        vec![
+            "node@runtime:rc/latest",
+            "deno@runtime:latest",
+            "bun@runtime:latest",
+            "custom@tool:1.0.0",
+        ],
+    );
+
+    let resolved = HashMap::from([
+        ("node".to_string(), Version::parse("24.0.0-rc.4").expect("semver")),
+        ("deno".to_string(), Version::parse("2.4.2").expect("semver")),
+        ("bun".to_string(), Version::parse("1.2.19").expect("semver")),
+    ]);
+    let bumped = apply_runtime_range_bumps(
+        &deps,
+        &initial,
+        &HashMap::new(),
+        &resolved,
+        RangeSpecStyle::Major,
+    );
+    assert_eq!(
+        bumped,
+        vec![
+            "node@runtime:rc/latest",
+            "deno@runtime:^2.4.2",
+            "bun@runtime:1.2.19",
+            "custom@tool:1.0.0",
+        ],
+    );
+
+    let pins = HashMap::from([
+        ("node".to_string(), "24.0.0".to_string()),
+        ("deno".to_string(), "2.5.0".to_string()),
+    ]);
+    let pinned = update_selectors(&deps, GlobalUpdateMode::Latest, &pins);
+    assert_eq!(
+        pinned,
+        vec![
+            "node@runtime:rc/24.0.0",
+            "deno@runtime:2.5.0",
+            "bun@runtime:latest",
+            "custom@tool:1.0.0",
+        ],
+    );
+}
+
+#[test]
+fn has_pnpm_cli_dependency_detects_exact_npm_spec_and_malformed_union() {
+    let pnpm_exact_npm = GlobalPackageInfo {
+        install_dir: PathBuf::from("/global/v11/pnpm-group"),
+        hash: "hash-pnpm".to_string(),
+        dependencies: vec![("pnpm".to_string(), "npm:12.0.0".to_string())],
+    };
+    assert!(has_pnpm_cli_dependency(&pnpm_exact_npm));
+
+    let aliased_malformed_union = GlobalPackageInfo {
+        install_dir: PathBuf::from("/global/v11/pnpm-union"),
+        hash: "hash-pnpm-union".to_string(),
+        dependencies: vec![("foo".to_string(), "npm:pnpm@9||".to_string())],
+    };
+    assert!(has_pnpm_cli_dependency(&aliased_malformed_union));
 }

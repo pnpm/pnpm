@@ -1,19 +1,31 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
 };
 use serde_json::Value as JsonValue;
 use tempfile::TempDir;
 
 use super::{
-    CACHE_FILE_NAME, CacheLockfile, CachePrecomputed, CacheRecord, MAX_CACHE_ENTRIES,
-    lockfile_verification_is_cached_by_hash, record_verification, try_lockfile_verification_cache,
+    CACHE_FILE_NAME,
+    CacheLockfile,
+    CachePrecomputed,
+    CacheRecord,
+    MAX_CACHE_ENTRIES,
+    lockfile_verification_is_cached_by_hash,
+    record_verification,
+    try_lockfile_verification_cache,
 };
 
 /// Trivial verifier that records what policy it advertises and
@@ -395,7 +407,13 @@ fn append_only_log_records_each_call() {
         );
     }
     let contents = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("read cache");
-    assert_eq!(contents.lines().filter(|line| !line.is_empty()).count(), 3);
+    assert_eq!(
+        contents
+            .lines()
+            .filter(|line| !line.is_empty())
+            .count(),
+        3,
+    );
 }
 
 #[test]
@@ -439,7 +457,10 @@ fn compaction_dedupes_by_path_and_hash() {
     );
 
     let contents = fs::read_to_string(&cache_path).expect("read post-compact");
-    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = contents
+        .lines()
+        .filter(|line| !line.is_empty())
+        .collect();
     assert!(lines.len() <= MAX_CACHE_ENTRIES + 1, "trimmed past cap: {}", lines.len());
     assert!(lines.len() <= 2, "duplicates collapsed: got {} lines", lines.len());
 }

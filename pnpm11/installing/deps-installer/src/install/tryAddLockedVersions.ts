@@ -82,21 +82,9 @@ export function tryAddLockedVersions (
     // Every project stages onto a fresh copy of its context manifest, so a
     // second mutation for the same one would discard the first one's edits.
     if (added.has(project.rootDir)) return null
-    if (
-      project.update === true ||
-      project.updateToLatest === true ||
-      project.peer === true ||
-      project.allowNew === false ||
-      project.updatePackageManifest === false
-    ) {
-      return null
-    }
-    const specs: PackageSpecObject[] = []
-    for (const selector of project.dependencySelectors) {
-      const spec = lockedAddSpec(lockfile, selector, { project, opts })
-      if (spec == null) return null
-      specs.push(spec)
-    }
+    if (requestNeedsResolution(project)) return null
+    const specs = lockedAddSpecs(lockfile, { project, opts })
+    if (specs == null) return null
     added.set(project.rootDir, {
       manifest: applyPackageSpecs(clone(project.manifest), specs),
       originalManifest: project.originalManifest && applyPackageSpecs(clone(project.originalManifest), specs),
@@ -105,28 +93,41 @@ export function tryAddLockedVersions (
   return added
 }
 
+interface LockedAddContext {
+  project: AddedDependencies
+  opts: AddLockedVersionsOptions
+}
+
+function requestNeedsResolution (project: AddedDependencies): boolean {
+  return project.update === true ||
+    project.updateToLatest === true ||
+    project.peer === true ||
+    project.allowNew === false ||
+    project.updatePackageManifest === false
+}
+
+function lockedAddSpecs (lockfile: LockfileObject, context: LockedAddContext): PackageSpecObject[] | null {
+  const specs: PackageSpecObject[] = []
+  for (const selector of context.project.dependencySelectors) {
+    const spec = lockedAddSpec(lockfile, selector, context)
+    if (spec == null) return null
+    specs.push(spec)
+  }
+  return specs
+}
+
 /** The manifest entry a single `pnpm add` selector saves, or `null`. */
 function lockedAddSpec (
   lockfile: LockfileObject,
   selector: string,
-  { project, opts }: { project: AddedDependencies, opts: AddLockedVersionsOptions }
+  { project, opts }: LockedAddContext
 ): PackageSpecObject | null {
   const { alias, bareSpecifier } = parseWantedDependency(selector)
   // Without a version the request means the `latest` tag, the specifier a
   // sibling project prefers, or the one an override names — none of which the
   // lockfile decides.
   if (alias == null || bareSpecifier == null) return null
-  if (semver.validRange(bareSpecifier) == null) return null
-  if (isDirectoryDependency(alias, bareSpecifier, opts.workspacePackages)) return null
-  // An override rewrites both what the request resolves to and the range saved
-  // for it.
-  if (opts.parsedOverrides.some(({ targetPkg }) => targetPkg.name === alias)) return null
-  if (opts.catalogs?.default != null && Object.hasOwn(opts.catalogs.default, alias)) return null
-  // A dependency only `peerDependencies` declares stays there, and the
-  // manifest writer records nothing for it.
-  if (project.targetDependenciesField == null && guessDependencyType(alias, project.manifest) === 'peerDependencies') {
-    return null
-  }
+  if (!lockfileCanDecideAdd(alias, bareSpecifier, { project, opts })) return null
   // `Object.hasOwn` keeps a package legitimately named `constructor` or
   // `toString` from reading a specifier off `Object.prototype`.
   const manifestDependencies = getAllDependenciesFromManifest(project.manifest, {
@@ -152,4 +153,20 @@ function lockedAddSpec (
     rangeSpecStyle: project.rangeSpecStyle,
     saveType: project.targetDependenciesField,
   }
+}
+
+function lockfileCanDecideAdd (
+  alias: string,
+  bareSpecifier: string,
+  { project, opts }: LockedAddContext
+): boolean {
+  if (semver.validRange(bareSpecifier) == null) return false
+  if (isDirectoryDependency(alias, bareSpecifier, opts.workspacePackages)) return false
+  // An override rewrites both what the request resolves to and the range saved
+  // for it.
+  if (opts.parsedOverrides.some(({ targetPkg }) => targetPkg.name === alias)) return false
+  if (opts.catalogs?.default != null && Object.hasOwn(opts.catalogs.default, alias)) return false
+  // A dependency only `peerDependencies` declares stays there, and the
+  // manifest writer records nothing for it.
+  return project.targetDependenciesField != null || guessDependencyType(alias, project.manifest) !== 'peerDependencies'
 }

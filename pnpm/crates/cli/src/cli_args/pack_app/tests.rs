@@ -4,15 +4,17 @@
 //! network or build work. The download / SEA-injection paths spawn real
 //! subprocesses and are out of scope for unit tests.
 
-use std::fs;
-
-use pnpm_config::Config;
-use tempfile::TempDir;
-
 use super::{
-    PackAppArgs, is_reserved_windows_name, parse_runtime, parse_target, read_project_app_config,
+    PackAppArgs,
+    parse_runtime,
+    parse_target,
+    read_project_app_config,
     validate_output_name,
 };
+use crate::cli_args::pack_app::config::is_reserved_windows_name;
+use pnpm_config::Config;
+use std::fs;
+use tempfile::TempDir;
 
 fn args() -> PackAppArgs {
     PackAppArgs {
@@ -43,7 +45,11 @@ fn pacquet_tokio_block_on<Fut: std::future::Future>(future: Fut) -> Fut::Output 
 }
 
 fn diagnostic_code(report: impl Into<miette::Report>) -> String {
-    report.into().code().map(|code| code.to_string()).unwrap_or_default()
+    report
+        .into()
+        .code()
+        .map(|code| code.to_string())
+        .unwrap_or_default()
 }
 
 #[test]
@@ -78,7 +84,7 @@ fn reads_entry_from_pnpm_app_entry_when_entry_is_omitted() {
     )
     .unwrap();
     fs::write(dir.path().join("from-config.cjs"), "module.exports = {}").unwrap();
-    // With entry from config but no target, we hit MISSING_TARGET — enough
+    // With entry from config but no target, we hit MISSING_TARGET, enough
     // to prove the entry was picked up from pnpm.app.entry.
     assert_eq!(run_and_get_code(&dir, args()), "ERR_PNPM_PACK_APP_MISSING_TARGET");
 }
@@ -163,12 +169,15 @@ fn rejects_output_dir_symlinked_outside_the_project() {
 
 #[test]
 fn signer_resolution_skips_project_local_binaries() {
-    use super::first_signer_outside_project;
+    use super::build::first_signer_outside_project;
 
     let project = TempDir::new().unwrap();
     let outside = TempDir::new().unwrap();
     // A repo-controlled `node_modules/.bin/ldid` and a trusted system one.
-    let bin_dir = project.path().join("node_modules").join(".bin");
+    let bin_dir = project
+        .path()
+        .join("node_modules")
+        .join(".bin");
     fs::create_dir_all(&bin_dir).unwrap();
     let project_ldid = bin_dir.join("ldid");
     fs::write(&project_ldid, "#!/bin/sh\n").unwrap();
@@ -197,7 +206,10 @@ fn rejects_output_file_that_is_a_preexisting_symlink() {
     fs::write(dir.path().join("entry.cjs"), "module.exports = {}").unwrap();
     // The committed output path `dist-app/linux-x64/app` is a symlink to a
     // file outside the project; `node --build-sea` must not write through it.
-    let target_dir = dir.path().join("dist-app").join("linux-x64");
+    let target_dir = dir
+        .path()
+        .join("dist-app")
+        .join("linux-x64");
     fs::create_dir_all(&target_dir).unwrap();
     std::os::unix::fs::symlink(&victim, target_dir.join("app")).unwrap();
     let code = run_and_get_code(
@@ -349,4 +361,14 @@ fn no_output_name_without_package_name() {
     let project = read_project_app_config(dir.path()).unwrap();
     let err = super::derive_output_name_from_package(&project, dir.path()).unwrap_err();
     assert_eq!(diagnostic_code(err), "ERR_PNPM_PACK_APP_NO_OUTPUT_NAME");
+}
+
+#[test]
+fn runtime_install_manifest_is_named_after_pnpm() {
+    let dir = TempDir::new().unwrap();
+    super::build::write_runtime_install_manifest(dir.path(), "linux-x64-glibc").unwrap();
+    let manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dir.path().join("package.json")).unwrap())
+            .unwrap();
+    assert_eq!(manifest["name"], "pnpm-pack-app-linux-x64-glibc");
 }

@@ -4,6 +4,6 @@
  * anything that ends up in a lockfile or any other file we compare across
  * machines, as its result depends on the current locale.
  */
-export function lexCompare (a: string, b: string): number {
-  return a > b ? 1 : a < b ? -1 : 0
+export function lexCompare (left: string, right: string): number {
+  return left > right ? 1 : left < right ? -1 : 0
 }

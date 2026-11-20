@@ -31,6 +31,10 @@ function createMockResponse (init: {
   }
 }
 
+function createRetryAfterHeaders (retryAfter: string): WebAuthFetchResponse['headers'] {
+  return { get: (name: string) => name === 'retry-after' ? retryAfter : null }
+}
+
 interface MockBody extends WebAuthFetchResponseBody {
   cancelled: boolean
 }
@@ -150,7 +154,7 @@ describe('pollForWebAuthToken', () => {
           return createMockResponse({
             ok: true,
             status: 202,
-            headers: { get: (name: string) => name === 'retry-after' ? '5' : null },
+            headers: createRetryAfterHeaders('5'),
           })
         }
         return createMockResponse({
@@ -238,7 +242,7 @@ describe('pollForWebAuthToken', () => {
           return createMockResponse({
             ok: true,
             status: 202,
-            headers: { get: (name: string) => name === 'retry-after' ? '0.5' : null },
+            headers: createRetryAfterHeaders('0.5'),
           })
         }
         return createMockResponse({
@@ -268,7 +272,7 @@ describe('pollForWebAuthToken', () => {
         ok: true,
         status: 202,
         json: { token: 'tok' },
-        headers: { get: (name: string) => name === 'retry-after' ? '60' : null },
+        headers: createRetryAfterHeaders('60'),
       }),
     })
     // Use a 10s timeout so the 60s Retry-After gets capped.
@@ -299,7 +303,7 @@ describe('pollForWebAuthToken', () => {
         return createMockResponse({
           ok: true,
           status: 202,
-          headers: { get: (name: string) => name === 'retry-after' ? '100' : null },
+          headers: createRetryAfterHeaders('100'),
         })
       },
     })
@@ -530,12 +534,11 @@ describe('pollForWebAuthToken', () => {
           return createMockResponse({
             ok: true,
             status: 202,
-            headers: { get: (name: string) => name === 'retry-after' ? '10' : null },
+            headers: createRetryAfterHeaders('10'),
           })
         }
-        // This second fetch still returns 202, but the next timeout check
-        // should trigger the error since time (2000) - start (0) = 2000 > 2000? No, it's equal.
-        // Actually the condition is `>` so 2000 > 2000 is false. So it waits another 1s, then 3000 > 2000 is true.
+        // This second fetch still returns 202. The timeout check is `>`, so
+        // 2000 > 2000 is false; it waits another 1s, then 3000 > 2000 is true.
         return createMockResponse({
           ok: true,
           status: 202,

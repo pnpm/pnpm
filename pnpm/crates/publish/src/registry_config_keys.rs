@@ -40,11 +40,12 @@ pub struct SupportedRegistryUrlInfo {
 /// [`NormalizedRegistryUrl`]. Returns `None` for any other protocol.
 #[must_use]
 pub fn parse_supported_registry_url(registry_url: &str) -> Option<SupportedRegistryUrlInfo> {
-    let registry_url = ensure_trailing_slash(registry_url);
+    let registry_url = pnpm_network::normalize_registry_url(registry_url);
     let key_prefix = replace_prefix(&registry_url, "http://")
         .or_else(|| replace_prefix(&registry_url, "https://"))?;
-    let normalized_url = NormalizedRegistryUrl(registry_url);
-    let longest_config_key = RegistryConfigKey(ensure_trailing_slash(&key_prefix));
+    let normalized_url = NormalizedRegistryUrl(registry_url.into_owned());
+    let longest_config_key =
+        RegistryConfigKey(pnpm_network::normalize_registry_url(&key_prefix).into_owned());
     Some(SupportedRegistryUrlInfo { normalized_url, longest_config_key })
 }
 
@@ -79,13 +80,25 @@ fn strip_last_segment(key: &str) -> String {
 
 /// If `text` starts with `prefix`, replace that prefix with `//`.
 fn replace_prefix(text: &str, prefix: &str) -> Option<String> {
-    text.strip_prefix(prefix).map(|rest| format!("//{rest}"))
-}
-
-/// Ensure `text` ends with a single trailing slash.
-fn ensure_trailing_slash(text: &str) -> String {
-    if text.ends_with('/') { text.to_owned() } else { format!("{text}/") }
+    text.strip_prefix(prefix)
+        .map(|rest| format!("//{rest}"))
 }
 
 #[cfg(test)]
 mod tests;
+
+impl NormalizedRegistryUrl {
+    /// `path` resolved against the registry URL.
+    pub(crate) fn join(&self, path: &str) -> Result<String, url::ParseError> {
+        url::Url::parse(self.as_str())
+            .and_then(|base| base.join(path))
+            .map(|url| url.to_string())
+    }
+
+    /// The registry URL for logging, with any `user:pass@` userinfo stripped,
+    /// so credentials a user embedded in a `registry=` URL don't leak into CI
+    /// logs.
+    pub(crate) fn for_display(&self) -> String {
+        pnpm_network::redact_url_credentials(self.as_str())
+    }
+}

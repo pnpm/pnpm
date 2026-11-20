@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! Read and write pnpm's `node_modules/.modules.yaml` manifest.
 //!
 //! The manifest is stored at `<modules_dir>/.modules.yaml`, where
@@ -6,17 +9,44 @@
 //! match pnpm exactly, and reads parse JSON first, falling back to a YAML
 //! parser for manifests written by old pnpm versions.
 
-use derive_more::{Display, Error, From, Into};
-use indexmap::{IndexMap, IndexSet};
+pub use capabilities::{
+    Clock,
+    FsCreateDirAll,
+    FsReadToString,
+    FsWrite,
+    Host,
+};
+pub use hoisted_dir::hoisted_dir;
+
+use derive_more::{
+    Display,
+    Error,
+    From,
+    Into,
+};
+use indexmap::{
+    IndexMap,
+    IndexSet,
+};
 use pipe_trait::Pipe;
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_fs::lexical_normalize;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{
+    Deserialize,
+    Serialize,
+    de::DeserializeOwned,
+};
 use std::{
     collections::BTreeMap,
-    fs, io, iter,
-    path::{Path, PathBuf},
-    time::SystemTime,
+    io,
+    iter,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Filename of the modules manifest inside `node_modules/`.
@@ -28,65 +58,8 @@ pub const MODULES_FILENAME: &str = ".modules.yaml";
 /// Default value for the `virtualStoreDirMaxLength` field.
 pub const DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH: u64 = 120;
 
-/// Capability trait: read a file's contents into a [`String`].
-///
-/// One trait per filesystem capability so each function declares only what
-/// it actually uses, and so test fakes only implement the methods that
-/// will be exercised. Pattern follows the per-capability typeclass style
-/// rather than `parallel-disk-usage`'s lumped `FsApi` at
-/// <https://github.com/KSXGitHub/parallel-disk-usage/blob/2aa39917f9/src/app/hdd.rs#L29-L35>.
-pub trait FsReadToString {
-    fn read_to_string(path: &Path) -> io::Result<String>;
-}
-
-/// Capability trait: create a directory and any missing parents.
-pub trait FsCreateDirAll {
-    fn create_dir_all(path: &Path) -> io::Result<()>;
-}
-
-/// Capability trait: write bytes to a file, replacing existing contents.
-pub trait FsWrite {
-    fn write(path: &Path, contents: &[u8]) -> io::Result<()>;
-}
-
-/// Capability trait: read the current wall-clock time as a [`SystemTime`].
-///
-/// Decoupled from [`SystemTime::now`] so tests can fake the clock and
-/// assert deterministic `prunedAt` values.
-pub trait Clock {
-    fn now() -> SystemTime;
-}
-
-/// Production implementation, backed by [`std::fs`] and [`SystemTime::now`].
-pub struct Host;
-
-impl FsReadToString for Host {
-    #[inline]
-    fn read_to_string(path: &Path) -> io::Result<String> {
-        fs::read_to_string(path)
-    }
-}
-
-impl FsCreateDirAll for Host {
-    #[inline]
-    fn create_dir_all(path: &Path) -> io::Result<()> {
-        fs::create_dir_all(path)
-    }
-}
-
-impl FsWrite for Host {
-    #[inline]
-    fn write(path: &Path, contents: &[u8]) -> io::Result<()> {
-        fs::write(path, contents)
-    }
-}
-
-impl Clock for Host {
-    #[inline]
-    fn now() -> SystemTime {
-        SystemTime::now()
-    }
-}
+mod capabilities;
+mod hoisted_dir;
 
 /// Newtype wrapper around a dependency-path string.
 ///
@@ -120,7 +93,7 @@ impl DepPath {
 /// field via [`IndexSet`]'s deduplicating `Deserialize` impl, so a
 /// separate raw-shape type is not needed. `IndexSet` (insertion-ordered)
 /// is chosen over `HashSet` / `BTreeSet` to match JavaScript `Set`'s
-/// iteration semantics — the on-disk array order round-trips
+/// iteration semantics, the on-disk array order round-trips
 /// byte-for-byte.
 ///
 /// Every required field carries a `#[serde(default)]` so
@@ -128,6 +101,13 @@ impl DepPath {
 /// the read path then fills in the modern shape from the legacy fields.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the node_modules/.modules.yaml format."
+    )
+)]
 pub struct Modules {
     /// Legacy: the v5-era flat alias map, kept for read-side
     /// compatibility. Replaced by [`Self::hoisted_dependencies`].
@@ -198,11 +178,6 @@ pub struct Modules {
     /// by rebuild (which throws `MISSING_HOISTED_LOCATIONS` when
     /// absent) and consulted by the hoisted dep-graph's skip-fetch
     /// optimization to decide whether the package is already on disk.
-    /// An optional `Record<string, string[]>` on the on-disk shape.
-    /// Pacquet's install pipeline does not populate this yet; the
-    /// field is wired into the schema so a future hoisted-linker
-    /// implementation can write it without changing the on-disk
-    /// shape.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hoisted_locations: Option<BTreeMap<String, Vec<String>>>,
 
@@ -217,6 +192,21 @@ pub struct Modules {
     /// matching pnpm's delete-when-falsy encoding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub virtual_store_only: Option<bool>,
+
+    /// The direct dependencies whose agent skills await approval, as
+    /// peer-free depPaths.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_skills: Option<IndexSet<DepPath>>,
+
+    /// The agent skill entries pnpm linked, as `/`-separated paths
+    /// relative to the workspace root, or absolute when outside it. An
+    /// install prunes only these, so an entry pnpm did not write is never
+    /// removed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_skills: Option<Vec<String>>,
+    /// Whether approved skills await a target directory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_unlinked_skills: Option<bool>,
 }
 
 /// A lightweight version of [`Modules`] that skips deserializing the potentially
@@ -225,6 +215,13 @@ pub struct Modules {
 /// amounts of memory.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the node_modules/.modules.yaml format."
+    )
+)]
 pub struct ModulesLayout {
     #[serde(default)]
     pub hoist_pattern: Option<Vec<String>>,
@@ -263,6 +260,15 @@ pub struct ModulesLayout {
     /// check, which skips the hoist-pattern comparison when it is set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub virtual_store_only: Option<bool>,
+    /// See [`Modules::pending_skills`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_skills: Option<IndexSet<DepPath>>,
+    /// See [`Modules::linked_skills`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_skills: Option<Vec<String>>,
+    /// Whether approved skills await a target directory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_unlinked_skills: Option<bool>,
 }
 
 /// Which dependency groups the install pipeline included.
@@ -277,6 +283,22 @@ pub struct IncludedDependencies {
     pub optional_dependencies: bool,
 }
 
+impl IncludedDependencies {
+    /// Whether at least one dependency group is left out.
+    #[must_use]
+    pub fn excludes_a_group(self) -> bool {
+        !(self.dependencies && self.dev_dependencies && self.optional_dependencies)
+    }
+
+    /// Whether a project's own `optionalDependencies` are included. They
+    /// install with its production dependencies, so `--dev` leaves them
+    /// out while it still installs the optional dependencies of packages.
+    #[must_use]
+    pub fn includes_project_optional_dependencies(self) -> bool {
+        self.dependencies && self.optional_dependencies
+    }
+}
+
 /// Linker variant the install pipeline used. The string variants match
 /// pnpm's runtime values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -285,6 +307,7 @@ pub enum NodeLinker {
     Hoisted,
     Isolated,
     Pnp,
+    Loaded,
 }
 
 /// Pinned identifier for the `node_modules` layout pacquet emits.
@@ -293,7 +316,7 @@ pub enum NodeLinker {
 /// serializes as the integer `5` and converts from `u32` only when the
 /// on-disk value is exactly `5`. On [`Modules`] and [`ModulesLayout`] it
 /// is wrapped in an [`Option`] whose `None` means "not the layout this
-/// build emits" — a missing field and an unsupported version read alike,
+/// build emits", a missing field and an unsupported version read alike,
 /// so an old layout rebuilds `node_modules` instead of making the whole
 /// manifest unreadable.
 ///
@@ -329,7 +352,7 @@ impl TryFrom<u32> for LayoutVersion {
 }
 
 /// Read `layoutVersion`, reporting any number that is not the version
-/// this build supports as `None` — the same "layout predates this pnpm"
+/// this build supports as `None`, the same "layout predates this pnpm"
 /// signal a missing field carries, which the caller reacts to by
 /// rebuilding `node_modules`. Rejecting it at parse time instead would
 /// make the whole manifest unreadable, and an unreadable manifest fails
@@ -347,7 +370,8 @@ where
     Ok(Option::<f64>::deserialize(deserializer)?
         .filter(|found| found.fract() == 0.0)
         .and_then(|found| u32::try_from(found as i64).ok())
-        .and_then(|found| LayoutVersion::try_from(found).ok()))
+        .map(LayoutVersion::try_from)
+        .and_then(Result::ok))
 }
 
 /// Returned by [`LayoutVersion::try_from`] when the on-disk `layoutVersion`
@@ -430,9 +454,6 @@ where
 /// `null` document.
 ///
 /// Production callers turbofish [`Host`]: `read_modules_manifest::<Host>(dir)`.
-/// The bounds list the minimal capabilities ([`FsReadToString`] +
-/// [`Clock`]) so test fakes only need to implement the methods that are
-/// actually called.
 pub fn read_modules_manifest<Sys>(modules_dir: &Path) -> Result<Option<Modules>, ReadModulesError>
 where
     Sys: FsReadToString + Clock,
@@ -445,9 +466,12 @@ where
             return Err(ReadModulesError::ReadFile { path: manifest_path, source });
         }
     };
-    let parsed: Option<Modules> = content.pipe_as_ref(deserialize_modules).map_err(|source| {
-        ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
-    })?;
+    let parsed: Option<Modules> = content
+        .pipe_as_ref(deserialize_modules)
+        .map_err(|source| ReadModulesError::ParseYaml {
+            path: manifest_path.clone(),
+            source: Box::new(source),
+        })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
     apply_legacy_shamefully_hoist(&mut manifest);
     resolve_virtual_store_dir(&mut manifest, modules_dir);
@@ -476,14 +500,23 @@ where
             return Err(ReadModulesError::ReadFile { path: manifest_path, source });
         }
     };
-    let parsed: Option<ModulesLayout> =
-        content.pipe_as_ref(deserialize_modules).map_err(|source| ReadModulesError::ParseYaml {
+    let parsed: Option<ModulesLayout> = content
+        .pipe_as_ref(deserialize_modules)
+        .map_err(|source| ReadModulesError::ParseYaml {
             path: manifest_path.clone(),
             source: Box::new(source),
         })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
 
-    // Normalize legacy shamefully_hoist to public_hoist_pattern.
+    normalize_modules_layout::<Sys>(&mut manifest, modules_dir);
+    Ok(Some(manifest))
+}
+
+/// Fill in what a stored layout leaves to its reader: the legacy
+/// `shamefully_hoist` flag becomes a public-hoist pattern, the virtual store
+/// directory is resolved against the modules directory, and the prune stamp
+/// and length cap take their defaults.
+fn normalize_modules_layout<Sys: Clock>(manifest: &mut ModulesLayout, modules_dir: &Path) {
     if let Some(shamefully_hoist) = manifest.shamefully_hoist
         && manifest.public_hoist_pattern.is_none()
     {
@@ -505,21 +538,12 @@ where
     if manifest.virtual_store_dir_max_length == 0 {
         manifest.virtual_store_dir_max_length = DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH;
     }
-    Ok(Some(manifest))
 }
 
 /// Write `manifest` to `<modules_dir>/.modules.yaml`, creating `modules_dir`
 /// if it does not already exist.
 ///
-/// Takes `manifest` by value because the body unconditionally rewrites
-/// fields (sort `skipped`, drop legacy `hoistedAliases`, relativize
-/// `virtualStoreDir`); making the caller hand over ownership keeps the
-/// in-place mutation visible at the call site instead of forcing a hidden
-/// `clone()` inside the function. Per the `CODE_STYLE_GUIDE` rule that
-/// owned-vs-borrowed parameter choice should minimize copies.
-///
 /// Production callers turbofish [`Host`]: `write_modules_manifest::<Host>(dir, m)`.
-/// Bounds are minimal: only [`FsCreateDirAll`] and [`FsWrite`] are required.
 pub fn write_modules_manifest<Sys>(
     modules_dir: &Path,
     mut manifest: Modules,
@@ -536,10 +560,11 @@ where
     }
     let serialized =
         serde_json::to_string_pretty(&manifest).map_err(WriteModulesError::SerializeJson)?;
-    Sys::create_dir_all(modules_dir).map_err(|source| WriteModulesError::CreateDir {
-        path: modules_dir.to_path_buf(),
-        source,
-    })?;
+    Sys::create_dir_all(modules_dir)
+        .map_err(|source| WriteModulesError::CreateDir {
+            path: modules_dir.to_path_buf(),
+            source,
+        })?;
     let manifest_path = modules_dir.join(MODULES_FILENAME);
     Sys::write(&manifest_path, serialized.as_bytes())
         .map_err(|source| WriteModulesError::WriteFile { path: manifest_path, source })
@@ -558,7 +583,7 @@ fn resolve_virtual_store_dir(manifest: &mut Modules, modules_dir: &Path) {
         // relative path like `../../Users/.../store/v11/links` joined
         // with `<workspace>/node_modules` round-trips as
         // `<workspace>/node_modules/../../Users/...`, which never byte-
-        // matches the config's `effective_virtual_store_dir()` — and
+        // matches the config's `virtual_store_dir()`, and
         // [`crate::Install`]'s no-op short-circuit relies on that
         // equality to skip materialization on a clean install.
         (false, false) => lexical_normalize(&modules_dir.join(stored_path)),
@@ -601,7 +626,11 @@ fn apply_legacy_shamefully_hoist(manifest: &mut Modules) {
         manifest.hoisted_dependencies = aliases_by_path
             .iter()
             .map(|(dep_path, alias_names)| {
-                let entry = alias_names.iter().cloned().zip(iter::repeat(kind)).collect();
+                let entry = alias_names
+                    .iter()
+                    .cloned()
+                    .zip(iter::repeat(kind))
+                    .collect();
                 (dep_path.clone().into(), entry)
             })
             .collect();

@@ -1,5 +1,6 @@
 import { PnpmError, redactUrlCredentials } from '@pnpm/error'
 import npa from '@pnpm/npm-package-arg'
+import normalizeRegistryUrl from 'normalize-registry-url'
 
 import { displayError } from '../displayError.js'
 import type { PublishPackedPkgOptions } from '../publishPackedPkg.js'
@@ -71,7 +72,7 @@ export async function fetchAuthToken ({
   let response: AuthTokenFetchResponse
   try {
     response = await fetch(
-      new URL(`/-/npm/v1/oidc/token/exchange/package/${npa(packageName).escapedName}`, registry).href,
+      new URL(`-/npm/v1/oidc/token/exchange/package/${npa(packageName).escapedName}`, normalizeRegistryUrl(registry)).href,
       {
         body: '',
         headers: {

@@ -22,33 +22,31 @@ interface MergeFileInfo {
   theirs: string
 }
 
+type MergeFileSection = 'top' | 'ours' | 'theirs' | 'parent'
+
 function parseMergeFile (fileContent: string): MergeFileInfo {
   const lines = fileContent.split(/[\n\r]+/)
-  let state: 'top' | 'ours' | 'theirs' | 'parent' = 'top'
+  let state: MergeFileSection = 'top'
   const ours = []
   const theirs = []
-  while (lines.length > 0) {
-    const line = lines.shift() as string
-    if (line.startsWith(MERGE_CONFLICT_PARENT)) {
-      state = 'parent'
-      continue
-    }
-    if (line.startsWith(MERGE_CONFLICT_OURS)) {
-      state = 'ours'
-      continue
-    }
-    if (line === MERGE_CONFLICT_THEIRS) {
-      state = 'theirs'
-      continue
-    }
-    if (line.startsWith(MERGE_CONFLICT_END)) {
-      state = 'top'
+  for (const line of lines) {
+    const markedSection = getSectionStartedByMarker(line)
+    if (markedSection != null) {
+      state = markedSection
       continue
     }
     if (state === 'top' || state === 'ours') ours.push(line)
     if (state === 'top' || state === 'theirs') theirs.push(line)
   }
   return { ours: ours.join('\n'), theirs: theirs.join('\n') }
+}
+
+function getSectionStartedByMarker (line: string): MergeFileSection | undefined {
+  if (line.startsWith(MERGE_CONFLICT_PARENT)) return 'parent'
+  if (line.startsWith(MERGE_CONFLICT_OURS)) return 'ours'
+  if (line === MERGE_CONFLICT_THEIRS) return 'theirs'
+  if (line.startsWith(MERGE_CONFLICT_END)) return 'top'
+  return undefined
 }
 
 export function isDiff (fileContent: string): boolean {

@@ -51,22 +51,9 @@ export type Modules = Omit<ModulesRaw, 'ignoredBuilds'> & {
 
 export async function readModulesManifest (modulesDir: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
-  let modulesRaw!: ModulesRaw
-  try {
-    const rawManifest = await fs.readFile(modulesYamlPath, 'utf8')
-    try {
-      modulesRaw = JSON.parse(rawManifest) as ModulesRaw
-    } catch {
-      // Manifests written by old pnpm versions are YAML.
-      modulesRaw = await readYamlFile<ModulesRaw>(modulesYamlPath)
-    }
-    if (!modulesRaw) return modulesRaw
-  } catch (err: any) { // eslint-disable-line
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw err
-    }
-    return null
-  }
+  const modulesRaw = await tryReadModulesRaw(modulesYamlPath)
+  if (!modulesRaw) return modulesRaw ?? null
+
   const modules = {
     ...modulesRaw,
     ignoredBuilds: modulesRaw.ignoredBuilds ? new Set<DepPath>(modulesRaw.ignoredBuilds) : undefined,
@@ -76,33 +63,7 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
   } else if (!path.isAbsolute(modules.virtualStoreDir)) {
     modules.virtualStoreDir = path.join(modulesDir, modules.virtualStoreDir)
   }
-  switch (modules.shamefullyHoist) {
-    case true:
-      if (modules.publicHoistPattern == null) {
-        modules.publicHoistPattern = ['*']
-      }
-      if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
-        modules.hoistedDependencies = mapValues(
-          (aliases) => Object.fromEntries(aliases.map((alias) => [alias, 'public' as const])),
-          modules.hoistedAliases
-        )
-      }
-      break
-    case false:
-      if (modules.publicHoistPattern == null) {
-        modules.publicHoistPattern = []
-      }
-      if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
-        modules.hoistedDependencies = {}
-        for (const depPath of Object.keys(modules.hoistedAliases)) {
-          modules.hoistedDependencies[depPath as DepPath] = {}
-          for (const alias of modules.hoistedAliases[depPath as DepPath]) {
-            modules.hoistedDependencies[depPath as DepPath][alias] = 'private'
-          }
-        }
-      }
-      break
-  }
+  migrateLegacyHoistSettings(modules)
   if (!modules.prunedAt) {
     modules.prunedAt = new Date().toUTCString()
   }
@@ -110,6 +71,51 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
     modules.virtualStoreDirMaxLength = 120
   }
   return modules
+}
+
+async function tryReadModulesRaw (modulesYamlPath: string): Promise<ModulesRaw | null | undefined> {
+  try {
+    const rawManifest = await fs.readFile(modulesYamlPath, 'utf8')
+    try {
+      return JSON.parse(rawManifest) as ModulesRaw
+    } catch {
+      // Manifests written by old pnpm versions are YAML.
+      return await readYamlFile<ModulesRaw>(modulesYamlPath)
+    }
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
+    return null
+  }
+}
+
+function migrateLegacyHoistSettings (modules: Modules): void {
+  if (modules.shamefullyHoist === undefined) return
+  if (modules.shamefullyHoist) {
+    modules.publicHoistPattern ??= ['*']
+    migrateHoistedAliases(modules, 'public')
+    return
+  }
+  modules.publicHoistPattern ??= []
+  migrateHoistedAliases(modules, 'private')
+}
+
+function migrateHoistedAliases (modules: Modules, visibility: 'public' | 'private'): void {
+  if (modules.hoistedAliases == null || modules.hoistedDependencies) return
+  modules.hoistedDependencies = visibility === 'public'
+    ? mapValues((aliases) => Object.fromEntries(aliases.map((alias) => [alias, 'public' as const])), modules.hoistedAliases)
+    : createPrivateHoistedDeps(modules.hoistedAliases)
+}
+
+function createPrivateHoistedDeps (hoistedAliases: Record<string, string[]>): HoistedDependencies {
+  const hoistedDependencies: HoistedDependencies = {}
+  for (const [depPath, aliases] of Object.entries(hoistedAliases)) {
+    hoistedDependencies[depPath as DepPath] = Object.fromEntries(
+      aliases.map((alias) => [alias, 'private' as const])
+    )
+  }
+  return hoistedDependencies
 }
 
 export async function writeModulesManifest (

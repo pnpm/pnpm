@@ -2,9 +2,8 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { CustomFetcher, CustomResolver } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
 import type { Finder, PackageManifest } from '@pnpm/types'
@@ -45,15 +44,7 @@ export interface Pnpmfile {
 
 export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Promise<{ pnpmfileModule: Pnpmfile | undefined } | undefined> {
   try {
-    let pnpmfile: Pnpmfile
-    // Check if it's an ESM module (ends with .mjs)
-    if (pnpmFilePath.endsWith('.mjs')) {
-      const url = pathToFileURL(path.resolve(pnpmFilePath)).href
-      pnpmfile = await import(url)
-    } else {
-      // Use require for CommonJS modules
-      pnpmfile = require(pnpmFilePath)
-    }
+    const pnpmfile = await loadPnpmfileModule(pnpmFilePath)
     if (typeof pnpmfile === 'undefined') {
       logger.warn({
         message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,
@@ -61,37 +52,13 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
       })
       return { pnpmfileModule: undefined }
     }
-    if (pnpmfile?.hooks?.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
-      throw new TypeError('hooks.readPackage should be a function')
-    }
-    if (pnpmfile?.hooks?.readPackage) {
-      const readPackage = pnpmfile.hooks.readPackage as Function // eslint-disable-line
-      pnpmfile.hooks.readPackage = async function (pkg: PackageManifest, ...args: any[]) { // eslint-disable-line
-        pkg.dependencies = pkg.dependencies ?? {}
-        pkg.devDependencies = pkg.devDependencies ?? {}
-        pkg.optionalDependencies = pkg.optionalDependencies ?? {}
-        pkg.peerDependencies = pkg.peerDependencies ?? {}
-        const newPkg = await readPackage(pkg, ...args)
-        if (!newPkg) {
-          throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
-        }
-        const dependencies = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
-        for (const dep of dependencies) {
-          if (newPkg[dep] != null && (typeof newPkg[dep] !== 'object' || Array.isArray(newPkg[dep]))) {
-            throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
-          }
-        }
-        return newPkg
-      }
-      if (pnpmfile?.hooks?.beforePacking && typeof pnpmfile.hooks.beforePacking !== 'function') {
-        throw new TypeError('hooks.beforePacking should be a function')
-      }
-    }
+    wrapReadPackageHook(pnpmfile, pnpmFilePath)
     return { pnpmfileModule: pnpmfile }
   } catch (err: unknown) {
     if (err instanceof SyntaxError) {
       console.error(chalk.red(`A syntax error in the "${pnpmFilePath}"\n`))
       console.error(err)
+      // eslint-disable-next-line n/no-process-exit -- a pnpmfile that does not parse aborts pnpm after printing the syntax error
       process.exit(1)
     }
     if (isModuleNotFoundError(err) && !pnpmFileExistsSync(pnpmFilePath)) {
@@ -99,6 +66,69 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
     }
     throw new PnpmFileFailError(pnpmFilePath, toError(err))
   }
+}
+
+async function loadPnpmfileModule (pnpmFilePath: string): Promise<Pnpmfile> {
+  if (pnpmFilePath.endsWith('.mjs')) {
+    const url = pathToFileURL(path.resolve(pnpmFilePath)).href
+    return import(url)
+  }
+  return require(pnpmFilePath)
+}
+
+function wrapReadPackageHook (pnpmfile: Pnpmfile, pnpmFilePath: string): void {
+  if (!pnpmfile.hooks) return
+  if (pnpmfile.hooks.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
+    throw new TypeError('hooks.readPackage should be a function')
+  }
+  if (pnpmfile.hooks.beforePacking && typeof pnpmfile.hooks.beforePacking !== 'function') {
+    throw new TypeError('hooks.beforePacking should be a function')
+  }
+  if (pnpmfile.hooks.readPackage) {
+    const rawReadPackage = pnpmfile.hooks.readPackage as Function // eslint-disable-line
+    pnpmfile.hooks.readPackage = async function (pkg: PackageManifest, ...args: any[]) { // eslint-disable-line
+      initializePackageDeps(pkg)
+      const newPkg = await rawReadPackage(pkg, ...args)
+      validateReadPackageResult(newPkg, pnpmFilePath)
+      return newPkg
+    }
+  }
+}
+
+function initializePackageDeps (pkg: PackageManifest): void {
+  pkg.dependencies = pkg.dependencies ?? {}
+  pkg.devDependencies = pkg.devDependencies ?? {}
+  pkg.optionalDependencies = pkg.optionalDependencies ?? {}
+  pkg.peerDependencies = pkg.peerDependencies ?? {}
+}
+
+const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const
+
+function validateReadPackageResult (newPkg: PackageManifest, pnpmFilePath: string): void {
+  if (!newPkg || typeof newPkg !== 'object' || Array.isArray(newPkg)) {
+    throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
+  }
+  for (const dep of DEPENDENCY_FIELDS) {
+    validateDepField(newPkg, dep, pnpmFilePath)
+  }
+}
+
+function validateDepField (newPkg: PackageManifest, dep: typeof DEPENDENCY_FIELDS[number], pnpmFilePath: string): void {
+  const deps = newPkg[dep]
+  if (deps != null && (typeof deps !== 'object' || Array.isArray(deps))) {
+    throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
+  }
+  for (const [depName, range] of Object.entries(deps ?? {})) {
+    if (typeof range !== 'string') {
+      const typeStr = range === null ? 'null' : typeof range
+      throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned an invalid range for '${depName}' in the '${dep}' of ${describePackage(newPkg)}. Expected a string, got ${typeStr}. To remove the dependency, delete the property.`)
+    }
+  }
+}
+
+function describePackage (pkg: PackageManifest): string {
+  if (typeof pkg.name !== 'string' || !pkg.name) return 'an unnamed package'
+  return typeof pkg.version === 'string' && pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name
 }
 
 /**
@@ -119,7 +149,7 @@ function pnpmFileExistsSync (pnpmFilePath: string): boolean {
 }
 
 function toError (err: unknown): Error {
-  if (util.types.isNativeError(err) || err instanceof Error) return err
+  if (isError(err)) return err
   try {
     return new Error(String(err), { cause: err })
   } catch {

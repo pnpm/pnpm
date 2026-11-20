@@ -11,6 +11,8 @@ export type LogBase = {
 
 export type IncludedDependencies = {
   [dependenciesField in DependenciesField]: boolean
+} & {
+  peerDependencies?: boolean
 }
 
 export type ReadPackageHook = <Pkg extends BaseManifest> (pkg: Pkg, dir?: string) => Pkg | Promise<Pkg>

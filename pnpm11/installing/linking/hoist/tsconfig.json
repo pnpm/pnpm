@@ -22,10 +22,19 @@
       "path": "../../../core/core-loggers"
     },
     {
+      "path": "../../../core/error"
+    },
+    {
       "path": "../../../core/logger"
     },
     {
       "path": "../../../core/types"
+    },
+    {
+      "path": "../../../fs/graceful-fs"
+    },
+    {
+      "path": "../../../fs/symlink-dependency"
     },
     {
       "path": "../../../text/ordinal-comparator"

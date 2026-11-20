@@ -1,6 +1,9 @@
 //! The `time:` normalization pnpm applies on its way to disk.
 
-use crate::{ImporterDepVersion, PkgName};
+use crate::{
+    ImporterDepVersion,
+    PkgName,
+};
 use serde_json::Value;
 use std::collections::HashSet;
 
@@ -15,8 +18,8 @@ const IMPORTER_DEPENDENCY_GROUPS: [&str; 3] =
 /// dependency rather than one per resolved package.
 ///
 /// `document` is a serialized lockfile. Values that are not
-/// lockfile-shaped — the env lockfile, an `afterAllResolved` result that
-/// dropped a section — pass through untouched.
+/// lockfile-shaped (the env lockfile, an `afterAllResolved` result that
+/// dropped a section) pass through untouched.
 pub fn prune_time(document: &mut Value) {
     if !document.get("time").is_some_and(Value::is_object) {
         return;
@@ -26,29 +29,77 @@ pub fn prune_time(document: &mut Value) {
     time.retain(|dep_path, _| direct_dep_paths.contains(dep_path));
 }
 
-/// Every depPath the importers depend on directly, peer suffix stripped —
+/// Every depPath the importers depend on directly, peer suffix stripped,
 /// the keys a `time:` entry is allowed to carry.
 fn importer_dep_paths(document: &Value) -> HashSet<String> {
     let mut dep_paths = HashSet::new();
-    let Some(Value::Object(importers)) = document.get("importers") else { return dep_paths };
+    let importers = document
+        .get("importers")
+        .or_else(|| document.get("projects"));
+    let Some(Value::Object(importers)) = importers else { return dep_paths };
     for importer in importers.values() {
         for group in IMPORTER_DEPENDENCY_GROUPS {
             let Some(Value::Object(dependencies)) = importer.get(group) else { continue };
-            for (alias, dependency) in dependencies {
-                let Some(version) = dependency.get("version").and_then(Value::as_str) else {
-                    continue;
-                };
-                let (Ok(alias), Ok(version)) =
-                    (PkgName::parse(alias.as_str()), version.parse::<ImporterDepVersion>())
-                else {
-                    continue;
-                };
-                let Some(dep_path) = version.resolved_key(&alias) else { continue };
-                dep_paths.insert(dep_path.without_peer().to_string());
-            }
+            dep_paths.extend(
+                dependencies
+                    .iter()
+                    .filter_map(|(alias, dependency)| {
+                        resolved_dep_path(alias, dependency, document)
+                    }),
+            );
         }
     }
     dep_paths
+}
+
+/// A catalog entry's specifier and version. In the next lockfile format the
+/// entry can be the specifier alone, whose version follows from it.
+fn catalog_entry(entry: &Value) -> Option<(String, String)> {
+    if let Some(specifier) = entry.as_str() {
+        let version = crate::implied_version::catalog_implied_version(specifier)?;
+        return Some((specifier.to_string(), version.to_string()));
+    }
+    let text = |key: &str| Some(entry.get(key)?.as_str()?.to_string());
+    Some((text("specifier")?, text("version")?))
+}
+
+/// The peer-suffix-stripped depPath one importer dependency entry resolves
+/// to. An entry the reader cannot parse names no `time:` key. In the next
+/// lockfile format, an entry can be the specifier alone, or a map without
+/// `version`, whose version is implied, through `catalogs`, under
+/// `settings` in that format, for a `catalog:` specifier. A `workspace:` specifier alone names an injected
+/// or a linked workspace project, which has no `time:` entry, so it is not
+/// looked up.
+fn resolved_dep_path(alias: &str, dependency: &Value, document: &Value) -> Option<String> {
+    let implied = |specifier: &str| {
+        crate::implied_version::implied_version(
+            alias,
+            specifier,
+            |catalog, alias| {
+                let catalogs = document
+                    .get("catalogs")
+                    .or_else(|| document.get("settings")?.get("catalogs"))?;
+                catalog_entry(catalogs.get(catalog)?.get(alias)?)
+            },
+            |_| None,
+            |_| None,
+        )
+    };
+    let version = match dependency {
+        Value::String(specifier) => implied(specifier)?,
+        _ => match dependency.get("version").and_then(Value::as_str) {
+            Some(version) => version.to_string(),
+            None => implied(dependency.get("specifier")?.as_str()?)?,
+        },
+    };
+    let alias = PkgName::parse(alias).ok()?;
+    let version = version.parse::<ImporterDepVersion>().ok()?;
+    Some(
+        version
+            .resolved_key(&alias)?
+            .without_peer()
+            .to_string(),
+    )
 }
 
 #[cfg(test)]

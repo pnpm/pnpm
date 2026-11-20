@@ -1,5 +1,12 @@
-use super::{SnapshotDepRef, looks_like_alias};
-use crate::{PkgName, PkgNameVerPeer, PkgVerPeer};
+use super::{
+    SnapshotDepRef,
+    looks_like_alias,
+};
+use crate::{
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+};
 use pretty_assertions::assert_eq;
 
 fn pkg_name(text: &str) -> PkgName {
@@ -47,14 +54,18 @@ fn parse_alias_with_peer_suffix() {
 #[test]
 fn resolve_plain_uses_alias_key_as_target_name() {
     let dep: SnapshotDepRef = "5.1.2".parse().unwrap();
-    let resolved = dep.resolve(&pkg_name("string-width")).expect("plain resolves");
+    let resolved = dep
+        .resolve(&pkg_name("string-width"))
+        .expect("plain resolves");
     assert_eq!(resolved.to_string(), "string-width@5.1.2");
 }
 
 #[test]
 fn resolve_alias_uses_alias_target_name_not_key() {
     let dep: SnapshotDepRef = "string-width@4.2.3".parse().unwrap();
-    let resolved = dep.resolve(&pkg_name("string-width-cjs")).expect("alias resolves");
+    let resolved = dep
+        .resolve(&pkg_name("string-width-cjs"))
+        .expect("alias resolves");
     assert_eq!(resolved.to_string(), "string-width@4.2.3");
 }
 
@@ -134,4 +145,22 @@ fn from_pkg_ver_peer_produces_plain_variant() {
     let ver = ver_peer("17.0.2(react@17.0.2)");
     let dep: SnapshotDepRef = ver.clone().into();
     assert_eq!(dep, SnapshotDepRef::Plain(ver));
+}
+
+#[test]
+fn package_root_link_target_accepts_only_plain_paths_inside_the_package() {
+    use crate::package_root_link_target;
+    assert_eq!(package_root_link_target("<root>/typings/css-tree"), Some("typings/css-tree"));
+    for target in [
+        "<root>/",
+        "<root>/../outside",
+        "<root>/a/../../outside",
+        "<root>/a/./b",
+        "<root>/a//b",
+        "<root>/C:/Users/Public",
+        r"<root>/a\..\..\outside",
+        "packages/c",
+    ] {
+        assert_eq!(package_root_link_target(target), None, "{target}");
+    }
 }

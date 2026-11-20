@@ -32,10 +32,15 @@ test('getPeerVersionRange keeps valid peer ranges unchanged', () => {
   expect(getPeerVersionRange('catalog:')).toBe('catalog:')
 })
 
-test('getPeerVersionRange strips a leading workspace: prefix', () => {
-  expect(getPeerVersionRange('workspace:^')).toBe('^')
+test('getPeerVersionRange keeps an explicit workspace: version', () => {
   expect(getPeerVersionRange('workspace:1.2.3')).toBe('1.2.3')
+})
+
+test('getPeerVersionRange treats the workspace: wildcard tokens as *', () => {
   expect(getPeerVersionRange('workspace:*')).toBe('*')
+  expect(getPeerVersionRange('workspace:^')).toBe('*')
+  expect(getPeerVersionRange('workspace:~')).toBe('*')
+  expect(getPeerVersionRange('workspace:')).toBe('*')
 })
 
 test('getPeerVersionRange extracts the semver body from named-registry and npm: specifiers', () => {

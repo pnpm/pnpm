@@ -19,7 +19,7 @@ test('pnpm store add express@4.16.3', async () => {
     dir: process.cwd(),
     pnpmHomeDir: '',
     configByUri: {},
-    registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+    registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/` },
     storeDir,
     dlxCacheMaxAge: 0,
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -41,7 +41,7 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     pnpmHomeDir: '',
     configByUri: {},
     registriesByScope: {
-      '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
       default: 'https://registry.npmjs.org/',
     },
     storeDir,
@@ -51,6 +51,25 @@ test('pnpm store add scoped package that uses not the standard registry', async 
 
   const { cafsHas } = assertStore(path.join(storeDir, STORE_VERSION))
   cafsHas('@foo/no-deps', '1.0.0')
+})
+
+test('pnpm store add fails without touching the store when frozenStore is enabled', async () => {
+  tempDir()
+
+  const storeDir = path.resolve('store')
+
+  await expect(store.handler({
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    pnpmHomeDir: '',
+    configByUri: {},
+    registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/` },
+    storeDir,
+    frozenStore: true,
+    dlxCacheMaxAge: 0,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['add', 'is-positive@1.0.0'])).rejects.toMatchObject({ code: 'ERR_PNPM_FROZEN_STORE_WRITE' })
+  expect(fs.existsSync(storeDir)).toBe(false)
 })
 
 test('should fail if some packages can not be added', async () => {
@@ -68,7 +87,7 @@ test('should fail if some packages can not be added', async () => {
       pnpmHomeDir: '',
       configByUri: {},
       registriesByScope: {
-        '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+        '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
         default: 'https://registry.npmjs.org/',
       },
       storeDir,

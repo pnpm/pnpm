@@ -10,6 +10,7 @@ const BUNDLED_MANIFEST_FIELDS: Array<keyof BaseManifest> = [
   'devDependencies',
   'directories',
   'engines',
+  'gypfile',
   'libc',
   'name',
   'optionalDependencies',
@@ -25,6 +26,17 @@ const LIFECYCLE_SCRIPTS = ['preinstall', 'install', 'postinstall'] as const
  * Used both when writing the index (worker) and when creating a BundledManifest from a fresh fetch.
  */
 export function normalizeBundledManifest (manifest: Partial<BaseManifest>): BundledManifest | undefined {
+  const result = pickBundledFields(manifest)
+  const scripts = manifest.scripts ? pickLifecycleScripts(manifest.scripts) : undefined
+  if (!result && !scripts) return undefined
+  return {
+    version: semver.clean(manifest.version ?? '0.0.0', { loose: true }) ?? manifest.version,
+    ...result,
+    ...scripts ? { scripts } : {},
+  } as BundledManifest
+}
+
+function pickBundledFields (manifest: Partial<BaseManifest>): Record<string, unknown> | undefined {
   let result: Record<string, unknown> | undefined
   for (const key of BUNDLED_MANIFEST_FIELDS) {
     if (manifest[key] != null) {
@@ -32,19 +44,16 @@ export function normalizeBundledManifest (manifest: Partial<BaseManifest>): Bund
       result[key] = manifest[key]
     }
   }
+  return result
+}
+
+function pickLifecycleScripts (manifestScripts: NonNullable<BaseManifest['scripts']>): Record<string, string> | undefined {
   let scripts: Record<string, string> | undefined
-  if (manifest.scripts) {
-    for (const key of LIFECYCLE_SCRIPTS) {
-      if (manifest.scripts[key]) {
-        if (!scripts) scripts = {}
-        scripts[key] = manifest.scripts[key]
-      }
+  for (const key of LIFECYCLE_SCRIPTS) {
+    if (manifestScripts[key]) {
+      if (!scripts) scripts = {}
+      scripts[key] = manifestScripts[key]
     }
   }
-  if (!result && !scripts) return undefined
-  return {
-    version: semver.clean(manifest.version ?? '0.0.0', { loose: true }) ?? manifest.version,
-    ...result,
-    ...scripts ? { scripts } : {},
-  } as BundledManifest
+  return scripts
 }

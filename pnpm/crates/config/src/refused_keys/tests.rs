@@ -1,19 +1,34 @@
-use super::{is_refused_by_a_project_manifest, where_refused_key_belongs};
+use super::{
+    is_refused_by_a_project_manifest,
+    where_refused_key_belongs,
+};
 
 /// The global config file takes these under a name of their own.
 #[test]
 fn a_key_the_global_config_file_takes_is_routed_there() {
     for (camel_key, kebab_key) in [
+        ("ci", "ci"),
         ("stateDir", "state-dir"),
         ("globalDir", "global-dir"),
         ("globalBinDir", "global-bin-dir"),
+        ("globalShims", "global-shims"),
         ("npmrcAuthFile", "npmrc-auth-file"),
+        ("symlinkedLockfileTargetDirs", "symlinked-lockfile-target-dirs"),
+        ("tools", "tools"),
     ] {
         assert_eq!(
             where_refused_key_belongs(camel_key),
             format!("Set it for the machine instead: pnpm config set --global {kebab_key}"),
         );
     }
+}
+
+#[test]
+fn the_structured_macos_backup_key_is_routed_to_its_global_fields() {
+    assert_eq!(
+        where_refused_key_belongs("macosBackup"),
+        "Set macosBackup.excludeModulesDir or macosBackup.excludeStoreDir in the global config.yaml instead",
+    );
 }
 
 /// These are derived from a key the global config file does take, and naming
@@ -75,12 +90,28 @@ fn refusal_is_spelling_insensitive() {
     assert!(is_refused_by_a_project_manifest("authConfig"));
     assert!(is_refused_by_a_project_manifest("auth-config"));
     assert!(is_refused_by_a_project_manifest("hooks"));
+    assert!(is_refused_by_a_project_manifest("macos-backup"));
+    assert!(is_refused_by_a_project_manifest("macosBackup"));
     assert!(!is_refused_by_a_project_manifest("storeDir"));
     assert!(!is_refused_by_a_project_manifest("node-linker"));
 }
 
+/// Every machine setting is refused in a project manifest and accepted by the
+/// global config file, so `pnpm config set` never leaves one unreachable in
+/// both scopes.
+#[test]
+fn every_machine_setting_is_refused_and_routed_to_global_config() {
+    for key in crate::MachineSettings::keys() {
+        assert!(is_refused_by_a_project_manifest(key), "{key}");
+        assert!(
+            crate::config_types::is_config_file_key(&crate::naming_cases::to_kebab_case(key)),
+            "{key} must be accepted by is_config_file_key",
+        );
+    }
+}
+
 /// The global config file refuses a per-invocation key too, so the route
-/// offered for it must name neither file — otherwise the warning sends the
+/// offered for it must name neither file. Otherwise the warning sends the
 /// user to the one that also drops it.
 #[test]
 fn a_per_invocation_key_is_routed_to_the_flag_and_the_environment() {

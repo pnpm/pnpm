@@ -3,7 +3,12 @@ use std::path::Path;
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 
-use super::{IntentBumpType, parse_change_intent, read_change_intents, write_change_intent};
+use super::{
+    IntentBumpType,
+    parse_change_intent,
+    read_change_intents,
+    write_change_intent,
+};
 
 #[test]
 fn parses_the_changesets_file_format() {
@@ -41,6 +46,16 @@ fn rejects_a_file_without_frontmatter() {
     let err = parse_change_intent("Just some text.", "id", Path::new("/x/id.md"))
         .expect_err("parse must fail");
     assert!(err.to_string().contains("no YAML frontmatter"), "unexpected error: {err}");
+}
+
+#[test]
+fn comment_only_and_null_frontmatter_declare_no_releases() {
+    for content in ["---\n# no bumps\n---\n\nA fix.\n", "---\nnull\n---\n\nA fix.\n"] {
+        eprintln!("CASE: {content:?}");
+        let intent = parse_change_intent(content, "id", Path::new("/x/id.md")).expect("parse");
+        assert!(intent.releases.is_empty());
+        assert_eq!(intent.summary, "A fix.");
+    }
 }
 
 #[test]

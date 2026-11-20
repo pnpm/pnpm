@@ -1,42 +1,111 @@
+use super::child_seeds::landed_on_prior_entry;
+mod map_resolve_error;
 mod shared_workspace_resolution_cache;
+mod stale_pin_refresh;
 
-use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, RegistryResolution, TarballRevision};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgNameVerPeer,
+    RegistryResolution,
+    TarballRevision,
+};
 
-use super::{
-    exact_registry_specifier_for_revision_refresh, landed_on_prior_entry,
+use super::locked_versions::{
+    exact_registry_specifier_for_revision_refresh,
     registry_revisions_conflict,
 };
+
+/// `corp` and `zeta` both declare one registry; its keys carry `corp`.
+fn corp_registries() -> pnpm_lockfile::RegistryContext {
+    let registry = "https://corp.example.test/";
+    pnpm_lockfile::RegistryContext {
+        registries_by_prefix: std::collections::HashMap::from([
+            ("corp".to_string(), registry.to_string()),
+            ("zeta".to_string(), registry.to_string()),
+        ]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new(
+            [("corp", registry), ("zeta", registry)],
+            "https://registry.npmjs.org/",
+        ),
+        ..Default::default()
+    }
+}
 
 fn key(raw: &str) -> PkgNameVerPeer {
     raw.parse().expect("parse snapshot key")
 }
 
+fn no_prefixes() -> pnpm_lockfile::RegistryContext {
+    pnpm_lockfile::RegistryContext::default()
+}
+
+/// `work` declared for the default registry.
+fn work_default_registry() -> pnpm_lockfile::RegistryContext {
+    let registry = "https://registry.example.test/";
+    pnpm_lockfile::RegistryContext {
+        registries: std::collections::HashMap::from([(
+            "default".to_string(),
+            registry.to_string(),
+        )]),
+        registries_by_prefix: std::collections::HashMap::from([(
+            "work".to_string(),
+            registry.to_string(),
+        )]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new(
+            [("work", registry)],
+            registry,
+        ),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn matches_the_re_keyed_id_of_the_recorded_entry() {
+    let registries = work_default_registry();
+    assert!(landed_on_prior_entry(&key("foo@work:1.0.0(bar@2.0.0)"), "foo@1.0.0", &registries));
+    assert!(!landed_on_prior_entry(&key("foo@work:1.0.0"), "foo@1.1.0", &registries));
+    assert!(!landed_on_prior_entry(&key("foo@work:1.0.0"), "foo@1.0.0", &no_prefixes()));
+}
+
 #[test]
 fn matches_a_plain_registry_id() {
-    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0"));
-    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.1.0"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0", &no_prefixes()));
+    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.1.0", &no_prefixes()));
 }
 
 #[test]
 fn strips_the_recorded_key_peer_and_patch_suffixes() {
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@1.0.0"));
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)"), "foo@1.0.0"));
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)(bar@2.0.0)"), "foo@1.0.0"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@1.0.0", &no_prefixes()));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)"), "foo@1.0.0", &no_prefixes()));
+    assert!(landed_on_prior_entry(
+        &key("foo@1.0.0(patch_hash=0000)(bar@2.0.0)"),
+        "foo@1.0.0",
+        &no_prefixes()
+    ));
 }
 
 #[test]
 fn strips_the_resolved_id_patch_suffix() {
     assert!(landed_on_prior_entry(
         &key("foo@1.0.0(patch_hash=0000)"),
-        "foo@1.0.0(patch_hash=0000)"
-    ));
-    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0(patch_hash=0000)"));
+        "foo@1.0.0(patch_hash=0000)",
+        &no_prefixes()
+    ),);
+    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0(patch_hash=0000)", &no_prefixes()));
 }
 
 #[test]
 fn matches_a_name_prefixed_file_id() {
-    assert!(landed_on_prior_entry(&key("foo@file:packages/foo"), "foo@file:packages/foo"));
-    assert!(!landed_on_prior_entry(&key("foo@file:packages/foo"), "file:packages/foo"));
+    assert!(landed_on_prior_entry(
+        &key("foo@file:packages/foo"),
+        "foo@file:packages/foo",
+        &no_prefixes()
+    ));
+    assert!(!landed_on_prior_entry(
+        &key("foo@file:packages/foo"),
+        "file:packages/foo",
+        &no_prefixes()
+    ));
 }
 
 fn revision_resolution(revision: u64, integrity: &str) -> LockfileResolution {
@@ -57,7 +126,7 @@ fn conflicting_registry_revisions_are_detected() {
             2,
             "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=="
         ),
-    ));
+    ),);
 }
 
 #[test]
@@ -71,51 +140,92 @@ fn identical_registry_revisions_can_share_an_identity() {
 
 #[test]
 fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selectors() {
-    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.0.0", "1.2.3", None), "1.2.3");
+    let registries = corp_registries();
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("npm:@scope/pkg@^1.0.0", "1.2.3", None,),
+        exact_registry_specifier_for_revision_refresh("^1.0.0", "1.2.3", None, &registries),
+        "1.2.3",
+    );
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh(
+            "npm:@scope/pkg@^1.0.0",
+            "1.2.3",
+            None,
+            &registries,
+        ),
         "npm:@scope/pkg@1.2.3",
     );
     assert_eq!(
         exact_registry_specifier_for_revision_refresh(
             "corp:@scope/pkg@^1.0.0",
             "1.2.3",
-            Some("corp"),
+            Some("https://corp.example.test/"),
+            &registries,
         ),
         "corp:@scope/pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("corp:@scope/pkg", "1.2.3", Some("corp"),),
+        exact_registry_specifier_for_revision_refresh(
+            "corp:@scope/pkg",
+            "1.2.3",
+            Some("https://corp.example.test/"),
+            &registries,
+        ),
         "corp:@scope/pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("corp:pkg", "1.2.3", Some("corp"),),
+        exact_registry_specifier_for_revision_refresh(
+            "corp:pkg",
+            "1.2.3",
+            Some("https://corp.example.test/"),
+            &registries
+        ),
         "corp:pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("jsr:@scope/pkg", "1.2.3", None,),
+        exact_registry_specifier_for_revision_refresh(
+            "zeta:pkg@^1.0.0",
+            "1.2.3",
+            Some("https://corp.example.test/"),
+            &registries
+        ),
+        "zeta:pkg@1.2.3",
+        "a key an older configuration wrote with another alias of the registry",
+    );
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh("jsr:@scope/pkg", "1.2.3", None, &registries),
         "jsr:@scope/pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("1.2.3+r1", "1.2.3", None),
+        exact_registry_specifier_for_revision_refresh("1.2.3+r1", "1.2.3", None, &registries),
         "1.2.3+r1",
     );
-    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.2.3+r1", "1.2.3", None), "1.2.3");
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh("^1.2.3+r1", "1.2.3", None, &registries),
+        "1.2.3",
+    );
     assert_eq!(
         exact_registry_specifier_for_revision_refresh(
             "git+https://example.test/repo.git",
             "1.2.3",
-            None
+            None,
+            &registries,
         ),
         "git+https://example.test/repo.git",
     );
 }
 
 /// A resolver that hands back no manifest still has to give the package
-/// an identity — see <https://github.com/pnpm/pnpm/issues/13410>.
+/// an identity; see <https://github.com/pnpm/pnpm/issues/13410>.
 mod fallback_manifest {
-    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-    use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, WantedDependency};
+    use pnpm_lockfile::{
+        DirectoryResolution,
+        LockfileResolution,
+    };
+    use pnpm_resolving_resolver_base::{
+        CurrentPkg,
+        PkgResolutionId,
+        WantedDependency,
+    };
 
     fn wanted(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
         WantedDependency {
@@ -134,35 +244,36 @@ mod fallback_manifest {
                 directory: "sub".to_string(),
             }),
             published_at: None,
+            manifest: None,
         }
     }
 
     #[test]
     fn the_alias_names_the_package() {
         assert_eq!(
-            super::super::fallback_manifest(
+            super::super::workspace_resolution::fallback_manifest(
                 &wanted(Some("no-manifest"), Some("file:./no-manifest-1.0.0.tgz")),
                 None,
             ),
-            serde_json::json!({ "name": "no-manifest", "version": "0.0.0" }),
+            serde_json::json!({ "name": "no-manifest" }),
         );
     }
 
     #[test]
     fn an_unaliased_dep_is_named_by_its_specifier_s_last_segment() {
         assert_eq!(
-            super::super::fallback_manifest(
+            super::super::workspace_resolution::fallback_manifest(
                 &wanted(None, Some("https://example.com/no-manifest-1.0.0.tgz")),
                 None,
             ),
-            serde_json::json!({ "name": "no-manifest-1.0.0.tgz", "version": "0.0.0" }),
+            serde_json::json!({ "name": "no-manifest-1.0.0.tgz" }),
         );
     }
 
     #[test]
     fn the_lockfile_s_pin_wins_over_the_alias() {
         assert_eq!(
-            super::super::fallback_manifest(
+            super::super::workspace_resolution::fallback_manifest(
                 &wanted(Some("sub"), Some("file:./sub")),
                 Some(&current_pkg(Some("sub"), Some("2.0.0"))),
             ),
@@ -171,13 +282,111 @@ mod fallback_manifest {
     }
 
     #[test]
+    fn the_lockfile_manifest_is_reused() {
+        let mut pkg = current_pkg(Some("sub"), Some("2.0.0"));
+        pkg.manifest = Some(std::sync::Arc::new(serde_json::json!({
+            "name": "sub",
+            "version": "2.0.0",
+            "dependencies": { "dep": "1.0.0" },
+        })));
+        assert_eq!(
+            super::super::workspace_resolution::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&pkg),
+            ),
+            serde_json::json!({
+                "name": "sub",
+                "version": "2.0.0",
+                "dependencies": { "dep": "1.0.0" },
+            }),
+        );
+    }
+
+    #[test]
     fn a_half_recorded_pin_falls_through_to_the_alias() {
         assert_eq!(
-            super::super::fallback_manifest(
+            super::super::workspace_resolution::fallback_manifest(
                 &wanted(Some("sub"), Some("file:./sub")),
                 Some(&current_pkg(Some("sub"), None)),
             ),
-            serde_json::json!({ "name": "sub", "version": "0.0.0" }),
+            serde_json::json!({ "name": "sub" }),
         );
     }
+
+    #[test]
+    fn a_synthesized_zero_version_in_current_pkg_is_omitted() {
+        assert_eq!(
+            super::super::workspace_resolution::fallback_manifest(
+                &wanted(Some("sub"), Some("file:./sub")),
+                Some(&current_pkg(Some("sub"), Some("0.0.0"))),
+            ),
+            serde_json::json!({ "name": "sub" }),
+        );
+    }
+}
+
+mod overlay_view {
+    use super::super::locked_versions::overlay_version_view;
+    use pnpm_resolving_resolver_base::{
+        DIRECT_DEP_SELECTOR_WEIGHT,
+        PreferredVersionsOverlay,
+        RESOLVED_VERSION_SELECTOR_WEIGHT,
+        WantedDependency,
+    };
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn overlay_version_view_distinguishes_direct_and_descendant_weights() {
+        let direct_overlay = PreferredVersionsOverlay::layer_direct(
+            None,
+            BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]),
+        )
+        .unwrap();
+        let descendant_overlay = PreferredVersionsOverlay::layer(
+            None,
+            BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]),
+        )
+        .unwrap();
+
+        let wanted = WantedDependency {
+            alias: Some("foo".to_string()),
+            bare_specifier: Some("^1.0.0".to_string()),
+            ..WantedDependency::default()
+        };
+
+        let direct_view = overlay_version_view(&direct_overlay, &wanted);
+        let descendant_view = overlay_version_view(&descendant_overlay, &wanted);
+
+        assert_eq!(
+            direct_view,
+            vec![("foo".to_string(), vec![("1.0.0".to_string(), DIRECT_DEP_SELECTOR_WEIGHT)])],
+        );
+        assert_eq!(
+            descendant_view,
+            vec![(
+                "foo".to_string(),
+                vec![("1.0.0".to_string(), RESOLVED_VERSION_SELECTOR_WEIGHT)],
+            )],
+        );
+        assert_ne!(direct_view, descendant_view);
+    }
+}
+
+/// A transitive edge keeps the version its registry-qualified key locks, as
+/// it keeps a plain key's.
+#[test]
+fn a_registry_qualified_locked_version_pins_a_transitive_range() {
+    let ctx = crate::resolve_dependency_tree::TreeCtx::with_workspace(
+        std::sync::Arc::new(
+            crate::resolve_dependency_tree::workspace_ctx::WorkspaceTreeCtx::default(),
+        ),
+        pnpm_resolving_resolver_base::ResolveOptions::default(),
+    );
+    let mut wanted = pnpm_resolving_resolver_base::WantedDependency {
+        alias: Some("foo".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..Default::default()
+    };
+    super::locked_versions::pin_locked_version(&ctx, &mut wanted, Some(&key("foo@work:1.0.0")), 1);
+    assert_eq!(wanted.bare_specifier.as_deref(), Some("1.0.0"));
 }

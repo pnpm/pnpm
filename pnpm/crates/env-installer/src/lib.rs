@@ -1,4 +1,4 @@
-//! Resolves and installs *configurational dependencies* — the packages
+//! Resolves and installs *configurational dependencies*, the packages
 //! declared under `configDependencies` in `pnpm-workspace.yaml`. They
 //! are installed ahead of regular dependencies, into
 //! `node_modules/.pnpm-config/<name>`, and recorded in the env lockfile
@@ -10,28 +10,51 @@
 //! config-finalization seam in the CLI drives this crate before the
 //! main install runs.
 
+pub use errors::ConfigDepError;
+pub use install_config_deps::install_config_deps;
+pub use options::{
+    ConfigDependencyStore,
+    ConfigDependencyStoreIndex,
+    ConfigDependencyVerification,
+    ConfigDepsInstallMode,
+    ConfigDepsInstallOptions,
+    EnvLockfileOptions,
+};
+pub use parse_integrity::{
+    NormalizedConfigDep,
+    NormalizedSubdep,
+    parse_integrity,
+};
+pub use pnpm_lockfile::prune_env_lockfile;
+pub use read_config_dependency_lockfile::read_config_dependency_lockfile;
+pub use resolve_and_install_config_deps::{
+    ConfigDepUpdates,
+    resolve_and_install_config_deps,
+    resolve_and_install_config_deps_updating,
+};
+pub use resolve_optional_subdeps::resolve_optional_subdeps;
+pub use resolve_package_manager_integrities::{
+    is_package_manager_resolved,
+    pnpm_engine_packages,
+    resolve_package_manager_integrities,
+    running_version_unpublished,
+};
+pub use verify_env_lockfile::{
+    verify_env_lockfile,
+    write_verified_env_lockfile,
+};
+
 mod errors;
 mod install_config_deps;
 mod manifest_lockfile;
 mod options;
 mod parse_integrity;
-mod prune;
+mod read_config_dependency_lockfile;
 mod resolve_and_install_config_deps;
 mod resolve_optional_subdeps;
 mod resolve_package_manager_integrities;
+mod verify_config_dep_resolutions;
 mod verify_env_lockfile;
-
-pub use errors::ConfigDepError;
-pub use install_config_deps::install_config_deps;
-pub use options::ConfigDepsInstallOptions;
-pub use parse_integrity::{NormalizedConfigDep, NormalizedSubdep, parse_integrity};
-pub use prune::prune_env_lockfile;
-pub use resolve_and_install_config_deps::resolve_and_install_config_deps;
-pub use resolve_optional_subdeps::resolve_optional_subdeps;
-pub use resolve_package_manager_integrities::{
-    is_package_manager_resolved, pnpm_engine_packages, resolve_package_manager_integrities,
-};
-pub use verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile};
 
 #[cfg(test)]
 mod tests;

@@ -9,6 +9,7 @@ export interface AddUserResponse {
 export interface AddUserFetch {
   (url: string, init: {
     method: 'PUT'
+    redirect?: RequestRedirect
     headers: Record<string, string>
     body: string
   }): Promise<AddUserResponse>
@@ -57,10 +58,12 @@ export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
   const url = new URL(`-/user/org.couchdb.user:${encodeURIComponent(opts.username)}`, opts.registryUrl).href
   const response = await opts.fetch(url, {
     method: 'PUT',
+    redirect: 'manual',
     headers: {
       'content-type': 'application/json',
       accept: 'application/json',
       'npm-auth-type': 'web',
+      authorization: `Basic ${Buffer.from(`${opts.username}:${opts.password}`, 'utf8').toString('base64')}`,
       ...(opts.otp != null ? { 'npm-otp': opts.otp } : {}),
     },
     body: JSON.stringify({

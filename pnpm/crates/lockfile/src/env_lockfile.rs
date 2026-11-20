@@ -1,4 +1,4 @@
-//! The *env lockfile* — the first YAML document of `pnpm-lock.yaml`.
+//! The *env lockfile*, the first YAML document of `pnpm-lock.yaml`.
 //!
 //! Pnpm v11 records configurational dependencies (and the
 //! `packageManager`/`devEngines` bootstrap deps) in a separate YAML
@@ -10,28 +10,56 @@
 //! The `packages:` and `snapshots:` maps reuse the same
 //! [`PackageMetadata`] / [`SnapshotEntry`] types as the main lockfile, so
 //! the env document inherits the main lockfile's byte-for-byte
-//! serialization parity.
+//! serialization parity. In the next format it has the main document's
+//! shape and syntax too, through [`next`].
 
 use crate::{
-    LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
+    LoadLockfileError,
+    Lockfile,
+    LockfileFormat,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    SaveLockfileError,
+    SnapshotEntry,
+    SymlinkedLockfile,
+    declares_next_format,
     extract_main_document,
-    save_lockfile::ensure_lockfile_is_not_symlink,
+    git_merge_file::{
+        ParsedWantedFile,
+        parse_wanted_file,
+    },
+    load_lockfile::yaml_parse_options,
+    merge_env_lockfile_changes,
+    save_lockfile::lockfile_write_target,
     serialize_yaml,
-    yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, read_first_yaml_document},
+    yaml_documents::{
+        YAML_DOCUMENT_SEPARATOR,
+        YAML_DOCUMENT_START,
+        normalize_lockfile_content,
+        read_first_yaml_document,
+    },
 };
 use pnpm_fs::write_atomic;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    fs::{self, File},
-    io::{self, ErrorKind, Read as _},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
     path::Path,
 };
-
-#[cfg(unix)]
-use crate::save_lockfile::symlinked_lockfile_error;
-#[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt as _;
 
 /// The resolved `{ specifier, version }` pair recorded for each config
 /// (or package-manager) dependency under an importer.
@@ -46,7 +74,7 @@ pub struct SpecifierAndResolution {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvImporterSnapshot {
-    /// Always serialized — the key is seeded even when empty, so the env
+    /// Always serialized, the key is seeded even when empty, so the env
     /// document always carries it.
     #[serde(default)]
     pub config_dependencies: BTreeMap<String, SpecifierAndResolution>,
@@ -88,7 +116,6 @@ impl EnvLockfile {
         let mut importers = HashMap::new();
         importers.insert(Self::ROOT_IMPORTER_KEY.to_string(), EnvImporterSnapshot::default());
         EnvLockfile {
-            // Seeds the `lockfileVersion` "9.0" string.
             lockfile_version: "9.0".to_string(),
             importers,
             packages: HashMap::new(),
@@ -112,35 +139,147 @@ impl EnvLockfile {
     ///
     /// Only the leading document is read: the dependency graph that
     /// follows it never reaches memory.
+    ///
+    /// Two branches that each added a config dependency conflict inside
+    /// this document, where the main lockfile's own recovery never looks,
+    /// so the same merge runs here.
     pub fn read(root_dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
         let Some(env_doc) = read_env_document(&path).map_err(LoadLockfileError::ReadFile)? else {
             return Ok(None);
         };
-        let mut env: EnvLockfile = serde_saphyr::from_str(&env_doc)
-            .map_err(|source| LoadLockfileError::parse_yaml(&path, &source))?;
+        Ok(Self::parse_conflicted_document(&env_doc, &path)?.value)
+    }
+
+    /// [`Self::read`]'s parse of one env document, with the number of
+    /// files its Git conflict markers had to be merged out of, 1 or 0,
+    /// since it is handed a single document.
+    pub(crate) fn parse_conflicted_document(
+        env_doc: &str,
+        path: &Path,
+    ) -> Result<ParsedWantedFile<Self>, LoadLockfileError> {
+        parse_wanted_file(env_doc, path, Self::parse_document, merge_env_lockfile_changes)
+    }
+
+    fn parse_document(env_doc: &str, path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        let mut env = if declares_next_format(env_doc) {
+            next::from_text(env_doc, path)?
+        } else {
+            serde_saphyr::from_str_with_options::<EnvLockfile>(
+                env_doc,
+                yaml_parse_options(env_doc.len()),
+            )
+            .map_err(|source| LoadLockfileError::parse_yaml(path, &source))?
+        };
         env.root_importer_mut();
         Ok(Some(env))
     }
 
     /// Write this env document as the first YAML document of
-    /// `<root_dir>/pnpm-lock.yaml`, preserving any existing main
-    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`.
-    pub fn write(&self, root_dir: &Path) -> Result<(), SaveLockfileError> {
+    /// `<root_dir>/pnpm-lock.yaml`, in `format`, the pinned pnpm's (see
+    /// [`EnvDocumentFormat::for_pnpm`]), preserving any existing main
+    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`. An
+    /// unchanged document is not rewritten, and a changed one treats a
+    /// symlinked lockfile as `symlinked` says.
+    pub fn write(
+        &self,
+        root_dir: &Path,
+        symlinked: SymlinkedLockfile<'_>,
+        format: EnvDocumentFormat,
+    ) -> Result<(), SaveLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
-        ensure_lockfile_is_not_symlink(&path).map_err(SaveLockfileError::WriteFile)?;
-        let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
-        let main_doc = read_lockfile_to_string_no_follow(&path)
-            .map_err(SaveLockfileError::WriteFile)?
-            .map_or_else(String::new, |existing| extract_main_document(&existing).to_string());
+        let env_yaml = self.document_text(format)?;
+        let raw = match fs::read_to_string(&path) {
+            Ok(raw) => Some(raw),
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(error) => return Err(SaveLockfileError::WriteFile(error)),
+        };
+        let existing = raw.as_deref().map(normalize_lockfile_content);
+        let main_doc = existing
+            .as_deref()
+            .map(extract_main_document)
+            .unwrap_or_default();
         let combined =
             format!("{YAML_DOCUMENT_START}{env_yaml}{YAML_DOCUMENT_SEPARATOR}{main_doc}");
-        write_atomic(&path, combined.as_bytes()).map_err(SaveLockfileError::WriteFile)
+        if existing.as_deref() == Some(combined.as_str()) {
+            return Ok(());
+        }
+        let target = lockfile_write_target(&path, symlinked).map_err(SaveLockfileError::WriteFile)?;
+        write_atomic(&target, combined.as_bytes()).map_err(SaveLockfileError::WriteFile)
     }
 }
 
+/// The format of the env document: that of the pnpm major that owns the
+/// project, the pinned one, so that the pnpm writing the document and the
+/// pinned pnpm agree on it whichever writes. The env document changes
+/// format one major after the main document, so that the pnpm versions
+/// that switch into a project can read it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnvDocumentFormat {
+    /// Lockfile 9.0's shape and syntax.
+    V9,
+    /// The next format's shape and syntax, under `lockfileVersion: '13.0'`.
+    V13,
+}
+
+impl EnvDocumentFormat {
+    /// The first pnpm major whose projects have a v13 env document.
+    pub const V13_FROM_MAJOR: u64 = 14;
+
+    /// The format for a project that pins, or runs, pnpm `version`. A
+    /// version that does not parse gets today's.
+    #[must_use]
+    pub fn for_pnpm(version: &str) -> Self {
+        let major = version
+            .split('.')
+            .next()
+            .map(str::parse::<u64>)
+            .and_then(Result::ok);
+        if major.is_some_and(|major| major >= Self::V13_FROM_MAJOR) { Self::V13 } else { Self::V9 }
+    }
+
+    fn lockfile_version(self) -> LockfileVersion<9> {
+        match self {
+            EnvDocumentFormat::V9 => LockfileFormat::V9.version(),
+            EnvDocumentFormat::V13 => LockfileFormat::V13.version(),
+        }
+    }
+}
+
+impl EnvLockfile {
+    /// This document's text in `format`, which decides its shape and
+    /// syntax and the `lockfileVersion` it declares. A document read in
+    /// the next format and written in today's declares today's version,
+    /// so that it reads back as today's shape; any other version string is
+    /// kept, since the env installer does not own it.
+    fn document_text(&self, format: EnvDocumentFormat) -> Result<String, SaveLockfileError> {
+        match format {
+            EnvDocumentFormat::V13 => next::to_text(self, format.lockfile_version()),
+            EnvDocumentFormat::V9 if self.declares_next_format() => {
+                let mut env = self.clone();
+                env.lockfile_version = EnvDocumentFormat::V9.lockfile_version().to_string();
+                serialize_yaml::to_string(&env).map_err(SaveLockfileError::SerializeYaml)
+            }
+            EnvDocumentFormat::V9 => {
+                serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)
+            }
+        }
+    }
+
+    fn declares_next_format(&self) -> bool {
+        self.lockfile_version
+            .split('.')
+            .next()
+            .map(str::parse::<u16>)
+            .and_then(Result::ok)
+            == Some(crate::NEXT_LOCKFILE_MAJOR)
+    }
+}
+
+mod next;
+
 /// Reads the leading env document, following a symlink;
-/// [`ensure_lockfile_is_not_symlink`] covers why only writes refuse one.
+/// [`SymlinkedLockfile`] covers why only writes may refuse one.
 fn read_env_document(path: &Path) -> io::Result<Option<String>> {
     match File::open(path) {
         Ok(file) => read_first_yaml_document(file),
@@ -149,39 +288,19 @@ fn read_env_document(path: &Path) -> io::Result<Option<String>> {
     }
 }
 
-fn read_lockfile_to_string_no_follow(path: &Path) -> io::Result<Option<String>> {
-    let mut file = match open_lockfile_no_follow(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
-    };
-    let mut content = String::new();
-    #[expect(
-        clippy::verbose_file_reads,
-        reason = "Reading from the caller's file handle avoids reopening the lockfile by path."
-    )]
-    file.read_to_string(&mut content)?;
-    Ok(Some(content))
-}
-
-#[cfg(unix)]
-fn open_lockfile_no_follow(path: &Path) -> io::Result<File> {
-    fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW)
-        .open(path)
-        .map_err(|error| normalize_no_follow_error(path, error))
-}
-
-#[cfg(not(unix))]
-fn open_lockfile_no_follow(path: &Path) -> io::Result<File> {
-    ensure_lockfile_is_not_symlink(path)?;
-    File::open(path)
-}
-
-#[cfg(unix)]
-fn normalize_no_follow_error(path: &Path, error: io::Error) -> io::Error {
-    if error.raw_os_error() == Some(libc::ELOOP) { symlinked_lockfile_error(path) } else { error }
+impl EnvLockfile {
+    /// The version of the package manager the env document pins, when it
+    /// records one.
+    #[must_use]
+    pub fn pinned_package_manager_version(&self) -> Option<&str> {
+        self.importers
+            .get(Self::ROOT_IMPORTER_KEY)?
+            .package_manager_dependencies
+            .as_ref()?
+            .values()
+            .next()
+            .map(|pin| pin.version.as_str())
+    }
 }
 
 #[cfg(test)]

@@ -1,11 +1,19 @@
-use crate::{State, cli_args::install::resolve_bool_override};
+use crate::{
+    State,
+    cli_args::{
+        install::{
+            resolve_bool_override,
+            workspace_install_selection,
+        },
+        pipelines::InstallFamilySelection,
+    },
+};
 use clap::Args;
 use miette::Context;
-use pnpm_package_manager::{Install, ProjectMutation};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 
-#[derive(Debug, Args)]
+#[derive(Debug, Clone, Args)]
 pub struct PruneArgs {
     #[clap(short = 'P', long, visible_alias = "production")]
     prod: bool,
@@ -42,50 +50,28 @@ impl PruneArgs {
             .chain(has_optional.then_some(DependencyGroup::Optional))
     }
 
-    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
+    pub(crate) async fn run<Reporter: self::Reporter + 'static>(
+        self,
+        state: State,
+        selection: Option<&InstallFamilySelection>,
+    ) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
-        let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
-            &state;
-
         let dependency_groups: Vec<DependencyGroup> =
-            self.dependency_groups(config.optional).collect();
+            self.dependency_groups(state.config.optional).collect();
+        let selection = selection.map(|sel| {
+            let mut ws_selection = workspace_install_selection(sel);
+            ws_selection.install_dirs = sel.selected_dirs.as_ref();
+            ws_selection
+        });
 
-        Install {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config,
-            manifest,
-            emit_initial_manifest: true,
-            lockfile: pnpm_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: Some(&lockfile_path),
-            dependency_groups,
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: None,
-            ignore_manifest_check: false,
-            skip_runtimes: false,
-            trust_lockfile: false,
-            update_checksums: false,
-            mutation: ProjectMutation::InstallWorkspace,
-            installs_only: true,
-            resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
-            lockfile_only: false,
-            dry_run: false,
-            persist_policy_excludes: false,
-            update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAll,
-            preferred_versions_override: None,
-            auth_override: None,
-            resolution_observer: None,
-            peer_issues_sink: None,
-            deps_requiring_build_sink: None,
-            catalogs_override: None,
-            disable_optimistic_repeat_install: true,
-            pnpmfile_hook_override: None,
-            workspace_projects_override: None,
+        {
+            let mut base_install = state.install(dependency_groups);
+            base_install.lockfile_policy.trust = state.config.trust_lockfile;
+            base_install.lockfile_policy.disable_optimistic_repeat = true;
+            base_install.context.lockfile_path = Some(&lockfile_path);
+            base_install
         }
-        .run::<Reporter>()
+        .run_prune::<Reporter>(selection)
         .await
         .wrap_err("pruning dependencies")
     }

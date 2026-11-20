@@ -1,16 +1,58 @@
-use derive_more::{Display, Error};
-use miette::Diagnostic;
+pub(crate) use project_installability::{
+    ProjectHost,
+    host_requirements,
+};
+
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    WrapErr,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::LazyLockfile;
-use pnpm_network::{ForInstallsError, ThrottledClient};
-use pnpm_package_manager::ResolvedPackages;
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_lockfile::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_network::{
+    ForInstallsError,
+    ThrottledClient,
+};
+use pnpm_package_is_installable::InstallabilityError;
+use pnpm_package_manager::{
+    CommandLockfile,
+    DedicatedProjectInstall,
+    ResolvedPackages,
+    SharedDevPreinstall,
+    SharedInstallCaches,
+    WorkspaceDependenciesInstalled,
+};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
+use pnpm_reporter::LogEvent;
 use pnpm_tarball::MemCache;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
+
+/// What the per-project installs of a workspace whose projects keep their
+/// own lockfiles share: the tarball cache every [`State`] carries, the rest
+/// of [`SharedInstallCaches`], and the workspace root's [`SharedDevPreinstall`].
+#[derive(Default, Clone)]
+pub(crate) struct DedicatedCaches {
+    pub(crate) tarballs: Arc<MemCache>,
+    pub(crate) install: SharedInstallCaches,
+    pub(crate) dev_preinstall: SharedDevPreinstall,
+}
 
 /// Application state when running `pacquet run` or `pacquet install`.
 pub struct State {
@@ -21,10 +63,9 @@ pub struct State {
     /// while every install sub-pipeline still takes a borrowed
     /// `&MemCache` via deref.
     pub tarball_mem_cache: Arc<MemCache>,
-    /// HTTP client to make HTTP requests. Held behind [`std::sync::Arc`] so
-    /// the lockfile-verification gate can own a clone for the
-    /// `NpmResolutionVerifier`'s lifetime while every install
-    /// sub-pipeline takes a borrowed `&ThrottledClient` via deref.
+    /// Held behind [`std::sync::Arc`] so the lockfile-verification gate can
+    /// own a clone for the `NpmResolutionVerifier`'s lifetime while every
+    /// install sub-pipeline takes a borrowed `&ThrottledClient` via deref.
     pub http_client: std::sync::Arc<ThrottledClient>,
     /// Merged runtime configuration: built-in defaults, with overlays from
     /// the auth subset of `.npmrc` and from `pnpm-workspace.yaml`.
@@ -37,6 +78,28 @@ pub struct State {
     pub lockfile: LazyLockfile,
     /// In-memory cache for packages that have started resolving dependencies.
     pub resolved_packages: ResolvedPackages,
+    /// Set when this state's install is one project's among several a
+    /// command runs. See [`State::into_dedicated_project`].
+    pub dedicated: Option<DedicatedProjectInstall>,
+    /// See [`InstallProjects::discovered_workspace`](pnpm_package_manager::InstallProjects::discovered_workspace).
+    pub discovered_workspace: Option<pnpm_package_manager::DiscoveredWorkspace>,
+}
+
+/// The wanted lockfile as a manifest-mutating command receives it: the
+/// document, resolved once here so the command's own reads stay
+/// infallible, together with the loader that produced it and its path.
+///
+/// The loader travels on to the install, which is what lets the install
+/// report and gate on a Git-conflict merge this load performed.
+/// Reporting here instead would announce a merge before anything knows
+/// whether the run writes the file back.
+pub(crate) fn command_lockfile<'a>(
+    lockfile: &'a LazyLockfile,
+    path: &'a Path,
+) -> miette::Result<CommandLockfile<'a>> {
+    let source = MaybeLazyLockfile::Lazy(lockfile);
+    let document = source.get().wrap_err("load the lockfile")?;
+    Ok(CommandLockfile { document, source, path: Some(path) })
 }
 
 /// Error type of [`State::init`].
@@ -51,9 +114,60 @@ pub enum InitStateError {
 
     #[diagnostic(transparent)]
     Network(#[error(source)] ForInstallsError),
+
+    #[diagnostic(transparent)]
+    Installability(#[error(source)] Box<InstallabilityError>),
+
+    #[display("loading the project runtime lockfile: {_0}")]
+    Lockfile(#[error(not(source))] String),
 }
 
 impl State {
+    pub(crate) fn install<Groups>(
+        &self,
+        dependency_groups: Groups,
+    ) -> pnpm_package_manager::Install<'_, Groups>
+    where
+        Groups: IntoIterator<Item = pnpm_package_manifest::DependencyGroup>,
+    {
+        let mut install = pnpm_package_manager::Install::new(
+            Arc::clone(&self.tarball_mem_cache),
+            &self.resolved_packages,
+            (&self.http_client, Arc::clone(&self.http_client)),
+            self.config,
+            &self.manifest,
+            pnpm_lockfile::MaybeLazyLockfile::Lazy(&self.lockfile),
+            dependency_groups,
+        );
+        install.projects.dedicated.clone_from(&self.dedicated);
+        install.projects.discovered_workspace.clone_from(&self.discovered_workspace);
+        install
+    }
+
+    /// Make this state's install one project's among the several a command
+    /// runs: it shares `caches`, the tarball cache included, with the
+    /// others, waits for `dependencies_installed` where its project's
+    /// installed dependencies start to matter, and reads `workspace`, when
+    /// given, instead of walking the workspace.
+    #[must_use]
+    pub(crate) fn into_dedicated_project(
+        self,
+        caches: &DedicatedCaches,
+        dependencies_installed: Option<WorkspaceDependenciesInstalled>,
+        workspace: Option<pnpm_package_manager::DiscoveredWorkspace>,
+    ) -> Self {
+        State {
+            tarball_mem_cache: Arc::clone(&caches.tarballs),
+            dedicated: Some(DedicatedProjectInstall {
+                caches: caches.install.clone(),
+                dependencies_installed,
+                dev_preinstall: caches.dev_preinstall.clone(),
+            }),
+            discovered_workspace: workspace,
+            ..self
+        }
+    }
+
     /// Initialize the application state.
     ///
     /// `require_lockfile` is `true` when the caller has committed to the
@@ -72,8 +186,8 @@ impl State {
     }
 
     /// The lazy wanted lockfile [`Self::init`] would build. Split out
-    /// so a caller with work between here and the install — project
-    /// discovery above all — can build it first and start its
+    /// so a caller with work between here and the install (project
+    /// discovery above all) can build it first and start its
     /// [`LazyLockfile::prefetch`] over that work, handing the result to
     /// [`Self::init_with_lockfile`].
     #[must_use]
@@ -101,29 +215,50 @@ impl State {
         config: &'static Config,
         lockfile: LazyLockfile,
     ) -> Result<Self, InitStateError> {
+        let http_client = Self::new_http_client(config)?;
+        Self::init_with_lockfile_and_http_client(manifest_path, config, lockfile, http_client)
+    }
+
+    /// Build the install-wide HTTP client shared by every ecosystem.
+    pub(crate) fn new_http_client(config: &Config) -> Result<Arc<ThrottledClient>, InitStateError> {
+        ThrottledClient::for_installs(
+            &config.proxy,
+            &config.tls,
+            &config.tls_by_uri,
+            &config.network_settings(),
+        )
+        .map(|client| client.with_max_sockets_per_host(config.max_sockets))
+        .map(Arc::new)
+        .map_err(InitStateError::Network)
+    }
+
+    /// [`Self::init_with_lockfile`] with a caller-owned install-wide HTTP client.
+    pub(crate) fn init_with_lockfile_and_http_client(
+        manifest_path: PathBuf,
+        config: &'static Config,
+        lockfile: LazyLockfile,
+        http_client: Arc<ThrottledClient>,
+    ) -> Result<Self, InitStateError> {
+        let manifest = load_or_create_manifest(manifest_path, config)?;
         Ok(State {
             config,
-            manifest: load_or_create_manifest(manifest_path, config)?,
+            manifest,
             lockfile,
-            http_client: std::sync::Arc::new(
-                ThrottledClient::for_installs(
-                    &config.proxy,
-                    &config.tls,
-                    &config.tls_by_uri,
-                    &config.network_settings(),
-                )
-                .map_err(InitStateError::Network)?
-                .with_max_sockets_per_host(config.max_sockets),
-            ),
+            http_client,
             tarball_mem_cache: Arc::new(MemCache::new()),
             resolved_packages: ResolvedPackages::new(),
+            dedicated: None,
+            discovered_workspace: None,
         })
     }
 
-    /// The directory of the project the command runs in — where its
+    /// The directory of the project the command runs in, where its
     /// `package.json` lives.
     pub fn project_dir(&self) -> &Path {
-        self.manifest.path().parent().expect("manifest path always has a parent dir")
+        self.manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir")
     }
 
     pub fn lockfile_dir(&self) -> &Path {
@@ -139,18 +274,19 @@ impl State {
     }
 }
 
-/// `package.json` loads (or is scaffolded) as usual, but when it is
-/// absent an existing alternate manifest base name (`package.yaml`)
-/// must be loaded rather than shadowed by a scaffolded `package.json`
-/// — pnpm reads every manifest base name. Alternate manifests stay
-/// read-only (see `pnpm_workspace::project_manifest`); commands
-/// that write the manifest back still require `package.json`.
+/// `package.json` loads as usual, but when it is absent an existing
+/// alternate manifest base name (`package.yaml`) must be loaded rather
+/// than shadowed by a scaffolded `package.json` and saved in its
+/// original format.
+///
+/// A missing manifest is never written here: command initialization
+/// precedes argument validation and serves read-only commands, so the
+/// scaffold stays in memory until a command that writes the manifest
+/// (`add`, `link`) saves it.
 ///
 /// Inside a workspace, a missing root manifest is tolerated rather
 /// than scaffolded: pnpm installs such a workspace with no root
-/// importer and never creates a `package.json` there, so the stand-in
-/// manifest stays in memory only. Commands that save the manifest
-/// (`add`) still persist it through their explicit save.
+/// importer and never creates a `package.json` there.
 fn load_or_create_manifest(
     manifest_path: PathBuf,
     config: &Config,
@@ -170,20 +306,50 @@ fn load_or_create_manifest(
         }
     }
     manifest_path
-        .pipe(PackageManifest::create_if_needed)
+        .pipe(PackageManifest::load_or_init)
         .map(|manifest| apply_runtime_on_fail(manifest, config))
         .map_err(InitStateError::Manifest)
 }
 
 fn apply_runtime_on_fail(mut manifest: PackageManifest, config: &Config) -> PackageManifest {
-    if let Some(runtime_on_fail) = config.runtime_on_fail {
-        pnpm_package_manifest::apply_runtime_on_fail_override(
-            manifest.value_mut(),
-            runtime_on_fail.as_str(),
-        );
-    }
+    pnpm_package_manager::apply_runtime_on_fail(config, &mut manifest);
     manifest
 }
+
+/// Check what the root project requires of the host, per
+/// [`project_installability`].
+pub(crate) fn check_root_project_engine(
+    manifest_path: &Path,
+    config: &Config,
+    emit: fn(&LogEvent),
+) -> Result<(), InitStateError> {
+    let project_dir = root_project_dir(manifest_path, config);
+    let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(project_dir)
+        .map_err(InitStateError::ManifestRead)?
+    else {
+        return Ok(());
+    };
+    let Some(requirements) = pnpm_deps_restorer::project_host_requirements(
+        manifest.value(),
+        config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str),
+    ) else {
+        return Ok(());
+    };
+    let host = ProjectHost::new(config, project_dir);
+    host.check(project_dir, &requirements)?
+        .iter()
+        .for_each(emit);
+    Ok(())
+}
+
+/// The directory of the project [`check_root_project_engine`] checks.
+pub(crate) fn root_project_dir<'a>(manifest_path: &'a Path, config: &'a Config) -> &'a Path {
+    config.workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| manifest_path.parent().expect("manifest path always has a parent dir"))
+}
+
+mod project_installability;
 
 #[cfg(test)]
 mod tests;

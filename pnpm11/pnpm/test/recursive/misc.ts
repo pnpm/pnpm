@@ -384,6 +384,168 @@ test('adding new dependency in the root should fail if neither --workspace-root 
   }
 })
 
+test('adding a dependency from a workspace-matched directory without a manifest should suggest initializing the package first', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/project', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '.'
+  - 'packages/*'
+  - '!store/**'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/project') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/workspace package directory without a package manifest/)
+  expect(stdout.toString()).toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency from a directory outside the workspace package patterns should keep the workspace root warning', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('scripts', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '.'
+  - 'packages/*'
+  - '!store/**'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('scripts') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
+  expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency from a directory excluded by the workspace patterns should keep the workspace root warning', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/ignored', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - 'packages/*'
+  - 'tools/*'
+  - '!packages/ignored'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/ignored') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
+  expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency from inside the modules directory should keep the workspace root warning', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('deps/foo', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '**'
+  - 'tools/*'
+modulesDir: deps
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('deps/foo') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
+  expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency from a workspace-matched directory without a manifest should suggest initializing the package when the modules directory is the workspace root', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/project', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - 'packages/*'
+modulesDir: .
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/project') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency from a workspace-matched directory without a manifest should suggest initializing the package in a single-pattern workspace', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/project', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - 'packages/*'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive'], { cwd: path.resolve('packages/project') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
+test('adding a dependency with --dir pointing at the workspace root should keep the workspace root warning', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+  ])
+
+  fs.mkdirSync('packages/project', { recursive: true })
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - 'packages/*'
+  - 'tools/*'
+`, 'utf8')
+
+  const { status, stdout } = execPnpmSync(['add', 'is-positive', '--dir', process.cwd()], { cwd: path.resolve('packages/project') })
+
+  expect(status).toBe(1)
+  expect(stdout.toString()).toMatch(/Running this command will add the dependency to the workspace root/)
+  expect(stdout.toString()).not.toMatch(/running "pnpm init" to generate a package\.json/)
+})
+
 test('--workspace-packages', async () => {
   const projects = preparePackages([
     {
@@ -496,3 +658,44 @@ test('set recursive-install to false would install as --filter {.}...', async ()
 
   projects['project-2'].has('is-negative')
 })
+
+test('set recursive-install to false in workspace config would still allow recursive install with -r', async () => {
+  const projects = preparePackages([
+    {
+      location: 'workspace/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'workspace/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  process.chdir('workspace')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**'],
+    recursiveInstall: false,
+    dedupePeerDependents: false,
+  })
+
+  process.chdir('project-1')
+  await execPnpm(['install', '-r'])
+
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+})
+

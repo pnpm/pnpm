@@ -44,13 +44,13 @@ export function buildPurl (opts: {
  * An SBOM is meant to be published, and a `registriesByPrefix` entry may
  * legitimately embed credentials — as userinfo
  * (`https://user:token@npm.example.com/`) or in a query string
- * (`?api_key=…`). Origin and path are kept because two registries can
+ * (`?api_key=...`). Origin and path are kept because two registries can
  * differ only by path (`https://npm.example.com/team-a/` vs `/team-b/`),
  * so trimming to the origin would recreate the very collision this
  * qualifier exists to prevent.
  *
  * A URL that doesn't parse is returned unchanged: it has no userinfo to
- * strip, and `registriesByPrefix` values are validated as http(s) URLs when
+ * strip, and `registriesByPrefix` values are validated as HTTP or HTTPS URLs when
  * the resolver is constructed, so this is unreachable in practice.
  */
 function sanitizeRegistryUrl (url: string): string {

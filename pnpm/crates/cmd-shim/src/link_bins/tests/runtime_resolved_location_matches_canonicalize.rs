@@ -1,0 +1,530 @@
+use super::{
+    Arc,
+    DirCreation,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    Host,
+    LinkBinsOptions,
+    PackageBinSource,
+    Path,
+    PathBuf,
+    ShimTargetCache,
+    Value,
+    create_dir_all,
+    io,
+    is_shim_pointing_at,
+    json,
+    link_bins_of_packages,
+    link_bins_of_packages_cached,
+    read_file,
+    read_to_string,
+    tempdir,
+    write_file,
+};
+use crate::OwnNodePaths;
+
+/// A caller-supplied resolved location and the canonicalize fallback
+/// must derive the same shim `NODE_PATH` for a package reached through
+/// a virtual-store-style symlink, the lexical fast path is only sound
+/// while this holds.
+#[cfg(unix)]
+#[test]
+fn resolved_location_matches_canonicalize_fallback_for_node_path() {
+    let tmp = tempdir().unwrap();
+    let slot_pkg_dir = tmp.path().join("node_modules/.pnpm/foo@1.0.0/node_modules/foo");
+    create_dir_all(&slot_pkg_dir).unwrap();
+    write_file(
+        slot_pkg_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
+    )
+    .unwrap();
+    write_file(slot_pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let alias = tmp.path().join("node_modules/foo");
+    std::os::unix::fs::symlink(&slot_pkg_dir, &alias).unwrap();
+
+    let manifest: Arc<Value> = Arc::new(
+        serde_json::from_slice(&read_file(slot_pkg_dir.join("package.json")).unwrap()).unwrap(),
+    );
+    let extras = [tmp
+        .path()
+        .join("node_modules/.pnpm/node_modules")
+        .to_string_lossy()
+        .into_owned()];
+
+    // The fallback resolves the alias symlink; the canonicalized slot
+    // dir anchors the expectation so a `/tmp` → `/private/tmp`-style
+    // ancestor symlink can't skew the comparison.
+    let real_slot_pkg_dir = dunce::canonicalize(&slot_pkg_dir).unwrap();
+    let via_fallback = super::super::shim_node_path(
+        &PackageBinSource::new(alias.clone(), Arc::clone(&manifest)),
+        None,
+        &extras,
+        OwnNodePaths::WithExtras,
+    );
+    let via_resolved = super::super::shim_node_path(
+        &PackageBinSource::new(alias, manifest).with_resolved_location(real_slot_pkg_dir.clone()),
+        None,
+        &extras,
+        OwnNodePaths::WithExtras,
+    );
+    assert_eq!(via_fallback, via_resolved);
+    assert_eq!(
+        via_resolved[..2],
+        [
+            real_slot_pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+            real_slot_pkg_dir
+                .parent()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned(),
+        ],
+    );
+}
+
+#[test]
+fn a_project_node_path_comes_first_and_a_repeated_entry_keeps_its_first_position() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(".pnpm")
+        .join("foo@1.0.0")
+        .join("node_modules")
+        .join("foo");
+    let slot_dir = pkg_dir
+        .parent()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    let project = tmp
+        .path()
+        .join("vendor")
+        .to_string_lossy()
+        .into_owned();
+    let hoisted = tmp
+        .path()
+        .join("node_modules")
+        .join(".pnpm")
+        .join("node_modules")
+        .to_string_lossy()
+        .into_owned();
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+
+    let node_path = super::super::shim_node_path(
+        &PackageBinSource::new(tmp.path().join("vendor").join("foo"), manifest)
+            .with_resolved_location(pkg_dir.clone()),
+        Some(&project),
+        &[slot_dir.clone(), hoisted.clone()],
+        OwnNodePaths::WithExtras,
+    );
+
+    assert_eq!(
+        node_path,
+        [
+            project,
+            pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+            slot_dir,
+            hoisted,
+        ],
+    );
+}
+
+/// The pnpm CLI's own package opts out of the PowerShell shim
+/// ([`super::super::windows_shim_policy::wants_powershell_shim`]), and a `.ps1` an earlier install
+/// wrote has to be deleted, not merely left unwritten: PowerShell would keep
+/// preferring it over the `.cmd` shim and run the version it points at.
+#[test]
+fn linking_the_pnpm_cli_deletes_a_stale_powershell_shim() {
+    assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim("pnpm");
+}
+
+/// `pnpm setup` of earlier releases installed the CLI as `@pnpm/exe`, and
+/// a setup rerun from such an install links it under that name again.
+#[test]
+fn linking_the_pnpm_cli_under_its_earlier_name_deletes_a_stale_powershell_shim() {
+    assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim("@pnpm/exe");
+}
+
+fn assert_linking_the_pnpm_cli_deletes_a_stale_powershell_shim(pkg_name: &str) {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp
+        .path()
+        .join("node_modules")
+        .join(pkg_name);
+    create_dir_all(&pkg_dir).unwrap();
+    write_file(
+        pkg_dir.join("package.json"),
+        json!({"name": pkg_name, "version": "1.0.0", "bin": {"pnpm": "cli.js", "pn": "cli.js"}})
+            .to_string(),
+    )
+    .unwrap();
+    write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    create_dir_all(&bins_dir).unwrap();
+    for bin_name in ["pnpm", "pn"] {
+        write_file(bins_dir.join(format!("{bin_name}.ps1")), "an older install wrote this")
+            .unwrap();
+    }
+
+    let manifest_value: Value =
+        serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
+    let packages = [PackageBinSource::new(pkg_dir, Arc::new(manifest_value))];
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+
+    for bin_name in ["pnpm", "pn"] {
+        assert!(bins_dir.join(bin_name).exists(), "{bin_name} must be linked");
+        assert!(
+            !bins_dir
+                .join(format!("{bin_name}.ps1"))
+                .exists(),
+            "the stale {bin_name}.ps1 must be deleted, not left to shadow the linked bin",
+        );
+        assert_eq!(
+            bins_dir
+                .join(format!("{bin_name}.cmd"))
+                .exists(),
+            cfg!(windows),
+            "{bin_name}.cmd is the Windows entry point and must survive the cleanup",
+        );
+    }
+
+    // The warm-relink short-circuit must not let a `.ps1` planted
+    // after the first link survive.
+    write_file(bins_dir.join("pnpm.ps1"), "planted after the first link").unwrap();
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert!(!bins_dir.join("pnpm.ps1").exists());
+}
+
+/// The pnpm CLI's `.cmd` shims end their batch context before the CLI starts
+/// ([`super::super::windows_shim_policy::cmd_shim_batch`]). Every other package keeps the ordinary
+/// shim.
+#[test]
+#[cfg_attr(not(windows), ignore = "`.cmd` shims are written on Windows only")]
+fn only_the_pnpm_cli_cmd_shims_end_their_batch_context() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let mut packages = Vec::new();
+    for (pkg_name, bin_name) in [("pnpm", "pnpm"), ("@pnpm/exe", "pnpm-exe"), ("other", "other")] {
+        let pkg_dir = tmp
+            .path()
+            .join("node_modules")
+            .join(pkg_name);
+        create_dir_all(&pkg_dir).unwrap();
+        let manifest =
+            json!({"name": pkg_name, "version": "1.0.0", "bin": {bin_name: "native-binary"}});
+        write_file(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
+        write_file(pkg_dir.join("native-binary"), "MZ").unwrap();
+        packages.push(PackageBinSource::new(pkg_dir, Arc::new(manifest)));
+    }
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+
+    for (bin_name, ends_batch) in [("pnpm", true), ("pnpm-exe", true), ("other", false)] {
+        let cmd = read_to_string(bins_dir.join(format!("{bin_name}.cmd"))).unwrap();
+        assert_eq!(
+            cmd.contains("@GOTO #_undefined_# 2>NUL || "),
+            ends_batch,
+            "{bin_name}.cmd:\n{cmd}",
+        );
+    }
+}
+
+/// Linking the pnpm CLI's bins over a `pnpm.cmd` that keeps its batch lays
+/// the new shim out so that cmd.exe, when still running the old one, ends that
+/// batch (see [`crate::shim::end_replaced_cmd_shim_batch`]). Linking over that
+/// layout writes the plain shim, which a further link leaves alone.
+#[test]
+#[cfg_attr(not(windows), ignore = "`.cmd` shims are written on Windows only")]
+fn the_pnpm_cli_cmd_shim_ends_the_batch_of_the_shim_it_replaces() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("bin");
+    let pkg_dir = tmp.path().join("node_modules/pnpm");
+    create_dir_all(&pkg_dir).unwrap();
+    let manifest = json!({"name": "pnpm", "version": "1.0.0", "bin": {"pnpm": "pnpm.exe"}});
+    write_file(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
+    write_file(pkg_dir.join("pnpm.exe"), "MZ").unwrap();
+    let packages = vec![PackageBinSource::new(pkg_dir, Arc::new(manifest))];
+    let shim = bins_dir.join("pnpm.cmd");
+    create_dir_all(&bins_dir).unwrap();
+    let batch_kept = "@SETLOCAL\r\n@\"%~dp0\\..\\node_modules\\pnpm\\pnpm.exe\"  %*\r\n";
+    write_file(&shim, batch_kept).unwrap();
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    let laid_out = read_to_string(&shim).unwrap();
+    assert!(laid_out.starts_with("@GOTO :pnpm\r\n"), "{laid_out}");
+    assert!(
+        laid_out[batch_kept.len()..].starts_with("@EXIT /B %ERRORLEVEL%\r\n:pnpm\r\n@SETLOCAL\r\n"),
+        "{laid_out}",
+    );
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    let plain = read_to_string(&shim).unwrap();
+    assert!(plain.starts_with("@SETLOCAL\r\n"), "{plain}");
+    assert!(!plain.contains("@EXIT /B"), "{plain}");
+    assert!(laid_out.ends_with(&plain), "{laid_out}\n{plain}");
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert_eq!(read_to_string(&shim).unwrap(), plain);
+}
+
+/// A pnpm CLI run through an interpreter keeps its batch, so its shim is
+/// written as it is over a `pnpm.cmd` that keeps its batch too, and a further
+/// link leaves it alone.
+#[test]
+#[cfg_attr(not(windows), ignore = "`.cmd` shims are written on Windows only")]
+fn the_pnpm_cli_cmd_shim_for_an_interpreted_target_is_not_laid_out() {
+    let tmp = tempdir().unwrap();
+    let bins_dir = tmp.path().join("bin");
+    let pkg_dir = tmp.path().join("node_modules/pnpm");
+    create_dir_all(pkg_dir.join("bin")).unwrap();
+    let manifest = json!({"name": "pnpm", "version": "1.0.0", "bin": {"pnpm": "bin/pnpm.cjs"}});
+    write_file(pkg_dir.join("package.json"), manifest.to_string()).unwrap();
+    write_file(pkg_dir.join("bin/pnpm.cjs"), "#!/usr/bin/env node\n").unwrap();
+    let packages = vec![PackageBinSource::new(pkg_dir, Arc::new(manifest))];
+    let shim = bins_dir.join("pnpm.cmd");
+    create_dir_all(&bins_dir).unwrap();
+    write_file(&shim, "@SETLOCAL\r\n@\"%~dp0\\..\\node_modules\\pnpm\\pnpm.exe\"  %*\r\n").unwrap();
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    let written = read_to_string(&shim).unwrap();
+    assert!(written.starts_with("@SETLOCAL\r\n"), "{written}");
+    assert!(written.contains("node.exe"), "{written}");
+
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert_eq!(read_to_string(&shim).unwrap(), written);
+}
+
+/// A bin directory this run created holds nothing, so the shim goes
+/// straight out. One that was already there is read first, because
+/// that is where an ordinary reinstall finds its shims.
+#[test]
+fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
+    use std::sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    };
+
+    static SHIM_READS: AtomicUsize = AtomicUsize::new(0);
+
+    struct ReadCountingHost;
+    impl FsReadHead for ReadCountingHost {
+        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+            <Host as FsReadHead>::read_head(path, offset, buf)
+        }
+    }
+    impl FsReadToString for ReadCountingHost {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            if path
+                .file_name()
+                .is_some_and(|name| name == "foo")
+            {
+                SHIM_READS.fetch_add(1, Ordering::Relaxed);
+            }
+            <Host as FsReadToString>::read_to_string(path)
+        }
+    }
+    impl FsCreateDirAll for ReadCountingHost {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            <Host as FsCreateDirAll>::create_dir_all(path)
+        }
+        fn create_dir_all_reporting(path: &Path) -> io::Result<DirCreation> {
+            <Host as FsCreateDirAll>::create_dir_all_reporting(path)
+        }
+    }
+    impl FsWalkFiles for ReadCountingHost {
+        fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsWalkFiles>::walk_files(path)
+        }
+    }
+    impl FsWrite for ReadCountingHost {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write(path, bytes)
+        }
+        fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write_new(path, bytes)
+        }
+    }
+    impl FsSetExecutable for ReadCountingHost {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            <Host as FsSetExecutable>::set_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for ReadCountingHost {
+        fn ensure_executable_bits(
+            path: &Path,
+            installed_modules_dir: Option<&Path>,
+        ) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path, installed_modules_dir)
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let link = |bins_dir: &Path| {
+        link_bins_of_packages::<ReadCountingHost>(
+            &[PackageBinSource::new(pkg.clone(), Arc::new(manifest.clone()))],
+            bins_dir,
+            &LinkBinsOptions::default(),
+        )
+        .unwrap();
+    };
+
+    let fresh_bins = tmp.path().join("fresh/.bin");
+    link(&fresh_bins);
+    assert!(is_shim_pointing_at(
+        &read_to_string(fresh_bins.join("foo")).unwrap(),
+        &fresh_bins.join("foo"),
+        &pkg.join("cli.js"),
+    ));
+    assert_eq!(SHIM_READS.load(Ordering::Relaxed), 0, "nothing can occupy a dir we just made");
+
+    let existing_bins = tmp.path().join("existing/.bin");
+    create_dir_all(&existing_bins).unwrap();
+    link(&existing_bins);
+    assert!(is_shim_pointing_at(
+        &read_to_string(existing_bins.join("foo")).unwrap(),
+        &existing_bins.join("foo"),
+        &pkg.join("cli.js"),
+    ));
+    assert_eq!(SHIM_READS.load(Ordering::Relaxed), 1, "a pre-existing dir is read first");
+}
+
+#[test]
+fn shared_shim_target_cache_probes_a_resolved_target_once() {
+    use std::sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    };
+
+    static READ_HEAD_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    struct CountingHost;
+    impl FsReadHead for CountingHost {
+        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+            if offset == 0 {
+                READ_HEAD_CALLS.fetch_add(1, Ordering::Relaxed);
+            }
+            <Host as FsReadHead>::read_head(path, offset, buf)
+        }
+    }
+    impl FsReadToString for CountingHost {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            <Host as FsReadToString>::read_to_string(path)
+        }
+    }
+    impl FsCreateDirAll for CountingHost {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            <Host as FsCreateDirAll>::create_dir_all(path)
+        }
+    }
+    impl FsWalkFiles for CountingHost {
+        fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsWalkFiles>::walk_files(path)
+        }
+    }
+    impl FsWrite for CountingHost {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write(path, bytes)
+        }
+        fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write_new(path, bytes)
+        }
+    }
+    impl FsSetExecutable for CountingHost {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            <Host as FsSetExecutable>::set_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for CountingHost {
+        fn ensure_executable_bits(
+            path: &Path,
+            installed_modules_dir: Option<&Path>,
+        ) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path, installed_modules_dir)
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let store_pkg = tmp.path().join("store/foo");
+    create_dir_all(&store_pkg).unwrap();
+    write_file(store_pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let cache = ShimTargetCache::default();
+    for importer in ["a", "b"] {
+        let modules = tmp
+            .path()
+            .join(importer)
+            .join("node_modules");
+        let location = modules.join("foo");
+        create_dir_all(&location).unwrap();
+        write_file(location.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+        link_bins_of_packages_cached::<CountingHost>(
+            &[PackageBinSource::new(location, Arc::new(manifest.clone()))
+                .with_resolved_location(store_pkg.clone())],
+            &modules.join(".bin"),
+            &LinkBinsOptions::default(),
+            &cache,
+        )
+        .unwrap();
+        assert!(modules.join(".bin/foo").exists());
+    }
+    assert_eq!(READ_HEAD_CALLS.load(Ordering::Relaxed), 1, "one probe for the shared target");
+}
+
+#[test]
+fn project_node_path_omits_paths_containing_the_path_list_delimiter() {
+    let tmp = tempdir().unwrap();
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    let project = tmp
+        .path()
+        .join(format!("vendor{delimiter}other"));
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+    let pkg = PackageBinSource::new(tmp.path().join("foo"), manifest);
+    let node_path = super::super::shim_node_path(
+        &pkg,
+        Some(&project.to_string_lossy()),
+        &[],
+        OwnNodePaths::WithExtras,
+    );
+    assert_eq!(node_path, Vec::<String>::new());
+}
+
+#[test]
+fn own_node_paths_keeps_the_target_directories_without_extras() {
+    let tmp = tempdir().unwrap();
+    let modules = tmp
+        .path()
+        .join("slot")
+        .join("node_modules");
+    let pkg_dir = modules.join("foo");
+    let manifest = Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}));
+    let pkg =
+        PackageBinSource::new(pkg_dir.clone(), manifest).with_resolved_location(pkg_dir.clone());
+
+    let node_path = super::super::shim_node_path(&pkg, None, &[], OwnNodePaths::Always);
+
+    assert_eq!(
+        node_path,
+        [
+            pkg_dir
+                .join("node_modules")
+                .to_string_lossy()
+                .into_owned(),
+            modules.to_string_lossy().into_owned(),
+        ],
+    );
+}

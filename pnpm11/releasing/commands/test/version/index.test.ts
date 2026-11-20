@@ -7,6 +7,8 @@ import { safeExeca as execa } from 'execa'
 
 import { version } from '../../src/index.js'
 
+const itOnPosix = process.platform === 'win32' ? it.skip : it
+
 describe('version command', () => {
   const { cliOptionsTypes, commandNames, handler, help } = version
   let tempDir: string
@@ -42,6 +44,7 @@ describe('version command', () => {
     expect(types['sign-git-tag']).toBe(Boolean)
     expect(types.recursive).toBe(Boolean)
     expect(types['dry-run']).toBe(Boolean)
+    expect(types['ignore-scripts']).toBe(Boolean)
   })
 
   it('should throw error with invalid bump type', async () => {
@@ -53,7 +56,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['invalid']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['invalid']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
@@ -66,7 +69,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
@@ -78,7 +81,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['major']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, ['major']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     expect(result).toContain('1.2.3 → 2.0.0')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -93,7 +96,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['minor']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, ['minor']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     expect(result).toContain('1.0.0 → 1.1.0')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -108,7 +111,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     expect(result).toContain('1.0.0 → 1.0.1')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -124,7 +127,7 @@ describe('version command', () => {
       gitChecks: false,
       gitTagVersion: false,
       preid: 'alpha',
-    } as any, ['prerelease']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, ['prerelease']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     expect(result).toContain('1.0.0 → 1.0.1-alpha.0')
   })
@@ -138,7 +141,7 @@ describe('version command', () => {
       gitChecks: false,
       gitTagVersion: false,
       json: true,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     const parsed = JSON.parse(result as string)
     expect(parsed).toEqual([
@@ -158,7 +161,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['0.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, ['0.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     expect(result).toContain('1.2.3 → 0.0.0')
     const updated = JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -173,7 +176,7 @@ describe('version command', () => {
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['2.0.0-beta.1']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, ['2.0.0-beta.1']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     expect(result).toContain('1.0.0 → 2.0.0-beta.1')
   })
@@ -187,7 +190,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['not-a-version']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['not-a-version']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION_BUMP' })
   })
 
@@ -200,7 +203,7 @@ describe('version command', () => {
       gitChecks: false,
       gitTagVersion: false,
       allowSameVersion: true,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     expect(result).toContain('1.0.0 → 1.0.1')
   })
@@ -214,7 +217,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     ).rejects.toMatchObject({ code: 'ERR_PNPM_NO_PACKAGES_TO_VERSION' })
   })
 
@@ -227,7 +230,7 @@ describe('version command', () => {
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     ).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_VERSION' })
   })
 
@@ -254,13 +257,53 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
       workspaceDir: tempDir,
       gitChecks: false,
       gitTagVersion: false,
-    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     expect(fs.readFileSync(lifecycleLog, 'utf-8')).toBe(
       'preversion:1.0.0\n' +
       'version:1.0.1\n' +
       'postversion:1.0.1\n'
     )
+  })
+
+  it('should run version lifecycle scripts with the commands of a custom modules directory', async () => {
+    const binDir = path.join(tempDir, 'vendor', '.bin')
+    fs.mkdirSync(binDir, { recursive: true })
+    fs.writeFileSync(path.join(binDir, 'mark.cmd'), '@echo marked> marker.txt\r\n')
+    fs.writeFileSync(path.join(binDir, 'mark'), '#!/bin/sh\necho marked > marker.txt\n', { mode: 0o755 })
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-pkg',
+      version: '1.0.0',
+      scripts: { version: 'mark' },
+    }))
+
+    await handler({
+      dir: tempDir,
+      workspaceDir: tempDir,
+      modulesDir: 'vendor',
+      gitChecks: false,
+      gitTagVersion: false,
+    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+
+    expect(fs.existsSync(path.join(tempDir, 'marker.txt'))).toBe(true)
+  })
+
+  itOnPosix('runs lifecycle hooks from a package-specific modules directory', async () => {
+    fs.mkdirSync(path.join(tempDir, 'custom/.hooks'), { recursive: true })
+    fs.writeFileSync(path.join(tempDir, 'custom/.hooks/version'), '#!/bin/sh\necho hook > marker.txt\n', { mode: 0o755 })
+    fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
+      name: 'test-pkg', version: '1.0.0', scripts: { version: 'node -e ""' },
+    }))
+
+    await handler({
+      dir: tempDir,
+      modulesDir: 'vendor',
+      packageConfigs: { 'test-pkg': { modulesDir: 'custom' } },
+      gitChecks: false,
+      gitTagVersion: false,
+    } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+
+    expect(fs.readFileSync(path.join(tempDir, 'marker.txt'), 'utf8')).toBe('hook\n')
   })
 
   describe('dry run', () => {
@@ -275,7 +318,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
         dryRun: true,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       expect(result).toContain('Version bump plan:')
       expect(result).toContain('1.0.0 → 1.0.1')
@@ -305,7 +348,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + ':' + manifest.version + '\
           [pkgADir]: { dependencies: [], package: {} },
           [pkgBDir]: { dependencies: [], package: {} },
         },
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const resultStr = result as string
       expect(resultStr).toContain('pkg-a: 1.0.0 → 1.0.1')
@@ -335,7 +378,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         dryRun: true,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       expect(fs.existsSync(lifecycleLog)).toBe(false)
     })
@@ -365,7 +408,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
       const result = await handler({
         dir: tempDir,
         workspaceDir: tempDir,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       expect(result).toContain('1.0.0 → 1.0.1')
 
@@ -381,7 +424,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         dir: tempDir,
         workspaceDir: tempDir,
         tagVersionPrefix: 'release-',
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('release-1.0.1')
@@ -399,7 +442,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       expect(result).toContain('1.0.0 → 2.3.4')
       const updated = JSON.parse(await fs.promises.readFile(path.join(tempDir, 'package.json'), 'utf-8'))
@@ -413,7 +456,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
           workspaceDir: tempDir,
           gitChecks: false,
           gitTagVersion: false,
-        } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+        } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       ).rejects.toMatchObject({
         code: 'ERR_PNPM_INVALID_VERSION_FROM_GIT',
         message: `Could not determine a valid version from Git in ${JSON.stringify(tempDir)} using tag prefix "v": no matching Git tag found`,
@@ -429,7 +472,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
           workspaceDir: tempDir,
           gitChecks: false,
           gitTagVersion: false,
-        } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+        } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       ).rejects.toMatchObject({ exitCode: 128 })
     })
 
@@ -442,7 +485,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
           workspaceDir: tempDir,
           gitChecks: false,
           gitTagVersion: false,
-        } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+        } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       ).rejects.toMatchObject({
         code: 'ERR_PNPM_INVALID_VERSION_FROM_GIT',
         message: `Could not determine a valid version from Git in ${JSON.stringify(tempDir)} using tag prefix "v": tag is not a valid version: "v-release-2.3.4"`,
@@ -462,7 +505,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         gitChecks: false,
         gitTagVersion: false,
         tagVersionPrefix: 'release-',
-      } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const updated = JSON.parse(await fs.promises.readFile(path.join(tempDir, 'package.json'), 'utf-8'))
       expect(updated.version).toBe('4.5.6')
@@ -477,7 +520,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         gitChecks: false,
         gitTagVersion: false,
         tagVersionPrefix: '-',
-      } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['from-git']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const updated = JSON.parse(await fs.promises.readFile(path.join(tempDir, 'package.json'), 'utf-8'))
       expect(updated.version).toBe('1.2.3')
@@ -488,7 +531,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         dir: tempDir,
         workspaceDir: tempDir,
         message: 'chore: release %s',
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const { stdout: logSubject } = await execa('git', ['log', '-1', '--pretty=%s'], { cwd: tempDir })
       expect(logSubject).toBe('chore: release 1.0.1')
@@ -501,7 +544,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         dir: tempDir,
         workspaceDir: tempDir,
         gitTagVersion: false,
-      } as any, ['0.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['0.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('')
@@ -518,7 +561,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         dir: tempDir,
         workspaceDir: tempDir,
         dryRun: true,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('')
@@ -532,7 +575,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         dir: tempDir,
         workspaceDir: tempDir,
         allowSameVersion: true,
-      } as any, ['1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['1.0.0']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('v1.0.0')
@@ -551,7 +594,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         dir: tempDir,
         workspaceDir: tempDir,
         commitHooks: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('v1.0.1')
@@ -580,7 +623,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
           [pkgADir]: { dependencies: [], package: {} },
           [pkgBDir]: { dependencies: [], package: {} },
         },
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const { stdout: tags } = await execa('git', ['tag', '--list'], { cwd: tempDir })
       expect(tags).toBe('')
@@ -609,7 +652,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         gitTagVersion: false,
         recursive: true,
         selectedProjectsGraph: {},
-      } as any, ['minor'])).rejects.toThrow('No packages to version') // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['minor'])).rejects.toThrow('No packages to version') // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       expect(JSON.parse(fs.readFileSync(path.join(pkgADir, 'package.json'), 'utf-8')).version).toBe('1.0.0')
       expect(JSON.parse(fs.readFileSync(path.join(tempDir, 'package.json'), 'utf-8')).version).toBe('1.0.0')
@@ -636,7 +679,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
           [pkgADir]: { dependencies: [], package: {} },
           [pkgBDir]: { dependencies: [], package: {} },
         },
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const resultStr = result as string
       expect(resultStr).toContain('pkg-a')
@@ -658,7 +701,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         workspaceDir: tempDir,
         gitChecks: false,
         gitTagVersion: false,
-      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, ['patch']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const resultStr = result as string
       expect(resultStr).toContain('my-workspace')
@@ -691,7 +734,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         selectedProjectsGraph: {
           [pkgADir]: { dependencies: [], package: {} },
         },
-      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       expect(result).toBe('[]')
     })
@@ -725,7 +768,7 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
         ],
         // Stub out the registry probe to avoid network calls in tests.
         checkVersionPublished: async () => true,
-      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
       const parsed = JSON.parse(result as string)
       expect(Array.isArray(parsed)).toBe(true)
@@ -734,6 +777,197 @@ fs.appendFileSync(process.argv[2], process.argv[3] + '\\n')
       expect(entry.name).toBe('pkg-a')
       expect(entry.currentVersion).toBe('1.0.0')
       expect(entry.newVersion).toBe('1.1.0')
+    })
+
+    it('should return JSON array without writing manifests or running scripts when dryRun and json are set', async () => {
+      const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
+      fs.mkdirSync(pkgADir, { recursive: true })
+      const lifecycleLog = path.join(tempDir, 'lifecycle.log')
+      const logLifecycleScript = path.join(tempDir, 'log-lifecycle.cjs')
+      fs.writeFileSync(logLifecycleScript, 'require("fs").appendFileSync(process.argv[2], process.argv[3] + "\\n")\n')
+
+      const pkgAManifest = {
+        name: 'pkg-a',
+        version: '1.0.0',
+        scripts: {
+          preversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} preversion`,
+          version: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} version`,
+          postversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} postversion`,
+        },
+      }
+      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
+      fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify(pkgAManifest))
+
+      const changesetDir = path.join(tempDir, '.changeset')
+      fs.mkdirSync(changesetDir, { recursive: true })
+      const intentPath = path.join(changesetDir, 'test-change.md')
+      fs.writeFileSync(intentPath, '---\n"pkg-a": minor\n---\n\nA pending change.\n')
+
+      const result = await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        gitChecks: false,
+        gitTagVersion: false,
+        recursive: true,
+        dryRun: true,
+        json: true,
+        allProjects: [{ rootDir: pkgADir, manifest: pkgAManifest }],
+        checkVersionPublished: async () => true,
+      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+
+      expect(JSON.parse(result as string)).toEqual([
+        {
+          name: 'pkg-a',
+          currentVersion: '1.0.0',
+          newVersion: '1.1.0',
+        },
+      ])
+      expect(JSON.parse(fs.readFileSync(path.join(pkgADir, 'package.json'), 'utf8')).version).toBe('1.0.0')
+      expect(fs.existsSync(intentPath)).toBe(true)
+      expect(fs.existsSync(path.join(changesetDir, 'ledger.yaml'))).toBe(false)
+      expect(fs.existsSync(lifecycleLog)).toBe(false)
+    })
+
+    it('should run preversion, version, and postversion scripts in stage and release-plan order for intent-consuming version -r', async () => {
+      const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
+      const pkgBDir = path.join(tempDir, 'packages', 'pkg-b')
+      fs.mkdirSync(pkgADir, { recursive: true })
+      fs.mkdirSync(pkgBDir, { recursive: true })
+      const lifecycleLog = path.join(tempDir, 'lifecycle.log')
+      const logLifecycleScript = path.join(tempDir, 'log-lifecycle.cjs')
+      fs.writeFileSync(logLifecycleScript, `const fs = require('fs')
+const path = require('path')
+const manifest = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'))
+console.log(manifest.name + ':' + process.argv[3])
+fs.appendFileSync(process.argv[2], manifest.name + ':' + process.argv[3] + ':' + manifest.version + '\\n')
+`)
+
+      const pkgAManifest = {
+        name: 'pkg-a',
+        version: '1.0.0',
+        scripts: {
+          preversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} preversion`,
+          version: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} version`,
+          postversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} postversion`,
+        },
+      }
+      const pkgBManifest = {
+        name: 'pkg-b',
+        version: '2.0.0',
+        scripts: {
+          preversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} preversion`,
+          version: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} version`,
+          postversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)} postversion`,
+        },
+      }
+      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
+      fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify(pkgAManifest))
+      fs.writeFileSync(path.join(pkgBDir, 'package.json'), JSON.stringify(pkgBManifest))
+
+      const changesetDir = path.join(tempDir, '.changeset')
+      fs.mkdirSync(changesetDir, { recursive: true })
+      fs.writeFileSync(path.join(changesetDir, 'test-change.md'), '---\n"pkg-a": minor\n"pkg-b": patch\n---\n\nA pending change.\n')
+
+      const result = await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        gitChecks: false,
+        gitTagVersion: false,
+        recursive: true,
+        json: true,
+        allProjects: [
+          { rootDir: pkgADir, manifest: pkgAManifest },
+          { rootDir: pkgBDir, manifest: pkgBManifest },
+        ],
+        checkVersionPublished: async () => true,
+      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+
+      expect(JSON.parse(result as string)).toEqual([
+        { name: 'pkg-a', currentVersion: '1.0.0', newVersion: '1.1.0' },
+        { name: 'pkg-b', currentVersion: '2.0.0', newVersion: '2.0.1' },
+      ])
+      expect(fs.readFileSync(lifecycleLog, 'utf8')).toBe(
+        'pkg-a:preversion:1.0.0\n' +
+        'pkg-b:preversion:2.0.0\n' +
+        'pkg-a:version:1.1.0\n' +
+        'pkg-b:version:2.0.1\n' +
+        'pkg-a:postversion:1.1.0\n' +
+        'pkg-b:postversion:2.0.1\n'
+      )
+      expect(JSON.parse(fs.readFileSync(path.join(pkgADir, 'package.json'), 'utf8')).version).toBe('1.1.0')
+      expect(JSON.parse(fs.readFileSync(path.join(pkgBDir, 'package.json'), 'utf8')).version).toBe('2.0.1')
+    })
+
+    it('should abort before writing manifests or ledger when preversion fails in intent-consuming version -r', async () => {
+      const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
+      fs.mkdirSync(pkgADir, { recursive: true })
+
+      const pkgAManifest = {
+        name: 'pkg-a',
+        version: '1.0.0',
+        scripts: {
+          preversion: 'node -e "process.exit(1)"',
+        },
+      }
+      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
+      fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify(pkgAManifest))
+
+      const changesetDir = path.join(tempDir, '.changeset')
+      fs.mkdirSync(changesetDir, { recursive: true })
+      const intentPath = path.join(changesetDir, 'test-change.md')
+      fs.writeFileSync(intentPath, '---\n"pkg-a": minor\n---\n\nA pending change.\n')
+
+      await expect(handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        gitChecks: false,
+        gitTagVersion: false,
+        recursive: true,
+        allProjects: [{ rootDir: pkgADir, manifest: pkgAManifest }],
+        checkVersionPublished: async () => true,
+      } as any, [])).rejects.toThrow() // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+
+      expect(JSON.parse(fs.readFileSync(path.join(pkgADir, 'package.json'), 'utf8')).version).toBe('1.0.0')
+      expect(fs.existsSync(intentPath)).toBe(true)
+      expect(fs.existsSync(path.join(changesetDir, 'ledger.yaml'))).toBe(false)
+    })
+
+    it('should skip lifecycle scripts when ignoreScripts is true in intent-consuming version -r', async () => {
+      const pkgADir = path.join(tempDir, 'packages', 'pkg-a')
+      fs.mkdirSync(pkgADir, { recursive: true })
+      const lifecycleLog = path.join(tempDir, 'lifecycle.log')
+      const logLifecycleScript = path.join(tempDir, 'log-lifecycle.cjs')
+      fs.writeFileSync(logLifecycleScript, 'require("fs").appendFileSync(process.argv[2], "ran\\n")\n')
+
+      const pkgAManifest = {
+        name: 'pkg-a',
+        version: '1.0.0',
+        scripts: {
+          preversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)}`,
+          version: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)}`,
+          postversion: `node ${JSON.stringify(logLifecycleScript)} ${JSON.stringify(lifecycleLog)}`,
+        },
+      }
+      fs.writeFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'packages:\n  - "packages/*"\n')
+      fs.writeFileSync(path.join(pkgADir, 'package.json'), JSON.stringify(pkgAManifest))
+
+      const changesetDir = path.join(tempDir, '.changeset')
+      fs.mkdirSync(changesetDir, { recursive: true })
+      fs.writeFileSync(path.join(changesetDir, 'test-change.md'), '---\n"pkg-a": minor\n---\n\nA pending change.\n')
+
+      await handler({
+        dir: tempDir,
+        workspaceDir: tempDir,
+        gitChecks: false,
+        gitTagVersion: false,
+        recursive: true,
+        ignoreScripts: true,
+        allProjects: [{ rootDir: pkgADir, manifest: pkgAManifest }],
+        checkVersionPublished: async () => true,
+      } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+
+      expect(JSON.parse(fs.readFileSync(path.join(pkgADir, 'package.json'), 'utf8')).version).toBe('1.1.0')
+      expect(fs.existsSync(lifecycleLog)).toBe(false)
     })
   })
 })

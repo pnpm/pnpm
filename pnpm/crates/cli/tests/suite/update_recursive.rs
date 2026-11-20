@@ -2,18 +2,39 @@
 //! `pnpm11/installing/commands/test/update/recursive.ts`.
 //!
 //! The cases that drive `latest` around mid-test run against a registry
-//! of their own — see [`setup_with_own_registry`] — because moving a
+//! of their own (see [`setup_with_own_registry`]) because moving a
 //! dist tag mutates the storage the registry serves.
 
-use crate::_utils::{append_workspace_yaml_key, lockfile_package_keys};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    lockfile_package_keys,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_modules_yaml::{Host as ModulesHost, IncludedDependencies, read_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    IncludedDependencies,
+    read_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 /// Published at 100.0.0, 100.1.0, and 101.0.0.
@@ -60,7 +81,10 @@ fn write_workspace(workspace: &Path, manifests: &[(&str, Value)]) {
     if !yaml.ends_with('\n') {
         yaml.push('\n');
     }
-    let packages: Vec<String> = manifests.iter().map(|(name, _)| format!("  - '{name}'")).collect();
+    let packages: Vec<String> = manifests
+        .iter()
+        .map(|(name, _)| format!("  - '{name}'"))
+        .collect();
     fs::write(&yaml_path, format!("{yaml}packages:\n{}\n", packages.join("\n")))
         .expect("write pnpm-workspace.yaml");
 
@@ -80,7 +104,10 @@ fn dep_spec(project_dir: &Path, name: &str) -> Option<String> {
 }
 
 fn has_module(project_dir: &Path, name: &str) -> bool {
-    project_dir.join("node_modules").join(name).exists()
+    project_dir
+        .join("node_modules")
+        .join(name)
+        .exists()
 }
 
 /// The names under a project's `node_modules`, with scope directories
@@ -91,9 +118,15 @@ fn list_modules(project_dir: &Path) -> Vec<String> {
         entries
             .filter_map(Result::ok)
             .flat_map(|entry| {
-                let name = entry.file_name().to_string_lossy().into_owned();
+                let name = entry
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned();
                 if name.starts_with('@') {
-                    names(&entry.path()).iter().map(|inner| format!("{name}/{inner}")).collect()
+                    names(&entry.path())
+                        .iter()
+                        .map(|inner| format!("{name}/{inner}"))
+                        .collect()
                 } else {
                     vec![name]
                 }
@@ -110,7 +143,10 @@ fn module_target(project_dir: &Path, name: &str) -> Option<std::path::PathBuf> {
 }
 
 fn installed_version(project_dir: &Path, name: &str) -> Option<String> {
-    let manifest_path = project_dir.join("node_modules").join(name).join("package.json");
+    let manifest_path = project_dir
+        .join("node_modules")
+        .join(name)
+        .join("package.json");
     let contents = fs::read_to_string(manifest_path).ok()?;
     let value: Value = serde_json::from_str(&contents).ok()?;
     value["version"].as_str().map(str::to_string)
@@ -259,7 +295,7 @@ fn recursive_update_prod_dependencies_only() {
     anchor.set_dist_tag(FOO, "100.1.0", "latest");
     anchor.set_dist_tag(BAR, "100.1.0", "latest");
 
-    pacquet(&workspace, ["-r", "update", "--prod", "--no-optional"]).assert().success();
+    pacquet(&workspace, ["-r", "update", "--prod"]).assert().success();
 
     assert_eq!(
         lockfile_package_keys(&workspace),
@@ -372,7 +408,7 @@ fn recursive_update_accepts_a_version_declared_by_any_project() {
     drop((root, anchor));
 }
 
-/// A selector that names no single version -- a tag or a range -- has nothing
+/// A selector that names no single version (a tag or a range) has nothing
 /// to record either, but updating within the dependents' ranges is a
 /// reasonable reading of it. Those warn rather than fail.
 #[test]
@@ -478,7 +514,7 @@ fn recursive_update_with_pattern_and_name_in_project() {
     assert!(!output.status.success(), "updating an undeclared package should fail");
     assert!(stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"), "{stderr}");
 
-    // Without `--depth 0` the same selector is simply a no-op.
+    // Without `--depth 0` the same selector is a no-op.
     pacquet(&workspace, ["-r", "update", "--latest", "@pnpm.e2e/this-does-not-exist"])
         .assert()
         .success();
@@ -547,7 +583,7 @@ fn recursive_update_latest_only_reaches_the_named_packages() {
 }
 
 /// At `--depth 0` a transitive dependency is never traversed, so a selector
-/// that names one is out of scope rather than an unrecordable request — even
+/// that names one is out of scope rather than an unrecordable request, even
 /// alongside a selector that does match a direct dependency.
 #[test]
 fn recursive_update_depth_zero_leaves_an_indirect_selector_out_of_scope() {

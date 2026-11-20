@@ -3,9 +3,16 @@
 
 pub mod bin;
 pub mod command_env;
+pub mod diagnostics;
 pub mod env_guard;
 pub mod fixtures;
 pub mod fs;
 pub mod git_repo;
 pub mod known_failure;
 pub mod registry;
+pub mod stall_report;
+pub mod trusted_tls_server;
+pub mod turborepo_cache;
+pub mod untrusted_tls_server;
+
+mod registry_activity;

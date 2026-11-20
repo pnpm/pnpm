@@ -4,14 +4,22 @@
 //! split into one group per dependency type, and each group is rendered
 //! as a column-aligned table under a header row.
 
+use super::UpdateDetails;
 use crate::cli_args::{
-    outdated::{OutdatedPackage, colorize_target},
+    outdated::{
+        OutdatedPackage,
+        colorize_target,
+        render_trust_change,
+    },
     sanitize::sanitize_inline,
 };
 use console::measure_text_width;
 use node_semver::Version;
 use pnpm_package_manifest::DependencyGroup;
-use std::collections::HashMap;
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+};
 
 /// One line of a [`ChoiceGroup`].
 #[derive(Debug, PartialEq, Eq)]
@@ -21,6 +29,8 @@ pub(crate) struct ChoiceRow {
     /// The package name selecting this row updates. `None` marks the
     /// group's header row, which carries no selection.
     pub value: Option<String>,
+    /// The key of the row's release notes, `None` for the header row.
+    pub notes_key: Option<String>,
 }
 
 /// The outdated dependencies of one dependency type.
@@ -81,6 +91,7 @@ impl ChoiceGroupKind {
 pub(crate) fn update_choices(
     outdated: &[&OutdatedPackage],
     workspaces_enabled: bool,
+    details: UpdateDetails,
 ) -> Vec<ChoiceGroup> {
     let mut seen: HashMap<ChoiceKey<'_>, usize> = HashMap::new();
     let mut choices: Vec<Choice<'_>> = Vec::new();
@@ -97,36 +108,53 @@ pub(crate) fn update_choices(
             &package.target,
             package.github_action,
         );
-        let index = *seen.entry(key).or_insert_with(|| {
-            let index = choices.len();
-            choices.push(Choice { package, workspaces: Vec::new() });
-            let kind = ChoiceGroupKind::of(package);
-            match grouped.iter_mut().find(|(group, _)| *group == kind) {
-                Some((_, indices)) => indices.push(index),
-                None => grouped.push((kind, vec![index])),
-            }
-            index
-        });
+        let index = *seen
+            .entry(key)
+            .or_insert_with(|| {
+                let index = choices.len();
+                choices.push(Choice { package, workspaces: Vec::new() });
+                group_choice(&mut grouped, package, index);
+                index
+            });
         // Collect every project the collapsed entries came from, so the
         // `Workspace` column names all of them rather than whichever was
-        // seen first — selecting the row updates the package in each.
-        if let Some(workspace) = &package.workspace
+        // seen first, selecting the row updates the package in each.
+        if let Some(workspace) = &package.metadata.workspace
             && !choices[index].workspaces.contains(workspace)
         {
             choices[index].workspaces.push(workspace.clone());
         }
     }
 
+    let columns = ChoiceColumns::of(outdated, workspaces_enabled, details);
     grouped
         .into_iter()
         .map(|(kind, indices)| ChoiceGroup {
             message: kind.message().to_string(),
             rows: render_rows(
-                &indices.into_iter().map(|index| &choices[index]).collect::<Vec<_>>(),
-                workspaces_enabled,
+                &indices
+                    .into_iter()
+                    .map(|index| &choices[index])
+                    .collect::<Vec<_>>(),
+                columns,
             ),
         })
         .collect()
+}
+
+fn group_choice(
+    grouped: &mut Vec<(ChoiceGroupKind, Vec<usize>)>,
+    package: &OutdatedPackage,
+    index: usize,
+) {
+    let kind = ChoiceGroupKind::of(package);
+    match grouped
+        .iter_mut()
+        .find(|(group, _)| *group == kind)
+    {
+        Some((_, indices)) => indices.push(index),
+        None => grouped.push((kind, vec![index])),
+    }
 }
 
 /// One offered dependency, with every workspace project it was found in.
@@ -137,54 +165,57 @@ struct Choice<'a> {
 
 type ChoiceKey<'a> = (&'a str, &'a str, &'a Version, &'a Version, bool);
 
+/// The optional columns every group of one prompt shows.
+#[derive(Clone, Copy)]
+struct ChoiceColumns {
+    workspace: bool,
+    details: UpdateDetails,
+    /// Shown when the outdated set carries trust evidence, which it does
+    /// under `trustPolicy: no-downgrade`.
+    trust: bool,
+}
+
+impl ChoiceColumns {
+    fn of(outdated: &[&OutdatedPackage], workspaces_enabled: bool, details: UpdateDetails) -> Self {
+        Self {
+            workspace: workspaces_enabled,
+            details,
+            trust: outdated.iter().any(|package| package.metadata.trust.is_some()),
+        }
+    }
+}
+
 /// The header row plus one row per offered dependency, padded so every
 /// column lines up within the group.
-fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceRow> {
+fn render_rows(choices: &[&Choice<'_>], columns: ChoiceColumns) -> Vec<ChoiceRow> {
     let mut header =
         vec!["Package".to_string(), "Current".to_string(), String::new(), "Target".to_string()];
-    if workspaces_enabled {
+    if columns.workspace {
         header.push("Workspace".to_string());
     }
-    header.push("URL".to_string());
-
-    let mut cells = vec![header];
-    for choice in choices {
-        let package = choice.package;
-        // The name, workspaces, and homepage are read out of manifests
-        // and registry metadata, so they are stripped of control
-        // characters before reaching the terminal: an escape sequence
-        // would corrupt the prompt's redraw, and a newline would break
-        // the row apart.
-        let mut row = vec![
-            sanitize_inline(&package.package_name).into_owned(),
-            package.current.to_string(),
-            "❯".to_string(),
-            colorize_target(package),
-        ];
-        if workspaces_enabled {
-            row.push(
-                choice
-                    .workspaces
-                    .iter()
-                    .map(|workspace| sanitize_inline(workspace))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
-        }
-        row.push(package.homepage.as_deref().map(sanitize_inline).unwrap_or_default().into_owned());
-        cells.push(row);
+    if columns.trust {
+        header.push("Trust".to_string());
+    }
+    if columns.details.shows_urls() {
+        header.push("URL".to_string());
     }
 
+    let mut cells = vec![header];
+    cells.extend(choices.iter().map(|choice| choice_cells(choice, columns)));
+
     let widths = column_widths(&cells);
-    let mut rows =
-        cells.into_iter().map(|row| ChoiceRow { label: pad_row(&row, &widths), value: None });
+    let mut rows = cells
+        .into_iter()
+        .map(|row| ChoiceRow { label: pad_row(&row, &widths), value: None, notes_key: None });
     let header = rows.next().expect("the header row is always pushed first");
     std::iter::once(header)
         .chain(
-            rows.zip(choices).map(|(row, choice)| ChoiceRow {
-                value: Some(choice.package.alias.clone()),
-                ..row
-            }),
+            rows.zip(choices)
+                .map(|(row, choice)| ChoiceRow {
+                    value: Some(choice.package.alias.clone()),
+                    notes_key: Some(super::notes::notes_key(choice.package)),
+                    ..row
+                }),
         )
         .collect()
 }
@@ -193,7 +224,11 @@ fn render_rows(choices: &[&Choice<'_>], workspaces_enabled: bool) -> Vec<ChoiceR
 /// escapes `colorize_target` embeds do not inflate the padding and a name
 /// made of wide characters is not measured as narrower than it renders.
 fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
-    let column_count = cells.iter().map(Vec::len).max().unwrap_or_default();
+    let column_count = cells
+        .iter()
+        .map(Vec::len)
+        .max()
+        .unwrap_or_default();
     (0..column_count)
         .map(|column| {
             cells
@@ -211,13 +246,13 @@ fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
 const CURRENT_COLUMN: usize = 1;
 
 /// The least width of the `Package`, `Current`, arrow, and `Target`
-/// columns — the widths pnpm fixes them at. Every group is laid out on
+/// columns, the widths pnpm fixes them at. Every group is laid out on
 /// its own, so these are what line one group's columns up with the
 /// next's. A cell wider than the minimum widens its column rather than
 /// wrapping.
 const MIN_COLUMN_WIDTHS: [usize; 4] = [50, 15, 0, 15];
 
-/// The columns after `Target` — `Workspace` and `URL` — are set off by
+/// The columns after `Target` (`Workspace` and `URL`) are set off by
 /// two more spaces than the rest, as pnpm pads them.
 const FIRST_WIDE_GAP_COLUMN: usize = 4;
 
@@ -233,7 +268,12 @@ fn pad_row(row: &[String], widths: &[usize]) -> String {
             .get(index)
             .copied()
             .unwrap_or_default()
-            .max(MIN_COLUMN_WIDTHS.get(index).copied().unwrap_or_default());
+            .max(
+                MIN_COLUMN_WIDTHS
+                    .get(index)
+                    .copied()
+                    .unwrap_or_default(),
+            );
         let padding = width.saturating_sub(measure_text_width(cell));
         if index == CURRENT_COLUMN {
             line.extend(std::iter::repeat_n(' ', padding));
@@ -252,3 +292,66 @@ fn pad_row(row: &[String], widths: &[usize]) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn choice_cells(choice: &Choice<'_>, columns: ChoiceColumns) -> Vec<String> {
+    let package = choice.package;
+    // The name, workspaces, and homepage are read out of manifests
+    // and registry metadata, so they are stripped of control
+    // characters before reaching the terminal: an escape sequence
+    // would corrupt the prompt's redraw, and a newline would break
+    // the row apart.
+    let mut row = vec![
+        sanitize_inline(&package.package_name).into_owned(),
+        package.current_str().into_owned(),
+        "❯".to_string(),
+        colorize_target(package),
+    ];
+    if columns.workspace {
+        row.push(workspaces_cell(
+            &choice.workspaces
+                .iter()
+                .map(|workspace| sanitize_inline(workspace))
+                .collect::<Vec<_>>(),
+        ));
+    }
+    if columns.trust {
+        row.push(package.metadata.trust.map(render_trust_change).unwrap_or_default());
+    }
+    if columns.details.shows_urls() {
+        row.push(
+            package.metadata.homepage
+                .as_deref()
+                .filter(|url| !url.is_empty())
+                .or(package.metadata.repository.as_deref())
+                .map(sanitize_inline)
+                .unwrap_or_default()
+                .into_owned(),
+        );
+    }
+    row
+}
+
+/// A dependency shared by every project of a large workspace names all of
+/// them in one `Workspace` cell, which would push its row, and through the
+/// column padding every row of its group, past any terminal. Past this
+/// many columns the cell names the projects that fit and counts the rest.
+const WORKSPACE_COLUMN_WIDTH: usize = 30;
+
+fn workspaces_cell(workspaces: &[Cow<'_, str>]) -> String {
+    let all = workspaces.join(", ");
+    if workspaces.len() < 2 || measure_text_width(&all) <= WORKSPACE_COLUMN_WIDTH {
+        return all;
+    }
+    let mut named = 1;
+    while named + 1 < workspaces.len()
+        && measure_text_width(&abbreviate_workspaces(workspaces, named + 1))
+            <= WORKSPACE_COLUMN_WIDTH
+    {
+        named += 1;
+    }
+    abbreviate_workspaces(workspaces, named)
+}
+
+fn abbreviate_workspaces(workspaces: &[Cow<'_, str>], named: usize) -> String {
+    format!("{}, +{} more", workspaces[..named].join(", "), workspaces.len() - named)
+}

@@ -1,17 +1,23 @@
 use super::{
-    PreparePackageOptions, PreparedPackage, package_should_be_built, prepare_package,
+    PreparePackageOptions,
+    PreparedPackage,
+    package_should_be_built,
+    prepare_package,
     safe_join_path,
 };
 use crate::error::PreparePackageError;
 use miette::Diagnostic;
-use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_reporter::SilentReporter;
 use serde_json::json;
 use std::{
     collections::HashMap,
     fs,
     path::Path,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+    },
 };
 use tempfile::tempdir;
 
@@ -29,16 +35,18 @@ fn write_manifest(dir: &Path, manifest: &serde_json::Value) {
 fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |_dep_path| allow),
+        scripts: crate::PrepareScriptOptions {
+            ignore: ignore_scripts,
+            unsafe_perm: true,
+            user_agent: None,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
+        },
+        allow_build: Box::new(move |_dep_path| allow.then_some(true)),
         pkg_resolution_id: "https://example.com/x.tgz",
-        ignore_scripts,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
+
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }
@@ -47,16 +55,18 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
 fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |dep_path| !dep_path.contains("://")),
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
+        },
+        allow_build: Box::new(move |dep_path| (!dep_path.contains("://")).then_some(true)),
         pkg_resolution_id: "https://example.com/x.tgz",
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
+
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }
@@ -68,16 +78,18 @@ fn opts_allow_dep_path<'a>(
 ) -> PreparePackageOptions<'a> {
     static EMPTY_BIN_PATHS: &[std::path::PathBuf] = &[];
     PreparePackageOptions {
-        allow_build: Box::new(move |actual_dep_path| actual_dep_path == dep_path),
+        scripts: crate::PrepareScriptOptions {
+            ignore: false,
+            unsafe_perm: true,
+            user_agent: None,
+            shell: None,
+            node_execpath: None,
+            npm_execpath: None,
+            running_pnpm: crate::RunningPnpm::default(),
+        },
+        allow_build: Box::new(move |actual_dep_path| (actual_dep_path == dep_path).then_some(true)),
         pkg_resolution_id,
-        ignore_scripts: false,
-        unsafe_perm: true,
-        user_agent: None,
-        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
-        script_shell: None,
-        node_execpath: None,
-        npm_execpath: None,
-        pnpm_execpath: None,
+
         extra_bin_paths: EMPTY_BIN_PATHS,
         extra_env: empty_env(),
     }
@@ -136,7 +148,7 @@ fn prepare_returns_should_be_built_false_when_manifest_has_no_scripts() {
     let dir = tempdir().unwrap();
     write_manifest(dir.path(), &json!({ "name": "x", "version": "0.0.0" }));
 
-    let PreparedPackage { pkg_dir, should_be_built } =
+    let PreparedPackage { pkg_dir, should_be_built, .. } =
         prepare_package::<SilentReporter>(&opts(false, false), dir.path(), None).unwrap();
     assert!(!should_be_built);
     assert_eq!(pkg_dir, dir.path());
@@ -161,7 +173,7 @@ fn prepare_ignore_scripts_short_circuits_without_spawn() {
 }
 
 #[test]
-fn prepare_rejects_when_allow_build_returns_false() {
+fn prepare_rejects_when_build_is_undecided() {
     let dir = tempdir().unwrap();
     write_manifest(
         dir.path(),
@@ -198,12 +210,18 @@ fn prepare_rejection_suggests_the_allow_builds_key_the_gate_checked() {
     let recorder = Arc::clone(&checked);
     let mut opts = opts(false, false);
     opts.allow_build = Box::new(move |dep_path| {
-        recorder.lock().unwrap().push(dep_path.to_string());
-        false
+        recorder
+            .lock()
+            .unwrap()
+            .push(dep_path.to_string());
+        None
     });
 
     let err = prepare_package::<SilentReporter>(&opts, dir.path(), None).unwrap_err();
-    let help = err.help().expect("NotAllowed carries a help message").to_string();
+    let help = err
+        .help()
+        .expect("NotAllowed carries a help message")
+        .to_string();
     let checked = checked.lock().unwrap();
     let [gated_key] = checked.as_slice() else {
         panic!("expected exactly one allowBuild check, got {checked:?}");
@@ -281,8 +299,8 @@ fn prepare_allows_untrusted_manifest_identity_by_dep_path() {
         }),
     );
 
-    // The policy sees `<manifest name>@<resolution id>` — the key a
-    // lockfile would record — not the bare resolution id.
+    // The policy sees `<manifest name>@<resolution id>` (the key a
+    // lockfile would record) not the bare resolution id.
     let pkg_resolution_id = "git+https://example.com/org/repo.git#abc123";
     let dep_path = format!("trusted-name@{pkg_resolution_id}");
     let result = prepare_package::<SilentReporter>(
@@ -332,6 +350,22 @@ fn safe_join_path_rejects_an_escape_behind_a_leading_slash() {
     assert!(matches!(err, PreparePackageError::InvalidPath { .. }));
 }
 
+#[cfg(unix)]
+#[test]
+fn safe_join_path_rejects_symlink_escape() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let outside = tempdir().unwrap();
+    let outside_sub = outside.path().join("sub");
+    std::fs::create_dir_all(&outside_sub).unwrap();
+
+    let symlink = root.join("external_link");
+    std::os::unix::fs::symlink(outside.path(), &symlink).unwrap();
+
+    let err = safe_join_path(root, Some("external_link/sub")).unwrap_err();
+    assert!(matches!(err, PreparePackageError::InvalidPath { .. }));
+}
+
 #[test]
 fn safe_join_path_accepts_empty_sub_dir() {
     let dir = tempdir().unwrap();
@@ -339,4 +373,93 @@ fn safe_join_path_accepts_empty_sub_dir() {
     let canonical_root = dir.path().canonicalize().unwrap();
     let canonical_received = received.canonicalize().unwrap();
     assert_eq!(canonical_received, canonical_root);
+}
+
+#[test]
+fn explicitly_denied_preparation_keeps_source_without_running_scripts() {
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "denied-build", "version": "1.0.0",
+            "scripts": { "prepare": "exit 1", "preinstall": "exit 1", "postinstall": "exit 1" },
+        }),
+    );
+    fs::write(dir.path().join("index.js"), "module.exports = 42").unwrap();
+    let mut options = opts(false, false);
+    options.allow_build = Box::new(|_| Some(false));
+    let result = prepare_package::<SilentReporter>(&options, dir.path(), None).unwrap();
+    dbg!(&result);
+    assert!(result.should_be_built);
+    assert!(result.ignored_build);
+    assert_eq!(fs::read_to_string(result.pkg_dir.join("index.js")).unwrap(), "module.exports = 42");
+}
+
+#[test]
+fn prepare_scripts_run_with_strict_dep_builds_off() {
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "records-strict-dep-builds", "version": "1.0.0",
+            "scripts": {
+                "prepare": r#"node -e "require('fs').writeFileSync('strict-dep-builds.txt', String(process.env.pnpm_config_strict_dep_builds))""#,
+            },
+        }),
+    );
+    let result = prepare_package::<SilentReporter>(&opts(true, false), dir.path(), None).unwrap();
+    dbg!(&result);
+    assert_eq!(fs::read_to_string(result.pkg_dir.join("strict-dep-builds.txt")).unwrap(), "false");
+}
+
+#[test]
+fn prepare_scripts_run_with_the_install_pm_on_fail() {
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "records-pm-on-fail", "version": "1.0.0",
+            "scripts": {
+                "prepare": r#"node -e "require('fs').writeFileSync('pm-on-fail.txt', String(process.env.pnpm_config_pm_on_fail))""#,
+            },
+        }),
+    );
+    let mut options = opts(true, false);
+    options.scripts.running_pnpm.pm_on_fail = Some("ignore");
+    let result = prepare_package::<SilentReporter>(&options, dir.path(), None).unwrap();
+    dbg!(&result);
+    assert_eq!(fs::read_to_string(result.pkg_dir.join("pm-on-fail.txt")).unwrap(), "ignore");
+}
+
+/// A pnpm pin is left to the running pnpm when `pmOnFail` is not
+/// `download`. The stand-in pnpm records the command it was given, which
+/// only happens if the build's `pnpm` reaches it.
+#[cfg(unix)]
+#[test]
+fn a_pinned_pnpm_is_prepared_by_the_running_pnpm_unless_pm_on_fail_is_download() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let bin_dir = tempdir().unwrap();
+    let running_pnpm = bin_dir.path().join("pnpm");
+    fs::write(&running_pnpm, "#!/bin/sh\necho \"$@\" > ran-running-pnpm.txt\n").unwrap();
+    fs::set_permissions(&running_pnpm, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let dir = tempdir().unwrap();
+    write_manifest(
+        dir.path(),
+        &json!({
+            "name": "pins-pnpm", "version": "1.0.0",
+            "packageManager": "pnpm@9.0.0",
+            "scripts": { "prepare": "exit 0" },
+        }),
+    );
+    let mut options = opts(true, false);
+    options.scripts.running_pnpm.execpath = Some(&running_pnpm);
+    options.scripts.running_pnpm.pm_on_fail = Some("ignore");
+    let result = prepare_package::<SilentReporter>(&options, dir.path(), None).unwrap();
+    dbg!(&result);
+    assert_eq!(
+        fs::read_to_string(result.pkg_dir.join("ran-running-pnpm.txt")).unwrap(),
+        "install\n",
+    );
 }

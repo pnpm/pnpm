@@ -4,7 +4,7 @@ import type { LockfileObject } from '@pnpm/lockfile.types'
 
 import { checkCustomResolverForceResolve } from '../../src/install/checkCustomResolverForceResolve.js'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the fixtures are partial lockfile sections that the lockfile types reject
 type AnyPackages = any
 
 function lockfileWithPackages (packages?: Record<string, object>): LockfileObject {
@@ -182,8 +182,7 @@ describe('checkCustomResolverForceResolve', () => {
   })
 
   test('shouldRefreshResolution can filter by depPath to match specific packages', async () => {
-    // Resolver uses shouldRefreshResolution to do its own filtering -- this is
-    // the expected pattern now that canResolve is not used as a gate.
+    // Resolver uses shouldRefreshResolution to do its own filtering.
     const resolver: CustomResolver = {
       canResolve: (wantedDependency) => wantedDependency.alias === 'indirect-pkg',
       shouldRefreshResolution: (depPath) => depPath.startsWith('indirect-pkg@'),
@@ -268,5 +267,35 @@ describe('checkCustomResolverForceResolve', () => {
         lockfileWithPackages({ 'test-pkg@1.0.0': TEST_PKG_SNAPSHOT })
       )
     ).rejects.toThrow('unexpected failure')
+  })
+
+  test('leaves no rejection unhandled when a later package is refreshed synchronously', async () => {
+    const unhandledRejections: unknown[] = []
+    const recordUnhandledRejection = (reason: unknown): void => {
+      unhandledRejections.push(reason)
+    }
+    process.on('unhandledRejection', recordUnhandledRejection)
+    try {
+      const resolver: CustomResolver = {
+        shouldRefreshResolution: async (depPath) => {
+          if (depPath === 'second@1.0.0') return true
+          throw new Error('lookup failed')
+        },
+      }
+      const syncResolver: CustomResolver = {
+        shouldRefreshResolution: (depPath) => depPath === 'second@1.0.0',
+      }
+
+      const result = await checkCustomResolverForceResolve(
+        [resolver, syncResolver],
+        lockfileWithPackages({ 'first@1.0.0': TEST_PKG_SNAPSHOT, 'second@1.0.0': TEST_PKG_SNAPSHOT })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      expect(result).toBe(true)
+      expect(unhandledRejections).toStrictEqual([])
+    } finally {
+      process.off('unhandledRejection', recordUnhandledRejection)
+    }
   })
 })

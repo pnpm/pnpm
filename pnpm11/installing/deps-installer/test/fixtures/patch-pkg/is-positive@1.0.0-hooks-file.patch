@@ -1,0 +1,7 @@
+diff --git a/.hooks b/.hooks
+new file mode 100644
+index 0000000..8c41a6a
+--- /dev/null
++++ b/.hooks
+@@ -0,0 +1 @@
++not a hooks directory

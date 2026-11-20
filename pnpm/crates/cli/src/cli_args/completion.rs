@@ -1,9 +1,50 @@
-use clap::{Arg, ArgAction, Args, Command, CommandFactory};
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
-use std::{io::Write, path::Path};
+pub use shells::{
+    CompletionShell,
+    SUPPORTED_SHELLS,
+};
 
-pub const SUPPORTED_SHELLS: &[&str] = &["bash", "fish", "pwsh", "zsh"];
+use crate::{
+    cli_args::{
+        cli_command::options::find_workspace_root_dir,
+        prefix::{
+            find_local_prefix,
+            find_npm_local_prefix,
+        },
+    },
+    flag_relocation::short_cluster_consumes_value,
+};
+use clap::{
+    Arg,
+    Args,
+    Command,
+    CommandFactory,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
+use options::{
+    argument_takes_separate_value,
+    attached_option_values,
+    complete_argument_values,
+    find_short_option_argument,
+    option_value_is_allowed,
+    separate_value_option,
+    visible_options,
+};
+use pnpm_text_sanitize::sanitize_inline;
+use std::{
+    env,
+    io::Write,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 #[derive(Debug, Args)]
 pub struct CompletionArgs {
@@ -17,35 +58,6 @@ pub struct CompletionArgs {
 pub struct CompletionServerArgs {
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub words: Vec<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompletionShell {
-    Bash,
-    Fish,
-    Pwsh,
-    Zsh,
-}
-
-impl CompletionShell {
-    fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "bash" => Some(CompletionShell::Bash),
-            "fish" => Some(CompletionShell::Fish),
-            "pwsh" => Some(CompletionShell::Pwsh),
-            "zsh" => Some(CompletionShell::Zsh),
-            _ => None,
-        }
-    }
-
-    fn script(self) -> &'static str {
-        match self {
-            CompletionShell::Bash => BASH_COMPLETION,
-            CompletionShell::Fish => FISH_COMPLETION,
-            CompletionShell::Pwsh => PWSH_COMPLETION,
-            CompletionShell::Zsh => ZSH_COMPLETION,
-        }
-    }
 }
 
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
@@ -72,7 +84,10 @@ pub fn shell_from_args(
         return Err(CompletionError::RedundantParameters { count: extra.len() });
     }
 
-    let Some(shell) = shell.map(str::trim).filter(|shell| !shell.is_empty()) else {
+    let Some(shell) = shell
+        .map(str::trim)
+        .filter(|shell| !shell.is_empty())
+    else {
         return Err(CompletionError::MissingShellName);
     };
 
@@ -83,101 +98,264 @@ pub fn shell_from_args(
 impl CompletionArgs {
     pub fn run(&self) -> miette::Result<()> {
         let shell = shell_from_args(self.shell.as_deref(), &self.extra)?;
-        generate_completion(shell, &mut std::io::stdout())?;
+        pnpm_diagnostics::stdout::check(generate_completion(shell, &mut std::io::stdout()));
         Ok(())
     }
 }
 
 impl CompletionServerArgs {
     pub fn run(&self) -> miette::Result<()> {
-        for completion in complete_words(&self.words) {
-            println!("{completion}");
+        let is_zsh = std::env::var_os("SHELL").is_some_and(|shell| shell == "zsh");
+        for completion in complete_words(&self.words)? {
+            if sanitize_inline(&completion) != completion {
+                continue;
+            }
+            let completion = if is_zsh {
+                completion.replace('\\', r"\\").replace(':', r"\:")
+            } else {
+                completion
+            };
+            pnpm_diagnostics::println!("{completion}");
         }
         Ok(())
     }
 }
 
-pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> miette::Result<()> {
-    output.write_all(shell.script().as_bytes()).into_diagnostic()
+pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> std::io::Result<()> {
+    output.write_all(shell.script().as_bytes())
 }
 
-pub fn complete_words(words: &[String]) -> Vec<String> {
+pub fn complete_words(words: &[String]) -> miette::Result<Vec<String>> {
     let words = words_without_binary(words);
     let (before_current, current_word) = split_current_word(&words);
-    if before_current.iter().any(|word| word == "--") {
-        return Vec::new();
+    if before_current
+        .iter()
+        .any(|word| word == "--")
+    {
+        return Ok(Vec::new());
     }
 
     let command = command_for_completion();
     let context = CompletionContext::new(&command, before_current);
 
-    if let Some(values) = equals_option_values(&context, current_word) {
-        return values;
-    }
-
-    if let Some(values) = option_values(&context, before_current) {
-        return filter_by_prefix(values, current_word);
+    if let Some(values) = attached_option_values(&context, current_word)? {
+        return Ok(values);
     }
 
     if current_word.starts_with('-') {
-        return filter_by_prefix(visible_options(&context), current_word);
+        return Ok(filter_by_prefix(visible_options(&context), current_word));
     }
 
-    if context.command_name == Some("completion") {
-        return filter_by_prefix(
-            SUPPORTED_SHELLS.iter().map(|shell| (*shell).to_string()).collect(),
-            current_word,
-        );
+    if let Some(argument) = context.pending_option {
+        return complete_argument_values(&context, argument, current_word, ValueForm::Separate);
     }
 
-    filter_by_prefix(visible_subcommands(context.command), current_word)
+    Ok(filter_by_prefix(context.positional_candidates()?, current_word))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ValueForm {
+    Attached,
+    Separate,
+}
+
+#[derive(Clone, Copy)]
+struct DirectoryArg<'a> {
+    path: &'a str,
+    form: ValueForm,
 }
 
 struct CompletionContext<'a> {
     root: &'a Command,
     command: &'a Command,
     command_name: Option<&'a str>,
+    has_positional: bool,
+    directory: Option<DirectoryArg<'a>>,
+    pending_option: Option<&'a Arg>,
+    workspace_root: bool,
+    ignore_workspace: bool,
 }
 
 impl<'a> CompletionContext<'a> {
-    fn new(root: &'a Command, words: &[String]) -> Self {
-        let mut command = root;
-        let mut command_name = None;
-        let mut index = 0;
+    fn resolve_project_directory(
+        &self,
+        resolve_prefix: impl FnOnce(&Path) -> miette::Result<PathBuf>,
+    ) -> miette::Result<PathBuf> {
+        let cwd = env::current_dir().into_diagnostic()?;
+        let home_dir = pnpm_config::home_dir();
+        let directory = self.resolve_selected_directory(&cwd, home_dir.as_deref(), resolve_prefix)?;
+        Ok(if self.workspace_root { find_workspace_root_dir(&directory)? } else { directory })
+    }
 
+    fn resolve_selected_directory(
+        &self,
+        cwd: &Path,
+        home_dir: Option<&Path>,
+        resolve_prefix: impl FnOnce(&Path) -> miette::Result<PathBuf>,
+    ) -> miette::Result<PathBuf> {
+        match self.directory {
+            Some(directory) => {
+                let dir_home = match directory.form {
+                    ValueForm::Separate => home_dir,
+                    ValueForm::Attached => None,
+                };
+                Ok(paths::resolve_directory_arg(cwd, dir_home, directory.path))
+            }
+            None => resolve_prefix(cwd),
+        }
+    }
+
+    fn resolve_implicit_directory(&self, cwd: &Path) -> miette::Result<PathBuf> {
+        if matches!(
+            self.command_name,
+            Some(
+                "bin"
+                    | "clean"
+                    | "exec"
+                    | "fund"
+                    | "pkg"
+                    | "purge"
+                    | "restart"
+                    | "root"
+                    | "run"
+                    | "set-script"
+                    | "start"
+                    | "stop"
+                    | "tasks"
+                    | "test"
+            ),
+        ) {
+            find_npm_local_prefix(cwd)
+        } else {
+            find_local_prefix(cwd)
+        }
+    }
+
+    fn positional_candidates(&self) -> miette::Result<Vec<String>> {
+        match self.command_name {
+            Some("completion") => Ok(SUPPORTED_SHELLS
+                .iter()
+                .map(|shell| (*shell).to_string())
+                .collect()),
+            Some("run") => scripts::complete_scripts(self),
+            None if !self.has_positional => {
+                let mut commands = visible_subcommands(self.command);
+                // Built-in commands remain available when the manifest cannot be read.
+                let mut scripts = scripts::complete_scripts(self).unwrap_or_default();
+                scripts.retain(|script| {
+                    !script.is_empty()
+                        && !script.starts_with(['.', '-'])
+                        && !self.command
+                            .get_subcommands()
+                            .any(|command| command_matches(command, script))
+                });
+                commands.extend(scripts);
+                Ok(commands)
+            }
+            _ => Ok(visible_subcommands(self.command)),
+        }
+    }
+
+    fn scan_option(&mut self, word: &'a str, next: Option<&'a str>) -> (usize, Option<&'a Arg>) {
+        if let Some(rest) = word
+            .strip_prefix('-')
+            .filter(|rest| !rest.starts_with('-'))
+        {
+            return self.scan_short_options(rest, next);
+        }
+        self.workspace_root |= word == "--workspace-root";
+        if word == "--ignore-workspace" {
+            self.ignore_workspace = true;
+        } else if word == "--no-ignore-workspace" {
+            self.ignore_workspace = false;
+        }
+        let pending_option = separate_value_option(self, word, next);
+        let width = if pending_option.is_some() { 2 } else { 1 };
+        if let Some(path) = scripts::directory_option(word, next.filter(|_| width == 2)) {
+            let form = if width == 1 { ValueForm::Attached } else { ValueForm::Separate };
+            self.directory = Some(DirectoryArg { path, form });
+        }
+        (width, pending_option)
+    }
+
+    fn scan_short_options(
+        &mut self,
+        rest: &'a str,
+        next: Option<&'a str>,
+    ) -> (usize, Option<&'a Arg>) {
+        let mut remaining = rest;
+        let mut pending_option = None;
+        let consumes_value = short_cluster_consumes_value(rest, |short| {
+            remaining = remaining.strip_prefix(short).expect("scanner visits each short in order");
+            let argument = find_short_option_argument(self, short)?;
+            self.workspace_root |= argument.get_id() == "workspace_root";
+            let accepts_next = option_value_is_allowed(argument, next);
+            if argument.get_id() == "dir" {
+                let form =
+                    if remaining.is_empty() { ValueForm::Separate } else { ValueForm::Attached };
+                self.directory = short_option_value(remaining, next, accepts_next)
+                    .map(|path| DirectoryArg { path, form });
+            }
+            let takes_separate = argument_takes_separate_value(argument);
+            pending_option = (takes_separate && accepts_next).then_some(argument);
+            Some(takes_separate)
+        });
+        if consumes_value && pending_option.is_some() { (2, pending_option) } else { (1, None) }
+    }
+
+    fn new(root: &'a Command, words: &'a [String]) -> Self {
+        let mut context = Self {
+            root,
+            command: root,
+            command_name: None,
+            has_positional: false,
+            directory: None,
+            pending_option: None,
+            workspace_root: false,
+            ignore_workspace: false,
+        };
+        let mut index = 0;
         while let Some(word) = words.get(index) {
-            if let Some(subcommand) = command
+            if let Some(subcommand) = context.command
                 .get_subcommands()
-                .find(|subcommand| !subcommand.is_hide_set() && command_matches(subcommand, word))
+                .filter(|subcommand| !subcommand.is_hide_set())
+                .find(|subcommand| command_matches(subcommand, word))
             {
-                command = subcommand;
-                command_name = Some(subcommand.get_name());
+                context.command = subcommand;
+                context.command_name = Some(subcommand.get_name());
                 index += 1;
                 continue;
             }
-
             if word.starts_with('-') {
-                if option_has_separate_value(word)
-                    && find_option_argument_in_command(command, word)
-                        .or_else(|| find_option_argument_in_command(root, word))
-                        .is_some_and(argument_takes_value)
-                {
-                    index += 2;
-                } else {
-                    index += 1;
-                }
+                let (width, pending_option) =
+                    context.scan_option(word, words.get(index + 1).map(String::as_str));
+                context.pending_option =
+                    (index + 1 == words.len()).then_some(pending_option).flatten();
+                index += width;
                 continue;
             }
-
+            context.has_positional = true;
             index += 1;
         }
-
-        Self { root, command, command_name }
+        context
     }
 }
 
+fn short_option_value<'a>(
+    attached: &'a str,
+    next: Option<&'a str>,
+    accepts_next: bool,
+) -> Option<&'a str> {
+    if !attached.is_empty() {
+        return Some(attached.strip_prefix('=').unwrap_or(attached));
+    }
+    if accepts_next { next } else { None }
+}
+
 fn command_for_completion() -> Command {
-    super::CliArgs::command()
+    let mut command = super::CliArgs::command();
+    command.build();
+    command
 }
 
 fn words_without_binary(words: &[String]) -> Vec<String> {
@@ -188,7 +366,7 @@ fn words_without_binary(words: &[String]) -> Vec<String> {
     if Path::new(first)
         .file_stem()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name == "pnpm" || name == "pacquet")
+        .is_some_and(|name| matches!(name, "pnpm" | "pn" | "pacquet"))
     {
         rest.to_vec()
     } else {
@@ -204,7 +382,10 @@ fn split_current_word(words: &[String]) -> (&[String], &str) {
 }
 
 fn command_matches(command: &Command, word: &str) -> bool {
-    command.get_name() == word || command.get_all_aliases().any(|alias| alias == word)
+    command.get_name() == word
+        || command
+            .get_all_aliases()
+            .any(|alias| alias == word)
 }
 
 fn visible_subcommands(command: &Command) -> Vec<String> {
@@ -212,174 +393,26 @@ fn visible_subcommands(command: &Command) -> Vec<String> {
         .get_subcommands()
         .filter(|subcommand| !subcommand.is_hide_set())
         .flat_map(|subcommand| {
-            subcommand.get_name_and_visible_aliases().into_iter().map(String::from)
+            subcommand
+                .get_name_and_visible_aliases()
+                .into_iter()
+                .map(String::from)
         })
         .collect()
 }
 
-fn visible_options(context: &CompletionContext<'_>) -> Vec<String> {
-    let mut options = Vec::new();
-    extend_visible_options(&mut options, context.root);
-    if context.command_name.is_some() {
-        extend_visible_options(&mut options, context.command);
-    }
-    options.sort();
-    options.dedup();
-    options
-}
-
 fn filter_by_prefix(candidates: Vec<String>, prefix: &str) -> Vec<String> {
-    candidates.into_iter().filter(|candidate| candidate.starts_with(prefix)).collect()
-}
-
-fn extend_visible_options(options: &mut Vec<String>, command: &Command) {
-    for argument in command.get_arguments().filter(|argument| !argument.is_hide_set()) {
-        if let Some(short) = argument.get_short() {
-            options.push(format!("-{short}"));
-        }
-        if let Some(long) = argument.get_long() {
-            options.push(format!("--{long}"));
-        }
-        if let Some(aliases) = argument.get_visible_aliases() {
-            options.extend(aliases.into_iter().map(|alias| format!("--{alias}")));
-        }
-    }
-}
-
-fn equals_option_values(
-    context: &CompletionContext<'_>,
-    current_word: &str,
-) -> Option<Vec<String>> {
-    let (option, value_prefix) = current_word.split_once('=')?;
-    if !option.starts_with('-') {
-        return None;
-    }
-
-    let argument = find_option_argument(context, option)?;
-    let mut values: Vec<_> = visible_possible_values(argument)
+    candidates
         .into_iter()
-        .filter(|value| value.starts_with(value_prefix))
-        .map(|value| format!("{option}={value}"))
-        .collect();
-
-    values.sort();
-    values.dedup();
-    Some(values)
-}
-
-fn option_values(context: &CompletionContext<'_>, words: &[String]) -> Option<Vec<String>> {
-    let option =
-        words.last().filter(|word| word.starts_with('-') && option_has_separate_value(word))?;
-    let argument = find_option_argument(context, option)?;
-    let mut values = visible_possible_values(argument);
-
-    if values.is_empty() {
-        return None;
-    }
-
-    values.sort();
-    values.dedup();
-    Some(values)
-}
-
-fn visible_possible_values(argument: &Arg) -> Vec<String> {
-    argument
-        .get_possible_values()
-        .into_iter()
-        .filter(|value| !value.is_hide_set())
-        .map(|value| value.get_name().to_string())
+        .filter(|candidate| candidate.starts_with(prefix))
         .collect()
 }
 
-fn find_option_argument<'a>(context: &'a CompletionContext<'_>, option: &str) -> Option<&'a Arg> {
-    find_option_argument_in_command(context.command, option)
-        .or_else(|| find_option_argument_in_command(context.root, option))
-}
-
-fn find_option_argument_in_command<'a>(command: &'a Command, option: &str) -> Option<&'a Arg> {
-    command.get_arguments().find(|argument| argument_matches(argument, option))
-}
-
-fn argument_matches(argument: &Arg, option: &str) -> bool {
-    if let Some(long) = option.strip_prefix("--") {
-        let long = long.split_once('=').map_or(long, |(name, _)| name);
-        return argument.get_long() == Some(long)
-            || argument
-                .get_all_aliases()
-                .is_some_and(|aliases| aliases.into_iter().any(|alias| alias == long));
-    }
-
-    if let Some(short) = option.strip_prefix('-') {
-        return short.len() == 1
-            && argument
-                .get_short()
-                .is_some_and(|argument_short| short.starts_with(argument_short));
-    }
-
-    false
-}
-
-fn argument_takes_value(argument: &Arg) -> bool {
-    argument.get_num_args().is_some_and(|range| range.takes_values())
-        || matches!(argument.get_action(), ArgAction::Set | ArgAction::Append)
-}
-
-fn option_has_separate_value(option: &str) -> bool {
-    !option.contains('=')
-}
-
-const BASH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
-_pnpm_completion() {
-  local IFS=$'\n'
-  COMPREPLY=($(COMP_LINE="$COMP_LINE" COMP_POINT="$COMP_POINT" SHELL=bash pnpm completion-server -- "${COMP_WORDS[@]}"))
-}
-complete -F _pnpm_completion pnpm
-###-end-pnpm-completion-###
-"#;
-
-const FISH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
-function __pnpm_completion
-  set -lx SHELL fish
-  set -lx COMP_LINE (commandline -cp)
-  set -lx COMP_POINT (string length -- $COMP_LINE)
-  set -l tokens (commandline -opc)
-  set -l current (commandline -ct)
-  if test (count $tokens) -eq 0
-    set -a tokens "$current"
-  else if test "$tokens[-1]" != "$current"
-    set -a tokens "$current"
-  end
-  pnpm completion-server -- $tokens
-end
-complete -c pnpm -f -a "(__pnpm_completion)"
-###-end-pnpm-completion-###
-"#;
-
-const PWSH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
-Register-ArgumentCompleter -Native -CommandName pnpm -ScriptBlock {
-  param($wordToComplete, $commandAst, $cursorPosition)
-  $env:SHELL = "pwsh"
-  $env:COMP_LINE = $commandAst.ToString()
-  $env:COMP_POINT = $cursorPosition
-  $elements = @($commandAst.CommandElements | ForEach-Object { $_.Extent.Text })
-  if ($elements.Count -eq 0 -or $elements[-1] -ne $wordToComplete) {
-    $elements += $wordToComplete
-  }
-  pnpm completion-server -- @elements
-}
-###-end-pnpm-completion-###
-"#;
-
-const ZSH_COMPLETION: &str = r#"#compdef pnpm
-###-begin-pnpm-completion-###
-_pnpm_completion() {
-  local reply
-  reply=("${(@f)$(COMP_CWORD=$((CURRENT-1)) COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" SHELL=zsh pnpm completion-server -- "${words[@]}")}")
-  _describe 'values' reply
-}
-compdef _pnpm_completion pnpm
-###-end-pnpm-completion-###
-"#;
+mod options;
+mod packages;
+mod paths;
+mod scripts;
+mod shells;
 
 #[cfg(test)]
 mod tests;

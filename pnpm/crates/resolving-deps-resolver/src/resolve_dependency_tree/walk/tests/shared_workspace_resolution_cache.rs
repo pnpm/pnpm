@@ -1,15 +1,30 @@
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
 use pnpm_resolving_resolver_base::{
-    PkgResolutionId, ResolveOptions, ResolveResult, WantedDependency,
+    PkgResolutionId,
+    ResolveOptions,
+    ResolveResult,
+    WantedDependency,
 };
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
-use super::super::{canonical_workspace_resolution, render_workspace_resolution};
-use crate::resolve_dependency_tree::{TreeCtx, workspace_ctx::WantedKey};
+use super::super::workspace_resolution::{
+    canonical_workspace_resolution,
+    render_workspace_resolution,
+};
+use crate::resolve_dependency_tree::{
+    TreeCtx,
+    workspace_ctx::WantedKey,
+};
 
 fn wanted(specifier: &str) -> WantedDependency {
     WantedDependency {
@@ -20,26 +35,30 @@ fn wanted(specifier: &str) -> WantedDependency {
 }
 
 fn key(wanted: &WantedDependency, project_dir: &str) -> WantedKey {
-    (
+    WantedKey::new((
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
         wanted.optional,
         wanted.injected,
         false,
-        None,
+        (None, None),
         Some(PathBuf::from(project_dir).into()),
         None,
         Vec::new(),
         None,
         false,
-    )
+        false,
+    ))
 }
 
 fn opts(project_dir: &str) -> ResolveOptions {
     ResolveOptions {
-        project_dir: PathBuf::from(project_dir),
-        lockfile_dir: PathBuf::from("/repo"),
-        workspace_packages: Some(Arc::new(BTreeMap::new())),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: PathBuf::from(project_dir),
+            lockfile_dir: PathBuf::from("/repo"),
+            workspace_packages: Some(Arc::new(BTreeMap::new())),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     }
 }
@@ -47,19 +66,24 @@ fn opts(project_dir: &str) -> ResolveOptions {
 /// A directory resolution shaped like the npm resolver's workspace output:
 /// the id repeats the recorded directory behind its protocol prefix.
 fn directory_result(id: &str, resolved_via: &str) -> ResolveResult {
-    let directory =
-        id.split_once(':').map_or_else(|| id.to_string(), |(_, directory)| directory.to_string());
+    let directory = id
+        .split_once(':')
+        .map(|(_, directory)| directory.to_string())
+        .unwrap_or_else(|| id.to_string());
     ResolveResult {
         id: PkgResolutionId::from(id.to_string()),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: None,
         resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: resolved_via.to_string(),
         normalized_bare_specifier: None,
         alias: Some("shared".to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: None,
+            non_deprecated_alternative: None,
+        },
     }
 }
 
@@ -80,19 +104,24 @@ fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
     let base_wanted = wanted("workspace:^");
     let options = opts("/repo/packages/a");
     let ctx = TreeCtx::new(options.clone());
-    let shared = super::super::shared_workspace_key(
+    let shared = super::super::workspace_resolution::shared_workspace_key(
         &ctx,
         &key(&base_wanted, "/repo/packages/a"),
         &base_wanted,
         &options,
     )
     .expect("named workspace selector is shareable");
-    let other_options =
-        ResolveOptions { project_dir: PathBuf::from("/repo/apps/b"), ..options.clone() };
+    let other_options = ResolveOptions {
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: PathBuf::from("/repo/apps/b"),
+            ..options.project.clone()
+        },
+        ..options.clone()
+    };
     let other_ctx = TreeCtx::new(other_options.clone());
     assert_eq!(
         shared,
-        super::super::shared_workspace_key(
+        super::super::workspace_resolution::shared_workspace_key(
             &other_ctx,
             &key(&base_wanted, "/repo/apps/b"),
             &base_wanted,
@@ -104,7 +133,7 @@ fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
     for specifier in ["^1.0.0", "link:../shared", "file:../shared", "workspace:./shared"] {
         let wanted = wanted(specifier);
         assert_eq!(
-            super::super::shared_workspace_key(
+            super::super::workspace_resolution::shared_workspace_key(
                 &ctx,
                 &key(&wanted, "/repo/packages/a"),
                 &wanted,
@@ -124,13 +153,13 @@ fn separates_distinct_workspace_maps() {
     let first_ctx = TreeCtx::new(first.clone());
     let second_ctx = TreeCtx::new(second.clone());
     assert_ne!(
-        super::super::shared_workspace_key(
+        super::super::workspace_resolution::shared_workspace_key(
             &first_ctx,
             &key(&wanted, "/repo/packages/a"),
             &wanted,
             &first
         ),
-        super::super::shared_workspace_key(
+        super::super::workspace_resolution::shared_workspace_key(
             &second_ctx,
             &key(&wanted, "/repo/apps/b"),
             &wanted,
@@ -189,4 +218,22 @@ fn rejects_resolutions_that_are_not_shareable_workspace_links() {
     let mut mismatched = directory_result("link:../shared", "workspace");
     mismatched.id = PkgResolutionId::from("link:../other".to_string());
     assert_eq!(canonical_workspace_resolution(&mismatched, project_dir, lockfile_dir), None);
+}
+
+#[test]
+fn current_version_preference_separates_both_cache_keys() {
+    let wanted = wanted("workspace:^");
+    let options = opts("/repo/packages/a");
+    let ctx = TreeCtx::new(options.clone());
+    let unpinned = key(&wanted, "/repo/packages/a");
+    let mut fields = unpinned.fields().clone();
+    fields.11 = true;
+    let pinned = WantedKey::new(fields);
+    assert_ne!(unpinned, pinned);
+    assert_ne!(
+        super::super::workspace_resolution::shared_workspace_key(
+            &ctx, &unpinned, &wanted, &options
+        ),
+        super::super::workspace_resolution::shared_workspace_key(&ctx, &pinned, &wanted, &options),
+    );
 }

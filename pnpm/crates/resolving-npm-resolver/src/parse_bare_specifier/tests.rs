@@ -4,11 +4,15 @@ use pnpm_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
 
 use crate::{
     parse_bare_specifier::{
-        ParseNamedRegistrySpecifierError, parse_bare_specifier,
+        ParseNamedRegistrySpecifierError,
+        parse_bare_specifier,
         parse_jsr_specifier_to_registry_package_spec,
         parse_named_registry_specifier_to_registry_package_spec,
     },
-    pick_package_from_meta::{RegistryPackageSpecType, RegistryRevisionSelector},
+    pick_package_from_meta::{
+        RegistryPackageSpecType,
+        RegistryRevisionSelector,
+    },
 };
 
 const DEFAULT_TAG: &str = "latest";
@@ -171,11 +175,33 @@ fn npm_alias_with_inner_scoped_name_and_range() {
 }
 
 #[test]
+fn npm_alias_with_space_separated_comparators_keeps_inner_name() {
+    for (specifier, expected_name, expected_range) in [
+        ("npm:bar@>=7.0.0 <8.0.0", "bar", ">=7.0.0 <8.0.0"),
+        ("npm:@scope/foo@>=1.0.0 <2.0.0", "@scope/foo", ">=1.0.0 <2.0.0"),
+        ("npm:bar@6.0.0 - 8.0.0", "bar", "6.0.0 - 8.0.0"),
+    ] {
+        let spec = parse_bare_specifier(specifier, Some("foo"), DEFAULT_TAG, REGISTRY)
+            .unwrap_or_else(|| panic!("expected a spec for {specifier:?}"));
+        assert_eq!(spec.name, expected_name, "for {specifier:?}");
+        assert_eq!(spec.fetch_spec, expected_range, "for {specifier:?}");
+        assert_eq!(spec.spec_type, RegistryPackageSpecType::Range, "for {specifier:?}");
+    }
+}
+
+#[test]
 fn npm_alias_unversioned_falls_back_to_default_tag() {
     let spec = parse_bare_specifier("npm:is-positive", None, DEFAULT_TAG, REGISTRY).unwrap();
     assert_eq!(spec.name, "is-positive");
     assert_eq!(spec.fetch_spec, "latest");
     assert_eq!(spec.spec_type, RegistryPackageSpecType::Tag);
+
+    let overflow_spec =
+        parse_bare_specifier("npm:9007199254740991.0.0", Some("foo"), DEFAULT_TAG, REGISTRY)
+            .unwrap();
+    assert_eq!(overflow_spec.name, "9007199254740991.0.0");
+    assert_eq!(overflow_spec.fetch_spec, "latest");
+    assert_eq!(overflow_spec.spec_type, RegistryPackageSpecType::Tag);
 }
 
 #[test]
@@ -203,6 +229,44 @@ fn tarball_url_for_scoped_package_decodes_path() {
     assert_eq!(spec.name, "@scope/foo");
     assert_eq!(spec.fetch_spec, "1.0.0");
     assert_eq!(spec.spec_type, RegistryPackageSpecType::Version);
+}
+
+#[test]
+fn tarball_url_under_registry_with_path_is_parsed() {
+    let registry = "https://example.com/artifactory/api/npm/npm-remote/";
+    let url = "https://example.com/artifactory/api/npm/npm-remote/foo/-/foo-1.0.0.tgz";
+    let spec = parse_bare_specifier(url, None, DEFAULT_TAG, registry).unwrap();
+    assert_eq!(spec.name, "foo");
+    assert_eq!(spec.fetch_spec, "1.0.0");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Version);
+    assert_eq!(spec.normalized_bare_specifier.as_deref(), Some(url));
+}
+
+#[test]
+fn scoped_tarball_url_under_registry_with_path_is_parsed() {
+    let registry = "https://example.com/npm/";
+    let url = "https://example.com/npm/@scope/foo/-/foo-1.0.0.tgz";
+    let spec = parse_bare_specifier(url, None, DEFAULT_TAG, registry).unwrap();
+    assert_eq!(spec.name, "@scope/foo");
+    assert_eq!(spec.fetch_spec, "1.0.0");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Version);
+}
+
+#[test]
+fn tarball_url_in_sibling_of_registry_path_declines() {
+    let registry = "https://example.com/npm";
+    let url = "https://example.com/npm-other/foo/-/foo-1.0.0.tgz";
+    assert!(parse_bare_specifier(url, None, DEFAULT_TAG, registry).is_none());
+}
+
+#[test]
+fn tarball_url_with_malformed_escape_declines() {
+    for url in [
+        "https://registry.npmjs.org/foo%ZZ/-/foo%ZZ-1.0.0.tgz",
+        "https://registry.npmjs.org/foo%FF/-/foo%FF-1.0.0.tgz",
+    ] {
+        assert!(parse_bare_specifier(url, None, DEFAULT_TAG, REGISTRY).is_none(), "{url}");
+    }
 }
 
 #[test]
@@ -237,6 +301,35 @@ fn git_protocol_specifier_declines() {
 #[test]
 fn workspace_protocol_specifier_declines() {
     assert!(parse_bare_specifier("workspace:*", Some("foo"), DEFAULT_TAG, REGISTRY).is_none());
+}
+
+/// pnpm/pnpm#14817: a lenient range parse drops the protocol-prefixed
+/// member of these unions and keeps the rest, so the npm resolver would
+/// claim a `runtime:` union for the registry package of the same name.
+#[test]
+fn protocol_prefixed_range_union_declines() {
+    for specifier in [
+        "runtime:^22.18.0 || ^24.0.0",
+        "runtime:^22||^24",
+        "runtime:>=22.18.0 <25",
+        "runtime:rc/^23.0.0 || ^24.0.0",
+        "gh:^1.0.0 || ^2.0.0",
+        "jsr:^1.0.0 || ^2.0.0",
+        "foo/bar#semver:^1.0.0 || ^2.0.0",
+    ] {
+        let spec = parse_bare_specifier(specifier, Some("node"), DEFAULT_TAG, REGISTRY);
+        assert!(spec.is_none(), "expected None for {specifier:?}, got {spec:?}");
+    }
+}
+
+/// Merged peer ranges are joined with `||`, so a protocol in a later member
+/// must not hide the npm members before it.
+#[test]
+fn range_union_with_a_later_protocol_member_keeps_its_npm_members() {
+    assert!(
+        parse_bare_specifier("^1.0.0 || workspace:^2.0.0", Some("foo"), DEFAULT_TAG, REGISTRY)
+            .is_some(),
+    );
 }
 
 #[test]
@@ -312,7 +405,10 @@ fn gh_aliases() -> HashSet<String> {
 }
 
 fn aliases(names: &[&str]) -> HashSet<String> {
-    names.iter().map(|name| (*name).to_string()).collect()
+    names
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect()
 }
 
 #[test]
@@ -481,7 +577,7 @@ fn named_registry_with_scoped_body_and_selector() {
 
 #[test]
 fn named_registry_preserves_scoped_name_no_jsr_style_rewrite() {
-    // Named registries publish the package under its original name —
+    // Named registries publish the package under its original name,
     // unlike JSR which remaps `@scope/name` to `@jsr/scope__name`.
     let gh = gh_aliases();
     let spec = parse_named_registry_specifier_to_registry_package_spec(
@@ -605,6 +701,33 @@ fn named_registry_unscoped_body_parses() {
     assert_eq!(spec.spec.name, "lodash");
     assert_eq!(spec.spec.fetch_spec, "latest");
     assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Tag);
+}
+
+#[test]
+fn named_registry_body_with_space_separated_comparators_keeps_inner_name() {
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "gh:@acme/foo@>=1.0.0 <2.0.0",
+        &gh_aliases(),
+        Some("@other/bar"),
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "@acme/foo");
+    assert_eq!(spec.spec.fetch_spec, ">=1.0.0 <2.0.0");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range);
+
+    let spec = parse_named_registry_specifier_to_registry_package_spec(
+        "work:lodash@>=4.0.0 <5.0.0",
+        &aliases(&["work"]),
+        Some("my-lodash"),
+        "latest",
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(spec.spec.name, "lodash");
+    assert_eq!(spec.spec.fetch_spec, ">=4.0.0 <5.0.0");
+    assert_eq!(spec.spec.spec_type, RegistryPackageSpecType::Range);
 }
 
 #[test]

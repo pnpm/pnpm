@@ -1,0 +1,362 @@
+use super::{
+    super::{
+        FindWorkspaceProjectsOpts,
+        find_workspace_projects,
+        is_workspace_project_dir,
+    },
+    make_project,
+};
+use pretty_assertions::assert_eq;
+use std::{
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+use tempfile::TempDir;
+
+fn find_sorted_names(
+    root: &Path,
+    patterns: &[&str],
+    ignored_directories: Vec<PathBuf>,
+) -> Vec<String> {
+    let opts = FindWorkspaceProjectsOpts {
+        patterns: Some(
+            patterns
+                .iter()
+                .map(|pattern| (*pattern).to_string())
+                .collect(),
+        ),
+        ignored_directories,
+    };
+    let mut names: Vec<String> = find_workspace_projects(root, &opts)
+        .unwrap()
+        .iter()
+        .map(|project| {
+            project.manifest
+                .value()
+                .get("name")
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn skips_pnpm_managed_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/real", "real");
+    make_project(tmp.path(), "store/v11/python-envs/tool", "tool");
+    make_project(tmp.path(), "store/v11/files/pkg", "pkg");
+
+    assert_eq!(find_sorted_names(tmp.path(), &["**"], Vec::new()), ["pkg", "real", "root", "tool"]);
+    // Relative, the way `storeDir: store` reaches the option.
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["**"], vec![PathBuf::from("store")]),
+        ["real", "root"],
+    );
+}
+
+#[test]
+fn skips_a_managed_directory_a_literal_pattern_names() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "store/tool", "tool");
+    make_project(tmp.path(), "store/children/pkg", "pkg");
+
+    assert_eq!(
+        find_sorted_names(
+            tmp.path(),
+            &["store/tool", "store/children/*"],
+            vec![tmp.path().join("store")]
+        ),
+        ["root"],
+    );
+}
+
+#[test]
+fn workspace_nested_inside_managed_directory_keeps_its_projects() {
+    // The pipeline watch agent checks repositories out under the state
+    // directory.
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "xdg-state/pnpm/pipeline/agent/checkout/demo", "root");
+    make_project(tmp.path(), "xdg-state/pnpm/pipeline/agent/checkout/demo/pkg", "pkg");
+    let checkout = tmp.path().join("xdg-state/pnpm/pipeline/agent/checkout/demo");
+
+    assert_eq!(
+        find_sorted_names(&checkout, &["pkg"], vec![tmp.path().join("xdg-state/pnpm")]),
+        ["pkg", "root"],
+    );
+}
+
+#[test]
+fn managed_directory_equal_to_workspace_root_hides_nothing() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "pkg", "pkg");
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["pkg"], vec![tmp.path().to_path_buf()]),
+        ["pkg", "root"],
+    );
+}
+
+#[test]
+fn skips_a_managed_directory_outside_the_workspace_root() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "workspace", "workspace-root");
+    make_project(tmp.path(), "workspace/pkg", "real");
+    make_project(tmp.path(), "managed/tool", "tool");
+    let workspace = tmp.path().join("workspace");
+
+    assert_eq!(
+        find_sorted_names(
+            &workspace,
+            &["pkg", "../managed/*", "../**"],
+            vec![PathBuf::from("../managed")]
+        ),
+        ["real", "workspace-root"],
+    );
+}
+
+#[test]
+fn skips_a_managed_directory_when_the_root_is_spelled_with_dot_dot() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("detour")).unwrap();
+    make_project(tmp.path(), "workspace", "workspace-root");
+    make_project(tmp.path(), "workspace/store/tool", "store-tool");
+    make_project(tmp.path(), "managed/tool", "tool");
+    let workspace = tmp.path().join("detour/../workspace");
+
+    assert_eq!(
+        find_sorted_names(
+            &workspace,
+            &["store/tool", "../managed/*"],
+            vec![tmp.path().join("workspace/store"), tmp.path().join("managed"),]
+        ),
+        ["workspace-root"],
+    );
+}
+
+/// The cache and state directories default to the home drive, so a workspace
+/// on another drive has managed directories no path from its root reaches.
+#[cfg(windows)]
+#[test]
+fn a_managed_directory_on_another_drive_does_not_break_a_glob_pattern() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "plugins/group/pkg", "pkg");
+    let other_drive = if tmp.path().starts_with(r"Z:\") { r"Y:\cache" } else { r"Z:\cache" };
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["plugins/*/*"], vec![PathBuf::from(other_drive)]),
+        ["pkg", "root"],
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn managed_and_dot_directories_under_prefixed_globs_are_not_read() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/keep", "keep");
+    make_project(tmp.path(), "packages/store/pkg", "store-pkg");
+    make_project(tmp.path(), "packages/.cache/ok/lib", "cached-ok");
+    make_project(tmp.path(), "packages/.cache/.hidden/lib", "cached-hidden");
+
+    let store_dir = tmp.path().join("packages/store");
+    let hidden_dir = tmp.path().join("packages/.cache/.hidden");
+    let store_perms = fs::metadata(&store_dir).unwrap().permissions();
+    let hidden_perms = fs::metadata(&hidden_dir).unwrap().permissions();
+    fs::set_permissions(&store_dir, fs::Permissions::from_mode(0o000)).unwrap();
+    fs::set_permissions(&hidden_dir, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let result = std::panic::catch_unwind(|| {
+        find_sorted_names(
+            tmp.path(),
+            &["packages/**", "packages/.cache/*/lib"],
+            vec![PathBuf::from("packages/store")],
+        )
+    });
+
+    fs::set_permissions(&store_dir, store_perms).unwrap();
+    fs::set_permissions(&hidden_dir, hidden_perms).unwrap();
+    let names = result.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    assert_eq!(names, ["cached-ok", "keep", "root"]);
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+#[test]
+fn skips_a_managed_directory_configured_with_different_casing() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "store/tool", "tool");
+    make_project(tmp.path(), "store/children/pkg", "pkg");
+
+    assert_eq!(
+        find_sorted_names(
+            tmp.path(),
+            &["**", "store/tool", "store/children/*"],
+            vec![PathBuf::from("STORE")]
+        ),
+        ["root"],
+    );
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+#[test]
+fn workspace_inside_a_managed_directory_configured_with_different_casing_keeps_its_projects() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "state/checkout", "root");
+    make_project(tmp.path(), "state/checkout/pkg", "pkg");
+
+    assert_eq!(
+        find_sorted_names(
+            &tmp.path().join("state/checkout"),
+            &["pkg"],
+            vec![tmp.path().join("STATE")]
+        ),
+        ["pkg", "root"],
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn keeps_a_directory_that_differs_from_a_managed_one_only_in_case() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "store/tool", "tool");
+    make_project(tmp.path(), "Store/pkg", "pkg");
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["**"], vec![PathBuf::from("store")]),
+        ["pkg", "root"],
+    );
+}
+
+#[test]
+fn a_managed_directory_is_never_a_workspace_project_dir() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "store/tool", "tool");
+    make_project(tmp.path(), "packages/real", "real");
+    let opts = FindWorkspaceProjectsOpts {
+        patterns: Some(vec!["**".to_string()]),
+        ignored_directories: vec![PathBuf::from("store")],
+    };
+
+    assert!(!is_workspace_project_dir(tmp.path(), &tmp.path().join("store/tool"), &opts).unwrap());
+    assert!(
+        is_workspace_project_dir(tmp.path(), &tmp.path().join("packages/real"), &opts).unwrap(),
+    );
+}
+
+#[test]
+fn skips_dot_directories_when_a_managed_directory_is_configured() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/real", "real");
+    make_project(tmp.path(), "packages/.cache", "cached");
+
+    assert_eq!(
+        find_sorted_names(tmp.path(), &["**"], vec![PathBuf::from("node_modules")]),
+        ["real", "root"],
+    );
+}
+
+fn modules_dir_opts(root: &Path, project: &str) -> FindWorkspaceProjectsOpts {
+    FindWorkspaceProjectsOpts {
+        patterns: Some(vec!["**".to_string()]),
+        ignored_directories: vec![root.join(project).join("node_modules")],
+    }
+}
+
+/// The roots of the projects the walk finds with `opts`, sorted.
+fn found_roots(root: &Path, opts: &FindWorkspaceProjectsOpts) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = find_workspace_projects(root, opts)
+        .unwrap()
+        .into_iter()
+        .map(|project| project.root_dir)
+        .collect();
+    roots.sort();
+    roots
+}
+
+#[test]
+fn modules_directories_the_walk_skips_by_name_find_the_same_projects() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "packages/a", "a");
+    make_project(tmp.path(), "packages/a/node_modules/dep", "dep");
+    make_project(tmp.path(), "packages/b", "b");
+
+    let in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let in_b = modules_dir_opts(tmp.path(), "packages/b");
+
+    let expected = [tmp.path().join("packages/a"), tmp.path().join("packages/b")];
+    assert_eq!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+    assert_eq!(found_roots(tmp.path(), &in_a), expected);
+    assert_eq!(found_roots(tmp.path(), &in_b), expected);
+}
+
+#[test]
+fn other_patterns_do_not_find_the_same_projects() {
+    let tmp = TempDir::new().unwrap();
+    let in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut other = in_a.clone();
+    other.patterns = Some(vec!["packages/*".to_string()]);
+
+    assert_ne!(in_a.discovery_key(tmp.path()), other.discovery_key(tmp.path()));
+}
+
+/// On a case-insensitive filesystem the configured `node_modules` names the
+/// `NODE_MODULES` on disk, which only the exclusion skips, so the projects
+/// differ. On a case-sensitive one it names nothing, and they do not. The
+/// keys follow the projects either way.
+#[test]
+fn a_modules_directory_spelled_otherwise_on_disk_keys_by_the_projects() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), "packages/a", "a");
+    make_project(tmp.path(), "packages/a/NODE_MODULES/dep", "dep");
+    make_project(tmp.path(), "packages/b", "b");
+
+    let in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let in_b = modules_dir_opts(tmp.path(), "packages/b");
+
+    let roots_in_b = found_roots(tmp.path(), &in_b);
+    assert!(roots_in_b.contains(&tmp.path().join("packages/a")), "{roots_in_b:?}");
+    let same_key = in_a.discovery_key(tmp.path()) == in_b.discovery_key(tmp.path());
+    let same_projects = found_roots(tmp.path(), &in_a) == roots_in_b;
+    assert_eq!(same_key, same_projects);
+}
+
+#[test]
+fn a_pattern_naming_a_modules_directory_keeps_every_exclusion_in_the_key() {
+    let tmp = TempDir::new().unwrap();
+    let mut in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut in_b = modules_dir_opts(tmp.path(), "packages/b");
+    for opts in [&mut in_a, &mut in_b] {
+        opts.patterns =
+            Some(vec!["packages/*".to_string(), "packages/a/NODE_MODULES/*".to_string()]);
+    }
+
+    assert_ne!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+}
+
+#[test]
+fn a_negative_pattern_naming_a_modules_directory_keeps_the_key_shared() {
+    let tmp = TempDir::new().unwrap();
+    let mut in_a = modules_dir_opts(tmp.path(), "packages/a");
+    let mut in_b = modules_dir_opts(tmp.path(), "packages/b");
+    for opts in [&mut in_a, &mut in_b] {
+        opts.patterns = Some(vec!["packages/*".to_string(), "!**/node_modules/**".to_string()]);
+    }
+
+    assert_eq!(in_a.discovery_key(tmp.path()), in_b.discovery_key(tmp.path()));
+}

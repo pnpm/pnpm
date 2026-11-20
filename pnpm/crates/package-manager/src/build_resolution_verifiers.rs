@@ -1,34 +1,51 @@
 //! Build the per-install list of [`ResolutionVerifier`]s the lockfile
-//! gate fans out across. Currently only the npm-resolver verifier
-//! plugs in; future resolver-side verifiers append to the same vec.
+//! gate fans out across.
 //!
 //! Returning `Vec<Arc<dyn ResolutionVerifier>>` matches the runner's
 //! input shape ([`pnpm_lockfile_verification::verify_lockfile_resolutions()`])
 //! and lets the install path skip the call entirely when the vec is
-//! empty (the runner is a no-op on `&[]`). The function never returns
-//! an error; an invalid exclude pattern surfaces from
-//! [`pnpm_config::version_policy::create_package_version_policy()`]
-//! and propagates via [`BuildVerifiersError`].
+//! empty (the runner is a no-op on `&[]`).
 //!
 //! The verifier list is built from the install's config fields just
 //! before the lockfile-resolution gate runs over it.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, TrustPolicy,
-    version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
+    Config,
+    TrustPolicy,
+    version_policy::{
+        PackageVersionPolicy,
+        VersionPolicyError,
+        create_package_version_policy,
+    },
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_resolving_npm_resolver::{
-    CreateNpmResolutionVerifierOptions, MergeNamedRegistriesError, ObservedDistStats,
-    PackageMetaCache, create_npm_resolution_verifier, merge_named_registries,
+    CreateNpmResolutionVerifierOptions,
+    MergeNamedRegistriesError,
+    ObservedDistStats,
+    PackageMetaCache,
+    VerificationArtifacts,
+    VerifierLookups,
+    create_npm_resolution_verifier,
+    merge_named_registries,
 };
-use pnpm_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
-
-use crate::retry_config::retry_opts_from_config;
+use pnpm_resolving_resolver_base::{
+    PlannedCanonicalFetches,
+    ResolutionVerifier,
+};
 
 /// Error from [`build_resolution_verifiers`]. Wraps the inner error so
 /// the install command can route the diagnostic code without
@@ -49,7 +66,6 @@ pub enum BuildVerifiersError {
     /// Surfaced here because verifiers are built before the resolver
     /// chain that also validates this, and on the frozen path that
     /// chain never runs at all.
-    #[display("{source}")]
     #[diagnostic(transparent)]
     InvalidNamedRegistries {
         #[error(source)]
@@ -66,8 +82,8 @@ pub enum BuildVerifiersError {
 }
 
 /// Assemble the verifier list for this install. The npm verifier is
-/// always included — it enforces the tarball-URL binding regardless of
-/// policy configuration — so the list is non-empty.
+/// always included (it enforces the tarball-URL binding regardless of
+/// policy configuration) so the list is non-empty.
 ///
 /// `meta_cache` is the optional per-install packument cache shared
 /// with the resolver. When provided, the verifier reads it before
@@ -79,6 +95,9 @@ pub enum BuildVerifiersError {
 /// `observed_dist_stats` is the optional [`ObservedDistStats`] sink
 /// the npm verifier fills with each verified entry's `dist` work
 /// statistics; pass `None` when the caller has no use for them.
+///
+/// `lookups` shares the npm verifier's registry lookups with the
+/// verifiers of other installs; see [`VerifierLookups`].
 pub fn build_resolution_verifiers(
     config: &Config,
     http_client: Arc<ThrottledClient>,
@@ -86,9 +105,74 @@ pub fn build_resolution_verifiers(
     auth_override: Option<Arc<AuthHeaders>>,
     observed_dist_stats: Option<ObservedDistStats>,
     planned_canonical_fetches: Option<PlannedCanonicalFetches>,
+    lookups: Option<VerifierLookups>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
-    let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
+    build_resolution_verifiers_with_artifacts(
+        config,
+        http_client,
+        meta_cache,
+        auth_override,
+        VerificationArtifacts {
+            observed_stats: observed_dist_stats,
+            canonical_fetches: planned_canonical_fetches,
+            lookups,
+            published_tarball_mapper: None,
+            reverse_routed_tarball_url: None,
+        },
+    )
+}
 
+pub fn build_resolution_verifiers_with_artifacts(
+    config: &Config,
+    http_client: Arc<ThrottledClient>,
+    meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    auth_override: Option<Arc<AuthHeaders>>,
+    artifacts: VerificationArtifacts,
+) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
+    let (min_age_exclude, trust_exclude, registries, registries_by_prefix) =
+        verifier_policies(config)?;
+    let opts = CreateNpmResolutionVerifierOptions {
+        registries,
+        registries_by_prefix,
+        registry_options_by_url: Some(config.registry_options_by_url.clone()),
+        now: None,
+        release_age: pnpm_resolving_npm_resolver::VerificationReleaseAgeOptions {
+            minimum_minutes: config.resolved_minimum_release_age(),
+            exclude: min_age_exclude,
+            exclude_patterns: config.minimum_release_age_exclude.clone().unwrap_or_default(),
+        },
+        trust: pnpm_resolving_npm_resolver::VerificationTrustOptions {
+            policy: match config.trust_policy {
+                TrustPolicy::Off => None,
+                TrustPolicy::NoDowngrade => Some(TrustPolicy::NoDowngrade),
+            },
+            exclude: trust_exclude,
+            exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
+            ignore_after: config.trust_policy_ignore_after,
+        },
+        metadata: pnpm_resolving_npm_resolver::VerificationMetadataClient {
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            http_client,
+            auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
+            cache_dir: Some(config.cache_dir.clone()),
+            meta_cache,
+            offline: config.offline,
+            retry_opts: config.retry_opts(),
+        },
+        artifacts,
+    };
+    Ok(vec![Arc::new(create_npm_resolution_verifier(opts))])
+}
+
+type VerifierPolicies = (
+    Option<PackageVersionPolicy>,
+    Option<PackageVersionPolicy>,
+    HashMap<String, String>,
+    HashMap<String, String>,
+);
+
+// Validate and merge registry routing before either frozen verification or fresh resolution.
+fn verifier_policies(config: &Config) -> Result<VerifierPolicies, BuildVerifiersError> {
     let min_age_exclude = build_policy(
         config.minimum_release_age_exclude.as_deref(),
         BuildVerifiersError::invalid_minimum_release_age_exclude,
@@ -98,49 +182,24 @@ pub fn build_resolution_verifiers(
         BuildVerifiersError::invalid_trust_policy_exclude,
     )?;
 
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let registries: HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
 
     // Merged here, not inside the verifier, so its name lookup and its
     // tarball-prefix routing see the same set. Validated here too: this runs
     // before the resolver chain that also validates, and on the frozen path
     // that chain never runs.
     let registries_by_prefix = merge_named_registries(
-        &config.registries_by_prefix.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+        &config.registries_by_prefix
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
     )
     .map_err(|source| BuildVerifiersError::InvalidNamedRegistries { source })?;
 
-    let opts = CreateNpmResolutionVerifierOptions {
-        minimum_release_age: config.resolved_minimum_release_age(),
-        registry_supports_time_field: config.registry_supports_time_field,
-        minimum_release_age_exclude: min_age_exclude,
-        minimum_release_age_exclude_patterns: config
-            .minimum_release_age_exclude
-            .clone()
-            .unwrap_or_default(),
-        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-        trust_policy: match config.trust_policy {
-            TrustPolicy::Off => None,
-            TrustPolicy::NoDowngrade => Some(TrustPolicy::NoDowngrade),
-        },
-        trust_policy_exclude: trust_exclude,
-        trust_policy_exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
-        trust_policy_ignore_after: config.trust_policy_ignore_after,
-        registries,
-        registries_by_prefix,
-        http_client,
-        auth_headers: auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers)),
-        cache_dir: Some(config.cache_dir.clone()),
-        meta_cache,
-        offline: config.offline,
-        retry_opts: retry_opts_from_config(config),
-        now: None,
-        observed_dist_stats,
-        planned_canonical_fetches,
-    };
-
-    verifiers.push(Arc::new(create_npm_resolution_verifier(opts)));
-
-    Ok(verifiers)
+    Ok((min_age_exclude, trust_exclude, registries, registries_by_prefix))
 }
 
 fn build_policy(

@@ -5,7 +5,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('allowUnusedPatches=false errors on unused patches', async () => {
   preparePackages([
@@ -21,7 +21,7 @@ test('allowUnusedPatches=false errors on unused patches', async () => {
     },
   ])
 
-  const patchFile = f.find('patch-pkg/is-positive@1.0.0.patch')
+  const patchFile = testFixtures.find('patch-pkg/is-positive@1.0.0.patch')
 
   writeYamlFileSync('pnpm-workspace.yaml', {
     allowUnusedPatches: false,
@@ -52,7 +52,7 @@ test('allowUnusedPatches=true warns about unused patches', async () => {
     },
   ])
 
-  const patchFile = f.find('patch-pkg/is-positive@1.0.0.patch')
+  const patchFile = testFixtures.find('patch-pkg/is-positive@1.0.0.patch')
 
   writeYamlFileSync('pnpm-workspace.yaml', {
     allowUnusedPatches: true,

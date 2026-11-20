@@ -1,52 +1,304 @@
-use super::{ApproveBuildsError, partition_params, sort_unique};
+use super::{
+    ApproveBuildsArgs,
+    ApproveBuildsError,
+    PromptAvailability,
+    partition_params,
+    sort_unique,
+};
+use pnpm_reporter::SilentReporter;
 
 fn pending(names: &[&str]) -> Vec<String> {
-    names.iter().map(|name| (*name).to_string()).collect()
+    names
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect()
 }
 
 fn params(args: &[&str]) -> Vec<String> {
-    args.iter().map(|arg| (*arg).to_string()).collect()
+    args.iter()
+        .map(|arg| (*arg).to_string())
+        .collect()
+}
+
+fn args(packages: &[&str]) -> ApproveBuildsArgs {
+    ApproveBuildsArgs { packages: params(packages), all: false, global: false }
+}
+
+fn approve_builds_error(report: miette::Report) -> ApproveBuildsError {
+    report.downcast::<ApproveBuildsError>().expect("an approve-builds error")
 }
 
 #[test]
 fn splits_approved_and_denied() {
-    let (approved, denied) =
-        partition_params(&params(&["foo", "!bar"]), &pending(&["foo", "bar"])).unwrap();
-    assert_eq!(approved, vec!["foo".to_string()]);
-    assert_eq!(denied, vec!["bar".to_string()]);
+    let partition = partition_params(&params(&["foo", "!bar"]), &pending(&["foo", "bar"]));
+    assert_eq!(partition.approved, vec!["foo".to_string()]);
+    assert_eq!(partition.denied, vec!["bar".to_string()]);
+    assert!(partition.unknown.is_empty());
 }
 
-// Ports pnpm's `positional arguments with unknown package throws error`.
 #[test]
-fn rejects_unknown_approved_package() {
-    let err = partition_params(&params(&["nope"]), &pending(&["foo"])).unwrap_err();
-    let ApproveBuildsError::UnknownPackages(names) = err else {
-        panic!("expected UnknownPackages, got {err:?}");
-    };
-    assert_eq!(names, vec!["nope".to_string()]);
+fn reports_an_unknown_approved_package_as_pre_emptive() {
+    let partition = partition_params(&params(&["nope"]), &pending(&["foo"]));
+    assert_eq!(partition.approved, vec!["nope".to_string()]);
+    assert!(partition.denied.is_empty());
+    assert_eq!(partition.unknown, vec!["nope".to_string()]);
 }
 
-// Ports pnpm's `!pkg with unknown package throws error`.
 #[test]
-fn rejects_unknown_denied_package() {
-    let err = partition_params(&params(&["!nope"]), &pending(&["foo"])).unwrap_err();
-    let ApproveBuildsError::UnknownPackages(names) = err else {
-        panic!("expected UnknownPackages, got {err:?}");
-    };
-    assert_eq!(names, vec!["nope".to_string()]);
+fn reports_an_unknown_denied_package_as_pre_emptive() {
+    let partition = partition_params(&params(&["!nope"]), &pending(&["foo"]));
+    assert!(partition.approved.is_empty());
+    assert_eq!(partition.denied, vec!["nope".to_string()]);
+    assert_eq!(partition.unknown, vec!["nope".to_string()]);
 }
 
 // Ports pnpm's `contradictory arguments throw error`.
 #[test]
 fn rejects_contradictory_arguments() {
-    let err = partition_params(&params(&["foo", "!foo"]), &pending(&["foo"])).unwrap_err();
-    let ApproveBuildsError::ContradictingArgs(names) = err else {
-        panic!("expected ContradictingArgs, got {err:?}");
+    let err = args(&["foo", "!foo"])
+        .decide::<SilentReporter>(&pending(&["foo"]), false)
+        .err()
+        .expect("contradicting arguments are rejected");
+    let ApproveBuildsError::ContradictingArgs(names) = approve_builds_error(err) else {
+        panic!("expected ContradictingArgs");
     };
     assert_eq!(names, vec!["foo".to_string()]);
 }
 
 #[test]
+fn rejects_an_argument_that_names_no_package() {
+    for packages in [&["!"][..], &[""][..], &["foo", "!"][..]] {
+        let err = args(packages).validate().unwrap_err();
+        assert!(
+            matches!(approve_builds_error(err), ApproveBuildsError::MissingPackage),
+            "expected MissingPackage for {packages:?}",
+        );
+    }
+}
+
+#[test]
+fn rejects_positional_arguments_with_all() {
+    let err = ApproveBuildsArgs { packages: params(&["foo"]), all: true, global: false }
+        .validate()
+        .unwrap_err();
+    assert!(matches!(approve_builds_error(err), ApproveBuildsError::AllWithArgs));
+}
+
+#[test]
+fn rejects_interactive_approval_when_prompting_is_unavailable() {
+    let err = args(&[])
+        .decide_with_prompt::<SilentReporter>(
+            &pending(&["esbuild"]),
+            PromptAvailability::Unavailable,
+        )
+        .err()
+        .expect("interactive approval without a prompt is rejected");
+    assert!(matches!(approve_builds_error(err), ApproveBuildsError::NonInteractive));
+
+    assert!(
+        args(&[])
+            .decide_with_prompt::<SilentReporter>(&[], PromptAvailability::Unavailable)
+            .expect("no pending builds needs no prompt")
+            .is_none(),
+    );
+    let all = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
+        .decide_with_prompt::<SilentReporter>(
+            &pending(&["esbuild"]),
+            PromptAvailability::Unavailable,
+        )
+        .expect("--all needs no prompt")
+        .expect("decision for --all");
+    assert_eq!(all.build_packages, vec!["esbuild".to_string()]);
+
+    let named = args(&["esbuild"])
+        .decide_with_prompt::<SilentReporter>(
+            &pending(&["esbuild"]),
+            PromptAvailability::Unavailable,
+        )
+        .expect("named package needs no prompt")
+        .expect("decision for named package");
+    assert_eq!(named.build_packages, vec!["esbuild".to_string()]);
+}
+
+#[test]
 fn sort_unique_dedupes_and_sorts() {
     assert_eq!(sort_unique(params(&["b", "a", "b"])), vec!["a".to_string(), "b".to_string()]);
+}
+
+/// The approval run records `skills.dirs` into the manifest after its
+/// config was loaded, so the overlay must carry the freshly written
+/// value into the linking step.
+#[test]
+fn overlays_the_manifests_skills_dirs() {
+    let dir = tempfile::TempDir::new().expect("create temp dir");
+    std::fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\nskills:\n  dirs:\n    - .claude/skills\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let approved = super::ApprovalStore::Workspace(dir.path())
+        .config_with_approvals(&pnpm_config::Config::default())
+        .expect("lay the approvals over the config");
+
+    assert_eq!(approved.skills_dirs.as_deref(), Some([".claude/skills".to_string()].as_slice()));
+    assert_eq!(
+        approved.allow_skills.get("@pnpm.e2e/with-agent-skills").cloned(),
+        Some(pnpm_config::SkillsPermission::All(true)),
+    );
+}
+
+#[test]
+fn confirm_builds_prompt_formats_short_labels() {
+    assert_eq!(
+        super::confirm_builds_prompt(
+            &["esbuild@0.25.0".to_string(), "sharp".to_string()],
+            &["esbuild@0.25.0".to_string(), "sharp".to_string()],
+        ),
+        "Build esbuild, sharp?",
+    );
+}
+
+#[test]
+fn confirm_builds_prompt_keeps_colliding_labels_distinguishable() {
+    let pending = [
+        "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+        "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+    ];
+    assert_eq!(
+        super::confirm_builds_prompt(&pending[..1], &pending),
+        "Build foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]?",
+    );
+}
+
+#[test]
+fn build_choices_distinguishes_colliding_labels() {
+    let keys = vec![
+        "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+        "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+        "bar@1.0.0".to_string(),
+    ];
+    let choices = super::prompt::build_choices(&keys);
+    assert_eq!(
+        choices,
+        vec![
+            (
+                "foo@https://codeload.github.com/org1/foo/tar.gz/1".to_string(),
+                "foo (git) [foo@https://codeload.github.com/org1/foo/tar.gz/1]".to_string(),
+            ),
+            (
+                "foo@https://codeload.github.com/org2/foo/tar.gz/2".to_string(),
+                "foo (git) [foo@https://codeload.github.com/org2/foo/tar.gz/2]".to_string(),
+            ),
+            ("bar@1.0.0".to_string(), "bar".to_string()),
+        ],
+    );
+}
+
+#[test]
+fn prepare_with_filtered_scan_excludes_explicitly_denied_builds() {
+    let dir = tempfile::TempDir::new().expect("create temp dir");
+    let manifest_path = dir.path().join("package.json");
+    std::fs::write(&manifest_path, r#"{"name":"app","version":"1.0.0"}"#).expect("write manifest");
+
+    let mut config = pnpm_config::Config {
+        workspace_dir: Some(dir.path().to_path_buf()),
+        ..pnpm_config::Config::default()
+    };
+    config.allow_builds.insert("denied-pkg".to_string(), false);
+
+    let mut scan = crate::cli_args::ignored_builds::IgnoredBuildsScan {
+        names: Some(vec!["denied-pkg".to_string(), "pending-pkg".to_string()]),
+        modules_dir: dir.path().join("node_modules"),
+        modules_manifest: None,
+    };
+    super::exclude_disallowed_builds(&mut scan, &config);
+    assert_eq!(scan.names.as_deref(), Some(["pending-pkg".to_string()].as_slice()));
+
+    let (_, build_packages) = ApproveBuildsArgs { packages: Vec::new(), all: true, global: false }
+        .prepare_with_scan::<SilentReporter>(
+            super::ApprovalStore::Workspace(dir.path()),
+            &config,
+            &config,
+            &manifest_path,
+            scan,
+        )
+        .expect("prepare install approvals")
+        .expect("pending-pkg awaits rebuild");
+
+    assert_eq!(build_packages, vec!["pending-pkg".to_string()]);
+    let overlaid = super::ApprovalStore::Workspace(dir.path())
+        .config_with_approvals(&config)
+        .expect("overlay approvals");
+    assert_eq!(overlaid.allow_builds.get("denied-pkg"), Some(&false));
+    assert_eq!(overlaid.allow_builds.get("pending-pkg"), Some(&true));
+}
+
+/// The legacy decisions move out of the file that holds them, which may be
+/// one the global packages directory's `pnpm-workspace.yaml` includes.
+#[test]
+fn moving_the_legacy_global_decisions_empties_the_file_that_owns_them() {
+    let config_dir = tempfile::TempDir::new().expect("config dir");
+    let global_pkg_dir = tempfile::TempDir::new().expect("global packages dir");
+    std::fs::write(
+        global_pkg_dir.path().join("pnpm-workspace.yaml"),
+        "include:\n  ./permissions.yaml: [permissions]\n",
+    )
+    .expect("write the legacy manifest");
+    std::fs::write(
+        global_pkg_dir.path().join("permissions.yaml"),
+        "permissions:\n  esbuild:\n    build: true\n",
+    )
+    .expect("write the included file");
+    let store = super::ApprovalStore::GlobalPackages(super::GlobalPackagesStore {
+        config_dir: config_dir.path(),
+        global_pkg_dir: global_pkg_dir.path(),
+    });
+
+    store
+        .write_allow_builds([("sharp", false)])
+        .expect("record the decision");
+
+    assert_eq!(
+        std::fs::read_to_string(config_dir.path().join("config.yaml")).expect("read config.yaml"),
+        "globalPackagesConfig:\n  permissions:\n    esbuild:\n      build: true\n    sharp:\n      build: false\n",
+    );
+    let included =
+        std::fs::read_to_string(global_pkg_dir.path().join("permissions.yaml")).unwrap_or_default();
+    assert!(!included.contains("esbuild"), "the moved decision should leave: {included}");
+}
+
+/// A config dependency that owns the legacy build decisions keeps them, and
+/// they are not copied above it, where they would outlive its own changes.
+#[test]
+fn a_package_owned_legacy_build_policy_stays_with_its_package() {
+    let config_dir = tempfile::TempDir::new().expect("config dir");
+    let global_pkg_dir = tempfile::TempDir::new().expect("global packages dir");
+    let manifest = global_pkg_dir.path().join("pnpm-workspace.yaml");
+    let original = "configDependencies:\n  policy: 1.0.0\ninclude:\n  policy: [permissions]\n";
+    std::fs::write(&manifest, original).expect("write the legacy manifest");
+    let policy = global_pkg_dir.path().join("node_modules/.pnpm-config/policy");
+    std::fs::create_dir_all(&policy).expect("create the config dependency");
+    std::fs::write(
+        policy.join("package.json"),
+        r#"{"name":"policy","pnpm":{"config":"config.yaml"}}"#,
+    )
+    .expect("write its manifest");
+    std::fs::write(policy.join("config.yaml"), "permissions:\n  esbuild:\n    build: true\n")
+        .expect("write its settings");
+    let store = super::ApprovalStore::GlobalPackages(super::GlobalPackagesStore {
+        config_dir: config_dir.path(),
+        global_pkg_dir: global_pkg_dir.path(),
+    });
+
+    store
+        .write_allow_builds([("sharp", false)])
+        .expect("record the decision");
+
+    assert_eq!(std::fs::read_to_string(&manifest).expect("read the legacy manifest"), original);
+    assert_eq!(
+        std::fs::read_to_string(config_dir.path().join("config.yaml")).expect("read config.yaml"),
+        "globalPackagesConfig:\n  permissions:\n    sharp:\n      build: false\n",
+        "a decision the package owns must not be copied above it",
+    );
 }

@@ -1,50 +1,43 @@
-use deno_task_shell::{
-    KillSignal, ShellPipeReader, ShellPipeWriter, ShellState, SignalKind, execute_with_pipes,
-    parser, parser::SequentialList, pipe,
+pub use crate::shell_emulator_types::{
+    EmulatedOutput,
+    ShellEmulatorError,
 };
-use derive_more::{Display, Error};
-use miette::Diagnostic;
+
+use deno_task_shell::{
+    KillSignal,
+    ShellPipeReader,
+    ShellPipeWriter,
+    ShellState,
+    SignalKind,
+    execute_with_pipes,
+    parser,
+    parser::SequentialList,
+    pipe,
+};
 use pnpm_reporter::LifecycleStdio;
 use std::{
     collections::HashMap,
     ffi::OsString,
-    io::{self, Write},
-    path::{self, Path, PathBuf},
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        self,
+        Path,
+        PathBuf,
+    },
     thread,
 };
-use tokio::{runtime::Builder, task::LocalSet};
+use tokio::{
+    runtime::Builder,
+    task::LocalSet,
+};
 
-use crate::process_tracker::{EmulatedCancellation, ProcessTracker};
-
-/// Failure to run a script under the `shellEmulator` setting. A script
-/// that runs and exits non-zero is not an error here — the exit code is
-/// returned to the caller, which decides what a failure means.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum ShellEmulatorError {
-    #[display("Failed to parse `{script}` with the shell emulator: {message}")]
-    #[diagnostic(code(ERR_PNPM_EXECUTOR_SHELL_EMULATOR_PARSE))]
-    Parse { script: String, message: String },
-
-    #[display("Failed to start the shell emulator for `{script}`: {source}")]
-    #[diagnostic(code(ERR_PNPM_EXECUTOR_SHELL_EMULATOR_START))]
-    Start {
-        script: String,
-        #[error(source)]
-        source: io::Error,
-    },
-}
-
-/// Where an emulated script's output goes.
-#[derive(Clone, Copy)]
-pub enum EmulatedOutput<'a> {
-    /// Straight to pacquet's own stdout and stderr, for a foreground
-    /// `pnpm run`.
-    Inherit,
-    /// One call per output line, tagged with the stream it came from,
-    /// for the install-time path that turns lines into reporter events.
-    Lines(&'a (dyn Fn(LifecycleStdio, String) + Sync)),
-}
+use crate::process_tracker::{
+    EmulatedCancellation,
+    ProcessTracker,
+};
 
 /// Run `script` through the built-in shell instead of the platform's
 /// own (`shellEmulator`), so a script written for `sh` behaves the same
@@ -60,30 +53,51 @@ pub fn execute_emulated(
     output: EmulatedOutput<'_>,
     process_tracker: Option<&ProcessTracker>,
 ) -> Result<i32, ShellEmulatorError> {
-    let list = parser::parse(script).map_err(|error| ShellEmulatorError::Parse {
-        script: script.to_string(),
-        message: error.to_string(),
-    })?;
+    let expanded_script = braced_parameters::expand(script, env);
+    let list = parser::parse(&expanded_script)
+        .map_err(|error| ShellEmulatorError::Parse {
+            script: script.to_string(),
+            message: error.to_string(),
+        })?;
     // `ShellState` requires an absolute cwd. Every production caller
     // already passes one; resolving here keeps a relative path from
     // reaching the panic inside the shell.
     let cwd = path::absolute(cwd)
         .map_err(|source| ShellEmulatorError::Start { script: script.to_string(), source })?;
-    let env = env.iter().map(|(key, value)| (OsString::from(key), OsString::from(value))).collect();
     let cancellation = process_tracker.map(ProcessTracker::track_emulated);
-    let receiver = cancellation.as_ref().map(EmulatedCancellation::receiver);
-
+    let run = EmulatedRun {
+        list,
+        env: env
+            .iter()
+            .map(|(key, value)| (OsString::from(key), OsString::from(value)))
+            .collect(),
+        cwd,
+        cancellation: cancellation.as_ref().map(EmulatedCancellation::to_receiver),
+    };
     match output {
-        EmulatedOutput::Inherit => run_to_completion(
-            script,
-            list,
-            env,
-            cwd,
-            ShellPipeWriter::stdout(),
-            ShellPipeWriter::stderr(),
-            receiver,
-        ),
-        EmulatedOutput::Lines(sink) => thread::scope(|scope| {
+        EmulatedOutput::Inherit => {
+            run.complete(script, ShellPipeWriter::stdout(), ShellPipeWriter::stderr())
+        }
+        EmulatedOutput::Lines(sink) => run.complete_into_lines(script, sink),
+    }
+}
+
+/// A parsed script with everything its run needs but its output pipes.
+struct EmulatedRun {
+    list: SequentialList,
+    env: HashMap<OsString, OsString>,
+    cwd: PathBuf,
+    cancellation: Option<tokio::sync::watch::Receiver<bool>>,
+}
+
+impl EmulatedRun {
+    /// Run with each output line handed to `sink`, tagged with its stream.
+    fn complete_into_lines(
+        self,
+        script: &str,
+        sink: &(dyn Fn(LifecycleStdio, String) + Sync),
+    ) -> Result<i32, ShellEmulatorError> {
+        thread::scope(|scope| {
             let (stdout_reader, stdout_writer) = pipe();
             let (stderr_reader, stderr_writer) = pipe();
             let stdout_pump =
@@ -93,31 +107,39 @@ pub fn execute_emulated(
 
             // Both writers are consumed by the run, so the pumps see EOF
             // as soon as it returns and the joins below finish promptly.
-            let code =
-                run_to_completion(script, list, env, cwd, stdout_writer, stderr_writer, receiver);
+            let code = self.complete(script, stdout_writer, stderr_writer);
             let _ = stdout_pump.join();
             let _ = stderr_pump.join();
             code
-        }),
+        })
     }
-}
 
-/// Drive the parsed script to completion and return its exit code.
-///
-/// The shell is driven on a thread of our own because
-/// `deno_task_shell` needs a current-thread tokio runtime with a
-/// `LocalSet` (it uses `spawn_local`), and building one on the calling
-/// thread would panic whenever that thread is already inside a runtime.
-fn run_to_completion(
-    script: &str,
-    list: SequentialList,
-    env: HashMap<OsString, OsString>,
-    cwd: PathBuf,
-    stdout: ShellPipeWriter,
-    stderr: ShellPipeWriter,
-    cancellation: Option<tokio::sync::watch::Receiver<bool>>,
-) -> Result<i32, ShellEmulatorError> {
-    let run = thread::spawn(move || {
+    /// Drive the parsed script to completion and return its exit code.
+    ///
+    /// The shell is driven on a thread of our own because
+    /// `deno_task_shell` needs a current-thread tokio runtime with a
+    /// `LocalSet` (it uses `spawn_local`), and building one on the calling
+    /// thread would panic whenever that thread is already inside a runtime.
+    fn complete(
+        self,
+        script: &str,
+        stdout: ShellPipeWriter,
+        stderr: ShellPipeWriter,
+    ) -> Result<i32, ShellEmulatorError> {
+        let run = thread::spawn(move || self.execute(stdout, stderr));
+        match run.join() {
+            Ok(result) => result.map_err(|source| ShellEmulatorError::Start {
+                script: script.to_string(),
+                source,
+            }),
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    }
+
+    /// Execute on the current thread, with `deno_task_shell`'s own
+    /// current-thread runtime and `LocalSet`.
+    fn execute(self, stdout: ShellPipeWriter, stderr: ShellPipeWriter) -> io::Result<i32> {
+        let EmulatedRun { list, env, cwd, cancellation } = self;
         let runtime = Builder::new_current_thread().enable_all().build()?;
         let kill_signal = KillSignal::default();
         let local_set = LocalSet::new();
@@ -132,12 +154,6 @@ fn run_to_completion(
         let state = ShellState::new(env, cwd, HashMap::new(), kill_signal);
         let stdin = ShellPipeReader::stdin();
         Ok(local_set.block_on(&runtime, execute_with_pipes(list, state, stdin, stdout, stderr)))
-    });
-
-    match run.join() {
-        Ok(result) => result
-            .map_err(|source| ShellEmulatorError::Start { script: script.to_string(), source }),
-        Err(payload) => std::panic::resume_unwind(payload),
     }
 }
 
@@ -174,8 +190,13 @@ impl LineWriter<'_> {
 impl Write for LineWriter<'_> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.pending.extend_from_slice(buf);
-        while let Some(end) = self.pending.iter().position(|&byte| byte == b'\n') {
-            let mut line = self.pending.drain(..=end).collect::<Vec<_>>();
+        while let Some(end) = self.pending
+            .iter()
+            .position(|&byte| byte == b'\n')
+        {
+            let mut line = self.pending
+                .drain(..=end)
+                .collect::<Vec<_>>();
             line.pop();
             if line.last() == Some(&b'\r') {
                 line.pop();
@@ -189,6 +210,10 @@ impl Write for LineWriter<'_> {
         Ok(())
     }
 }
+
+/// Rewriting `${...}` parameter expansions into the `$NAME` references the
+/// bundled parser understands.
+mod braced_parameters;
 
 #[cfg(test)]
 mod tests;

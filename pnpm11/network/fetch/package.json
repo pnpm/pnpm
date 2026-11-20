@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.fetch",
-  "version": "1100.1.14",
+  "version": "1100.1.26",
   "description": "Native fetch with retries",
   "keywords": [
     "pnpm",
@@ -28,15 +28,15 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/config.registry-auth-key": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/network.config": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",
     "lru-cache": "catalog:",

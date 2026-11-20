@@ -56,24 +56,27 @@ const AUTH_CFG_KEYS = [
  *
  * 1. **Registry & auth:** needed to reach the same package sources
  *    (registries, tokens, certificates).
- * 2. **Security & trust policy:** these reflect the user's or organization's
+ * 2. **Node.js download mirrors:** same idea for Node.js runtime tarballs when
+ *    those URIs are declared in `pnpm-workspace.yaml` — but only the `release`
+ *    channel. Node publishes a signed `SHASUMS256.txt` for `release` alone, and
+ *    the resolver verifies it (`verifySignature: releaseChannel === 'release'`).
+ *    A workspace-supplied `rc`/`nightly` mirror would hand a repository both the
+ *    archive and its checksum for a runtime that `dlx` then executes.
+ * 3. **Security & trust policy:** these reflect the user's or organization's
  *    security posture and must apply regardless of how a package is installed.
  *    A setting that answers "what am I allowed to download?" belongs here.
- * 3. **Catalogs:** the `catalog:` protocol resolves package versions through
+ * 4. **Catalogs:** the `catalog:` protocol resolves package versions through
  *    workspace catalog entries; without them, `pnpm dlx pkg@catalog:...` cannot
  *    look up the requested version.
- * 4. **Fetch retry/timeout:** governs how the client talks to the registry.
+ * 5. **Fetch retry/timeout:** governs how the client talks to the registry.
  *    These reflect the same network environment as a regular install.
- *
- * Other settings are intentionally excluded. These are the ones that control
- * how downloaded packages are arranged in `node_modules` (hoisting, linking,
- * workspace layout, etc.).
  *
  * ## Rules
  *
  * | Category                       | Inherited by dlx? | Examples                                         |
  * |--------------------------------|--------------------|--------------------------------------------------|
  * | Registry & auth                | Yes                | registry, _authToken, ca                         |
+ * | Node.js download mirrors       | `release` only     | nodeDownloadMirrors.release (signed SHASUMS)      |
  * | Security & trust policy        | Yes                | minimumReleaseAge, trustPolicy                   |
  * | Catalogs                       | Yes                | catalogs                                         |
  * | Fetch retry/timeout            | Yes                | fetchRetries, fetchTimeout                       |
@@ -158,7 +161,12 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
 function pickDlxConfig (localCfg: Partial<Config>): Partial<Config> {
   const result: Record<string, unknown> = {}
   for (const key in localCfg) {
-    if (isAuthCfgKey(key as keyof Config) || isSecurityPolicyCfgKey(key as keyof Config) || isCatalogsCfgKey(key as keyof Config) || isFetchCfgKey(key as keyof Config)) {
+    if (
+      isAuthCfgKey(key as keyof Config) ||
+      isSecurityPolicyCfgKey(key as keyof Config) ||
+      isCatalogsCfgKey(key as keyof Config) ||
+      isFetchCfgKey(key as keyof Config)
+    ) {
       result[key] = localCfg[key as keyof Config]
     }
   }
@@ -173,14 +181,32 @@ export function inheritAuthConfig (target: InheritableConfigPair, src: Inheritab
  * Inherits the categories listed above (auth/registry, security & trust
  * policy, catalogs, and fetch retry/timeout) from a local config source
  * into the target config.
- *
- * Used by `pnpm dlx` and `pnpm create` so that these commands respect
- * the local project's registry authentication, security policies,
- * catalog definitions, and fetch behavior, while ignoring
- * project-structural settings.
  */
 export function inheritDlxConfig (target: InheritableConfigPair, src: InheritableConfigPair): void {
   inheritPickedConfig(target, src, pickDlxConfig, pickRawAuthConfig)
+  inheritReleaseNodeDownloadMirror(target, src)
+}
+
+/**
+ * Inherits only `nodeDownloadMirrors.release` from the local config.
+ *
+ * Node publishes a signed `SHASUMS256.txt` for the `release` channel only, and
+ * the runtime resolver verifies that signature for `release` alone. A mirror
+ * inherited for `rc` or `nightly` would let the local project choose both the
+ * archive and the checksum for a runtime that `dlx` executes, so those entries
+ * stay with whatever the user configured globally.
+ *
+ * This cannot live in `pickDlxConfig`: `inheritPickedConfig` shallow-assigns the
+ * picked keys, so returning a one-entry map there would discard the user's own
+ * mirrors for the other channels instead of leaving them alone.
+ */
+function inheritReleaseNodeDownloadMirror (target: InheritableConfigPair, src: InheritableConfigPair): void {
+  const release = src.config.nodeDownloadMirrors?.release
+  if (release == null) return
+  target.config.nodeDownloadMirrors = {
+    ...target.config.nodeDownloadMirrors,
+    release,
+  }
 }
 
 /**
@@ -191,8 +217,6 @@ export const isIniConfigKey = (key: string): boolean =>
 
 /**
  * Whether the config key should be read from .npmrc files.
- * This includes auth keys and proxy keys (proxy keys are readable from .npmrc
- * for easier migration from npm, but are written to YAML config files).
  */
 export const isNpmrcReadableKey = (key: string): boolean =>
   isIniConfigKey(key) || NETWORK_INI_KEYS.includes(key)

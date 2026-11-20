@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.utils",
-  "version": "1102.1.0",
+  "version": "1102.1.12",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -28,12 +28,13 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -42,11 +43,13 @@
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/resolving.tarball-url": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "normalize-path": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
     "@pnpm/lockfile.utils": "workspace:*",
+    "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "tempy": "catalog:",
     "write-yaml-file": "catalog:",

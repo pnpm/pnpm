@@ -1,30 +1,39 @@
-//! Ports of the upstream multi-importer install suites — the
+//! Ports of the upstream multi-importer install suites, the
 //! workspace-subset (`--filter`) and shared-lockfile scenarios from
 //! `installing/deps-installer/test/install/multipleImporters.ts`, the
 //! workspace cases of `installing/deps-restorer/test/index.ts`, and the
 //! CLI-level `pnpm/test/monorepo/index.ts` items. See
-//! `plans/TEST_PORTING.md` § "Support Workspaces".
+//! `plans/TEST_PORTING.md`.
 //!
 //! Upstream drives subset installs through `mutateModules` /
 //! `mutateModulesInSingleProject` with a shared lockfile dir; the CLI
 //! equivalent is `pnpm --filter <project> install` in a
 //! `pnpm-workspace.yaml` workspace.
 
-#![cfg(unix)] // pnpm CLI: 'program not found' on Windows runners.
-
-use crate::_utils;
 pub use _utils::*;
 
-use pnpm_testing_utils::fs::is_path_executable;
+use crate::_utils;
+
 use serde_json::json;
-use std::fs;
+use std::{
+    fs,
+    path::Path,
+};
+
+/// Where the lifecycle scripts of
+/// [`recursive_install_builds_workspace_projects_in_correct_order`] record
+/// the order they ran in, relative to each project directory.
+const ORDER_LOG: &str = "../../order.txt";
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
 const FOOBAR: &str = "@pnpm.e2e/foobar";
+const HAS_OPTIONAL_PEER: &str = "@pnpm.e2e/has-optional-peer";
 const HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 const NO_DEPS: &str = "@foo/no-deps";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
+const PEER_C: &str = "@pnpm.e2e/peer-c";
+const PKG_WITH_GOOD_OPTIONAL: &str = "@pnpm.e2e/pkg-with-good-optional";
 const QAR: &str = "@pnpm.e2e/qar";
 
 /// TS: `dependencies of other importers are not pruned when (headless)
@@ -107,6 +116,180 @@ fn stale_current_lockfile_importers_are_retained_on_subset_install() {
     assert!(has_snapshot(&current, FOOBAR, "100.0.0"));
 }
 
+/// A filtered install keeps the importer of a project that is missing from
+/// disk, as in a sparse checkout, with the packages and catalog entries
+/// only that importer uses. Issue 16931.
+#[test]
+fn filtered_install_keeps_importers_of_projects_missing_from_disk() {
+    assert_filtered_install_keeps_missing_project(&["project-1"]);
+}
+
+/// A `--filter` that selects every project on disk is still a filtered
+/// install. Issue 16931.
+#[test]
+fn filter_selecting_every_project_on_disk_keeps_missing_importers() {
+    assert_filtered_install_keeps_missing_project(&["project-1", "project-2"]);
+}
+
+fn assert_filtered_install_keeps_missing_project(filters: &[&str]) {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(&format!("catalogs:\n  only-3:\n    '{FOOBAR}': 100.0.0\n"));
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(FOO, "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(NO_DEPS, "1.0.0")], ..Default::default() },
+    );
+    let project_3 = fixture.project(
+        "project-3",
+        "project-3",
+        ManifestDeps { prod: &[(FOOBAR, "catalog:only-3")], ..Default::default() },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+    let before = fixture.wanted();
+    assert!(before.importers.contains_key("packages/project-3"));
+
+    fs::remove_dir_all(&project_3).expect("take project-3 off disk");
+    write_project_manifest(
+        &project_1,
+        "project-1",
+        ManifestDeps { prod: &[(FOO, "1.0.0"), (QAR, "100.0.0")], ..Default::default() },
+    );
+    let filter_args = filters
+        .iter()
+        .flat_map(|filter| ["--filter", filter]);
+    fixture.run(filter_args.chain(["install", "--lockfile-only", "--no-prefer-frozen-lockfile"]));
+
+    let wanted = fixture.wanted();
+    assert!(has_snapshot(&wanted, QAR, "100.0.0"), "the selected project must be resolved");
+    assert_eq!(
+        wanted.importers.get("packages/project-3"),
+        before.importers.get("packages/project-3"),
+    );
+    assert!(has_snapshot(&wanted, FOOBAR, "100.0.0"));
+    assert_eq!(
+        wanted.catalogs
+            .as_ref()
+            .and_then(|catalogs| catalogs.get("only-3")),
+        before.catalogs
+            .as_ref()
+            .and_then(|catalogs| catalogs.get("only-3")),
+    );
+    assert!(!project_3.exists(), "the install must not recreate the missing project");
+}
+
+/// The dependencies of a project missing from disk still take part in the
+/// resolution of a filtered install, so it writes the lockfile a full
+/// checkout writes. Here the missing project supplies the optional peer a
+/// selected project resolves, depends directly on a package another project
+/// reaches only as an optional dependency, and is the only project that
+/// depends on a `file:` directory. Issue 17791.
+#[test]
+fn filtered_install_resolves_against_projects_missing_from_disk() {
+    let full_checkout =
+        filtered_install_after_bump(ProjectThree::OnDisk, InstallMode::LockfileOnly);
+    let sparse_checkout =
+        filtered_install_after_bump(ProjectThree::OffDisk, InstallMode::LockfileOnly);
+    assert_eq!(sparse_checkout, full_checkout);
+}
+
+/// A filtered install that links `node_modules` writes the same lockfile
+/// and puts nothing in the directory of a project missing from disk.
+#[test]
+fn filtered_install_links_nothing_into_projects_missing_from_disk() {
+    for mode in [InstallMode::Link, InstallMode::Hoisted] {
+        let full_checkout = filtered_install_after_bump(ProjectThree::OnDisk, mode);
+        let sparse_checkout = filtered_install_after_bump(ProjectThree::OffDisk, mode);
+        assert_eq!(sparse_checkout, full_checkout);
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ProjectThree {
+    OnDisk,
+    OffDisk,
+}
+
+#[derive(Clone, Copy)]
+enum InstallMode {
+    LockfileOnly,
+    Link,
+    Hoisted,
+}
+
+fn filtered_install_after_bump(project_3_state: ProjectThree, mode: InstallMode) -> String {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps {
+            prod: &[(HAS_OPTIONAL_PEER, "1.0.0"), (PKG_WITH_GOOD_OPTIONAL, "1.0.0")],
+            ..Default::default()
+        },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(PEER_C, "1.0.0")], ..Default::default() },
+    );
+    let project_3 = fixture.project(
+        "project-3",
+        "project-3",
+        ManifestDeps {
+            prod: &[
+                (PEER_C, "1.0.1"),
+                ("is-positive", "1.0.0"),
+                ("local-pkg", "file:../../local-pkg"),
+                ("project-2", "workspace:*"),
+            ],
+            ..Default::default()
+        },
+    );
+    let local_pkg = fixture.workspace.join("local-pkg");
+    fs::create_dir(&local_pkg).expect("create local-pkg");
+    fs::write(
+        local_pkg.join("package.json"),
+        json!({ "name": "local-pkg", "version": "1.0.0", "dependencies": { "is-negative": "1.0.0" } })
+            .to_string(),
+    )
+    .expect("write local-pkg/package.json");
+    let mode_args: &[&str] = match mode {
+        InstallMode::LockfileOnly => &["--lockfile-only"],
+        InstallMode::Link => &[],
+        InstallMode::Hoisted => &["--config.node-linker=hoisted"],
+    };
+    fixture.run(std::iter::once("install").chain(mode_args.iter().copied()));
+
+    if matches!(project_3_state, ProjectThree::OffDisk) {
+        fs::remove_dir_all(&project_3).expect("take project-3 off disk");
+    }
+    write_project_manifest(
+        &project_1,
+        "project-1",
+        ManifestDeps {
+            prod: &[
+                (HAS_OPTIONAL_PEER, "1.0.0"),
+                (PKG_WITH_GOOD_OPTIONAL, "1.0.0"),
+                (QAR, "100.0.0"),
+            ],
+            ..Default::default()
+        },
+    );
+    fixture.run(
+        ["--filter", "project-1", "--filter", "project-2", "install"]
+            .into_iter()
+            .chain(mode_args.iter().copied()),
+    );
+    if matches!(project_3_state, ProjectThree::OffDisk) {
+        assert!(!project_3.exists(), "the install must not recreate the missing project");
+    }
+    fs::read_to_string(fixture.workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml")
+}
+
 /// TS: `current lockfile contains only installed dependencies when
 /// adding a new importer to workspace with shared lockfile`
 /// (`multipleImporters.ts:730`).
@@ -127,8 +310,11 @@ fn current_lockfile_contains_only_installed_dependencies() {
     fixture.run(["--filter", "project-2", "install"]);
 
     let current = fixture.current();
-    let package_keys: Vec<String> =
-        current.packages.iter().flatten().map(|(key, _)| key.to_string()).collect();
+    let package_keys: Vec<String> = current.packages
+        .iter()
+        .flatten()
+        .map(|(key, _)| key.to_string())
+        .collect();
     assert_eq!(package_keys, [format!("{NO_DEPS}@1.0.0")]);
 }
 
@@ -197,7 +383,7 @@ fn headless_install_is_used_with_workspace_protocol_references() {
 /// workspace (unless workspace ranges are used)`
 /// (`multipleImporters.ts:656`). With `linkWorkspacePackages: false`, a
 /// `workspace:*` range still links while a plain semver range resolves
-/// from the registry — and the resulting mixed lockfile still passes
+/// from the registry, and the resulting mixed lockfile still passes
 /// the freshness gate, so the reinstall goes headless.
 #[test]
 fn headless_install_is_used_when_packages_are_not_linked_from_the_workspace() {
@@ -240,7 +426,7 @@ fn headless_install_is_used_when_packages_are_not_linked_from_the_workspace() {
 #[test]
 fn partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projects() {
     let fixture = WorkspaceFixture::new();
-    // Project-1 pins 101.0.0 directly — outside project-2's transitive
+    // Project-1 pins 101.0.0 directly, outside project-2's transitive
     // `^100.0.0` range, so the resolver cannot converge the transitive
     // onto it and both versions get locked and materialized.
     fixture.project(
@@ -258,7 +444,7 @@ fn partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projec
 
     // Repin the unselected project's transitive from 100.1.0 (what the
     // resolver picked for `^100.0.0`) to the 101.0.0 entry that
-    // project-1's direct dependency already locked — the upstream test
+    // project-1's direct dependency already locked, the upstream test
     // rewrites the lockfile to the same effect, leaving the 100.1.0
     // materialization orphaned.
     repin_snapshot_dependency(
@@ -281,6 +467,50 @@ fn partial_frozen_install_does_not_remove_dependencies_of_other_workspace_projec
     );
 }
 
+#[test]
+fn workspace_linking_respects_dependency_depth() {
+    for (link_workspace_packages, direct, transitive) in [
+        ("false", "100.1.0", "100.1.0"),
+        ("true", "link:../dep", "100.1.0"),
+        ("deep", "link:../dep", "link:packages/dep"),
+    ] {
+        for prefer_workspace_packages in [false, true] {
+            let fixture = WorkspaceFixture::new();
+            fixture.append_workspace_yaml(&format!(
+                "linkWorkspacePackages: {link_workspace_packages}\npreferWorkspacePackages: {prefer_workspace_packages}\n",
+            ));
+            fixture.project(
+                "project",
+                "project",
+                ManifestDeps {
+                    prod: &[(DEP, "100.1.0"), (PARENT, "100.0.0")],
+                    ..Default::default()
+                },
+            );
+            let dep_project = fixture.project("dep", DEP, ManifestDeps::default());
+            set_version(&dep_project, "100.1.0");
+            fixture.run(["install"]);
+
+            let wanted = fixture.wanted();
+            assert_eq!(importer_version(&wanted, "packages/project", DEP), direct);
+            let parent_snapshots = snapshot_entries(&wanted, PARENT);
+            assert_eq!(parent_snapshots.len(), 1);
+            let subdependency = parent_snapshots[0].1.dependencies
+                .as_ref()
+                .and_then(|dependencies| {
+                    dependencies.get(&DEP.parse().expect("parse package name"))
+                })
+                .expect("parent snapshot records the subdependency")
+                .to_string();
+            assert_eq!(subdependency, transitive);
+
+            fs::remove_dir_all(fixture.workspace.join("node_modules"))
+                .expect("remove node_modules");
+            fixture.run(["install", "--frozen-lockfile"]);
+        }
+    }
+}
+
 /// TS: `resolve a subdependency from the workspace`
 /// (`multipleImporters.ts:1427`). With `linkWorkspacePackages: deep`, a
 /// transitive resolves to the workspace project as a `link:`, and the
@@ -301,9 +531,7 @@ fn resolve_a_subdependency_from_the_workspace() {
     let wanted = fixture.wanted();
     let parent_snapshots = snapshot_entries(&wanted, PARENT);
     assert_eq!(parent_snapshots.len(), 1);
-    let subdependency = parent_snapshots[0]
-        .1
-        .dependencies
+    let subdependency = parent_snapshots[0].1.dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&DEP.parse().expect("parse package name")))
         .expect("parent snapshot records the subdependency")
@@ -312,6 +540,30 @@ fn resolve_a_subdependency_from_the_workspace() {
 
     fs::remove_dir_all(fixture.workspace.join("node_modules")).expect("remove node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
+}
+
+#[test]
+fn resolve_transitive_falls_back_to_registry_when_workspace_prerelease_mismatches() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("linkWorkspacePackages: deep\n");
+    fixture.project(
+        "project",
+        "project",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    let dep_project = fixture.project("dep", DEP, ManifestDeps::default());
+    set_version(&dep_project, "100.1.0-next.0");
+    fixture.run(["install"]);
+
+    let wanted = fixture.wanted();
+    let parent_snapshots = snapshot_entries(&wanted, PARENT);
+    assert_eq!(parent_snapshots.len(), 1);
+    let subdependency = parent_snapshots[0].1.dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&DEP.parse().expect("parse package name")))
+        .expect("parent snapshot records the subdependency")
+        .to_string();
+    assert_eq!(subdependency, "100.1.0");
 }
 
 /// TS: `resolve a subdependency from the workspace, when it uses the
@@ -336,9 +588,7 @@ fn resolve_a_subdependency_from_the_workspace_via_workspace_protocol_override() 
     let wanted = fixture.wanted();
     let parent_snapshots = snapshot_entries(&wanted, PARENT);
     assert_eq!(parent_snapshots.len(), 1);
-    let subdependency = parent_snapshots[0]
-        .1
-        .dependencies
+    let subdependency = parent_snapshots[0].1.dependencies
         .as_ref()
         .and_then(|dependencies| dependencies.get(&DEP.parse().expect("parse package name")))
         .expect("parent snapshot records the subdependency")
@@ -407,7 +657,7 @@ fn subset_headless_install_deeply_materializes_workspace_linked_dependencies() {
     // `link:packages/f` relative to the dependent importer
     // (`link:packages/g/packages/f`); the upstream fixture lockfile
     // records it relative to the lockfile dir. Rewrite the snapshot to
-    // the upstream (lockfile-relative) shape — the subject under test
+    // the upstream (lockfile-relative) shape, the subject under test
     // is the headless materialization of snapshot-level links, and
     // upstream drives it from a hand-authored lockfile too.
     repin_snapshot_dependency(
@@ -449,13 +699,13 @@ fn links_workspace_package_bin_into_dependent_project() {
 
     fixture.run(["install"]);
     let bin_path = main_project.join("node_modules/.bin/hello");
-    assert!(is_path_executable(&bin_path), "expected an executable bin at {bin_path:?}");
+    assert_bin_linked(&bin_path);
 
     fs::remove_dir_all(main_project.join("node_modules")).expect("remove main's node_modules");
     fs::remove_dir_all(fixture.workspace.join("node_modules")).expect("remove root node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
 
-    assert!(is_path_executable(&bin_path), "the frozen reinstall must re-link the bin");
+    assert_bin_linked(&bin_path);
 }
 
 /// TS: `custom virtual store directory in a workspace with shared
@@ -492,8 +742,7 @@ fn custom_virtual_store_directory_in_a_workspace_with_shared_lockfile() {
     assert_recorded_virtual_store("frozen");
 }
 
-/// TS: `symlink local package from the location described in its
-/// publishConfig.directory when linkDirectory is true`
+/// TS: `relink local package when publishConfig.linkDirectory changes`
 /// (`multipleImporters.ts:1766`).
 #[test]
 fn symlink_local_package_from_publish_config_directory() {
@@ -529,11 +778,289 @@ fn symlink_local_package_from_publish_config_directory() {
         fixture.wanted().importers["packages/project-1"].publish_directory.as_deref(),
         Some("dist"),
     );
+    assert_eq!(fixture.wanted().importers["packages/project-1"].link_directory, None);
 
     fs::remove_dir_all(fixture.workspace.join("node_modules")).expect("remove root node_modules");
     fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
     assert_publish_dir_is_linked();
+
+    project_1_manifest["publishConfig"]["linkDirectory"] = json!(false);
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    let output = fixture.command_at(&fixture.workspace, ["install", "--frozen-lockfile"]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success(),
+        "frozen install accepted linkDirectory drift\nstderr:\n{stderr}",
+    );
+    assert!(stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "got:\n{stderr}");
+
+    fixture.run(["install"]);
+    let linked = read_manifest(&project_2.join("node_modules/project-1"));
+    assert_eq!(linked["name"], "project-1");
+    assert_eq!(fixture.wanted().importers["packages/project-1"].link_directory, Some(false));
+}
+
+/// pnpm/pnpm#8338: dependents get the bins of a project linked through its
+/// `publishConfig.directory`, and Node resolves the project's own dependencies
+/// from the publish directory's real path. pnpm/pnpm#16226: pnpm writes nothing
+/// into the publish directory and removes the `node_modules` link that 12.7.0
+/// put there.
+#[test]
+fn transitive_dependencies_and_bins_with_publish_config_directory() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    project_1_manifest["bin"] = json!({
+        "project-1-bin": "./cli.js",
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    let publish_dir = project_1.join("dist");
+    fs::create_dir_all(&publish_dir).expect("create publish directory");
+    fs::write(publish_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('hello');")
+        .expect("write bin executable");
+    fs::create_dir_all(project_1.join("node_modules")).expect("create project-1 node_modules");
+    pnpm_fs::symlink_dir(&project_1.join("node_modules"), &publish_dir.join("node_modules"))
+        .expect("plant the stale publish-directory link");
+
+    let assert_linked = |stage: &str| {
+        assert_publish_dir_resolves_dependency(&project_2, &publish_dir, &project_1, stage);
+        assert!(
+            project_2.join("node_modules/.bin/project-1-bin").exists(),
+            "{stage}: project-1-bin should be linked into project-2/node_modules/.bin",
+        );
+    };
+
+    fixture.run(["install"]);
+    assert_linked("fresh install");
+
+    fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
+    fs::remove_dir_all(project_1.join("node_modules")).expect("remove project-1 node_modules");
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert_linked("frozen install");
+}
+
+/// `project_2/node_modules/project-1` resolves to `publish_dir`, whose
+/// ancestor `project_1/node_modules` holds `is-positive`, and `publish_dir`
+/// has no `node_modules` of its own.
+fn assert_publish_dir_resolves_dependency(
+    project_2: &Path,
+    publish_dir: &Path,
+    project_1: &Path,
+    stage: &str,
+) {
+    assert_eq!(
+        fs::canonicalize(project_2.join("node_modules/project-1")).expect("resolve project-1 link"),
+        fs::canonicalize(publish_dir).expect("resolve publish directory"),
+        "{stage}: project-1 should be linked to its publish directory",
+    );
+    assert!(
+        project_1.join("node_modules/is-positive").exists(),
+        "{stage}: is-positive should exist under project-1/node_modules",
+    );
+    let publish_modules_dir = publish_dir.join("node_modules");
+    assert!(
+        fs::symlink_metadata(&publish_modules_dir).is_err(),
+        "{stage}: pnpm should not create {publish_modules_dir:?}",
+    );
+}
+
+/// pnpm/pnpm#8338: a project whose manifest is `package.yaml` still exposes its
+/// bins through a manifest-less publish directory.
+#[test]
+fn bins_with_publish_config_directory_of_package_yaml_project() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project("project-1", "project-1", ManifestDeps::default());
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({ "directory": "dist" });
+    project_1_manifest["bin"] = json!({ "project-1-bin": "./cli.js" });
+    // JSON is valid YAML.
+    fs::write(project_1.join("package.yaml"), project_1_manifest.to_string())
+        .expect("write package.yaml");
+    fs::remove_file(project_1.join("package.json")).expect("remove package.json");
+    fs::create_dir_all(project_1.join("dist")).expect("create publish directory");
+    fs::write(project_1.join("dist/cli.js"), "#!/usr/bin/env node\n").expect("write bin");
+
+    fixture.run(["install"]);
+
+    assert!(
+        project_2.join("node_modules/.bin/project-1-bin").exists(),
+        "project-1-bin should be linked into project-2/node_modules/.bin",
+    );
+}
+
+/// pnpm/pnpm#8338: transitive dependencies and bins with nested publish directory and `./` prefix.
+#[test]
+fn transitive_dependencies_and_bins_with_nested_publish_config_directory() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "./dist/nested",
+        "linkDirectory": true,
+    });
+    project_1_manifest["bin"] = json!({
+        "project-1-nested-bin": "./cli.js",
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    let publish_dir = project_1.join("dist/nested");
+    fs::create_dir_all(&publish_dir).expect("create publish directory");
+    fs::write(publish_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('nested');")
+        .expect("write bin executable");
+
+    let assert_linked = |stage: &str| {
+        assert_publish_dir_resolves_dependency(&project_2, &publish_dir, &project_1, stage);
+        assert!(
+            project_2.join("node_modules/.bin/project-1-nested-bin").exists(),
+            "{stage}: project-1-nested-bin should be linked into project-2/node_modules/.bin",
+        );
+    };
+
+    fixture.run(["install"]);
+    assert_linked("fresh install");
+
+    fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
+    fs::remove_dir_all(project_1.join("node_modules")).expect("remove project-1 node_modules");
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert_linked("frozen install");
+}
+
+/// pnpm/pnpm#16226: a real `node_modules` directory inside the publish
+/// directory belongs to the build output, so pnpm leaves it in place.
+#[test]
+fn publish_config_directory_keeps_its_own_node_modules() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[("is-positive", "1.0.0")], ..Default::default() },
+    );
+    fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    write_manifest_value(&project_1, &project_1_manifest);
+    let bundled = project_1.join("dist/node_modules/bundled/index.js");
+    fs::create_dir_all(bundled.parent().expect("bundled parent")).expect("create bundled dir");
+    fs::write(&bundled, "").expect("write bundled file");
+
+    fixture.run(["install"]);
+
+    assert!(bundled.exists(), "pnpm should keep {bundled:?}");
+}
+
+/// pnpm/pnpm#16226: a publish directory that a lifecycle script builds does
+/// not exist yet when pnpm links the dependents' bins.
+#[test]
+fn install_before_publish_config_directory_is_built() {
+    let fixture = WorkspaceFixture::new();
+    let project_1 = fixture.project("project-1", "project-1", ManifestDeps::default());
+    let project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut project_1_manifest = read_manifest(&project_1);
+    project_1_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    project_1_manifest["bin"] = json!({ "project-1-bin": "./cli.js" });
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    fixture.run(["install"]);
+
+    let publish_dir = project_1.join("dist");
+    assert!(
+        fs::symlink_metadata(&publish_dir).is_err(),
+        "pnpm should not create the publish directory {publish_dir:?}",
+    );
+    assert!(
+        fs::symlink_metadata(project_2.join("node_modules/project-1")).is_ok(),
+        "project-1 should be linked into project-2/node_modules",
+    );
+}
+
+#[test]
+fn publish_config_directory_dependency_builds_in_correct_order() {
+    let fixture = WorkspaceFixture::new();
+    let dependency = fixture.project("project-1", "project-1", ManifestDeps::default());
+    let dependent = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { dev: &[("project-1", "workspace:*")], ..Default::default() },
+    );
+    let mut dep_manifest = read_manifest(&dependency);
+    dep_manifest["publishConfig"] = json!({
+        "directory": "dist",
+        "linkDirectory": true,
+    });
+    dep_manifest["scripts"] = json!({
+        "prepare": append_line_script("project-1-prepare", ORDER_LOG),
+    });
+    write_manifest_value(&dependency, &dep_manifest);
+
+    let mut dependent_manifest = read_manifest(&dependent);
+    dependent_manifest["scripts"] = json!({
+        "prepare": append_line_script("project-2-prepare", ORDER_LOG),
+    });
+    write_manifest_value(&dependent, &dependent_manifest);
+
+    let order_path = fixture.workspace.join("order.txt");
+    let mut expected = ["project-1-prepare", "project-2-prepare"].join("\n");
+    expected.push('\n');
+
+    fixture.run(["install"]);
+    assert_eq!(fs::read_to_string(&order_path).expect("read fresh lifecycle order"), expected);
+
+    fs::remove_file(&order_path).expect("reset lifecycle order");
+    for modules_dir in [
+        fixture.workspace.join("node_modules"),
+        dependency.join("node_modules"),
+        dependent.join("node_modules"),
+    ] {
+        if modules_dir.exists() {
+            fs::remove_dir_all(modules_dir).expect("remove node_modules");
+        }
+    }
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert_eq!(fs::read_to_string(order_path).expect("read frozen lifecycle order"), expected);
 }
 
 /// TS: `recursive install with shared-workspace-lockfile builds
@@ -555,9 +1082,9 @@ fn recursive_install_builds_workspace_projects_in_correct_order() {
     for (project, name) in [(&dependency, "project-999"), (&dependent, "project-1")] {
         let mut manifest = read_manifest(project);
         manifest["scripts"] = json!({
-            "install": append_order_script(&format!("{name}-install")),
-            "postinstall": append_order_script(&format!("{name}-postinstall")),
-            "prepare": append_order_script(&format!("{name}-prepare")),
+            "install": append_line_script(&format!("{name}-install"), ORDER_LOG),
+            "postinstall": append_line_script(&format!("{name}-postinstall"), ORDER_LOG),
+            "prepare": append_line_script(&format!("{name}-prepare"), ORDER_LOG),
         });
         write_manifest_value(project, &manifest);
     }
@@ -635,12 +1162,8 @@ fn link_bin_of_workspace_project_created_by_lifecycle_script() {
     assert!(consumer.join("created-by-prepare").exists());
 }
 
-fn append_order_script(label: &str) -> String {
-    format!(r#"node -e "require('fs').appendFileSync('../../order.txt', '{label}\\n')""#)
-}
-
 /// TS: `dependencies of workspace projects are built during headless
-/// installation` (`pnpm/test/monorepo/index.ts:1281`) — the upstream
+/// installation` (`pnpm/test/monorepo/index.ts:1281`), the upstream
 /// fixture turns off `sharedWorkspaceLockfile`, so every project gets
 /// its own lockfile and the headless install still runs the
 /// dependency's build scripts.
@@ -683,6 +1206,50 @@ fn workspace_project_dependencies_built_during_headless_install_with_dedicated_l
     }
 }
 
+/// TS: `built dependencies are restored from a populated store when the
+/// workspace has separate lockfiles` (`pnpm/test/monorepo/index.ts`).
+/// The package extension gives the built dependency a dependency of its
+/// own, so its side-effects cache key includes the dependency graph hash.
+/// A frozen reinstall into wiped `node_modules` restores the build
+/// output, and `--ignore-scripts` still leaves it out.
+#[test]
+fn built_dependencies_restored_from_populated_store_with_dedicated_lockfiles() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(
+        "sharedWorkspaceLockfile: false\n\
+         allowBuilds:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n\
+         packageExtensions:\n  '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0':\n    dependencies:\n      is-positive: 1.0.0\n",
+    );
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    let project = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0")],
+            ..Default::default()
+        },
+    );
+    let artifact = project.join(
+        "node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
+    );
+    let wipe_modules = || {
+        fs::remove_dir_all(fixture.workspace.join("node_modules"))
+            .expect("remove root node_modules");
+        fs::remove_dir_all(project.join("node_modules")).expect("remove project-1 node_modules");
+    };
+
+    fixture.run(["install"]);
+    assert!(artifact.exists(), "the first install must build the dependency");
+
+    wipe_modules();
+    fixture.run(["install", "--frozen-lockfile"]);
+    assert!(artifact.exists(), "a frozen reinstall must restore the build output");
+
+    wipe_modules();
+    fixture.run(["install", "--frozen-lockfile", "--ignore-scripts"]);
+    assert!(!artifact.exists(), "--ignore-scripts must not restore the build output");
+}
+
 /// TS: `custom virtual store directory in a workspace with not shared
 /// lockfile` (`pnpm/test/monorepo/index.ts:1467`). The custom
 /// `virtualStoreDir` anchors per project, `.modules.yaml` records it,
@@ -690,8 +1257,9 @@ fn workspace_project_dependencies_built_during_headless_install_with_dedicated_l
 #[test]
 fn custom_virtual_store_directory_with_dedicated_lockfiles() {
     let fixture = WorkspaceFixture::new();
-    fixture
-        .append_workspace_yaml("virtualStoreDir: virtual-store\nsharedWorkspaceLockfile: false\n");
+    fixture.append_workspace_yaml(
+        "virtualStoreDir: virtual-store\nsharedWorkspaceLockfile: false\n",
+    );
     let project = fixture.project(
         "project-1",
         "project-1",
@@ -720,4 +1288,220 @@ fn custom_virtual_store_directory_with_dedicated_lockfiles() {
     fs::remove_dir_all(project.join("node_modules")).expect("remove the project's node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
     assert_recorded_virtual_store("frozen");
+}
+
+#[test]
+fn secondary_dependency_resolves_to_local_project_direct_dep_version_pnpm_7191() {
+    let fixture = WorkspaceFixture::new();
+    let _project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(DEP, "100.0.0"), (PARENT, "100.0.0")], ..Default::default() },
+    );
+    let _project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(DEP, "100.1.0")], ..Default::default() },
+    );
+
+    fixture.run(["install"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    let p2 = wanted.importers.get("packages/project-2").expect("project-2 in lockfile");
+    let dep_pkg_name = DEP.parse::<pnpm_lockfile::PkgName>().expect("parse package name");
+
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+    assert_eq!(
+        p2.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.1.0",
+    );
+
+    let parent_snapshots = snapshot_entries(&wanted, PARENT);
+    assert_eq!(parent_snapshots.len(), 1);
+    let subdependency = parent_snapshots[0].1.dependencies
+        .as_ref()
+        .and_then(|dependencies| dependencies.get(&dep_pkg_name))
+        .expect("parent snapshot records the subdependency")
+        .to_string();
+    assert_eq!(
+        subdependency, "100.0.0",
+        "transitive dependency of pkg-with-1-dep under project-1 must reuse 100.0.0, NOT 100.1.0 from project-2",
+    );
+}
+
+#[test]
+fn adding_an_unrelated_dependency_does_not_reresolve_existing_dependency_to_sibling_version() {
+    let fixture = WorkspaceFixture::new();
+    let dep_pkg_name = DEP.parse::<pnpm_lockfile::PkgName>().expect("parse package name");
+
+    let project_1 = fixture.project(
+        "project-1",
+        "project-1",
+        ManifestDeps { prod: &[(DEP, "100.0.0")], ..Default::default() },
+    );
+    fixture.run(["--filter", "project-1", "install"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+
+    fs::write(
+        project_1.join("package.json"),
+        serde_json::to_string_pretty(&json!({
+            "name": "project-1",
+            "dependencies": { DEP: "^100.0.0" }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let _project_2 = fixture.project(
+        "project-2",
+        "project-2",
+        ManifestDeps { prod: &[(DEP, "100.1.0")], ..Default::default() },
+    );
+    fixture.run(["--filter", "project-2", "install"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    let p2 = wanted.importers.get("packages/project-2").expect("project-2 in lockfile");
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+    assert_eq!(
+        p2.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.1.0",
+    );
+
+    fixture.run(["--filter", "project-1", "add", "is-positive@1.0.0"]);
+
+    let wanted = fixture.wanted();
+    let p1 = wanted.importers.get("packages/project-1").expect("project-1 in lockfile");
+    let p2 = wanted.importers.get("packages/project-2").expect("project-2 in lockfile");
+    assert_eq!(
+        p1.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.0.0",
+    );
+    assert_eq!(
+        p2.dependencies
+            .as_ref()
+            .unwrap()
+            .get(&dep_pkg_name)
+            .unwrap()
+            .version
+            .to_string(),
+        "100.1.0",
+    );
+}
+
+/// TS: `frozenLockfile fails when a workspace package linked by a plain
+/// range is bumped to a version outside the range`
+/// (`multipleImporters.ts`). The link was written while the project's
+/// version satisfied the range, and a prerelease no longer does.
+#[test]
+fn frozen_install_rejects_a_plain_range_link_the_linked_version_no_longer_satisfies() {
+    let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml("linkWorkspacePackages: true\n");
+    fixture.project(
+        "consumer",
+        "consumer",
+        ManifestDeps { prod: &[("linked", "^7.9.5")], ..Default::default() },
+    );
+    let linked_project = fixture.project("linked", "linked", ManifestDeps::default());
+    set_version(&linked_project, "7.10.0");
+    fixture.run(["install", "--lockfile-only"]);
+    assert_eq!(
+        importer_version(&fixture.wanted(), "packages/consumer", "linked"),
+        "link:../linked",
+    );
+
+    set_version(&linked_project, "7.11.0-beta.1");
+    let output = fixture.command_at(&fixture.workspace, ["install", "--frozen-lockfile"]);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success() && stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
+        "a frozen install must reject the outdated link:\n{stderr}",
+    );
+}
+
+/// A project that publishes from a `publishConfig.directory` it has not built
+/// yet is linked at that absent directory. The frozen install still judges
+/// the project's version, rather than taking the absent directory for a
+/// sparse checkout.
+#[test]
+fn frozen_install_rejects_an_unbuilt_publish_directory_link_outside_the_range() {
+    for spec in ["^7.9.5", "workspace:^7.9.5"] {
+        let fixture = WorkspaceFixture::new();
+        fixture.append_workspace_yaml("linkWorkspacePackages: true\n");
+        fixture.project(
+            "consumer",
+            "consumer",
+            ManifestDeps { prod: &[("linked", spec)], ..Default::default() },
+        );
+        let linked_project = fixture.project("linked", "linked", ManifestDeps::default());
+        let mut linked_manifest = read_manifest(&linked_project);
+        linked_manifest["version"] = json!("7.10.0");
+        linked_manifest["publishConfig"] = json!({ "directory": "dist", "linkDirectory": true });
+        write_manifest_value(&linked_project, &linked_manifest);
+        fixture.run(["install", "--lockfile-only"]);
+        assert_eq!(
+            importer_version(&fixture.wanted(), "packages/consumer", "linked"),
+            "link:../linked/dist",
+        );
+        fixture.run(["install", "--frozen-lockfile"]);
+
+        set_version(&linked_project, "7.11.0-beta.1");
+        let output = fixture.command_at(&fixture.workspace, ["install", "--frozen-lockfile"]);
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success() && stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"),
+            "a frozen install must reject the outdated {spec:?} link:\n{stderr}",
+        );
+    }
 }

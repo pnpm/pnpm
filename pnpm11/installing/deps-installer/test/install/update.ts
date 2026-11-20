@@ -307,7 +307,7 @@ test('peer dependency is not added to prod deps on update', async () => {
   }, testDefaults({ autoInstallPeers: true, update: true, depth: 0 }))
   expect(manifest).toStrictEqual({
     peerDependencies: {
-      'is-positive': '^3.0.0',
+      'is-positive': '^3.1.0',
     },
   })
 })

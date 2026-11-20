@@ -36,6 +36,7 @@ export async function outdatedDepsOfProjects (
   opts: OutdatedDepsOfProjectsOptions & {
     catalogs?: Catalogs
     compatible?: boolean
+    followPrereleaseChannels?: boolean
     ignoreDependencies?: string[]
     include: IncludedDependencies
   }
@@ -48,8 +49,8 @@ export async function outdatedDepsOfProjects (
     ))
   }
   const lockfileDir = opts.lockfileDir ?? opts.dir
-  const internalPnpmDir = path.join(path.join(lockfileDir, 'node_modules/.pnpm'))
-  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
+  const installStateDir = path.join(path.join(lockfileDir, 'node_modules/.pnpm'))
+  const currentLockfile = await readCurrentLockfile(installStateDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) ?? currentLockfile
   const { publishedBy, publishedByExclude } = getPublishedByPolicy(opts)
 
@@ -67,6 +68,7 @@ export async function outdatedDepsOfProjects (
       catalogs: opts.catalogs,
       compatible: opts.compatible,
       currentLockfile,
+      followPrereleaseChannels: opts.followPrereleaseChannels,
       resolveLatest,
       ignoreDependencies: opts.ignoreDependencies,
       include: opts.include,

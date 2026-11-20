@@ -1,5 +1,4 @@
-import fs from 'node:fs'
-import path from 'node:path'
+import { execFileSync } from 'node:child_process'
 
 import type { AddUserResult } from '@pnpm/registry-access.client'
 
@@ -10,7 +9,7 @@ export const REGISTRY_MOCK_CREDENTIALS = {
   password: 'password',
 }
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/`
+export const REGISTRY_MOCK_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 /**
  * The bearer token the with-registry jest globalSetup mints for the test user
@@ -45,6 +44,14 @@ export function bravoDepMatureUpTo101MinimumReleaseAge (): number {
   return (Date.now() - new Date('2022-03-01T00:00:00.000Z').getTime()) / (60 * 1000)
 }
 
+/**
+ * A `minimumReleaseAge` (in minutes) under which `@pnpm.e2e/bravo@1.0.0`
+ * (2022-04-01) is mature and `@pnpm.e2e/bravo-dep@1.1.0` (2022-05-01) is not.
+ */
+export function bravoMatureBravoDep110ImmatureMinimumReleaseAge (): number {
+  return (Date.now() - new Date('2022-04-15T00:00:00.000Z').getTime()) / (60 * 1000)
+}
+
 export interface AddDistTagOptions {
   package: string
   version: string
@@ -63,7 +70,7 @@ export async function addDistTag (opts: AddDistTagOptions): Promise<void> {
     packageName: opts.package,
     version: opts.version,
     distTag: opts.distTag,
-    registryUrl: REGISTRY_URL,
+    registryUrl: REGISTRY_MOCK_URL,
     authHeader: `Bearer ${getRegistryMockToken()}`,
     fetchFromRegistry: createFetchFromRegistry({}),
   })
@@ -82,94 +89,45 @@ export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
     username: opts.username,
     password: opts.password,
     email: opts.email,
-    registryUrl: REGISTRY_URL,
+    registryUrl: REGISTRY_MOCK_URL,
     fetch: createFetchFromRegistry({}),
   })
 }
 
-// pnpr keeps proxied upstream packages in a cache mirror separate from hosted
-// (fixture) packages — a `.pnpr-cache` subdirectory of the storage root.
-const PROXY_CACHE_DIR = '.pnpr-cache'
-
-type Packument = { versions: Record<string, { dist: { integrity: string } }> }
+const integrities = new Map<string, string>()
 
 /**
- * Reads a package version's tarball integrity from the registry storage that
- * the test harness built from the fixtures. The storage path is published as
- * `PNPM_REGISTRY_MOCK_STORAGE` by the with-registry jest globalSetup.
+ * Reads a package version's tarball integrity from the registry mock's
+ * packument, whether the version is a fixture or proxied from npm.
  *
- * Hosted (fixture) packuments live at `<storage>/<pkg>/package.json`; upstream
- * packages are proxied into a per-upstream namespace of the cache mirror
- * (`<storage>/.pnpr-cache/~public/<digest>/<pkg>/package.json`), written
- * lazily on first request — so every namespace is tried and the read is
- * retried while the cache write is still in flight.
+ * Tests call this synchronously, so a child process fetches the packument.
+ * A version's integrity never changes, so each one is fetched once.
  */
 export function getIntegrity (pkgName: string, pkgVersion: string): string {
-  const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
-  if (!storage) {
-    throw new Error(
-      'PNPM_REGISTRY_MOCK_STORAGE is not set — the registry mock storage path is unknown. ' +
-      'Tests that call getIntegrity must run under the with-registry jest preset.'
-    )
+  const key = `${pkgName}@${pkgVersion}`
+  let integrity = integrities.get(key)
+  if (integrity == null) {
+    integrity = fetchIntegrity(pkgName, pkgVersion)
+    integrities.set(key, integrity)
   }
-  const maxRetries = 4
-  let delay = 200 // milliseconds
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    // Rebuilt on every attempt: the proxy-cache namespace directory itself is
-    // created lazily along with the first cached packument, so it may not
-    // exist yet on the first attempt.
-    const candidatePaths = [
-      path.join(storage, pkgName, 'package.json'),
-      ...listPublicProxyNamespaces(path.join(storage, PROXY_CACHE_DIR, '~public'))
-        .map((namespace) => path.join(namespace, pkgName, 'package.json')),
-    ]
-    const content = readPackument(candidatePaths)
-    if (content) {
-      return content.versions[pkgVersion].dist.integrity
-    }
-    if (attempt === maxRetries) break
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
-    delay *= 2
-  }
-  throw new Error(`Failed to read package.json for ${pkgName}@${pkgVersion} after ${maxRetries} attempts`)
+  return integrity
 }
 
-// The public proxy cache is namespaced per upstream mount by a digest of its
-// name and URL, which the test side cannot compute — so enumerate whatever
-// namespaces exist (for the registry mock, at most one: npmjs).
-function listPublicProxyNamespaces (publicCacheDir: string): string[] {
-  let entries: fs.Dirent[]
-  try {
-    entries = fs.readdirSync(publicCacheDir, { withFileTypes: true })
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
-    throw err
-  }
-  return entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => path.join(publicCacheDir, entry.name))
-}
+const FETCH_INTEGRITY = `
+const [url, version] = process.argv.slice(1)
+const response = await fetch(url, { headers: { accept: 'application/json' } })
+if (!response.ok) throw new Error(\`GET \${url} answered \${response.status}\`)
+const integrity = (await response.json()).versions?.[version]?.dist?.integrity
+if (typeof integrity !== 'string') throw new Error(\`\${url} lists no integrity for \${version}\`)
+process.stdout.write(integrity)
+`
 
-// Returns the first readable packument among the candidates, or `undefined` when
-// none is ready yet (missing file or partial write) so the caller retries.
-// Re-throws any other read/parse error so genuine failures surface immediately.
-function readPackument (candidatePaths: string[]): Packument | undefined {
-  for (const filePath of candidatePaths) {
-    let raw: string
-    try {
-      raw = fs.readFileSync(filePath, 'utf8')
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') continue
-      throw err
-    }
-    try {
-      return JSON.parse(raw) as Packument
-    } catch (err: unknown) {
-      if (err instanceof SyntaxError && err.message.endsWith('Unexpected end of JSON input')) {
-        return undefined
-      }
-      throw err
-    }
-  }
-  return undefined
+function fetchIntegrity (pkgName: string, pkgVersion: string): string {
+  const url = `${REGISTRY_MOCK_URL}${pkgName.replaceAll('/', '%2f')}`
+  return execFileSync(
+    process.execPath,
+    ['--input-type=module', '--eval', FETCH_INTEGRITY, url, pkgVersion],
+    // A stalled lookup fails the test rather than holding the worker.
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], timeout: 30_000 }
+  )
 }

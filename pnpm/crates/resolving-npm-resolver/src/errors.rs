@@ -1,22 +1,27 @@
 //! Error types for the npm verifier's network / parsing surface.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_network::redact_and_sanitize;
+use pnpm_network::{
+    redact_and_sanitize,
+    walk_reqwest_chain,
+};
 
 /// Failure to fetch a registry metadata document. Used by
 /// [`crate::fetch_full_metadata()`] and
-/// [`crate::fetch_full_metadata_cached()`]; flows up through the
-/// verifier's `verify` and is folded into a violation with
-/// [`crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE`] or
-/// [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`] depending on which
-/// policy triggered the lookup.
+/// [`crate::fetch_full_metadata_cached()`]. A transient failure
+/// ([`Self::is_transient`]) is retried. It is never a
+/// `minimumReleaseAge` or `trustPolicy` verdict: those codes are only
+/// produced after a successful fetch shows a real violation.
 ///
 /// Every URL-bearing variant stores a credential-redacted `url` (the
 /// fetchers pass it through [`pnpm_network::redact_url_credentials`]
 /// at construction), so a registry configured with inline
 /// `user:pass@host` basic-auth can't leak into the `Display` /
-/// `Diagnostic` message — which reaches the terminal, CI logs, and
+/// `Diagnostic` message, which reaches the terminal, CI logs, and
 /// reporters whenever the resolver surfaces the error.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -28,6 +33,10 @@ pub enum FetchMetadataError {
         pkg_name: String,
         #[error(not(source))]
         pkg_mirror: std::path::PathBuf,
+        /// Explanatory hint when a legacy mirror for the same registry exists on disk.
+        #[error(not(source))]
+        #[help]
+        hint: Option<String>,
     },
 
     /// The deployment's route policy refuses this origin. Only a server
@@ -43,7 +52,7 @@ pub enum FetchMetadataError {
         url: String,
     },
 
-    #[display("Failed to fetch metadata from {url}: {error}")]
+    #[display("Failed to fetch metadata from {url}: {}", walk_reqwest_chain(error))]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR))]
     Network {
         url: String,
@@ -52,14 +61,11 @@ pub enum FetchMetadataError {
     },
 
     /// Reading the response body failed *after* the registry returned
-    /// a `2xx` — a connection reset or truncated transfer mid-stream,
-    /// reqwest's "error decoding response body". Kept distinct from
-    /// [`FetchMetadataError::Network`] (the request itself, already
-    /// retried by [`pnpm_network::send_with_retry`]) so the body
-    /// re-fetch loop in the fetchers retries only this and
-    /// [`FetchMetadataError::Decode`] — see
-    /// [`FetchMetadataError::is_body_retryable`].
-    #[display("Failed to read metadata response body from {url}: {error}")]
+    /// a `2xx`, a connection reset or truncated transfer mid-stream,
+    /// reqwest's "error decoding response body". Distinct from
+    /// [`FetchMetadataError::Network`] so the message names the body
+    /// read. Both are retried by [`FetchMetadataError::is_transient`].
+    #[display("Failed to read metadata response body from {url}: {}", walk_reqwest_chain(error))]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_BODY_READ_ERROR))]
     BodyRead {
         url: String,
@@ -78,9 +84,9 @@ pub enum FetchMetadataError {
     /// Filtering a parsed packument down to the fields pnpm keeps
     /// (`clear_meta`, the `filterMetadata` path) failed. Unlike a body
     /// read or the top-level parse, this runs on an already-parsed,
-    /// complete `Package`, so it is deterministic — a fresh re-fetch
+    /// complete `Package`, so it is deterministic, a fresh re-fetch
     /// would feed `clear_meta` the same structure and fail identically.
-    /// Kept out of [`FetchMetadataError::is_body_retryable`] for that
+    /// Kept out of [`FetchMetadataError::is_transient`] for that
     /// reason.
     #[display("Failed to filter metadata from {url}: {error}")]
     #[diagnostic(code(ERR_PNPM_RESOLVING_NPM_RESOLVER_FILTER_METADATA_ERROR))]
@@ -111,29 +117,47 @@ pub enum FetchMetadataError {
     },
 }
 
+/// Format the help text for `ERR_PNPM_NO_OFFLINE_META` when `legacy_mirror` exists on disk.
+#[must_use]
+pub fn legacy_mirror_hint(legacy_mirror: &std::path::Path) -> String {
+    format!(
+        "The cache layout for registry metadata has changed. {} holds a mirror from an older pnpm \
+         version, which this offline install cannot read. Run one online install to repopulate \
+         the cache under the new layout, then retry offline.",
+        legacy_mirror.display(),
+    )
+}
+
 impl FetchMetadataError {
-    /// Whether a fresh re-fetch of the whole request could plausibly
-    /// succeed where this attempt failed. Only the body-consumption
-    /// failures qualify — a mid-stream transport drop
-    /// ([`FetchMetadataError::BodyRead`]) or a body that parsed as
-    /// broken JSON ([`FetchMetadataError::Decode`]). This is the
-    /// predicate the fetchers hand to
-    /// [`pnpm_network::retry_async`]: retry exactly the body-read
-    /// and JSON-parse failures while letting the network library own
-    /// request retry.
+    /// Whether another attempt could succeed. Timeouts, connection
+    /// failures, "error sending request", "error decoding response
+    /// body", retryable HTTP statuses, and broken JSON are transient.
+    /// An access denial or a [permanent](pnpm_network::is_permanent_error)
+    /// network error is not: retrying cannot change the verdict, and
+    /// neither is a `trustPolicy` or `minimumReleaseAge` violation.
     ///
-    /// [`FetchMetadataError::Network`] stays non-retryable here: the
-    /// request (transport error or a `4xx`/`5xx` status) was already
-    /// retried inside [`pnpm_network::send_with_retry`], so a fetch
-    /// failure is rejected immediately rather than re-running the outer
-    /// operation.
+    /// The metadata fetchers hand this to [`pnpm_network::retry_async`]
+    /// and issue each attempt once. [`pnpm_network::send_with_retry`]
+    /// must not also spend the same budget, or one flake is retried twice.
     #[must_use]
-    pub fn is_body_retryable(&self) -> bool {
-        matches!(self, FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. })
+    pub fn is_transient(&self) -> bool {
+        match self {
+            FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. } => true,
+            FetchMetadataError::Network { error, .. } => {
+                if pnpm_network::is_permanent_error(error) || self.is_access_denied() {
+                    return false;
+                }
+                match error.status() {
+                    None => true,
+                    Some(status) => pnpm_network::should_retry_status(status),
+                }
+            }
+            _ => false,
+        }
     }
 
-    /// Whether this failure is a hard access/existence denial — HTTP
-    /// `401`, `403`, or `404` — rather than a transport failure
+    /// Whether this failure is a hard access/existence denial (HTTP
+    /// `401`, `403`, or `404`) rather than a transport failure
     /// (`5xx`/timeout/connection reset).
     ///
     /// A private-scope metadata fetch must **fail closed** on a denial:
@@ -195,7 +219,7 @@ pub struct GuardRepickLimitError {
 /// from it.
 ///
 /// Both fields are quoted registry metadata, so [`Self::new`] redacts
-/// and sanitizes them — see [`FetchMetadataError`] for why.
+/// and sanitizes them; see [`FetchMetadataError`] for why.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(r#"Tarball "{tarball}" has invalid shasum specified in its metadata: {shasum}"#)]
 #[diagnostic(code(ERR_PNPM_INVALID_TARBALL_INTEGRITY))]
@@ -205,8 +229,24 @@ pub struct InvalidTarballIntegrityError {
     pub shasum: String,
 }
 
+/// Raised when a version's metadata names no `dist.tarball` and its registry
+/// declares no layout to rebuild the URL from.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The metadata of {package} from {registry} names no tarball URL")]
+#[diagnostic(
+    code(ERR_PNPM_MISSING_TARBALL_URL),
+    help(
+        "A registry that omits dist.tarball has to declare its URL layout. For a pnpr tar registry, add `serverType: pnpr` to its entry under `registries` in pnpm-workspace.yaml."
+    )
+)]
+pub struct MissingTarballUrlError {
+    #[error(not(source))]
+    pub package: String,
+    pub registry: String,
+}
+
 /// Raised when a registry marks a tarball as a replacement revision but its
-/// revision number or integrity-addressed URL violates the metadata contract.
+/// revision number or revision tarball URL violates the metadata contract.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Tarball \"{tarball}\" has invalid revision metadata: {reason}")]
 #[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]

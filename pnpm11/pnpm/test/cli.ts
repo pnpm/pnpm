@@ -5,6 +5,7 @@ import { expect, test } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 import PATH_NAME from 'path-name'
@@ -15,15 +16,33 @@ import {
   execPnpxSync,
 } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
-const hasOutdatedDepsFixture = f.find('has-outdated-deps')
+const testFixtures = fixtures(import.meta.dirname)
+const hasOutdatedDepsFixture = testFixtures.find('has-outdated-deps')
 
 test('commands that were previously passed through to npm now fail', () => {
-  const result = execPnpmSync(['xmas'])
+  prepareEmpty()
+  const result = execPnpmSync(['token'])
 
   expect(result.status).not.toBe(0)
   const output = result.stdout.toString() + result.stderr.toString()
   expect(output).toContain('ERR_PNPM_NOT_IMPLEMENTED')
+})
+
+test('pnpm runs when the temporary directory does not exist', () => {
+  prepare({})
+  const missingTmpDir = path.resolve('missing-tmp/tmp')
+
+  const result = execPnpmSync(['install'], {
+    env: {
+      NODE_DISABLE_COMPILE_CACHE: '1',
+      TEMP: missingTmpDir,
+      TMP: missingTmpDir,
+      TMPDIR: missingTmpDir,
+    },
+  })
+
+  expect(result.stderr.toString()).not.toContain('ENOENT')
+  expect(result.status).toBe(0)
 })
 
 test('set-script writes the script to package.json', async () => {
@@ -44,8 +63,8 @@ test('installs in the folder where the package.json file is', async () => {
 
   await execPnpm(['install', 'rimraf@2.5.1'])
 
-  const m = project.requireModule('rimraf')
-  expect(typeof m).toBe('function')
+  const rimraf = project.requireModule('rimraf')
+  expect(typeof rimraf).toBe('function')
   project.isExecutable('.bin/rimraf')
 })
 
@@ -97,6 +116,16 @@ test('command fails when an unsupported flag is used', async () => {
 
   expect(status).toBe(1)
   expect(stderr.toString()).toMatch(/Unknown option: 'save-dev'/)
+})
+
+test('an unsupported shorthand is reported as typed, with a suggestion of the shorthand of the other case', async () => {
+  prepare()
+
+  const { status, stderr } = execPnpmSync(['update', '-l'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toMatch(/Unknown option: '-l'/)
+  expect(stderr.toString()).toMatch(/Did you mean '-L'\?/)
 })
 
 test('implicit run command fails when an unsupported top-level flag is used', () => {
@@ -191,4 +220,65 @@ test.each([
 
   const result = execPnpmSync([command])
   expect(result.stdout.toString()).toMatch(`npm_command: "${expected ?? command}"`)
+})
+
+test('pnpm -r pkg fix repairs malformed dependency fields alongside downloaded devEngines.runtime', () => {
+  prepareEmpty()
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "packages/*"\n', 'utf8')
+  const brokenManifest = {
+    name: 'root',
+    version: '1.0.0',
+    devDependencies: 'invalid',
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '22.14.0',
+        onFail: 'download',
+      },
+    },
+  }
+  fs.writeFileSync('package.json', JSON.stringify(brokenManifest, null, 2) + '\n', 'utf8')
+  fs.mkdirSync(path.join('packages', 'child'), { recursive: true })
+  fs.writeFileSync(
+    path.join('packages', 'child', 'package.json'),
+    JSON.stringify({ ...brokenManifest, name: 'child' }, null, 2) + '\n',
+    'utf8'
+  )
+
+  const result = execPnpmSync(['-r', 'pkg', 'fix'], {
+    env: { XDG_CONFIG_HOME: path.resolve('xdg-config') },
+  })
+  expect(result.stderr.toString()).toBe('')
+  expect(result.status).toBe(0)
+
+  for (const manifestPath of ['package.json', path.join('packages', 'child', 'package.json')]) {
+    const saved = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    expect(saved.devDependencies).toBeUndefined()
+    expect(saved.devEngines.runtime).toStrictEqual({
+      name: 'node',
+      version: '22.14.0',
+      onFail: 'download',
+    })
+  }
+})
+
+test('outdated --json and --format=json write warnings to stderr instead of stdout', () => {
+  prepareEmpty()
+  fs.writeFileSync('package.json', JSON.stringify({ name: 'demo', version: '1.0.0' }, null, 2) + '\n', 'utf8')
+  fs.mkdirSync(path.join('.github', 'workflows'), { recursive: true })
+  fs.writeFileSync(
+    path.join('.github', 'workflows', 'ci.yml'),
+    'jobs:\n  test:\n    steps:\n      - uses: actions/checkout@0000000000000000000000000000000000000000 # v4\n',
+    'utf8'
+  )
+
+  for (const flag of ['--json', '--format=json']) {
+    const result = execPnpmSync(['outdated', '--include-github-actions', flag], {
+      omitEnvDefaults: ['pnpm_config_silent'],
+      env: { GITHUB_SERVER_URL: `http://localhost:${REGISTRY_MOCK_PORT}` },
+    })
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout.toString())).toStrictEqual({})
+    expect(result.stderr.toString()).toContain('Skipping the GitHub Actions from "actions/checkout"')
+  }
 })

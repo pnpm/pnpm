@@ -5,7 +5,7 @@ import { afterAll, beforeEach, expect, jest, test } from '@jest/globals'
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
 
 jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
-  const { access } = jest.requireActual<typeof fs>('fs')
+  const { access, lstatSync, unlinkSync } = jest.requireActual<typeof fs>('fs')
   const fsMock = {
     access,
     copyFileSync: jest.fn(),
@@ -22,6 +22,11 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
     default: fsMock,
     ...fsMock,
     renameFileWithRetry: fsMock.renameSync,
+    // The blocking-dirent checks read the temp trees these tests build, so
+    // they go to the real filesystem rather than the mocks above.
+    lstatWithRetry: jest.fn(lstatSync),
+    unlinkWithRetry: jest.fn(unlinkSync),
+    withFileLockRetry: <Result>(operation: () => Result): Result => operation(),
   }
 })
 jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
@@ -37,7 +42,7 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
   globalInfo: jest.fn(),
 }))
 
-const { default: gfs } = await import('@pnpm/fs.graceful-fs')
+const { default: gfs, lstatWithRetry, unlinkWithRetry } = await import('@pnpm/fs.graceful-fs')
 const { createIndexedPkgImporter } = await import('@pnpm/fs.indexed-pkg-importer')
 const { globalInfo } = await import('@pnpm/logger')
 const { renameOverwriteSync } = await import('rename-overwrite')
@@ -57,6 +62,8 @@ beforeEach(() => {
   jest.mocked(gfs.statSync as jest.Mock).mockReset()
   jest.mocked(globalInfo).mockReset()
   jest.mocked(renameOverwriteSync).mockClear()
+  jest.mocked(lstatWithRetry).mockImplementation(fs.lstatSync)
+  jest.mocked(unlinkWithRetry).mockImplementation(fs.unlinkSync)
 })
 
 afterAll(() => {
@@ -405,4 +412,95 @@ testOnLinuxOnly('packageImportMethod=hardlink: rethrows non-ENOTSUP errors from 
     force: false,
     resolvedFrom: 'remote',
   })).toThrow('EACCES: permission denied')
+})
+
+test('a blocker replaced by the directory it was in the way of does not fail a shared-slot repair', () => {
+  const importPackage = createIndexedPkgImporter('hardlink')
+  // Distinct inodes, or the slot reads as already linked to the store and
+  // nothing is repaired.
+  let ino = 0
+  jest.mocked(gfs.statSync as jest.Mock).mockImplementation(() => ({ ino: ++ino }))
+  // `beforeEach` clears these without dropping what an earlier test taught
+  // them, and one of them throws.
+  jest.mocked(gfs.copyFileSync).mockImplementation(() => {})
+  jest.mocked(gfs.linkSync).mockImplementation(() => {})
+  const slot = path.join('project', 'slot')
+  fs.mkdirSync(slot, { recursive: true })
+  const blocker = path.join(slot, 'nested')
+
+  // The installer sharing this slot clears the blocker and creates what the
+  // path needs, in between.
+  let inspections = 0
+  jest.mocked(lstatWithRetry).mockImplementation((target: string) => {
+    if (path.resolve(target) !== path.resolve(blocker)) return fs.lstatSync(target)
+    inspections++
+    return { isDirectory: () => inspections > 1 } as fs.Stats
+  })
+  jest.mocked(unlinkWithRetry).mockImplementation(() => {
+    throw Object.assign(new Error('access denied'), { code: 'EPERM' })
+  })
+
+  expect(() => {
+    importPackage(slot, {
+      filesMap: new Map([['nested/file', 'src-hash']]),
+      force: false,
+      resolvedFrom: 'store',
+      safeToSkip: true,
+    })
+  }).not.toThrow()
+  expect(inspections).toBeGreaterThan(1)
+})
+
+testOnLinuxOnly('packageImportMethod=clone-or-copy and auto: safeToSkip shared-slot hit does not lock in cloning before probing reflinks', () => {
+  const sharedSlot = path.join('project', 'shared-slot')
+  fs.mkdirSync(sharedSlot, { recursive: true })
+  fs.writeFileSync(path.join(sharedSlot, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(sharedSlot, 'index.js'), 'console.log(1)')
+
+  const sharedStat = fs.statSync(path.join(sharedSlot, 'package.json'), { bigint: true })
+  jest.mocked(gfs.statSync).mockImplementation(((file: string) => {
+    if (file === 'hash1') return fs.statSync(path.join(sharedSlot, 'package.json'), { bigint: true })
+    if (file === 'hash2') return fs.statSync(path.join(sharedSlot, 'index.js'), { bigint: true })
+    return sharedStat
+  }) as unknown as typeof gfs.statSync)
+  // Mirror @reflink/reflink on Windows NTFS: throws an Error with no `.code`
+  // property when copy-on-write cloning is unsupported.
+  jest.mocked(gfs.copyFileSync).mockImplementation((_src, _dest, flags?: number) => {
+    if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
+      throw new Error('Source volume does not support copy-on-write')
+    }
+  })
+  jest.mocked(gfs.linkSync).mockImplementation(() => {})
+
+  const filesMap = new Map([
+    ['index.js', 'hash2'],
+    ['package.json', 'hash1'],
+  ])
+
+  const cloneOrCopy = createIndexedPkgImporter('clone-or-copy')
+  expect(cloneOrCopy(sharedSlot, {
+    filesMap,
+    force: false,
+    resolvedFrom: 'remote',
+    safeToSkip: true,
+  })).toBeUndefined()
+  expect(cloneOrCopy('project2/staged', {
+    filesMap,
+    force: true,
+    resolvedFrom: 'remote',
+  })).toBe('copy')
+
+  fs.rmSync('project2', { recursive: true, force: true })
+  const autoImporter = createIndexedPkgImporter('auto')
+  expect(autoImporter(sharedSlot, {
+    filesMap,
+    force: false,
+    resolvedFrom: 'remote',
+    safeToSkip: true,
+  })).toBeUndefined()
+  expect(autoImporter('project2/staged', {
+    filesMap,
+    force: true,
+    resolvedFrom: 'remote',
+  })).toBe('hardlink')
 })

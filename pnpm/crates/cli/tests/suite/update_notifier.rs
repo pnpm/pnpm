@@ -2,17 +2,31 @@
 //! package-manager registry for pnpm's `latest` once a day and says so when
 //! it is newer than the running pnpm.
 
+#[cfg(unix)]
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    command_env::CommandTestExt,
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
 };
+#[cfg(unix)]
+use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
+    net::TcpListener,
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// A pnpm the mocked registry can serve as `latest`, far enough ahead that
@@ -30,9 +44,14 @@ struct Fixture {
 /// A fixture with the notifier on: the shared command harness turns it off
 /// for every other suite, so these tests opt back in.
 fn fixture() -> Fixture {
-    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(NEWER_PNPM);
-    pacquet.env("PNPM_CONFIG_UPDATE_NOTIFIER", "true");
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(NEWER_PNPM);
+    pacquet = pacquet.with_env("PNPM_CONFIG_UPDATE_NOTIFIER", "true");
     let state_dir = root.path().join("pnpm-state");
     Fixture { pacquet, state_dir, workspace, root, npmrc_info }
 }
@@ -42,7 +61,11 @@ fn install(pacquet: Command, state_dir: &Path) -> Output {
 }
 
 fn run(pacquet: Command, state_dir: &Path, command: &str) -> Output {
-    pacquet.with_args([command, "--state-dir"]).with_arg(state_dir).output().expect("run pacquet")
+    pacquet
+        .with_args([command, "--state-dir"])
+        .with_arg(state_dir)
+        .output()
+        .expect("run pacquet")
 }
 
 fn state_file(state_dir: &Path) -> PathBuf {
@@ -64,9 +87,23 @@ fn append_to_workspace_yaml(workspace: &Path, line: &str) {
     fs::write(&path, text).expect("write pnpm-workspace.yaml");
 }
 
+/// The command does not wait for the check, so the install has to outlast
+/// the registry's answer: an empty workspace is done in milliseconds, a
+/// dependency to fetch, extract, and link is not.
 #[test]
 fn an_install_announces_a_newer_pnpm_and_records_the_check() {
-    let Fixture { pacquet, state_dir, root, npmrc_info, .. } = fixture();
+    let Fixture {
+        pacquet,
+        state_dir,
+        workspace,
+        root,
+        npmrc_info,
+    } = fixture();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
 
     let output = install(pacquet, &state_dir);
 
@@ -86,9 +123,15 @@ fn an_install_announces_a_newer_pnpm_and_records_the_check() {
 
 #[test]
 fn update_notifier_off_skips_the_check_entirely() {
-    let Fixture { mut pacquet, state_dir, workspace, root, npmrc_info } = fixture();
+    let Fixture {
+        mut pacquet,
+        state_dir,
+        workspace,
+        root,
+        npmrc_info,
+    } = fixture();
     // Drop the fixture's opt-in so the workspace manifest is what decides.
-    pacquet.env_remove("PNPM_CONFIG_UPDATE_NOTIFIER");
+    pacquet = pacquet.without_env("PNPM_CONFIG_UPDATE_NOTIFIER");
     append_to_workspace_yaml(&workspace, "updateNotifier: false\n");
 
     let output = install(pacquet, &state_dir);
@@ -101,13 +144,68 @@ fn update_notifier_off_skips_the_check_entirely() {
     drop((root, npmrc_info));
 }
 
+/// A registry that accepts the connection and never answers. The check
+/// sits in the registry client's timeouts, a minute each; the install has
+/// nothing else to do and does not wait for it. Nothing was learned, so
+/// nothing is recorded and the next install asks again
+/// ([#16839](https://github.com/pnpm/pnpm/issues/16839)).
+#[test]
+fn a_registry_that_never_answers_does_not_hold_the_install() {
+    let Fixture {
+        pacquet,
+        state_dir,
+        root,
+        npmrc_info,
+        ..
+    } = fixture();
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind the silent registry");
+    let silent_registry =
+        format!("http://{}/", listener.local_addr().expect("silent registry address"));
+    // Every connection is accepted and held open without an answer; the
+    // thread ends with the test process.
+    std::thread::spawn(move || {
+        let mut held = Vec::new();
+        for connection in listener.incoming() {
+            held.extend(connection.ok());
+        }
+    });
+    fs::write(
+        &npmrc_info.npmrc_path,
+        format!(
+            "registry={silent_registry}\nstore-dir=../pacquet-store\ncache-dir=../pacquet-cache\n",
+        ),
+    )
+    .expect("point .npmrc at the silent registry");
+
+    let started = Instant::now();
+    let output = install(pacquet, &state_dir);
+    let elapsed = started.elapsed();
+
+    let text = output_text(&output);
+    assert!(output.status.success(), "install should succeed: {text}");
+    assert!(
+        elapsed < Duration::from_secs(30),
+        "the install waited {elapsed:?} on a registry that never answered: {text}",
+    );
+    assert!(!text.contains("Update available!"), "nothing was learned: {text}");
+    assert!(!state_file(&state_dir).exists(), "an unanswered check records nothing");
+
+    drop((root, npmrc_info));
+}
+
 /// The recorded timestamp is what keeps the check to once a day, so a
 /// fresh one silences the very next install.
 #[test]
 fn a_check_recorded_today_silences_the_next_install() {
-    let Fixture { pacquet, state_dir, root, npmrc_info, .. } = fixture();
+    let Fixture {
+        pacquet,
+        state_dir,
+        root,
+        npmrc_info,
+        ..
+    } = fixture();
     fs::create_dir_all(&state_dir).expect("create the state dir");
-    let today = chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S GMT").to_string();
+    let today = jiff::Timestamp::now().strftime("%a, %d %b %Y %H:%M:%S GMT").to_string();
     fs::write(state_file(&state_dir), serde_json::json!({ "lastUpdateCheck": today }).to_string())
         .expect("write pnpm-state.json");
 
@@ -126,7 +224,13 @@ fn a_check_recorded_today_silences_the_next_install() {
 #[test]
 fn the_other_commands_on_the_install_pipeline_do_not_check() {
     for command in ["ci", "install-test"] {
-        let Fixture { pacquet, state_dir, root, npmrc_info, .. } = fixture();
+        let Fixture {
+            pacquet,
+            state_dir,
+            root,
+            npmrc_info,
+            ..
+        } = fixture();
 
         let output = run(pacquet, &state_dir, command);
 
@@ -143,7 +247,13 @@ fn the_other_commands_on_the_install_pipeline_do_not_check() {
 /// through its own dispatch arm.
 #[test]
 fn an_add_announces_a_newer_pnpm_and_records_the_check() {
-    let Fixture { pacquet, state_dir, root, npmrc_info, .. } = fixture();
+    let Fixture {
+        pacquet,
+        state_dir,
+        root,
+        npmrc_info,
+        ..
+    } = fixture();
 
     let output = pacquet
         .with_args(["add", "@pnpm.e2e/foo", "--state-dir"])
@@ -164,7 +274,13 @@ fn an_add_announces_a_newer_pnpm_and_records_the_check() {
 #[cfg(unix)]
 #[test]
 fn a_global_add_announces_a_newer_pnpm() {
-    let Fixture { state_dir, root, npmrc_info, workspace, .. } = fixture();
+    let Fixture {
+        state_dir,
+        root,
+        npmrc_info,
+        workspace,
+        ..
+    } = fixture();
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create the global bin dir");
     fs::write(pnpm_home.join(".npmrc"), format!("registry={}\n", npmrc_info.mock_instance.url()))

@@ -1,6 +1,9 @@
 use pretty_assertions::assert_eq;
 
-use super::{ParseNodeSpecifierError, parse_node_specifier};
+use super::{
+    ParseNodeSpecifierError,
+    parse_node_specifier,
+};
 
 #[test]
 fn matches_upstream_table() {
@@ -28,6 +31,15 @@ fn matches_upstream_table() {
         ("nightly/latest", "latest", "nightly"),
         ("24.0.0-nightly20250315d765e70802", "24.0.0-nightly20250315d765e70802", "nightly"),
         ("22.0.0-v8-canary20250101abc", "22.0.0-v8-canary20250101abc", "v8-canary"),
+        ("v22.0.0", "22.0.0", "release"),
+        ("V22.0.0", "22.0.0", "release"),
+        ("v22", "22", "release"),
+        ("v22.0.0-rc.1", "22.0.0-rc.1", "rc"),
+        ("V22.0.0-rc.1", "22.0.0-rc.1", "rc"),
+        ("rc/v22.0.0-rc.1", "22.0.0-rc.1", "rc"),
+        ("rc/v22", "22", "rc"),
+        ("v24.0.0-nightly20250315d765e70802", "24.0.0-nightly20250315d765e70802", "nightly"),
+        ("v22.0.0-v8-canary20250101abc", "22.0.0-v8-canary20250101abc", "v8-canary"),
     ];
     for (input, expected_version, expected_channel) in cases {
         let parsed = parse_node_specifier(input)

@@ -1,7 +1,13 @@
-use super::{STORE_VERSION, StoreDir};
+use super::{
+    STORE_VERSION,
+    StoreDir,
+};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[test]
 fn file_path_by_head_tail() {
@@ -55,7 +61,10 @@ fn from_pathbuf_does_not_double_append_when_already_suffixed() {
 fn modules_yaml_serialized_store_dir_carries_store_version() {
     let store = StoreDir::new("/tmp/.pnpm-store");
     let recorded = store.display().to_string();
-    let pnpm_would_emit = Path::new("/tmp/.pnpm-store").join(STORE_VERSION).display().to_string();
+    let pnpm_would_emit = Path::new("/tmp/.pnpm-store")
+        .join(STORE_VERSION)
+        .display()
+        .to_string();
     assert_eq!(recorded, pnpm_would_emit);
 }
 
@@ -103,7 +112,7 @@ fn init_rejects_non_directory_files_path() {
     std::fs::write(v11.join("files"), b"i am not a directory").unwrap();
 
     let store = StoreDir::new(tempdir.path());
-    // Don't pin the exact ErrorKind — platforms differ
+    // Don't pin the exact ErrorKind, platforms differ
     // (`NotADirectory` on Linux, `AlreadyExists` / `Uncategorized`
     // elsewhere). `expect_err` asserting that *an* error surfaced
     // is enough; the caller has already wired it through `warn!`.
@@ -114,6 +123,44 @@ fn init_rejects_non_directory_files_path() {
             "a failing init must not seed the shard cache",
         );
     }
+}
+
+/// A group-writable store directory (shared store, setgid) must pass
+/// group-write and setgid to `files/` and the shards `init` creates.
+/// New CAS files then inherit that mode. A pre-existing `v11` directory
+/// is not chmod'd.
+#[cfg(unix)]
+#[test]
+fn init_new_shards_inherit_group_write_and_setgid() {
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
+    use tempfile::tempdir;
+
+    let tempdir = tempdir().unwrap();
+    let versioned = tempdir.path().join("v11");
+    std::fs::create_dir(&versioned).unwrap();
+    std::fs::set_permissions(&versioned, std::fs::Permissions::from_mode(0o2775)).unwrap();
+
+    let store = StoreDir::new(tempdir.path());
+    store.init().unwrap();
+
+    let files = versioned.join("files");
+    let shard = files.join("00");
+    for dir in [&versioned, &files, &shard] {
+        let mode = std::fs::metadata(dir)
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_ne!(mode & 0o020, 0, "{} must stay group-writable, mode {mode:04o}", dir.display());
+        assert_ne!(mode & 0o2000, 0, "{} must stay setgid, mode {mode:04o}", dir.display());
+    }
+    assert_eq!(
+        std::fs::metadata(&versioned).unwrap().mode() & 0o7777,
+        0o2775,
+        "init must not chmod the store directory that already existed",
+    );
 }
 
 #[test]
@@ -139,7 +186,19 @@ fn init_warm_store_is_noop_and_leaves_cache_empty() {
     for shard in 0u8..=255 {
         assert!(
             !store.shard_already_ensured(shard),
-            "shard {shard:02x} must NOT be marked ensured on warm-store init — the cache is populated lazily from write_cas_file",
+            "shard {shard:02x} must NOT be marked ensured on warm-store init, the cache is populated lazily from write_cas_file",
         );
     }
+}
+
+#[test]
+fn cloned_store_shares_paths_and_shard_cache() {
+    let store = super::StoreDir::new("example-store");
+    let cloned = store.clone();
+    store.mark_shard_ensured(42);
+    assert!(cloned.shard_already_ensured(42));
+    cloned.mark_shard_ensured(43);
+    assert!(store.shard_already_ensured(43));
+    assert!(std::sync::Arc::ptr_eq(&store.root, &cloned.root));
+    assert!(std::ptr::eq(store.files_dir(), cloned.files_dir()));
 }

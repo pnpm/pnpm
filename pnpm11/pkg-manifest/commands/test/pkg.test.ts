@@ -83,6 +83,31 @@ describe('pkg command', () => {
 
       expect(await handler({ dir: tmpDir }, ['get', 'dependencies.some-package-name'])).toBe('0.23.4')
     })
+
+    test('does not leak synthetic runtime dependencies from devEngines or engines', async () => {
+      const manifest = {
+        name: 'test-package',
+        devEngines: {
+          runtime: {
+            name: 'node',
+            version: '22.14.0',
+            onFail: 'download',
+          },
+        },
+        engines: {
+          runtime: {
+            name: 'node',
+            version: '22.14.0',
+            onFail: 'download',
+          },
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      expect(JSON.parse(await handler({ dir: tmpDir }, ['get']) as string)).toStrictEqual(manifest)
+      expect(await handler({ dir: tmpDir }, ['get', 'devDependencies'])).toBe('')
+      expect(await handler({ dir: tmpDir }, ['get', 'dependencies'])).toBe('')
+    })
   })
 
   describe('set subcommand', () => {
@@ -163,8 +188,38 @@ describe('pkg command', () => {
 
       await expect(handler({ dir: tmpDir }, ['set', '__proto__.polluted=true'])).rejects.toThrow()
       await expect(handler({ dir: tmpDir }, ['set', 'constructor.prototype.polluted=true'])).rejects.toThrow()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(({} as any).polluted).toBeUndefined()
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+    })
+
+    test('updates devEngines.runtime.version without reverting from synthetic devDependencies', async () => {
+      const manifest = {
+        name: 'test-package',
+        devEngines: {
+          runtime: {
+            name: 'node',
+            version: '22.14.0',
+            onFail: 'download',
+          },
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['set', 'devEngines.runtime.version=24.0.0'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.devEngines.runtime.version).toBe('24.0.0')
+      expect(updated.devDependencies).toBeUndefined()
+    })
+
+    test('preserves empty dependency objects and existing dependency key order when setting JSON', async () => {
+      fs.writeFileSync(
+        path.join(tmpDir, 'package.json'),
+        '{\n  "name": "test-package",\n  "devDependencies": {\n    "zebra": "1.0.0",\n    "alpha": "1.0.0"\n  }\n}\n'
+      )
+
+      await handler({ dir: tmpDir, json: true }, ['set', 'dependencies={}'])
+      expect(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8')).toBe(
+        '{\n  "name": "test-package",\n  "devDependencies": {\n    "zebra": "1.0.0",\n    "alpha": "1.0.0"\n  },\n  "dependencies": {}\n}\n'
+      )
     })
   })
 
@@ -214,6 +269,29 @@ describe('pkg command', () => {
       const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
       expect(updated.contributors).toEqual([{ name: 'Bob' }])
     })
+
+    test('preserves devEngines.runtime when deleting devDependencies and deletes devEngines.runtime cleanly', async () => {
+      const runtime = {
+        name: 'node',
+        version: '22.14.0',
+        onFail: 'download',
+      }
+      const manifest = {
+        name: 'test-package',
+        devDependencies: { vitest: '^3.0.0' },
+        devEngines: { runtime },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await handler({ dir: tmpDir }, ['delete', 'devDependencies'])
+      const afterDeletingDevDeps = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(afterDeletingDevDeps.devDependencies).toBeUndefined()
+      expect(afterDeletingDevDeps.devEngines.runtime).toStrictEqual(runtime)
+
+      await handler({ dir: tmpDir }, ['delete', 'devEngines.runtime'])
+      const afterDeletingRuntime = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(afterDeletingRuntime.devEngines).toStrictEqual({})
+    })
   })
 
   describe('fix subcommand', () => {
@@ -242,6 +320,24 @@ describe('pkg command', () => {
       expect(updated.dependencies).toBeUndefined()
     })
 
+    test('fixes invalid devDependencies without crashing or dropping devEngines.runtime', async () => {
+      const runtime = {
+        name: 'node',
+        version: '22.14.0',
+        onFail: 'download',
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({
+        name: 'test-package',
+        devDependencies: 'invalid',
+        devEngines: { runtime },
+      }, null, 2))
+
+      await handler({ dir: tmpDir }, ['fix'])
+      const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
+      expect(updated.devDependencies).toBeUndefined()
+      expect(updated.devEngines.runtime).toStrictEqual(runtime)
+    })
+
     test('removes array-valued object fields', async () => {
       const manifest: Record<string, unknown> = {
         name: 'test-package',
@@ -266,6 +362,65 @@ describe('pkg command', () => {
       await handler({ dir: tmpDir }, ['fix'])
       const updated = JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8'))
       expect(updated.dependencies).toBeUndefined()
+    })
+
+    async function fixRepository (repository: unknown): Promise<unknown> {
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'test-package', repository }, null, 2))
+      await handler({ dir: tmpDir }, ['fix'])
+      return JSON.parse(fs.readFileSync(path.join(tmpDir, 'package.json'), 'utf8')).repository
+    }
+
+    test.each([
+      ['github:pnpm/example', 'git+https://github.com/pnpm/example.git'],
+      ['pnpm/example', 'git+https://github.com/pnpm/example.git'],
+      ['https://github.com/pnpm/example', 'git+https://github.com/pnpm/example.git'],
+      ['https://github.com/pnpm/example.git', 'git+https://github.com/pnpm/example.git'],
+      ['https://www.github.com/pnpm/example', 'git+https://github.com/pnpm/example.git'],
+      ['git+https://github.com/pnpm/example.git', 'git+https://github.com/pnpm/example.git'],
+      ['git@github.com:pnpm/example.git', 'git+ssh://git@github.com/pnpm/example.git'],
+      ['ssh://git@github.com/pnpm/example.git', 'git+ssh://git@github.com/pnpm/example.git'],
+      ['git+ssh://git@github.com/pnpm/example.git', 'git+ssh://git@github.com/pnpm/example.git'],
+      ['http://github.com/pnpm/example', 'git+ssh://git@github.com/pnpm/example.git'],
+      ['git://github.com/pnpm/example.git', 'git://github.com/pnpm/example.git'],
+      ['gitlab:foo/bar', 'git+https://gitlab.com/foo/bar.git'],
+      ['https://gitlab.com/group/sub/proj', 'git+https://gitlab.com/group/sub/proj.git'],
+      ['git://gitlab.com/foo/bar.git', 'git://gitlab.com/foo/bar.git'],
+      ['bitbucket:foo/bar', 'git+https://bitbucket.org/foo/bar.git'],
+      ['gist:abc123', 'git+https://gist.github.com/abc123.git'],
+      ['github:pnpm/example#v1', 'git+https://github.com/pnpm/example.git#v1'],
+      ['github:pnpm/example#semver:^1', 'git+https://github.com/pnpm/example.git#semver:^1'],
+      ['https://example.com/repo.git', 'https://example.com/repo.git'],
+    ])('converts the repository string %p to an object with url %p', async (repository, url) => {
+      const fixed = await fixRepository(repository)
+      expect(fixed).toStrictEqual({ type: 'git', url })
+      expect(Object.keys(fixed as object)).toStrictEqual(['type', 'url'])
+    })
+
+    test('leaves the url of a repository shortcut with no owner as written', async () => {
+      expect(await fixRepository('github:skills')).toStrictEqual({ type: 'git', url: 'github:skills' })
+    })
+
+    test('normalizes the url of a repository object and keeps its other fields', async () => {
+      expect(await fixRepository({ type: 'git', url: 'github:pnpm/example', directory: 'packages/x' })).toStrictEqual({
+        type: 'git',
+        url: 'git+https://github.com/pnpm/example.git',
+        directory: 'packages/x',
+      })
+    })
+
+    test('does not add a type to a repository object without one', async () => {
+      expect(await fixRepository({ url: 'https://github.com/pnpm/example' })).toStrictEqual({
+        url: 'git+https://github.com/pnpm/example.git',
+      })
+    })
+
+    test.each([
+      [''],
+      [{ type: 'git', url: 42 }],
+      [['github:pnpm/example']],
+      [true],
+    ])('leaves the repository %p unchanged', async (repository) => {
+      expect(await fixRepository(repository)).toStrictEqual(repository)
     })
   })
 
@@ -303,7 +458,7 @@ describe('pkg command', () => {
         return { rootDir, manifest }
       })
       const selectedProjectsGraph = Object.fromEntries(
-        allProjects.map(p => [p.rootDir, { package: p }])
+        allProjects.map((project) => [project.rootDir, { package: project }])
       )
       return { allProjects, selectedProjectsGraph }
     }
@@ -324,6 +479,49 @@ describe('pkg command', () => {
       expect(JSON.parse(result as string)).toEqual({
         'pkg-a': { name: 'pkg-a' },
         'pkg-b': { name: 'pkg-b' },
+      })
+    })
+
+    test('does not leak synthetic runtime dependencies in recursive `get`', async () => {
+      const runtime = {
+        name: 'node',
+        version: '22.14.0',
+        onFail: 'download',
+      }
+      const { selectedProjectsGraph } = setupWorkspace({
+        'pkg-a': { name: 'pkg-a', devEngines: { runtime } },
+      })
+
+      const result = await handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        recursive: true,
+        selectedProjectsGraph,
+      }, ['get'])
+
+      expect(JSON.parse(result as string)).toEqual({
+        'pkg-a': { name: 'pkg-a', devEngines: { runtime } },
+      })
+    })
+
+    test('keys projects that share a name by their directory', async () => {
+      const { selectedProjectsGraph } = setupWorkspace({
+        a: { name: 'pkg-a', version: '1.0.0' },
+        b: { name: 'pkg-a', version: '2.3.0' },
+        c: { name: 'pkg-c', version: '0.1.0' },
+      })
+
+      const result = await handler({
+        dir: tmpDir,
+        workspaceDir: tmpDir,
+        recursive: true,
+        selectedProjectsGraph,
+      }, ['get', 'version'])
+
+      expect(JSON.parse(result as string)).toEqual({
+        a: { version: '1.0.0' },
+        b: { version: '2.3.0' },
+        'pkg-c': { version: '0.1.0' },
       })
     })
 
@@ -372,7 +570,7 @@ describe('pkg command', () => {
         'pkg-c': { name: 'pkg-c', version: '3.0.0' },
       })
       const selected = Object.fromEntries(
-        [allProjects[0], allProjects[2]].map(p => [p.rootDir, selectedProjectsGraph[p.rootDir]])
+        [allProjects[0], allProjects[2]].map((project) => [project.rootDir, selectedProjectsGraph[project.rootDir]])
       )
 
       await handler({
@@ -402,5 +600,14 @@ describe('pkg command', () => {
         selectedProjectsGraph: {},
       }, ['get'])).rejects.toMatchObject({ code: 'ERR_PNPM_PKG_RECURSIVE_NO_PACKAGES' })
     })
+  })
+
+  test('replaces a YAML timestamp in package.yaml with an empty JSON object', async () => {
+    fs.writeFileSync(path.join(tmpDir, 'package.yaml'), 'name: yaml-pkg\nmetadata:\n  date: 2020-01-01\n')
+
+    await handler({ dir: tmpDir, json: true }, ['set', 'metadata.date={}'])
+
+    const output = await handler({ dir: tmpDir, json: true }, ['get', 'metadata.date'])
+    expect(JSON.parse(output!)).toStrictEqual({})
   })
 })

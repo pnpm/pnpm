@@ -1,0 +1,258 @@
+use crate::_utils::{
+    flatten_report,
+    ndjson_records,
+};
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pnpm_testing_utils::bin::CommandTempCwd;
+use std::fs;
+
+#[test]
+fn required_engine_mismatch_warns_on_fresh_and_frozen_install() {
+    for reporter in ["--reporter=append-only", "--reporter=ndjson"] {
+        let fixture = CommandTempCwd::init().add_mocked_registry();
+        super::write_required_incompatible_engine_fixture(&fixture.workspace, false);
+        let mut command = fixture.pacquet.with_args(["install", reporter]);
+        for frozen in [false, true] {
+            if frozen {
+                command = command.with_arg("--frozen-lockfile");
+            }
+            let output = command.assert().success();
+            let combined = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.get_output().stdout),
+                String::from_utf8_lossy(&output.get_output().stderr),
+            );
+            eprintln!("{reporter}, frozen={frozen}:\n{combined}");
+            assert!(combined.contains("Unsupported engine for"), "{combined}");
+            assert!(combined.contains("incompatible-engine"), "{combined}");
+            assert!(
+                fixture.workspace.join("node_modules/incompatible-engine/package.json").exists(),
+            );
+            if reporter != "--reporter=ndjson" {
+                assert!(combined.contains("[WARN]"), "{combined}");
+                continue;
+            }
+            let records = ndjson_records(output.get_output());
+            let warning = records
+                .iter()
+                .find(|record| record["name"] == "pnpm:install-check")
+                .expect("install-check warning");
+            assert_eq!(warning["level"], "warn");
+            let prefix = dunce::canonicalize(&fixture.workspace).unwrap();
+            assert_eq!(warning["prefix"], prefix.display().to_string());
+            assert!(
+                warning["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains(r#"{"node":"20.0.0"}"#),
+            );
+        }
+    }
+}
+
+#[test]
+fn ndjson_reports_fatal_resolution_errors_with_codes_and_prefix() {
+    for (specifier, code) in [
+        ("99.99.99", "ERR_PNPM_NO_MATCHING_VERSION"),
+        ("patch:got@npm%3A11.8.2#~/.yarn/patches/got.patch", "ERR_PNPM_UNSUPPORTED_PROTOCOL"),
+    ] {
+        let fixture = CommandTempCwd::init().add_mocked_registry();
+        fs::write(
+            fixture.workspace.join("package.json"),
+            serde_json::json!({
+                "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": specifier }
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+        let output = fixture.pacquet
+            .with_args(["install", "--lockfile-only", "--reporter=ndjson"])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        eprintln!("stderr={stderr}");
+        let records: Vec<serde_json::Value> = stderr
+            .lines()
+            .map(serde_json::from_str)
+            .map(|parsed| parsed.expect("every stderr line must be JSON"))
+            .collect();
+        let errors: Vec<_> = records
+            .iter()
+            .filter(|record| record["level"] == "error")
+            .collect();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0]["name"], "pnpm");
+        assert_eq!(errors[0]["code"], code);
+        let prefix = dunce::canonicalize(&fixture.workspace).expect("canonicalize project path");
+        assert_eq!(errors[0]["prefix"], prefix.display().to_string());
+        assert!(
+            errors[0]["message"]
+                .as_str()
+                .is_some_and(|message| !message.is_empty()),
+        );
+    }
+}
+
+#[test]
+fn resolution_errors_name_transitive_dependencies_and_their_parents() {
+    for reporter in ["--reporter=append-only", "--reporter=ndjson"] {
+        let fixture = CommandTempCwd::init().add_mocked_registry();
+        fs::write(
+            fixture.workspace.join("package.json"),
+            serde_json::json!({
+                "dependencies": { "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+        fs::write(
+            fixture.workspace.join(".pnpmfile.cjs"),
+            r"
+module.exports = { hooks: { readPackage(pkg) {
+    if (pkg.name === '@pnpm.e2e/hello-world-js-bin') {
+        pkg.dependencies = { 'missing-child': 'patch:got@npm%3A11.8.2#~/.yarn/patches/got.patch' }
+    }
+    return pkg
+} } }
+",
+        )
+        .expect("write pnpmfile");
+        let output = fixture.pacquet
+            .with_args(["install", "--lockfile-only", reporter])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        eprintln!("stderr={stderr}");
+        assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_PROTOCOL"));
+        assert!(
+            flatten_report(&stderr)
+                .contains("missing-child@patch:got@npm%3A11.8.2#~/.yarn/patches/got.patch"),
+        );
+        if reporter == "--reporter=ndjson" {
+            let records = ndjson_records(output.get_output());
+            let error = records
+                .iter()
+                .find(|record| record["level"] == "error")
+                .expect("fatal error");
+            let parents = error["pkgsStack"].as_array().expect("parent chain");
+            assert_eq!(parents.len(), 2);
+            assert_eq!(parents[0]["name"], "@pnpm.e2e/hello-world-js-bin-parent");
+            assert_eq!(parents[1]["name"], "@pnpm.e2e/hello-world-js-bin");
+            assert_eq!(parents[0]["version"], "1.0.0");
+        } else {
+            let flattened = flatten_report(&stderr);
+            assert!(flattened.contains("Thiserrorhappenedwhileinstallingthedependenciesof@pnpm.e2e/hello-world-js-bin-parent@1.0.0"));
+            assert!(flattened.contains("Thiserrorhappenedwhileinstallingthedependenciesof@pnpm.e2e/hello-world-js-bin@1.0.0"));
+        }
+    }
+}
+
+#[test]
+fn fatal_resolution_context_redacts_tarball_credentials() {
+    for reporter in ["--reporter=append-only", "--reporter=ndjson"] {
+        let fixture = CommandTempCwd::init().add_mocked_registry();
+        fs::write(fixture.workspace.join("package.json"), serde_json::json!({
+            "dependencies": { "secret-tarball": "https://alice:credential-marker@127.0.0.1:9/package.tgz" }
+        }).to_string()).expect("write package.json");
+        let output = fixture.pacquet
+            .with_args(["install", "--lockfile-only", "--config.fetch-retries=0", reporter])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        eprintln!("stderr={stderr}");
+        let message = if reporter == "--reporter=ndjson" {
+            ndjson_records(output.get_output())
+                .into_iter()
+                .find(|record| record["level"] == "error")
+                .expect("fatal error")["message"]
+                .as_str()
+                .expect("error message")
+                .to_string()
+        } else {
+            stderr.to_string()
+        };
+        assert!(!message.contains("credential-marker"), "credentials leaked: {message}");
+        assert!(!message.contains("alice:"), "username leaked: {message}");
+        assert!(
+            flatten_report(&message)
+                .contains("Failedtoresolvesecret-tarball@https://127.0.0.1:9/package.tgz"),
+        );
+    }
+}
+
+#[test]
+fn ndjson_reports_early_directory_errors() {
+    let fixture = CommandTempCwd::init();
+    let missing = fixture.workspace.join("missing-directory");
+    let output = fixture.pacquet
+        .with_args(["install", "--reporter=ndjson", "--dir"])
+        .with_arg(&missing)
+        .assert()
+        .failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("stderr={stderr}");
+    let records: Vec<serde_json::Value> = stderr
+        .lines()
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("every stderr line must be JSON"))
+        .collect();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0]["name"], "pnpm");
+    assert_eq!(records[0]["level"], "error");
+    assert!(
+        records[0]["message"]
+            .as_str()
+            .expect("error message")
+            .contains("missing-directory"),
+    );
+}
+
+#[test]
+fn an_override_to_a_missing_version_is_reported_on_the_override() {
+    for reporter in ["--reporter=append-only", "--reporter=ndjson"] {
+        let fixture = CommandTempCwd::init().add_mocked_registry();
+        fs::write(
+            fixture.workspace.join("package.json"),
+            serde_json::json!({
+                "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
+        let workspace_yaml = fixture.workspace.join("pnpm-workspace.yaml");
+        let mut yaml = fs::read_to_string(&workspace_yaml).unwrap_or_default();
+        yaml.push_str(
+            "\noverrides:\n  \"@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0\": \"999.0.0\"\n",
+        );
+        fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+        let output = fixture.pacquet
+            .with_args(["install", "--lockfile-only", reporter])
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        eprintln!("stderr={stderr}");
+        let message = r#"Override "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0": "999.0.0" targets a version of @pnpm.e2e/dep-of-pkg-with-1-dep that does not exist on the registry."#;
+        if reporter == "--reporter=ndjson" {
+            let records = ndjson_records(output.get_output());
+            let error = records
+                .iter()
+                .find(|record| record["level"] == "error")
+                .expect("fatal error");
+            assert_eq!(error["code"], "ERR_PNPM_NO_MATCHING_VERSION");
+            assert!(
+                error["message"]
+                    .as_str()
+                    .is_some_and(|text| text.ends_with(message)),
+            );
+            assert!(error["pkgsStack"].as_array().is_none_or(Vec::is_empty));
+        } else {
+            let flattened = flatten_report(&stderr);
+            assert!(flattened.contains(&flatten_report(message)));
+            assert!(flattened.contains(&flatten_report(
+                r#"The latest release of @pnpm.e2e/dep-of-pkg-with-1-dep matching "^100.0.0" is "100.1.0"."#,
+            )));
+            assert!(!flattened.contains("Thiserrorhappenedwhileinstallingthedependenciesof"));
+        }
+    }
+}

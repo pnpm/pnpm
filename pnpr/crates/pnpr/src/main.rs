@@ -1,138 +1,229 @@
-use clap::Parser;
-use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
-use std::{io::IsTerminal, net::SocketAddr, path::PathBuf, time::Duration};
-use tracing_subscriber::EnvFilter;
+use clap::{
+    ArgMatches,
+    CommandFactory as _,
+    FromArgMatches as _,
+    Parser,
+    parser::ValueSource,
+};
+use pnpm_diagnostics::println;
+use pnpr::{
+    Command,
+    Config,
+    ConfigSource,
+    ConfigSubcommand,
+    LogConfig,
+    RegistryError,
+    ServerArgs,
+    default_cache_dir,
+    logging::log_subscriber,
+    run_command,
+    serve,
+};
+use pnpr_config::{
+    BackendConfig,
+    DatabaseBackend,
+    default_database_path,
+};
+use std::{
+    io::IsTerminal,
+    path::PathBuf,
+};
+use tracing_subscriber::{
+    EnvFilter,
+    util::SubscriberInitExt as _,
+};
+
+// Rendering a packument makes large, short-lived allocations on many threads.
+// glibc malloc keeps that memory after the requests finish, so the resident
+// size of an idle server stays near its peak. The other targets keep the
+// system allocator until mimalloc's C build is verified there.
+#[cfg(all(
+    any(target_os = "linux", target_os = "macos", target_os = "windows"),
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+))]
+mod allocator;
 
 #[derive(Debug, Parser)]
 #[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
 struct Args {
-    /// Path to a verdaccio-shaped YAML config (storage, upstreams,
-    /// packages, log). When omitted, the global `config.yaml` in
+    #[command(subcommand)]
+    command: Option<Command>,
+
+    /// Path to the YAML config. When omitted, the global `config.yaml` in
     /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
     /// used if it exists, otherwise the bundled default config.
-    #[arg(short = 'c', long)]
+    #[arg(short = 'c', long, env = "PNPR_CONFIG", global = true)]
     config: Option<PathBuf>,
 
-    /// Address to bind to.
-    #[arg(long, default_value = Config::DEFAULT_LISTEN)]
-    listen: SocketAddr,
+    #[command(flatten)]
+    paths: StorageArgs,
 
+    #[command(flatten)]
+    server: ServerArgs,
+
+    /// Print the allocator's purge delay and exit. A test reads it.
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+    ))]
+    #[arg(long, hide = true)]
+    allocator_purge_delay: bool,
+}
+
+#[derive(Debug, Default, Clone, clap::Args)]
+struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
-    /// `-c`). Useful for tests and benchmarks that want their own
-    /// storage directory without writing a custom YAML. Unless
-    /// `--cache` is also given, the disposable proxy cache is
-    /// re-derived as a subdirectory of this path.
-    #[arg(long)]
+    /// `-c`). A proxy cache or database at its default path in
+    /// the storage directory moves with it.
+    #[arg(long, env = "PNPR_STORAGE", global = true)]
     storage: Option<PathBuf>,
 
-    /// Override the proxy-cache path — the disposable mirror of
+    /// Override the proxy-cache path, the disposable mirror of
     /// upstream registries plus the resolver's cache. Point
     /// it at separate, ephemeral disk to keep published packages and
     /// cached upstream content on different volumes.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_CACHE", global = true)]
     cache: Option<PathBuf>,
-
-    /// URL clients should use to reach this server. Used when
-    /// rewriting `dist.tarball` URLs in served packuments. Defaults
-    /// to `http://<listen>`.
-    #[arg(long)]
-    public_url: Option<String>,
-
-    /// Seconds before a cached packument is considered stale and
-    /// refetched. When omitted, the loaded config's value wins.
-    #[arg(long)]
-    packument_ttl_secs: Option<u64>,
-
-    /// Enable local OSV npm vulnerability checks. Requires a local OSV
-    /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
-    #[arg(long)]
-    osv: bool,
-
-    /// Path to the local OSV npm database zip or extracted JSON directory.
-    #[arg(long)]
-    osv_db: Option<PathBuf>,
-
-    /// Disable the npm-registry surface (packument/tarball reads, publish,
-    /// unpublish, dist-tag, search) on this tier. Without the flag the
-    /// surface is served whenever the loaded config declares at least one
-    /// registry under `registries:`.
-    #[arg(long)]
-    disable_registry: bool,
-
-    /// Disable the install-accelerator surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
-    /// `/-/pnpr/v0/verify-lockfile`). Overrides `resolver.enabled` from the
-    /// loaded config.
-    #[arg(long)]
-    disable_resolver: bool,
-
-    /// Disable the signed shared-artifact surface. Overrides
-    /// `artifacts.enabled` from the loaded config.
-    #[arg(long)]
-    disable_artifacts: bool,
 }
 
-impl Args {
-    fn feature_overrides(&self) -> pnpr::FeatureOverrides {
-        pnpr::FeatureOverrides {
-            disable_registry: self.disable_registry,
-            disable_resolver: self.disable_resolver,
-            disable_artifacts: self.disable_artifacts,
-        }
-    }
+fn main() -> miette::Result<()> {
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+    ))]
+    allocator::purge_freed_memory_immediately();
+    run()
 }
 
 #[tokio::main]
-async fn main() -> miette::Result<()> {
-    let args = Args::parse();
+async fn run() -> miette::Result<()> {
+    let matches = Args::command().get_matches();
+    let mut args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos", target_os = "windows"),
+        any(target_arch = "x86_64", target_arch = "aarch64"),
+    ))]
+    if args.allocator_purge_delay {
+        println!("{}", allocator::purge_delay());
+        return Ok(());
+    }
     let auto_path = Config::auto_config_path();
-    // Pass the surface-disable flags into parsing so a CLI-disabled surface
-    // skips its parse-time work too (e.g. strict upstream token resolution),
-    // not just its routes — applying them after `resolve` would be too late.
-    let overrides = args.feature_overrides();
+
+    let server_args = match args.command.take() {
+        None => args.server,
+        Some(Command::Serve(server)) => {
+            args.server.merge(without_env_values(server, matches.subcommand_matches("serve")))
+        }
+        Some(cmd) => return run_maintenance(cmd, args, auto_path).await,
+    };
+
+    let overrides = server_args.features.feature_overrides();
     let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),
-        args.listen,
-        args.public_url.clone(),
+        server_args.listen,
+        server_args.public_url.clone(),
         overrides,
     )
     .map_err(|err| miette::miette!("{err}"))?;
-    if let Some(storage) = args.storage {
-        // The bundled config anchors auth state (htpasswd, tokens.db) next to the
-        // config, which for the bundled default is the current directory. When a
-        // caller serves from an explicit --storage dir (tests, benchmarks), keep
-        // that state inside it so runs never write auth files into the working tree.
-        if matches!(source, ConfigSource::Bundled) {
-            if config.auth.htpasswd.file.is_some() {
-                config.auth.htpasswd.file = Some(storage.join("htpasswd"));
-            }
-            if config.auth.tokens.file.is_some() {
-                config.auth.tokens.file = Some(storage.join("tokens.db"));
-            }
-        }
-        // Keep the cache co-located under the overridden storage dir so a
-        // `--storage`-only run stays self-contained, unless the caller
-        // pins the cache explicitly below.
-        config.cache_storage = default_cache_dir(&storage);
-        config.storage = storage;
-    }
-    if let Some(cache) = args.cache {
-        config.cache_storage = cache;
-    }
-    if let Some(ttl_secs) = args.packument_ttl_secs {
-        config.packument_ttl = Duration::from_secs(ttl_secs);
-    }
-    if args.osv {
-        config.osv.enabled = true;
-    }
-    if let Some(osv_db) = args.osv_db {
-        config.osv.path = Some(osv_db);
-    }
-    // Surface overrides were folded in during parse; the parse already
-    // enforced that at least one surface stays enabled.
+    apply_storage_overrides(&mut config, &mut args.paths);
+    apply_server_overrides(&mut config, &server_args);
+
     init_logging(&config.logs);
     log_config_source(&source);
+    warn_experimental_database(&config);
+    warn_derived_public_url(&config);
     serve(config).await.map_err(|err| redacted_report(&err))
+}
+
+async fn run_maintenance(
+    cmd: Command,
+    mut args: Args,
+    auto_path: Option<PathBuf>,
+) -> miette::Result<()> {
+    let (mut config, source) = Config::resolve_with_overrides(
+        args.config.as_deref(),
+        auto_path.as_deref(),
+        args.server.listen,
+        args.server.public_url.clone(),
+        args.server.features.feature_overrides(),
+    )
+    .map_err(|err| miette::miette!("{err}"))?;
+    apply_storage_overrides(&mut config, &mut args.paths);
+
+    if matches!(cmd, Command::Config { action: ConfigSubcommand::Check }) {
+        let report = pnpr::config_check::check_config_and_stored_registries(&mut config, &source)
+            .await
+            .map_err(|error| redacted_report(&error))?;
+        println!("{}", pnpr::config_check::format_report(&report));
+        return Ok(());
+    }
+
+    init_logging(&config.logs);
+    log_config_source(&source);
+    warn_experimental_database(&config);
+    run_command(&config, cmd).await
+}
+
+/// `serve` reads the same environment variables as the top level, which
+/// already holds their values. Taken from `serve` as well, they would replace
+/// an explicit top-level flag in [`ServerArgs::merge`].
+fn without_env_values(mut serve: ServerArgs, matches: Option<&ArgMatches>) -> ServerArgs {
+    let from_env = |id: &str| {
+        matches.is_some_and(|matches| matches.value_source(id) == Some(ValueSource::EnvVariable))
+    };
+    if from_env("listen") {
+        serve.listen = None;
+    }
+    if from_env("public_url") {
+        serve.public_url = None;
+    }
+    if from_env("packument_ttl") {
+        serve.packument_ttl = None;
+    }
+    if from_env("osv") {
+        serve.osv_options.osv = None;
+    }
+    if from_env("osv_db") {
+        serve.osv_options.osv_db = None;
+    }
+    serve
+}
+
+fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs) {
+    if let Some(storage) = paths.storage.take() {
+        // A cache at its default path lives in the storage directory, so it
+        // moves with it. One the config places elsewhere stays there.
+        if config.storage.cache_dir == default_cache_dir(&config.storage.hosted_dir) {
+            config.storage.cache_dir = default_cache_dir(&storage);
+        }
+        // A database at the default path lives in the storage directory, so
+        // it moves with it, whether or not the config spells the path out.
+        // One anywhere else stays where it is.
+        let default_metadata =
+            DatabaseBackend::Sqlite(default_database_path(&config.storage.hosted_dir));
+        if config.storage.database == default_metadata {
+            let moved = default_database_path(&storage);
+            config.identity.backend = BackendConfig::Sqlite(moved.clone());
+            config.storage.database = DatabaseBackend::Sqlite(moved);
+        }
+        config.storage.hosted_dir = storage;
+    }
+    if let Some(cache) = paths.cache.take() {
+        config.storage.cache_dir = cache;
+    }
+}
+
+fn apply_server_overrides(config: &mut Config, server: &ServerArgs) {
+    if let Some(ttl) = server.packument_ttl {
+        config.http.packument_ttl = ttl;
+    }
+    if let Some(osv) = server.osv_options.osv {
+        config.osv.enabled = osv;
+    }
+    if let Some(osv_db) = server.osv_options.osv_db.clone() {
+        config.osv.path = Some(osv_db);
+    }
 }
 
 fn redacted_report(err: &RegistryError) -> miette::Report {
@@ -142,35 +233,18 @@ fn redacted_report(err: &RegistryError) -> miette::Report {
 
 /// Install the `tracing-subscriber` for this process based on the
 /// resolved log config. `RUST_LOG` always wins over the YAML/CLI
-/// level — same precedence Node ecosystem tools use for their
+/// level, same precedence Node ecosystem tools use for their
 /// `LOG_LEVEL`/`DEBUG` env vars, and what existing pnpr
 /// operators will already expect.
 fn init_logging(logs: &LogConfig) {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(logs.level.as_filter_directive()));
-    // Emit ANSI colors only to an interactive terminal — never when stdout is
+    // Emit ANSI colors only to an interactive terminal, never when stdout is
     // redirected to a file or pipe (e.g. the benchmark's mock logs), where the
     // escape codes are just noise that breaks downstream log parsing. The
     // writer is pinned to stdout explicitly so the `is_terminal` probe always
     // inspects the stream the subscriber actually writes to.
-    let builder = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_writer(std::io::stdout)
-        .with_ansi(std::io::stdout().is_terminal());
-    match logs.format {
-        // `with_current_span(true)` keeps the per-request span's
-        // `method`/`uri` fields attached to the single access event;
-        // `with_span_list(false)` drops the redundant entered-span
-        // array so each JSON line stays one flat access record.
-        LogFormat::Json => builder.json().with_current_span(true).with_span_list(false).init(),
-        LogFormat::Pretty => builder.compact().init(),
-    }
-    if !logs.sink_is_supported() {
-        tracing::warn!(
-            sink = %logs.sink,
-            "unsupported `log.type`; only `stdout` is implemented — logging to stdout",
-        );
-    }
+    log_subscriber(logs, filter, std::io::stdout, std::io::stdout().is_terminal()).init();
 }
 
 fn log_config_source(source: &ConfigSource) {
@@ -182,6 +256,28 @@ fn log_config_source(source: &ConfigSource) {
             tracing::info!(path = %path.display(), "loaded config from default path");
         }
         ConfigSource::Bundled => tracing::info!("loaded bundled default config"),
+    }
+}
+
+/// A server reachable beyond loopback without a public URL rewrites tarball
+/// URLs to its bind address, which clients usually cannot reach.
+fn warn_derived_public_url(config: &Config) {
+    let listen = config.http.listen;
+    if !listen.ip().is_loopback() && config.http.public_url == format!("http://{listen}") {
+        tracing::warn!(
+            %listen,
+            "publicUrl is not set; tarball URLs point at the bind address. Set `publicUrl` to the URL clients use",
+        );
+    }
+}
+
+fn warn_experimental_database(config: &Config) {
+    let mysql = matches!(config.storage.database, DatabaseBackend::Mysql(_))
+        || matches!(config.identity.backend, BackendConfig::Mysql(_));
+    if mysql {
+        tracing::warn!(
+            "MySQL support is experimental; use SQLite, libSQL, or PostgreSQL for production data",
+        );
     }
 }
 

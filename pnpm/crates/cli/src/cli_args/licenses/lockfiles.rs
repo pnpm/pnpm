@@ -1,0 +1,234 @@
+use super::{
+    BelongsTo,
+    Include,
+    PackageDirs,
+    collect_dependencies,
+    compare_package_names,
+    compare_versions,
+};
+use crate::cli_args::listed_projects::listed_projects;
+use miette::IntoDiagnostic;
+use pnpm_config::Config;
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+};
+use pnpm_package_is_installable::InstallabilityOptions;
+use pnpm_package_manager::{
+    AllowBuildPolicy,
+    validate_virtual_store_slot_containment,
+    virtual_store_layout_for_lockfile,
+};
+use pnpm_workspace::importer_id_from_root_dir;
+use std::{
+    cmp::Ordering,
+    collections::HashMap,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+/// The packages a report lists, each paired with the index of the
+/// lockfile whose install holds its files.
+pub(super) struct LicensedPackages {
+    pub package_dirs: Vec<PackageDirs>,
+    pub dependencies: Vec<(usize, LicensedDependency)>,
+}
+
+impl LicensedPackages {
+    pub(super) fn collect(
+        config: &Config,
+        dir: &Path,
+        recursive: bool,
+        include: Include,
+    ) -> miette::Result<Self> {
+        let walk = LockfileWalk {
+            config,
+            dir,
+            include,
+            installability: InstallabilityOptions {
+                supported_architectures: config.supported_architectures.as_ref(),
+                current_os: pnpm_detect_libc::host_platform(),
+                current_cpu: pnpm_detect_libc::host_arch(),
+                current_libc: pnpm_graph_hasher::host_libc(),
+                ..Default::default()
+            },
+        };
+        let mut packages = Self { package_dirs: Vec::new(), dependencies: Vec::new() };
+        for licensed in licensed_lockfiles(config, dir, recursive)? {
+            let (package_dirs, dependencies) = walk.packages(&licensed)?;
+            let lockfile_index = packages.package_dirs.len();
+            packages.package_dirs.push(package_dirs);
+            packages.dependencies.extend(
+                dependencies
+                    .into_iter()
+                    .map(|dependency| (lockfile_index, dependency)),
+            );
+        }
+        // Dedicated lockfiles each contribute an ordered run; the report
+        // needs one order across all of them.
+        if packages.package_dirs.len() > 1 {
+            packages.dependencies.sort_by(|(_, left), (_, right)| {
+                compare_licensed_dependencies(left, right)
+            });
+        }
+        Ok(packages)
+    }
+}
+
+/// What every lockfile of one report is walked with.
+struct LockfileWalk<'a> {
+    config: &'a Config,
+    dir: &'a Path,
+    include: Include,
+    installability: InstallabilityOptions<'a>,
+}
+
+impl LockfileWalk<'_> {
+    /// Where the packages of one lockfile are installed and the packages
+    /// its listed importers depend on.
+    fn packages(
+        &self,
+        licensed: &LicensedLockfile,
+    ) -> miette::Result<(PackageDirs, Vec<LicensedDependency>)> {
+        let Some(lockfile) =
+            Lockfile::load_wanted_from_dir(&licensed.lockfile_dir).into_diagnostic()?
+        else {
+            let lockfile_dir = licensed.lockfile_dir.display();
+            return Err(miette::miette!(
+                code = "ERR_PNPM_LICENSES_NO_LOCKFILE",
+                r#"No pnpm-lock.yaml found in "{}": Cannot check a project without a lockfile"#,
+                lockfile_dir,
+            ));
+        };
+        let (layout_config, manifest_dir) = match &licensed.project_config {
+            Some(project_config) => (project_config, licensed.lockfile_dir.as_path()),
+            None => (self.config, self.dir),
+        };
+        let layout = lockfile_layout(layout_config, &licensed.lockfile_dir, &lockfile)?;
+        let package_dirs =
+            PackageDirs::new(layout_config, &licensed.lockfile_dir, manifest_dir, layout)?;
+        let belongs_to = collect_dependencies(
+            &lockfile,
+            &licensed.importer_ids,
+            self.include,
+            &self.installability,
+            self.config.peer_edge_options(),
+        );
+        Ok((package_dirs, sorted_licensed_dependencies(&lockfile, belongs_to)))
+    }
+}
+
+/// A lockfile to read and the importers of it whose dependencies are
+/// listed.
+struct LicensedLockfile {
+    lockfile_dir: PathBuf,
+    /// `config` re-anchored on the project that owns a dedicated lockfile
+    /// (`sharedWorkspaceLockfile: false`), whose virtual store sits in that
+    /// project rather than in the workspace root.
+    project_config: Option<Config>,
+    importer_ids: Vec<String>,
+}
+
+/// The lockfiles recording the listed importers, the `--filter`
+/// selection under `--recursive`, the project in `dir` otherwise. A
+/// workspace with dedicated lockfiles has one per project.
+fn licensed_lockfiles(
+    config: &Config,
+    dir: &Path,
+    recursive: bool,
+) -> miette::Result<Vec<LicensedLockfile>> {
+    let projects = listed_projects(config, dir, recursive)?;
+    if projects.is_empty() {
+        return Ok(Vec::new());
+    }
+    if config.shares_one_lockfile() || config.workspace_dir.is_none() {
+        let lockfile_dir = config.lockfile_dir_for(dir).to_path_buf();
+        let importer_ids = projects
+            .iter()
+            .map(|(project_dir, _)| importer_id_from_root_dir(&lockfile_dir, project_dir))
+            .collect();
+        return Ok(vec![LicensedLockfile { lockfile_dir, project_config: None, importer_ids }]);
+    }
+    Ok(projects
+        .into_iter()
+        .map(|(project_dir, name)| {
+            let mut project_config = config.clone();
+            project_config.anchor_dedicated_project(&project_dir, name.as_deref());
+            LicensedLockfile {
+                importer_ids: vec![importer_id_from_root_dir(&project_dir, &project_dir)],
+                lockfile_dir: project_dir,
+                project_config: Some(project_config),
+            }
+        })
+        .collect())
+}
+
+/// A listed package: its lockfile key, the dependency group it belongs
+/// to, its name, its manifest version, and its named-registry alias if any.
+pub(super) struct LicensedDependency {
+    pub key: PackageKey,
+    pub belongs_to: BelongsTo,
+    pub name: String,
+    pub version: String,
+    pub registry_name: Option<String>,
+}
+
+/// The listed packages with their manifest versions, in the order the
+/// report renders them.
+fn sorted_licensed_dependencies(
+    lockfile: &Lockfile,
+    belongs_to: HashMap<PackageKey, BelongsTo>,
+) -> Vec<LicensedDependency> {
+    let pkgs = lockfile.packages.as_ref();
+    let mut dependencies = belongs_to
+        .into_iter()
+        .map(|(key, belongs_to)| {
+            let name = key.name.to_string();
+            let registry_name = key.suffix.registry_qualified().map(|(alias, _)| alias.to_owned());
+            let version = pkgs
+                .and_then(|packages| packages.get(&key.without_peer()))
+                .and_then(|meta| meta.version.clone())
+                .or_else(|| key.suffix.registry_version().map(ToString::to_string))
+                .unwrap_or_else(|| key.suffix.version().to_string());
+            LicensedDependency { key, belongs_to, name, version, registry_name }
+        })
+        .collect::<Vec<_>>();
+    dependencies.sort_by(compare_licensed_dependencies);
+    dependencies
+}
+
+fn compare_licensed_dependencies(
+    left: &LicensedDependency,
+    right: &LicensedDependency,
+) -> Ordering {
+    compare_package_names(&left.name, &right.name)
+        .then_with(|| compare_versions(&left.version, &right.version))
+        .then_with(|| left.registry_name.cmp(&right.registry_name))
+        .then_with(|| {
+            left.key
+                .to_string()
+                .cmp(&right.key.to_string())
+        })
+        .then_with(|| left.belongs_to.cmp(&right.belongs_to))
+}
+
+/// Where each locked package's files live, checked to sit inside the
+/// virtual store.
+pub(super) fn lockfile_layout(
+    config: &Config,
+    lockfile_dir: &Path,
+    lockfile: &Lockfile,
+) -> miette::Result<pnpm_deps_restorer::VirtualStoreLayout> {
+    let allow_build_policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
+    let layout = virtual_store_layout_for_lockfile(
+        config,
+        lockfile,
+        Some(&allow_build_policy),
+        Some(lockfile_dir),
+    );
+    validate_virtual_store_slot_containment(lockfile.snapshots.as_ref(), &layout)
+        .into_diagnostic()?;
+    Ok(layout)
+}

@@ -1,12 +1,24 @@
 use std::collections::HashMap;
 
-use chrono::{TimeDelta, Utc};
+use jiff::{
+    SignedDuration,
+    Timestamp,
+};
 use miette::Diagnostic;
-use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_registry::{
+    DerivedPackuments,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+};
 
 use super::{
-    GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
-    stringify_date, strip_trailing_semver_suffix,
+    GitResolveError,
+    NoMatchingVersionError,
+    RegistryResponseError,
+    RegistryResponseErrorOptions,
+    stringify_date,
+    strip_trailing_semver_suffix,
 };
 
 fn make_package(name: &str, versions: &[&str], dist_tags: &[(&str, &str)]) -> Package {
@@ -47,7 +59,10 @@ fn make_package(name: &str, versions: &[&str], dist_tags: &[(&str, &str)]) -> Pa
 }
 
 fn rendered_help(error: &dyn Diagnostic) -> String {
-    error.help().map(|help| help.to_string()).unwrap_or_default()
+    error
+        .help()
+        .map(|help| help.to_string())
+        .unwrap_or_default()
 }
 
 #[test]
@@ -64,7 +79,10 @@ fn no_matching_version_reports_the_upstream_code_and_message() {
         "No matching version found for is-odd@99.99.99 while fetching it from https://registry.npmjs.org/",
     );
     assert_eq!(
-        error.code().map(|code| code.to_string()).as_deref(),
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_NO_MATCHING_VERSION"),
     );
 }
@@ -120,7 +138,13 @@ fn registry_response_error_codes_the_status_and_hints_at_the_missing_package() {
     });
 
     assert_eq!(error.to_string(), "GET https://registry.npmjs.org/@repro%2Fpkg-a: Not Found - 404");
-    assert_eq!(error.code().map(|code| code.to_string()).as_deref(), Some("ERR_PNPM_FETCH_404"));
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_FETCH_404"),
+    );
     assert_eq!(
         rendered_help(&error),
         "@repro/pkg-a is not in the npm registry, or you have no permission to fetch it.\n\nNo authorization header was set for the request.",
@@ -152,7 +176,13 @@ fn registry_response_error_hints_only_at_authorization_for_a_403() {
         auth_header_value: None,
     });
 
-    assert_eq!(error.code().map(|code| code.to_string()).as_deref(), Some("ERR_PNPM_FETCH_403"));
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_FETCH_403"),
+    );
     assert_eq!(rendered_help(&error), "No authorization header was set for the request.");
 }
 
@@ -179,8 +209,9 @@ fn a_release_older_than_a_day_is_dated_without_a_time_of_day() {
 
 #[test]
 fn a_release_published_within_the_day_carries_its_time_of_day() {
-    let an_hour_ago = Utc::now() - TimeDelta::hours(1);
-    let rendered = stringify_date(&an_hour_ago.to_rfc3339()).expect("a parsable timestamp");
+    let an_hour_ago = Timestamp::now() - SignedDuration::from_hours(1);
+    let rendered =
+        stringify_date(&pnpm_time::format_rfc3339(an_hour_ago)).expect("a parsable timestamp");
     dbg!(&rendered);
     assert!(
         rendered.ends_with(" AM") || rendered.ends_with(" PM"),
@@ -231,14 +262,128 @@ fn an_unreachable_https_remote_explains_the_transport_and_how_to_substitute_it()
 }
 
 #[test]
-fn an_unreachable_ssh_remote_carries_no_transport_substitution_hint() {
+fn an_ssh_publickey_refusal_explains_ssh_agent_and_a_local_https_rewrite() {
     let err = GitResolveError::new(
         "git+ssh://git@github.com/foo/bar.git",
-        "git+ssh://git@github.com/foo/bar.git",
+        "git@github.com:foo/bar.git",
         "git ls-remote failed: Permission denied (publickey)",
     );
 
+    let help = err
+        .help()
+        .expect("publickey help")
+        .to_string();
+    assert!(help.contains("ssh-add -l"), "{help}");
+    assert!(help.contains("Git refused the SSH key for github.com"), "{help}");
+    assert!(
+        help.contains(
+            r#"git config --global url."https://github.com/".insteadOf "git@github.com:""#
+        ),
+        "{help}",
+    );
+    assert!(
+        !help.contains(r#"url."git@github.com:".insteadOf"#),
+        "the HTTPS remote's rewrite points the wrong way: {help}",
+    );
+}
+
+#[test]
+fn an_ssh_publickey_hint_refuses_a_host_that_could_break_out_of_the_command() {
+    let err = GitResolveError::new(
+        r#"git@evil";touch /tmp/pwned:repo.git"#,
+        r#"git@evil";touch /tmp/pwned:repo.git"#,
+        "Permission denied (publickey)",
+    );
+
+    let help = err
+        .help()
+        .map(|help| help.to_string())
+        .unwrap_or_default();
+    assert!(!help.contains("git config"), "{help}");
+    assert!(!help.contains("touch"), "{help}");
+}
+
+#[test]
+fn an_ssh_publickey_hint_offers_no_rewrite_for_a_user_other_than_git() {
+    let err = GitResolveError::new(
+        "ssh://deploy-key@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo",
+        "ssh://deploy-key@git-codecommit.us-east-1.amazonaws.com/v1/repos/foo",
+        "Permission denied (publickey)",
+    );
+
+    let help = err
+        .help()
+        .expect("publickey help")
+        .to_string();
+    assert!(help.contains("ssh-add -l"), "{help}");
+    assert!(help.contains("git-codecommit.us-east-1.amazonaws.com"), "{help}");
+    assert!(!help.contains("insteadOf"), "{help}");
+    assert!(!help.contains("deploy-key"), "{help}");
+}
+
+#[test]
+fn an_ssh_failure_that_is_not_a_key_refusal_carries_no_auth_hint() {
+    let err = GitResolveError::new(
+        "git+ssh://git@github.com/foo/bar.git",
+        "git@github.com:foo/bar.git",
+        "git ls-remote failed: ssh: connect to host github.com port 22: Connection refused",
+    );
+
     assert!(err.help().is_none());
+}
+
+#[test]
+fn a_host_named_publickey_is_not_a_key_refusal() {
+    let err = GitResolveError::new(
+        "git+ssh://git@publickey.example.com/foo/bar.git",
+        "git@publickey.example.com:foo/bar.git",
+        "ssh: connect to host publickey.example.com port 22: Connection refused",
+    );
+
+    assert!(err.help().is_none());
+}
+
+#[test]
+fn an_ssh_publickey_hint_keeps_brackets_around_an_ipv6_host() {
+    let err = GitResolveError::new(
+        "ssh://git@[2001:db8::1]:2222/foo/bar.git",
+        "ssh://git@[2001:db8::1]:2222/foo/bar.git",
+        "Permission denied (publickey)",
+    );
+
+    let help = err
+        .help()
+        .expect("publickey help")
+        .to_string();
+    assert!(
+        help.contains(
+            r#"git config --global url."https://[2001:db8::1]/".insteadOf "ssh://git@[2001:db8::1]:2222/""#
+        ),
+        "{help}",
+    );
+}
+
+#[test]
+fn an_ssh_publickey_hint_redacts_a_password_and_keeps_the_ssh_port() {
+    let err = GitResolveError::new(
+        "ssh://git:s3cr3t-t0ken@git.example.com:2222/foo/bar.git",
+        "ssh://git:s3cr3t-t0ken@git.example.com:2222/foo/bar.git",
+        "Permission denied (publickey)",
+    );
+
+    let rendered = err.to_string();
+    assert!(!rendered.contains("s3cr3t-t0ken"), "{rendered}");
+    let help = err
+        .help()
+        .expect("publickey help")
+        .to_string();
+    assert!(!help.contains("s3cr3t-t0ken"), "{help}");
+    assert!(
+        help.contains(
+            r#"git config --global url."https://git.example.com/".insteadOf "ssh://git@git.example.com:2222/""#
+        ),
+        "{help}",
+    );
 }
 
 #[test]
@@ -267,7 +412,12 @@ fn an_unreachable_remote_redacts_the_credentials_git_echoes_back() {
     );
 
     assert!(!err.to_string().contains("hunter2"), "{err}");
-    assert!(!err.help().expect("help").to_string().contains("hunter2"));
+    assert!(
+        !err.help()
+            .expect("help")
+            .to_string()
+            .contains("hunter2"),
+    );
 }
 
 #[test]

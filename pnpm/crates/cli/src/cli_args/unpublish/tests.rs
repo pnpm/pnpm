@@ -1,15 +1,28 @@
+use super::{
+    Packument,
+    UnpublishArgs,
+    highest_version,
+    rev_str,
+    tarball_pathname,
+    versions_matching_range,
+};
 use mockito::Matcher;
 use pnpm_config::Config;
-use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
-use serde_json::{Map, Value, json};
-
-use super::{
-    Packument, UnpublishArgs, highest_version, registry_origin, rev_str, tarball_pathname,
-    versions_matching_range,
+use pnpm_network_web_auth_testing::{
+    InputResponse,
+    ok_token,
+    web_auth_fake,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
 };
 
 fn versions(keys: &[&str]) -> Map<String, Value> {
-    keys.iter().map(|key| ((*key).to_string(), json!({}))).collect()
+    keys.iter()
+        .map(|key| ((*key).to_string(), json!({})))
+        .collect()
 }
 
 #[test]
@@ -43,12 +56,6 @@ fn highest_version_picks_the_new_latest() {
 }
 
 #[test]
-fn registry_origin_drops_the_registry_path() {
-    let origin = registry_origin("https://registry.example.com:8443/npm/").expect("an origin");
-    assert_eq!(origin, "https://registry.example.com:8443");
-}
-
-#[test]
 fn tarball_pathname_strips_the_registry_path_prefix() {
     // A registry at the host root keeps the tarball path as is.
     let pathname = tarball_pathname(
@@ -65,6 +72,22 @@ fn tarball_pathname_strips_the_registry_path_prefix() {
     )
     .expect("a pathname");
     assert_eq!(pathname, "pkg/-/pkg-1.0.0.tgz");
+
+    // A registry mounted under a path without trailing slash also strips correctly.
+    let pathname = tarball_pathname(
+        "https://registry.example.com/npm/pkg/-/pkg-1.0.0.tgz",
+        "https://registry.example.com/npm",
+    )
+    .expect("a pathname");
+    assert_eq!(pathname, "pkg/-/pkg-1.0.0.tgz");
+
+    // Sibling paths sharing a prefix do not match across path segment boundary.
+    let pathname = tarball_pathname(
+        "https://registry.example.com/npm2/pkg/-/pkg-1.0.0.tgz",
+        "https://registry.example.com/npm",
+    )
+    .expect("a pathname");
+    assert_eq!(pathname, "npm2/pkg/-/pkg-1.0.0.tgz");
 }
 
 /// The packument round-trips unknown fields and drops the `CouchDB` metadata
@@ -91,8 +114,8 @@ fn packument_round_trips_unknown_fields() {
     assert!(serialized.get("_attachments").is_none(), "couchdb metadata is dropped");
 }
 
-/// The version keys keep the packument's own order — `1.10.0` after `1.9.0`
-/// when the registry sent them that way — like the TypeScript CLI's
+/// The version keys keep the packument's own order (`1.10.0` after `1.9.0`
+/// when the registry sent them that way) like the TypeScript CLI's
 /// `Object.keys`, not lexicographic or semver order.
 #[test]
 fn version_keys_keep_the_packument_order() {
@@ -124,13 +147,16 @@ fn unpublish_args(registry: &str, otp: Option<&str>, params: &[&str]) -> Unpubli
         registry: Some(registry.to_owned()),
         otp: otp.map(str::to_owned),
         force: true,
-        params: params.iter().map(|param| (*param).to_owned()).collect(),
+        params: params
+            .iter()
+            .map(|param| (*param).to_owned())
+            .collect(),
     }
 }
 
 /// A 401 carrying `authUrl` / `doneUrl` starts the web-auth flow, and the
-/// token it yields is sent as `npm-otp` on the retried `DELETE` — still
-/// under `npm-auth-type: web`.
+/// token it yields is sent as `npm-otp` on the retried `DELETE`, still
+/// under `npm-auth-type: web` and `npm-command: unpublish`.
 #[tokio::test]
 async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token() {
     web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
@@ -141,6 +167,7 @@ async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token(
     let registry = format!("{}/", server.url());
     let get_mock = server
         .mock("GET", "/test-pkg")
+        .match_query(mockito::Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .create_async()
@@ -148,6 +175,7 @@ async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token(
     let challenge_mock = server
         .mock("DELETE", "/test-pkg/-rev/3-abc")
         .match_header("npm-auth-type", "web")
+        .match_header("npm-command", "unpublish")
         .match_header("npm-otp", Matcher::Missing)
         .with_status(401)
         .with_body(
@@ -163,6 +191,7 @@ async fn a_web_auth_challenge_is_answered_and_the_delete_retried_with_the_token(
     let retry_mock = server
         .mock("DELETE", "/test-pkg/-rev/3-abc")
         .match_header("npm-auth-type", "web")
+        .match_header("npm-command", "unpublish")
         .match_header("npm-otp", "web-token")
         .with_status(200)
         .with_body("{}")
@@ -193,6 +222,7 @@ async fn a_partial_unpublish_shares_one_otp_across_the_put_and_the_tarball_delet
     let registry = format!("{}/", server.url());
     let get_mock = server
         .mock("GET", "/test-pkg")
+        .match_query(mockito::Matcher::UrlEncoded("write".into(), "true".into()))
         .with_status(200)
         .with_body(two_version_packument(&server.url()))
         .expect(2)
@@ -228,6 +258,47 @@ async fn a_partial_unpublish_shares_one_otp_across_the_put_and_the_tarball_delet
     assert_eq!(output, "Successfully unpublished 1 version(s) of test-pkg");
     get_mock.assert_async().await;
     challenge_mock.assert_async().await;
+    put_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+/// A registry mounted under a path gets the tarball `DELETE` under that
+/// path too, not at the host root.
+#[tokio::test]
+async fn a_partial_unpublish_deletes_the_tarball_under_the_registry_path() {
+    web_auth_fake!(FakeHost, RecordingReporter);
+    reset();
+
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/npm/", server.url());
+    let get_mock = server
+        .mock("GET", "/npm/test-pkg")
+        .match_query(mockito::Matcher::UrlEncoded("write".into(), "true".into()))
+        .with_status(200)
+        .with_body(two_version_packument(&format!("{}/npm", server.url())))
+        .expect(2)
+        .create_async()
+        .await;
+    let put_mock = server
+        .mock("PUT", "/npm/test-pkg/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create_async()
+        .await;
+    let tarball_mock = server
+        .mock("DELETE", "/npm/test-pkg/-/test-pkg-0.0.1.tgz/-rev/3-abc")
+        .with_status(200)
+        .with_body("{}")
+        .create_async()
+        .await;
+
+    let output = unpublish_args(&registry, None, &["test-pkg@0.0.1"])
+        .execute::<FakeHost, RecordingReporter>(&Config::default())
+        .await
+        .expect("the unpublish succeeds");
+
+    assert_eq!(output, "Successfully unpublished 1 version(s) of test-pkg");
+    get_mock.assert_async().await;
     put_mock.assert_async().await;
     tarball_mock.assert_async().await;
 }

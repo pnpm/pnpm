@@ -6,7 +6,7 @@ jest.unstable_mockModule('@pnpm/network.fetch', () => ({
 jest.unstable_mockModule('execa', () => ({
   safeExeca: jest.fn(async () => ({ stdout: '' })),
 }))
-const { parseBareSpecifier } = await import('../lib/parseBareSpecifier.js')
+const { parseBareSpecifier, parseGitSpecCommittishAndPath } = await import('../lib/parseBareSpecifier.js')
 
 test.each([
   ['ssh://username:password@example.com:repo.git', 'ssh://username:password@example.com/repo.git'],
@@ -37,6 +37,7 @@ test.each([
   ['git+ssh://username:password@example.com:22/repo/@foo.git#path:/a/@b', '/a/@b'],
   ['git+ssh://username:password@example.com:22/repo/@foo.git#path:/a/@b', '/a/@b'],
   ['git+ssh://username:password@example.com:22/repo/@foo.git#path:/a/@b&dev', '/a/@b'],
+  ['git+ssh://username:password@example.com:22/repo/@foo.git#dev::path:a/@b', 'a/@b'],
   ['ssh://username:password@example.com:repo.git', undefined],
   ['ssh://username:password@example.com:repo/@foo.git', undefined],
   ['ssh://username:password@example.com:22/repo/@foo.git', undefined],
@@ -95,7 +96,7 @@ test.each([
   expect(parsed?.fetchSpec).toBe(output)
 })
 
-// Test for https:// URLs ending in .git (issue #10468)
+// Test for https:// URLs ending in .git (issue pnpm/pnpm#10468)
 test.each([
   ['https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git', 'https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git'],
   ['https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git#6daccff309fca1e7561a43984d42fa4f829ce06d', 'https://gitea.osmocom.org/ttcn3/highlightjs-ttcn3.git'],
@@ -114,4 +115,18 @@ test.each([
 ])('plain http/https URLs not ending in .git should not be recognized: %s', async (input) => {
   const parsed = parseBareSpecifier(input, {})
   expect(parsed).toBeNull()
+})
+
+test.each([
+  ['github:owner/repo#v1.2.3::path:packages/x', { gitCommittish: 'v1.2.3', path: 'packages/x' }],
+  ['git+https://example.com/owner/repo.git#main::path:packages/x', { gitCommittish: 'main', path: 'packages/x' }],
+  ['github:owner/repo#semver:^1.0.0::path:packages/x', { gitCommittish: null, path: 'packages/x' }],
+  ['github:owner/repo#v1.2.3::path:packages/x::', { gitCommittish: 'v1.2.3', path: 'packages/x' }],
+])('npm\'s :: separator in %s is read as %o', (input, output) => {
+  expect(parseGitSpecCommittishAndPath(input)).toMatchObject(output)
+})
+
+test('npm\'s :: separator splits a semver range from a path', async () => {
+  const parsed = await parseBareSpecifier('github:owner/repo#semver:^1.0.0::path:packages/x', {})?.()
+  expect(parsed).toMatchObject({ gitCommittish: null, gitRange: '^1.0.0', path: 'packages/x' })
 })

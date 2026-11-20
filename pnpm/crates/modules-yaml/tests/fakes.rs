@@ -6,14 +6,23 @@
 //! lumped `FsApi` pattern at
 //! <https://github.com/KSXGitHub/parallel-disk-usage/blob/2aa39917f9/src/app/hdd.rs#L25-L35>.
 
-use chrono::{TimeZone, Utc};
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{
-    Clock, DepPath, FsCreateDirAll, FsReadToString, FsWrite, Modules, read_modules_layout,
-    read_modules_manifest, write_modules_manifest,
+    Clock,
+    DepPath,
+    FsCreateDirAll,
+    FsReadToString,
+    FsWrite,
+    Modules,
+    read_modules_layout,
+    read_modules_manifest,
+    write_modules_manifest,
 };
 use pretty_assertions::assert_eq;
-use std::{path::Path, time::SystemTime};
+use std::{
+    path::Path,
+    time::SystemTime,
+};
 use text_block_macros::text_block;
 
 /// `read_modules_manifest` should map a non-`NotFound` I/O error from
@@ -145,7 +154,7 @@ fn write_propagates_write_error() {
 }
 
 /// `LayoutVersion` is a unit type pinned to `5`, and a manifest naming
-/// any other layout reads as `None` — the same signal a missing
+/// any other layout reads as `None`, the same signal a missing
 /// `layoutVersion` carries, which the install reacts to by rebuilding
 /// `node_modules`. Rejecting the whole manifest instead would fail the
 /// install, since an unreadable state file is an error.
@@ -218,8 +227,7 @@ fn ignored_builds_dedups_and_preserves_insertion_order() {
         .pipe(read_modules_manifest::<DupIgnored>)
         .expect("read manifest")
         .expect("manifest exists");
-    let ignored: Vec<&str> = manifest
-        .ignored_builds
+    let ignored: Vec<&str> = manifest.ignored_builds
         .as_ref()
         .expect("ignored_builds present")
         .iter()
@@ -244,7 +252,11 @@ fn read_fills_pruned_at_from_clock_when_missing() {
     }
     impl Clock for FakeClock {
         fn now() -> SystemTime {
-            Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().into()
+            "2026-01-01T00:00:00Z"
+                .parse::<jiff::Timestamp>()
+                .unwrap()
+                .try_into()
+                .unwrap()
         }
     }
 

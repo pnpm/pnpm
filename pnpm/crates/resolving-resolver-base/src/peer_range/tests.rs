@@ -1,4 +1,8 @@
-use super::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
+use super::{
+    get_peer_version_range,
+    is_acceptable_peer_spec,
+    is_valid_peer_range,
+};
 
 #[test]
 fn is_valid_peer_range_only_accepts_semver_and_workspace_catalog() {
@@ -7,6 +11,7 @@ fn is_valid_peer_range_only_accepts_semver_and_workspace_catalog() {
     assert!(is_valid_peer_range("catalog:"));
     assert!(!is_valid_peer_range("work:5.x.x"));
     assert!(!is_valid_peer_range("npm:bar@^5"));
+    assert!(!is_valid_peer_range("npm:bar@>=5.0.0 <6.0.0"));
     assert!(!is_valid_peer_range("file:../foo"));
 }
 
@@ -36,10 +41,16 @@ fn get_peer_version_range_keeps_valid_peer_ranges() {
 }
 
 #[test]
-fn get_peer_version_range_strips_workspace_prefix() {
-    assert_eq!(get_peer_version_range("workspace:^"), "^");
+fn get_peer_version_range_keeps_an_explicit_workspace_version() {
     assert_eq!(get_peer_version_range("workspace:1.2.3"), "1.2.3");
+}
+
+#[test]
+fn get_peer_version_range_treats_the_workspace_wildcard_tokens_as_star() {
     assert_eq!(get_peer_version_range("workspace:*"), "*");
+    assert_eq!(get_peer_version_range("workspace:^"), "*");
+    assert_eq!(get_peer_version_range("workspace:~"), "*");
+    assert_eq!(get_peer_version_range("workspace:"), "*");
 }
 
 #[test]
@@ -47,12 +58,19 @@ fn get_peer_version_range_extracts_named_registry_and_npm_bodies() {
     assert_eq!(get_peer_version_range("work:5.x.x"), "5.x.x");
     assert_eq!(get_peer_version_range("work:^5.0.0"), "^5.0.0");
     assert_eq!(get_peer_version_range("npm:bar@^5"), "^5");
+    assert_eq!(get_peer_version_range("npm:bar@>=5.0.0 <6.0.0"), ">=5.0.0 <6.0.0");
+    assert_eq!(get_peer_version_range("work:@scope/bar@>=5.0.0 <6.0.0"), ">=5.0.0 <6.0.0");
     assert_eq!(get_peer_version_range("npm:@scope/bar@~2.1.0"), "~2.1.0");
     assert_eq!(get_peer_version_range("npm:^5.0.0"), "^5.0.0");
 }
 
 #[test]
 fn get_peer_version_range_falls_back_to_star() {
+    assert_eq!(get_peer_version_range(""), "*");
+    assert_eq!(get_peer_version_range(" "), "*");
+    assert_eq!(get_peer_version_range("npm:"), "*");
+    assert_eq!(get_peer_version_range("file:"), "*");
+    assert_eq!(get_peer_version_range("npm:bar@"), "*");
     assert_eq!(get_peer_version_range("file:../foo"), "*");
     assert_eq!(get_peer_version_range("link:../foo"), "*");
     assert_eq!(get_peer_version_range("git+https://example.com/foo.git"), "*");
@@ -65,6 +83,7 @@ fn get_peer_version_range_reduces_a_union_of_scheme_specifiers() {
     assert_eq!(get_peer_version_range("work:^1.0.0 || work:^2.0.0"), "^1.0.0 || ^2.0.0");
     assert_eq!(get_peer_version_range("npm:bar@^1 || npm:bar@^2"), "^1 || ^2");
     assert_eq!(get_peer_version_range("^1.0.0 || work:^2.0.0"), "^1.0.0 || ^2.0.0");
+    assert_eq!(get_peer_version_range("^1.0.0 || "), "^1.0.0 || *");
     // A plain semver union is a valid range and is returned unchanged.
     assert_eq!(get_peer_version_range("^1.0.0 || ^2.0.0"), "^1.0.0 || ^2.0.0");
 }

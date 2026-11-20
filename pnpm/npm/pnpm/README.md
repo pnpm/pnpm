@@ -24,7 +24,7 @@ Fast, disk space efficient package manager:
 
 To quote the [Rush](https://rushjs.io/) team:
 
-> Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
+> Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we've found it to be very fast and reliable.
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg?label=latest)](https://github.com/pnpm/pnpm/releases/latest)
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](https://opencollective.com/pnpm)
@@ -57,6 +57,26 @@ To quote the [Rush](https://rushjs.io/) team:
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/notion.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/notion_light.svg" />
             <img src="https://pnpm.io/img/users/notion.svg" width="80" alt="Notion" />
+          </picture>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
+            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" alt="CodeRabbit" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://www.cloudflare.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/cloudflare.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/cloudflare_light.svg" />
+            <img src="https://pnpm.io/img/users/cloudflare.svg" width="160" alt="Cloudflare" />
           </picture>
         </a>
       </td>
@@ -102,15 +122,6 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
-            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" alt="CodeRabbit" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
         <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
@@ -119,8 +130,6 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://workleap.com/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
           <picture>
@@ -130,6 +139,8 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://nx.dev/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
           <picture>
@@ -140,7 +151,22 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://latitude.so/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude"></a>
+        <a href="https://latitude.so/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/latitude.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/latitude_light.svg" />
+            <img src="https://pnpm.io/img/users/latitude.svg" width="160" alt="Latitude" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://syntax.fm/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/syntaxfm.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/syntaxfm_light.svg" />
+            <img src="https://pnpm.io/img/users/syntaxfm.svg" width="90" alt="Syntax" />
+          </picture>
+        </a>
       </td>
     </tr>
   </tbody>
@@ -184,7 +210,13 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer"><img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io"></a>
+        <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/devowlio.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/devowlio_light.svg" />
+            <img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io" />
+          </picture>
+        </a>
       </td>
       <td align="center" valign="middle">
         <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=readme" target="_blank" rel="noopener noreferrer">
@@ -243,7 +275,7 @@ With pnpm, lodash will be stored in a content-addressable storage, so:
 1. All the files are saved in a single place on the disk. When packages are installed, their files are linked
   from that single place consuming no additional disk space. Linking is performed using either hard-links or reflinks (copy-on-write).
 
-As a result, you save gigabytes of space on your disk and you have a lot faster installations!
+As a result, you save gigabytes of space on your disk and you have a lot faster installations.
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
 why it works fine with the Node.js ecosystem, read this small article: [Flat node_modules is not the only way](https://pnpm.io/blog/2020/05/27/flat-node-modules-is-not-the-only-way).
 
@@ -255,7 +287,7 @@ For installation options [visit our website](https://pnpm.io/installation).
 
 ## Usage
 
-Just use pnpm in place of npm/Yarn. E.g., install dependencies via:
+Use pnpm in place of npm/Yarn. E.g., install dependencies via:
 
 ```
 pnpm install
@@ -265,7 +297,7 @@ For more advanced usage, read [pnpm CLI](https://pnpm.io/pnpm-cli) on our websit
 
 ## Benchmark
 
-pnpm is up to 2x faster than npm and Yarn classic. See all benchmarks [here](https://r.pnpm.io/benchmarks).
+pnpm is up to 2x faster than npm and Yarn classic. See [all benchmarks](https://r.pnpm.io/benchmarks).
 
 Benchmarks on an app with lots of dependencies:
 

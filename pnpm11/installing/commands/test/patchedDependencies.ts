@@ -19,7 +19,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 const { globalWarn } = await import('@pnpm/logger')
 const { add, install } = await import('@pnpm/installing.commands')
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 // Track cumulative patchedDependencies across multiple addPatch calls
 let currentPatchedDependencies: Record<string, string> = {}
 
@@ -45,15 +45,15 @@ function addPatch (key: string, patchFixture: string, patchDest: string): Record
   return currentPatchedDependencies
 }
 
-const unpatchedModulesDir = (v: 1 | 2 | 3) => `node_modules/.pnpm/@pnpm.e2e+console-log@${v}.0.0/node_modules`
-const unpatchedFilePath = (v: 1 | 2 | 3) => `${unpatchedModulesDir(v)}/@pnpm.e2e/console-log/index.js`
-const unpatchedFileContent = (v: 1 | 2 | 3) => fs.readFileSync(unpatchedFilePath(v), 'utf-8')
+const unpatchedModulesDir = (major: 1 | 2 | 3) => `node_modules/.pnpm/@pnpm.e2e+console-log@${major}.0.0/node_modules`
+const unpatchedFilePath = (major: 1 | 2 | 3) => `${unpatchedModulesDir(major)}/@pnpm.e2e/console-log/index.js`
+const unpatchedFileContent = (major: 1 | 2 | 3) => fs.readFileSync(unpatchedFilePath(major), 'utf-8')
 const patchedModulesDir = 'node_modules/.pnpm/@pnpm.e2e+depends-on-console-log@1.0.0/node_modules'
-const patchedFilePath = (v: 1 | 2 | 3) => `${patchedModulesDir}/console-log-${v}/index.js`
-const patchedFileContent = (v: 1 | 2 | 3) => fs.readFileSync(patchedFilePath(v), 'utf-8')
+const patchedFilePath = (major: 1 | 2 | 3) => `${patchedModulesDir}/console-log-${major}/index.js`
+const patchedFileContent = (major: 1 | 2 | 3) => fs.readFileSync(patchedFilePath(major), 'utf-8')
 
 test('bare package name as a patchedDependencies key should apply to all versions if all are applicable', async () => {
-  const patchFixture = f.find('patchedDependencies/console-log-replace-1st-line.patch')
+  const patchFixture = testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch')
   prepareEmpty()
 
   await add.handler({
@@ -105,7 +105,7 @@ test('bare package name as a patchedDependencies key should apply to all version
 })
 
 test('bare package name as a patchedDependencies key should apply to all possible versions and error on non-applicable versions', async () => {
-  const patchFixture = f.find('patchedDependencies/console-log-replace-3rd-line.patch')
+  const patchFixture = testFixtures.find('patchedDependencies/console-log-replace-3rd-line.patch')
   prepareEmpty()
 
   await add.handler({
@@ -152,8 +152,8 @@ test('bare package name as a patchedDependencies key should apply to all possibl
 })
 
 test('package name with version is prioritized over bare package name as keys of patchedDependencies', async () => {
-  const commonPatchFixture = f.find('patchedDependencies/console-log-replace-1st-line.patch')
-  const specializedPatchFixture = f.find('patchedDependencies/console-log-replace-2nd-line.patch')
+  const commonPatchFixture = testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch')
+  const specializedPatchFixture = testFixtures.find('patchedDependencies/console-log-replace-2nd-line.patch')
   prepareEmpty()
 
   await add.handler({
@@ -209,8 +209,8 @@ test('package name with version is prioritized over bare package name as keys of
 })
 
 test('package name with version as a patchedDependencies key does not affect other versions', async () => {
-  const patchFixture2 = f.find('patchedDependencies/console-log-replace-2nd-line.patch')
-  const patchFixture3 = f.find('patchedDependencies/console-log-replace-4th-line.patch')
+  const patchFixture2 = testFixtures.find('patchedDependencies/console-log-replace-2nd-line.patch')
+  const patchFixture3 = testFixtures.find('patchedDependencies/console-log-replace-4th-line.patch')
   prepareEmpty()
 
   await add.handler({
@@ -257,7 +257,7 @@ test('package name with version as a patchedDependencies key does not affect oth
 })
 
 test('failure to apply patch with package name and version would cause throw an error', async () => {
-  const patchFixture = f.find('patchedDependencies/console-log-replace-4th-line.patch')
+  const patchFixture = testFixtures.find('patchedDependencies/console-log-replace-4th-line.patch')
   prepareEmpty()
 
   await add.handler({

@@ -9,26 +9,42 @@
 //!
 //! The whole check is best-effort: an unreadable state file, an
 //! unreachable registry, or an unwritable state directory leaves the
-//! command's own outcome untouched.
+//! command's own outcome untouched. Nor does the check hold the command
+//! up: one still waiting on the registry when the command is done is
+//! dropped, unrecorded, and the next command asks again
+//! ([#16839](https://github.com/pnpm/pnpm/issues/16839)).
 //!
 //! An `install` that finishes through the repeat-install fast path never
-//! reaches this module — that path deliberately returns before the async
+//! reaches this module, that path deliberately returns before the async
 //! runtime and the HTTP client exist. The check runs on the next install
 //! that has work to do.
 
 use crate::cli_args::registry_client::build_registry_client;
-use chrono::{DateTime, Utc};
-use pnpm_config::{Config, PNPM_VERSION};
+use jiff::Timestamp;
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+};
 use pnpm_fs::write_atomic;
 use pnpm_registry::Package;
-use pnpm_reporter::{LogEvent, LogLevel, UpdateCheckLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    UpdateCheckLog,
+};
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
-use serde_json::{Map, Value};
-use std::{collections::HashMap, path::Path};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 use tokio::task::JoinHandle;
 
 /// How long a recorded check suppresses the next one.
-const UPDATE_CHECK_FREQUENCY_MS: i64 = 24 * 60 * 60 * 1000;
+const UPDATE_CHECK_FREQUENCY_MS: i128 = 24 * 60 * 60 * 1000;
 
 const STATE_FILE_NAME: &str = "pnpm-state.json";
 const LAST_UPDATE_CHECK_KEY: &str = "lastUpdateCheck";
@@ -52,29 +68,30 @@ pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck 
     }
     let state_file = config.state_dir.join(STATE_FILE_NAME);
     let state = read_state(&state_file);
-    if checked_recently(&state, Utc::now()) {
+    if checked_recently(&state, Timestamp::now()) {
         return None;
     }
     let config = config.clone();
-    Some(tokio::spawn(async move {
-        check(&config, &state_file, state, emit).await;
-    }))
+    Some(tokio::spawn(async move { check(&config, &state_file, state, emit).await }))
 }
 
 /// Dispose of the check [`spawn`] started, now that the command it ran
-/// alongside has an outcome.
+/// alongside is done.
 ///
-/// A command that succeeded waits, so the notice reaches the terminal
-/// before the process exits. A command that failed drops the check
-/// instead: the error is what the user needs to read, and nothing was
-/// recorded, so the next command checks again.
-pub(crate) async fn settle(pending: PendingUpdateCheck, outcome: &miette::Result<()>) {
+/// The command does not wait for it. A check the registry has answered
+/// has already printed its notice and recorded itself; one still waiting
+/// is aborted and records nothing, so the next command asks again. The
+/// registry client's timeouts, a minute each, would otherwise be the
+/// duration of an install that had nothing else to do.
+pub(crate) fn settle(pending: PendingUpdateCheck) {
     let Some(handle) = pending else { return };
-    if outcome.is_ok() {
-        let _ = handle.await;
-    } else {
-        handle.abort();
+    if !handle.is_finished() {
+        tracing::debug!(
+            target: "pacquet::install",
+            "the update check has not heard back from the registry; the command does not wait for it",
+        );
     }
+    handle.abort();
 }
 
 async fn check(config: &Config, state_file: &Path, state: Map<String, Value>, emit: fn(&LogEvent)) {
@@ -91,16 +108,19 @@ async fn check(config: &Config, state_file: &Path, state: Map<String, Value>, em
             latest_version,
         }));
     }
-    write_state(state_file, state, Utc::now());
+    write_state(state_file, state, Timestamp::now());
 }
 
 /// The version behind pnpm's `latest` tag on the registry the project
-/// installs from — the same registry `pnpm add pnpm` would reach, not the
+/// installs from, the same registry `pnpm add pnpm` would reach, not the
 /// trusted bootstrap registry `self-update` provisions the engine from. A
 /// registry that serves pnpm without a `latest` tag answers `None`.
 async fn latest_pnpm_version(config: &Config) -> miette::Result<Option<String>> {
     let client = build_registry_client(config)?;
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let registries: HashMap<String, String> = config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     let registry = pick_registry_for_package(&registries, "pnpm", None);
     let package = Package::fetch_from_registry("pnpm", &client, &registry, &config.auth_headers)
         .await
@@ -119,14 +139,14 @@ fn read_state(state_file: &Path) -> Map<String, Value> {
 /// [`UPDATE_CHECK_FREQUENCY_MS`].
 ///
 /// A missing, unparsable, or future timestamp reads as "never checked", so
-/// a corrupted state file — or a clock that moved backwards — makes pnpm
+/// a corrupted state file (or a clock that moved backwards) makes pnpm
 /// check again rather than go quiet until the recorded time comes around.
-fn checked_recently(state: &Map<String, Value>, now: DateTime<Utc>) -> bool {
+fn checked_recently(state: &Map<String, Value>, now: Timestamp) -> bool {
     state
         .get(LAST_UPDATE_CHECK_KEY)
         .and_then(Value::as_str)
-        .and_then(|last| DateTime::parse_from_rfc2822(last).ok())
-        .map(|last| (now - last.with_timezone(&Utc)).num_milliseconds())
+        .and_then(|last| jiff::fmt::rfc2822::DateTimeParser::new().parse_timestamp(last).ok())
+        .map(|last| now.duration_since(last).as_millis())
         .is_some_and(|age| (0..UPDATE_CHECK_FREQUENCY_MS).contains(&age))
 }
 
@@ -136,7 +156,7 @@ fn checked_recently(state: &Map<String, Value>, now: DateTime<Utc>) -> bool {
 /// `write-file-atomic`: a crash mid-write cannot leave the file truncated
 /// for the next run to read, and the rename replaces a symlinked state file
 /// rather than following it somewhere the user never pointed pnpm.
-fn write_state(state_file: &Path, mut state: Map<String, Value>, now: DateTime<Utc>) {
+fn write_state(state_file: &Path, mut state: Map<String, Value>, now: Timestamp) {
     state.insert(LAST_UPDATE_CHECK_KEY.to_string(), Value::String(to_utc_string(now)));
     let Ok(contents) = serde_json::to_string(&Value::Object(state)) else {
         return;
@@ -145,8 +165,8 @@ fn write_state(state_file: &Path, mut state: Map<String, Value>, now: DateTime<U
 }
 
 /// JavaScript's `Date#toUTCString`, the format pnpm writes the timestamp in.
-fn to_utc_string(time: DateTime<Utc>) -> String {
-    time.format("%a, %d %b %Y %H:%M:%S GMT").to_string()
+fn to_utc_string(time: Timestamp) -> String {
+    time.strftime("%a, %d %b %Y %H:%M:%S GMT").to_string()
 }
 
 #[cfg(test)]

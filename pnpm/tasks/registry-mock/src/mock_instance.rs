@@ -1,15 +1,29 @@
 use crate::{
-    PreparedRegistryInfo, RegistryAnchor, RegistryInfo, pick_port::pick_unused_port, pnpr_command,
+    PreparedRegistryInfo,
+    RegistryAnchor,
+    RegistryInfo,
+    pick_port::pick_unused_port,
+    pnpr_command,
     port_to_url::port_to_url,
 };
+use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use reqwest::Client;
 use std::{
     fs::File,
     path::Path,
-    process::{Child, Stdio},
+    process::{
+        Child,
+        Stdio,
+    },
 };
-use tokio::time::{Duration, sleep};
+use tokio::time::{
+    Duration,
+    sleep,
+};
+
+#[cfg(test)]
+mod tests;
 
 /// Handler of a mocked registry server instance.
 ///
@@ -63,16 +77,23 @@ impl MockInstanceOptions<'_> {
         let mut retries = max_retries;
 
         while !self.is_registry_ready().await {
-            retries = retries.checked_sub(1).unwrap_or_else(|| {
-                panic!("Failed to check for the registry for {max_retries} times")
-            });
+            retries = retries
+                .checked_sub(1)
+                .unwrap_or_else(|| {
+                    panic!("Failed to check for the registry for {max_retries} times")
+                });
 
             sleep(retry_delay).await;
         }
     }
 
-    pub(crate) async fn spawn(self) -> MockInstance {
-        let MockInstanceOptions { port, public_url, stdout, stderr, .. } = self;
+    pub(crate) async fn spawn_recording_pid(
+        self,
+        pid_tx: Option<tokio::sync::oneshot::Sender<u32>>,
+    ) -> MockInstance {
+        let MockInstanceOptions {
+            port, public_url, stdout, stderr, ..
+        } = self;
 
         let stdout = stdout.map_or_else(Stdio::null, |stdout| {
             File::create(stdout).expect("create file for stdout").into()
@@ -80,21 +101,26 @@ impl MockInstanceOptions<'_> {
         let stderr = stderr.map_or_else(Stdio::null, |stderr| {
             File::create(stderr).expect("create file for stderr").into()
         });
-        // Storage is built from the in-repo fixtures (see
-        // `registry_mock_storage`) and seeded into runtime storage by
-        // `pnpr_command`. pnpr runs in proxy mode
-        // against npmjs.org so off-fixture packages fall through to
-        // npm; see `pnpr_command` for the rationale.
         let process = pnpr_command(port, public_url)
-            .stdin(Stdio::null())
-            .stdout(stdout)
-            .stderr(stderr)
+            .with_stdin(Stdio::null())
+            .with_stdout(stdout)
+            .with_stderr(stderr)
             .spawn()
             .expect("spawn pnpr");
+        if let Some(tx) = pid_tx {
+            let _ = tx.send(process.id());
+        }
+        // Owning the child before the readiness wait is what lets a panicking
+        // or cancelled startup still run the kill-and-wait destructor.
+        let instance = MockInstance { process };
 
         self.wait_for_registry().await;
 
-        MockInstance { process }
+        instance
+    }
+
+    pub(crate) async fn spawn(self) -> MockInstance {
+        self.spawn_recording_pid(None).await
     }
 
     pub async fn spawn_if_necessary(self) -> Option<MockInstance> {
@@ -110,9 +136,6 @@ impl MockInstanceOptions<'_> {
 }
 
 /// Manage a single mocked registry server instance that is shared between multiple different tests.
-///
-/// This instance can either be automatically be spawned by the first test and tracked by a reference counter
-/// or be prepared by the CLI command.
 #[derive(Debug)]
 #[must_use]
 pub enum AutoMockInstance {
@@ -149,6 +172,7 @@ impl AutoMockInstance {
         }
     }
 
+    /// The npm registry URL, with a trailing `/`.
     #[must_use]
     pub fn url(&self) -> String {
         self.info().url()

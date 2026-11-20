@@ -1,10 +1,11 @@
 import type { PlatformAssetTarget } from '@pnpm/resolving.resolver-base'
 import type { DependenciesMeta, DepPath, ProjectId } from '@pnpm/types'
 
+import type { SpecifierAndResolution } from './lockfileFileTypes.js'
+
 export type { ProjectId }
 
 export * from './lockfileFileTypes.js'
-import type { SpecifierAndResolution } from './lockfileFileTypes.js'
 
 export interface LockfileSettings {
   autoInstallPeers?: boolean
@@ -18,10 +19,13 @@ export interface LockfileBase {
   catalogs?: CatalogSnapshots
   ignoredOptionalDependencies?: string[]
   lockfileVersion: string
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
   patchedDependencies?: Record<string, string>
   pnpmfileChecksum?: string
+  untrackedPnpmfileReadPackageHook?: boolean
   settings?: LockfileSettings
   time?: Record<string, string>
 }
@@ -68,6 +72,8 @@ export interface LockfilePackageInfo {
 export interface ProjectSnapshotBase {
   dependenciesMeta?: DependenciesMeta
   publishDirectory?: string
+  /** Present only when workspace links must ignore `publishDirectory`. */
+  linkDirectory?: false
 }
 
 export interface ProjectSnapshot extends ProjectSnapshotBase {
@@ -90,7 +96,6 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
-  revision?: number
   path?: string
   /**
    * True for tarballs sourced from a git host (codeload.github.com /
@@ -163,7 +168,6 @@ export interface VariationsResolution {
 
 export type LockfileResolution = Resolution | VariationsResolution | {
   integrity: string
-  revision?: number
 }
 
 export type PackageSnapshot = LockfilePackageInfo & LockfilePackageSnapshot

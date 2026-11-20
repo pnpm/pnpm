@@ -1,7 +1,11 @@
 use crate::Implementation;
 use std::{
     fs::File,
-    io::{Read, Seek, SeekFrom},
+    io::{
+        Read,
+        Seek,
+        SeekFrom,
+    },
 };
 
 const ELF_HEADER_SIZE: usize = 64;
@@ -10,9 +14,13 @@ const MAX_PROGRAM_HEADERS_SIZE: usize = 1024 * 1024;
 const MAX_INTERPRETER_SIZE: usize = 4096;
 
 /// Detect libc implementation from the ELF interpreter
-/// (`/proc/self/exe` `PT_INTERP`).
+/// (`PT_INTERP`) of the running executable.
 pub fn detect() -> Option<Implementation> {
-    let interpreter = read_elf_interpreter(&mut File::open("/proc/self/exe").ok()?)?;
+    // Open the resolved path, not `/proc/self/exe`: QEMU user-mode emulation
+    // answers that open with a stale descriptor number that may belong to
+    // another open file, which closing the result would then close.
+    let executable = std::env::current_exe().ok()?;
+    let interpreter = read_elf_interpreter(&mut File::open(executable).ok()?)?;
     classify_interpreter(&interpreter)
 }
 
@@ -24,7 +32,8 @@ fn read_elf_interpreter(file: &mut (impl Read + Seek)) -> Option<String> {
     if table_size > MAX_PROGRAM_HEADERS_SIZE {
         return None;
     }
-    file.seek(SeekFrom::Start(layout.phoff)).ok()?;
+    file.seek(SeekFrom::Start(layout.phoff))
+        .ok()?;
     let mut program_headers = vec![0_u8; table_size];
     file.read_exact(&mut program_headers).ok()?;
     let (offset, size) = interpreter_location(&program_headers, layout.phentsize)?;
@@ -84,7 +93,7 @@ fn interpreter_location(program_headers: &[u8], phentsize: usize) -> Option<(u64
 }
 
 fn decode_interpreter(bytes: &[u8]) -> Option<&str> {
-    let interpreter = core::str::from_utf8(bytes).ok()?.trim_end_matches('\0');
+    let interpreter = std::str::from_utf8(bytes).ok()?.trim_end_matches('\0');
     (!interpreter.is_empty()).then_some(interpreter)
 }
 

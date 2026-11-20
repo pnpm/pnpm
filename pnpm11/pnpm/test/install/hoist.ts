@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 import { test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -109,4 +111,82 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
   projects.root.has('@pnpm.e2e/foobar')
   projects.project.hasNot('@pnpm.e2e/foo')
   projects.project.hasNot('@pnpm.e2e/foobar')
+})
+
+test('hoistWorkspacePackages: a workspace project added by a later install is hoisted', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/foobar': '100.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    publicHoistPattern: ['*eslint*'],
+  })
+
+  await execPnpm(['install'])
+
+  projects.root.hasNot('eslint-plugin-local')
+
+  // The new project pulls in no new packages, so nothing about the dependency
+  // graph changes.
+  fs.mkdirSync('packages/eslint-plugin-local')
+  fs.writeFileSync(
+    'packages/eslint-plugin-local/package.json',
+    JSON.stringify({ name: 'eslint-plugin-local', version: '1.0.0' })
+  )
+
+  await execPnpm(['install'])
+
+  projects.root.has('eslint-plugin-local')
+})
+
+test('hoistWorkspacePackages: workspace projects are hoisted when nothing is installed from a registry', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      location: 'app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+      },
+    },
+    {
+      location: 'eslint-plugin-local',
+      package: {
+        name: 'eslint-plugin-local',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['app', 'eslint-plugin-local'],
+    publicHoistPattern: ['*eslint*'],
+  })
+
+  await execPnpm(['install'])
+
+  projects.root.has('eslint-plugin-local')
+  projects.root.has('.pnpm/node_modules/app')
 })

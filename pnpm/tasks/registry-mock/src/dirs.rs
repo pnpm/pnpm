@@ -1,6 +1,10 @@
+use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::LazyLock,
 };
@@ -10,17 +14,16 @@ pub fn workspace_root() -> &'static Path {
     static WORKSPACE_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
         let output = env!("CARGO")
             .pipe(Command::new)
-            .arg("locate-project")
-            .arg("--workspace")
-            .arg("--message-format=plain")
+            .with_arg("locate-project")
+            .with_arg("--workspace")
+            .with_arg("--message-format=plain")
             .output()
             .expect("cargo locate-project");
         assert!(
             output.status.success(),
             "Command `cargo locate-project` exits with non-zero status code",
         );
-        output
-            .stdout
+        output.stdout
             .pipe(String::from_utf8)
             .expect("convert stdout to UTF-8")
             .trim_end()
@@ -33,21 +36,22 @@ pub fn workspace_root() -> &'static Path {
 }
 
 /// The verdaccio-shaped storage built from the in-repo package fixtures
-/// (`pnpr/.fixtures/packages`) — the same storage pacquet's tests serve.
-/// We don't serve directly from here — see [`runtime_storage`] for why — but
+/// (`pnpr/.fixtures/packages`), the same storage pacquet's tests serve.
+/// We don't serve directly from here (see [`runtime_storage`] for why) but
 /// we seed [`runtime_storage`] from it on every launch.
 #[must_use]
 pub fn registry_mock_storage() -> &'static Path {
     pnpr_fixtures::ensure_storage()
 }
 
-/// Stable cache path we hand to `pnpr --storage` (instead
-/// of [`registry_mock_storage`]). Two reasons it has to be separate
-/// and stable:
+/// Stable path the mock serves from (instead of
+/// [`registry_mock_storage`]): a hosted store per fixture build, and the
+/// proxy cache every build shares (see [`crate::runtime_hosted_storage`] and
+/// [`crate::runtime_cache`]). Two reasons it has to be separate and stable:
 ///
 /// 1. `pnpr` writes proxy-mode cache entries (the ~2.3k
 ///    unscoped npm packages the benchmark lockfile pulls) into
-///    `--storage`. If we pointed at the generated fixture storage
+///    its cache. If we pointed at the generated fixture storage
 ///    we'd mix proxy-cache entries into it and lose them whenever the
 ///    fixtures are rebuilt.
 /// 2. CI caches this path across runs
@@ -64,7 +68,11 @@ pub fn runtime_storage() -> &'static Path {
             .map(PathBuf::from)
             .or_else(|| {
                 home::home_dir()
-                    .map(|home| home.join(".cache").join("pnpm-registry").join("storage"))
+                    .map(|home| {
+                        home.join(".cache")
+                            .join("pnpm-registry")
+                            .join("storage")
+                    })
             })
             .expect("locate runtime storage dir: set PNPM_REGISTRY_STORAGE or ensure $HOME is set")
     });

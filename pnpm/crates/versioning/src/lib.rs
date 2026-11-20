@@ -11,38 +11,89 @@
 //! See the native monorepo versioning RFC:
 //! <https://github.com/pnpm/rfcs/pull/18>.
 
+pub use apply::{
+    AppliedRelease,
+    ReleaseNotesOptions,
+    apply_release_plan,
+};
+pub use changelog::{
+    compose_changelog_section,
+    prepend_changelog_section,
+    render_changelog,
+};
+pub use error::VersioningError;
+pub use intents::{
+    CHANGES_DIR,
+    ChangeIntent,
+    IntentBumpType,
+    format_change_intent,
+    parse_change_intent,
+    read_change_intents,
+    write_change_intent,
+};
+pub use ledger::{
+    LEDGER_FILENAME,
+    Ledger,
+    LedgerEntry,
+    PackageConsumption,
+    append_to_ledger,
+    build_consumption_index,
+    normalize_project_dir,
+    read_ledger,
+};
+pub use parked_publication::{
+    ParkedPublication,
+    read_parked_publications,
+    remove_parked_publication,
+    write_parked_publication,
+};
+pub use pending::{
+    PENDING_CHANGELOGS_DIR,
+    list_pending_changelogs,
+    pending_changelog_path,
+    read_pending_changelog,
+    remove_pending_changelog,
+    write_pending_changelog,
+};
+pub use plan::{
+    AssembleReleasePlanOptions,
+    DependencyField,
+    DependencyUpdate,
+    ManifestDependency,
+    PlannedRelease,
+    ProjectRefIndex,
+    ReleaseCause,
+    ReleasePlan,
+    ReleaseVersion,
+    VersioningInvariantCode,
+    VersioningInvariantViolation,
+    WorkspaceProject,
+    assemble_release_plan,
+    check_versioning_invariants,
+    index_project_refs,
+    is_dir_ref,
+    materialize_workspace_range,
+    private_project_dirs,
+    to_project_dir,
+    validate_versioning_lanes,
+};
+pub use settings::{
+    ChangelogSettings,
+    ChangelogStorage,
+    EpicSettings,
+    ReleaseBumpType,
+    VersioningSettings,
+    changelog_storage,
+};
+
 mod apply;
 mod changelog;
 mod error;
 mod human_id;
 mod intents;
 mod ledger;
+mod notes;
+mod parked_publication;
 mod pending;
 mod plan;
 mod settings;
-
-pub use apply::{AppliedRelease, apply_release_plan};
-pub use changelog::{compose_changelog_section, prepend_changelog_section, render_changelog};
-pub use error::VersioningError;
-pub use intents::{
-    CHANGES_DIR, ChangeIntent, IntentBumpType, format_change_intent, parse_change_intent,
-    read_change_intents, write_change_intent,
-};
-pub use ledger::{
-    LEDGER_FILENAME, Ledger, LedgerEntry, PackageConsumption, append_to_ledger,
-    build_consumption_index, normalize_project_dir, read_ledger,
-};
-pub use pending::{
-    PENDING_CHANGELOGS_DIR, list_pending_changelogs, pending_changelog_path,
-    read_pending_changelog, remove_pending_changelog, write_pending_changelog,
-};
-pub use plan::{
-    AssembleReleasePlanOptions, DependencyField, DependencyUpdate, ManifestDependency,
-    PlannedRelease, ProjectRefIndex, ReleaseCause, ReleasePlan, WorkspaceProject,
-    assemble_release_plan, index_project_refs, is_dir_ref, materialize_workspace_range,
-    to_project_dir,
-};
-pub use settings::{
-    ChangelogSettings, ChangelogStorage, EpicSettings, ReleaseBumpType, VersioningSettings,
-    changelog_storage,
-};

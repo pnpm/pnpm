@@ -1,32 +1,24 @@
 import { randomUUID } from 'node:crypto'
-import { promises as fs } from 'node:fs'
+import { promises as fs, rmSync } from 'node:fs'
 import type { FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { rimraf } from '@zkochan/rimraf'
-import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'
+import { onExit } from 'signal-exit'
 import writeFileAtomic from 'write-file-atomic'
 
-import { convertToLockfileFile, convertToLockfileObject } from './lockfileFormatConverters.js'
+import { convertToLockfileFile, convertToLockfileObject, setOwnProperty } from './lockfileFormatConverters.js'
 import { getWantedLockfileName } from './lockfileName.js'
+import { lockfileYamlDump } from './lockfileYamlDump.js'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { ensureLockfileIsNotSymlink, extractEnvDocument, readLockfileToString, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
 
-const LOCKFILE_YAML_FORMAT = {
-  blankLines: true,
-  lineWidth: -1,
-  noCompatMode: true,
-  noRefs: true,
-  sortKeys: false,
-}
-
-export function lockfileYamlDump (obj: object): string {
-  return yaml.dump(obj, LOCKFILE_YAML_FORMAT)
-}
+export { lockfileYamlDump }
 
 /**
  * Returns the canonical post-write lockfile — structurally identical
@@ -82,10 +74,8 @@ async function writeLockfile (
 
 /**
  * Writes a serialized lockfile, re-reading the env document that leads
- * `pnpm-lock.yaml` to preserve it. Ideally it would be captured during the
- * initial lockfile read and passed through, but that would require threading it
- * through 25+ call sites; re-reading is cheap since the file is likely still in
- * the OS page cache.
+ * `pnpm-lock.yaml` to preserve it. Re-reading is cheap since the file is
+ * likely still in the OS page cache.
  */
 async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mainDoc: string): Promise<void> {
   if (lockfileName !== WANTED_LOCKFILE) {
@@ -106,7 +96,7 @@ async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mai
  * `rename` never resolves the final path component, so a symlink swapped in
  * after {@link ensureLockfileIsNotSymlink} cannot redirect the write.
  */
-async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
+export async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
   await ensureLockfileIsNotSymlink(lockfilePath)
   const targetStat = await fs.lstat(lockfilePath).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return undefined
@@ -116,6 +106,22 @@ async function writeWantedLockfileAtomic (lockfilePath: string, content: string)
     path.dirname(lockfilePath),
     `.${path.basename(lockfilePath)}.${process.pid}.${randomUUID()}.tmp`
   )
+  // A SIGINT/SIGTERM kills the process without unwinding this async
+  // function, so the `finally` below never runs for it. Remove the
+  // unpublished temp file from an exit callback, the way
+  // `write-file-atomic` cleans up after itself.
+  const removeTempFileOnExit = onExit(() => {
+    try {
+      rmSync(tempPath, { force: true })
+    } catch (error: unknown) {
+      // An error escaping the callback would turn the signal's exit into an
+      // uncaught exception and block the remaining exit callbacks.
+      logger.warn({
+        message: `Failed to remove the temporary lockfile at ${tempPath} while exiting: ${(error as Error).message}`,
+        prefix: path.dirname(lockfilePath),
+      })
+    }
+  })
   let tempFile: FileHandle | undefined
   try {
     tempFile = await fs.open(tempPath, 'wx', targetStat?.mode)
@@ -134,10 +140,16 @@ async function writeWantedLockfileAtomic (lockfilePath: string, content: string)
     // itself and never resolves it, so a swap after this check cannot redirect
     // the write through a symlink.
     await ensureLockfileIsNotSymlink(lockfilePath)
-    await fs.rename(tempPath, lockfilePath)
+    // Windows fails the rename while another process holds the lockfile open
+    // without delete sharing, which editors, indexers, and antivirus do briefly.
+    await renameFileWithRetryAsync(tempPath, lockfilePath)
   } finally {
     await tempFile?.close().catch(() => {})
     await fs.rm(tempPath, { force: true }).catch(() => {})
+    // Unregister after the removal: a signal arriving between the two
+    // finds nothing to delete, while the reverse order would leave the
+    // temp file behind.
+    removeTempFileOnExit()
   }
 }
 
@@ -151,15 +163,15 @@ function ignoreUnprivilegedChown (error: NodeJS.ErrnoException): void {
   if (!tolerated) throw error
 }
 
-function stripUndefinedDeep<T> (value: T): T {
+function stripUndefinedDeep<Value> (value: Value): Value {
   if (value === null || typeof value !== 'object') return value
-  if (Array.isArray(value)) return value.map(stripUndefinedDeep) as unknown as T
+  if (Array.isArray(value)) return value.map(stripUndefinedDeep) as unknown as Value
   const out: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (v === undefined) continue
-    out[k] = stripUndefinedDeep(v)
+  for (const [key, fieldValue] of Object.entries(value as Record<string, unknown>)) {
+    if (fieldValue === undefined) continue
+    setOwnProperty(out, key, stripUndefinedDeep(fieldValue))
   }
-  return out as T
+  return out as Value
 }
 
 export function writeLockfileFile (
@@ -217,15 +229,7 @@ export async function writeLockfiles (
   if (opts.wantedLockfile === opts.currentLockfile) {
     await Promise.all([
       writeLockfileDoc(wantedLockfilePath, wantedLockfileName, yamlDoc),
-      (async () => {
-        if (isEmptyLockfile(opts.wantedLockfile)) {
-          await rimraf(currentLockfilePath)
-        } else {
-          await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
-          // Current lockfile (node_modules/.pnpm/lock.yaml) does not include the env document
-          await writeFileAtomic(currentLockfilePath, yamlDoc)
-        }
-      })(),
+      writeCurrentLockfileDoc(currentLockfilePath, isEmptyLockfile(opts.wantedLockfile) ? undefined : yamlDoc),
     ])
     // Both files share the same source object; strip once and reuse.
     const normalized = convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile)
@@ -248,14 +252,7 @@ export async function writeLockfiles (
   const currentIsEmpty = isEmptyLockfile(opts.currentLockfile)
   await Promise.all([
     writeLockfileDoc(wantedLockfilePath, wantedLockfileName, yamlDoc),
-    (async () => {
-      if (currentIsEmpty) {
-        await rimraf(currentLockfilePath)
-      } else {
-        await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
-        await writeFileAtomic(currentLockfilePath, currentYamlDoc)
-      }
-    })(),
+    writeCurrentLockfileDoc(currentLockfilePath, currentIsEmpty ? undefined : currentYamlDoc),
   ])
   return {
     wantedLockfile: convertToLockfileObject(stripUndefinedDeep(wantedLockfileToStringify) as LockfileFile),
@@ -263,4 +260,15 @@ export async function writeLockfiles (
       ? undefined
       : convertToLockfileObject(stripUndefinedDeep(currentLockfileToStringify) as LockfileFile),
   }
+}
+
+/** Writes the current lockfile, or removes it when there is no `yamlDoc` to write. */
+async function writeCurrentLockfileDoc (currentLockfilePath: string, yamlDoc: string | undefined): Promise<void> {
+  if (yamlDoc == null) {
+    await rimraf(currentLockfilePath)
+    return
+  }
+  await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
+  // Current lockfile (node_modules/.pnpm/lock.yaml) does not include the env document
+  await writeFileAtomic(currentLockfilePath, yamlDoc)
 }

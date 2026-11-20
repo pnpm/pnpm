@@ -1,5 +1,9 @@
 use regex::Regex;
-use std::{collections::HashSet, path::Path, sync::OnceLock};
+use std::{
+    collections::HashSet,
+    path::Path,
+    sync::OnceLock,
+};
 use tokio::io::AsyncReadExt;
 
 const MAX_LICENSE_FILE_SIZE: usize = 1024 * 1024;
@@ -85,27 +89,35 @@ pub(super) async fn resolve_license_from_dir(
 
 async fn read_first_license_file(dir: &Path) -> Option<Vec<u8>> {
     for name in LICENSE_FILES {
-        let path = dir.join(name);
-        let Ok(file) = open_no_follow(&path).await else { continue };
-        let metadata = match file.metadata().await {
-            Ok(metadata) if metadata.is_file() => metadata,
-            Ok(_) | Err(_) => continue,
-        };
-        if metadata.len() > MAX_LICENSE_FILE_SIZE as u64 {
-            continue;
+        if let Some(contents) = read_license_file(&dir.join(name)).await {
+            return Some(contents);
         }
-        let mut contents = Vec::with_capacity(metadata.len() as usize);
-        if file.take((MAX_LICENSE_FILE_SIZE + 1) as u64).read_to_end(&mut contents).await.is_err() {
-            continue;
-        }
-        if contents.len() > MAX_LICENSE_FILE_SIZE {
-            continue;
-        }
-        return Some(contents);
     }
     None
 }
 
+/// The license file's contents, or `None` when the path is not a regular
+/// file, is too large to be one, or cannot be read. A symlink is not
+/// followed: the license of a package is a file the package ships.
+async fn read_license_file(path: &Path) -> Option<Vec<u8>> {
+    let file = open_no_follow(path).await.ok()?;
+    let metadata = file
+        .metadata()
+        .await
+        .ok()
+        .filter(std::fs::Metadata::is_file)?;
+    if metadata.len() > MAX_LICENSE_FILE_SIZE as u64 {
+        return None;
+    }
+    let mut contents = Vec::with_capacity(metadata.len() as usize);
+    file.take((MAX_LICENSE_FILE_SIZE + 1) as u64)
+        .read_to_end(&mut contents)
+        .await
+        .ok()?;
+    (contents.len() <= MAX_LICENSE_FILE_SIZE).then_some(contents)
+}
+
+#[cfg(not(target_os = "wasi"))]
 async fn open_no_follow(path: &Path) -> std::io::Result<tokio::fs::File> {
     let mut options = tokio::fs::OpenOptions::new();
     options.read(true);
@@ -119,8 +131,11 @@ async fn open_no_follow(path: &Path) -> std::io::Result<tokio::fs::File> {
 fn detect_license_from_text(contents: &str) -> Option<String> {
     static LICENSE_PATTERN: OnceLock<Regex> = OnceLock::new();
     let pattern = LICENSE_PATTERN.get_or_init(|| {
-        let alternatives =
-            LICENSE_NAMES.iter().map(|name| regex::escape(name)).collect::<Vec<_>>().join("|");
+        let alternatives = LICENSE_NAMES
+            .iter()
+            .map(|name| regex::escape(name))
+            .collect::<Vec<_>>()
+            .join("|");
         Regex::new(&format!(r"(?i)\b({alternatives})\b"))
             .expect("license names form a valid regular expression")
     });
@@ -133,5 +148,53 @@ fn detect_license_from_text(contents: &str) -> Option<String> {
     (!matches.is_empty()).then(|| matches.join(" OR "))
 }
 
+pub(super) fn extract_license_author(manifest: &serde_json::Value) -> Option<String> {
+    match manifest.get("author")? {
+        serde_json::Value::String(author) => {
+            if author.is_empty() {
+                return Some(String::new());
+            }
+            let name_end = author
+                .find(['(', '<'])
+                .unwrap_or(author.len());
+            let name = author[..name_end].trim();
+            (!name.is_empty()).then(|| name.to_string())
+        }
+        serde_json::Value::Object(author) => author
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(ToString::to_string),
+        _ => None,
+    }
+}
+
+pub(super) fn extract_license_homepage(manifest: &serde_json::Value) -> Option<String> {
+    if let Some(homepage) = manifest
+        .get("homepage")
+        .and_then(serde_json::Value::as_str)
+        .filter(|url| !url.is_empty())
+    {
+        return Some(if url::Url::parse(homepage).is_ok() {
+            homepage.to_string()
+        } else {
+            format!("http://{homepage}")
+        });
+    }
+
+    let repository = match manifest.get("repository")? {
+        serde_json::Value::String(repository) => repository,
+        serde_json::Value::Object(repository) => {
+            repository.get("url").and_then(serde_json::Value::as_str)?
+        }
+        _ => return None,
+    };
+    super::HostedGit::package_docs_url(repository)
+}
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(target_os = "wasi")]
+fn open_no_follow(path: &Path) -> std::future::Ready<std::io::Result<tokio::fs::File>> {
+    std::future::ready(pnpm_fs::open_file_without_following(path).map(tokio::fs::File::from_std))
+}

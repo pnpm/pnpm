@@ -1,8 +1,18 @@
-use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
+use crate::{
+    api::{
+        EnvVar,
+        GetCurrentDir,
+        GetHomeDir,
+    },
+    windows_path_env::read_dir_env,
+};
 use pnpm_store_dir::StoreDir;
 use std::{
     env,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(windows)]
@@ -26,10 +36,6 @@ pub fn default_git_shallow_hosts() -> Vec<String> {
 }
 
 /// Default for `public-hoist-pattern`: an empty list.
-/// Writing a non-empty list on a fresh install would record a
-/// `publicHoistPattern` in `.modules.yaml` that the next `pnpm`
-/// invocation in the same project rejects with
-/// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`.
 pub fn default_public_hoist_pattern() -> Vec<String> {
     Vec::new()
 }
@@ -47,47 +53,55 @@ fn get_drive_letter(current_dir: &Path) -> Option<char> {
 
 #[cfg(windows)]
 fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
-    let current_drive =
-        get_drive_letter(current_dir).expect("current dir is an absolute path with drive letter");
-    let home_drive =
-        get_drive_letter(home_dir).expect("home dir is an absolute path with drive letter");
+    // A cwd on a network share that no drive maps keeps the store at the root
+    // of the share, just as a cwd on another drive keeps it at that drive's root.
+    let Some(current_drive) = get_drive_letter(current_dir) else {
+        let share_root = current_dir
+            .ancestors()
+            .last()
+            .unwrap_or(current_dir);
+        return share_root.join(".pnpm-store");
+    };
+    let Some(home_drive) = get_drive_letter(home_dir) else {
+        return PathBuf::from(format!(r"{current_drive}:\.pnpm-store"));
+    };
 
     if current_drive == home_drive {
-        return home_dir.join("AppData/Local/pnpm/store");
+        return home_dir
+            .join("AppData")
+            .join("Local")
+            .join("pnpm")
+            .join("store");
     }
 
     PathBuf::from(format!(r"{current_drive}:\.pnpm-store"))
 }
 
-/// Generic over [`EnvVar`], [`GetHomeDir`], and [`GetCurrentDir`]
-/// so unit tests can drive every branch — `PNPM_HOME` set,
-/// `XDG_DATA_HOME` set, neither set — without mutating the process
-/// environment. Production callers pass [`crate::Host`] for `Sys`,
-/// which threads `home::home_dir` and `env::current_dir` through the
-/// capability impls — see the `SmartDefault` expression on
-/// [`crate::Config::store_dir`].
-///
 /// On non-Windows hosts, this is only the **initial** default. After
 /// [`crate::Config::current`] has applied global config, workspace
 /// yaml, and `PNPM_CONFIG_*` env vars, the store is re-resolved
 /// against the project's volume via
 /// [`crate::store_path::resolve_store_dir`] when none of those
-/// sources pinned `storeDir`, falling back to `<mountpoint>/.pnpm-store`
-/// when the home volume can't be hardlinked from the project. Without that
-/// re-resolution a workspace on a separate case-sensitive volume
-/// would land in the case-insensitive home store, breaking tools
-/// that compare canonicalised file paths (typescript-eslint, for one).
+/// sources pinned `storeDir`.
+///
+/// Like [`default_pnpm_home_dir`] and [`default_cache_dir`], every
+/// non-Windows platform is treated as Unix here: the default is
+/// `~/.local/share/pnpm/store` on Linux, BSD, and every other
+/// Unix-like host, and `~/Library/pnpm/store` on macOS.
 pub fn default_store_dir<Sys>() -> StoreDir
 where
     Sys: EnvVar + GetHomeDir + GetCurrentDir,
 {
     // TODO: If env variables start with ~, make sure to resolve it into home_dir.
-    if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
+    if let Some(pnpm_home) = read_dir_env::<Sys>("PNPM_HOME") {
         return PathBuf::from(pnpm_home).join("store").into();
     }
 
-    if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
-        return PathBuf::from(xdg_data_home).join("pnpm").join("store").into();
+    if let Some(xdg_data_home) = read_dir_env::<Sys>("XDG_DATA_HOME") {
+        return PathBuf::from(xdg_data_home)
+            .join("pnpm")
+            .join("store")
+            .into();
     }
 
     // Using ~ (tilde) for defining home path is not supported in Rust and
@@ -101,10 +115,18 @@ where
     }
 
     // <https://doc.rust-lang.org/std/env/consts/constant.OS.html>
-    match env::consts::OS {
-        "linux" => home_dir.join(".local/share/pnpm/store").into(),
-        "macos" => home_dir.join("Library/pnpm/store").into(),
-        _ => panic!("unsupported operating system: {}", env::consts::OS),
+    store_dir_for_os(&home_dir, env::consts::OS).into()
+}
+
+/// Takes the OS as a parameter so unit tests can drive platforms no CI
+/// runner builds on, such as FreeBSD.
+///
+/// Windows never reaches here: [`default_store_dir`] returns through the
+/// drive-letter logic first.
+fn store_dir_for_os(home_dir: &Path, os: &str) -> PathBuf {
+    match os {
+        "macos" => home_dir.join("Library/pnpm/store"),
+        _ => home_dir.join(".local/share/pnpm/store"),
     }
 }
 
@@ -118,24 +140,27 @@ pub const GLOBAL_LAYOUT_VERSION: &str = "v11";
 ///
 /// Resolution order: `PNPM_HOME` → `XDG_DATA_HOME/pnpm` → `~/Library/pnpm`
 /// (macOS) / `~/.local/share/pnpm` (non-Windows) / `%LOCALAPPDATA%/pnpm`
-/// (Windows) → `~/.pnpm`. Returns `None` only when the home directory
-/// cannot be determined and no env override is set.
+/// (Windows) → `~/.pnpm`. On Windows, `%VAR%` references in these
+/// environment variables are expanded. Returns `None` only when the home
+/// directory cannot be determined and no env override is set.
 #[must_use]
 pub fn default_pnpm_home_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
 {
-    if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
+    if let Some(pnpm_home) = read_dir_env::<Sys>("PNPM_HOME") {
         return Some(PathBuf::from(pnpm_home));
     }
-    if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
+    if let Some(xdg_data_home) = read_dir_env::<Sys>("XDG_DATA_HOME") {
         return Some(PathBuf::from(xdg_data_home).join("pnpm"));
     }
     let home_dir = Sys::home_dir()?;
     Some(match env::consts::OS {
         "macos" => home_dir.join("Library/pnpm"),
-        "windows" => Sys::var("LOCALAPPDATA")
-            .map_or_else(|| home_dir.join(".pnpm"), |local| PathBuf::from(local).join("pnpm")),
+        "windows" => read_dir_env::<Sys>("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .map(|joined| joined.join("pnpm"))
+            .unwrap_or_else(|| home_dir.join(".pnpm")),
         // pnpm treats every non-Windows platform as Unix here.
         _ => home_dir.join(".local/share/pnpm"),
     })
@@ -148,14 +173,19 @@ pub fn default_modules_dir() -> PathBuf {
 
 /// Resolve the directory pnpm reads `config.yaml` (the global config
 /// file) from. Threads this crate's [`EnvVar`] / [`GetHomeDir`] seam
-/// into [`pnpm_config_dir::config_dir`] — the shared resolver, also
-/// used by the registry server — under the `pnpm` leaf.
+/// into [`pnpm_config_dir::config_dir`] (the shared resolver, also
+/// used by the registry server) under the `pnpm` leaf.
 pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
 {
-    let xdg_config_home = Sys::var("XDG_CONFIG_HOME");
-    let local_app_data = Sys::var("LOCALAPPDATA");
+    if let Some(config_home) =
+        read_dir_env::<Sys>("PNPM_CONFIG_HOME").filter(|value| !value.is_empty())
+    {
+        return Some(PathBuf::from(config_home));
+    }
+    let xdg_config_home = read_dir_env::<Sys>("XDG_CONFIG_HOME");
+    let local_app_data = read_dir_env::<Sys>("LOCALAPPDATA");
     pnpm_config_dir::config_dir(
         "pnpm",
         env::consts::OS,
@@ -173,8 +203,8 @@ pub fn default_state_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
 {
-    let xdg_state_home = Sys::var("XDG_STATE_HOME");
-    let local_app_data = Sys::var("LOCALAPPDATA");
+    let xdg_state_home = read_dir_env::<Sys>("XDG_STATE_HOME");
+    let local_app_data = read_dir_env::<Sys>("LOCALAPPDATA");
     pnpm_config_dir::state_dir(
         "pnpm",
         env::consts::OS,
@@ -215,43 +245,34 @@ pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) 
 }
 
 /// Resolve the default packument-cache directory.
-///
-/// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
-/// as `default_store_dir`: unit tests drive every branch without
-/// mutating the process environment. Production callers pass
-/// [`crate::Host`] for `Sys`, which threads `home::home_dir` through
-/// the [`GetHomeDir`] impl.
 #[must_use]
 pub fn default_cache_dir<Sys>() -> PathBuf
 where
     Sys: EnvVar + GetHomeDir,
 {
-    if let Some(xdg_cache_home) = Sys::var("XDG_CACHE_HOME") {
+    if let Some(xdg_cache_home) = read_dir_env::<Sys>("XDG_CACHE_HOME") {
         return PathBuf::from(xdg_cache_home).join("pnpm");
     }
     let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
-        "windows" => Sys::var("LOCALAPPDATA").map_or_else(
-            || home_dir.join(".pnpm-cache"),
-            |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
-        ),
+        "windows" => match read_dir_env::<Sys>("LOCALAPPDATA") {
+            Some(local_app_data) => PathBuf::from(local_app_data).join("pnpm-cache"),
+            None => home_dir.join(".pnpm-cache"),
+        },
         _ => home_dir.join(".cache/pnpm"),
     }
 }
 
-pub fn default_virtual_store_dir() -> PathBuf {
+pub fn default_install_state_dir() -> PathBuf {
     // TODO: find directory with package.json
-    env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
+    env::current_dir()
+        .expect("current directory is unavailable")
+        .join("node_modules")
+        .join(".pnpm")
 }
 
-/// Default for `enableGlobalVirtualStore`: `false` — every project keeps
-/// its own virtual store at `<project>/node_modules/.pnpm`.
-///
-/// The TypeScript CLI defaults it off too, so the shared store stays an
-/// opt-in on both stacks. The flows that always want it — the engine's
-/// own package-manager installs and the runtime shims — turn it on
-/// explicitly rather than relying on the default.
+/// Default for `enableGlobalVirtualStore`: `false`.
 pub fn default_enable_global_virtual_store() -> bool {
     false
 }
@@ -260,27 +281,6 @@ pub fn default_enable_global_virtual_store() -> bool {
 pub fn default_registry() -> String {
     "https://registry.npmjs.org/".to_string()
 }
-
-/// The registry the built-in `@jsr` scope routes to when the user has not
-/// pointed it elsewhere.
-pub const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
-
-/// Built-in named-registry aliases the resolver recognizes
-/// out of the box.
-///
-/// `npmjs` is here so a dependency can be pinned to the public
-/// registry even when `registry` points somewhere else, such as an
-/// internal proxy. The `npm` prefix cannot serve that purpose: it is
-/// reserved for the alias protocol (`npm:<name>@<range>`), which
-/// resolves through the default registry.
-///
-/// These URLs are also the prefixes the npm verifier's
-/// `named_registry_tarball_prefixes` matches a recorded tarball URL
-/// against, so an org that proxies
-/// npmjs should point `npmjs` at their proxy to keep verification
-/// going there rather than to the public host.
-pub const BUILTIN_REGISTRIES_BY_PREFIX: &[(&str, &str)] =
-    &[("gh", "https://npm.pkg.github.com/"), ("npmjs", "https://registry.npmjs.org/")];
 
 pub fn default_modules_cache_max_age() -> u64 {
     10080
@@ -305,6 +305,13 @@ pub fn default_peers_suffix_max_length() -> u64 {
     1000
 }
 
+/// Default `tagVersionPrefix`: the `"v"` prefix `pnpm version` uses for
+/// the git tag when no source sets a prefix.
+#[must_use]
+pub fn default_tag_version_prefix() -> String {
+    "v".to_string()
+}
+
 pub fn default_fetch_retries() -> u32 {
     2
 }
@@ -321,13 +328,13 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
     60_000
 }
 
-/// The CLI's user-facing release version — the same value
+/// The CLI's user-facing release version, the same value
 /// `pnpm --version` prints. Single source of truth so the CLI
-/// version string and the default `User-Agent` (`default_user_agent`)
+/// version string and the default `User-Agent`
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.3.1";
+pub const PNPM_VERSION: &str = "12.22.0";
 
 /// The command that installs pnpm with the standalone script, as documented
 /// at <https://pnpm.io/installation>: the PowerShell form on Windows, the
@@ -367,6 +374,13 @@ pub fn default_fetch_min_speed_ki_bps() -> u64 {
     pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS
 }
 
+/// Returns the shared `maxTarballUnpackedSize` default in bytes.
+///
+/// See [`pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE`].
+pub fn default_max_tarball_unpacked_size() -> u64 {
+    pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE
+}
+
 /// Default `User-Agent`, in the format
 /// `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
 /// The `name/version` segment is `pnpm/<version>`. There is no embedded
@@ -381,34 +395,34 @@ pub fn default_user_agent() -> String {
     )
 }
 
-/// Default `childConcurrency`: `min(4, availableParallelism())`. Read at
-/// runtime so `cargo test` and overrides via yaml still resolve to a
-/// usable value on 1-core sandboxes.
+/// Default `childConcurrency`: `5`, the limit pnpm's install and build
+/// entry points use. It does not scale with the host's core count; only
+/// [`default_workspace_concurrency`] does.
 pub fn default_child_concurrency() -> u32 {
-    default_child_concurrency_with_parallelism(available_parallelism())
+    5
+}
+
+/// Default `workspaceConcurrency`: `min(4, availableParallelism())`.
+///
+/// Read at runtime so `cargo test` and overrides via yaml still resolve to a
+/// usable value on 1-core sandboxes.
+#[must_use]
+pub fn default_workspace_concurrency() -> u32 {
+    default_workspace_concurrency_with_parallelism(available_parallelism())
 }
 
 /// Internal helper exposed for tests so they can pin the
 /// `parallelism` input directly rather than reading it from the host.
-pub fn default_child_concurrency_with_parallelism(parallelism: u32) -> u32 {
+pub fn default_workspace_concurrency_with_parallelism(parallelism: u32) -> u32 {
     parallelism.min(4)
-}
-
-/// Default `workspaceConcurrency`, the default for `workspace-concurrency`.
-///
-/// Identical in value to `default_child_concurrency` — both settings
-/// resolve through the same default-concurrency formula — but exposed
-/// under its own name so the [`crate::Config::workspace_concurrency`]
-/// field default reads at its own call site.
-#[must_use]
-pub fn default_workspace_concurrency() -> u32 {
-    default_child_concurrency()
 }
 
 /// Available CPU parallelism. Floors at 1.
 #[must_use]
 pub fn available_parallelism() -> u32 {
-    std::thread::available_parallelism().map_or(1, |count| count.get() as u32).max(1)
+    std::thread::available_parallelism()
+        .map_or(1, |count| count.get() as u32)
+        .max(1)
 }
 
 /// Resolve `childConcurrency` from a possibly-negative yaml value
@@ -422,13 +436,12 @@ pub fn resolve_child_concurrency(option: Option<i32>) -> u32 {
 }
 
 /// Internal helper exposed for tests so they can pin the
-/// `parallelism` input — the resolver logic itself, with the
-/// parallelism input injected rather than read from the OS.
+/// `parallelism` input.
 pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, parallelism: u32) -> u32 {
     match option {
-        None => default_child_concurrency_with_parallelism(parallelism),
+        None => default_workspace_concurrency_with_parallelism(parallelism),
         Some(n) if n > 0 => n as u32,
-        // `unsigned_abs` instead of `(-n) as u32` — the latter
+        // `unsigned_abs` instead of `(-n) as u32`, the latter
         // panics in debug builds on `n == i32::MIN` (negation
         // overflow); the former returns `i32::MAX as u32 + 1`
         // safely.
@@ -438,10 +451,6 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
 
 /// Default `unsafePerm`: `true` on Windows and Cygwin, and on POSIX
 /// whenever the process is not running as root (uid != 0).
-///
-/// Pacquet's executor doesn't currently consume `unsafe_perm` to
-/// actually drop uid/gid, but the TMPDIR-isolation side of the flag is
-/// honored — see `pnpm_executor::make_env`.
 ///
 /// Cygwin needs explicit handling because Rust's
 /// [`x86_64-pc-cygwin` target](https://doc.rust-lang.org/rustc/platform-support/x86_64-pc-cygwin.html)
@@ -483,12 +492,9 @@ pub fn is_unsafe_perm_posix(uid: u32) -> bool {
     uid != 0
 }
 
-/// Safe wrapper around `libc::getuid` — contains the `unsafe`
+/// Safe wrapper around `libc::getuid`, contains the `unsafe`
 /// FFI block internally so the caller doesn't need to propagate
-/// `unsafe`. `libc::getuid` is documented as always-safe: it
-/// reads a kernel field, has no side effects, and cannot fail.
-/// Only compiled on POSIX-excluding-Cygwin since that's the only
-/// branch that actually calls it.
+/// `unsafe`.
 #[cfg(all(unix, not(target_os = "cygwin")))]
 fn posix_getuid() -> u32 {
     // SAFETY: `libc::getuid` has no preconditions; it reads a

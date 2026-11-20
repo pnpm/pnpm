@@ -9,6 +9,7 @@ import { change, lane, version } from '../../src/index.js'
 interface FixturePkg {
   name: string
   version: string
+  private?: boolean
   dependencies?: Record<string, string>
   publishConfig?: { name: string }
 }
@@ -55,10 +56,10 @@ describe('change command and intent-consuming version -r', () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0', dependencies: { lib: 'workspace:*' } })
     const opts = baseOpts([lib, cli])
 
-    const output = await change.handler({ ...opts, bump: 'minor', summary: 'Added a feature.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const output = await change.handler({ ...opts, bump: 'minor', summary: 'Added a feature.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(output).toMatch(/Recorded change intent \.changeset\/.+\.md/)
 
-    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(status).toContain('lib: 1.0.0 → 1.1.0')
     expect(status).toContain('cli: 2.0.0 → 2.0.1')
   })
@@ -66,8 +67,42 @@ describe('change command and intent-consuming version -r', () => {
   it('rejects an unknown package name', async () => {
     const lib = addPkg({ name: 'lib', version: '1.0.0' })
     await expect(
-      change.handler({ ...baseOpts([lib]), bump: 'patch', summary: 'x' } as any, ['ghost']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      change.handler({ ...baseOpts([lib]), bump: 'patch', summary: 'x' } as any, ['ghost']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE' })
+  })
+
+  it('change check passes when the committed versions satisfy the configured invariants', async () => {
+    const pnpmPkg = addPkg({ name: 'pnpm', version: '11.15.1' })
+    const lib = addPkg({ name: '@pnpm/lib', version: '1102.0.0' })
+    const opts = { ...baseOpts([pnpmPkg, lib]), versioning: { epics: [{ lead: 'pnpm', packages: ['@pnpm/lib'] }] } }
+    const output = await change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    expect(output).toContain('satisfy the configured versioning invariants')
+    expect(output).toContain('No pending change intents to check.')
+  })
+
+  it('change check fails when a pending intent names a package the workspace does not have', async () => {
+    const lib = addPkg({ name: 'lib', version: '1.0.0' })
+    const opts = baseOpts([lib])
+    await change.handler({ ...opts, bump: 'patch', summary: 'Fixed a bug.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    const passed = await change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    expect(passed).toContain('Checked 1 pending change intent: every one resolves to a workspace package.')
+
+    const intentPath = fs.readdirSync(path.join(tempDir, '.changeset')).find((name) => name.endsWith('.md'))!
+    const intentFile = path.join(tempDir, '.changeset', intentPath)
+    fs.writeFileSync(intentFile, fs.readFileSync(intentFile, 'utf8').replace('"lib"', '"ghost"'))
+
+    await expect(
+      change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_UNKNOWN_PACKAGE' })
+  })
+
+  it('change check fails and lists violations when a version drifts out of band', async () => {
+    const pnpmPkg = addPkg({ name: 'pnpm', version: '11.15.1' })
+    const lib = addPkg({ name: '@pnpm/lib', version: '5.0.0' })
+    const opts = { ...baseOpts([pnpmPkg, lib]), versioning: { epics: [{ lead: 'pnpm', packages: ['@pnpm/lib'] }] } }
+    await expect(
+      change.handler(opts as any, ['check']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED' })
   })
 
   it('bare version -r applies the release plan and cleans up the intent', async () => {
@@ -80,12 +115,12 @@ describe('change command and intent-consuming version -r', () => {
     // lifecycle tests.
     const opts = { ...baseOpts([lib, cli]), versioning: { changelog: { storage: 'repository' } } }
 
-    await change.handler({ ...opts, bump: 'major', summary: 'Breaking change.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await change.handler({ ...opts, bump: 'major', summary: 'Breaking change.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
-    const dryRun = await version.handler({ ...opts, dryRun: true } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const dryRun = await version.handler({ ...opts, dryRun: true } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(dryRun).toContain('lib: 1.0.0 → 2.0.0')
 
-    const output = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const output = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(output).toContain('lib: 1.0.0 → 2.0.0')
     expect(output).toContain('cli: 2.0.0 → 2.0.1')
 
@@ -99,7 +134,7 @@ describe('change command and intent-consuming version -r', () => {
 
   it('bare version -r without pending intents reports nothing to do', async () => {
     const lib = addPkg({ name: 'lib', version: '1.0.0' })
-    const output = await version.handler(baseOpts([lib]) as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const output = await version.handler(baseOpts([lib]) as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(output).toContain('No pending changes')
   })
 
@@ -113,22 +148,22 @@ describe('change command and intent-consuming version -r', () => {
       },
     }
 
-    await lane.handler(opts as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await lane.handler(opts as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(fs.readFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'utf8')).toContain('cli: alpha')
 
-    const status = await lane.handler({ ...opts, versioning: { lanes: { cli: 'alpha' } } } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const status = await lane.handler({ ...opts, versioning: { lanes: { cli: 'alpha' } } } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(status).toContain('alpha:')
     expect(status).toContain('    cli')
 
-    await lane.handler({ ...opts, versioning: { lanes: { cli: 'alpha' } } } as any, ['main']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await lane.handler({ ...opts, versioning: { lanes: { cli: 'alpha' } } } as any, ['main']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(fs.readFileSync(path.join(tempDir, 'pnpm-workspace.yaml'), 'utf8')).not.toContain('alpha')
   })
 
   it('a none-only intent is consumed by a version -r run with nothing to release', async () => {
     const lib = addPkg({ name: 'lib', version: '1.0.0' })
     const opts = baseOpts([lib])
-    await change.handler({ ...opts, bump: 'none', summary: 'refactor, no release needed' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    const output = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await change.handler({ ...opts, bump: 'none', summary: 'refactor, no release needed' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    const output = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(output).toContain('No pending changes')
     const remaining = fs.readdirSync(path.join(tempDir, '.changeset')).filter((fileName) => fileName.endsWith('.md'))
     expect(remaining).toHaveLength(0)
@@ -138,7 +173,7 @@ describe('change command and intent-consuming version -r', () => {
     const lib = addPkg({ name: 'lib', version: '1.0.0' })
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     const opts = baseOpts([lib, cli])
-    await change.handler({ ...opts, bump: 'none', summary: 'refactor, no release needed' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await change.handler({ ...opts, bump: 'none', summary: 'refactor, no release needed' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
     // Filter to cli (nothing pending there); lib's none-only intent must survive.
     const filtered = {
@@ -148,7 +183,7 @@ describe('change command and intent-consuming version -r', () => {
         [cli.rootDir]: { dependencies: [], package: { rootDir: cli.rootDir, manifest: cli.manifest } },
       },
     }
-    const output = await version.handler(filtered as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const output = await version.handler(filtered as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(output).toContain('No pending changes')
     expect(fs.readdirSync(path.join(tempDir, '.changeset')).filter((fileName) => fileName.endsWith('.md'))).toHaveLength(1)
   })
@@ -158,10 +193,10 @@ describe('change command and intent-consuming version -r', () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0', dependencies: { lib: '^1.0.0' } })
     const opts = baseOpts([lib, cli])
     // A read-only diagnostic must not throw the release-time prerequisite error.
-    await expect(change.handler(opts as any, ['status'])).resolves.toBeDefined() // eslint-disable-line @typescript-eslint/no-explicit-any
+    await expect(change.handler(opts as any, ['status'])).resolves.toBeDefined() // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     // The release path does enforce it.
-    await change.handler({ ...opts, bump: 'patch', summary: 'A fix.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    await expect(version.handler(opts as any, [])).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_INTERNAL_RANGE' }) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await change.handler({ ...opts, bump: 'patch', summary: 'A fix.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    await expect(version.handler(opts as any, [])).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_INTERNAL_RANGE' }) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
   })
 
   it('rejects differently-cased spellings of the reserved main lane', async () => {
@@ -174,14 +209,14 @@ describe('change command and intent-consuming version -r', () => {
       },
     }
     await expect(
-      lane.handler(opts as any, ['MAIN']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      lane.handler(opts as any, ['MAIN']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_INVALID_LANE_NAME' })
   })
 
   it('lane assignment requires a filter', async () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
     await expect(
-      lane.handler(baseOpts([cli]) as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      lane.handler(baseOpts([cli]) as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_LANE_FILTER_REQUIRED' })
   })
 
@@ -193,13 +228,13 @@ describe('change command and intent-consuming version -r', () => {
     const opts = baseOpts([twinA, twinB])
 
     await expect(
-      change.handler({ ...opts, bump: 'patch', summary: 'x' } as any, ['pnpm']) // eslint-disable-line @typescript-eslint/no-explicit-any
+      change.handler({ ...opts, bump: 'patch', summary: 'x' } as any, ['pnpm']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_AMBIGUOUS_PACKAGE' })
 
-    const output = await change.handler({ ...opts, bump: 'patch', summary: 'Rust-line fix.' } as any, ['./rust/pnpm']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const output = await change.handler({ ...opts, bump: 'patch', summary: 'Rust-line fix.' } as any, ['./rust/pnpm']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(output).toContain('Recorded change intent')
 
-    const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(applied).toContain('pnpm: 12.0.0 → 12.0.1')
     expect(applied).not.toContain('11.0.0')
     const ledger = fs.readFileSync(path.join(tempDir, '.changeset', 'ledger.yaml'), 'utf8')
@@ -209,7 +244,7 @@ describe('change command and intent-consuming version -r', () => {
 
   it('bare lane reports when everything is on the main lane', async () => {
     const cli = addPkg({ name: 'cli', version: '2.0.0' })
-    const output = await lane.handler(baseOpts([cli]) as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const output = await lane.handler(baseOpts([cli]) as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(output).toBe('All packages are on the main lane.')
   })
 
@@ -218,21 +253,35 @@ describe('change command and intent-consuming version -r', () => {
     // The new package is unpublished; every other release is already published.
     const opts = { ...baseOpts([lib]), checkVersionPublished: async (name: string) => name !== 'lib' }
 
-    await change.handler({ ...opts, bump: 'minor', summary: 'Initial release.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await change.handler({ ...opts, bump: 'minor', summary: 'Initial release.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
-    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(status).toContain('lib: 1100.0.0 → 1100.0.0')
 
     // The dry run previews the same debut: a preview that skipped the probe
     // would announce a bump to 1100.1.0 the real run never applies.
-    const dryRun = await version.handler({ ...opts, dryRun: true } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const dryRun = await version.handler({ ...opts, dryRun: true } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(dryRun).toContain('lib: 1100.0.0 → 1100.0.0')
 
-    const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(applied).toContain('lib: 1100.0.0 → 1100.0.0')
     expect(JSON.parse(fs.readFileSync(path.join(lib.rootDir, 'package.json'), 'utf8')).version).toBe('1100.0.0')
     // The intent is still consumed and ledgered against the debut version.
     expect(fs.readFileSync(path.join(tempDir, '.changeset', 'ledger.yaml'), 'utf8')).toContain('lib@1100.0.0:')
+  })
+
+  it('a private package bumps without a registry release probe', async () => {
+    const app = addPkg({ name: 'app', version: '0.5.0', private: true })
+    const opts = { ...baseOpts([app]), checkVersionPublished: async () => {
+      throw new Error('private packages must not be probed')
+    } }
+
+    await change.handler({ ...opts, bump: 'minor', summary: 'A deployable feature.' } as any, ['app']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+
+    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    expect(status).toContain('app: 0.5.0 → 0.6.0')
+    const preview = await version.handler({ ...opts, dryRun: true } as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    expect(preview).toContain('app: 0.5.0 → 0.6.0')
   })
 
   it('a package renamed by publishConfig.name is probed under the name the registry knows', async () => {
@@ -241,14 +290,14 @@ describe('change command and intent-consuming version -r', () => {
     // absent or, as with `pacquet`, someone else's package.
     const opts = { ...baseOpts([lib]), checkVersionPublished: async (name: string) => name === 'lib-on-npm' }
 
-    await change.handler({ ...opts, bump: 'minor', summary: 'A feature.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await change.handler({ ...opts, bump: 'minor', summary: 'A feature.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
-    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const status = await change.handler(opts as any, ['status']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(status).toContain('lib: 1100.0.0 → 1100.1.0')
 
     // Probing the workspace name would read as unpublished and debut the
     // release at 1100.0.0, republishing a version that is already out.
-    const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const applied = await version.handler(opts as any, []) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
     expect(applied).toContain('lib: 1100.0.0 → 1100.1.0')
   })
 
@@ -261,9 +310,58 @@ describe('change command and intent-consuming version -r', () => {
       },
     }
 
-    await change.handler({ ...baseOpts([lib]), bump: 'patch', summary: 'A fix.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any
+    await change.handler({ ...baseOpts([lib]), bump: 'patch', summary: 'A fix.' } as any, ['lib']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
 
-    await expect(change.handler(opts as any, ['status'])).rejects.toThrow('registry unreachable') // eslint-disable-line @typescript-eslint/no-explicit-any
-    await expect(version.handler(opts as any, [])).rejects.toThrow('registry unreachable') // eslint-disable-line @typescript-eslint/no-explicit-any
+    await expect(change.handler(opts as any, ['status'])).rejects.toThrow('registry unreachable') // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    await expect(version.handler(opts as any, [])).rejects.toThrow('registry unreachable') // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+  })
+
+  it('lane rejects a partial move of a versioning.fixed group without writing pnpm-workspace.yaml', async () => {
+    const pkgA = addPkg({ name: 'pkg-a', version: '1.0.0' })
+    const pkgB = addPkg({ name: 'pkg-b', version: '1.0.0' })
+    const workspaceYamlPath = path.join(tempDir, 'pnpm-workspace.yaml')
+    const initialYaml = 'packages:\n  - packages/*\nversioning:\n  fixed:\n    - [pkg-a, pkg-b]\n'
+    fs.writeFileSync(workspaceYamlPath, initialYaml)
+
+    const partialToAlpha = {
+      ...baseOpts([pkgA, pkgB]),
+      versioning: { fixed: [['pkg-a', 'pkg-b']] },
+      filter: ['pkg-a'],
+      selectedProjectsGraph: {
+        [pkgA.rootDir]: { dependencies: [], package: { rootDir: pkgA.rootDir, manifest: pkgA.manifest } },
+      },
+    }
+
+    await expect(
+      lane.handler(partialToAlpha as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_CONFLICTING_CONFIG' })
+    expect(fs.readFileSync(workspaceYamlPath, 'utf8')).toBe(initialYaml)
+
+    const bothToAlpha = {
+      ...baseOpts([pkgA, pkgB]),
+      versioning: { fixed: [['pkg-a', 'pkg-b']] },
+      filter: ['pkg-a', 'pkg-b'],
+      selectedProjectsGraph: {
+        [pkgA.rootDir]: { dependencies: [], package: { rootDir: pkgA.rootDir, manifest: pkgA.manifest } },
+        [pkgB.rootDir]: { dependencies: [], package: { rootDir: pkgB.rootDir, manifest: pkgB.manifest } },
+      },
+    }
+    await lane.handler(bothToAlpha as any, ['alpha']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    const onAlphaYaml = fs.readFileSync(workspaceYamlPath, 'utf8')
+    expect(onAlphaYaml).toContain('pkg-a: alpha')
+    expect(onAlphaYaml).toContain('pkg-b: alpha')
+
+    const partialToMain = {
+      ...baseOpts([pkgA, pkgB]),
+      versioning: { fixed: [['pkg-a', 'pkg-b']], lanes: { 'pkg-a': 'alpha', 'pkg-b': 'alpha' } },
+      filter: ['pkg-a'],
+      selectedProjectsGraph: {
+        [pkgA.rootDir]: { dependencies: [], package: { rootDir: pkgA.rootDir, manifest: pkgA.manifest } },
+      },
+    }
+    await expect(
+      lane.handler(partialToMain as any, ['main']) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_VERSIONING_CONFLICTING_CONFIG' })
+    expect(fs.readFileSync(workspaceYamlPath, 'utf8')).toBe(onAlphaYaml)
   })
 })

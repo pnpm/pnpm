@@ -1,4 +1,4 @@
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
@@ -7,6 +7,7 @@ import type { DependenciesField } from '@pnpm/types'
 import semver from 'semver'
 
 import {
+  type AuditIndexOptions,
   type AuditIndexRequest,
   type AuditPathIndex,
   buildAuditPathIndex,
@@ -14,7 +15,7 @@ import {
   lockfileToAuditRequest,
   type PathInfo,
 } from './lockfileToAuditIndex.js'
-import type { AuditAdvisory, AuditFinding, AuditLevelString, AuditReport, AuditVulnerabilityCounts } from './types.js'
+import type { AdvisoryId, AuditAdvisory, AuditFinding, AuditLevelString, AuditReport, AuditVulnerabilityCounts } from './types.js'
 
 export type { AuditIndexRequest, AuditPathIndex, PathInfo } from './lockfileToAuditIndex.js'
 export { buildAuditPathIndex, lockfileToAuditRequest } from './lockfileToAuditIndex.js'
@@ -25,7 +26,7 @@ export * from './types.js'
 // are derived from it: github_advisory_id from `url` and patched_versions
 // from `vulnerable_versions`. findings are built from the lockfile walk.
 interface BulkAdvisory {
-  id: number
+  id: AdvisoryId
   url?: string
   title?: string
   severity: AuditLevelString
@@ -35,27 +36,34 @@ interface BulkAdvisory {
 
 type BulkAdvisoriesResponse = Record<string, BulkAdvisory[]>
 
+interface AuditOptions {
+  dispatcherOptions?: DispatcherOptions
+  envLockfile?: EnvLockfile | null
+  include?: { [dependenciesField in DependenciesField]: boolean }
+  registry: string
+  resolvePeersFromWorkspaceRoot?: boolean
+  retry?: RetryTimeoutOptions
+  timeout?: number
+}
+
 export async function audit (
   lockfile: LockfileObject,
   getAuthHeader: GetAuthHeader,
-  opts: {
-    dispatcherOptions?: DispatcherOptions
-    envLockfile?: EnvLockfile | null
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    registry: string
-    retry?: RetryTimeoutOptions
-    timeout?: number
-  }
+  opts: AuditOptions
 ): Promise<AuditReport> {
-  const depTypes = detectDepTypes(lockfile)
-  const optionalOnly = collectOptionalOnlyDepPaths(lockfile, opts.include)
-  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include, depTypes, optionalOnly })
+  const indexOpts: AuditIndexOptions = {
+    envLockfile: opts.envLockfile,
+    include: opts.include,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    depTypes: detectDepTypes(lockfile, opts),
+    optionalOnly: collectOptionalOnlyDepPaths(lockfile, opts),
+  }
+  const auditRequest = lockfileToAuditRequest(lockfile, indexOpts)
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/advisories/bulk`
-  const authHeaderValue = getAuthHeader(registry)
   const requestHeaders = {
     'Content-Type': 'application/json',
-    ...getAuthHeaders(authHeaderValue),
+    ...getAuthHeaders(getAuthHeader(registry)),
   }
 
   const res = await fetchWithDispatcher(auditUrl, {
@@ -68,22 +76,11 @@ export async function audit (
   })
 
   if (res.status === 200) {
-    const rawBody = await res.text()
-    let body: unknown
-    try {
-      body = JSON.parse(rawBody)
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err)
-      throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
-    }
-    if (!isBulkResponseShape(body)) {
-      throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) returned an unexpected body. Expected an object keyed by package name; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`)
-    }
+    const body = parseBulkResponse(auditUrl, await res.text())
     const vulnerableNames = new Set(Object.keys(body))
-    let auditPathIndex: AuditPathIndex = {}
-    if (vulnerableNames.size > 0) {
-      auditPathIndex = buildAuditPathIndex(lockfile, vulnerableNames, { envLockfile: opts.envLockfile, include: opts.include, depTypes, optionalOnly })
-    }
+    const auditPathIndex: AuditPathIndex = vulnerableNames.size > 0
+      ? buildAuditPathIndex(lockfile, vulnerableNames, indexOpts)
+      : {}
     return bulkResponseToAuditReport(body, auditRequest, auditPathIndex)
   }
 
@@ -94,6 +91,20 @@ export async function audit (
   throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
 }
 
+function parseBulkResponse (auditUrl: string, rawBody: string): BulkAdvisoriesResponse {
+  let body: unknown
+  try {
+    body = JSON.parse(rawBody)
+  } catch (err: unknown) {
+    const reason = isError(err) ? err.message : String(err)
+    throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) returned invalid JSON: ${reason}. Response body: ${rawBody.slice(0, 500)}`)
+  }
+  if (!isBulkResponseShape(body)) {
+    throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) returned an unexpected body. Expected an object keyed by package name; got: ${JSON.stringify(body)?.slice(0, 500) ?? String(body)}`)
+  }
+  return body
+}
+
 function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: AuditIndexRequest, auditPathIndex: AuditPathIndex): AuditReport {
   // Null-prototype map — the id comes from the registry and could be anything.
   const advisories: Record<string, AuditAdvisory> = Object.create(null)
@@ -102,10 +113,7 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
   for (const [moduleName, packageAdvisories] of Object.entries(bulk)) {
     const byVersion = auditPathIndex[moduleName]
     for (const adv of packageAdvisories) {
-      // Guard against registry-supplied values that could corrupt the report:
-      // only accept finite numeric ids and severities from the known set.
-      if (typeof adv.id !== 'number' || !Number.isFinite(adv.id)) continue
-      if (!isKnownSeverity(adv.severity)) continue
+      if (!isAcceptedAdvisory(adv)) continue
       const findings = buildFindings(adv, byVersion)
       // If no installed version is vulnerable, skip the advisory entirely so
       // we don't report false positives for packages the lockfile doesn't use.
@@ -127,6 +135,17 @@ function bulkResponseToAuditReport (bulk: BulkAdvisoriesResponse, auditRequest: 
       totalDependencies: auditRequest.totalDependencies,
     },
   }
+}
+
+// Guard against registry-supplied values that could corrupt the report:
+// only accept finite numeric or non-blank string ids, and severities from the known set.
+function isAcceptedAdvisory (adv: BulkAdvisory): boolean {
+  return isAcceptedId(adv.id) && isKnownSeverity(adv.severity)
+}
+
+function isAcceptedId (id: unknown): id is AdvisoryId {
+  if (typeof id === 'number') return Number.isFinite(id)
+  return typeof id === 'string' && id.trim() !== ''
 }
 
 function buildFindings (adv: BulkAdvisory, byVersion: Map<string, PathInfo> | undefined): AuditFinding[] {

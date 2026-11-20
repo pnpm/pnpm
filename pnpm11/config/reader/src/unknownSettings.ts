@@ -16,13 +16,16 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
   'allowedDeprecatedVersions',
   'audit',
   'auditConfig',
+  'autoInstallPeersFromHighestMatch',
   'catalog',
   'catalogs',
   'configDependencies',
   'enableGlobalVirtualStore',
+  'externalDependencies',
   'httpProxy',
   'httpsProxy',
   'ignoredOptionalDependencies',
+  'localAddress',
   'namedRegistries',
   'nodeDownloadMirrors',
   'noProxy',
@@ -37,6 +40,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
   'remoteSideEffectsCache',
   'requiredScripts',
   'sideEffectsCache',
+  'strictSsl',
   'supportedArchitectures',
   'tasks',
   'update',
@@ -48,7 +52,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
 type ProofTypedWorkspaceManifestKeysAreExhaustive =
   (_: Record<typeof TYPED_WORKSPACE_MANIFEST_KEYS[number], unknown>) => Record<keyof WorkspaceManifest, unknown>
 
-const _proofTypedWorkspaceManifestKeysAreExhaustive: ProofTypedWorkspaceManifestKeysAreExhaustive = (x) => x
+const _proofTypedWorkspaceManifestKeysAreExhaustive: ProofTypedWorkspaceManifestKeysAreExhaustive = (record) => record
 
 /**
  * The {@link ConfigWithDeprecatedSettings} fields that neither {@link types}
@@ -75,6 +79,7 @@ const CONFIG_ONLY_SETTING_KEYS = [
   'ignoreCurrentSpecifiers',
   'maxSockets',
   'minimumReleaseAgeExcludePrune',
+  'modulesDirsByProjectName',
   'packageConfigs',
   'packageManagerNetworkConfig',
   'packageManagerRegistries',
@@ -88,6 +93,7 @@ const CONFIG_ONLY_SETTING_KEYS = [
   'reverse',
   'sideEffectsCacheRead',
   'sideEffectsCacheWrite',
+  'trustPolicyExcludePrune',
   'tryLoadDefaultPnpmfile',
   'useGitBranchLockfile',
   'useLockfile',
@@ -108,9 +114,9 @@ const UNTYPED_WORKSPACE_SETTING_KEYS = [
   'onlyBuiltDependenciesFile',
 ]
 
-type KebabToCamelCase<S extends string> = S extends `${infer A}-${infer B}`
-  ? `${A}${Capitalize<KebabToCamelCase<B>>}`
-  : S
+type KebabToCamelCase<Name extends string> = Name extends `${infer Head}-${infer Rest}`
+  ? `${Head}${Capitalize<KebabToCamelCase<Rest>>}`
+  : Name
 
 type KnownSettingKey =
   | KebabToCamelCase<keyof typeof types & string>
@@ -120,7 +126,7 @@ type KnownSettingKey =
 type ProofKnownSettingKeysCoverConfig =
   (_: Record<KnownSettingKey, unknown>) => Record<keyof ConfigWithDeprecatedSettings, unknown>
 
-const _proofKnownSettingKeysCoverConfig: ProofKnownSettingKeysCoverConfig = (x) => x
+const _proofKnownSettingKeysCoverConfig: ProofKnownSettingKeysCoverConfig = (record) => record
 
 const KNOWN_SETTING_KEYS: ReadonlySet<string> = new Set([
   ...TYPED_WORKSPACE_MANIFEST_KEYS,
@@ -147,7 +153,27 @@ export function isKnownSettingKey (key: string): boolean {
  * this repository, so a line-exclusive setting is known at build time.
  */
 const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
+  addMissingPeerTypes: 'pnpm v12',
+  autoDedupe: 'pnpm v12',
+  bootConfig: 'pnpm v12',
+  cargo: 'pnpm v12',
+  concurrencyGroups: 'pnpm v12',
+  globalPackagesConfig: 'pnpm v12',
   globalShims: 'pnpm v12',
+  macosBackup: 'pnpm v12',
+  nodePackageMap: 'pnpm v12',
+  permissions: 'pnpm v12',
+  pipelineBase: 'pnpm v12',
+  pipelines: 'pnpm v12',
+  projectScopedOptionalPeers: 'pnpm v12',
+  publishWaitTimeout: 'pnpm v12',
+  python: 'pnpm v12',
+  remoteCache: 'pnpm v12',
+  saveTypes: 'pnpm v12',
+  skills: 'pnpm v12',
+  storeIndexFormat: 'pnpm v12',
+  symlinkedLockfileTargetDirs: 'pnpm v12',
+  tools: 'pnpm v12',
 }
 
 const KNOWN_SETTING_KEYS_LIST = [...KNOWN_SETTING_KEYS]

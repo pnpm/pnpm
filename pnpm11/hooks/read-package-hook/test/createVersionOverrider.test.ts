@@ -439,6 +439,118 @@ test('createVersionsOverrider() overrides dependencies with file with relative p
   })
 })
 
+test('createVersionsOverrider() overrides dependencies with bare relative tarball path for workspace package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: './tarballs/qar-1.0.0.tgz',
+    },
+  ], rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '../../tarballs/qar-1.0.0.tgz',
+    },
+  })
+})
+
+test('createVersionsOverrider() overrides dependencies with workspace relative path for workspace package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'workspace:./packages/qar',
+    },
+  ], rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'deep', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'workspace:../../qar',
+    },
+  })
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, rootDir)).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'workspace:./packages/qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() anchors a workspace relative path for a package without a directory', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'workspace:./packages/qar',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: `workspace:${path.join(process.cwd(), 'packages/qar').replaceAll(path.sep, '/')}`,
+    },
+  })
+})
+
+test('createVersionsOverrider() does not rewrite remote tarball URLs', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'https://example.com/qar-1.0.0.tgz',
+    },
+  ], rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'https://example.com/qar-1.0.0.tgz',
+    },
+  })
+})
+
 test('createVersionsOverrider() overrides dependencies with file specified with absolute path', () => {
   const absolutePath = path.join(import.meta.dirname, 'qar')
   const overrider = createVersionsOverrider([
@@ -618,6 +730,54 @@ test('createVersionsOverrider() overrides peerDependencies of another dependency
     peerDependencies: {
       react: '18.1.0',
     },
+  })
+})
+
+test.each(['unwanted-peer', 'my-app>unwanted-peer'])('createVersionsOverrider() removes optional peer metadata with %s', (selector) => {
+  const overrider = createVersionsOverrider(parseOverrides({ [selector]: '-' }, {}), process.cwd())
+  const manifest = {
+    name: 'my-app',
+    version: '1.0.0',
+    peerDependencies: { 'unwanted-peer': '^1.0.0', kept: '^2.0.0' },
+    peerDependenciesMeta: Object.freeze({
+      'unwanted-peer': { optional: true },
+      kept: { optional: true },
+    }),
+  }
+
+  expect(overrider(manifest)).toStrictEqual({
+    name: 'my-app',
+    version: '1.0.0',
+    dependencies: {},
+    peerDependencies: { kept: '^2.0.0' },
+    peerDependenciesMeta: { kept: { optional: true } },
+  })
+  expect(manifest.peerDependencies).toStrictEqual({ 'unwanted-peer': '^1.0.0', kept: '^2.0.0' })
+  expect(manifest.peerDependenciesMeta).toStrictEqual({
+    'unwanted-peer': { optional: true },
+    kept: { optional: true },
+  })
+})
+
+test.each(['unwanted-peer', 'my-app>unwanted-peer'])('createVersionsOverrider() removes an optional peer declared only in peerDependenciesMeta with %s', (selector) => {
+  const overrider = createVersionsOverrider(parseOverrides({ [selector]: '-' }, {}), process.cwd())
+  const manifest = {
+    name: 'my-app',
+    version: '1.0.0',
+    peerDependenciesMeta: Object.freeze({
+      'unwanted-peer': { optional: true },
+      kept: { optional: true },
+    }),
+  }
+
+  expect(overrider(manifest)).toStrictEqual({
+    name: 'my-app',
+    version: '1.0.0',
+    peerDependenciesMeta: { kept: { optional: true } },
+  })
+  expect(manifest.peerDependenciesMeta).toStrictEqual({
+    'unwanted-peer': { optional: true },
+    kept: { optional: true },
   })
 })
 
@@ -879,7 +1039,7 @@ test('createVersionsOverrider() explicit overrides win over a convergence overri
   })
 })
 
-test('createVersionsOverrider() collects declared ranges of convergence-governed packages', () => {
+test('createVersionsOverrider() collects declared ranges of convergence-governed packages', async () => {
   const convergeDeclaredRanges = new Map<string, Set<string>>()
   const overrider = createVersionsOverrider([
     {
@@ -888,13 +1048,13 @@ test('createVersionsOverrider() collects declared ranges of convergence-governed
       converge: true,
     },
   ], process.cwd(), { convergeDeclaredRanges })
-  overrider({
+  await overrider({
     dependencies: {
       foo: '^4.0.5',
       bar: '^1.0.0',
     },
   })
-  overrider({
+  await overrider({
     dependencies: {
       foo: '^3.0.0',
     },
@@ -1020,3 +1180,542 @@ describe('createOverriddenDependencyMatcher()', () => {
     expect(createOverriddenDependencyMatcher([], process.cwd())).toBeUndefined()
   })
 })
+
+test('createVersionsOverrider() re-anchors a bare path override on the package it rewrites', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: '../qar',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '../../qar',
+    },
+  })
+})
+
+// The shape pnpm/pnpm#11131 reports: a tarball reached by a path prefix lands
+// on the local resolver like any other path, so it moves with the file that
+// declared it.
+test('createVersionsOverrider() re-anchors a bare path naming a tarball', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: './tarballs/qar.tgz',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('packages/app'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '../../tarballs/qar.tgz',
+    },
+  })
+})
+
+test('createVersionsOverrider() keeps a re-anchored bare path unambiguously local', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: './libs/qar',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, process.cwd())).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: './libs/qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() renders an override naming the package it rewrites as "."', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: './packages/app',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('packages/app'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '.',
+    },
+  })
+})
+
+// The resolver forward-slashes a specifier before it reads the `~` prefix, so
+// the backslash spelling names the home directory too and must not be measured
+// from the workspace.
+test.each([
+  ['a forward slash', 'file:~/qar'],
+  ['a backslash', 'file:~\\qar'],
+])('createVersionsOverrider() leaves a home-relative override written with %s alone', (_label, newBareSpecifier) => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier,
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('packages/app'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: newBareSpecifier,
+    },
+  })
+})
+
+// A UNC share's leading `//` is what makes it a share rather than a path on
+// the current drive, so the run of separators survives rendering. The
+// backslash spelling is claimed on Windows alone, but the collapsing this
+// guards against is not platform-specific.
+test('createVersionsOverrider() keeps a bare UNC override on its share', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: '//server/share/qar',
+    },
+  ], 'C:/workspace')
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, undefined)).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '//server/share/qar',
+    },
+  })
+})
+
+// A transitive manifest reaches the hook with no directory, which is why the
+// target renders absolute here. A tarball's protocol is unconditional, so
+// naming it cannot change how the package materializes. A directory's turns on
+// whether the dependency is injected, which this renderer cannot see, and an
+// explicit `link:` would outrank that and reference an injected package in
+// place instead of copying it.
+test.each([
+  ['a tarball', './tarballs/qar.tgz', 'file:C:/workspace/tarballs/qar.tgz'],
+  ['a directory', './local-dep', 'C:/workspace/local-dep'],
+])('createVersionsOverrider() renders a drive-anchored bare path naming %s', (_label, newBareSpecifier, expected) => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier,
+    },
+  ], 'C:/workspace')
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, undefined)).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: expected,
+    },
+  })
+})
+
+test.each([
+  ['a hosted-git shorthand', 'user/repo'],
+  ['a tarball-shaped dist-tag', 'repo.tgz'],
+  ['a registry range', '^1.2.3'],
+  ['an npm alias', 'npm:other@^1'],
+  ['a single-letter named registry', 'c:pkg@1'],
+])('createVersionsOverrider() leaves %s alone', (_label, newBareSpecifier) => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier,
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: newBareSpecifier,
+    },
+  })
+})
+
+test('createVersionsOverrider() matches version-selector overrides against catalog: dependencies', () => {
+  const catalogs = {
+    default: {
+      ms: '~2.1.0',
+      foo: '^1.1.0',
+    },
+    legacy: {
+      ms: '^1.0.0',
+    },
+  }
+  const overrides = parseOverrides({
+    'ms@^2.0.0': '2.1.1',
+    'app>foo@^1.0.0': '1.2.3',
+  }, catalogs)
+  const overrider = createVersionsOverrider(overrides, process.cwd(), { catalogs })
+
+  expect(overrider({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:',
+      foo: 'catalog:',
+    },
+  })).toStrictEqual({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      ms: '2.1.1',
+      foo: '1.2.3',
+    },
+  })
+
+  expect(overrider({
+    name: 'other',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:legacy',
+      foo: 'catalog:',
+    },
+  })).toStrictEqual({
+    name: 'other',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:legacy',
+      foo: 'catalog:',
+    },
+  })
+
+  const matcher = createOverriddenDependencyMatcher(overrides, process.cwd(), catalogs)!
+  expect(matcher({ name: 'app', version: '1.0.0' })('ms', 'catalog:')).toBe(true)
+  expect(matcher({ name: 'app', version: '1.0.0' })('ms', 'catalog:legacy')).toBe(false)
+  expect(matcher({ name: 'app', version: '1.0.0' })('foo', 'catalog:')).toBe(true)
+  expect(matcher({ name: 'other', version: '1.0.0' })('foo', 'catalog:')).toBe(false)
+
+  const depOverrider = createDependencyOverrider(overrides, process.cwd(), catalogs)!
+  expect(depOverrider('ms', 'catalog:', process.cwd())).toBe('2.1.1')
+  expect(depOverrider('ms', 'catalog:legacy', process.cwd())).toBeUndefined()
+  expect(depOverrider('ms', 'catalog:missing', process.cwd())).toBeUndefined()
+
+  const fallbackOverrider = createVersionsOverrider(parseOverrides({
+    'ms@^2.0.0': '2.1.1',
+    bar: '1.0.0',
+  }, catalogs), process.cwd(), { catalogs })
+  expect(fallbackOverrider({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:missing',
+      bar: 'catalog:missing',
+    },
+  })).toStrictEqual({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      ms: 'catalog:missing',
+      bar: '1.0.0',
+    },
+  })
+})
+
+describe('createVersionsOverrider() range specificity', () => {
+  const rootDir = process.cwd()
+
+  test.each([
+    [
+      'broad before exact',
+      { 'my-lib@^1.0.0': 'file:./lib-broad', 'my-lib@1.0.0': 'file:./lib-exact' },
+    ],
+    [
+      'exact before broad',
+      { 'my-lib@1.0.0': 'file:./lib-exact', 'my-lib@^1.0.0': 'file:./lib-broad' },
+    ],
+  ])('exact target range beats enclosing caret range (%s)', (_label, rawOverrides) => {
+    const overrides = parseOverrides(rawOverrides)
+    const overrider = createVersionsOverrider(overrides, rootDir)
+    expect(overrider({ dependencies: { 'my-lib': '1.0.0' } }, rootDir)).toStrictEqual({
+      dependencies: { 'my-lib': 'file:lib-exact' },
+    })
+    expect(overrider({ dependencies: { 'my-lib': '1.2.0' } }, rootDir)).toStrictEqual({
+      dependencies: { 'my-lib': 'file:lib-broad' },
+    })
+    const depOverrider = createDependencyOverrider(overrides, rootDir)!
+    expect(depOverrider('my-lib', '1.0.0', rootDir)).toBe('file:lib-exact')
+  })
+
+  test.each([
+    [
+      'caret before tilde',
+      { 'my-lib@^1.0.0': '1.9.0', 'my-lib@~1.2.0': '1.2.5' },
+    ],
+    [
+      'tilde before caret',
+      { 'my-lib@~1.2.0': '1.2.5', 'my-lib@^1.0.0': '1.9.0' },
+    ],
+  ])('tilde target range beats enclosing caret range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { 'my-lib': '1.2.3' } })).toStrictEqual({
+      dependencies: { 'my-lib': '1.2.5' },
+    })
+  })
+
+  test.each([
+    [
+      'star before upper-only',
+      { 'foo@*': '2.0.0', 'foo@<1.0.0': '0.9.9' },
+    ],
+    [
+      'upper-only before star',
+      { 'foo@<1.0.0': '0.9.9', 'foo@*': '2.0.0' },
+    ],
+  ])('upper-only target range beats star (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '0.5.0' } })).toStrictEqual({
+      dependencies: { foo: '0.9.9' },
+    })
+    expect(overrider({ dependencies: { foo: '1.5.0' } })).toStrictEqual({
+      dependencies: { foo: '2.0.0' },
+    })
+  })
+
+  test.each([
+    [
+      'unversioned first',
+      { foo: '3.0.0', 'foo@*': '3.5.0', 'foo@^3.0.0': '4.0.0' },
+    ],
+    [
+      'narrowest first',
+      { 'foo@^3.0.0': '4.0.0', 'foo@*': '3.5.0', foo: '3.0.0' },
+    ],
+  ])('versioned target beats star and unversioned target (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '^3.0.0' } })).toStrictEqual({
+      dependencies: { foo: '4.0.0' },
+    })
+    expect(overrider({ dependencies: { foo: '^2.0.0' } })).toStrictEqual({
+      dependencies: { foo: '3.5.0' },
+    })
+    expect(overrider({ dependencies: { foo: 'github:org/foo' } })).toStrictEqual({
+      dependencies: { foo: '3.0.0' },
+    })
+  })
+
+  test.each([
+    [
+      'union first',
+      { 'foo@^1.0.0 || ^2.0.0': '2.5.0', 'foo@^1.0.0': '1.5.0' },
+    ],
+    [
+      'single branch first',
+      { 'foo@^1.0.0': '1.5.0', 'foo@^1.0.0 || ^2.0.0': '2.5.0' },
+    ],
+  ])('single-branch range beats enclosing union range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '^1.2.0' } })).toStrictEqual({
+      dependencies: { foo: '1.5.0' },
+    })
+    expect(overrider({ dependencies: { foo: '^2.1.0' } })).toStrictEqual({
+      dependencies: { foo: '2.5.0' },
+    })
+  })
+
+  test.each([
+    [
+      'broad parent first',
+      { 'parent>dep': '1.0.0', 'parent@^1.0.0>dep': '2.0.0', 'parent@1.2.0>dep': '3.0.0' },
+    ],
+    [
+      'narrow parent first',
+      { 'parent@1.2.0>dep': '3.0.0', 'parent@^1.0.0>dep': '2.0.0', 'parent>dep': '1.0.0' },
+    ],
+  ])('narrower parent range beats broader parent range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ name: 'parent', version: '1.2.0', dependencies: { dep: '^1.0.0' } })).toStrictEqual({
+      name: 'parent',
+      version: '1.2.0',
+      dependencies: { dep: '3.0.0' },
+    })
+    expect(overrider({ name: 'parent', version: '1.5.0', dependencies: { dep: '^1.0.0' } })).toStrictEqual({
+      name: 'parent',
+      version: '1.5.0',
+      dependencies: { dep: '2.0.0' },
+    })
+    expect(overrider({ name: 'parent', version: '2.0.0', dependencies: { dep: '^1.0.0' } })).toStrictEqual({
+      name: 'parent',
+      version: '2.0.0',
+      dependencies: { dep: '1.0.0' },
+    })
+  })
+
+  test('incomparable overlapping ranges keep declaration order and never revive a dominated broad range', () => {
+    const leftFirst = createVersionsOverrider(parseOverrides({
+      'foo@>=1.0.0 <2.0.0': '1.8.0',
+      'foo@>=1.5.0 <3.0.0': '2.8.0',
+    }), rootDir)
+    const rightFirst = createVersionsOverrider(parseOverrides({
+      'foo@>=1.5.0 <3.0.0': '2.8.0',
+      'foo@>=1.0.0 <2.0.0': '1.8.0',
+    }), rootDir)
+    expect(leftFirst({ dependencies: { foo: '1.6.0' } })).toStrictEqual({
+      dependencies: { foo: '1.8.0' },
+    })
+    expect(rightFirst({ dependencies: { foo: '1.6.0' } })).toStrictEqual({
+      dependencies: { foo: '2.8.0' },
+    })
+
+    const chain = createVersionsOverrider(parseOverrides({
+      'foo@>=1.0.0 <2.0.0': 'broad',
+      'foo@>=1.2.0 <2.5.0': 'incomparable',
+      'foo@>=1.0.0 <1.5.0': 'narrow',
+    }), rootDir)
+    expect(chain({ dependencies: { foo: '1.3.0' } })).toStrictEqual({
+      dependencies: { foo: 'incomparable' },
+    })
+  })
+
+  test.each([
+    [
+      'broad prerelease first',
+      { 'foo@^1.0.0-alpha.0': '1.9.0', 'foo@1.0.0-alpha.1': '1.0.0-alpha.2' },
+    ],
+    [
+      'exact prerelease first',
+      { 'foo@1.0.0-alpha.1': '1.0.0-alpha.2', 'foo@^1.0.0-alpha.0': '1.9.0' },
+    ],
+    [
+      'caret before prerelease union',
+      { 'foo@^1.0.0-alpha.0': '1.9.0', 'foo@1.0.0-alpha.1 || 1.0.0': '1.0.0-alpha.2' },
+    ],
+    [
+      'prerelease union before caret',
+      { 'foo@1.0.0-alpha.1 || 1.0.0': '1.0.0-alpha.2', 'foo@^1.0.0-alpha.0': '1.9.0' },
+    ],
+  ])('exact prerelease and prerelease union beat enclosing prerelease caret range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '1.0.0-alpha.1' } })).toStrictEqual({
+      dependencies: { foo: '1.0.0-alpha.2' },
+    })
+  })
+
+  test.each([
+    [
+      'union first',
+      { 'foo@^1.0.0 || ^2.0.0': '2.9.0', 'foo@>=1.5.0 <2.5.0': '2.4.0' },
+    ],
+    [
+      'cross-branch range first',
+      { 'foo@>=1.5.0 <2.5.0': '2.4.0', 'foo@^1.0.0 || ^2.0.0': '2.9.0' },
+    ],
+  ])('cross-branch narrower range beats enclosing union range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '2.1.0' } })).toStrictEqual({
+      dependencies: { foo: '2.4.0' },
+    })
+    expect(overrider({ dependencies: { foo: '2.6.0' } })).toStrictEqual({
+      dependencies: { foo: '2.9.0' },
+    })
+  })
+
+  test('wildcard union normalized by node-semver preserves declaration order against wildcard', () => {
+    const unionFirst = createVersionsOverrider(parseOverrides({
+      'foo@* || 1.0.0-alpha.1': '1.0.0',
+      'foo@*': '2.0.0',
+    }), rootDir)
+    const starFirst = createVersionsOverrider(parseOverrides({
+      'foo@*': '2.0.0',
+      'foo@* || 1.0.0-alpha.1': '1.0.0',
+    }), rootDir)
+    expect(unionFirst({ dependencies: { foo: '^1.0.0' } })).toStrictEqual({
+      dependencies: { foo: '1.0.0' },
+    })
+    expect(starFirst({ dependencies: { foo: '^1.0.0' } })).toStrictEqual({
+      dependencies: { foo: '2.0.0' },
+    })
+  })
+
+  test.each([
+    [
+      'broad large-identifier range first',
+      {
+        'foo@>=1.0.0-9007199254740992': '1.0.0-broad',
+        'foo@>=1.0.0-9007199254740992 <1.0.0-10000000000000000': '1.0.0-narrow',
+      },
+    ],
+    [
+      'narrow large-identifier range first',
+      {
+        'foo@>=1.0.0-9007199254740992 <1.0.0-10000000000000000': '1.0.0-narrow',
+        'foo@>=1.0.0-9007199254740992': '1.0.0-broad',
+      },
+    ],
+  ])('large numeric prerelease bounds select narrower range (%s)', (_label, rawOverrides) => {
+    const overrider = createVersionsOverrider(parseOverrides(rawOverrides), rootDir)
+    expect(overrider({ dependencies: { foo: '1.0.0-9007199254740992' } })).toStrictEqual({
+      dependencies: { foo: '1.0.0-narrow' },
+    })
+  })
+})
+

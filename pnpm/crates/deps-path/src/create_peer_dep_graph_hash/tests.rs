@@ -1,4 +1,7 @@
-use super::{PeerId, create_peer_dep_graph_hash};
+use super::{
+    PeerId,
+    create_peer_dep_graph_hash,
+};
 
 fn pair(name: &str, version: &str) -> PeerId {
     PeerId::Pair { name: name.to_string(), version: version.to_string() }
@@ -38,7 +41,9 @@ fn dep_path_strings_without_leading_slash_pass_through() {
 
 #[test]
 fn long_body_is_replaced_with_short_hash() {
-    let segments: Vec<PeerId> = (0..50).map(|i| pair(&format!("pkg-{i}"), "1.0.0")).collect();
+    let segments: Vec<PeerId> = (0..50)
+        .map(|i| pair(&format!("pkg-{i}"), "1.0.0"))
+        .collect();
     let got = create_peer_dep_graph_hash(&segments, 100);
     assert!(got.starts_with('('));
     assert!(got.ends_with(')'));

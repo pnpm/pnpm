@@ -7,21 +7,21 @@ import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm
 import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { testDefaults } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const originalModule = await import('@pnpm/logger')
 jest.unstable_mockModule('@pnpm/logger', () => {
   originalModule.logger.warn = jest.fn()
-  return originalModule
+  return { ...originalModule, globalWarn: jest.fn() }
 })
 
-const { logger } = await import('@pnpm/logger')
+const { globalWarn, logger } = await import('@pnpm/logger')
 const { mutateModules, addDependenciesToPackage } = await import('@pnpm/installing.deps-installer')
 
 function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Required<Pick<ProjectManifest, 'name'>>>) {
@@ -191,7 +191,7 @@ test('importer with different peers uses correct peer', async () => {
       name: 'project2',
       dependencies: {
         '@pnpm.e2e/has-foo100-peer': 'catalog:',
-        // Note that this peer is intentionally different than the one above
+        // This peer is intentionally different than the one above
         // for project 1. (100.1.0 instead of 100.0.0).
         //
         // We want to ensure project2 resolves to the same catalog version for
@@ -247,8 +247,8 @@ test('lockfile contains catalog snapshots', async () => {
     lockfileOnly: true,
     catalogs: {
       default: {
-        '@pnpm.e2e/bar': '^100.0.0',
-        '@pnpm.e2e/foo': '^100.0.0',
+        '@pnpm.e2e/bar': '^100.1.0',
+        '@pnpm.e2e/foo': '^100.1.0',
       },
     },
   })
@@ -256,8 +256,8 @@ test('lockfile contains catalog snapshots', async () => {
   const lockfile = readLockfile()
   expect(lockfile.catalogs).toStrictEqual({
     default: {
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
-      '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
+      '@pnpm.e2e/foo': { specifier: '^100.1.0', version: '100.1.0' },
     },
   })
 })
@@ -375,7 +375,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     lockfileOnly: true,
     catalogs: {
       default: {
-        '@pnpm.e2e/bar': '^100.0.0',
+        '@pnpm.e2e/bar': '^100.1.0',
         '@pnpm.e2e/foo': '^1.0.0',
       },
     },
@@ -383,7 +383,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
 
   expect(readLockfile().catalogs).toStrictEqual({
     default: {
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
       '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.3.0' },
     },
   })
@@ -394,7 +394,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     lockfileOnly: true,
     catalogs: {
       default: {
-        '@pnpm.e2e/bar': '^100.0.0',
+        '@pnpm.e2e/bar': '^100.1.0',
         '@pnpm.e2e/foo': '=100.0.0',
       },
     },
@@ -404,7 +404,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     default: {
       // The @pnpm.e2e/bar snapshot should be carried from the previous install,
       // despite the current filtered install not using it.
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
 
       '@pnpm.e2e/foo': { specifier: '=100.0.0', version: '100.0.0' },
     },
@@ -534,8 +534,6 @@ test('dedupe-peer-dependents=false with --filter does not erase catalog snapshot
     dedupePeerDependents: false,
     catalogs: {
       default: {
-        // Modify the original specifier above from "1.0.0" to "^1.0.0" in order
-        // to force a resolution instead of a frozen install.
         'is-positive': '^1.0.0',
       },
     },
@@ -579,15 +577,15 @@ test('--fix-lockfile with --filter does not erase catalog snapshots', async () =
 
   const catalogs = {
     default: {
-      '@pnpm.e2e/bar': '^100.0.0',
-      '@pnpm.e2e/foo': '^100.0.0',
+      '@pnpm.e2e/bar': '^100.1.0',
+      '@pnpm.e2e/foo': '^100.1.0',
     },
   }
 
   const expectedCatalogsSnapshot: CatalogSnapshots = {
     default: {
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
-      '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
+      '@pnpm.e2e/foo': { specifier: '^100.1.0', version: '100.1.0' },
     },
   }
 
@@ -893,9 +891,9 @@ test('catalog entry using npm alias can be reused', async () => {
 // pnpm-lock.yaml. This should happen even if the dependency is still defined in
 // a catalog under pnpm-workspace.yaml.
 //
-// Note that this behavior may not be desirable in all cases. If someone removes
+// This behavior may not be desirable in all cases. If someone removes
 // the last usage of a catalog entry, and another person adds it back later,
-// that dependency will be re-resolved to a newer version. This is probably
+// that dependency will be re-resolved to a newer version. This is likely
 // desirable most of the time, but there could be a good argument to cache the
 // older unused resolution. For now we'll remove the unused entries since that's
 // what would happen anyway if catalogs aren't used.
@@ -950,8 +948,8 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
       'is-negative': { specifier: 'catalog:', version: '1.0.0' },
     })
     // Only "is-negative" should be in the catalogs section of the lockfile
-    // since all packages in the workspace no longer use is-positive. Note that
-    // this should be the case even if pnpm-workspace.yaml still has
+    // since all packages in the workspace no longer use is-positive. This
+    // should be the case even if pnpm-workspace.yaml still has
     // "is-positive" configured.
     expect(lockfile.catalogs?.default).toStrictEqual({
       'is-negative': { specifier: '=1.0.0', version: '1.0.0' },
@@ -1115,6 +1113,75 @@ test('catalogs work when inject-workspace-packages=true', async () => {
   })
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/17280
+//
+// A relative workspace: path is claimed by the local resolver, not by the
+// workspace matching of the npm resolver. The injected package is not an
+// importer, so nothing else resolves its catalog: specifiers. Both
+// resolutions that walk the package are covered: recalculating the graph
+// over a lockfile that recorded the version the package pinned itself, and
+// a fresh lockfile.
+test('catalogs work in a package injected through a relative workspace: path', async () => {
+  expect.hasAssertions()
+
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:project/common',
+        lib: 'workspace:../lib',
+      },
+    },
+  ])
+  fs.mkdirSync('lib')
+  const writeLib = (isPositiveSpecifier: string) => {
+    fs.writeFileSync('lib/package.json', JSON.stringify({
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': isPositiveSpecifier,
+      },
+    }))
+  }
+
+  const install = () => mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    injectWorkspacePackages: true,
+    preferFrozenLockfile: false,
+    catalogs: {
+      'project/common': { 'is-positive': '1.0.0' },
+    },
+  })
+
+  writeLib('1.0.0')
+  await install()
+  writeLib('catalog:project/common')
+  await expect(install()).resolves.not.toThrow()
+  fs.rmSync('pnpm-lock.yaml')
+  await expect(install()).resolves.not.toThrow()
+
+  expect(JSON.parse(fs.readFileSync('lib/package.json', 'utf8')).dependencies['is-positive']).toBe('catalog:project/common')
+
+  const lockfile = readLockfile()
+
+  expect(lockfile.importers).toEqual({
+    project1: {
+      dependencies: {
+        'is-positive': { specifier: 'catalog:project/common', version: '1.0.0' },
+        lib: { specifier: 'workspace:../lib', version: 'file:lib' },
+      },
+    },
+  })
+
+  expect(lockfile.snapshots).toStrictEqual({
+    'is-positive@1.0.0': {},
+    'lib@file:lib': {
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+  })
+})
+
 describe('dedupe', () => {
   test('valid catalog resolutions are preserved when running pnpm dedupe', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
@@ -1179,6 +1246,56 @@ describe('dedupe', () => {
     const dedupedLockfile = readLockfile()
     expect(Object.keys(dedupedLockfile.packages)).toEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
     expect(dedupedLockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.0.0')
+  })
+
+  test('pnpm dedupe moves transitive dependencies to the version a catalog entry pins', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'pinned',
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': 'catalog:',
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+      },
+      {
+        name: 'loose',
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
+          '@pnpm.e2e/pkg-with-1-dep': '100.1.0',
+        },
+      },
+    ])
+    const catalogs = {
+      default: { '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0' },
+    }
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+
+    // Without its direct dependency, loose keeps 100.1.0 only through the
+    // lockfile pin of @pnpm.e2e/pkg-with-1-dep@100.1.0.
+    projects['loose' as ProjectId].dependencies = {
+      '@pnpm.e2e/pkg-with-1-dep': '100.1.0',
+    }
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+    expect(readLockfile().packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      dedupe: true,
+      lockfileOnly: true,
+      catalogs,
+    })
+    const lockfile = readLockfile()
+    expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+    expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
   })
 })
 
@@ -1361,6 +1478,32 @@ describe('add', () => {
     })
   })
 
+  test.each(['strict', 'prefer'] as const)('adding an aliasless tarball records its resolved name in catalogMode: %s', async (catalogMode) => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+    const specifier = `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`
+
+    const { updatedManifest, updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      [specifier],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: { default: {} },
+        catalogMode,
+      })
+
+    expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': 'catalog:' })
+    expect(updatedCatalogs).toStrictEqual({ default: { 'is-positive': specifier } })
+    expect(readLockfile().catalogs).toMatchObject({
+      default: { 'is-positive': { specifier } },
+    })
+  })
+
   test('adding with catalogMode: strict will add to or use from catalog', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
@@ -1391,6 +1534,43 @@ describe('add', () => {
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
       importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
       packages: { 'is-positive@1.0.0': expect.any(Object) },
+    })
+  })
+
+  test.each([
+    ['strict', 'beta', '@pnpm.e2e/foo@beta'],
+    ['prefer', 'beta', '@pnpm.e2e/foo@beta'],
+    ['strict', 'latest', '@pnpm.e2e/foo@latest'],
+    ['prefer', 'latest', '@pnpm.e2e/foo@latest'],
+    ['strict', 'beta', '@pnpm.e2e/foo'],
+  ] as const)('adding with catalogMode: %s keeps a catalog entry set to the dist-tag %s (%s)', async (catalogMode, distTag, selector) => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag })
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      [selector],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: { default: { '@pnpm.e2e/foo': distTag } },
+        catalogMode,
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    })
+    expect(updatedCatalogs).toBeUndefined()
+    expect(readLockfile().catalogs).toStrictEqual({
+      default: { '@pnpm.e2e/foo': { specifier: distTag, version: '100.1.0' } },
     })
   })
 
@@ -1442,7 +1622,6 @@ describe('add', () => {
     })
 
     // The catalog should preserve the original specifier, NOT become 'catalog:'
-    // This is the bug fix - previously it would incorrectly write 'catalog:' to the catalog
     if (updatedCatalogs?.default?.['is-positive']) {
       expect(updatedCatalogs.default['is-positive']).not.toBe('catalog:')
       expect(updatedCatalogs.default['is-positive']).toMatch(/^\^?\d/)
@@ -1535,7 +1714,7 @@ describe('add', () => {
       dependencies: {},
     }])
     const projectDir = path.join(options.lockfileDir, 'project1')
-    f.copy('pkg-with-bundled-dependencies-1.0.0.tgz', path.join(projectDir, 'local-pkg-1.0.0.tgz'))
+    testFixtures.copy('pkg-with-bundled-dependencies-1.0.0.tgz', path.join(projectDir, 'local-pkg-1.0.0.tgz'))
 
     const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
@@ -2020,6 +2199,7 @@ describe('update', () => {
       '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
     })
 
+    jest.mocked(globalWarn).mockClear()
     const { updatedCatalogs, updatedProjects } = await mutateModules(
       Object.entries(projects).map(([id, manifest]) => ({
         ...manifest,
@@ -2038,6 +2218,7 @@ describe('update', () => {
     expect(updatedCatalogs).toEqual({
       default: { '@pnpm.e2e/foo': '^1.1.0' },
     })
+    expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Skip adding'))
 
     const lockfile = readLockfile()
     expect(lockfile.catalogs).toEqual({
@@ -2116,6 +2297,47 @@ describe('update', () => {
     await expect(
       mutateModules(installProjects(projects), { ...mutateOpts, frozenLockfile: true })
     ).resolves.toBeDefined()
+  })
+
+  test('an active override that references a catalog applies the updated catalog during resolution', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+        '@pnpm.e2e/foobar': '100.0.0',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        default: { '@pnpm.e2e/foo': '100.0.0' },
+      },
+      overrides: {
+        '@pnpm.e2e/foobar>@pnpm.e2e/foo': 'catalog:',
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+    expect(readLockfile().snapshots['@pnpm.e2e/foobar@100.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
+
+    await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        update: true,
+        updateToLatest: true,
+      })
+
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs.default).toEqual({ '@pnpm.e2e/foo': { specifier: '100.1.0', version: '100.1.0' } })
+    expect(lockfile.overrides).toEqual({ '@pnpm.e2e/foobar>@pnpm.e2e/foo': '100.1.0' })
+    expect(lockfile.snapshots['@pnpm.e2e/foobar@100.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.1.0')
+    expect(Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/foo@'))).toEqual(['@pnpm.e2e/foo@100.1.0'])
   })
 
   test('update works on named catalog', async () => {
@@ -2225,6 +2447,53 @@ describe('update', () => {
     // Expecting the manifest to remain unchanged after running an update. The
     // change should be reflected in the returned updatedCatalogs object
     // instead.
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      default: {
+        '@pnpm.e2e/foo': '100.1.0',
+      },
+    })
+
+    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
+  })
+
+  test('update with dist tag works on cataloged dependency', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'beta' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo@beta'],
+      {
+        ...mutateOpts,
+        dir: path.join(process.cwd(), 'project1'),
+        allowNew: false,
+        update: true,
+      })
+
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
@@ -2557,7 +2826,7 @@ describe('update', () => {
   // A named catalog whose name parses as a version (e.g. "express4-21") must not
   // have its update policy overridden. The "catalog:express4-21" reference in the
   // manifest carries no pinning of its own, so the "~" prefix from the catalog
-  // entry must be preserved instead of being widened to "^" (issue #10321).
+  // entry must be preserved instead of being widened to "^" (issue pnpm/pnpm#10321).
   test('update via install mutation preserves the ~ range of a version-like named catalog (issue #10321)', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
@@ -3256,3 +3525,184 @@ test('catalogs work in overrides', async () => {
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   })
 })
+
+test('version-selector overrides apply to catalog: dependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  const overrides: Record<string, string> = {
+    '@pnpm.e2e/foo@^100.0.0': '100.0.0',
+    '@pnpm.e2e/bar@^200.0.0': '100.0.0',
+  }
+
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+        '@pnpm.e2e/bar': 'catalog:legacy',
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        '@pnpm.e2e/bar': 'catalog:legacy',
+      },
+    },
+  ])
+
+  const catalogs = {
+    default: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+    legacy: {
+      '@pnpm.e2e/bar': '^100.0.0',
+    },
+  }
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+    overrides,
+  })
+
+  const lockfile = readLockfile()
+  expect(lockfile.importers['project1' as ProjectId].dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': {
+      specifier: '100.0.0',
+      version: '100.0.0',
+    },
+    '@pnpm.e2e/bar': {
+      specifier: 'catalog:legacy',
+      version: '100.1.0',
+    },
+  })
+
+  const { updatedProjects } = await mutateModules(
+    installProjects(projects).map((project) => ({
+      ...project,
+      update: true,
+      updatePackageManifest: true,
+    })),
+    {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+      overrides,
+    }
+  )
+  expect(updatedProjects[0]?.manifest?.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': 'catalog:',
+    '@pnpm.e2e/bar': 'catalog:legacy',
+  })
+
+  // Updating `@pnpm.e2e/bar` with `updateToLatest` bumps `catalogs.legacy['@pnpm.e2e/bar']`
+  // from `^100.0.0` to `^100.1.0`; when a range-scoped override matches the bumped
+  // catalog range, the second resolution pass applies the override immediately.
+  const overridesMatchingBumpedBar: Record<string, string> = {
+    '@pnpm.e2e/foo@^100.0.0': '100.0.0',
+    'project1>@pnpm.e2e/bar@^100.1.0': '100.0.0',
+    'project2>@pnpm.e2e/bar@100.0.0': '100.0.0',
+  }
+  catalogs.legacy['@pnpm.e2e/bar'] = '100.0.0'
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+    overrides: overridesMatchingBumpedBar,
+  })
+  expect(readLockfile().importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: 'catalog:legacy',
+    version: '100.0.0',
+  })
+  expect(readLockfile().importers['project2' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+
+  const { updatedCatalogs } = await mutateModules(
+    [
+      {
+        ...projects['project1' as ProjectId],
+        rootDir: path.resolve('project1') as ProjectRootDir,
+        mutation: 'installSome' as const,
+        dependencySelectors: ['@pnpm.e2e/bar'],
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+        updatePackageManifest: true,
+      },
+      {
+        ...projects['project2' as ProjectId],
+        rootDir: path.resolve('project2') as ProjectRootDir,
+        mutation: 'install' as const,
+      },
+    ],
+    {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+      overrides: overridesMatchingBumpedBar,
+    }
+  )
+  expect(updatedCatalogs).toEqual({
+    legacy: {
+      '@pnpm.e2e/bar': '100.1.0',
+    },
+  })
+  expect(readLockfile().importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
+  expect(readLockfile().importers['project2' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: 'catalog:legacy',
+    version: '100.1.0',
+  })
+
+  catalogs.legacy['@pnpm.e2e/bar'] = '100.1.0'
+  await expect(
+    mutateModules(installProjects(projects), {
+      ...options,
+      frozenLockfile: true,
+      lockfileOnly: true,
+      catalogs,
+      overrides: overridesMatchingBumpedBar,
+    })
+  ).resolves.toBeDefined()
+
+  // When a catalog update activates a removal override (`'-'`), the dependency
+  // is dropped from the resolved importer on the second pass.
+  const overridesRemovingBumpedBar: Record<string, string> = {
+    '@pnpm.e2e/foo@^100.0.0': '100.0.0',
+    '@pnpm.e2e/bar@^100.1.0': '-',
+  }
+  catalogs.legacy['@pnpm.e2e/bar'] = '100.0.0'
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+    overrides: overridesRemovingBumpedBar,
+  })
+  await mutateModules(
+    [
+      {
+        ...projects['project1' as ProjectId],
+        rootDir: path.resolve('project1') as ProjectRootDir,
+        mutation: 'installSome' as const,
+        dependencySelectors: ['@pnpm.e2e/bar'],
+        allowNew: false,
+        update: true,
+        updateToLatest: true,
+        updatePackageManifest: true,
+      },
+    ],
+    {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+      overrides: overridesRemovingBumpedBar,
+    }
+  )
+  expect(readLockfile().importers['project1' as ProjectId].dependencies?.['@pnpm.e2e/bar']).toBeUndefined()
+})
+

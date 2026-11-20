@@ -13,15 +13,24 @@
 //! the same thing, and a project whose fields disagree is one corepack
 //! refuses to run.
 
-use miette::{Context, IntoDiagnostic};
+use crate::engine_pm::{
+    channel::{
+        BinaryChannel,
+        Channel,
+        PackageManager,
+    },
+    resolve::resolve_release,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_package_manifest::package_manager_spec::is_version_request;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use serde_json::{Map, Value};
-
-use crate::engine_pm::{
-    channel::{BinaryChannel, Channel, PackageManager},
-    resolve::resolve_release,
+use serde_json::{
+    Map,
+    Value,
 };
 
 /// The package manager `request` declares, and the version it asks for.
@@ -29,12 +38,15 @@ use crate::engine_pm::{
 /// `None` is an ordinary install request. pnpm itself is one: its pin
 /// makes the next command switch the running CLI, which is
 /// `pnpm self-update`'s job to do deliberately. So is a specifier that
-/// locates a package to install under the package manager's name —
-/// `yarn@npm:@yarnpkg/cli-dist`, `yarn@yarnpkg/berry#main` — rather than
+/// locates a package to install under the package manager's name,
+/// `yarn@npm:@yarnpkg/cli-dist`, `yarn@yarnpkg/berry#main`, rather than
 /// asking for a released version of the package manager itself.
 pub(crate) fn declared_package_manager(request: &str) -> Option<(PackageManager, Option<String>)> {
     let parsed = parse_wanted_dependency(request);
-    if parsed.bare_specifier.as_deref().is_some_and(|spec| !is_version_request(spec)) {
+    if parsed.bare_specifier
+        .as_deref()
+        .is_some_and(|spec| !is_version_request(spec))
+    {
         return None;
     }
     let pm =
@@ -54,7 +66,9 @@ pub(crate) fn record_package_manager_pin(
     pm: PackageManager,
     reference: Option<&str>,
 ) {
-    let reference = reference.map(str::trim).filter(|reference| !reference.is_empty());
+    let reference = reference
+        .map(str::trim)
+        .filter(|reference| !reference.is_empty());
     if pm == PackageManager::Yarn {
         clear_dev_engines_package_manager(manifest);
         let pin = match reference {
@@ -71,7 +85,9 @@ pub(crate) fn record_package_manager_pin(
     if let Some(reference) = reference {
         entry.insert("version".to_string(), Value::String(reference.to_string()));
     }
-    let dev_engines = manifest.entry("devEngines").or_insert_with(|| Value::Object(Map::new()));
+    let dev_engines = manifest
+        .entry("devEngines")
+        .or_insert_with(|| Value::Object(Map::new()));
     if !dev_engines.is_object() {
         *dev_engines = Value::Object(Map::new());
     }
@@ -93,7 +109,7 @@ fn clear_dev_engines_package_manager(manifest: &mut Map<String, Value>) {
 
 /// The reference to record for `pm` at `version_spec`.
 ///
-/// Yarn's field takes an exact version — corepack rejects a range there —
+/// Yarn's field takes an exact version (corepack rejects a range there)
 /// so the request is resolved against the same channel that would install
 /// it. The other package managers keep the range the user asked for.
 ///
@@ -110,10 +126,14 @@ pub(crate) async fn resolve_project_pin(
     if pm != PackageManager::Yarn {
         return Ok(version_spec.map(ToString::to_string));
     }
-    let version_spec = version_spec.map(str::trim).filter(|spec| !spec.is_empty());
+    let version_spec = version_spec
+        .map(str::trim)
+        .filter(|spec| !spec.is_empty());
     let spec = version_spec.unwrap_or("latest");
     let reference = match pm.channel(spec) {
-        Channel::Registry { package } => resolve_release(config, pm, package, spec).await?.version,
+        Channel::Registry { package } => {
+            resolve_release(config, pm, package, spec).await?.version
+        }
         Channel::Binary(BinaryChannel::Bun | BinaryChannel::Yarn) => {
             resolve_yarn_binary_version(config, spec).await?
         }
@@ -136,14 +156,21 @@ async fn resolve_yarn_binary_version(
     )
     .into_diagnostic()
     .wrap_err("build the network client to resolve the Yarn release")?;
-    pnpm_engine_pm_yarn_resolver::resolve_yarn_version(&client, version_spec)
-        .await
-        .map_err(miette::Report::new)
+    pnpm_engine_pm_yarn_resolver::resolve_yarn_version(
+        &client,
+        version_spec,
+        bootstrap.tls.strict_ssl.unwrap_or(true),
+    )
+    .await
+    .map_err(miette::Report::new)
 }
 
 /// How the recorded pin reads back, for the line `pnpm add` prints.
 pub(crate) fn describe_pin(pm: PackageManager, reference: Option<&str>) -> String {
-    match reference.map(str::trim).filter(|reference| !reference.is_empty()) {
+    match reference
+        .map(str::trim)
+        .filter(|reference| !reference.is_empty())
+    {
         Some(reference) => format!("{}@{reference}", pm.name()),
         None => pm.name().to_string(),
     }

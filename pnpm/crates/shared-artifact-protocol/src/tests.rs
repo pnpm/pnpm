@@ -1,21 +1,64 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashSet,
+};
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use p256::{
     SecretKey,
-    ecdsa::{SigningKey, signature::Signer as _},
-    pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
+    ecdsa::{
+        SigningKey,
+        signature::Signer as _,
+    },
+    pkcs8::{
+        EncodePrivateKey as _,
+        EncodePublicKey as _,
+    },
 };
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 
 use crate::{
-    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints,
-    CompatibilityScopes, LinuxGlibcPlatform, MacOsPlatform, OwnerScope, PackageIdentity,
-    PublishArtifactRequest, SIGNATURE_ALGORITHM, SignedArtifactEnvelope,
-    WORKSPACE_TASK_ARTIFACT_KIND, WindowsPlatform, blob_id, compatibility_rank,
-    compatibility_scopes, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
-    macos_tag, platform_fingerprint, validate_manifest_path, verify_blob, windows_supported_tags,
+    ARTIFACT_KIND,
+    ArtifactBlobUpload,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactSubject,
+    BuilderProfile,
+    CompatibilityConstraints,
+    CompatibilityScopes,
+    DEPENDENCY_SIDE_EFFECTS_SIZE_LIMITS,
+    LinuxGlibcPlatform,
+    MacOsPlatform,
+    OwnerScope,
+    PackageIdentity,
+    PublishArtifactRequest,
+    SIGNATURE_ALGORITHM,
+    SYMLINK_MODE,
+    SignedArtifactEnvelope,
+    WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX,
+    WORKSPACE_TASK_SIZE_LIMITS,
+    WindowsPlatform,
+    blob_id,
+    compatibility_rank,
+    compatibility_scopes,
+    linux_glibc_supported_tags,
+    linux_glibc_tag,
+    macos_supported_tags,
+    macos_tag,
+    platform_fingerprint,
+    validate_manifest_path,
+    verify_blob,
+    windows_supported_tags,
     windows_tag,
 };
 
@@ -175,7 +218,10 @@ fn rejects_oversized_envelope_fields_without_decoding_them() {
         payload: "A".repeat(crate::MAX_ENCODED_SIGNED_PAYLOAD_SIZE + 1),
         signature: BASE64.encode([0; 8]),
     };
-    let error = oversized_payload.decode_payload().unwrap_err().to_string();
+    let error = oversized_payload
+        .decode_payload()
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("signed payload exceeds"), "{error}");
 
     let payload_bytes = serde_json::to_vec(&payload(integrity(b"addon"))).unwrap();
@@ -185,7 +231,10 @@ fn rejects_oversized_envelope_fields_without_decoding_them() {
         payload: BASE64.encode(&payload_bytes),
         signature: "A".repeat(crate::MAX_ENCODED_SIGNATURE_SIZE + 1),
     };
-    let error = oversized_signature.digest().unwrap_err().to_string();
+    let error = oversized_signature
+        .digest()
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("DER-encoded P-256 signature"), "{error}");
 }
 
@@ -256,6 +305,59 @@ fn rejects_duplicate_and_case_colliding_paths() {
     let mut artifact = payload(file_integrity);
     artifact.manifest.deleted.push("BUILD/addon.node".to_string());
     assert!(artifact.validate().is_err());
+}
+
+/// An added entry is a plain or executable file, or a symlink whose blob is
+/// its target. Any other mode would have no defined restore.
+#[test]
+fn accepts_symlink_entries_and_no_other_mode() {
+    let mut artifact = payload(integrity(b"addon"));
+    artifact.manifest.added.push(ArtifactFile {
+        path: "build/addon-alias.node".to_string(),
+        integrity: integrity(b"addon.node"),
+        mode: SYMLINK_MODE,
+        size: 10,
+    });
+    artifact.validate().unwrap();
+
+    artifact.manifest.added[0].mode = 0o744;
+    assert!(artifact.validate().is_err());
+}
+
+/// A release binary in a task's outputs passes a dependency build's limits
+/// many times over, so each kind is held to its own.
+#[test]
+fn size_limits_depend_on_the_artifact_kind() {
+    let sized = |mut artifact: ArtifactPayload, size: u64| {
+        artifact.manifest.added[0].size = size;
+        artifact
+    };
+    let dependency_file = DEPENDENCY_SIDE_EFFECTS_SIZE_LIMITS.file;
+    sized(payload(integrity(b"addon")), dependency_file).validate().unwrap();
+    assert!(sized(payload(integrity(b"addon")), dependency_file + 1).validate().is_err());
+
+    let mut task = payload(integrity(b"addon"));
+    task.kind = WORKSPACE_TASK_ARTIFACT_KIND.to_string();
+    task.subject = ArtifactSubject::workspace_task("packages/app", "build");
+    task.input_key = format!("{WORKSPACE_TASK_INPUT_KEY_PREFIX}abc");
+    sized(task.clone(), dependency_file + 1).validate().unwrap();
+    sized(task.clone(), WORKSPACE_TASK_SIZE_LIMITS.file).validate().unwrap();
+    assert!(sized(task.clone(), WORKSPACE_TASK_SIZE_LIMITS.file + 1).validate().is_err());
+
+    let files_to_fill_the_artifact =
+        WORKSPACE_TASK_SIZE_LIMITS.artifact / WORKSPACE_TASK_SIZE_LIMITS.file;
+    let mut over = sized(task, WORKSPACE_TASK_SIZE_LIMITS.file);
+    for index in 0..files_to_fill_the_artifact {
+        over.manifest.added.push(ArtifactFile {
+            path: format!("dist/part-{index}"),
+            integrity: integrity(format!("part-{index}").as_bytes()),
+            mode: 0o644,
+            size: WORKSPACE_TASK_SIZE_LIMITS.file,
+        });
+    }
+    let error = over.validate().expect_err("over the artifact limit");
+    eprintln!("{error}");
+    assert!(error.to_string().contains("artifact exceeds"));
 }
 
 #[test]
@@ -440,7 +542,10 @@ fn windows_compatibility_uses_kernel_version_floors() {
 #[test]
 fn scopes_name_the_machines_constraints_reach() {
     let tagged = |tags: &[&str]| CompatibilityConstraints::Tagged {
-        tags: tags.iter().map(|tag| (*tag).to_string()).collect(),
+        tags: tags
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .collect(),
     };
     let scopes = |tags: &[&str]| match compatibility_scopes(&tagged(tags)) {
         CompatibilityScopes::These(scopes) => scopes,

@@ -28,10 +28,16 @@
       "path": "../../bins/linker"
     },
     {
+      "path": "../../bins/remover"
+    },
+    {
       "path": "../../building/during-install"
     },
     {
       "path": "../../building/policy"
+    },
+    {
+      "path": "../../catalogs/types"
     },
     {
       "path": "../../config/normalize-registries"
@@ -70,6 +76,9 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
       "path": "../../fs/symlink-dependency"
     },
     {
@@ -89,6 +98,12 @@
     },
     {
       "path": "../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     },
     {
       "path": "../../store/cafs"
@@ -113,6 +128,9 @@
     },
     {
       "path": "../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../workspace/state"
     },
     {
       "path": "../linking/direct-dep-linker"

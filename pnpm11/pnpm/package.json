@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.25.0",
+  "version": "11.28.13",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -62,13 +62,13 @@
   "unpkg": "dist/pnpm.mjs",
   "scripts": {
     "bundle": "pnx node@runtime:24.6.0 bundle.ts",
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
     "test": "pn compile && pn .test",
     "prepublishOnly": "pn build && node bundle-deps.ts",
     "compile": "pn lint --fix && pn build",
-    "build": "tsgo --build && rimraf dist bin/nodes && pn bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
+    "build": "tsc --build && rimraf dist bin/nodes && pn bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -91,6 +91,7 @@
     "@pnpm/cli.parse-cli-args": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.commands": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -150,6 +151,7 @@
     "@types/semver": "catalog:",
     "@zkochan/retry": "catalog:",
     "@zkochan/rimraf": "catalog:",
+    "camelcase": "catalog:",
     "chalk": "catalog:",
     "ci-info": "catalog:",
     "cross-spawn": "catalog:",
@@ -199,8 +201,7 @@
         "darwin-arm64",
         "linux-arm64",
         "win32-arm64",
-        "linux-x64-musl",
-        "linux-arm64-musl"
+        "linux-x64-musl"
       ]
     }
   },

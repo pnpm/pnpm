@@ -1,6 +1,14 @@
 use super::{
-    AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, hide_auth_information,
-    nerf_dart, redact_and_sanitize, redact_and_sanitize_multiline, redact_url_credentials,
+    AuthHeaders,
+    DEFAULT_REGISTRY_SCOPE,
+    UpstreamRouteHook,
+    base64_encode,
+    hide_auth_information,
+    nerf_dart,
+    redact_and_sanitize,
+    redact_and_sanitize_multiline,
+    redact_npm_auth_key,
+    redact_url_credentials,
     redact_url_for_display,
 };
 use crate::TokenHelperOutput;
@@ -9,16 +17,74 @@ use std::{
     collections::HashMap,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicUsize,
+            Ordering,
+        },
     },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
+
+#[test]
+fn registry_alias_does_not_change_outbound_credential_scope() {
+    let mut headers = AuthHeaders::from_map(HashMap::from([(
+        "//registry.npmjs.org/".to_string(),
+        "Bearer canonical-secret".to_string(),
+    )]));
+    for url in ["https://registry.npmjs.com", "https://registry.npmjs.com/"] {
+        assert_eq!(headers.for_url(url), None);
+        assert_eq!(headers.for_url_with_package(url, Some("@org/pkg")), None);
+    }
+    headers.insert_url_header("https://registry.npmjs.com", "Bearer alias-secret".to_string());
+    assert_eq!(
+        headers.for_url("https://registry.npmjs.com/"),
+        Some("Bearer alias-secret".to_string()),
+    );
+    assert_eq!(
+        headers.for_url("https://registry.npmjs.org/"),
+        Some("Bearer canonical-secret".to_string()),
+    );
+}
+
+#[test]
+fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
+    let mut headers = AuthHeaders::default().with_secure_transport();
+    for host in ["registry.example", "127.0.0.1", "localhost", "[::1]"] {
+        headers.insert_url_header(&format!("https://{host}/simple/"), "Basic secret".to_string());
+    }
+    for headers in [headers.clone(), headers] {
+        for (url, allowed) in [
+            ("https://registry.example/simple/pkg.whl", true),
+            ("http://registry.example/simple/pkg.whl", false),
+            ("http://user:secret@registry.example/simple/pkg.whl", false),
+            ("http://127.0.0.1/simple/pkg.whl", true),
+            ("http://localhost/simple/pkg.whl", true),
+            ("http://[::1]/simple/pkg.whl", true),
+        ] {
+            eprintln!("url={url}, allowed={allowed}");
+            assert_eq!(headers.for_url(url).is_some(), allowed);
+            assert_eq!(
+                headers
+                    .for_url_with_package(url, Some("python:alpha"))
+                    .is_some(),
+                allowed,
+            );
+        }
+    }
+}
 
 fn token_helper_by_uri(uri: &str, command: &[&str]) -> HashMap<String, Vec<String>> {
     std::iter::once((
         uri.to_owned(),
-        command.iter().map(|part| (*part).to_owned()).collect::<Vec<String>>(),
+        command
+            .iter()
+            .map(|part| (*part).to_owned())
+            .collect::<Vec<String>>(),
     ))
     .collect()
 }
@@ -60,7 +126,7 @@ fn a_slow_token_helper_does_not_block_a_second_registry_lookup() {
     // lookup has finished (or a generous deadline). If the resolution cache
     // lock were held across the subprocess, the fast lookup would block on
     // that lock, the flag would never flip, and the slow helper would run
-    // for the full deadline — so the fast lookup completing promptly proves
+    // for the full deadline, so the fast lookup completing promptly proves
     // the lock is released while a helper runs.
     static FAST_DONE: AtomicBool = AtomicBool::new(false);
     fn runner(command: &[String]) -> std::io::Result<TokenHelperOutput> {
@@ -109,7 +175,7 @@ fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
     }
 
     // A static token sits at the host root; a failing helper at the deeper
-    // path prefix must NOT fall back to it — the most-specific key owns the
+    // path prefix must NOT fall back to it, the most-specific key owns the
     // decision, exactly as a resolved helper would.
     let auth = AuthHeaders::from_parts_with_token_helpers(
         std::iter::once(("//reg.com/".to_owned(), "Bearer root-token".to_owned())).collect(),
@@ -124,9 +190,23 @@ fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
     assert_eq!(auth.for_url("https://reg.com/pkg"), Some("Bearer root-token".to_owned()));
 }
 
+#[test]
+fn a_url_header_overlays_only_its_request_route() {
+    let mut auth = AuthHeaders::from_creds_map([
+        ("//cargo.example/".to_string(), "Bearer npm-token".to_string()),
+        ("//npm.example/".to_string(), "Bearer keep-me".to_string()),
+    ]);
+
+    auth.insert_url_header("https://cargo.example/index", "cargo-token".to_string());
+
+    assert_eq!(auth.for_url("https://cargo.example/index/crate"), Some("cargo-token".to_string()));
+    assert_eq!(auth.for_url("https://cargo.example/other"), Some("Bearer npm-token".to_string()));
+    assert_eq!(auth.for_url("https://npm.example/package"), Some("Bearer keep-me".to_string()));
+}
+
 /// Records every `(url, package)` it is asked about and answers with a
-/// fixed header, so a test can assert the hook — not the client
-/// credentials — drove the lookup.
+/// fixed header, so a test can assert the hook (not the client
+/// credentials) drove the lookup.
 #[derive(Default)]
 struct RecordingHook {
     calls: AtomicUsize,
@@ -184,7 +264,7 @@ fn record_route_is_a_noop_without_a_hook() {
 fn route_hook_suppresses_inline_url_basic_auth() {
     // A bare `AuthHeaders` would synthesize a `Basic` header from inline
     // `user:pass@`; with a hook attached the inline credential must not
-    // leak through — the hook (returning None here) owns the decision.
+    // leak through, the hook (returning None here) owns the decision.
     let hook = Arc::new(RecordingHook::default());
     let hooked = AuthHeaders::default().with_route_hook(hook as Arc<dyn UpstreamRouteHook>);
     assert_eq!(hooked.for_url("https://user:pass@reg.com/pkg"), None);
@@ -235,6 +315,38 @@ fn redact_and_sanitize_strips_credentials_and_control_chars() {
 }
 
 #[test]
+fn redact_npm_auth_key_hides_protocol_relative_userinfo() {
+    assert_eq!(
+        redact_npm_auth_key("//user:password@registry.example/:_authToken"),
+        "//registry.example/:_authToken",
+    );
+    let malformed = redact_npm_auth_key("//user:pa/ss@registry.example/:_authToken");
+    assert_eq!(malformed, "[hidden]");
+    assert_eq!(
+        redact_npm_auth_key("//registry.example/:_authToken"),
+        "//registry.example/:_authToken",
+    );
+    assert_eq!(
+        redact_npm_auth_key("//registry.example/npm/@org:_authToken"),
+        "//registry.example/npm/@org:_authToken",
+    );
+    assert_eq!(
+        redact_npm_auth_key("//registry.example/:@org:_authToken"),
+        "//registry.example/:@org:_authToken",
+    );
+    assert_eq!(
+        redact_npm_auth_key("//localhost:4873/@org:_authToken"),
+        "//localhost:4873/@org:_authToken",
+    );
+    let malformed_scoped = redact_npm_auth_key("//user:pa/ss/@registry.example/:_authToken");
+    assert_eq!(malformed_scoped, "[hidden]");
+    assert_eq!(redact_npm_auth_key("//user:pa/ss/:@org:_authToken"), "[hidden]");
+    let malformed_later_userinfo =
+        redact_npm_auth_key("//registry.example/:@scope/user:password@evil:_authToken");
+    assert_eq!(malformed_later_userinfo, "[hidden]");
+}
+
+#[test]
 fn redact_url_for_display_strips_secrets_and_control_chars() {
     assert_eq!(
         redact_url_for_display("https://user:pass@host/pkg?token=secret#fragment\u{1b}"),
@@ -253,7 +365,7 @@ fn hide_auth_information_keeps_the_scheme_and_masks_the_credential() {
     // A short token could be guessed from a prefix, so none of it survives.
     assert_eq!(hide_auth_information("Bearer short-token"), "Bearer [hidden]");
     assert_eq!(hide_auth_information("Basic Zm9vOmJhcg=="), "Basic [hidden]");
-    // No scheme to report — the whole value is a credential.
+    // No scheme to report, the whole value is a credential.
     assert_eq!(hide_auth_information("bare-token"), "[hidden]");
 }
 
@@ -271,7 +383,9 @@ fn hide_auth_information_strips_control_characters() {
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {
     AuthHeaders::from_creds_map(
-        entries.iter().map(|(uri, value)| ((*uri).to_string(), (*value).to_string())),
+        entries
+            .iter()
+            .map(|(uri, value)| ((*uri).to_string(), (*value).to_string())),
     )
 }
 
@@ -393,19 +507,27 @@ fn package_scope_auth_wins_over_registry_auth() {
         ("//npm.pkg.github.com/:@orgB", "Bearer org-b-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer org-b-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgC/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgC/pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
     assert_eq!(
@@ -424,11 +546,15 @@ fn slash_package_scope_auth_wins_over_registry_auth() {
         ("//npm.pkg.github.com/@orgB/", "Bearer org-b-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer org-b-token"),
     );
 }
@@ -440,7 +566,9 @@ fn package_scope_auth_keeps_registry_path() {
         ("//reg.com/npm/:@orgA", "Bearer org-a-token"),
     ]);
     assert_eq!(
-        headers.for_url_with_package("https://reg.com/npm/", Some("@orgA/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://reg.com/npm/", Some("@orgA/pkg"))
+            .as_deref(),
         Some("Bearer org-a-token"),
     );
     assert_eq!(
@@ -450,7 +578,9 @@ fn package_scope_auth_keeps_registry_path() {
         Some("Bearer org-a-token"),
     );
     assert_eq!(
-        headers.for_url_with_package("https://reg.com/npm/", Some("@orgB/pkg")).as_deref(),
+        headers
+            .for_url_with_package("https://reg.com/npm/", Some("@orgB/pkg"))
+            .as_deref(),
         Some("Bearer registry-token"),
     );
 }
@@ -497,14 +627,15 @@ fn entries_round_trip_package_scope_auth() {
 #[test]
 fn basic_auth_in_url_wins_over_package_scope_auth() {
     let headers = build(&[("//reg.com/:@orgA", "Bearer org-a-token")]);
-    let header =
-        headers.for_url_with_package("https://user:secret@reg.com/", Some("@orgA/pkg")).unwrap();
+    let header = headers
+        .for_url_with_package("https://user:secret@reg.com/", Some("@orgA/pkg"))
+        .unwrap();
     assert_eq!(header, format!("Basic {}", base64_encode("user:secret")));
 }
 
 /// A credential with no URI has no registry it was authored for, so it
 /// is dropped rather than attached to whichever registry the config
-/// happens to resolve to — repository config can move that registry.
+/// happens to resolve to, repository config can move that registry.
 #[test]
 fn unkeyed_creds_are_dropped_rather_than_bound_to_the_default_registry() {
     let headers = build(&[("", "Bearer default-token"), ("//reg.com/", "Bearer scoped-token")]);
@@ -568,15 +699,22 @@ fn secure_lookup_rejects_plain_http_but_allows_loopback() {
     assert_eq!(ipv6_local.as_deref(), Some("Bearer ipv6-local"));
 }
 
+#[test]
+fn classifies_urls_that_are_secure_for_credentials() {
+    assert!(super::is_url_secure_for_credentials("https://reg.example/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://localhost:4873/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://127.0.0.1/pkg"));
+    assert!(!super::is_url_secure_for_credentials("http://reg.example/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ftp://localhost/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ws://127.0.0.1/pkg"));
+    assert!(!super::is_url_secure_for_credentials("not a url"));
+}
+
 /// Specifically exercises the trailing-slash-append branch in
 /// [`AuthHeaders::for_url`]: the URL ends without a `/` *and*
 /// names a path segment (`/scope`). Without the append,
 /// [`nerf_dart`] would drop the segment and miss the token; with
-/// it, the lookup walks `//reg.com/scope/`. Removing the append
-/// branch makes this test fail. Kept as a focused single-assertion
-/// case for the slash-append branch even though
-/// [`registry_with_pathname_matches_metadata_and_tarballs`]'s first
-/// assertion (`https://npm.pkg.github.com/pnpm`) also exercises it.
+/// it, the lookup walks `//reg.com/scope/`.
 #[test]
 fn slash_append_branch_lets_path_segment_match() {
     let headers = build(&[("//reg.com/scope/", "Bearer scoped")]);

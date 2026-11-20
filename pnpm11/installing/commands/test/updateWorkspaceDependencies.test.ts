@@ -90,3 +90,8 @@ test('createWorkspaceSpecs() may skip packages that are not in the workspace', (
   expect(createWorkspaceSpecs(['express', 'foo'], WORKSPACE_PACKAGES, { skipPackagesOutsideWorkspace: true }))
     .toStrictEqual(['foo@workspace:*'])
 })
+
+test('createWorkspaceSpecs() preserves non-workspace specs when preserveNonWorkspaceSpecs is true', () => {
+  expect(createWorkspaceSpecs(['express', 'foo'], WORKSPACE_PACKAGES, { preserveNonWorkspaceSpecs: true }))
+    .toStrictEqual(['express', 'foo@workspace:*'])
+})

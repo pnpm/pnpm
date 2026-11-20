@@ -1,12 +1,13 @@
 import { PnpmError, redactAndSanitizeMultiline } from '@pnpm/error'
+import { nonInteractiveGitEnv } from '@pnpm/network.git-utils'
 import { safeExeca as execa } from 'execa'
 
 /**
- * Runs `git ls-remote` with interactive credential prompts disabled, so it
- * fails fast on private repos instead of blocking on user input. All
+ * Runs `git ls-remote` with interactive credential and ssh prompts disabled,
+ * so it fails fast on private repos instead of blocking on user input. All
  * ls-remote invocations must go through this function to keep that guarantee.
  *
- * Failed runs are retried immediately, matching the Rust runner's policy.
+ * Failed runs are retried immediately.
  * A run that fails every attempt throws `ERR_PNPM_GIT_LS_REMOTE_FAILED`,
  * which the git resolver restates with the dependency it was resolving.
  */
@@ -14,10 +15,8 @@ export async function lsRemote (args: string[], opts: { retries: number }): Prom
   let lastErr: unknown
   for (let attempt = 0; attempt <= opts.retries; attempt++) {
     try {
-      const { stdout } = await execa('git', ['ls-remote', ...args], { // eslint-disable-line no-await-in-loop
-        // Snapshotted per call so changes to auth/proxy env vars made by a
-        // long-lived host process are picked up.
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      const { stdout } = await execa('git', ['ls-remote', ...args], { // eslint-disable-line no-await-in-loop -- a retry runs only after the previous attempt failed
+        env: await nonInteractiveGitEnv(), // eslint-disable-line no-await-in-loop -- a retry runs only after the previous attempt failed
       })
       return { stdout: stdout as string }
     } catch (err: unknown) {

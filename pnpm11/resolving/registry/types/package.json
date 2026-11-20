@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.registry.types",
-  "version": "1100.2.0",
+  "version": "1100.2.6",
   "description": "Types related to the npm registry",
   "keywords": [
     "pnpm",
@@ -27,8 +27,8 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/types": "workspace:*"

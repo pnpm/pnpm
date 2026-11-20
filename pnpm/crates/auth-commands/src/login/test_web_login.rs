@@ -6,17 +6,30 @@
 use std::{
     cell::RefCell,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 
-use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
+use pnpm_network_web_auth_testing::{
+    ok_token,
+    web_auth_fake,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::{
     login,
-    support::{PromptScript, ReadScript, client, login_fake, opts, written_registry_token},
+    support::{
+        PromptScript,
+        ReadScript,
+        client,
+        login_fake,
+        opts,
+        written_registry_token,
+    },
 };
 
 #[tokio::test]
@@ -45,12 +58,122 @@ async fn should_use_web_login_when_registry_supports_it() {
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let (path, _) = writes.first().expect("config.yaml was written");
-    assert_eq!(path, &config_dir.join("config.yaml"));
+    let (path, _) = writes.first().expect("auth.ini was written");
+    assert_eq!(path, &config_dir.join("auth.ini"));
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
         Some("web-auth-token-123".to_owned()),
     );
+
+    let messages = infos();
+    assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
+    assert!(messages[0].contains("https://example.com/auth/login"), "got {messages:?}");
+    assert_eq!(messages[1], "Press ENTER to open the URL in your browser.");
+}
+
+/// The registry can deliver display-only text such as a login verification
+/// code through the `npm-notice` response header; every value is printed
+/// ahead of the auth-URL and Press-ENTER lines, in the order received.
+#[tokio::test]
+async fn should_print_the_npm_notice_headers_before_the_auth_url() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("web-auth-token-123"))));
+
+    let mut server = mockito::Server::new_async().await;
+    let login_mock = server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_header("npm-notice", "Verification code: 123456. Enter this code in the browser to complete the login.")
+        .with_header("npm-notice", "The code expires in five minutes.")
+        .with_body(json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/custom/config");
+
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("web login succeeds");
+
+    login_mock.assert_async().await;
+    assert_eq!(result, format!("Logged in on {registry}/"));
+
+    let messages = infos();
+    assert_eq!(
+        messages.len(),
+        4,
+        "expected the notices, auth-URL, and Press-ENTER lines: {messages:?}",
+    );
+    assert_eq!(
+        messages[0],
+        "Verification code: 123456. Enter this code in the browser to complete the login.",
+    );
+    assert_eq!(messages[1], "The code expires in five minutes.");
+    assert!(messages[2].contains("https://example.com/auth/login"), "got {messages:?}");
+    assert_eq!(messages[3], "Press ENTER to open the URL in your browser.");
+}
+
+/// A notice is registry-controlled text, so control and formatting
+/// characters are removed before it reaches the terminal. HTTP header values
+/// cannot carry C0 controls like ESC or CR/LF, but they can carry a tab,
+/// UTF-8-encoded C1 controls such as CSI (U+009B) and NEL (U+0085), and
+/// formatting characters such as a bidi override (U+202E) or a zero-width
+/// space (U+200B).
+#[tokio::test]
+async fn should_strip_control_and_formatting_characters_from_an_npm_notice() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("web-auth-token-123"))));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_header("npm-notice", "\u{9b}31mVerification code:\t\u{202e}123\u{200b}456\u{85}")
+        .with_body(json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/custom/config");
+
+    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("web login succeeds");
+
+    let messages = infos();
+    assert_eq!(messages[0], "31mVerification code:123456");
+    assert!(!messages[0].contains(char::is_control), "got {messages:?}");
+}
+
+/// A notice that holds only control characters is empty once sanitized, so
+/// nothing is emitted for it.
+#[tokio::test]
+async fn should_skip_an_npm_notice_that_is_empty_after_sanitizing() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("web-auth-token-123"))));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_header("npm-notice", "\u{85}\t\u{9b}")
+        .with_body(json!({"loginUrl": "https://example.com/auth/login", "doneUrl": "https://example.com/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/custom/config");
+
+    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("web login succeeds");
 
     let messages = infos();
     assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
@@ -148,7 +271,7 @@ async fn should_succeed_when_config_file_does_not_exist() {
 
     let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
         .await
-        .expect("login succeeds despite a missing config.yaml");
+        .expect("login succeeds despite missing config files");
 
     assert_eq!(result, format!("Logged in on {registry}/"));
     let writes = login_writes();
@@ -157,7 +280,9 @@ async fn should_succeed_when_config_file_does_not_exist() {
         Some("new-token".to_owned()),
     );
     assert!(
-        infos().iter().any(|message| message.contains("https://example.org/auth/login")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://example.org/auth/login")),
         "got {:?}",
         infos(),
     );

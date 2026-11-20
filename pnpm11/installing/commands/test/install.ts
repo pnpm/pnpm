@@ -14,6 +14,42 @@ import { DEFAULT_OPTS } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
+test.each([false, true])('optimistic hoisted reinstall refreshes a directory supplied by a custom fetcher (frozen: %s)', async (frozenLockfile) => {
+  prepare({ dependencies: { 'delegated-pkg': '1.0.0' } })
+  const source = path.resolve('source')
+  fs.mkdirSync(source)
+  fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'delegated-pkg', version: '1.0.0' }))
+  fs.writeFileSync(path.join(source, 'index.js'), 'first')
+  const options: Parameters<typeof install.handler>[0] = {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
+    rootProjectManifest: { dependencies: { 'delegated-pkg': '1.0.0' } },
+    nodeLinker: 'hoisted',
+    packageImportMethod: 'copy',
+    localDirPackageImportMethod: 'clone-or-copy',
+    optimisticRepeatInstall: true,
+    pnpmfile: [],
+    hooks: {
+      customResolvers: [{
+        canResolve: (descriptor) => descriptor.alias === 'delegated-pkg',
+        resolve: async () => ({ id: 'delegated-pkg@1.0.0', resolution: { type: 'custom:directory' } }),
+      }],
+      customFetchers: [{
+        canFetch: (pkgId) => pkgId === 'delegated-pkg@1.0.0',
+        fetch: () => ({ delegate: { type: 'directory', directory: source } }),
+      }],
+    },
+  }
+  await install.handler(options)
+  const installedFile = path.resolve('node_modules/delegated-pkg/index.js')
+  expect(fs.readFileSync(installedFile, 'utf8')).toBe('first')
+
+  fs.writeFileSync(path.join(source, 'index.js'), 'second')
+  await install.handler({ ...options, frozenLockfile })
+  expect(fs.readFileSync(installedFile, 'utf8')).toBe('second')
+})
+
 test('install fails if no package.json is found', async () => {
   prepareEmpty()
 
@@ -416,4 +452,103 @@ test('repeat install refetches a file: dependency after its contents change', as
     optimisticRepeatInstall: true,
   })
   expect(fs.readFileSync('node_modules/local-dep/index.js', 'utf8')).toBe('v2')
+})
+
+describe('shouldFreezeLockfileIfExists', () => {
+  describe('when opts.frozenLockfileIfExists is set', () => {
+    test('is true', () => {
+      expect(install.shouldFreezeLockfileIfExists({
+        ...DEFAULT_OPTS,
+        dir: 'does-not-matter',
+        frozenLockfileIfExists: true,
+        ci: false,
+      })).toBe(true)
+    })
+
+    test('is false', () => {
+      expect(install.shouldFreezeLockfileIfExists({
+        ...DEFAULT_OPTS,
+        dir: 'does-not-matter',
+        frozenLockfileIfExists: false,
+        frozenLockfile: true,
+        preferFrozenLockfile: true,
+        ci: true,
+      })).toBe(false)
+    })
+  })
+
+  describe('when opts.frozenLockfileIfExists is not set', () => {
+    test('is false if not on CI', () => {
+      expect(install.shouldFreezeLockfileIfExists({
+        ...DEFAULT_OPTS,
+        dir: 'does-not-matter',
+        frozenLockfile: true,
+        preferFrozenLockfile: true,
+        ci: false,
+      })).toBe(false)
+    })
+
+    describe('when on CI', () => {
+      test('is true if frozen-lockfile and prefer-frozen-lockfile is true or unset', () => {
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          frozenLockfile: true,
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(true)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(true)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          frozenLockfile: true,
+          ci: true,
+        })).toBe(true)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          ci: true,
+        })).toBe(true)
+      })
+
+      test('is false if either frozen-lockfile or prefer-frozen-lockfile is false', () => {
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          frozenLockfile: true,
+          preferFrozenLockfile: false,
+          ci: true,
+        })).toBe(false)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          frozenLockfile: false,
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(false)
+      })
+
+      test('is false if lockfileOnly or resolutionOnly is true', () => {
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          lockfileOnly: true,
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(false)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          resolutionOnly: true,
+          preferFrozenLockfile: true,
+          ci: true,
+        })).toBe(false)
+      })
+    })
+  })
 })

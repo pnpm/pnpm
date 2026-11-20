@@ -1,8 +1,9 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
+import { getLockfileImporterId, readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import type { DependenciesField } from '@pnpm/types'
+import { pickBy } from 'ramda'
 
 import type { AuditOptions } from './audit.js'
 
@@ -47,8 +48,30 @@ export async function loadAuditContext (opts: AuditOptions): Promise<AuditContex
       devDependencies: opts.dev !== false,
       optionalDependencies: opts.optional !== false,
     },
-    lockfile,
+    lockfile: selectAuditedImporters(lockfile, lockfileDir, opts),
     lockfileDir,
+  }
+}
+
+/**
+ * Narrows the lockfile to the importers of the projects selected by
+ * `--filter`, `--filter-prod`, or `--workspace-root`. Without a selector,
+ * every importer is audited. A selected project without an importer entry is
+ * an error: auditing the rest would report it clean.
+ */
+function selectAuditedImporters (lockfile: LockfileObject, lockfileDir: string, opts: AuditOptions): LockfileObject {
+  const hasSelector = Boolean(opts.filter?.length || opts.filterProd?.length || opts.workspaceRoot)
+  if (!hasSelector || opts.selectedProjectsGraph == null) return lockfile
+  const selectedImporterIds = new Set<string>(
+    Object.keys(opts.selectedProjectsGraph).map((projectDir) => getLockfileImporterId(lockfileDir, projectDir))
+  )
+  const missingImporterIds = [...selectedImporterIds].filter((importerId) => !Object.hasOwn(lockfile.importers, importerId)).sort()
+  if (missingImporterIds.length > 0) {
+    throw new PnpmError('AUDIT_MISSING_IMPORTERS', `${WANTED_LOCKFILE} has no entry for these selected workspace projects: ${missingImporterIds.join(', ')}. Run "pnpm install" to update it.`)
+  }
+  return {
+    ...lockfile,
+    importers: pickBy((_, importerId) => selectedImporterIds.has(importerId), lockfile.importers),
   }
 }
 

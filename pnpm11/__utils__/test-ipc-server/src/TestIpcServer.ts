@@ -129,9 +129,7 @@ export class TestIpcServer implements AsyncDisposable {
    * entry. Exits after sending the message.
    *
    * Throws if `message` contains characters outside the allowlist enforced by
-   * `quoteShellArg` (alphanumerics plus ``_ - . / \\ : @ space + = , ~``). All
-   * existing call sites pass short ASCII identifiers, so the constraint is
-   * satisfied by construction.
+   * `quoteShellArg`.
    */
   public sendLineScript (message: string): string {
     return `node ${quoteShellArg(this.lineHelperPath)} ${quoteShellArg(this.listenPath)} ${quoteShellArg(message)}`
@@ -142,9 +140,7 @@ export class TestIpcServer implements AsyncDisposable {
    * entry. This script consumes its stdin and sends it to the server.
    *
    * Throws if the server's `listenPath` contains characters outside the
-   * allowlist enforced by `quoteShellArg`. The path is computed from
-   * `os.tmpdir()` (or a Windows named-pipe prefix) and a random UUID, so the
-   * constraint is satisfied by construction.
+   * allowlist enforced by `quoteShellArg`.
    */
   public generateSendStdinScript (): string {
     return `node ${quoteShellArg(this.stdinHelperPath)} ${quoteShellArg(this.listenPath)}`
@@ -177,8 +173,7 @@ export const createTestIpcServer = TestIpcServer.listen
  */
 function quoteShellArg (arg: string): string {
   // Anchored allowlist — CodeQL recognizes this as a sanitization barrier for
-  // shell-injection sinks. The `endsWith('\\')` check rules out the one
-  // remaining ambiguous case the allowlist allows.
+  // shell-injection sinks.
   if (arg.length === 0 || !/^[\w\-./\\:@ +=,~]+$/.test(arg) || arg.endsWith('\\')) {
     throw new Error(`Unsupported character in shell argument: ${JSON.stringify(arg)}`)
   }

@@ -5,8 +5,14 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 
@@ -38,8 +44,13 @@ fn write_manifest(workspace: &Path, dep_spec: &str) {
 
 #[test]
 fn install_applies_convergence_override_and_warns_when_stale() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "^100.0.0");
@@ -47,7 +58,10 @@ fn install_applies_convergence_override_and_warns_when_stale() {
     // pinned 100.0.0 is stale: 100.1.0 also satisfies ^100.0.0.
     add_overrides(&workspace, &format!("overrides:\n  \"{DEP}@\": 100.0.0\n"));
 
-    let output = pacquet.with_arg("install").assert().success();
+    let output = pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     eprintln!("STDOUT:\n{stdout}\n");
 
@@ -67,14 +81,22 @@ fn install_applies_convergence_override_and_warns_when_stale() {
 
 #[test]
 fn install_stays_silent_when_the_convergence_override_is_not_stale() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace, "^100.0.0");
     add_overrides(&workspace, &format!("overrides:\n  \"{DEP}@\": 100.1.0\n"));
 
-    let output = pacquet.with_arg("install").assert().success();
+    let output = pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     eprintln!("STDOUT:\n{stdout}\n");
 
@@ -92,17 +114,25 @@ fn install_stays_silent_when_the_convergence_override_is_not_stale() {
 
 #[test]
 fn install_leaves_incompatible_edges_on_their_own_resolution() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // 101.0.0 does not satisfy ^100.0.0, so the edge keeps its own
     // resolution (the highest of ^100.0.0) and no staleness warning
-    // fires — 101.0.0 is outside every declared range.
+    // fires, 101.0.0 is outside every declared range.
     write_manifest(&workspace, "^100.0.0");
     add_overrides(&workspace, &format!("overrides:\n  \"{DEP}@\": 101.0.0\n"));
 
-    let output = pacquet.with_arg("install").assert().success();
+    let output = pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
     eprintln!("STDOUT:\n{stdout}\n");
 

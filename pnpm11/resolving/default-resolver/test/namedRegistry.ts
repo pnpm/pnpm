@@ -9,7 +9,7 @@ import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.m
 import { loadJsonFileSync } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the fixture is an arbitrary registry document */
 const ghAcmePrivateMeta = loadJsonFileSync<any>(
   path.join(import.meta.dirname, '../../npm-resolver/test/fixtures/gh-acme-private.json')
 )

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1104.1.0",
+  "version": "1104.2.11",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -47,12 +47,12 @@
     "test": "test"
   },
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test-with-preview": "preview && pnpm run test:e2e",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "pn .test:heavy && pn .test:rest",
     ".test:heavy": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest test/install/deepRecursive.ts",
     ".test:rest": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest \"^(?!.*deepRecursive)\""
@@ -70,6 +70,7 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -81,6 +82,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*",
     "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",
@@ -108,6 +110,7 @@
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/pnpr.client": "workspace:*",
     "@pnpm/resolving.local-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
@@ -116,6 +119,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/rimraf": "catalog:",
+    "hosted-git-info": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
@@ -151,6 +155,7 @@
     "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
+    "@types/hosted-git-info": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",

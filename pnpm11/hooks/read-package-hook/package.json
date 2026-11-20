@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.read-package-hook",
-  "version": "1100.3.0",
+  "version": "1100.3.13",
   "description": "Creates the default package reader hook used by pnpm",
   "keywords": [
     "pnpm",
@@ -26,15 +26,18 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/deps.peer-range": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@yarnpkg/extensions": "catalog:",

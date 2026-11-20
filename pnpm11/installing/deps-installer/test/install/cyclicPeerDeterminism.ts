@@ -54,7 +54,7 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
     rootDir: lockfileDir as ProjectRootDir,
   }]
 
-  const registryUrl = options.registriesByScope.default.replace(/\/$/, '')
+  const { origin: registryUrl, pathname: registryPath } = new URL(options.registriesByScope.default)
 
   function makeMeta (name: string, deps: Record<string, string>, peerDeps: Record<string, string>): PackageMeta {
     return {
@@ -84,7 +84,7 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
   }
 
   function metadataPath (name: string): string {
-    return `/${name.replaceAll('/', '%2F')}`
+    return `${registryPath}${name.replaceAll('/', '%2F')}`
   }
 
   function arm (): void {
@@ -111,8 +111,8 @@ test('cyclic transitive peer dependencies resolve deterministically across insta
   }
 
   const first = JSON.stringify(await runOnce())
-  for (let i = 1; i < iterations; i++) {
-    const subsequent = JSON.stringify(await runOnce()) // eslint-disable-line no-await-in-loop
+  for (let iteration = 1; iteration < iterations; iteration++) {
+    const subsequent = JSON.stringify(await runOnce()) // eslint-disable-line no-await-in-loop -- the runs share the project directory and the mock agent
     expect(subsequent).toEqual(first)
   }
 })
@@ -163,7 +163,7 @@ test('aliased install with a transitive mutual-peer cycle should not hang', asyn
     rootDir: lockfileDir as ProjectRootDir,
   }]
 
-  const registryUrl = options.registriesByScope.default.replace(/\/$/, '')
+  const { origin: registryUrl, pathname: registryPath } = new URL(options.registriesByScope.default)
 
   function makeMeta (name: string, deps: Record<string, string>, peerDeps: Record<string, string>): PackageMeta {
     return {
@@ -210,7 +210,7 @@ test('aliased install with a transitive mutual-peer cycle should not hang', asyn
   await setupMockAgent()
   const agent = getMockAgent().get(registryUrl)
   for (const [name, meta] of Object.entries(metaByName)) {
-    agent.intercept({ path: `/${name.replaceAll('/', '%2F')}`, method: 'GET' }).reply(200, meta).persist()
+    agent.intercept({ path: `${registryPath}${name.replaceAll('/', '%2F')}`, method: 'GET' }).reply(200, meta).persist()
   }
 
   options.storeController.clearResolutionCache()
@@ -256,7 +256,7 @@ test('transitivePeerDependencies propagate through regular dep cycles', async ()
     rootDir: lockfileDir as ProjectRootDir,
   }]
 
-  const registryUrl = options.registriesByScope.default.replace(/\/$/, '')
+  const { origin: registryUrl, pathname: registryPath } = new URL(options.registriesByScope.default)
 
   function makeMeta (name: string, deps: Record<string, string>, peerDeps?: Record<string, string>, peerMeta?: Record<string, { optional?: boolean }>): PackageMeta {
     return {
@@ -290,7 +290,7 @@ test('transitivePeerDependencies propagate through regular dep cycles', async ()
   await setupMockAgent()
   const agent = getMockAgent().get(registryUrl)
   for (const [name, meta] of Object.entries(metaByName)) {
-    agent.intercept({ path: `/${name.replaceAll('/', '%2F')}`, method: 'GET' }).reply(200, meta).persist()
+    agent.intercept({ path: `${registryPath}${name.replaceAll('/', '%2F')}`, method: 'GET' }).reply(200, meta).persist()
   }
 
   options.storeController.clearResolutionCache()
@@ -311,7 +311,7 @@ test('transitivePeerDependencies propagate through regular dep cycles', async ()
   await setupMockAgent()
   const agent2 = getMockAgent().get(registryUrl)
   for (const [name, meta] of Object.entries(metaByName)) {
-    agent2.intercept({ path: `/${name.replaceAll('/', '%2F')}`, method: 'GET' }).reply(200, meta).persist()
+    agent2.intercept({ path: `${registryPath}${name.replaceAll('/', '%2F')}`, method: 'GET' }).reply(200, meta).persist()
   }
   options.storeController.clearResolutionCache()
   await mutateModules(installProjects, options)

@@ -17,6 +17,8 @@ export const AUDIT_REGISTRY_OPTS = {
 }
 
 export const MOCK_REGISTRY = REGISTRY_URL
+export const MOCK_REGISTRY_ORIGIN = new URL(MOCK_REGISTRY).origin
+export const MOCK_REGISTRY_AUDIT_PATH = new URL('-/npm/v1/security/advisories/bulk', MOCK_REGISTRY).pathname
 export const MOCK_REGISTRY_OPTS = {
   ...DEFAULT_OPTS,
   registry: MOCK_REGISTRY,

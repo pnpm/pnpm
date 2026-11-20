@@ -443,3 +443,117 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
   const manifest = await readProjectManifestOnly('project-1')
   expect(manifest).toHaveProperty(['dependencies', 'pkg'], 'workspace:project-2@^')
 })
+
+test('recursive update --depth 0 of a filtered selection fails when no selected project has the package, even with a workspace root project', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', version: '1.0.0' },
+    },
+    {
+      location: './project-1',
+      package: { name: 'project-1', version: '1.0.0' },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await expect(update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    depth: 0,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['is-positive'])).rejects.toHaveProperty('code', 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
+})
+
+test('recursive update with negated selectors that leave only ignored dependencies does nothing at depth 0', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+  ])
+  const lockfileDir = process.cwd()
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    depth: 0,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    updateConfig: {
+      ignoreDependencies: ['@pnpm.e2e/foo'],
+    },
+    workspaceDir: process.cwd(),
+  }, ['!@pnpm.e2e/bar'])
+
+  const lockfile = readYamlFileSync<LockfileObject>('./pnpm-lock.yaml')
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/foo@100.0.0'])
+})
+
+test('recursive update without selectors does nothing at depth 0 when every direct dependency is ignored', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+    },
+  ])
+  const lockfileDir = process.cwd()
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    depth: 0,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    updateConfig: {
+      ignoreDependencies: ['@pnpm.e2e/foo'],
+    },
+    workspaceDir: process.cwd(),
+  }, [])
+
+  const lockfile = readYamlFileSync<LockfileObject>('./pnpm-lock.yaml')
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/foo@100.0.0'])
+})

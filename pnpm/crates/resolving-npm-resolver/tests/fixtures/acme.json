@@ -1,0 +1,16 @@
+{
+  "name": "acme",
+  "dist-tags": { "latest": "1.0.0" },
+  "time": { "1.0.0": "2025-01-10T08:30:00.000Z" },
+  "versions": {
+    "1.0.0": {
+      "name": "acme",
+      "version": "1.0.0",
+      "dist": {
+        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        "shasum": "0000000000000000000000000000000000000000",
+        "tarball": "https://registry/acme-1.0.0.tgz"
+      }
+    }
+  }
+}

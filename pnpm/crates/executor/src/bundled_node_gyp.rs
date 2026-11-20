@@ -1,5 +1,8 @@
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 
@@ -20,12 +23,15 @@ const NODE_GYP_WRAPPER: &str = if cfg!(windows) { "node-gyp.cmd" } else { "node-
 /// executable, for prepending to a lifecycle script's `PATH`.
 ///
 /// pnpm ships node-gyp so that packages whose install scripts shell out
-/// to it — directly, or through the `node-gyp rebuild` fallback
-/// synthesized for a package with a `binding.gyp` and no install script —
+/// to it (directly, or through the `node-gyp rebuild` fallback
+/// synthesized for a package with a `binding.gyp` and no install script)
 /// build without the user having to install node-gyp themselves. The
 /// whole dependency tree is resolved from this repo's lockfile at
 /// release time, so it is frozen and reviewed per pnpm release rather
 /// than resolved on the user's machine at install time.
+///
+/// When pnpm is launched through a symlink such as `node_modules/.bin/pnpm`,
+/// the payload is also looked for beside the symlink's target.
 ///
 /// Returns `None` when the payload is absent, which is the normal case
 /// for a `cargo build` in a checkout. Lifecycle scripts then fall back to
@@ -38,10 +44,40 @@ pub fn bundled_node_gyp_bin() -> Option<&'static Path> {
     static RESOLVED: OnceLock<Option<PathBuf>> = OnceLock::new();
     RESOLVED
         .get_or_init(|| {
-            let exe = std::env::current_exe().ok()?;
-            bundled_node_gyp_bin_in(exe.parent()?)
+            let exe = crate::current_executable().ok()?;
+            bundled_node_gyp_bin_beside(&exe)
         })
         .as_deref()
+}
+
+/// The bundled `node-gyp` entry point script, the path written into
+/// `npm_config_node_gyp` when the environment does not carry a value of
+/// its own. This is the default the TypeScript CLI supplies through
+/// `require.resolve('node-gyp/bin/node-gyp')`; when the payload is
+/// absent, as in a `cargo build` in a checkout, the variable stays
+/// unset, which is also what the TypeScript CLI does when that
+/// resolution fails.
+///
+/// The entry is taken from the payload [`bundled_node_gyp_bin`] resolved,
+/// never probed on its own, so the variable and the wrapper on `PATH`
+/// always come from the same shipped copy.
+pub fn bundled_node_gyp_entry() -> Option<&'static Path> {
+    static RESOLVED: OnceLock<Option<PathBuf>> = OnceLock::new();
+    RESOLVED
+        .get_or_init(|| node_gyp_entry_in_payload(bundled_node_gyp_bin()?))
+        .as_deref()
+}
+
+fn bundled_node_gyp_bin_beside(exe: &Path) -> Option<PathBuf> {
+    // `current_exe` is the path pnpm was launched through on some platforms,
+    // macOS among them. The unresolved path is tried first because
+    // canonicalizing a path on a Windows network drive yields a verbatim
+    // `\\?\UNC` path, which not every program that searches `PATH` accepts.
+    bundled_node_gyp_bin_in(exe.parent()?)
+        .or_else(|| {
+            let exe = dunce::canonicalize(exe).ok()?;
+            bundled_node_gyp_bin_in(exe.parent()?)
+        })
 }
 
 /// The path arithmetic behind [`bundled_node_gyp_bin`], split out so it
@@ -49,7 +85,22 @@ pub fn bundled_node_gyp_bin() -> Option<&'static Path> {
 /// test binary happens to live.
 fn bundled_node_gyp_bin_in(exe_dir: &Path) -> Option<PathBuf> {
     let bin_dir = exe_dir.join(DIST_DIR).join(NODE_GYP_BIN_DIR);
-    bin_dir.join(NODE_GYP_WRAPPER).is_file().then_some(bin_dir)
+    bin_dir
+        .join(NODE_GYP_WRAPPER)
+        .is_file()
+        .then_some(bin_dir)
+}
+
+/// The `node-gyp.js` that `bin_dir`'s wrapper runs as its fallback, when
+/// the payload shipped it.
+fn node_gyp_entry_in_payload(bin_dir: &Path) -> Option<PathBuf> {
+    let entry = bin_dir
+        .parent()?
+        .join("node_modules")
+        .join("node-gyp")
+        .join("bin")
+        .join("node-gyp.js");
+    entry.is_file().then_some(entry)
 }
 
 #[cfg(test)]

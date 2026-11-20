@@ -15,14 +15,14 @@ pnpm add @pnpm/bins.linker
 ## Usage
 
 ```ts
-import linkBins, {linkBinsOfPackages} from '@pnpm/bins.linker'
+import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 
 function warn (msg) { console.warn(msg) }
 
 await linkBins('node_modules', 'node_modules/.bin', {warn})
 
 const packages = [{manifest: packageJson, location: pathToPackage}]
-await linkBinsOfPackages(packages, 'node_modules/.bin', {warn})
+await linkBinsOfPackages(packages, 'node_modules/.bin')
 ```
 
 ## License

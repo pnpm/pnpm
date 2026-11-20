@@ -7,21 +7,26 @@
 //! `(registry, name, version)` triple (for the final published-at
 //! answer). The outer `tokio::sync::Mutex` guards the slot map; each
 //! slot is an [`Arc<tokio::sync::OnceCell<T>>`] so two verifier tasks
-//! that race for the same key share one in-flight fetch — the second
+//! that race for the same key share one in-flight fetch, the second
 //! caller awaits the same init future instead of starting a duplicate.
 //! This is a `Map<string, Promise<T>>` singleflight pattern;
 //! the outer mutex is dropped before the await so unrelated keys stay
 //! unblocked.
 //!
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
-use pnpm_registry::Package;
 use ssri::Integrity;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::{
+    Mutex,
+    OnceCell,
+};
 
 /// Per-version time map keyed by version string. The verifier only
 /// reads the publish timestamp for a specific version, so storing
-/// `String` per entry is enough — the rest of the package's `time`
+/// `String` per entry is enough, the rest of the package's `time`
 /// payload (`created`, `modified`, the reserved `unpublished` key)
 /// is irrelevant to the policy.
 pub(crate) type PublishedAtTimeMap = HashMap<String, String>;
@@ -32,7 +37,7 @@ pub(crate) type PublishedAtTimeMap = HashMap<String, String>;
 /// the abbreviated-modified shortcut checks; the values feed the
 /// tarball-URL binding. Projected off the abbreviated packument so the
 /// verifier can keep the rest of the document GC-able after the
-/// lookup — the full document runs to hundreds of KB per package and
+/// lookup, the full document runs to hundreds of KB per package and
 /// OOMs CI runners on multi-thousand entry installs; only the
 /// short tarball-URL strings are retained.
 #[derive(Debug, Default, Clone)]
@@ -48,18 +53,31 @@ pub(crate) struct AbbreviatedMetaProjection {
     ///
     /// [`ObservedDistStats`]: crate::ObservedDistStats
     pub version_dist_stats: Option<HashMap<String, crate::DistStats>>,
-    /// version → publish timestamp from the document's `time` map, for
-    /// registries that serve it in abbreviated metadata
-    /// (`registrySupportsTimeField`). Populated only when the verifier
-    /// asked for it, so registries without the field pay no memory for
-    /// an always-empty map.
+    /// version → publish timestamp from the document's `time` map.
+    /// `None` for a pnpr document whose clamped dates cannot answer the
+    /// release-age window.
     pub version_time: Option<HashMap<String, String>>,
+}
+
+/// The fields of a full packument the trust check reads, one evidence
+/// rank per version instead of a manifest, so a projection kept for every
+/// package of a large lockfile stays small. Read through
+/// [`crate::TrustHistory`].
+#[derive(Debug)]
+pub(crate) struct TrustHistoryProjection {
+    pub name: String,
+    /// version → publish timestamp; `None` when the packument has no `time`.
+    pub time: Option<PublishedAtTimeMap>,
+    /// Every version whose manifest decodes, sorted by version, with its
+    /// trust evidence.
+    pub evidence: Vec<(String, Option<crate::TrustEvidence>)>,
 }
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct RegistryArtifactHistory {
     pub current: RegistryArtifact,
     pub revisions: Vec<RegistryArtifact>,
+    pub install_v2: Option<pnpm_registry::InstallV2Entry>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -84,17 +102,18 @@ pub(crate) type SingleflightMap<Value> = Mutex<HashMap<String, Arc<OnceCell<Valu
 pub(crate) struct PublishedAtLookupContext {
     pub published_at: SingleflightMap<Result<Option<String>, String>>,
     pub full_meta: SingleflightMap<Result<Option<Arc<PublishedAtTimeMap>>, String>>,
-    pub full_meta_for_trust: SingleflightMap<Result<Arc<Package>, String>>,
+    pub full_meta_for_trust: SingleflightMap<Result<Arc<TrustHistoryProjection>, String>>,
     /// `Ok(projection)` on a successful fetch, `Err(reason)` on a fetch
     /// failure (auth/network/5xx). The error is carried as a value rather than
     /// discarded so the tarball-URL check can tell a transport failure apart
     /// from a version genuinely absent from the metadata; the age shortcut
     /// ignores it and falls back to per-version lookups.
     pub abbreviated_meta: SingleflightMap<Result<AbbreviatedMetaProjection, String>>,
+    pub release_records: SingleflightMap<Result<Option<Integrity>, String>>,
     pub local_meta: SingleflightMap<Option<Arc<PublishedAtTimeMap>>>,
     /// Package-level `Last-Modified` header from a packument `HEAD`
     /// probe, keyed per `(registry, name)`. `None` for a probe the
-    /// registry answered without the header (or not at all) — the
+    /// registry answered without the header (or not at all), the
     /// caller falls through to the metadata-backed layers.
     pub head_modified: SingleflightMap<Option<String>>,
 }
@@ -102,6 +121,24 @@ pub(crate) struct PublishedAtLookupContext {
 impl PublishedAtLookupContext {
     pub(crate) fn new() -> Self {
         Self::default()
+    }
+}
+
+/// The lookups [`crate::NpmResolutionVerifier`] deduplicates, shared by the
+/// verifiers of several installs of one command. Only what the registry
+/// answered is shared, and each verifier still applies its own policy to it,
+/// so the verifiers sharing one must reach the registries with the same
+/// credentials.
+#[derive(Debug, Default, Clone)]
+pub struct VerifierLookups(Arc<PublishedAtLookupContext>);
+
+impl VerifierLookups {
+    /// The context a verifier looks up through: the one `lookups` shares, or
+    /// one of its own.
+    pub(crate) fn context_or_new(lookups: Option<&Self>) -> Arc<PublishedAtLookupContext> {
+        lookups
+            .map(|lookups| Arc::clone(&lookups.0))
+            .unwrap_or_else(|| Arc::new(PublishedAtLookupContext::new()))
     }
 }
 

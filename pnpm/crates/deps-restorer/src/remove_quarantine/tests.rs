@@ -2,8 +2,17 @@
 // call) are scoped to it; the whole module compiles to nothing elsewhere.
 #![cfg(target_os = "macos")]
 
-use super::{is_native_binary, remove_quarantine, remove_quarantine_from_native_binaries};
-use std::{collections::HashMap, fs, path::Path, process::Command};
+use super::{
+    is_native_binary,
+    remove_quarantine,
+    remove_quarantine_from_native_binaries,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const QUARANTINE_ATTR: &str = "com.apple.quarantine";
 
@@ -19,8 +28,11 @@ fn set_quarantine(path: &Path) {
 }
 
 fn list_xattrs(path: &Path) -> String {
-    let output =
-        Command::new("/usr/bin/xattr").arg("-l").arg(path).output().expect("spawn xattr -l");
+    let output = Command::new("/usr/bin/xattr")
+        .arg("-l")
+        .arg(path)
+        .output()
+        .expect("spawn xattr -l");
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 
@@ -112,8 +124,8 @@ fn sweep_targets_only_native_binaries_under_dir() {
     set_quarantine(&script);
 
     let cas_paths = HashMap::from([
-        ("lib/addon.node".to_string(), native.clone()),
-        ("index.js".to_string(), script.clone()),
+        ("lib/addon.node".to_string(), native.clone().into()),
+        ("index.js".to_string(), script.clone().into()),
     ]);
     remove_quarantine_from_native_binaries(dir.path(), &cas_paths);
 

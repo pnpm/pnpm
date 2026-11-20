@@ -1,6 +1,9 @@
-use super::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
-use pnpm_config::SaveWorkspaceProtocol;
+use super::{
+    DeclaredSpecifiers,
+    calc_specifier_for_workspace_dep,
+};
 use pnpm_registry::RangeSpecStyle;
+use pnpm_resolving_resolver_base::SaveWorkspaceProtocol;
 use pretty_assertions::assert_eq;
 
 /// `calc_specifier_for_workspace_dep` for a non-aliased dependency on
@@ -13,6 +16,7 @@ fn fresh(bare: &str, protocol: SaveWorkspaceProtocol) -> String {
         Some("1.2.3"),
         protocol,
         RangeSpecStyle::Major,
+        false,
     )
 }
 
@@ -59,6 +63,7 @@ fn rolling_falls_back_to_caret() {
             Some("1.2.3"),
             Rolling,
             RangeSpecStyle::Major,
+            false,
         ),
         "workspace:^",
     );
@@ -77,6 +82,7 @@ fn rolling_prefers_the_previous_specifier() {
             Some("1.2.3"),
             SaveWorkspaceProtocol::Rolling,
             RangeSpecStyle::Major,
+            false,
         ),
         "workspace:~",
     );
@@ -88,22 +94,20 @@ fn pinned_writes_the_resolved_version_with_the_default_operator() {
     assert_eq!(fresh("^1.0.0", On), "workspace:^1.2.3");
     assert_eq!(
         calc_specifier_for_workspace_dep(
-            DeclaredSpecifiers { prev: None, bare: Some("^1.0.0") },
+            DeclaredSpecifiers { prev: None, bare: None },
             Some("my-lib"),
             "my-lib",
             Some("1.2.3"),
             On,
             RangeSpecStyle::Patch,
+            false,
         ),
         "workspace:1.2.3",
     );
 }
 
-/// Unlike the rolling form, the pinned form reads the operator off the
-/// *previous* specifier only — matching pnpm, which does not consult
-/// the freshly typed one here.
 #[test]
-fn pinned_takes_its_operator_from_the_previous_specifier() {
+fn pinned_takes_its_operator_from_the_previous_specifier_on_update() {
     assert_eq!(
         calc_specifier_for_workspace_dep(
             DeclaredSpecifiers { prev: Some("workspace:~1.0.0"), bare: Some("^1.0.0") },
@@ -112,13 +116,64 @@ fn pinned_takes_its_operator_from_the_previous_specifier() {
             Some("1.2.3"),
             SaveWorkspaceProtocol::On,
             RangeSpecStyle::Major,
+            true,
         ),
         "workspace:~1.2.3",
     );
 }
 
-/// A `^`/`~` range over a prerelease would not match the prerelease it
-/// was resolved from, so it is written exactly.
+#[test]
+fn pinned_exact_add_honors_requested_style_while_update_preserves_operator() {
+    assert_eq!(
+        calc_specifier_for_workspace_dep(
+            DeclaredSpecifiers { prev: Some("workspace:^0.5.0"), bare: Some("1.0.0") },
+            Some("my-lib"),
+            "my-lib",
+            Some("1.0.0"),
+            SaveWorkspaceProtocol::On,
+            RangeSpecStyle::Major,
+            false,
+        ),
+        "workspace:1.0.0",
+    );
+    assert_eq!(
+        calc_specifier_for_workspace_dep(
+            DeclaredSpecifiers { prev: Some("workspace:^0.5.0"), bare: Some("1.0.0") },
+            Some("my-lib"),
+            "my-lib",
+            Some("1.0.0"),
+            SaveWorkspaceProtocol::On,
+            RangeSpecStyle::Major,
+            true,
+        ),
+        "workspace:^1.0.0",
+    );
+    assert_eq!(
+        calc_specifier_for_workspace_dep(
+            DeclaredSpecifiers { prev: Some("workspace:^0.5.0"), bare: Some("=1.0.0") },
+            Some("my-lib"),
+            "my-lib",
+            Some("1.0.0"),
+            SaveWorkspaceProtocol::On,
+            RangeSpecStyle::Major,
+            false,
+        ),
+        "workspace:=1.0.0",
+    );
+    assert_eq!(
+        calc_specifier_for_workspace_dep(
+            DeclaredSpecifiers { prev: Some("workspace:^0.5.0"), bare: Some("=1.0.0") },
+            Some("my-lib"),
+            "my-lib",
+            Some("1.0.0"),
+            SaveWorkspaceProtocol::On,
+            RangeSpecStyle::Major,
+            true,
+        ),
+        "workspace:^1.0.0",
+    );
+}
+
 #[test]
 fn pinned_writes_a_prerelease_exactly() {
     assert_eq!(
@@ -129,12 +184,51 @@ fn pinned_writes_a_prerelease_exactly() {
             Some("2.0.0-beta.1"),
             SaveWorkspaceProtocol::On,
             RangeSpecStyle::Major,
+            false,
         ),
         "workspace:2.0.0-beta.1",
     );
 }
 
-/// `Off` still renders a `workspace:` specifier — declining to use one
+#[test]
+fn pinned_writes_a_non_semver_version_exactly() {
+    for version in ["1", "1.0", "1.x"] {
+        assert_eq!(
+            calc_specifier_for_workspace_dep(
+                DeclaredSpecifiers { prev: None, bare: Some("workspace:*") },
+                Some("my-lib"),
+                "my-lib",
+                Some(version),
+                SaveWorkspaceProtocol::On,
+                RangeSpecStyle::Major,
+                false,
+            ),
+            format!("workspace:{version}"),
+        );
+    }
+}
+
+/// Written exactly, these would mean a wildcard, a tag, an alias, or a
+/// different source inside `workspace:`.
+#[test]
+fn pinned_keeps_the_operator_for_other_non_semver_versions() {
+    for version in ["*", "dev", "other@1", "github:owner/repo", "01"] {
+        assert_eq!(
+            calc_specifier_for_workspace_dep(
+                DeclaredSpecifiers { prev: None, bare: Some("workspace:*") },
+                Some("my-lib"),
+                "my-lib",
+                Some(version),
+                SaveWorkspaceProtocol::On,
+                RangeSpecStyle::Major,
+                false,
+            ),
+            format!("workspace:^{version}"),
+        );
+    }
+}
+
+/// `Off` still renders a `workspace:` specifier, declining to use one
 /// at all is the caller's decision, not this function's.
 #[test]
 fn off_renders_the_pinned_shape() {
@@ -143,9 +237,6 @@ fn off_renders_the_pinned_shape() {
     assert_eq!(fresh("workspace:^1.0.0", Off), "workspace:^1.2.3");
 }
 
-/// An aliased dependency names its target inside the protocol, so the
-/// entry keeps pointing at the workspace package rather than at
-/// whatever shares the install name.
 #[test]
 fn an_alias_names_its_target_inside_the_protocol() {
     let specifier = |protocol| {
@@ -156,14 +247,13 @@ fn an_alias_names_its_target_inside_the_protocol() {
             Some("1.2.3"),
             protocol,
             RangeSpecStyle::Major,
+            false,
         )
     };
     assert_eq!(specifier(SaveWorkspaceProtocol::Rolling), "workspace:my-lib@^");
     assert_eq!(specifier(SaveWorkspaceProtocol::On), "workspace:my-lib@^1.2.3");
 }
 
-/// Without a resolved version there is nothing to pin to, so the pinned
-/// form falls back to the rolling shape rather than inventing one.
 #[test]
 fn a_missing_version_falls_back_to_the_rolling_shape() {
     let specifier = |protocol| {
@@ -174,6 +264,7 @@ fn a_missing_version_falls_back_to_the_rolling_shape() {
             None,
             protocol,
             RangeSpecStyle::Major,
+            false,
         )
     };
     assert_eq!(specifier(SaveWorkspaceProtocol::Rolling), "workspace:^");

@@ -20,12 +20,17 @@ export async function resolveFromTarball (
   let resolvedUrl: string
 
   // If there are redirects and the response is immutable, we want to get the final URL address
-  const response = await fetchFromRegistry(normalizedBareSpecifier, { method: 'HEAD' })
+  let response = await fetchFromRegistry(normalizedBareSpecifier, { method: 'HEAD' })
+  if (response.status === 405) {
+    response = await fetchFromRegistry(normalizedBareSpecifier, { method: 'GET' })
+  }
   if (response?.headers?.get('cache-control')?.includes('immutable')) {
     resolvedUrl = response.url
   } else {
     resolvedUrl = normalizedBareSpecifier
   }
+  // The resolution is already decided, so a body that failed after its headers must not fail it.
+  await response.body?.cancel().catch(() => {})
 
   return {
     id: normalizedBareSpecifier as PkgResolutionId,

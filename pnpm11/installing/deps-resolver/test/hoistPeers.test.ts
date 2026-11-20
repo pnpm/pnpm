@@ -1,6 +1,42 @@
 import { expect, test } from '@jest/globals'
 
-import { getHoistableOptionalPeers, hoistPeers } from '../lib/hoistPeers.js'
+import { getHoistableOptionalPeers, getLockfileOnlyVersions, getOptionalPeerSpecifier, hoistPeers } from '../lib/hoistPeers.js'
+
+test.each([
+  ['foo', 'workspace:*'],
+  ['alias', 'workspace:foo@*'],
+])('getOptionalPeerSpecifier preserves the workspace provider %s', (alias, normalizedBareSpecifier) => {
+  expect(getOptionalPeerSpecifier({
+    name: 'foo',
+    version: '1.0.0',
+    workspaceRootDeps: [{ alias, pkgName: 'foo', normalizedBareSpecifier }],
+    rootDepVersions: new Map([[alias, '1.0.0']]),
+  })).toBe(normalizedBareSpecifier)
+})
+
+test.each([
+  ['workspace:*', '1.0.0'],
+  ['workspace:*', undefined],
+  ['^2.0.0', '2.0.0'],
+  ['file:../foo', '2.0.0'],
+  [undefined, '2.0.0'],
+])('getOptionalPeerSpecifier retains the selected version for root %s at %s', (normalizedBareSpecifier, rootVersion) => {
+  expect(getOptionalPeerSpecifier({
+    name: 'foo',
+    version: '2.0.0',
+    workspaceRootDeps: [{ alias: 'foo', pkgName: 'foo', normalizedBareSpecifier }],
+    rootDepVersions: new Map(rootVersion == null ? [] : [['foo', rootVersion]]),
+  })).toBe('2.0.0')
+})
+
+test('getOptionalPeerSpecifier retains the selected version without a root provider', () => {
+  expect(getOptionalPeerSpecifier({
+    name: 'foo',
+    version: '2.0.0',
+    workspaceRootDeps: [],
+    rootDepVersions: new Map(),
+  })).toBe('2.0.0')
+})
 
 test('hoistPeers picks an already available prerelease version', () => {
   expect(hoistPeers({
@@ -213,7 +249,7 @@ test('hoistPeers returns valid specifier when given only range preferred version
   })
 })
 
-test('hoistPeers handles workspace: protocol range without throwing', () => {
+test('hoistPeers preserves workspace: protocol ranges', () => {
   expect(hoistPeers({
     autoInstallPeers: true,
     allPreferredVersions: {
@@ -223,11 +259,11 @@ test('hoistPeers handles workspace: protocol range without throwing', () => {
     },
     workspaceRootDeps: [],
   }, [['foo', { range: 'workspace:*' }]])).toStrictEqual({
-    foo: '1.0.0',
+    foo: 'workspace:*',
   })
 })
 
-test('hoistPeers dedupes a named-registry peer onto a preferred version that satisfies its extracted range', () => {
+test('hoistPeers preserves named-registry peer specifiers when preferred versions exist', () => {
   expect(hoistPeers({
     autoInstallPeers: true,
     allPreferredVersions: {
@@ -238,7 +274,7 @@ test('hoistPeers dedupes a named-registry peer onto a preferred version that sat
     },
     workspaceRootDeps: [],
   }, [['foo', { range: 'work:^1.0.0' }]])).toStrictEqual({
-    foo: '1.0.0',
+    foo: 'work:^1.0.0',
   })
 })
 
@@ -256,9 +292,7 @@ test('hoistPeers falls back to the raw scheme specifier when no preferred versio
   })
 })
 
-test('hoistPeers respects a merged || union of scheme specifiers instead of picking the highest version', () => {
-  // `4.0.0` is the highest but satisfies neither `^2.0.0` nor `^3.0.0`, so a
-  // blind highest-version pick would be wrong; `3.0.0` is the highest match.
+test('hoistPeers preserves registry prefixes in merged peer specifiers', () => {
   expect(hoistPeers({
     autoInstallPeers: true,
     allPreferredVersions: {
@@ -270,7 +304,7 @@ test('hoistPeers respects a merged || union of scheme specifiers instead of pick
     },
     workspaceRootDeps: [],
   }, [['foo', { range: 'work:^2.0.0 || work:^3.0.0' }]])).toStrictEqual({
-    foo: '3.0.0',
+    foo: 'work:^2.0.0 || work:^3.0.0',
   })
 })
 
@@ -286,6 +320,83 @@ test('hoistPeers handles version selector with weight', () => {
     workspaceRootDeps: [],
   }, [['foo', { range: '1' }]])).toStrictEqual({
     foo: '1.0.0',
+  })
+})
+
+// https://github.com/pnpm/tasks/issues/61
+test('hoistPeers prefers a version this install resolved over a higher one that only the lockfile pins', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '1.0.1': { selectorType: 'version', weight: 1000000 },
+      },
+    },
+    lockfileOnlyVersions: new Map([['foo', new Set(['1.0.1'])]]),
+    workspaceRootDeps: [],
+  }, [['foo', { range: '1' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+test('hoistPeers keeps demoting a lockfile-only version that another importer resolves while peers are hoisted', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '1.0.1': 'version',
+      },
+    },
+    lockfileOnlyVersions: new Map([['foo', new Set(['1.0.1'])]]),
+    workspaceRootDeps: [],
+  }, [['foo', { range: '1' }]])).toStrictEqual({
+    foo: '1.0.0',
+  })
+})
+
+test('hoistPeers hoists a peer named constructor when no lockfile pins it', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: { constructor: { '1.0.0': 'version' as const } },
+    lockfileOnlyVersions: getLockfileOnlyVersions({}),
+    workspaceRootDeps: [],
+  }, [['constructor', { range: '1' }]])).toStrictEqual({
+    constructor: '1.0.0',
+  })
+})
+
+test('hoistPeers takes the highest version this install resolved', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '1.0.1': 'version',
+        '1.0.2': { selectorType: 'version', weight: 1000000 },
+      },
+    },
+    lockfileOnlyVersions: new Map([['foo', new Set(['1.0.2'])]]),
+    workspaceRootDeps: [],
+  }, [['foo', { range: '1' }]])).toStrictEqual({
+    foo: '1.0.1',
+  })
+})
+
+test('hoistPeers falls back to a version that only the lockfile pins when no version this install resolved satisfies the range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: {
+      foo: {
+        '1.0.0': 'version',
+        '2.0.0': { selectorType: 'version', weight: 1000000 },
+      },
+    },
+    lockfileOnlyVersions: new Map([['foo', new Set(['2.0.0'])]]),
+    workspaceRootDeps: [],
+  }, [['foo', { range: '2' }]])).toStrictEqual({
+    foo: '2.0.0',
   })
 })
 
@@ -315,6 +426,19 @@ test('getHoistableOptionalPeers picks the highest version that satisfies all the
   })).toStrictEqual({
     foo: '2.1.1',
   })
+})
+
+test('getHoistableOptionalPeers skips the candidates the importer rejects', () => {
+  const hoist = (acceptsCandidate: (name: string, version: string) => boolean) => getHoistableOptionalPeers({
+    foo: ['*'],
+  }, {
+    foo: {
+      '1.0.0': 'version',
+      '2.0.0': 'version',
+    },
+  }, [], acceptsCandidate)
+  expect(hoist((_, version) => version !== '2.0.0')).toStrictEqual({ foo: '1.0.0' })
+  expect(hoist(() => false)).toStrictEqual({})
 })
 
 test('getHoistableOptionalPeers handles version selector with weight', () => {
@@ -486,4 +610,67 @@ test('getHoistableOptionalPeers keeps candidates unbounded when the workspace ro
   ])).toStrictEqual({
     postcss: '9.0.0',
   })
+})
+
+function pickOptionalPeer (
+  candidates: string[],
+  { locked, lockfileOnly }: { locked?: string[], lockfileOnly?: string[] }
+): string | undefined {
+  return getHoistableOptionalPeers(
+    { peer: ['*'] },
+    { peer: Object.fromEntries(candidates.map((version) => [version, 'version' as const])) },
+    [],
+    () => true,
+    {
+      lockedVersions: locked == null ? undefined : new Map([['peer', new Set(locked)]]),
+      lockfileOnlyVersions: lockfileOnly == null ? undefined : new Map([['peer', new Set(lockfileOnly)]]),
+    }
+  ).peer
+}
+
+test('getHoistableOptionalPeers keeps the version the importer locked', () => {
+  expect(pickOptionalPeer(['1.0.0', '2.0.0'], { locked: ['1.0.0'] })).toBe('1.0.0')
+})
+
+// https://github.com/pnpm/pnpm/issues/14895
+test('getHoistableOptionalPeers ignores a locked version no longer in the graph', () => {
+  expect(pickOptionalPeer(['1.0.0'], { locked: ['2.0.0'] })).toBe('1.0.0')
+})
+
+// https://github.com/pnpm/pnpm/issues/16443
+test('getHoistableOptionalPeers prefers a version this run resolved over a stale locked one', () => {
+  expect(pickOptionalPeer(['1.0.0', '1.0.1'], { locked: ['1.0.1'], lockfileOnly: ['1.0.1'] })).toBe('1.0.0')
+})
+
+test('getHoistableOptionalPeers prefers a version this run resolved over one only the lockfile holds, with nothing locked', () => {
+  expect(pickOptionalPeer(['1.0.0', '1.0.1'], { lockfileOnly: ['1.0.1'] })).toBe('1.0.0')
+})
+
+test.each([
+  [[], '*', '1.0.0', false],
+  [['2.0.0'], '*', '2.0.0', false],
+  [['1.0.0', '2.0.0'], '*', '2.0.0', false],
+  [[], '^2.0.0', '2.0.0', false],
+  [[], '*', '2.0.0', true],
+] as Array<[string[], string, string, boolean]>)('required peer pins are fallbacks for current providers %j %s', (resolved, range, expected, updateTarget) => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    isUpdateTarget: () => updateTarget,
+    allPreferredVersions: { peer: { '1.0.0': 'version', '2.0.0': 'version' } },
+    lockfileOnlyVersions: new Map([['peer', new Set(['1.0.0', '2.0.0'].filter(version => !resolved.includes(version)))]]),
+    lockedVersions: new Map([['peer', new Set(['1.0.0'])]]),
+    workspaceRootDeps: [],
+  }, [['peer', { range }]])).toEqual({ peer: expected })
+})
+
+test('required peers do not read importer pins when a current provider satisfies the range', () => {
+  expect(hoistPeers({
+    autoInstallPeers: true,
+    allPreferredVersions: { peer: { '1.0.0': 'version', latest: 'tag' } },
+    lockfileOnlyVersions: new Map(),
+    get lockedVersions (): never {
+      throw new Error('unexpected importer pin lookup')
+    },
+    workspaceRootDeps: [],
+  }, [['peer', { range: '*' }]])).toEqual({ peer: '1.0.0 || latest' })
 })

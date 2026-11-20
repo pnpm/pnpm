@@ -1,14 +1,17 @@
 //! Parses a `node@runtime:` bare specifier's body into a release
 //! channel plus a version selector.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// One of nodejs.org's published release channels.
 ///
 /// The value is kept as a `String` (rather than a closed enum)
 /// because the parser passes the channel through to the mirror URL
-/// builder unchanged — the set is closed today but the validation
+/// builder unchanged, the set is closed today but the validation
 /// happens at parse time, not after.
 pub const RELEASE_CHANNELS: &[&str] = &["nightly", "rc", "test", "v8-canary", "release"];
 
@@ -36,6 +39,29 @@ pub enum ParseNodeSpecifierError {
     },
 }
 
+/// Strip a leading `'v'` or `'V'` before an ASCII digit, leaving release
+/// channel names such as `"v8-canary"` untouched.
+#[must_use]
+pub fn strip_leading_v(value: &str) -> &str {
+    if value
+        .get(..9)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("v8-canary"))
+    {
+        return value;
+    }
+    match value.strip_prefix(['v', 'V']) {
+        Some(rest)
+            if rest
+                .bytes()
+                .next()
+                .is_some_and(|byte| byte.is_ascii_digit()) =>
+        {
+            rest
+        }
+        _ => value,
+    }
+}
+
 /// Split a `runtime:` bare specifier's body into its release-channel
 /// and version-selector halves.
 pub fn parse_node_specifier(specifier: &str) -> Result<NodeSpecifier, ParseNodeSpecifierError> {
@@ -47,34 +73,36 @@ pub fn parse_node_specifier(specifier: &str) -> Result<NodeSpecifier, ParseNodeS
         }
         return Ok(NodeSpecifier {
             release_channel: channel.to_string(),
-            version_specifier: rest.to_string(),
+            version_specifier: strip_leading_v(rest).to_string(),
         });
     }
 
-    if let Some(channel) = prerelease_channel(specifier) {
+    let normalized = strip_leading_v(specifier);
+
+    if let Some(channel) = prerelease_channel(normalized) {
         return Ok(NodeSpecifier {
             release_channel: channel.to_string(),
-            version_specifier: specifier.to_string(),
+            version_specifier: normalized.to_string(),
         });
     }
 
-    if is_stable_version(specifier) {
+    if is_stable_version(normalized) {
         return Ok(NodeSpecifier {
             release_channel: "release".to_string(),
-            version_specifier: specifier.to_string(),
+            version_specifier: normalized.to_string(),
         });
     }
 
-    if RELEASE_CHANNELS.contains(&specifier) {
+    if RELEASE_CHANNELS.contains(&normalized) {
         return Ok(NodeSpecifier {
-            release_channel: specifier.to_string(),
+            release_channel: normalized.to_string(),
             version_specifier: "latest".to_string(),
         });
     }
 
     Ok(NodeSpecifier {
         release_channel: "release".to_string(),
-        version_specifier: specifier.to_string(),
+        version_specifier: normalized.to_string(),
     })
 }
 
@@ -96,7 +124,10 @@ fn prerelease_channel(specifier: &str) -> Option<&'static str> {
         // identifiers like `22.0.0-nightly20250315abcdef`. Allow any
         // trailing characters after the channel name.
         if let Some(rest) = suffix.strip_prefix(candidate)
-            && rest.chars().next().is_none_or(|next| !next.is_ascii_alphabetic() || next == '.')
+            && rest
+                .chars()
+                .next()
+                .is_none_or(|next| !next.is_ascii_alphabetic() || next == '.')
         {
             return Some(candidate);
         }

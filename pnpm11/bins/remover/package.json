@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/bins.remover",
-  "version": "1100.0.22",
+  "version": "1100.0.33",
   "description": "Remove bins from .bin",
   "keywords": [
     "pnpm",
@@ -24,15 +24,16 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/bins.resolver": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",

@@ -127,3 +127,81 @@ test('binary at root of package (no subdirectory)', async () => {
     path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules'),
   ])
 })
+
+test('returns custom modules-dir and package node_modules when modulesDirName is customized', async () => {
+  const tmp = await tmpdir()
+  const binPath = path.join(tmp, 'vendor', 'pkg', 'bin', 'cli.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
+
+  const result = await getBinNodePaths(binPath, 'vendor')
+
+  expect(result).toEqual([
+    path.join(tmp, 'vendor', 'pkg', 'node_modules'),
+    path.join(tmp, 'vendor'),
+  ])
+})
+
+test('does not stop at package-internal directory matching modulesDirName in hoisted layout', async () => {
+  const tmp = await tmpdir()
+  const binPath = path.join(tmp, 'vendor', 'pkg', 'vendor', 'tool.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
+
+  const result = await getBinNodePaths(binPath, 'vendor')
+
+  expect(result).toEqual([
+    path.join(tmp, 'vendor', 'pkg', 'node_modules'),
+    path.join(tmp, 'vendor'),
+  ])
+})
+
+test('does not stop at package-internal directory matching modulesDirName in virtual store layout', async () => {
+  const tmp = await tmpdir()
+  const binPath = path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules', 'pkg', 'vendor', 'tool.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
+
+  const result = await getBinNodePaths(binPath, 'vendor')
+
+  expect(result).toEqual([
+    path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules', 'pkg', 'node_modules'),
+    path.join(tmp, '.pnpm', 'pkg@1.0.0', 'node_modules'),
+  ])
+})
+
+test('handles scoped packages with custom modulesDirName in hoisted layout', async () => {
+  const tmp = await tmpdir()
+  const binPath = path.join(tmp, 'vendor', '@scope', 'pkg', 'bin', 'cli.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
+
+  const result = await getBinNodePaths(binPath, 'vendor')
+
+  expect(result).toEqual([
+    path.join(tmp, 'vendor', '@scope', 'pkg', 'node_modules'),
+    path.join(tmp, 'vendor'),
+  ])
+})
+
+test('selects project modules-dir when project is nested below an ancestor named vendor', async () => {
+  const tmp = await tmpdir()
+  const projectModulesDir = path.join(tmp, 'vendor', 'project', 'vendor')
+  const binPath = path.join(projectModulesDir, 'pkg', 'bin', 'cli.js')
+  await fsPromises.mkdir(path.dirname(binPath), { recursive: true })
+  await fsPromises.writeFile(binPath, '')
+
+  const resultWithAbsolute = await getBinNodePaths(binPath, projectModulesDir)
+  expect(resultWithAbsolute).toEqual([
+    path.join(projectModulesDir, 'pkg', 'node_modules'),
+    projectModulesDir,
+  ])
+
+  const resultWithName = await getBinNodePaths(binPath, 'vendor')
+  expect(resultWithName).toEqual([
+    path.join(projectModulesDir, 'pkg', 'node_modules'),
+    projectModulesDir,
+  ])
+})
+
+

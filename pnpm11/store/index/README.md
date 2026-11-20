@@ -24,6 +24,23 @@ these issues:
 - **Batch writes.** Multiple entries can be inserted in a single transaction,
   reducing disk flushes.
 
+## Concurrent access
+
+`StoreIndex` and `ReadOnlyStoreIndex` coordinate access through SQLite WAL locking.
+Use `ReadOnlyStoreIndex` to read a store while other connections write to it.
+It observes committed updates and may create SQLite sidecar files in the store
+directory. All processes must use the same local filesystem on the same host;
+sharing the live WAL database across hosts over a network filesystem is unsupported.
+
+Use `ImmutableStoreIndex` only for a finalized store that no process will change,
+such as a store shipped in a read-only image. It creates no sidecar files and is
+used by `frozenStore`. Callers that used `ReadOnlyStoreIndex` for finalized
+stores on read-only filesystems must switch to `ImmutableStoreIndex`.
+
+## Incomplete `node:sqlite`
+
+When `DatabaseSync.exec` is missing, the store index runs its SQL through prepared statements. When `DatabaseSync.prepare` is missing too, entries are stored in `index.fallback`. A later pnpm with a complete `node:sqlite` reads `index.db` only. `frozenStore` still requires a connection that can open `index.db`. The file index does not coordinate concurrent writers.
+
 ## License
 
 MIT

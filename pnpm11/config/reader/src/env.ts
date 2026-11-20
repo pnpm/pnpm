@@ -11,6 +11,7 @@ export type ValueConstructor =
   | ArrayConstructor
   | BooleanConstructor
   | NumberConstructor
+  | ObjectConstructor
   | StringConstructor
 
 export type ModuleSchema =
@@ -109,29 +110,38 @@ function parseNullLiteral (envVar: string): null | undefined {
 }
 
 function parseValueByConstructor (schema: ValueConstructor, envVar: string): unknown {
-  if (schema === Array) {
-    const value = tryParseObjectOrArray(envVar)
-    return Array.isArray(value) ? value : undefined
-  }
+  return VALUE_PARSERS_BY_CONSTRUCTOR.get(schema)?.(envVar)
+}
 
-  if (schema === Boolean) {
-    switch (envVar) {
-      case 'true': return true
-      case 'false': return false
-      default: return undefined
-    }
-  }
+const VALUE_PARSERS_BY_CONSTRUCTOR = new Map<ValueConstructor, (envVar: string) => unknown>([
+  [Array, parseArray],
+  [Boolean, parseBoolean],
+  [Number, parseNumber],
+  [Object, parseObject],
+  [String, (envVar) => envVar],
+])
 
-  if (schema === Number) {
-    const value = Number(envVar)
-    return isNaN(value) ? undefined : value
-  }
+function parseArray (envVar: string): unknown[] | undefined {
+  const value = tryParseObjectOrArray(envVar)
+  return Array.isArray(value) ? value : undefined
+}
 
-  if (schema === String) {
-    return envVar
+function parseBoolean (envVar: string): boolean | undefined {
+  switch (envVar) {
+    case 'true': return true
+    case 'false': return false
+    default: return undefined
   }
+}
 
-  return undefined
+function parseNumber (envVar: string): number | undefined {
+  const value = Number(envVar)
+  return isNaN(value) ? undefined : value
+}
+
+function parseObject (envVar: string): Record<string, string> | undefined {
+  const value = tryParseObjectOrArray(envVar)
+  return isStringRecord(value) ? value : undefined
 }
 
 function parseValueByModule (schema: ModuleSchema, envVar: string, env: { HOME?: string }): unknown {
@@ -144,7 +154,11 @@ function parseValueByModule (schema: ModuleSchema, envVar: string, env: { HOME?:
   }
 
   if (schema === url) {
-    return new url.URL(envVar).toString()
+    try {
+      return new url.URL(envVar).toString()
+    } catch {
+      return undefined
+    }
   }
 
   return undefined
@@ -173,6 +187,12 @@ function tryParseObjectOrArray (envVar: string): object | unknown[] | undefined 
     : result
 }
 
+function isStringRecord (value: object | unknown[] | undefined): value is Record<string, string> {
+  return value != null &&
+    !Array.isArray(value) &&
+    Object.values(value).every(item => typeof item === 'string')
+}
+
 /**
  * Return the lowercase suffix if {@link envKey} starts with {@link PREFIX} or
  * {@link PREFIX_UPPER} and the suffix is fully snake_case (in matching case).
@@ -194,10 +214,10 @@ function getEnvKeySuffix (envKey: string): string | undefined {
   return undefined
 }
 
-function isLowerSnakeCase (s: string): boolean {
-  return s.length > 0 && s.split('_').every(segment => /^[a-z0-9]+$/.test(segment))
+function isLowerSnakeCase (text: string): boolean {
+  return text.length > 0 && text.split('_').every(segment => /^[a-z0-9]+$/.test(segment))
 }
 
-function isUpperSnakeCase (s: string): boolean {
-  return s.length > 0 && s.split('_').every(segment => /^[A-Z0-9]+$/.test(segment))
+function isUpperSnakeCase (text: string): boolean {
+  return text.length > 0 && text.split('_').every(segment => /^[A-Z0-9]+$/.test(segment))
 }

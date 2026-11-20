@@ -1,9 +1,9 @@
 import { TABLE_OPTIONS } from '@pnpm/cli.utils'
-import type { LicensePackage } from '@pnpm/deps.compliance.license-scanner'
+import { compareVersions, type LicensePackage } from '@pnpm/deps.compliance.license-scanner'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import { groupBy, omit, pick, sortWith } from 'ramda'
-import semver from 'semver'
 
 import type { LicensesCommandResult } from './LicensesCommandResult.js'
 
@@ -20,7 +20,7 @@ function sortLicensesPackages (licensePackages: readonly LicensePackage[]): Lice
 function renderPackageName ({ belongsTo, name, registryName }: LicensePackage): string {
   // The alias disambiguates two otherwise identical rows for the same
   // package served by different registries.
-  const packageName = registryName == null ? name : `${name} ${chalk.dim(`(${registryName})`)}`
+  const packageName = registryName == null ? sanitizeInline(name) : `${sanitizeInline(name)} ${chalk.dim(`(${sanitizeInline(registryName)})`)}`
   switch (belongsTo) {
     case 'devDependencies':
       return `${packageName} ${chalk.dim('(dev)')}`
@@ -32,7 +32,7 @@ function renderPackageName ({ belongsTo, name, registryName }: LicensePackage): 
 }
 
 function renderPackageLicense ({ license }: LicensePackage): string {
-  const output = license ?? 'Unknown'
+  const output = sanitizeInline(license ?? 'Unknown')
   return output as string
 }
 
@@ -47,7 +47,7 @@ function renderDetails (licensePackage: LicensePackage): string {
   if (licensePackage.homepage) {
     outputs.push(licensePackage.homepage)
   }
-  return outputs.join('\n')
+  return outputs.map((value) => value.split('\n').map(sanitizeInline).join('\n')).join('\n')
 }
 
 export function renderLicences (
@@ -63,36 +63,38 @@ export function renderLicences (
 
 function renderLicensesJson (licensePackages: readonly LicensePackage[]): string {
   const data = licensePackages
-    .map((item) => pick(['name', 'version', 'path', 'license', 'author', 'homepage', 'description', 'registryName'], item))
+    .map((item) => pick(['name', 'version', 'path', 'paths', 'license', 'author', 'homepage', 'description', 'registryName'], item))
 
   const output: Record<string, LicensePackageJson[]> = {}
   const groupedByLicense = groupBy((item) => item.license, data)
   for (const license in groupedByLicense) {
-    const outputList: LicensePackageJson[] = []
     // Group by the registry too: the same name from two registries is two
     // packages, and collapsing them would drop one from the report.
     const groupedByName = groupBy(
       (item) => item.registryName == null ? item.name : `${item.name}\u0000${item.registryName}`,
       groupedByLicense[license] ?? []
     )
-    for (const inputList of Object.values(groupedByName)) {
-      if (inputList == null) continue
-      inputList.sort((a, b) => semver.compare(a.version, b.version))
-      const versions = inputList.map((item) => item.version)
-      const paths = inputList.map((item) => item.path ?? null)
-      const lastInputItem = inputList.at(-1)! // last item is chosen for its latest information
-      const outputItem: LicensePackageJson = {
-        name: lastInputItem.name,
-        versions,
-        paths,
-        ...omit(['name', 'version', 'path'], lastInputItem),
-      }
-      outputList.push(outputItem)
-    }
-    output[license] = outputList
+    output[license] = Object.values(groupedByName)
+      .filter((inputList) => inputList != null)
+      .map(mergeLicensePackageVersions)
   }
 
   return JSON.stringify(output, null, 2)
+}
+
+type PickedLicensePackage = Pick<LicensePackage, 'name' | 'version' | 'path' | 'paths' | 'license' | 'author' | 'homepage' | 'description' | 'registryName'>
+
+function mergeLicensePackageVersions (inputList: PickedLicensePackage[]): LicensePackageJson {
+  inputList.sort((a, b) => compareVersions(a.version, b.version))
+  const versions = inputList.map((item) => item.version)
+  const paths = [...new Set(inputList.flatMap((item) => item.paths ?? [item.path ?? null]))]
+  const lastInputItem = inputList.at(-1)! // last item is chosen for its latest information
+  return {
+    name: lastInputItem.name,
+    versions,
+    paths,
+    ...omit(['name', 'version', 'path', 'paths'], lastInputItem),
+  }
 }
 
 export interface LicensePackageJson {
@@ -120,35 +122,15 @@ function renderLicensesTable (
   }
 
   // Avoid the overhead of allocating a new array caused by calling `array.map()`
-  for (let i = 0; i < columnNames.length; i++)
-    columnNames[i] = chalk.blueBright(columnNames[i])
+  for (let columnIndex = 0; columnIndex < columnNames.length; columnIndex++)
+    columnNames[columnIndex] = chalk.blueBright(columnNames[columnIndex])
 
   const data = [
     columnNames,
     ...deduplicateLicensesPackages(sortLicensesPackages(licensePackages))
       .map((licensePkg) => columnFns.map((fn) => fn(licensePkg))),
   ]
-  let detailsColumnMaxWidth = 40
-  let packageColumnMaxWidth = 0
-  let licenseColumnMaxWidth = 0
-  if (opts.long) {
-    // Use the package link to determine the width of the details column
-    detailsColumnMaxWidth = licensePackages.reduce((max, pkg) => Math.max(max, pkg.homepage?.length ?? 0), 0)
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i]
-      const detailsLineCount = row[2].split('\n').length
-      const linesNumber = Math.max(0, detailsLineCount - 1)
-      row[0] += '\n '.repeat(linesNumber) // Add extra spaces to the package column
-      row[1] += '\n '.repeat(linesNumber) // Add extra spaces to the license column
-      packageColumnMaxWidth = Math.max(packageColumnMaxWidth, row[0].length)
-      licenseColumnMaxWidth = Math.max(licenseColumnMaxWidth, row[1].length)
-    }
-    const remainColumnWidth = process.stdout.columns - packageColumnMaxWidth - licenseColumnMaxWidth - 20
-    if (detailsColumnMaxWidth > remainColumnWidth) {
-      detailsColumnMaxWidth = remainColumnWidth
-    }
-    detailsColumnMaxWidth = Math.max(detailsColumnMaxWidth, 40)
-  }
+  const detailsColumnMaxWidth = opts.long ? fitDetailsColumn(data, licensePackages) : 40
   try {
     return table(
       data,
@@ -172,11 +154,36 @@ function renderLicensesTable (
   }
 }
 
+/**
+ * Pads the package and license cells of each row to the height of its details
+ * cell and returns the width the details column can take.
+ */
+function fitDetailsColumn (data: string[][], licensePackages: readonly LicensePackage[]): number {
+  // Use the package link to determine the width of the details column
+  let detailsColumnMaxWidth = licensePackages.reduce((max, pkg) => Math.max(max, pkg.homepage?.length ?? 0), 0)
+  let packageColumnMaxWidth = 0
+  let licenseColumnMaxWidth = 0
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex++) {
+    const row = data[rowIndex]
+    const detailsLineCount = row[2].split('\n').length
+    const linesNumber = Math.max(0, detailsLineCount - 1)
+    row[0] += '\n '.repeat(linesNumber) // Add extra spaces to the package column
+    row[1] += '\n '.repeat(linesNumber) // Add extra spaces to the license column
+    packageColumnMaxWidth = Math.max(packageColumnMaxWidth, row[0].length)
+    licenseColumnMaxWidth = Math.max(licenseColumnMaxWidth, row[1].length)
+  }
+  const remainColumnWidth = process.stdout.columns - packageColumnMaxWidth - licenseColumnMaxWidth - 20
+  if (detailsColumnMaxWidth > remainColumnWidth) {
+    detailsColumnMaxWidth = remainColumnWidth
+  }
+  return Math.max(detailsColumnMaxWidth, 40)
+}
+
 function deduplicateLicensesPackages (licensePackages: LicensePackage[]): LicensePackage[] {
   const result: LicensePackage[] = []
-  const rowEqual = (a: LicensePackage, b: LicensePackage) =>
-    a.name === b.name && a.license === b.license && a.registryName === b.registryName
-  const hasRow = (row: LicensePackage) => result.some((x) => rowEqual(row, x))
+  const rowEqual = (left: LicensePackage, right: LicensePackage) =>
+    left.name === right.name && left.license === right.license && left.registryName === right.registryName
+  const hasRow = (row: LicensePackage) => result.some((existingRow) => rowEqual(row, existingRow))
   for (const row of licensePackages.reverse()) { // reverse + unshift to prioritize latest package description
     if (!hasRow(row)) result.unshift(row)
   }

@@ -1,8 +1,10 @@
-use clap::Args;
-use pnpm_config::{Config, check_global_bin_dir};
-use std::path::Path;
-
 use super::global::GlobalError;
+use clap::Args;
+use pnpm_config::{
+    Config,
+    check_global_bin_dir,
+};
+use std::path::Path;
 
 /// Print the directory where pnpm installs executables.
 #[derive(Debug, Args)]
@@ -19,17 +21,24 @@ impl BinArgs {
             // Mirror pnpm's config reader: create then validate the global bin
             // dir for every `--global` command. `should_allow_write` is true for
             // all but `root` and `prefix`, so `bin` checks writability too.
-            std::fs::create_dir_all(&bin).map_err(|error| {
-                let bin_dir = bin.display();
-                miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
-            })?;
+            std::fs::create_dir_all(&bin)
+                .map_err(|error| {
+                    let bin_dir = bin.display();
+                    miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
+                })?;
             check_global_bin_dir(&bin, std::env::var("PATH").ok().as_deref(), true)
                 .map_err(miette::Report::new)?;
             bin
         } else {
-            dir.join("node_modules").join(".bin")
+            // Gated so an ordinary `pnpm bin` reads no manifest, and so a
+            // project without one still answers.
+            let project_name = config
+                .applies_package_configs()
+                .then(|| pnpm_workspace::read_project_name(dir))
+                .flatten();
+            config.project_modules_dir(dir, project_name.as_deref()).join(".bin")
         };
-        println!("{}", bin.display());
+        pnpm_diagnostics::println!("{}", bin.display());
         Ok(())
     }
 }

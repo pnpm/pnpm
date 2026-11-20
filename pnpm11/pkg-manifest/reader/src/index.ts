@@ -1,7 +1,6 @@
 import path from 'node:path'
-import util from 'node:util'
 
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFile, loadJsonFileSync } from 'load-json-file'
 import normalizePackageData from 'normalize-package-data'
@@ -53,7 +52,7 @@ export function readPackageJsonFromDirRawSync (pkgPath: string): PackageManifest
   try {
     return loadJsonFileSync<PackageManifest>(path.join(pkgPath, 'package.json'))
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err) throw err
-    throw new PnpmError('BAD_PACKAGE_JSON', `${pkgPath}: ${err instanceof Error ? err.message : String(err)}`)
+    if (isError(err) && 'code' in err) throw err
+    throw new PnpmError('BAD_PACKAGE_JSON', `${pkgPath}: ${isError(err) ? err.message : String(err)}`)
   }
 }

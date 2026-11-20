@@ -13,7 +13,6 @@ import { rimraf } from '@zkochan/rimraf'
 import npmFetch from 'npm-registry-fetch'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
-import { temporaryDirectory } from 'tempy'
 
 import { createPublishSummary, type PublishSummary } from '../tarball/publishSummary.js'
 import * as pack from './pack.js'
@@ -22,11 +21,12 @@ import {
   createPublishContext,
   createPublishOptions,
   findRegistryInfo,
+  getPublishConfigRegistry,
   isPublishAccess,
 } from './publishPackedPkg.js'
 import type { PublishRecursiveOpts } from './recursivePublish.js'
 
-export const BATCH_PUBLISH_ENDPOINT = '/-/pnpm/v1/publish'
+export const BATCH_PUBLISH_ENDPOINT = '/-/pnpr/v0/publish'
 
 export type BatchPublishOptions = PublishRecursiveOpts
 & Pick<Config, 'embedReadme' | 'ignoreScripts' | 'nodeLinker' | 'packGzipLevel' | 'skipManifestObfuscation'>
@@ -40,7 +40,7 @@ interface PackedPkg {
 }
 
 /**
- * Publish all {@link pkgs} by sending a single `PUT /-/pnpm/v1/publish` request per target
+ * Publish all {@link pkgs} by sending a single `PUT /-/pnpr/v0/publish` request per target
  * registry, instead of one request per package. The endpoint is not part of the standard npm
  * registry API — the registry has to implement it explicitly (pnpr does), so this whole code
  * path is opt-in via the `--batch` flag.
@@ -53,6 +53,24 @@ interface PackedPkg {
  *   versions) and in dependency order.
  */
 export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishOptions): Promise<PublishSummary[]> {
+  assertBatchPublishSupported(opts)
+  const { packedByRegistry, packedPkgs } = await packPkgsForBatch(pkgs, opts)
+  const publishOptionsByRegistry = new Map<string, BatchPublishOptionsResult>()
+  if (!opts.dryRun) {
+    await Promise.all(Array.from(packedByRegistry.entries(), async ([registry, group]) => {
+      publishOptionsByRegistry.set(registry, await createBatchPublishOptions(registry, group, opts))
+    }))
+  }
+  for (const [registry, group] of packedByRegistry.entries()) {
+    // eslint-disable-next-line no-await-in-loop -- a failed registry request stops the publish before the next registry
+    await publishRegistryGroup({ registry, group, opts, publishOptionsByRegistry })
+  }
+  return packedPkgs.map(({ summary }) => summary)
+}
+
+type BatchPublishOptionsResult = Awaited<ReturnType<typeof createPublishOptions>>
+
+function assertBatchPublishSupported (opts: BatchPublishOptions): void {
   if (opts.stage) {
     throw new PnpmError('BATCH_PUBLISH_NO_STAGE', 'Staged publishing cannot be combined with --batch')
   }
@@ -61,15 +79,21 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
       hint: 'Provenance is bound to a single package, but --batch sends many packages in one request. Publish without --batch to attach provenance.',
     })
   }
+}
+
+interface PackedPkgsForBatch {
+  packedByRegistry: Map<string, PackedPkg[]>
+  packedPkgs: PackedPkg[]
+}
+
+async function packPkgsForBatch (pkgs: Project[], opts: BatchPublishOptions): Promise<PackedPkgsForBatch> {
   const packedByRegistry = new Map<string, PackedPkg[]>()
   const packedPkgs: PackedPkg[] = []
   for (const project of pkgs) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- projects run their prepublish scripts and pack one at a time, in the order given
     const packedPkg = await packPkgForBatch(project, opts)
-    const publishConfigRegistry = typeof packedPkg.publishedManifest.publishConfig?.registry === 'string'
-      ? packedPkg.publishedManifest.publishConfig.registry
-      : undefined
-    const { registry } = findRegistryInfo(packedPkg.publishedManifest, opts, publishConfigRegistry)
+    const { publishedManifest } = packedPkg
+    const { registry } = findRegistryInfo(publishedManifest, opts, getPublishConfigRegistry(publishedManifest.publishConfig, publishedManifest.name))
     let group = packedByRegistry.get(registry!)
     if (!group) {
       group = []
@@ -78,43 +102,42 @@ export async function batchPublishPackages (pkgs: Project[], opts: BatchPublishO
     group.push(packedPkg)
     packedPkgs.push(packedPkg)
   }
-  const publishOptionsByRegistry = new Map<string, Awaited<ReturnType<typeof createPublishOptions>>>()
-  if (!opts.dryRun) {
-    for (const [registry, group] of packedByRegistry.entries()) {
-      // eslint-disable-next-line no-await-in-loop
-      publishOptionsByRegistry.set(registry, await createBatchPublishOptions(registry, group, opts))
-    }
+  return { packedByRegistry, packedPkgs }
+}
+
+interface PublishRegistryGroupOptions {
+  registry: string
+  group: PackedPkg[]
+  opts: BatchPublishOptions
+  publishOptionsByRegistry: Map<string, BatchPublishOptionsResult>
+}
+
+async function publishRegistryGroup ({ registry, group, opts, publishOptionsByRegistry }: PublishRegistryGroupOptions): Promise<void> {
+  for (const { summary } of group) {
+    globalInfo(`📦 ${summary.id} → ${registry}`)
   }
-  for (const [registry, group] of packedByRegistry.entries()) {
-    for (const { summary } of group) {
-      globalInfo(`📦 ${summary.id} → ${registry}`)
+  if (opts.dryRun) {
+    globalWarn(`Skip publishing ${group.length} package(s) to ${registry} (dry run)`)
+  } else {
+    const publishOptions = publishOptionsByRegistry.get(registry)
+    if (publishOptions == null) {
+      throw new Error(`Missing precomputed publish options for ${registry}`)
     }
-    if (opts.dryRun) {
-      globalWarn(`Skip publishing ${group.length} package(s) to ${registry} (dry run)`)
-    } else {
-      const publishOptions = publishOptionsByRegistry.get(registry)
-      if (publishOptions == null) {
-        throw new Error(`Missing precomputed publish options for ${registry}`)
-      }
-      // eslint-disable-next-line no-await-in-loop
-      await multiPublishToRegistry({ registry, group, opts, publishOptions })
-      globalInfo(`✅ Published ${group.length} package(s) to ${registry} in a single request`)
-    }
-    if (!opts.ignoreScripts) {
-      for (const { project } of group) {
-        // eslint-disable-next-line no-await-in-loop
-        await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['publish', 'postpublish'], project.manifest)
-      }
-    }
+    await multiPublishToRegistry({ registry, group, opts, publishOptions })
+    globalInfo(`✅ Published ${group.length} package(s) to ${registry} in a single request`)
   }
-  return packedPkgs.map(({ summary }) => summary)
+  if (opts.ignoreScripts) return
+  for (const { project } of group) {
+    // eslint-disable-next-line no-await-in-loop -- publish scripts run one project at a time, in the order given
+    await runScriptsIfPresent(await lifecycleOpts(project.rootDir, opts), ['publish', 'postpublish'], project.manifest)
+  }
 }
 
 async function createBatchPublishOptions (
   registry: string,
   group: PackedPkg[],
   opts: BatchPublishOptions
-): Promise<Awaited<ReturnType<typeof createPublishOptions>>> {
+): Promise<BatchPublishOptionsResult> {
   const [first, ...rest] = await Promise.all(group.map(async ({ publishedManifest }) => createPublishOptions(publishedManifest, opts, { oidc: false })))
   if (rest.some((publishOptions) => !sameCredentials(first, publishOptions))) {
     throw new PnpmError(
@@ -129,8 +152,8 @@ async function createBatchPublishOptions (
 }
 
 function sameCredentials (
-  left: Awaited<ReturnType<typeof createPublishOptions>>,
-  right: Awaited<ReturnType<typeof createPublishOptions>>
+  left: BatchPublishOptionsResult,
+  right: BatchPublishOptionsResult
 ): boolean {
   return left.token === right.token &&
     left.username === right.username &&
@@ -143,6 +166,8 @@ async function packPkgForBatch (project: Project, opts: BatchPublishOptions): Pr
   }
   // The tarball is packed into a temporary directory and read into memory right away — the
   // request body carries it base64-encoded, so nothing needs to stay on disk.
+  // tempy resolves os.tmpdir() when loaded, which throws if that directory is missing.
+  const { temporaryDirectory } = await import('tempy')
   const packDestination = temporaryDirectory()
   try {
     const packResult = await pack.api({
@@ -185,7 +210,7 @@ async function multiPublishToRegistry ({
   registry: string
   group: PackedPkg[]
   opts: BatchPublishOptions
-  publishOptions: Awaited<ReturnType<typeof createPublishOptions>>
+  publishOptions: BatchPublishOptionsResult
 }): Promise<void> {
   const body = {
     packages: group.map((packedPkg) => createPublishDocument(packedPkg, registry, opts)),

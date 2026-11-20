@@ -4,28 +4,53 @@
 //! selection a `--filter`ed or `-r` run resolved, or every project in
 //! the workspace for a full install. The report comes after the
 //! optimistic repeat-install short-circuit, so an install that concludes
-//! "Already up to date" says nothing about cycles — pnpm returns before
+//! "Already up to date" says nothing about cycles, pnpm returns before
 //! its own check in that case.
 
-use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_deps_restorer::{PathNode, graph_sequencer};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_workspace::{GraphPkg, Project};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+};
+use pnpm_config_parse_overrides::ParseOverridesError;
+use pnpm_deps_restorer::{
+    PathNode,
+    graph_sequencer,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+    CreateProjectsGraphOptions,
+    DependencyRewriter,
+    ProjectGraph,
+    WorkspaceCatalogs,
+    create_projects_graph,
 };
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The dependency cycles among `graph`'s projects, or `None` when they
 /// can be ordered.
 ///
-/// Edges are read from `graph` alone: an edge leaving it — a selected
-/// project depending on an unselected one — is dropped rather than
+/// Edges are read from `graph` alone: an edge leaving it (a selected
+/// project depending on an unselected one) is dropped rather than
 /// followed, so two selected projects joined only through a third are
-/// not a cycle. pnpm sequences its selected graph the same way. The
+/// not a cycle. pnpm sequences its selected graph the same way.
 /// Self-references are reported by the sequencer but do not make a workspace
 /// unorderable, so only cycles with more than one project are returned.
 #[must_use]
@@ -33,13 +58,15 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
     // The sequencer runs over borrowed paths: a workspace-scale graph
     // holds tens of thousands of edges, and cloning every `PathBuf`
     // into a throwaway map cost more than the sort itself.
-    let dirs: Vec<PathNode<'_>> = graph.keys().map(|dir| PathNode(dir)).collect();
+    let dirs: Vec<PathNode<'_>> = graph
+        .keys()
+        .map(|dir| PathNode(dir))
+        .collect();
     let included: HashSet<PathNode<'_>> = dirs.iter().copied().collect();
     let edges: HashMap<PathNode<'_>, Vec<PathNode<'_>>> = graph
         .iter()
         .map(|(dir, node)| {
-            let dependencies = node
-                .dependencies
+            let dependencies = node.dependencies
                 .iter()
                 .map(|dependency| PathNode(dependency))
                 .filter(|dependency| included.contains(dependency))
@@ -47,37 +74,54 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
             (PathNode(dir), dependencies)
         })
         .collect();
-    let cycles = graph_sequencer(&edges, &dirs)
-        .cycles
+    let cycles = graph_sequencer(&edges, &dirs).cycles
         .into_iter()
         .filter(|cycle| cycle.len() > 1)
-        .map(|cycle| cycle.into_iter().map(|node| node.0.to_path_buf()).collect())
+        .map(|cycle| {
+            cycle
+                .into_iter()
+                .map(|node| node.0.to_path_buf())
+                .collect()
+        })
         .collect::<Vec<Vec<PathBuf>>>();
     (!cycles.is_empty()).then_some(cycles)
 }
 
 /// The cycles among the projects an install covers: `selected_dirs`
 /// narrows `projects` to a `--filter`ed or `-r` selection, `None` covers
-/// the whole workspace.
+/// the whole workspace. `catalogs` also builds the `pnpm.overrides` hook
+/// the graph edges follow, as described on
+/// [`crate::overrides_dependency_rewriter`].
 ///
-/// A selected project keeps the dependency list it has in the full
-/// graph; [`workspace_cycles`] then drops the edges that leave the
-/// selection, which is how pnpm sequences its selected graph.
-#[must_use]
+/// A selected project keeps the dependency list it has in the full graph.
+///
+/// Overrides that fail to parse are an error rather than a graph without
+/// them: an override may be what breaks a cycle, so reporting one from
+/// the declared ranges would blame the wrong thing.
 pub fn install_scope_cycles(
     config: &Config,
     projects: &[Project],
     selected_dirs: Option<&HashSet<PathBuf>>,
-) -> Option<Vec<Vec<PathBuf>>> {
+    catalogs: WorkspaceCatalogs<'_>,
+) -> Result<Option<Vec<Vec<PathBuf>>>, ParseOverridesError> {
     if projects.len() < 2 {
-        return None;
+        return Ok(None);
     }
+    let dependency_rewriter =
+        crate::overrides_dependency_rewriter(config, catalogs.catalogs, catalogs.workspace_dir)?;
     let mut graph = create_projects_graph(
-        projects.iter().map(|project| GraphPkg { project }).collect(),
+        projects
+            .iter()
+            .map(|project| GraphPkg { project })
+            .collect(),
         &CreateProjectsGraphOptions {
             link_workspace_packages: Some(
                 config.link_workspace_packages != LinkWorkspacePackages::Off,
             ),
+            catalogs: Some(catalogs),
+            dependency_rewriter: dependency_rewriter
+                .as_ref()
+                .map(|rewriter| rewriter as &dyn DependencyRewriter),
             ..CreateProjectsGraphOptions::default()
         },
     )
@@ -85,12 +129,12 @@ pub fn install_scope_cycles(
     if let Some(selected_dirs) = selected_dirs {
         graph.retain(|dir, _| selected_dirs.contains(dir));
     }
-    workspace_cycles(&graph)
+    Ok(workspace_cycles(&graph))
 }
 
 /// Emit the cyclic-workspace-dependencies warning for `cycles`, or
-/// return the error `disallowWorkspaceCycles` turns it into. `None` —
-/// an orderable set — reports nothing.
+/// return the error `disallowWorkspaceCycles` turns it into. `None`
+/// (an orderable set) reports nothing.
 ///
 /// Callers under `ignoreWorkspaceCycles` are expected not to have looked
 /// for cycles at all; passing some anyway still reports nothing.
@@ -123,14 +167,19 @@ fn render_cycles(cycles: &[Vec<PathBuf>]) -> String {
     }
     let rendered = cycles
         .iter()
-        .map(|cycle| cycle.iter().map(|dir| dir.to_string_lossy()).collect::<Vec<_>>().join(", "))
+        .map(|cycle| {
+            cycle
+                .iter()
+                .map(|dir| dir.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
         .collect::<Vec<_>>()
         .join("; ");
     format!(": {rendered}")
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
-#[display("{message}")]
 #[diagnostic(code(ERR_PNPM_DISALLOW_WORKSPACE_CYCLES))]
 pub struct CyclicWorkspaceDependenciesError {
     #[error(not(source))]

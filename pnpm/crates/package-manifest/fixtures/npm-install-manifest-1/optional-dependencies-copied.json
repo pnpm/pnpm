@@ -1,0 +1,38 @@
+{
+  "description": "npm 9 and earlier copied every optionalDependencies entry into dependencies (esbuild@0.19.10).",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "0.19.10",
+      "optionalDependencies": {
+        "@example/widgets-linux-x64": "0.19.10"
+      }
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "0.19.10",
+    "dependencies": {
+      "@example/widgets-linux-x64": "0.19.10"
+    },
+    "optionalDependencies": {
+      "@example/widgets-linux-x64": "0.19.10"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "0.19.10",
+      "optionalDependencies": {
+        "@example/widgets-linux-x64": "0.19.10"
+      },
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

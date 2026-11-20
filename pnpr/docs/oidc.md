@@ -1,0 +1,277 @@
+---
+id: oidc
+title: OpenID Connect
+---
+
+Added in: v0.1.0-alpha.11
+
+pnpr supports OIDC browser sign-in and keyless npm publishing from workloads
+such as GitHub Actions. Both use discovery and signed ID tokens from explicitly
+configured issuers. Local password authentication keeps working alongside them.
+
+## Browser sign-in
+
+Register a web application with your identity provider. Set its callback to
+`https://registry.example/-/oidc/company/callback`, replacing the hostname and
+`company` with your pnpr provider name, and enable the authorization code flow.
+Start pnpr with `--public-url https://registry.example`, its HTTPS origin
+without a path prefix.
+
+```yaml title="pnpr.yaml"
+auth:
+  oidc:
+    - name: company
+      issuer: https://accounts.google.com
+      audience: your-client-id
+      login:
+        clientSecret: ${OIDC_CLIENT_SECRET}
+        users:
+          - subject: 'the-users-stable-sub-claim'
+            userId: <account-id>
+            claims:
+              hd: example.com
+```
+
+`audience` is the application's client ID. `clientSecret` can be omitted for
+providers that support public clients with PKCE. `subject` is the exact `sub`
+claim issued to this application, not an email address. Each binding maps that
+subject to an existing pnpr account ID, and the existing grants and teams
+then apply. Extra `claims` are exact string matches and all of them must match.
+Create the account with `pnpr add-user` or SCIM before binding it. There is no
+automatic account creation or linking by email or username. Renaming the
+account does not change the binding. A deleted account ID cannot sign in.
+
+For SCIM-provisioned accounts, [enable `login.scim`](scim.md#sign-in-through-oidc)
+to bind subjects without per-user configuration.
+
+### Teams from groups
+
+A signed-in session can also join teams through the groups your identity
+provider puts in the ID token:
+
+```yaml title="pnpr.yaml"
+auth:
+  oidc:
+    - name: company
+      issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+      audience: your-client-id
+      login:
+        users:
+          - subject: 'the-users-stable-sub-claim'
+            userId: <account-id>
+        groups:
+          claim: groups
+          teams:
+            - group: 7f3c2a10-0000-0000-0000-000000000000
+              teamId: <team-id>
+```
+
+- `claim` names the ID-token claim that lists the groups, either as a list of
+  strings or as one string. It defaults to `groups`.
+- `teamId` is the stable team ID, not its display name.
+- A session whose claim lists `group` is a member of the
+  [team](configuration.md#teams) `teamId`, as if the team listed its account
+  ID.
+- The membership lasts as long as the session. Removing someone from a group
+  takes effect at their next sign-in, within an hour. It never applies to the
+  user's password logins or `npm token`s.
+- A grant whose team does not exist gives nothing. pnpr logs a warning that
+  names the group and the team ID.
+
+Configure the provider to issue the claim, and use the values it emits as
+`group`. Entra ID emits group object IDs under `groups` once group claims are
+enabled for the application, as in the example above. Okta emits group names
+under `groups` when a groups claim is added to the authorization server.
+
+Use the issuer your provider publishes:
+
+| Provider | Issuer |
+| --- | --- |
+| Google Workspace | `https://accounts.google.com` |
+| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+| Okta org authorization server | `https://<your-org>.okta.com` |
+| Okta custom authorization server | `https://<your-org>.okta.com/oauth2/<authorization-server-id>` |
+
+Use a tenant-specific Entra issuer. For Google Workspace, require the `hd` claim
+for your organization's domain, as shown above. See the provider documentation
+for [Google](https://developers.google.com/identity/openid-connect/reference),
+[Entra](https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc),
+and [Okta](https://developer.okta.com/docs/concepts/auth-servers/).
+
+Open `https://registry.example/-/oidc/company/login` in a browser. After
+sign-in, pnpr displays a token to put in the registry's `_authToken` setting,
+for example in your private user `.npmrc`:
+
+```ini title=".npmrc"
+//registry.example/:_authToken=THE_DISPLAYED_TOKEN
+```
+
+The browser session expires at the earlier of one hour or the ID token's expiry,
+and `npm logout` revokes it. Sessions live in memory and disappear on restart,
+so a multi-replica deployment needs affinity for both the login flow and the
+authenticated requests that follow. They do not appear in `npm token list`. The
+[web UI](web-ui.md) lists these providers on its sign-in screen and returns to
+the UI after sign-in.
+
+`pnpm login` and `npm login` use this flow automatically via `/-/v1/login`. The
+CLI opens the browser to sign in and polls until authentication completes. If no
+OIDC provider declares `login:`, `/-/v1/login` returns `404` and the CLI falls back
+to username and password authentication (`/-/user/org.couchdb.user:{name}`).
+
+The CLI prints a code, and the browser page asks for it before sending the
+browser to the provider. When several providers declare `login:`, a second
+page asks which one to sign in with. pnpr sends the code in an `npm-notice` header, which
+`pnpm login` and `npm login` print. A code works once and expires with the
+login after five minutes. Because the login page carries no secret, a link to
+it cannot sign anyone in through an existing provider session.
+
+A passwordless account can create personal access tokens while signed in.
+These are separate account credentials. They carry the account's ordinary
+permissions, not the session's provider-group memberships. They expire no
+later than the session or token that created them, and inherit its CIDR
+whitelist when the request names none. A requested CIDR network outside the
+caller's whitelist is refused. SCIM deactivation revokes both kinds of
+credential. Accounts with a password must provide it to create a personal
+access token, and their tokens use the requested expiry and CIDR whitelist.
+
+An OIDC session cannot yet be exchanged for an [OCI scoped bearer token](container-images.md#authentication).
+
+## GitHub Actions keyless publishing
+
+Create a dedicated workload account, a named hosted npm registry, and exact
+package names. A [grant](configuration.md#grants) must give that account ID
+`publish` on the package too. Add it with the
+[grants API](endpoints.md#grant-endpoints), or add it to the file
+[`pnpr grants export`](cli.md#grants) writes and import that file. An import
+replaces every stored grant:
+
+```yaml title="grants.yaml"
+grants:
+  widget-release:
+    registries: [private]
+    include: ['@example/widget']
+    subjects:
+      <workload-account-id>: [read, publish]
+```
+
+The workload itself is configured in the config file:
+
+```yaml title="pnpr.yaml"
+auth:
+  oidc:
+    - name: github
+      issuer: https://token.actions.githubusercontent.com
+      audience: https://registry.example
+      workloads:
+        - identity:
+            subject: repo:example/widgets:ref:refs/heads/main
+            userId: <workload-account-id>
+            claims:
+              repository_id: '123456789'
+              repository_owner_id: '987654321'
+              workflow_ref: example/widgets/.github/workflows/release.yml@refs/heads/main
+          registry: private
+          packages: ['@example/widget']
+```
+
+Use immutable repository and owner IDs so trust does not transfer when names are
+reused. For reusable workflows, also require `job_workflow_ref` to pin the
+workflow that performs the publication. A job using a GitHub environment has an
+environment-based subject, such as
+`repo:example/widgets:environment:production`. Configure the exact subject and
+the additional claims you intend to trust. See
+[GitHub's OIDC reference](https://docs.github.com/en/actions/reference/security/oidc).
+
+The publishing job needs `id-token: write`. Request an ID token with pnpr's
+configured audience and prefix it with `pnpr_workload_` as the registry token.
+No pnpr password, persistent API key, or token exchange is involved:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+steps:
+  # Check out, install dependencies, and build before requesting the token.
+  - name: Publish to pnpr
+    shell: bash
+    run: |
+      response=$(curl --fail --silent --show-error \
+        -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+        "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fregistry.example")
+      token=$(jq -er '.value' <<< "$response")
+      echo "::add-mask::$token"
+      export NODE_AUTH_TOKEN="pnpr_workload_${token}"
+      npm publish --registry=https://registry.example/npm/~private/
+```
+
+The project's `.npmrc` holds only the environment reference:
+
+```ini title=".npmrc"
+//registry.example/npm/~private/:_authToken=${NODE_AUTH_TOKEN}
+```
+
+The credential permits:
+
+- ordinary `PUT` publications to the configured packages through that named
+  registry;
+- [staging archives](ecosystems.md#staged-archives) with `PUT` and `HEAD` on
+  `/-/pnpr/v0/publish/archives/{integrity}`, under the server root, the npm base, or the
+  named registry's address;
+- batch commits to `/-/pnpr/v0/publish` at the same addresses, when every entry
+  is an npm package of the configured ones that resolves to that named
+  registry.
+
+Every job of a workflow that exchanges its token for the same binding is the
+same account, so archives one job stages can be committed by another. The
+credential cannot read packages, unpublish, change dist-tags separately, manage
+accounts, or reach other pnpr services. Request the token after building so it stays valid through the
+publish request; its issuer's expiry applies to every request.
+
+## Keys
+
+Every block rejects unknown keys.
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `name` | yes | Provider name, used in the `/-/oidc/<name>/` URLs. |
+| `issuer` | yes | The provider's issuer URL. |
+| `audience` | yes | The expected `aud` claim. For browser sign-in, the client ID. |
+| `login.clientSecret` | no | Client secret for browser sign-in. Omit for public clients with PKCE. |
+| `login.users` | unless `login.scim` is true | Bindings of `subject`, `userId`, and optional `claims`. |
+| `login.scim` | no | Match the verified `sub` to a provisioned SCIM `externalId`. Requires `auth.scim`; only one provider may enable it. Mutually exclusive with nonempty `login.users`. |
+| `login.groups.claim` | no | The ID-token claim that lists groups. Defaults to `groups`. |
+| `login.groups.teams` | yes, with `groups` | Grants of `group` and `teamId`. See [Teams from groups](#teams-from-groups). |
+| `workloads[].identity` | yes | A binding of `subject`, `userId`, and optional `claims`. |
+| `workloads[].registry` | yes | The hosted npm registry the workload publishes to. |
+| `workloads[].packages` | yes | The exact package names the workload may publish. |
+
+## Validation and operations
+
+pnpr accepts RS256 and ES256 signatures and verifies the issuer, audience,
+authorized party where present, expiry, issue time, and not-before claims.
+Browser login also verifies a browser-bound state, a nonce, and S256 PKCE.
+Unmapped and ambiguous identities are rejected, and user subjects must be unique
+within a provider, its workload bindings included.
+
+Personal bearer tokens use the `pnpr_` prefix with a base62 payload and CRC-32
+checksum. The `pnpr_oidc_` and `pnpr_workload_` credential prefixes are reserved
+for OIDC, and workload credentials bypass the persistent token backend.
+
+Discovery and JWKS use HTTPS with redirects disabled and bounded response sizes
+and deadlines. Literal and DNS-resolved destinations must be public IP addresses,
+and OIDC requests ignore environment-configured HTTP proxies. Metadata is cached
+for five minutes, and a verification failure can trigger a refresh at most once
+every 30 seconds per provider, so an unavailable provider can never turn an
+invalid credential into anonymous access.
+
+Login state lives in a signed HttpOnly cookie for five minutes. Anonymous login
+starts reserve no server-side entries. Successful login replays and browser
+sessions are each capped at 1,024 per process, and a separate 1,024-entry
+callback-attempt history rejects recent failed and concurrent replays before
+token exchange, evicting the oldest attempt when full. At most 16 browser
+callbacks perform network operations concurrently.
+
+pnpr omits OIDC callback query strings from its request logs. Configure reverse
+proxies to omit them too.
+
+See [Access evaluation](access.md) for how sessions, personal tokens, teams, and grants combine.

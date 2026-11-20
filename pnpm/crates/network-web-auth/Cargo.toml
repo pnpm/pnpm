@@ -1,36 +1,43 @@
 [package]
-name                 = "pnpm-network-web-auth"
-description          = "Web-based authentication flow with QR code display and token polling"
-version              = "0.0.1"
-publish              = false
-authors.workspace    = true
-edition.workspace    = true
-homepage.workspace   = true
-keywords.workspace   = true
-license.workspace    = true
+name = "pnpm-network-web-auth"
+description = "Web-based authentication flow with QR code display and token polling"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
 repository.workspace = true
 
 [dependencies]
-crossterm        = { workspace = true }
-derive_more      = { workspace = true }
-dialoguer        = { workspace = true }
-open             = { workspace = true }
+derive_more = { workspace = true }
+dialoguer = { workspace = true }
 pnpm-diagnostics = { workspace = true }
-pnpm-network     = { workspace = true }
-pnpm-reporter    = { workspace = true }
-qrcode           = { workspace = true }
-reqwest          = { workspace = true }
-serde            = { workspace = true }
-serde_json       = { workspace = true }
-tokio            = { workspace = true, features = ["macros", "rt", "sync", "time"] }
-url              = { workspace = true }
+pnpm-network = { workspace = true }
+pnpm-reporter = { workspace = true }
+qrcode = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+url = { workspace = true }
 
 [dev-dependencies]
-mockito                       = { workspace = true }
+mockito = { workspace = true }
 pnpm-network-web-auth-testing = { workspace = true }
-pipe-trait                    = { workspace = true }
-pretty_assertions             = { workspace = true }
-tokio                         = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+pipe-trait = { workspace = true }
+pretty_assertions = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+crossterm = { workspace = true }
+open = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-http = { workspace = true }
+pnpm-wasm-host = { path = "../wasm-host" }
 
 [lints]
 workspace = true

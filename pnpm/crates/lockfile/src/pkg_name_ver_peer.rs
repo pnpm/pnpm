@@ -1,5 +1,9 @@
-use crate::{ParsePkgNameSuffixError, ParsePkgVerPeerError, PkgNameSuffix, PkgVerPeer};
-use pnpm_crypto_hash::shorten_virtual_store_name;
+use crate::{
+    ParsePkgNameSuffixError,
+    ParsePkgVerPeerError,
+    PkgNameSuffix,
+    PkgVerPeer,
+};
 
 /// Syntax: `{name}@{version}({peers})`
 ///
@@ -18,23 +22,13 @@ impl PkgNameVerPeer {
     /// path stays within filesystem limits.
     ///
     /// `max_length` is `Modules.virtual_store_dir_max_length` (default
-    /// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`
-    /// — referenced by name rather than as an intra-doc link because
+    /// 120; see `pnpm_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`,
+    /// referenced by name rather than as an intra-doc link because
     /// `pnpm-lockfile` deliberately does not depend on
     /// `pnpm-modules-yaml`).
     #[must_use]
     pub fn to_virtual_store_name(&self, max_length: usize) -> String {
-        let escape_for_fs = |character: char| {
-            matches!(character, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '#')
-        };
-        let mut filename = self.to_string().replace(escape_for_fs, "+");
-        if filename.contains('(') {
-            if filename.ends_with(')') {
-                filename.pop();
-            }
-            filename = filename.replace(")(", "_").replace(['(', ')'], "_");
-        }
-        shorten_virtual_store_name(filename, max_length)
+        pnpm_deps_path::dep_path_to_filename(&self.to_string(), max_length)
     }
 
     /// Return a new [`PkgNameVerPeer`] with the peer-dependency suffix stripped.
@@ -47,16 +41,11 @@ impl PkgNameVerPeer {
     }
 
     /// The package id pnpm addresses this package by outside the
-    /// lockfile: the store-index row key (`store_index_key` /
-    /// `git_hosted_store_index_key` — referenced as plain text because
-    /// `pnpm-lockfile` deliberately does not depend on
-    /// `pnpm-store-dir`), the `packageId` of a `pnpm:progress`
-    /// event, and the resolution id the git fetchers build their
-    /// `allowBuild` dep path from.
+    /// lockfile.
     ///
     /// For a registry package this is the peer-stripped key itself
-    /// (`name@version`). For a non-registry resolution — a URL tarball,
-    /// a git-host archive, a `type: git` dependency — it is the bare
+    /// (`name@version`). For a non-registry resolution, a URL tarball,
+    /// a git-host archive, a `type: git` dependency; it is the bare
     /// resolution id, without the `name@` prefix the lockfile key
     /// carries. The store index is a contract shared with the
     /// TypeScript CLI, which keys those rows by the bare id.

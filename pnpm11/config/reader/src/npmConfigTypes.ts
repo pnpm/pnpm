@@ -2,8 +2,6 @@ import path from 'node:path'
 import url from 'node:url'
 
 // Subset of npm config type definitions that pnpm actually uses.
-// Originally inlined from @pnpm/npm-conf/lib/types.js, trimmed to only
-// keys referenced by pnpm commands or passed through to npm-compatible tooling.
 export const npmConfigTypes = {
   access: [null, 'restricted', 'public'],
   'allow-same-version': Boolean,

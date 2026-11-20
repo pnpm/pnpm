@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
       "path": "../../catalogs/resolver"
     },
     {
@@ -17,6 +20,12 @@
     },
     {
       "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../config/parse-overrides"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
     },
     {
       "path": "../../config/version-policy"
@@ -40,6 +49,9 @@
       "path": "../../deps/graph-hasher"
     },
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../deps/path"
     },
     {
@@ -47,6 +59,9 @@
     },
     {
       "path": "../../fetching/pick-fetcher"
+    },
+    {
+      "path": "../../fs/graceful-fs"
     },
     {
       "path": "../../fs/symlink-dependency"
@@ -77,6 +92,12 @@
     },
     {
       "path": "../../pkg-manifest/utils"
+    },
+    {
+      "path": "../../resolving/jsr-specifier-parser"
+    },
+    {
+      "path": "../../resolving/local-resolver"
     },
     {
       "path": "../../resolving/npm-resolver"

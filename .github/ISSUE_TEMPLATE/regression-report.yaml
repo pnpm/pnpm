@@ -60,3 +60,10 @@ body:
         - Linux
     validations:
       required: true
+  - type: checkboxes
+    id: working-on-fix
+    attributes:
+      label: Contributing a fix
+      description: Tick this if you plan to open a pull request. The issue will be assigned to you, so nobody else starts on the same fix.
+      options:
+        - label: I am working on a fix

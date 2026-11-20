@@ -1,10 +1,22 @@
-use super::{get_bins_from_package_manifest, pkg_owns_bin};
-use crate::{capabilities::Host, path_util::lexical_normalize};
+use super::{
+    get_bins_from_package_manifest,
+    pkg_owns_bin,
+};
+use crate::{
+    capabilities::Host,
+    path_util::lexical_normalize,
+};
 use pipe_trait::Pipe;
 use serde_json::json;
 use std::{
-    fs::{create_dir_all, write as write_file},
-    path::{Path, PathBuf},
+    fs::{
+        create_dir_all,
+        write as write_file,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 
@@ -61,13 +73,14 @@ fn rejects_unsafe_bin_names() {
 }
 
 #[test]
-fn rejects_path_traversal_outside_package_root() {
+fn clamps_bin_targets_to_package_root() {
     let manifest = json!({
         "name": "x",
         "bin": {"x": "../../../etc/passwd"},
     });
     let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/x"));
-    assert!(commands.is_empty(), "must reject `..`-escapes from pkg root");
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].path, Path::new("/pkg/x/etc/passwd"));
 }
 
 #[test]
@@ -120,7 +133,7 @@ fn skip_dangerous_bin_names() {
 }
 
 #[test]
-fn skip_dangerous_bin_locations() {
+fn normalizes_parent_segments_in_bin_locations() {
     let manifest = json!({
         "name": "foo",
         "version": "1.0.0",
@@ -130,8 +143,9 @@ fn skip_dangerous_bin_locations() {
         },
     });
     let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/foo"));
-    assert_eq!(commands.len(), 1);
-    assert_eq!(commands[0].name, "good");
+    assert_eq!(commands.len(), 2);
+    assert_eq!(commands[0].path, Path::new("/pkg/foo/bad"));
+    assert_eq!(commands[1].path, Path::new("/pkg/foo/good"));
 }
 
 #[test]
@@ -448,9 +462,7 @@ fn directories_bin_handles_curdir_in_relative_path() {
 /// ever reaches (`file_name()` returns None only for paths ending in
 /// `..`, and `to_str()` fails only on non-UTF-8 bytes which are rare on
 /// Unix and impossible on Windows). A fake [`FsWalkFiles`] hands back one
-/// such path so the `continue` arm gets exercised directly. The
-/// regular `cli` entry alongside it confirms that the well-formed
-/// path still flows through and emits a [`Command`](super::Command).
+/// such path so the `continue` arm gets exercised directly.
 #[test]
 fn directories_bin_skips_path_without_usable_file_name() {
     use crate::capabilities::FsWalkFiles;
@@ -500,4 +512,42 @@ fn bin_field_takes_precedence_over_directories_bin() {
     let commands = get_bins_from_package_manifest::<Host>(&manifest, &pkg);
     assert_eq!(commands.len(), 1, "bin field wins, directories.bin is ignored");
     assert_eq!(commands[0].name, "tool");
+}
+
+#[test]
+fn rejects_unsafe_or_empty_normalized_bin_targets() {
+    for target in [
+        "/outside.js",
+        r"C:\outside.js",
+        r"\outside.js",
+        "C:cli.js",
+        "./C:cli.js",
+        "bin/../C:cli.js",
+        ".",
+        "..",
+        "bin/..",
+    ] {
+        let manifest = json!({ "name": "tool", "bin": { "tool": target } });
+        assert!(
+            get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/tool")).is_empty(),
+        );
+    }
+}
+
+#[test]
+fn normalizes_backslash_bin_targets_inside_the_package() {
+    for target in [r"dist\cli.js", r"..\dist\cli.js", r"lib\..\..\dist\cli.js"] {
+        let manifest = json!({ "name": "tool", "bin": { "tool": target } });
+        let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/tool"));
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].path, Path::new("/pkg/tool/dist/cli.js"));
+    }
+}
+
+#[test]
+fn preserves_colons_in_package_relative_bin_filenames() {
+    let manifest = json!({ "name": "tool", "bin": { "tool": "../dist/cli:dev.js" } });
+    let commands = get_bins_from_package_manifest::<Host>(&manifest, Path::new("/pkg/tool"));
+    assert_eq!(commands.len(), 1);
+    assert_eq!(commands[0].path, Path::new("/pkg/tool/dist/cli:dev.js"));
 }

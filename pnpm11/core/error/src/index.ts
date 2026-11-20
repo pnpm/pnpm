@@ -1,3 +1,5 @@
+import util from 'node:util'
+
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 
 export class PnpmError extends Error {
@@ -63,18 +65,40 @@ export class FetchError extends PnpmError {
 }
 
 /**
- * Strip `user:pass@` (or `user@`) userinfo that follows a URL scheme in any
- * text, e.g. `GET https://user:pass@host/pkg: …` → `GET https://host/pkg: …`.
- * A registry configured as `https://user:pass@host/` would otherwise leak its
- * embedded basic-auth credentials into every error message that interpolates
- * the request URL (terminal output, CI logs). `FetchError` already hides the
- * auth *header*; this covers credentials carried in the URL itself.
- *
- * Implemented as a single forward scan rather than a regex: `text` is
- * uncontrolled (it interpolates the request URL), so a backtracking pattern is
- * a ReDoS vector, and the scan strips up to the **last** `@` in the authority
- * so a raw `@` inside the password (`user:p@ss@host`) doesn't leak its tail.
+ * undici codes for a request that made no progress for `fetchTimeout`: no
+ * response head, or a body that stopped arriving.
  */
+const FETCH_TIMEOUT_ERROR_CODES = new Set(['UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT'])
+
+/**
+ * undici fails a timed-out request with a bare `fetch failed` or `terminated`
+ * and keeps the timeout only in the error's `cause` chain.
+ */
+export function isFetchTimeoutError (error: unknown): boolean {
+  let current = error
+  for (let depth = 0; depth < 8 && current != null && typeof current === 'object'; depth++) {
+    const { code, cause } = current as { code?: unknown, cause?: unknown }
+    if (typeof code === 'string' && FETCH_TIMEOUT_ERROR_CODES.has(code)) return true
+    current = cause
+  }
+  return false
+}
+
+export class FetchTimeoutError extends PnpmError {
+  constructor (
+    code: string,
+    url: string,
+    timeout: number | undefined,
+    opts: { attempts?: number, cause: unknown }
+  ) {
+    const reason = timeout == null ? 'waiting for data' : `no data received for ${timeout}ms`
+    super(code, `GET ${redactUrlForDisplay(url)}: timed out, ${reason}`, {
+      ...opts,
+      hint: 'The registry stopped responding. If it is just slow, increase the fetchTimeout setting.',
+    })
+  }
+}
+
 /**
  * A request URL made safe to print: its `user:pass@` userinfo and control
  * characters redacted ({@link redactAndSanitize}), then everything from the
@@ -101,6 +125,19 @@ function redactUrlSecrets (url: string): string {
   return sanitized.split(/[?#]/)[0]
 }
 
+/**
+ * Strip `user:pass@` (or `user@`) userinfo that follows a URL scheme in any
+ * text, e.g. `GET https://user:pass@host/pkg: ...` → `GET https://host/pkg: ...`.
+ * A registry configured as `https://user:pass@host/` would otherwise leak its
+ * embedded basic-auth credentials into every error message that interpolates
+ * the request URL (terminal output, CI logs). `FetchError` already hides the
+ * auth *header*; this covers credentials carried in the URL itself.
+ *
+ * Implemented as a single forward scan rather than a regex: `text` is
+ * uncontrolled (it interpolates the request URL), so a backtracking pattern is
+ * a ReDoS vector, and the scan strips up to the **last** `@` in the authority
+ * so a raw `@` inside the password (`user:p@ss@host`) doesn't leak its tail.
+ */
 export function redactUrlCredentials (text: string): string {
   let result = ''
   let cursor = 0
@@ -114,17 +151,20 @@ export function redactUrlCredentials (text: string): string {
     // (schemes end in an ASCII alphanumeric) sits right before it; otherwise a
     // bare `://` in the text is left untouched.
     if (schemeSep === 0 || !isSchemeTailChar(text.charCodeAt(schemeSep - 1))) continue
-    // Userinfo runs to the last `@` within the authority, which itself ends at
-    // the first `/`, `?`, `#`, or whitespace.
-    let lastAt = -1
-    for (let i = authorityStart; i < text.length; i++) {
-      const code = text.charCodeAt(i)
-      if (code === 0x2f || code === 0x3f || code === 0x23 || isAsciiWhitespace(code)) break
-      if (code === 0x40) lastAt = i
-    }
-    if (lastAt !== -1) cursor = lastAt + 1
+    const userinfoEnd = findAuthorityUserinfoEnd(text, authorityStart)
+    if (userinfoEnd !== -1) cursor = userinfoEnd
   }
   return result
+}
+
+function findAuthorityUserinfoEnd (text: string, authorityStart: number): number {
+  let lastAt = -1
+  for (let index = authorityStart; index < text.length; index++) {
+    const code = text.charCodeAt(index)
+    if (code === 0x2f || code === 0x3f || code === 0x23 || isAsciiWhitespace(code)) break
+    if (code === 0x40) lastAt = index
+  }
+  return lastAt === -1 ? -1 : lastAt + 1
 }
 
 /**
@@ -213,4 +253,17 @@ export class LockfileMissingDependencyError extends PnpmError {
         'To fix the lockfile, run \'pnpm install --no-frozen-lockfile\'.',
     })
   }
+}
+
+/**
+ * Whether `value` is an `Error`, whichever way the runtime created it.
+ *
+ * `util.types.isNativeError` misses the errors that StackBlitz WebContainers
+ * reject asynchronous `fs` calls with: they inherit from `Error`, but the
+ * native constructor did not create them. `instanceof Error` misses errors
+ * from another realm, such as the ones code under Jest's VM contexts catches.
+ * Either check passing is enough.
+ */
+export function isError (value: unknown): value is Error {
+  return util.types.isNativeError(value) || value instanceof Error
 }

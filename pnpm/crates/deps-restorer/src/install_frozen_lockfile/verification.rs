@@ -1,0 +1,123 @@
+use super::{
+    InstallFrozenLockfileError,
+    LockfileVerificationOverride,
+};
+use crate::{
+    CheckVerdict,
+    ConcurrentCheck,
+    CreateVirtualStore,
+    CreateVirtualStoreOutput,
+};
+use pnpm_config::Config;
+use pnpm_lockfile::Lockfile;
+use pnpm_lockfile_verification::{
+    VerifyLockfileResolutionsOptions,
+    verify_lockfile_resolutions,
+};
+use pnpm_reporter::Reporter;
+use pnpm_resolving_resolver_base::ResolutionVerifier;
+use std::{
+    path::Path,
+    sync::Arc,
+};
+
+/// The lockfile verification that runs alongside the fetch.
+///
+/// `precomputed` is a verdict the caller already has in flight; when it
+/// is set the verifiers are not consulted. An empty `verifiers` with no
+/// `precomputed` verdict means `trustLockfile`, verification is a
+/// no-op.
+pub(super) struct ConcurrentVerification<'a> {
+    pub(super) lockfile: &'a Lockfile,
+    pub(super) verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    pub(super) precomputed: Option<LockfileVerificationOverride<'a>>,
+    pub(super) lockfile_path: Option<&'a Path>,
+    pub(super) cache_dir: &'a Path,
+}
+/// Materialize the virtual store while verifying the lockfile, and
+/// return the fetch's output once the lockfile is known trusted.
+///
+/// The verification is the fetch's concurrent check, so the verifiers'
+/// per-entry registry round trips overlap the downloads. A rejected
+/// lockfile aborts the fetch in flight, and the fetch drives the check
+/// to its verdict before returning, so no dependency lifecycle script
+/// can run on an unverified lockfile.
+///
+/// The verification verdict takes precedence over a fetch error, so an
+/// unrelated fetch failure never masks a rejected lockfile: a fetch
+/// failure waits for the verdict and only surfaces once the lockfile is
+/// trusted.
+pub(super) async fn fetch_verified<Reporter: self::Reporter>(
+    create_virtual_store: CreateVirtualStore<'_>,
+    verification: ConcurrentVerification<'_>,
+) -> Result<CreateVirtualStoreOutput, InstallFrozenLockfileError> {
+    let mut verdict = None;
+    let check: ConcurrentCheck<'_> = Box::pin(async {
+        let outcome = verification.run::<Reporter>().await;
+        let decision = if outcome.is_ok() { CheckVerdict::Continue } else { CheckVerdict::Abort };
+        verdict = Some(outcome);
+        decision
+    });
+    let output = create_virtual_store.run_with_check::<Reporter>(Some(check)).await;
+    verdict.expect("the fetch drives its concurrent check to its verdict")?;
+    output.map_err(InstallFrozenLockfileError::CreateVirtualStore)
+}
+/// Load custom fetchers from the install's pnpmfiles, if any.
+/// Returns `Ok(None)` when no pnpmfile exists or it exports no
+/// fetchers, so the install path can skip the IPC overhead entirely.
+/// A pnpmfile that fails to load or evaluate aborts the install, like
+/// the custom-resolver load on the fresh-lockfile path.
+pub(super) async fn load_custom_fetcher_session(
+    hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    config: &Config,
+) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {
+    let Some(hook) = hook else { return Ok(None) };
+    let fetchers = hook
+        .get_custom_fetchers()
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                target: "pacquet::install",
+                "Failed to get custom fetchers from pnpmfile: {err}",
+            );
+            InstallFrozenLockfileError::CustomFetcherHook(err)
+        })?;
+    if fetchers.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(Arc::new(
+        crate::CustomFetcherSession::with_config(fetchers, config)
+            .map_err(InstallFrozenLockfileError::VersionPolicy)?,
+    )))
+}
+
+impl ConcurrentVerification<'_> {
+    async fn run<Reporter: self::Reporter>(self) -> Result<(), InstallFrozenLockfileError> {
+        let ConcurrentVerification {
+            lockfile,
+            verifiers,
+            precomputed,
+            lockfile_path,
+            cache_dir,
+        } = self;
+        if let Some(precomputed) = precomputed {
+            return precomputed.await;
+        }
+        if verifiers.is_empty() {
+            return Ok(());
+        }
+        verify_lockfile_resolutions::<Reporter>(
+            lockfile,
+            verifiers,
+            &VerifyLockfileResolutionsOptions {
+                concurrency: None,
+                lockfile_path,
+                cache_dir: Some(cache_dir),
+                replaced: None,
+                repairs_lockfile: false,
+            },
+        )
+        .await
+        .map_err(InstallFrozenLockfileError::LockfileVerification)
+    }
+}

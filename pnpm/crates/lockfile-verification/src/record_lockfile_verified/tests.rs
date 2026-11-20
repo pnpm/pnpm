@@ -1,13 +1,27 @@
-use std::{fs, sync::Arc};
+use std::{
+    fs,
+    sync::Arc,
+};
 
-use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
 };
 use tempfile::TempDir;
 
 use super::record_lockfile_verified;
-use crate::{CACHE_FILE_NAME, CacheRecord, hash_lockfile, try_lockfile_verification_cache};
+use crate::{
+    CACHE_FILE_NAME,
+    CacheRecord,
+    hash_lockfile,
+    try_lockfile_verification_cache,
+};
 
 const LOCKFILE: &str = "lockfileVersion: '9.0'
 
@@ -90,4 +104,28 @@ fn records_the_caller_supplied_lockfile_path() {
     let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("read cache");
     let record: CacheRecord = serde_json::from_str(cache.trim_end()).expect("parse cache");
     assert_eq!(record.lockfile.path, lockfile_path.to_string_lossy());
+}
+
+#[test]
+fn refuses_to_record_a_lockfile_with_invalid_dependency_names() {
+    let yaml = "lockfileVersion: '9.0'
+
+packages:
+
+  ../../../escape@1.0.0:
+    resolution: {integrity: sha512-deadbeef}
+";
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile_path = dir.path().join("pnpm-lock.yaml");
+    fs::write(&lockfile_path, yaml).expect("write lockfile");
+    let lockfile: Lockfile = serde_saphyr::from_str(yaml).expect("parse lockfile");
+
+    record_lockfile_verified(Some(dir.path()), &lockfile_path, &lockfile, &[verifier()]);
+
+    assert!(
+        !dir.path()
+            .join(CACHE_FILE_NAME)
+            .exists(),
+        "lockfile with invalid dependency names must never be recorded as verified",
+    );
 }

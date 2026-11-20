@@ -33,7 +33,7 @@ test('tarball from npm.jsr.io registry (immutable)', async () => {
 })
 
 test('tarball from URL that contain port number', async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stub implements only the part of fetch the resolver calls
   const fetch: any = async (url: string) => ({ url })
   const resolutionResult = await _resolveFromTarball(fetch, { bareSpecifier: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz' })
 
@@ -61,7 +61,7 @@ test('tarball from URL with redundant port', async () => {
 })
 
 test('tarball from URL that redirects to a different URL (immutable)', async () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the stub implements only the part of fetch the resolver calls
   const fetch: any = async (url: string) => {
     if (url === 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz') {
       return {
@@ -106,5 +106,70 @@ test('tarballs from GitHub (is-negative)', async () => {
       tarball: 'https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz',
     },
     resolvedVia: 'url',
+  })
+})
+
+test('falls back to GET when HEAD returns 405 Method Not Allowed (immutable)', async () => {
+  const calls: string[] = []
+  let getBodyCancelled = false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a partial Response stub is enough for the resolver
+  const fetch: any = async (url: string, opts: { method: string }) => {
+    calls.push(opts.method)
+    if (opts.method === 'HEAD') {
+      return {
+        status: 405,
+      }
+    }
+    return {
+      status: 200,
+      url: 'https://pkg.pr.new/canonical/pkg@123',
+      headers: new Map([['cache-control', 'immutable']]),
+      body: {
+        cancel: async () => {
+          getBodyCancelled = true
+        },
+      },
+    }
+  }
+  const resolutionResult = await _resolveFromTarball(fetch, {
+    bareSpecifier: 'https://pkg.pr.new/foo/bar@1.0.0',
+  })
+
+  expect(calls).toEqual(['HEAD', 'GET'])
+  expect(getBodyCancelled).toBe(true)
+  expect(resolutionResult).toStrictEqual({
+    id: 'https://pkg.pr.new/foo/bar@1.0.0',
+    normalizedBareSpecifier: 'https://pkg.pr.new/foo/bar@1.0.0',
+    resolution: {
+      tarball: 'https://pkg.pr.new/canonical/pkg@123',
+    },
+    resolvedVia: 'url',
+  })
+})
+
+
+test('a rejected body cancellation does not fail the 405 fallback', async () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a partial Response stub is enough for the resolver
+  const fetch: any = async (url: string, opts: { method: string }) => {
+    if (opts.method === 'HEAD') {
+      return { status: 405 }
+    }
+    return {
+      status: 200,
+      url,
+      headers: new Map(),
+      body: {
+        cancel: async () => {
+          throw new Error('connection reset')
+        },
+      },
+    }
+  }
+  const resolutionResult = await _resolveFromTarball(fetch, {
+    bareSpecifier: 'https://pkg.pr.new/foo/bar@1.0.0',
+  })
+
+  expect(resolutionResult?.resolution).toStrictEqual({
+    tarball: 'https://pkg.pr.new/foo/bar@1.0.0',
   })
 })

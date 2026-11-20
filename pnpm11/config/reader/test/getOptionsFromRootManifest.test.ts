@@ -1,3 +1,4 @@
+import path from 'node:path'
 import util from 'node:util'
 
 import { afterEach, expect, test } from '@jest/globals'
@@ -20,35 +21,82 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
   expect(options.foo).toBe('bar')
 })
 
-test('getOptionsFromPnpmSettings() ignores env variables inside registries values', () => {
-  process.env.PNPM_TEST_TOKEN = 'secret'
-  const options = getOptionsFromPnpmSettings(process.cwd(), {
+test('getOptionsFromPnpmSettings() throws a PnpmError when a string config value has an undefined env variable', () => {
+  // Simulates runtime behavior when pnpm-workspace.yaml or config.yaml has a
+  // string-valued setting referencing an env variable that is not defined.
+  // The TypeScript type doesn't include all valid config keys, so we cast.
+  delete process.env.PNPM_TEST_UNDEFINED_ENV_VAR_82645
+  expect(process.env.PNPM_TEST_UNDEFINED_ENV_VAR_82645).toBeUndefined()
+  const settings = { nodeLinker: '${PNPM_TEST_UNDEFINED_ENV_VAR_82645}' } as unknown as PnpmSettings
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), settings)).toThrow(
+    expect.objectContaining({
+      code: 'ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR',
+    })
+  )
+})
+
+test.each([
+  ['./scripts/shell.sh', path.join('/workspace/root', 'scripts/shell.sh')],
+  ['../scripts/shell.sh', path.join('/workspace/root', '../scripts/shell.sh')],
+  ['scripts/shell.sh', path.join('/workspace/root', 'scripts/shell.sh')],
+  ['scripts\\shell.cmd', path.join('/workspace/root', 'scripts\\shell.cmd')],
+  ['bash', 'bash'],
+  ['/usr/bin/bash', '/usr/bin/bash'],
+])('getOptionsFromPnpmSettings() resolves path-like scriptShell %s against the workspace root', (scriptShell, expected) => {
+  const options = getOptionsFromPnpmSettings('/workspace/root', { scriptShell } as unknown as PnpmSettings)
+  expect(options.scriptShell).toBe(expected)
+})
+
+test('getOptionsFromPnpmSettings() leaves relative scriptShell unresolved without a workspace root', () => {
+  const options = getOptionsFromPnpmSettings(undefined, { scriptShell: './scripts/shell.sh' } as unknown as PnpmSettings)
+  expect(options.scriptShell).toBe('./scripts/shell.sh')
+})
+
+const testOnWindows = process.platform === 'win32' ? test : test.skip
+
+testOnWindows.each([
+  ['C:\\tools\\bash.exe'],
+  ['\\\\server\\share\\bash.exe'],
+  ['\\tools\\bash.exe'],
+  ['/tools/bash.exe'],
+])('getOptionsFromPnpmSettings() preserves Windows absolute scriptShell %s', (scriptShell) => {
+  const options = getOptionsFromPnpmSettings('C:\\workspace\\root', { scriptShell } as unknown as PnpmSettings)
+  expect(options.scriptShell).toBe(scriptShell)
+})
+
+test('getOptionsFromPnpmSettings() fails on env variables inside scoped registries values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     registries: {
       default: 'https://registry.npmjs.org/',
       '@scope': 'https://registry.example.com/${PNPM_TEST_TOKEN}/',
     },
-  }) as any // eslint-disable-line
-  expect(options.registriesByScope).toStrictEqual({
-    default: 'https://registry.npmjs.org/',
-  })
+  })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' }))
 })
 
-test('getOptionsFromPnpmSettings() ignores env variables inside namedRegistries values', () => {
-  process.env.PNPM_TEST_HOST = 'work.example.com'
-  const options = getOptionsFromPnpmSettings(process.cwd(), {
+test.each([
+  ['registry', { registry: 'https://${PNPM_TEST_HOST}/npm/' }],
+  ['the default registries value', { registries: { default: 'https://${PNPM_TEST_HOST}/npm/' } }],
+  ['a registries declaration', { registries: { 'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' } } }],
+])('getOptionsFromPnpmSettings() fails on env variables inside %s', (_caseName, settings) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), settings as PnpmSettings, { warnings: [] }))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' }))
+})
+
+test('getOptionsFromPnpmSettings() fails on a scope route with an env variable inside a declaration map', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
+      '@scope': 'https://${PNPM_TEST_HOST}/scope/',
+    } as never,
+  }, { warnings: [] })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' }))
+})
+
+test('getOptionsFromPnpmSettings() fails on env variables inside namedRegistries values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     namedRegistries: {
       work: 'https://${PNPM_TEST_HOST}/npm/',
     },
-  } as any) as any // eslint-disable-line
-  expect(options.registriesByPrefix).toBeUndefined()
-})
-
-test('getOptionsFromPnpmSettings() ignores env variables inside registry setting', () => {
-  process.env.PNPM_TEST_HOST = 'registry.example.com'
-  const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registry: 'https://${PNPM_TEST_HOST}/npm/',
-  } as any) as any // eslint-disable-line
-  expect(options.registry).toBeUndefined()
+  } as any)).toThrow(expect.objectContaining({ code: 'ERR_PNPM_REGISTRY_ENV_NOT_EXPANDED' })) // eslint-disable-line
 })
 
 test('getOptionsFromPnpmSettings() ignores env variables inside pnprServer setting', () => {
@@ -57,6 +105,29 @@ test('getOptionsFromPnpmSettings() ignores env variables inside pnprServer setti
     pnprServer: 'https://${PNPM_TEST_HOST}/pnpr/',
   } as any) as any // eslint-disable-line
   expect(options.pnprServer).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() ignores env variables inside userAgent setting', () => {
+  process.env.PNPM_TEST_TOKEN = 'super-secret-token'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    userAgent: 'agent/${PNPM_TEST_TOKEN}',
+  } as any) as any // eslint-disable-line
+  expect(options.userAgent).toBeUndefined()
+})
+
+test('getOptionsFromPnpmSettings() keeps a literal userAgent setting', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    userAgent: 'my-agent/2.0',
+  } as any) as any // eslint-disable-line
+  expect(options.userAgent).toBe('my-agent/2.0')
+})
+
+test('getOptionsFromPnpmSettings() may expand env variables inside a trusted userAgent setting', () => {
+  process.env.PNPM_TEST_TOKEN = 'ci-build'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    userAgent: 'agent/${PNPM_TEST_TOKEN}',
+  } as any, { expandRequestDestinationEnv: true }) as any // eslint-disable-line
+  expect(options.userAgent).toBe('agent/ci-build')
 })
 
 test('getOptionsFromPnpmSettings() may expand env variables inside trusted request destinations', () => {
@@ -239,6 +310,72 @@ test('getOptionsFromPnpmSettings() rejects non-object overrides values', () => {
   }))
 })
 
+test('getOptionsFromPnpmSettings() rejects non-string patchedDependencies values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: {
+      foo: null,
+    } as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The value of patchedDependencies.foo should be a string, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects array patchedDependencies', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: [] as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The patchedDependencies field should be an object, but got array',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects null patchedDependencies', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: null as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The patchedDependencies field should be an object, but got null',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects string patchedDependencies', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    patchedDependencies: 'foo' as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_PATCHED_DEPENDENCY',
+    message: 'The patchedDependencies field should be an object, but got string',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts nodeDownloadMirrors with string values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    nodeDownloadMirrors: {
+      release: 'https://mirror.example.com/release/',
+    },
+  })).not.toThrow()
+})
+
+test('getOptionsFromPnpmSettings() rejects non-string nodeDownloadMirrors values', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    nodeDownloadMirrors: {
+      release: 42,
+    } as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "nodeDownloadMirrors.release" setting should be a string, but got number',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects non-object nodeDownloadMirrors', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    nodeDownloadMirrors: [] as unknown as Record<string, string>,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: 'The "nodeDownloadMirrors" setting should be an object, but got array',
+  }))
+})
+
 test('getOptionsFromPnpmSettings() rejects a non-string range in packageExtensions', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     packageExtensions: {
@@ -347,8 +484,7 @@ test('getOptionsFromPnpmSettings() rejects non-object packageExtensions', () => 
   }))
 })
 
-// A key left empty in pnpm-workspace.yaml parses to null. pacquet reads the same
-// shapes into `Option` fields, where null and an absent key are the same thing.
+// A key left empty in pnpm-workspace.yaml parses to null.
 // The nulls are passed through rather than stripped: every reader of these
 // fields already treats them as unset, so normalizing them here would only add a
 // second spelling of the same state.
@@ -426,7 +562,18 @@ test('getOptionsFromPnpmSettings() rejects an unknown registry server type', () 
     registries: {
       'https://npm.example.com/': { serverType: 'nexus' as never },
     },
-  })).toThrow(/should be one of "npm", "artifactory", but got "nexus"/)
+  })).toThrow(/should be one of "npm", "artifactory", "pnpr", but got "nexus"/)
+})
+
+test('getOptionsFromPnpmSettings() accepts the pnpr registry server type', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://pnpr.example/npm/': { serverType: 'pnpr' },
+    },
+  })
+  expect(options.registryOptionsByUrl).toStrictEqual({
+    'https://pnpr.example/npm/': { serverType: 'pnpr' },
+  })
 })
 
 test('getOptionsFromPnpmSettings() rejects credentials in a registry declaration', () => {
@@ -455,17 +602,6 @@ test('getOptionsFromPnpmSettings() rejects a registries map that mixes both shap
       'https://artifactory.example/': { serverType: 'artifactory' },
     } as never,
   })).toThrow(/mixes registry declarations with "<scope>: <url>" entries \("@acme"\)/)
-})
-
-test('getOptionsFromPnpmSettings() drops a registries entry whose URL has an unexpanded env placeholder', () => {
-  // The key is a request destination, so it gets the same gate the `registries`
-  // values get: no silent expansion outside a trusted context.
-  const options = getOptionsFromPnpmSettings(process.cwd(), {
-    registries: {
-      'https://${PNPM_TEST_HOST}/': { serverType: 'artifactory' },
-    },
-  })
-  expect(options.registryOptionsByUrl).toBeUndefined()
 })
 
 test('getOptionsFromPnpmSettings() expands the registries key when request destinations may be expanded', () => {
@@ -609,6 +745,21 @@ test('getOptionsFromPnpmSettings() rejects one prefix declared by two registries
   })).toThrow(/The prefix "work" is declared by two registries/)
 })
 
+test('getOptionsFromPnpmSettings() reads a declared prefix that names an Object.prototype property', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: 'constructor' },
+    },
+  })
+  expect(options.registriesByPrefix).toStrictEqual({ constructor: 'https://npm.corp.example/' })
+})
+
+test('getOptionsFromPnpmSettings() rejects a "$" override reference to an Object.prototype property', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    overrides: { foo: '$toString' },
+  }, { dependencies: { foo: '1.0.0' } })).toThrow(/Cannot resolve version \$toString in overrides/)
+})
+
 test('getOptionsFromPnpmSettings() lets a declared prefix win over the deprecated namedRegistries', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
     namedRegistries: {
@@ -719,10 +870,26 @@ test('getOptionsFromPnpmSettings() rejects a tasks entry that is not an object',
   })).toThrow(/The "tasks\['build'\]" setting should be an object, but got array/)
 })
 
-test('getOptionsFromPnpmSettings() rejects an unknown task setting field', () => {
+test('getOptionsFromPnpmSettings() rejects a task setting field that misspells one of its own', () => {
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     tasks: { build: { dependson: ['^build'] } } as never,
   })).toThrow(/The "tasks\['build'\].dependson" setting is not a known task setting/)
+})
+
+test('getOptionsFromPnpmSettings() keeps task settings that only pnpm 12 reads', () => {
+  const tasks = {
+    build: {
+      cache: false,
+      cargoTargetDir: 'target',
+      concurrencyGroup: 'cargo',
+      priority: 1,
+      dependsOn: ['^build'],
+      env: ['CARGO_PROFILE'],
+      inputs: ['src/**'],
+      outputs: ['dist/**'],
+    },
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { tasks } as never).tasks).toStrictEqual(tasks)
 })
 
 test('getOptionsFromPnpmSettings() rejects a dependsOn that is not an array of strings', () => {
@@ -741,4 +908,191 @@ test.each([0, -1, 1.5, '2'])('getOptionsFromPnpmSettings() rejects invalid task 
   expect(() => getOptionsFromPnpmSettings(process.cwd(), {
     tasks: { build: { concurrency } } as never,
   })).toThrow(/The "tasks\['build'\].concurrency" setting should be a positive integer/)
+})
+
+test('getOptionsFromPnpmSettings() rejects non-object allowBuilds', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: ['esbuild'] as unknown as Record<string, boolean | string>,
+  })).toThrow(/The allowBuilds field should be an object, but got array/)
+
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: 'all' as unknown as Record<string, boolean | string>,
+  })).toThrow(/The allowBuilds field should be an object, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() rejects invalid allowBuilds value types', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: { esbuild: 123 as unknown as boolean },
+  })).toThrow(/The value of allowBuilds\.esbuild should be a boolean or string, but got number/)
+
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: { esbuild: null as unknown as boolean },
+  })).toThrow(/The value of allowBuilds\.esbuild should be a boolean or string, but got null/)
+})
+
+test('getOptionsFromPnpmSettings() accepts valid allowBuilds', () => {
+  const allowBuilds = { esbuild: true, 'node-gyp': false, other: 'set this to true or false' }
+  const options = getOptionsFromPnpmSettings(process.cwd(), { allowBuilds })
+  expect(options.allowBuilds).toStrictEqual(allowBuilds)
+})
+
+test('getOptionsFromPnpmSettings() treats a null allowBuilds as unset', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    allowBuilds: null as unknown as Record<string, boolean | string>,
+  })
+  expect(options.allowBuilds).toBeNull()
+})
+
+test.each(['false', 'true', 1, 0, [], {}])('getOptionsFromPnpmSettings() rejects non-boolean allowUnusedPatches %p', (allowUnusedPatches) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    allowUnusedPatches: allowUnusedPatches as unknown as boolean,
+  })).toThrow(/The "allowUnusedPatches" setting should be a boolean/)
+})
+
+test.each([true, false])('getOptionsFromPnpmSettings() accepts boolean allowUnusedPatches %p', (allowUnusedPatches) => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), { allowUnusedPatches })
+  expect(options.allowUnusedPatches).toBe(allowUnusedPatches)
+})
+
+test.each(['false', 'true', 1, 0, [], {}])('getOptionsFromPnpmSettings() rejects non-boolean autoInstallPeersFromHighestMatch %p', (autoInstallPeersFromHighestMatch) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    autoInstallPeersFromHighestMatch: autoInstallPeersFromHighestMatch as unknown as boolean,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expect.stringMatching(/The "autoInstallPeersFromHighestMatch" setting should be a boolean/),
+  }))
+})
+
+test.each([true, false])('getOptionsFromPnpmSettings() accepts boolean autoInstallPeersFromHighestMatch %p', (autoInstallPeersFromHighestMatch) => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), { autoInstallPeersFromHighestMatch })
+  expect(options.autoInstallPeersFromHighestMatch).toBe(autoInstallPeersFromHighestMatch)
+})
+
+test.each([
+  ['externalDependencies', 'foo', 'string'],
+  ['externalDependencies', ['foo', 123], 'array'],
+  ['ignoredOptionalDependencies', 'foo', 'string'],
+  ['ignoredOptionalDependencies', ['foo', 123], 'array'],
+  ['requiredScripts', 'test', 'string'],
+  ['requiredScripts', ['build', null], 'array'],
+])('getOptionsFromPnpmSettings() rejects %s set to %p', (settingName, value, receivedType) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: `The "${settingName}" setting should be an array of strings, but got ${receivedType}`,
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts valid externalDependencies, ignoredOptionalDependencies, and requiredScripts', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    externalDependencies: ['foo', 'bar'],
+    ignoredOptionalDependencies: ['foo', '@bar/*'],
+    requiredScripts: ['build', 'test'],
+  })
+  expect(options.externalDependencies).toStrictEqual(new Set(['foo', 'bar']))
+  expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
+  expect(options.requiredScripts).toStrictEqual(['build', 'test'])
+})
+
+test.each([
+  ['httpProxy', 123, 'The "httpProxy" setting should be a string, but got number'],
+  ['httpProxy', true, 'The "httpProxy" setting should be a string, but got boolean'],
+  ['httpProxy', ['http://proxy.local'], 'The "httpProxy" setting should be a string, but got array'],
+  ['httpsProxy', 123, 'The "httpsProxy" setting should be a string, but got number'],
+  ['httpsProxy', false, 'The "httpsProxy" setting should be a string, but got boolean'],
+  ['httpsProxy', { url: 'https://proxy.local' }, 'The "httpsProxy" setting should be a string, but got object'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedMessage) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expectedMessage,
+  }))
+})
+
+test('getOptionsFromPnpmSettings() treats a null httpProxy and httpsProxy as unset', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    httpProxy: null as unknown as string,
+    httpsProxy: null as unknown as string,
+  })
+  expect(options.httpProxy).toBeUndefined()
+  expect(options.httpsProxy).toBeUndefined()
+  expect('httpProxy' in options).toBe(false)
+  expect('httpsProxy' in options).toBe(false)
+})
+
+test('getOptionsFromPnpmSettings() accepts valid httpProxy and httpsProxy', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    httpProxy: 'http://localhost:8080',
+    httpsProxy: 'https://localhost:8443',
+  })
+  expect(options.httpProxy).toBe('http://localhost:8080')
+  expect(options.httpsProxy).toBe('https://localhost:8443')
+})
+
+test('getOptionsFromPnpmSettings() keeps a registry prefix named after an Object.prototype property', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: '__proto__' },
+      'https://other.example/': { prefix: 'constructor' },
+    },
+  })
+  expect(Object.entries(options.registriesByPrefix!)).toStrictEqual([
+    ['__proto__', 'https://npm.corp.example/'],
+    ['constructor', 'https://other.example/'],
+  ])
+})
+
+test('getOptionsFromPnpmSettings() rejects a registry prefix declared twice as __proto__', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: '__proto__' },
+      'https://other.example/': { prefix: '__proto__' },
+    },
+  })).toThrow(/The prefix "__proto__" is declared by two registries/)
+})
+
+test('getOptionsFromPnpmSettings() refuses registry aliases, which only a pnpr request carries', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] },
+    },
+  })).toThrow(/aliases" setting is not a known registry setting/)
+})
+
+test('getOptionsFromPnpmSettings() accepts valid strictSsl and localAddress', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    strictSsl: false,
+    localAddress: '127.0.0.1',
+  })
+  expect(options.strictSsl).toBe(false)
+  expect(options.localAddress).toBe('127.0.0.1')
+})
+
+test('getOptionsFromPnpmSettings() preserves null strictSsl and localAddress as unset', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    strictSsl: null as unknown as boolean,
+    localAddress: null as unknown as string,
+  })
+  expect(options.strictSsl).toBeNull()
+  expect(options.localAddress).toBeNull()
+})
+
+test.each([
+  ['strictSsl', 123, 'number'],
+  ['strictSsl', 'false', 'string'],
+  ['strictSsl', ['true'], 'array'],
+  ['strictSsl', {}, 'object'],
+  ['localAddress', 123, 'number'],
+  ['localAddress', true, 'boolean'],
+  ['localAddress', ['127.0.0.1'], 'array'],
+  ['localAddress', {}, 'object'],
+])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedType) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    [settingName]: value,
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: `The "${settingName}" setting should be a ${settingName === 'strictSsl' ? 'boolean' : 'string'}, but got ${expectedType}`,
+  }))
 })

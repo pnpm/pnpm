@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { buildDependenciesTree, buildDependentsTree, createPackagesSearcher, type DependenciesTree, type DependencyNode, type ImporterInfo } from '@pnpm/deps.inspection.tree-builder'
+import { buildDependenciesTree, buildDependentsTree, compareDependentsTrees, createPackagesSearcher, type DependenciesTree, type DependencyNode, type DependentsTree, type ImporterInfo, mergeDependentsTrees } from '@pnpm/deps.inspection.tree-builder'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { DependenciesField, Finder, RegistriesByScope } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -11,8 +11,10 @@ import { renderParseable } from './renderParseable.js'
 import { renderTree } from './renderTree.js'
 import type { PackageDependencyHierarchy } from './types.js'
 
-export type { DependencyNode } from '@pnpm/deps.inspection.tree-builder'
+export type { DependencyNode, DependentsTree } from '@pnpm/deps.inspection.tree-builder'
 export {
+  compareDependentsTrees,
+  mergeDependentsTrees,
   type PackageDependencyHierarchy,
   renderDependentsJson,
   renderDependentsParseable,
@@ -75,11 +77,15 @@ export async function searchForPackages (
     checkWantedLockfileOnly?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
+    workspaceProjectDirs?: string[]
+    workspaceProjectPublishDirs?: Record<string, string>
     registriesByScope?: RegistriesByScope
     registriesByPrefix?: Record<string, string>
+    resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<PackageDependencyHierarchy[]> {
   const search = createPackagesSearcher(packages, opts.finders)
@@ -92,12 +98,16 @@ export async function searchForPackages (
       lockfileDir: opts.lockfileDir,
       checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
       onlyProjects: opts.onlyProjects,
+      workspaceProjectDirs: opts.workspaceProjectDirs,
+      workspaceProjectPublishDirs: opts.workspaceProjectPublishDirs,
       registriesByScope: opts.registriesByScope,
       registriesByPrefix: opts.registriesByPrefix,
+      resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       search,
       showDedupedSearchMatches: true,
       modulesDir: opts.modulesDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      nodeLinker: opts.nodeLinker,
     }))
       .map(async ([projectPath, buildDependenciesTree]) => {
         const entryPkg = await safeReadProjectManifestOnly(projectPath) ?? {}
@@ -124,13 +134,17 @@ export async function listForPackages (
     long?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
+    workspaceProjectDirs?: string[]
+    workspaceProjectPublishDirs?: Record<string, string>
     reportAs?: 'parseable' | 'tree' | 'json'
     registriesByScope?: RegistriesByScope
     registriesByPrefix?: Record<string, string>
+    resolvePeersFromWorkspaceRoot?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
     finders?: Finder[]
     showSummary?: boolean
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -148,30 +162,54 @@ export async function listForPackages (
   })
 }
 
+export interface ListOptions {
+  alwaysPrintRootPackage?: boolean
+  depth?: number
+  excludePeerDependencies?: boolean
+  lockfileDir: string
+  checkWantedLockfileOnly?: boolean
+  long?: boolean
+  include?: { [dependenciesField in DependenciesField]: boolean }
+  onlyProjects?: boolean
+  workspaceProjectDirs?: string[]
+  workspaceProjectPublishDirs?: Record<string, string>
+  reportAs?: 'parseable' | 'tree' | 'json'
+  registriesByScope?: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
+  resolvePeersFromWorkspaceRoot?: boolean
+  showExtraneous?: boolean
+  modulesDir?: string
+  virtualStoreDirMaxLength: number
+  finders?: Finder[]
+  showSummary?: boolean
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+}
+
 export async function list (
   projectPaths: string[],
-  maybeOpts: {
-    alwaysPrintRootPackage?: boolean
-    depth?: number
-    excludePeerDependencies?: boolean
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    long?: boolean
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    onlyProjects?: boolean
-    reportAs?: 'parseable' | 'tree' | 'json'
-    registriesByScope?: RegistriesByScope
-    registriesByPrefix?: Record<string, string>
-    showExtraneous?: boolean
-    modulesDir?: string
-    virtualStoreDirMaxLength: number
-    finders?: Finder[]
-    showSummary?: boolean
-  }
+  maybeOpts: ListOptions
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
+  const pkgs = await getPackagesForListing(projectPaths, opts)
 
-  const pkgs = await Promise.all(
+  const print = getPrinter(opts.reportAs)
+  return print(pkgs, {
+    alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
+    depth: opts.depth,
+    long: opts.long,
+    search: false,
+    showExtraneous: opts.showExtraneous,
+    showSummary: opts.showSummary,
+  })
+}
+
+export async function getPackagesForListing (
+  projectPaths: string[],
+  maybeOpts: ListOptions
+): Promise<PackageDependencyHierarchy[]> {
+  const opts = { ...DEFAULTS, ...maybeOpts }
+
+  return Promise.all(
     Object.entries(
       opts.depth === -1
         ? projectPaths.reduce((acc, projectPath) => {
@@ -185,10 +223,14 @@ export async function list (
           lockfileDir: maybeOpts?.lockfileDir,
           checkWantedLockfileOnly: maybeOpts?.checkWantedLockfileOnly,
           onlyProjects: maybeOpts?.onlyProjects,
+          workspaceProjectDirs: maybeOpts?.workspaceProjectDirs,
+          workspaceProjectPublishDirs: maybeOpts?.workspaceProjectPublishDirs,
           registriesByScope: opts.registriesByScope,
           registriesByPrefix: opts.registriesByPrefix,
+          resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
           modulesDir: opts.modulesDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+          nodeLinker: opts.nodeLinker,
         })
     )
       .map(async ([projectPath, dependenciesHierarchy]) => {
@@ -203,16 +245,6 @@ export async function list (
         } as PackageDependencyHierarchy
       })
   )
-
-  const print = getPrinter(opts.reportAs)
-  return print(pkgs, {
-    alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
-    depth: opts.depth,
-    long: opts.long,
-    search: false,
-    showExtraneous: opts.showExtraneous,
-    showSummary: opts.showSummary,
-  })
 }
 
 type Printer = (packages: PackageDependencyHierarchy[], opts: {
@@ -232,48 +264,48 @@ function getPrinter (reportAs: 'parseable' | 'tree' | 'json'): Printer {
   }
 }
 
-export async function whyForPackages (
+export interface WhyOptions {
+  depth?: number
+  lockfileDir: string
+  checkWantedLockfileOnly?: boolean
+  include?: { [dependenciesField in DependenciesField]: boolean }
+  long?: boolean
+  registriesByScope?: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
+  reportAs?: 'parseable' | 'tree' | 'json'
+  resolvePeersFromWorkspaceRoot?: boolean
+  modulesDir?: string
+  finders?: Finder[]
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+}
+
+export async function getDependentsTrees (
   packages: string[],
   projectPaths: string[],
-  opts: {
-    depth?: number
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    long?: boolean
-    registriesByScope?: RegistriesByScope
-    registriesByPrefix?: Record<string, string>
-    reportAs?: 'parseable' | 'tree' | 'json'
-    modulesDir?: string
-    finders?: Finder[]
-  }
-): Promise<string> {
-  const reportAs = opts.reportAs ?? 'tree'
-  const long = opts.long ?? false
-  const depth = opts.depth
-
+  opts: Omit<WhyOptions, 'depth' | 'long' | 'reportAs'>
+): Promise<DependentsTree[] | undefined> {
   const importerInfoMap = new Map<string, ImporterInfo>()
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const lockfile = opts.checkWantedLockfileOnly
     ? await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
     : await readCurrentLockfile(path.join(opts.lockfileDir, modulesDir, '.pnpm'), { ignoreIncompatible: false })
       ?? await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false })
-  if (!lockfile) return ''
+  if (!lockfile) return undefined
 
   const importerIds = Object.keys(lockfile.importers)
   const manifests = await Promise.all(
     importerIds.map((importerId) => safeReadProjectManifestOnly(path.join(opts.lockfileDir, importerId)))
   )
-  for (let i = 0; i < importerIds.length; i++) {
-    const importerId = importerIds[i]
-    const manifest = manifests[i]
+  for (let importerIndex = 0; importerIndex < importerIds.length; importerIndex++) {
+    const importerId = importerIds[importerIndex]
+    const manifest = manifests[importerIndex]
     importerInfoMap.set(importerId, {
       name: manifest?.name ?? (importerId === '.' ? 'the root project' : importerId),
       version: manifest?.version ?? '',
     })
   }
 
-  const trees = await buildDependentsTree(packages, projectPaths, {
+  return buildDependentsTree(packages, projectPaths, {
     lockfileDir: opts.lockfileDir,
     include: opts.include,
     modulesDir: opts.modulesDir,
@@ -282,11 +314,36 @@ export async function whyForPackages (
     finders: opts.finders,
     importerInfoMap,
     lockfile,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    nodeLinker: opts.nodeLinker,
   })
+}
+
+export async function renderDependents (
+  trees: DependentsTree[],
+  opts: {
+    depth?: number
+    long?: boolean
+    reportAs?: 'parseable' | 'tree' | 'json'
+  }
+): Promise<string> {
+  const reportAs = opts.reportAs ?? 'tree'
+  const long = opts.long ?? false
+  const depth = opts.depth
 
   switch (reportAs) {
     case 'json': return renderDependentsJson(trees, { long, depth })
     case 'parseable': return renderDependentsParseable(trees, { long, depth })
     case 'tree': return renderDependentsTree(trees, { long, depth })
   }
+}
+
+export async function whyForPackages (
+  packages: string[],
+  projectPaths: string[],
+  opts: WhyOptions
+): Promise<string> {
+  const trees = await getDependentsTrees(packages, projectPaths, opts)
+  if (!trees) return ''
+  return renderDependents(trees, opts)
 }

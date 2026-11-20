@@ -1,7 +1,7 @@
 import type { RangeSpecGranularity, RangeSpecStyle } from '@pnpm/types'
 import semver from 'semver'
 
-import { inferRangeSpecStyle } from './inferRangeSpecStyle.js'
+import { getRangeOfSpecifier, inferRangeSpecStyle } from './inferRangeSpecStyle.js'
 
 export function rangeSpecGranularity (style: RangeSpecStyle): RangeSpecGranularity {
   return style === 'exact' ? 'patch' : style
@@ -27,10 +27,11 @@ export function getRangeSpecStyle (opts: { saveExact?: boolean, savePrefix?: str
  * as `bareSpecifier` and whose manifest entry, if it already had one, read
  * `prevSpecifier`.
  *
- * The existing entry's range style wins over the requested specifier's, which
- * wins over the configured default, so a re-add keeps the pinning style the
- * manifest already used. A newly added prerelease is pinned exactly, while an
- * updated prerelease keeps the existing entry's range style.
+ * An existing range in a shape no style describes (`<= 3.0.0`, `>=1 <2`,
+ * `1 || 2`) is kept as written when it still admits `version` and the request
+ * names no specifier of its own, so an update moves the version without
+ * trading the range's bounds for the default prefix (pnpm/pnpm#6714). A request
+ * that names one (`pnpm add foo@1.2.3`) is the range it wants instead.
  */
 export function calcVersionRange (
   version: string,
@@ -38,17 +39,38 @@ export function calcVersionRange (
     prevSpecifier?: string
     bareSpecifier?: string
     defaultRangeSpecStyle?: RangeSpecStyle
+    isUpdate?: boolean
   }
 ): string {
+  const preservedPrevRange = checkPreservedPrevRange(version, opts)
+  if (preservedPrevRange != null) return preservedPrevRange
+  const prevRangeSpecStyle = opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined
+  const requestedRangeSpecStyle = opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined
+  if (!opts.isUpdate && (requestedRangeSpecStyle === 'patch' || requestedRangeSpecStyle === 'exact')) {
+    return versionWithRangeSpecStyle(version, requestedRangeSpecStyle)
+  }
   if (semver.parse(version)?.prerelease.length) {
-    const prevRangeSpecStyle = opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined
     return prevRangeSpecStyle ? versionWithRangeSpecStyle(version, prevRangeSpecStyle) : version
   }
-  const rangeSpecStyle = (opts.prevSpecifier ? inferRangeSpecStyle(opts.prevSpecifier) : undefined) ??
-    (opts.bareSpecifier ? inferRangeSpecStyle(opts.bareSpecifier) : undefined) ??
-    opts.defaultRangeSpecStyle
+  const rangeSpecStyle = opts.isUpdate
+    ? prevRangeSpecStyle ?? requestedRangeSpecStyle ?? opts.defaultRangeSpecStyle
+    : requestedRangeSpecStyle ?? prevRangeSpecStyle ?? opts.defaultRangeSpecStyle
   return versionWithRangeSpecStyle(version, rangeSpecStyle ?? 'major')
 }
+
+function checkPreservedPrevRange (
+  version: string,
+  opts: { prevSpecifier?: string, bareSpecifier?: string }
+): string | undefined {
+  if (!opts.prevSpecifier || inferRangeSpecStyle(opts.prevSpecifier) != null) return undefined
+  if (opts.bareSpecifier != null && opts.bareSpecifier !== opts.prevSpecifier) return undefined
+  const prevRange = getRangeOfSpecifier(opts.prevSpecifier)
+  if (prevRange != null && semver.validRange(prevRange) != null && semver.satisfies(version, prevRange)) {
+    return prevRange
+  }
+  return undefined
+}
+
 
 export function versionWithRangeSpecStyle (version: string, rangeSpecStyle: RangeSpecStyle): string {
   switch (rangeSpecStyle) {

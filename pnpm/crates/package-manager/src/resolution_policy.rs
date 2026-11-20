@@ -2,18 +2,42 @@
 //! chain and command-level registry lookups, so they pick byte-identical
 //! versions (`minimumReleaseAge` and `resolutionMode` included).
 
-use crate::retry_config::retry_opts_from_config;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_config::Tool;
 use pnpm_config::{
-    Config, NeedsFullMetadataFor, ResolutionMode,
-    version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
+    Config,
+    NeedsFullMetadataFor,
+    ResolutionMode,
+    version_policy::{
+        PackageVersionPolicy,
+        VersionPolicyError,
+        create_package_version_policy,
+    },
 };
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_engine_pm_yarn_resolver::YarnResolver;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_engine_runtime_bun_resolver::BunResolver;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_engine_runtime_deno_resolver::DenoResolver;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_network::ThrottledClient;
+use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, MergeNamedRegistriesError, NpmResolver, PackumentFetchLocker,
-    PickPackageContext, merge_named_registries, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    MergeNamedRegistriesError,
+    NamedRegistryResolver,
+    NpmResolver,
+    OfflineStoreView,
+    PackumentFetchLocker,
+    PickPackageContext,
+    merge_named_registries,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
+use pnpm_resolving_resolver_base::Resolver;
 use std::sync::Arc;
 
 /// The version-pick knobs derived purely from [`Config`]. Computed once per
@@ -33,9 +57,14 @@ pub struct PickPolicy {
     /// `supportsTimeField` is not charged for full metadata because another
     /// one needs it.
     pub needs_full_metadata_for: NeedsFullMetadataFor,
+    /// Read and write pnpm's filtered full-metadata mirror when a full
+    /// packument is fetched. The filtered mirror keeps only the fields an
+    /// install reads, so a caller that needs any other field has to clear
+    /// this (see [`Self::force_unfiltered_full_metadata`]).
+    pub filter_metadata: bool,
     /// `minimumReleaseAge` cutoff: only versions published at or before
     /// this instant are eligible. `None` disables the maturity filter.
-    pub published_by: Option<DateTime<Utc>>,
+    pub published_by: Option<Timestamp>,
     /// `minimumReleaseAgeExclude` policy, exempting matching packages from
     /// the cutoff.
     pub published_by_exclude: Option<PackageVersionPolicy>,
@@ -50,7 +79,7 @@ impl PickPolicy {
     /// returned policy across an operation so every lookup uses the same
     /// cutoff instant.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
-        Self::from_config_at(config, chrono::Utc::now())
+        Self::from_config_at(config, jiff::Timestamp::now())
     }
 
     /// [`Self::from_config`] with extra `minimumReleaseAgeExclude` specs
@@ -72,24 +101,37 @@ impl PickPolicy {
         Ok(policy)
     }
 
+    /// Read the full packument verbatim from every registry, whatever the
+    /// config's own metadata policy asks for. Keeps the fields install
+    /// metadata drops, `homepage` among them.
+    pub fn force_unfiltered_full_metadata(&mut self) {
+        // All three or none: the per-registry answer outranks
+        // `full_metadata` wherever a registry is in hand, and a filtered
+        // fetch keeps only the fields an install reads.
+        self.full_metadata = true;
+        self.needs_full_metadata_for = Arc::new(|_registry, _optional| true);
+        self.filter_metadata = false;
+    }
+
     /// [`Self::from_config`] with an explicit `now`, so callers that derive
     /// the policy more than once within an operation can anchor every
     /// `minimumReleaseAge` cutoff to the same instant.
     pub(crate) fn from_config_at(
         config: &Config,
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> Result<Self, VersionPolicyError> {
         let time_based = config.resolution_mode == ResolutionMode::TimeBased;
         let pick_lowest_direct = config.resolution_mode.picks_lowest_direct();
         let full_metadata = config.requires_full_metadata_for_resolution();
-        // On overflow we leave the policy inactive for this run — better
+        // On overflow we leave the policy inactive for this run, better
         // than silently producing a cutoff in the wrong direction.
-        let published_by = config.resolved_minimum_release_age().and_then(|minutes| {
-            let duration = chrono::Duration::try_minutes(i64::try_from(minutes).ok()?)?;
-            now.checked_sub_signed(duration)
-        });
-        let published_by_exclude = config
-            .minimum_release_age_exclude
+        let published_by = config
+            .resolved_minimum_release_age()
+            .and_then(|minutes| {
+                let duration = pnpm_time::duration_minutes(i64::try_from(minutes).ok()?)?;
+                now.checked_sub(duration).ok()
+            });
+        let published_by_exclude = config.minimum_release_age_exclude
             .as_deref()
             .filter(|patterns| !patterns.is_empty())
             .map(create_package_version_policy)
@@ -99,13 +141,14 @@ impl PickPolicy {
             pick_lowest_direct,
             full_metadata,
             needs_full_metadata_for: config.requires_full_metadata_for_registry_fn(),
+            filter_metadata: config.requires_filtered_full_metadata(),
             published_by,
             published_by_exclude,
         })
     }
 }
 
-/// Constructs the npm resolver used by config-driven, command-level version
+/// Constructs the registry resolver chain used by config-driven, command-level version
 /// lookups with the same registry, authentication, cache, network, and metadata
 /// settings as an install. The supplied [`PickPolicy`] keeps version selection
 /// aligned with the install operation that derived it.
@@ -114,58 +157,175 @@ impl PickPolicy {
 ///
 /// Returns an error when the configured named-registry prefixes cannot be
 /// merged into an unambiguous resolver map.
-pub fn create_configured_npm_resolver(
+#[cfg_attr(
+    not(feature = "runtime-provisioning"),
+    expect(clippy::needless_pass_by_value, reason = "the runtime resolvers consume `http_client`")
+)]
+pub fn create_configured_registry_resolver(
+    config: &Config,
+    http_client: Arc<ThrottledClient>,
+    policy: &PickPolicy,
+) -> Result<DefaultResolver, MergeNamedRegistriesError> {
+    let npm = create_configured_npm_resolver(config, Arc::clone(&http_client), policy)?;
+    let named = create_configured_named_registry_resolver(config, &npm, policy)?;
+    let registry_resolver: Arc<dyn Resolver> =
+        Arc::new(DefaultResolver::new(vec![Box::new(npm), Box::new(named)]));
+    let mut chain: Vec<Box<dyn Resolver>> = vec![Box::new(Arc::clone(&registry_resolver))];
+    #[cfg(feature = "runtime-provisioning")]
+    {
+        chain.push(Box::new(create_configured_node_resolver(config, Arc::clone(&http_client))));
+        chain.push(Box::new(DenoResolver::new(
+            Arc::clone(&http_client),
+            Arc::clone(&registry_resolver),
+        )));
+        chain.push(Box::new(
+            BunResolver::new(Arc::clone(&http_client), Arc::clone(&registry_resolver))
+                .with_mirror(config.tool_mirror(Tool::Bun)),
+        ));
+        chain.push(Box::new(YarnResolver::new(http_client, config.tls.strict_ssl.unwrap_or(true))));
+    }
+    #[cfg(not(feature = "runtime-provisioning"))]
+    chain.push(Box::new(pnpm_resolving_default_resolver::UnavailableToolResolver));
+    Ok(DefaultResolver::new(chain))
+}
+
+fn create_configured_named_registry_resolver(
+    config: &Config,
+    npm: &NpmResolver<InMemoryPackageMetaCache>,
+    policy: &PickPolicy,
+) -> Result<NamedRegistryResolver<InMemoryPackageMetaCache>, MergeNamedRegistriesError> {
+    let registries_by_prefix = merge_named_registries(
+        &config.registries_by_prefix
+            .clone()
+            .into_iter()
+            .collect(),
+    )?;
+    Ok(NamedRegistryResolver {
+        registry_names: registries_by_prefix
+            .keys()
+            .cloned()
+            .collect(),
+        registries_by_prefix,
+        registries: npm.registries.clone(),
+        declared_prefixes: npm.declared_prefixes.clone(),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client: Arc::clone(&npm.metadata.http_client),
+            auth_headers: Arc::clone(&npm.metadata.auth_headers),
+            meta_cache: Arc::clone(&npm.metadata.meta_cache),
+            fetch_locker: Arc::clone(&npm.metadata.fetch_locker),
+            picked_manifest_cache: Arc::clone(&npm.metadata.picked_manifest_cache),
+            cache_dir: npm.metadata.cache_dir.clone(),
+            retry_opts: npm.metadata.retry_opts,
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: policy.full_metadata,
+            needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
+            filter_metadata: policy.filter_metadata,
+            registry_options_by_url: Arc::clone(&npm.format.registry_options_by_url),
+            minimum_release_age: npm.format.minimum_release_age,
+        },
+        cache_policy: npm.cache_policy,
+        store_view: offline_store_view(config),
+    })
+}
+
+#[cfg(feature = "runtime-provisioning")]
+fn create_configured_node_resolver(
+    config: &Config,
+    http_client: Arc<ThrottledClient>,
+) -> NodeResolver {
+    let mut node_resolver =
+        NodeResolver::new_with_auth(http_client, Arc::clone(&config.auth_headers));
+    node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
+    node_resolver.mirror = config.tool_mirror(Tool::Node).map(ToString::to_string);
+    node_resolver.channel_mirrors = config.tool_channel_mirrors(Tool::Node);
+    node_resolver.offline = config.offline;
+    node_resolver.cache_dir = Some(config.cache_dir.clone());
+    node_resolver
+}
+
+fn create_configured_npm_resolver(
     config: &Config,
     http_client: Arc<ThrottledClient>,
     policy: &PickPolicy,
 ) -> Result<NpmResolver<InMemoryPackageMetaCache>, MergeNamedRegistriesError> {
-    let registries_by_prefix =
-        merge_named_registries(&config.registries_by_prefix.clone().into_iter().collect())?;
     Ok(NpmResolver {
-        registries: config.resolved_registries().into_iter().collect(),
-        registries_by_prefix,
-        http_client,
-        auth_headers: Arc::clone(&config.auth_headers),
-        meta_cache: Arc::<InMemoryPackageMetaCache>::default(),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(config.cache_dir.clone()),
-        offline: config.offline,
-        prefer_offline: config.prefer_offline,
-        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-        full_metadata: policy.full_metadata,
-        needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
-        filter_metadata: config.requires_filtered_full_metadata(),
-        retry_opts: retry_opts_from_config(config),
+        registries: config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
+        declared_prefixes: config.declared_registry_prefixes(),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client,
+            auth_headers: Arc::clone(&config.auth_headers),
+            meta_cache: Arc::<InMemoryPackageMetaCache>::default(),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(config.cache_dir.clone()),
+            retry_opts: config.retry_opts(),
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: policy.full_metadata,
+            needs_full_metadata_for: Some(Arc::clone(&policy.needs_full_metadata_for)),
+            filter_metadata: policy.filter_metadata,
+            registry_options_by_url: Arc::new(config.registry_options_by_url.clone()),
+            minimum_release_age: config.resolved_minimum_release_age(),
+        },
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            network: config.network_policy(),
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+        },
+        store_view: offline_store_view(config),
     })
+}
+
+/// The store view an offline pick consults to prefer versions whose tarball
+/// the store already holds. `None` online, and when the store has no index.
+pub(crate) fn offline_store_view(config: &Config) -> Option<OfflineStoreView> {
+    OfflineStoreView::open_for_offline(config.offline, &config.store_dir, config.frozen_store)
 }
 
 /// Build the [`PickPackageContext`] shared by every config-driven pick in a
 /// `pacquet add`/`update` pre-resolution, so every pre-resolution derives
 /// byte-identical context.
 ///
-/// `meta_cache` and `fetch_locker` are borrowed from caller-owned locals: each
-/// pre-resolution runs its own short-lived cache rather than sharing the
-/// install's.
+/// `meta_cache`, `fetch_locker` and `store_view` are borrowed from
+/// caller-owned locals: each pre-resolution runs its own short-lived cache
+/// rather than sharing the install's, and opens the store view (see
+/// [`offline_store_view`]) once for all of its picks.
 pub(crate) fn pick_package_context<'a>(
     http_client: &'a ThrottledClient,
     config: &'a Config,
     policy: &'a PickPolicy,
     meta_cache: &'a InMemoryPackageMetaCache,
     fetch_locker: &'a PackumentFetchLocker,
+    store_view: Option<&'a OfflineStoreView>,
 ) -> PickPackageContext<'a, InMemoryPackageMetaCache> {
     PickPackageContext {
-        http_client,
-        auth_headers: &config.auth_headers,
-        meta_cache,
-        fetch_locker,
-        cache_dir: Some(&config.cache_dir),
-        offline: config.offline,
-        prefer_offline: config.prefer_offline,
-        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+        pnpr_format: Some(pnpm_resolving_npm_resolver::PnprFormatPolicy {
+            registry_options: &config.registry_options_by_url,
+            minimum_release_age: config.resolved_minimum_release_age(),
+        }),
         full_metadata: policy.full_metadata,
         needs_full_metadata_for: Some(policy.needs_full_metadata_for.as_ref()),
-        filter_metadata: config.requires_filtered_full_metadata(),
-        retry_opts: retry_opts_from_config(config),
+        filter_metadata: policy.filter_metadata,
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            network: config.network_policy(),
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+        },
+        store_view,
+        metadata: pnpm_resolving_npm_resolver::MetadataRequestContext {
+            meta_cache,
+            fetch_locker,
+            cache_dir: Some(&config.cache_dir),
+            http: pnpm_resolving_npm_resolver::MetadataHttpClient {
+                http_client,
+                auth_headers: &config.auth_headers,
+                retry_opts: config.retry_opts(),
+            },
+        },
     }
 }
+
+#[cfg(all(test, not(feature = "runtime-provisioning")))]
+mod tests;

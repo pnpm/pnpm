@@ -1,11 +1,32 @@
 use super::{
-    DecodeError, EncodeError, EncodeState, FIRST_INNER_SLOT, PKG_FILES_INDEX_SLOT,
-    RECORD_DEF_EXT_TYPE, SLOT_HI, encode_package_files_index, transcode_to_plain_msgpack,
+    DecodeError,
+    EncodeError,
+    RECORD_DEF_EXT_TYPE,
+    SLOT_HI,
+    encode_package_files_index,
+    encoding::{
+        EncodeState,
+        FIRST_INNER_SLOT,
+        PKG_FILES_INDEX_SLOT,
+    },
+    transcode_to_plain_msgpack,
 };
-use crate::{CafsFileInfo, PackageFilesIndex, RemoteSideEffectsOrigin, SideEffectsDiff};
-use pnpm_shared_artifact_protocol::{BuilderProfile, OwnerScope, SignedArtifactEnvelope};
+use crate::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    RemoteSideEffectsOrigin,
+    SideEffectsDiff,
+};
+use pnpm_shared_artifact_protocol::{
+    BuilderProfile,
+    OwnerScope,
+    SignedArtifactEnvelope,
+};
 use pretty_assertions::assert_eq;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 fn decode(bytes: &[u8]) -> PackageFilesIndex {
     let plain = transcode_to_plain_msgpack(bytes).expect("transcode succeeds");
@@ -88,6 +109,28 @@ fn decodes_requires_build_true() {
     assert_eq!(decoded.requires_build, Some(true));
 }
 
+/// Fixture: msgpackr with `useRecords: true, moreTypes: true`, packing
+/// ```js
+/// { requiresBuild: false, manifest: undefined, algo: 'sha512',
+///   files: new Map([['a.js', { digest: 'aaa', mode: 0o644, size: 1 }]]) }
+/// ```
+/// pnpm writes such a row for a git-hosted tarball without a `package.json`.
+#[test]
+fn decodes_undefined_manifest_from_msgpackr() {
+    let bytes: [u8; 84] = [
+        0xd4, 0x72, 0x40, 0x94, 0xad, 0x72, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x73, 0x42, 0x75,
+        0x69, 0x6c, 0x64, 0xa8, 0x6d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0xa4, 0x61, 0x6c,
+        0x67, 0x6f, 0xa5, 0x66, 0x69, 0x6c, 0x65, 0x73, 0xc2, 0xd4, 0x00, 0x00, 0xa6, 0x73, 0x68,
+        0x61, 0x35, 0x31, 0x32, 0x81, 0xa4, 0x61, 0x2e, 0x6a, 0x73, 0xd4, 0x72, 0x41, 0x93, 0xa6,
+        0x64, 0x69, 0x67, 0x65, 0x73, 0x74, 0xa4, 0x6d, 0x6f, 0x64, 0x65, 0xa4, 0x73, 0x69, 0x7a,
+        0x65, 0xa3, 0x61, 0x61, 0x61, 0xcd, 0x01, 0xa4, 0x01,
+    ];
+    let decoded = decode(&bytes);
+    assert_eq!(decoded.manifest, None);
+    assert_eq!(decoded.requires_build, Some(false));
+    assert_eq!(decoded.files.get("a.js").unwrap().digest, "aaa");
+}
+
 #[test]
 fn decodes_file_without_checked_at() {
     let bytes: [u8; 57] = [
@@ -124,8 +167,8 @@ fn decodes_side_effects() {
     assert_eq!(b_so.checked_at, Some(20));
 }
 
-/// A row pacquet wrote itself — vanilla msgpack via `rmp_serde::to_vec_named`
-/// — must decode to the same struct after passing through the
+/// A row pacquet wrote itself, vanilla msgpack via `rmp_serde::to_vec_named`,
+/// must decode to the same struct after passing through the
 /// transcoder. The bytes are *not* guaranteed to be byte-for-byte
 /// identical post-transcode: `CafsFileInfo::checked_at` is written
 /// as `float 64` for msgpackr/pnpm interop, and the transcoder's
@@ -146,6 +189,7 @@ fn round_trips_plain_msgpack_through_transcoder() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = rmp_serde::to_vec_named(&original).unwrap();
     let transcoded = transcode_to_plain_msgpack(&bytes).unwrap();
@@ -155,7 +199,7 @@ fn round_trips_plain_msgpack_through_transcoder() {
 
 #[test]
 fn plain_msgpack_without_floats_passes_through_unchanged() {
-    // { "size": 17, "mode": 420 } — purely integer values, no
+    // { "size": 17, "mode": 420 }, purely integer values, no
     // checked_at, so the encoded bytes have no float headers.
     let bytes = rmp_serde::to_vec_named(&serde_json::json!({
         "size": 17,
@@ -168,7 +212,7 @@ fn plain_msgpack_without_floats_passes_through_unchanged() {
 
 /// A genuine non-integer float (π) must survive the transcoder as a
 /// float. We don't have `PackageFilesIndex` fields that carry such
-/// a value today, but the transcoder itself is a general utility —
+/// a value today, but the transcoder itself is a general utility,
 /// the narrowing should only fire for integer-valued floats.
 #[test]
 fn non_integer_floats_pass_through() {
@@ -180,7 +224,7 @@ fn non_integer_floats_pass_through() {
     assert_eq!(out, input, "π must stay as float 64, not be narrowed");
 }
 
-/// A `float 64` whose value is exactly `2^64` must NOT narrow —
+/// A `float 64` whose value is exactly `2^64` must NOT narrow,
 /// `u64::MAX as f64` rounds up to 2^64, so a naive
 /// `v <= u64::MAX as f64` bound would admit the value and silently
 /// cast it to `u64::MAX`. Must pass through unchanged instead.
@@ -212,28 +256,24 @@ fn integer_valued_float32_is_narrowed_to_uint64() {
 fn rejects_reference_to_unknown_slot() {
     // fixarray(2):
     //   [0] def slot 0x40 (fields ["x"]) + inline first instance (nil)
-    //   [1] bare reference to slot 0x41 — never defined
+    //   [1] bare reference to slot 0x41, never defined
     let bytes: &[u8] = &[
         0x92, // fixarray(2)
         0xd4, 0x72, 0x40, // def slot 0x40
         0x91, 0xa1, b'x', // fields: ["x"]
         0xc0, // first instance: nil
-        0x41, // ref to slot 0x41 — undefined
+        0x41, // ref to slot 0x41, undefined
     ];
     let err = transcode_to_plain_msgpack(bytes).unwrap_err();
     assert!(matches!(err, DecodeError::UnknownSlot { slot: 0x41, .. }), "got {err:?}");
 }
 
 /// In plain `MessagePack`, a bare 0x40..=0x7f byte is a positive
-/// fixint (64..=127) — not a record slot reference. The transcoder
+/// fixint (64..=127), not a record slot reference. The transcoder
 /// must not touch it until a record definition has actually
 /// appeared in the stream.
 #[test]
 fn plain_positive_fixint_in_slot_range_passes_through() {
-    // [65, 127] — both bytes would be "slot refs" under the old
-    // always-records interpretation and would blow up as
-    // `UnknownSlot`. Under records-mode tracking they're legitimate
-    // positive fixints.
     let input = &[0x92, 0x41, 0x7f][..];
     let out = transcode_to_plain_msgpack(input).unwrap();
     assert_eq!(out, input);
@@ -246,7 +286,7 @@ fn rejects_truncated_buffer() {
     assert!(matches!(err, DecodeError::UnexpectedEof { .. }), "got {err:?}");
 }
 
-// ===== Encoder tests =====
+// Encoder tests
 //
 // The round-trip pattern is: `encode` → `transcode_to_plain_msgpack`
 // → `rmp_serde::from_slice`. The transcoder is the Rust
@@ -283,6 +323,7 @@ fn encode_emits_record_header_for_top_level_struct() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     assert_eq!(&bytes[0..3], &[0xd4, RECORD_DEF_EXT_TYPE, PKG_FILES_INDEX_SLOT]);
@@ -300,6 +341,7 @@ fn encode_roundtrips_single_file() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original), original);
 }
@@ -318,10 +360,13 @@ fn encode_roundtrips_many_files_sharing_one_slot() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    let record_def_headers =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_def_headers = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_def_headers, 2,
         "expected one def per distinct shape, got bytes {bytes:02x?}",
@@ -335,7 +380,7 @@ fn encode_handles_fixint_in_slot_range_safely() {
     // 0x40..=0x7f. A naive encoder that emits it as a positive
     // fixint would produce a byte stream the decoder then
     // interprets as a reference to slot 0x7b, which is never
-    // defined — the classic "UnknownSlot" blow-up. msgpackr
+    // defined, the classic "UnknownSlot" blow-up. msgpackr
     // promotes all integers in this range to `uint 8` for exactly
     // this reason.
     let mut files = HashMap::new();
@@ -348,6 +393,7 @@ fn encode_handles_fixint_in_slot_range_safely() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original).files.get("f").unwrap().size, 0x7b);
 }
@@ -364,11 +410,14 @@ fn encode_omits_checked_at_when_none() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     let needle = b"checkedAt";
     assert!(
-        bytes.windows(needle.len()).all(|window| window != needle),
+        bytes
+            .windows(needle.len())
+            .all(|window| window != needle),
         "checkedAt leaked into output when the field was None: {bytes:02x?}",
     );
     assert_eq!(roundtrip(&original).files.get("f").unwrap().checked_at, None);
@@ -388,10 +437,13 @@ fn encode_allocates_separate_slots_for_distinct_cafs_shapes() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    let record_def_headers =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_def_headers = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_def_headers, 3,
         "expected three defs (outer + two CafsFileInfo shapes), got bytes {bytes:02x?}",
@@ -409,6 +461,7 @@ fn encode_requires_build_when_set() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let roundtripped = roundtrip(&original);
     assert_eq!(roundtripped.requires_build, Some(true));
@@ -424,6 +477,7 @@ fn encode_requires_prepare_when_set() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let roundtripped = roundtrip(&original);
     assert_eq!(roundtripped.requires_prepare, Some(true));
@@ -436,7 +490,7 @@ fn encode_outer_field_order_matches_msgpackr() {
     // written rows is a routine debugging exercise. Ground truth
     // comes from the `decodes_requires_build_true` fixture
     // captured from msgpackr 1.11.8, where the schema reads
-    // `[algo, requiresBuild, files]` — i.e. optional fields slot
+    // `[algo, requiresBuild, files]`, i.e. optional fields slot
     // in at pnpm's TypeScript-declared position, not tacked onto
     // the end.
     let mut files = HashMap::new();
@@ -449,6 +503,7 @@ fn encode_outer_field_order_matches_msgpackr() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     // Find the outer schema bytes: after `d4 72 40` (fixext1 +
@@ -479,11 +534,14 @@ fn encode_omits_requires_build_when_none() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     let needle = b"requiresBuild";
     assert!(
-        bytes.windows(needle.len()).all(|window| window != needle),
+        bytes
+            .windows(needle.len())
+            .all(|window| window != needle),
         "requiresBuild leaked into output when the field was None: {bytes:02x?}",
     );
 }
@@ -511,6 +569,7 @@ fn encode_side_effects_roundtrip() {
         files,
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original), original);
 }
@@ -555,6 +614,16 @@ fn encode_remote_side_effects_origin_and_quarantine_roundtrip() {
 }
 
 #[test]
+fn tar_integrity_roundtrips() {
+    let original = PackageFilesIndex {
+        algo: "sha512".to_string(),
+        tar_integrity: Some("sha512-tar".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(roundtrip(&original), original);
+}
+
+#[test]
 fn encode_side_effects_with_only_added_omits_deleted_field() {
     let mut added = HashMap::new();
     added.insert("foo.so".to_string(), sample_cafs(42, true));
@@ -571,10 +640,13 @@ fn encode_side_effects_with_only_added_omits_deleted_field() {
         files: HashMap::new(),
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     assert!(
-        bytes.windows(7).all(|window| window != b"deleted"),
+        bytes
+            .windows(7)
+            .all(|window| window != b"deleted"),
         "`deleted` field name appeared in output when the field was None: {bytes:02x?}",
     );
     assert_eq!(roundtrip(&original), original);
@@ -605,10 +677,13 @@ fn encode_allocates_separate_slots_for_distinct_side_effects_shapes() {
         files: HashMap::new(),
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
-    let record_def_headers =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_def_headers = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_def_headers, 4,
         "expected defs for outer + two distinct side-effects shapes + CafsFileInfo, got bytes {bytes:02x?}",
@@ -621,8 +696,8 @@ fn allocate_slot_returns_error_past_0x7f() {
     // Exhaust the inner-slot range (0x41..=0x7f, 63 slots) and
     // verify the next call returns `OutOfRecordSlots` rather than
     // panicking. Not reachable through the public encoder for
-    // current pacquet payloads — `CafsFileInfo` has 2 shapes,
-    // `SideEffectsDiff` has 4 — but the error path must exist in
+    // current pacquet payloads (`CafsFileInfo` has 2 shapes,
+    // `SideEffectsDiff` has 4) but the error path must exist in
     // case a future record type is added without bumping the
     // shape accounting.
     let mut state = EncodeState::default();
@@ -650,12 +725,13 @@ fn encode_roundtrips_simple_manifest() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original), original);
 }
 
 /// Nested objects inside the manifest must be **record-encoded**, not
-/// emitted as plain msgpack maps — otherwise msgpackr in
+/// emitted as plain msgpack maps; otherwise msgpackr in
 /// `useRecords: true` mode would decode them as JS `Map` and
 /// `manifest.bin.tsc` (the property access pnpm's bin linker uses
 /// for object-form `bin` fields) would be `undefined`. The encoder
@@ -677,11 +753,14 @@ fn encode_record_encodes_nested_objects_in_manifest() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
 
-    let record_defs =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_defs = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_defs, 4,
         "expected 4 record defs (outer + manifest + bin + directories), got bytes {bytes:02x?}",
@@ -691,7 +770,7 @@ fn encode_record_encodes_nested_objects_in_manifest() {
 }
 
 /// Two nested objects with the **same** key set within the same
-/// manifest must share a slot. Verifies record-reuse — the whole
+/// manifest must share a slot. Verifies record-reuse, the whole
 /// point of records. Shape here is the *key set*, not just the
 /// arity: `{left-pad}` and `{right-pad}` are different shapes
 /// (different keys), so the test uses two objects that genuinely
@@ -710,10 +789,13 @@ fn encode_shares_slot_for_same_shaped_nested_objects() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
-    let record_defs =
-        bytes.windows(2).filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE]).count();
+    let record_defs = bytes
+        .windows(2)
+        .filter(|window| *window == [0xd4, RECORD_DEF_EXT_TYPE])
+        .count();
     assert_eq!(
         record_defs, 3,
         "expected slot reuse for same-shape objects, got bytes {bytes:02x?}",
@@ -749,12 +831,13 @@ fn encode_roundtrips_all_json_value_kinds() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&idx), idx);
 }
 
 /// Manifest must round-trip alongside `requiresBuild`, `files`, and
-/// `sideEffects` — the encoder has to emit all five fields in the
+/// `sideEffects`, the encoder has to emit all five fields in the
 /// expected order and the decoder still needs to recover each.
 #[test]
 fn encode_roundtrips_manifest_with_other_fields() {
@@ -768,6 +851,7 @@ fn encode_roundtrips_manifest_with_other_fields() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original), original);
 }

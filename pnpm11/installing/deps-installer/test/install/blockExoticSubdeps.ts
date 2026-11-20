@@ -74,8 +74,8 @@ test('blockExoticSubdeps: false (default) allows git dependencies in subdependen
     testDefaults({ blockExoticSubdeps: false, fastUnpack: false })
   )
 
-  const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
-  expect(m).toBe('Hi')
+  const moduleExports = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
+  expect(moduleExports).toBe('Hi')
 })
 
 test('blockExoticSubdeps allows exotic dependencies in workspace packages', async () => {

@@ -1,19 +1,47 @@
 use super::{
-    HoistedPackageMapOptions, PackageMapOptions, absolute_package_url,
-    dependencies_graph_to_package_map, link_target_id, lockfile_to_package_map,
-    make_node_package_map_option, make_node_require_option, to_relative_url,
+    HoistedPackageMapOptions,
+    PackageMapOptions,
+    absolute_package_url,
+    dependencies_graph_to_package_map,
+    link_target_id,
+    lockfile_to_package_map,
+    make_node_package_map_option,
+    make_node_require_option,
+    to_relative_url,
 };
-use crate::{DependenciesGraphNode, LockfileToDepGraphResult, VirtualStoreLayout};
+use crate::{
+    DependenciesGraphNode,
+    LockfileToDepGraphResult,
+    VirtualStoreLayout,
+};
 use pnpm_lockfile::{
-    ComVer, Lockfile, LockfileResolution, LockfileVersion, PackageKey, PkgIdWithPatchHash, PkgName,
-    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ComVer,
+    Lockfile,
+    LockfileResolution,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    PkgIdWithPatchHash,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
     TarballResolution,
 };
 use pnpm_modules_yaml::DepPath;
 use pnpm_package_manifest::PackageManifest;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]
@@ -137,7 +165,7 @@ fn lockfile_package_map_uses_global_virtual_store_layout() {
     let mut config = pnpm_config::Config::new();
     config.enable_global_virtual_store = true;
     config.global_virtual_store_dir = cwd.join("store/links");
-    config.virtual_store_dir = cwd.join("node_modules/.pnpm");
+    config.install_state_dir = cwd.join("node_modules/.pnpm");
 
     let snapshots =
         HashMap::from([("dep1@1.0.0".parse::<PackageKey>().unwrap(), SnapshotEntry::default())]);
@@ -176,6 +204,59 @@ fn lockfile_package_map_uses_global_virtual_store_layout() {
     assert!(
         !url.contains("dep1@1.0.0/node_modules"),
         "must not fall back to the flat local layout, got {url:?}",
+    );
+}
+
+#[test]
+fn lockfile_package_map_omits_metadata_keys_of_peer_suffixed_snapshots() {
+    // pnpm/pnpm#14938
+    let cwd = std::env::current_dir().expect("current dir");
+    let mut config = pnpm_config::Config::new();
+    config.enable_global_virtual_store = true;
+    config.global_virtual_store_dir = cwd.join("store/links");
+    config.install_state_dir = cwd.join("node_modules/.pnpm");
+
+    let snapshot_key = "dep1@1.0.0(dep2@2.0.0)".parse::<PackageKey>().unwrap();
+    let snapshots = HashMap::from([(snapshot_key.clone(), SnapshotEntry::default())]);
+    let layout = VirtualStoreLayout::new(&config, None, Some(&snapshots), None, None, None);
+
+    let root_manifest = manifest("root");
+    let project_manifests = vec![(cwd.clone(), &root_manifest)];
+    let package_map = lockfile_to_package_map(
+        &Lockfile {
+            importers: HashMap::from([(
+                ".".to_string(),
+                ProjectSnapshot {
+                    dependencies: Some(deps(&[("dep1", "1.0.0(dep2@2.0.0)")])),
+                    ..ProjectSnapshot::default()
+                },
+            )]),
+            packages: Some(HashMap::from([(snapshot_key.without_peer(), package_metadata())])),
+            snapshots: Some(snapshots),
+            ..empty_lockfile()
+        },
+        &PackageMapOptions {
+            lockfile_dir: &cwd,
+            modules_dir: &cwd.join("node_modules"),
+            package_map_type: pnpm_config::NodePackageMapType::Standard,
+            layout: &layout,
+            project_manifests: &project_manifests,
+        },
+    );
+
+    let snapshot_url = &package_map.packages["dep1@1.0.0(dep2@2.0.0)"].url;
+    assert!(
+        snapshot_url.contains("store/links/") && snapshot_url.contains("/dep1/1.0.0/"),
+        "snapshot entry must use the GVS slot, got {snapshot_url:?}",
+    );
+    assert!(
+        !package_map.packages.contains_key("dep1@1.0.0"),
+        "the peer-stripped key has no slot of its own, got {:?}",
+        package_map.packages.keys().collect::<Vec<_>>(),
+    );
+    assert_eq!(
+        package_map.packages["."].dependencies.get("dep1").map(String::as_str),
+        Some("dep1@1.0.0(dep2@2.0.0)"),
     );
 }
 
@@ -244,9 +325,10 @@ fn hoisted_package_map_loose_mode_includes_physical_ancestor_dependencies() {
     let root_manifest = manifest("root");
     let project_manifests = vec![(cwd.clone(), &root_manifest)];
     let mut graph = LockfileToDepGraphResult::default();
-    graph
-        .direct_dependencies_by_importer_id
-        .insert(".".to_string(), BTreeMap::from([("dep1".to_string(), dep1_dir.clone())]));
+    graph.direct_dependencies_by_importer_id.insert(
+        ".".to_string(),
+        BTreeMap::from([("dep1".to_string(), dep1_dir.clone())]),
+    );
     graph.graph.insert(dep1_dir.clone(), graph_node("dep1", "1.0.0", &dep1_dir));
     let lockfile = Lockfile {
         importers: HashMap::from([(
@@ -429,6 +511,32 @@ fn manifest(name: &str) -> PackageManifest {
     manifest
 }
 
+/// A metadata record whose value the package-map builder never inspects,
+/// only the `packages:` key it is filed under matters.
+fn package_metadata() -> PackageMetadata {
+    PackageMetadata {
+        specifiers: None,
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: String::new(),
+            integrity: None,
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+}
+
 fn deps(entries: &[(&str, &str)]) -> ResolvedDependencyMap {
     entries
         .iter()
@@ -456,7 +564,10 @@ fn snapshot_optional_deps(entries: &[(&str, &str)]) -> SnapshotEntry {
 }
 
 fn snapshot_dep_map(entries: &[(&str, &str)]) -> HashMap<PkgName, SnapshotDepRef> {
-    entries.iter().map(|(alias, version)| (pkg(alias), version.parse().unwrap())).collect()
+    entries
+        .iter()
+        .map(|(alias, version)| (pkg(alias), version.parse().unwrap()))
+        .collect()
 }
 
 fn pkg(name: &str) -> PkgName {
@@ -484,25 +595,31 @@ fn empty_lockfile() -> Lockfile {
 fn graph_node(name: &str, version: &str, dir: &Path) -> DependenciesGraphNode {
     let key: PackageKey = format!("{name}@{version}").parse().unwrap();
     DependenciesGraphNode {
+        package: crate::HoistedPackageMetadata {
+            dep_path: DepPath::from(key.to_string()),
+            pkg_id_with_patch_hash: PkgIdWithPatchHash::from(key.to_string()),
+            name: name.to_string(),
+            version: version.to_string(),
+            has_bin: false,
+            has_bundled_dependencies: false,
+            patch: None,
+            resolution: LockfileResolution::Tarball(TarballResolution {
+                tarball: String::new(),
+                integrity: None,
+                revision: None,
+                git_hosted: None,
+                path: None,
+            }),
+        },
         alias: Some(name.to_string()),
-        dep_path: DepPath::from(key.to_string()),
-        pkg_id_with_patch_hash: PkgIdWithPatchHash::from(key.to_string()),
         dir: dir.to_path_buf(),
-        modules: dir.parent().expect("package dir has parent").to_path_buf(),
-        children: BTreeMap::new(),
-        name: name.to_string(),
-        version: version.to_string(),
+        modules: dir
+            .parent()
+            .expect("package dir has parent")
+            .to_path_buf(),
         optional: false,
         optional_dependencies: BTreeSet::new(),
-        has_bin: false,
-        has_bundled_dependencies: false,
-        patch: None,
-        resolution: LockfileResolution::Tarball(TarballResolution {
-            tarball: String::new(),
-            integrity: None,
-            revision: None,
-            git_hosted: None,
-            path: None,
-        }),
+        present: false,
+        children: BTreeMap::new(),
     }
 }

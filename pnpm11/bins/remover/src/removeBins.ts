@@ -4,6 +4,7 @@ import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import {
   removalLogger,
 } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { DependencyManifest } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
@@ -28,9 +29,9 @@ async function removeOnWin (cmd: string): Promise<void> {
   }
 }
 
-async function removeOnNonWin (p: string): Promise<void> {
-  removalLogger.debug(p)
-  return rimraf(p)
+async function removeOnNonWin (binPath: string): Promise<void> {
+  removalLogger.debug(binPath)
+  return rimraf(binPath)
 }
 
 export const removeBin: (cmd: string) => Promise<void> = isWindows() ? removeOnWin : removeOnNonWin
@@ -42,8 +43,7 @@ export async function removeBinsOfDependency (
     binsDir: string
   }
 ): Promise<DependencyManifest | undefined> {
-  const uninstalledPkgJson = await safeReadPackageJsonFromDir(dependencyDir) as DependencyManifest
-
+  const uninstalledPkgJson = await safeReadDependencyManifest(dependencyDir)
   if (!uninstalledPkgJson) return
   const cmds = await getBinsFromPackageManifest(uninstalledPkgJson, dependencyDir)
 
@@ -56,4 +56,20 @@ export async function removeBinsOfDependency (
   }
 
   return uninstalledPkgJson
+}
+
+/**
+ * Returns `undefined` when the manifest is missing or malformed, or its path
+ * runs through a file, so that its bins are left in place instead of blocking
+ * the dependency's removal. Rethrows every other read error.
+ */
+export async function safeReadDependencyManifest (dependencyDir: string): Promise<DependencyManifest | undefined> {
+  try {
+    return (await safeReadPackageJsonFromDir(dependencyDir) as DependencyManifest | null) ?? undefined
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ERR_PNPM_BAD_PACKAGE_JSON' || err.code === 'ENOTDIR')) {
+      return undefined
+    }
+    throw err
+  }
 }

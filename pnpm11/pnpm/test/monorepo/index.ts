@@ -15,7 +15,7 @@ import {
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -27,6 +27,11 @@ import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
+
+/** Declares the mock registry's tarball layout, so the lockfile omits its tarball URLs. */
+const PNPR_REGISTRY_DECLARATION = {
+  [`http://localhost:${REGISTRY_MOCK_PORT}/npm/`]: { serverType: 'pnpr' },
+}
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -51,6 +56,29 @@ test('no projects matched the filters', async () => {
     const { stdout } = execPnpmSync(['list', '--filter=not-exists', '--parseable'])
     expect(stdout.toString()).toBe('') // don't print anything if --parseable is used
   }
+})
+
+test('run and exec report a filter that matched no project', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      scripts: { build: 'node -e "require(\'fs\').writeFileSync(\'ran.txt\', \'\')"' },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  for (const args of [
+    ["--filter='**'", 'build'],
+    ['--filter=not-exists', 'run', 'build'],
+    ['--filter=not-exists', 'exec', 'node', '-e', 'process.exit(1)'],
+  ]) {
+    const { stdout, status } = execPnpmSync(args)
+    expect(stdout.toString()).toMatch(/^No projects matched the filters in/)
+    expect(status).toBe(0)
+  }
+  expect(fs.existsSync('project/ran.txt')).toBe(false)
 })
 
 test('no projects found', async () => {
@@ -919,7 +947,7 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
-test("shared-workspace-lockfile: don't install dependencies in projects that are outside of the current workspace", async () => {
+test('shared-workspace-lockfile: install dependencies in a project that is symlinked from another workspace', async () => {
   preparePackages([
     {
       location: 'workspace-1/package-1',
@@ -948,7 +976,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
 
   await symlinkDir('workspace-2/package-2', 'workspace-1/package-2')
 
-  writeYamlFileSync('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'], registries: PNPR_REGISTRY_DECLARATION })
   writeYamlFileSync('workspace-2/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('workspace-1')
@@ -975,9 +1003,25 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
           },
         },
       },
+      'package-2': {
+        dependencies: {
+          'is-negative': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
+        },
+      },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
+      'is-negative@1.0.0': {
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
+        },
+      },
       'is-positive@1.0.0': {
         engines: {
           node: '>=0.10.0',
@@ -988,6 +1032,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
       },
     },
     snapshots: {
+      'is-negative@1.0.0': {},
       'is-positive@1.0.0': {},
     },
   })
@@ -1032,7 +1077,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
     },
   ])
 
-  writeYamlFileSync('monorepo/workspace/pnpm-workspace.yaml', { packages: ['../**', '!store/**'] })
+  writeYamlFileSync('monorepo/workspace/pnpm-workspace.yaml', { packages: ['../**', '!store/**'], registries: PNPR_REGISTRY_DECLARATION })
 
   process.chdir('monorepo/workspace')
 
@@ -1142,6 +1187,49 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
     const lockfile = readYamlFileSync<LockfileFile>(WANTED_LOCKFILE)
     expect(Object.keys(lockfile.importers!)).toStrictEqual(['package-1'])
   }
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/16453
+test('frozen-lockfile: a workspace project whose directory is absent is skipped until it reappears', async () => {
+  preparePackages([
+    {
+      name: 'package-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'package-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['install', '--store-dir', 'store'])
+
+  const package2Manifest = fs.readFileSync('package-2/package.json', 'utf8')
+  rimrafSync('node_modules')
+  rimrafSync('package-1/node_modules')
+  rimrafSync('package-2')
+
+  await execPnpm(['install', '--store-dir', 'store', '--frozen-lockfile'])
+
+  expect(fs.existsSync('package-1/node_modules/is-positive')).toBe(true)
+  expect(fs.existsSync('package-2')).toBe(false)
+
+  fs.mkdirSync('package-2')
+  fs.writeFileSync('package-2/package.json', package2Manifest)
+
+  await execPnpm(['install', '--store-dir', 'store', '--frozen-lockfile'])
+
+  expect(fs.existsSync('package-2/node_modules/is-negative')).toBe(true)
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1482
@@ -1312,6 +1400,55 @@ test('dependencies of workspace projects are built during headless installation'
     const generatedByPostinstall = projects['project-1'].requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
     expect(typeof generatedByPostinstall).toBe('function')
   }
+})
+
+test.each(['isolated', 'hoisted'])('built dependencies are restored from a populated store when the workspace has separate lockfiles (nodeLinker: %s)', async (nodeLinker) => {
+  preparePackages([
+    {
+      location: '.',
+      package: {},
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    nodeLinker,
+    sharedWorkspaceLockfile: false,
+    allowBuilds: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    },
+    packageExtensions: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0': {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+  })
+
+  const buildArtifact = 'project-1/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+
+  await execPnpm(['install'])
+  expect(fs.existsSync(buildArtifact)).toBe(true)
+
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  expect(fs.existsSync(buildArtifact)).toBe(true)
+
+  rimrafSync('node_modules')
+  rimrafSync('project-1/node_modules')
+  await execPnpm(['install', '--ignore-scripts', '--frozen-lockfile'])
+
+  expect(fs.existsSync(buildArtifact)).toBe(false)
 })
 
 test("linking the package's bin to another workspace package in a monorepo", async () => {
@@ -2093,4 +2230,720 @@ test('rebuild in a directory created with "pnpm deploy" should run lifecycle scr
     execPnpmSync(['rebuild'], { expectSuccess: true })
     expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
   }
+})
+
+// covers https://github.com/pnpm/pnpm/issues/3561
+test('a project that the workspace does not include is installed on its own', async () => {
+  preparePackages([
+    {
+      location: 'packages/package-1',
+      package: {
+        name: 'package-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'examples/example-1',
+      package: {
+        name: 'example-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'docs',
+      package: {
+        name: 'docs',
+        version: '1.0.0',
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/**', '!examples/**'] })
+
+  for (const dir of ['examples/example-1', 'docs']) {
+    execPnpmSync(['install'], { cwd: dir, expectSuccess: true })
+
+    expect(fs.existsSync(path.join(dir, 'node_modules/is-negative'))).toBe(true)
+    expect(fs.existsSync(path.join(dir, WANTED_LOCKFILE))).toBe(true)
+  }
+
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+  expect(fs.existsSync('packages/package-1/node_modules')).toBe(false)
+})
+
+// covers https://github.com/pnpm/pnpm/issues/3561
+test('a directory without a manifest of its own still installs the whole workspace', async () => {
+  preparePackages([
+    {
+      location: 'packages/package-1',
+      package: {
+        name: 'package-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/**'] })
+  fs.mkdirSync('packages/package-1/src', { recursive: true })
+
+  execPnpmSync(['install'], { cwd: 'packages/package-1/src', expectSuccess: true })
+
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+  expect(fs.existsSync(path.join('packages/package-1/src', WANTED_LOCKFILE))).toBe(false)
+  expect(fs.existsSync('packages/package-1/node_modules/is-positive')).toBe(true)
+})
+
+test('a dedicated lockfile links a workspace package that matches a semver range', async () => {
+  preparePackages([
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+        dependencies: {
+          'custom-pkg-b': '~1.0.0',
+        },
+      },
+    },
+    {
+      location: 'packages/pkg-b',
+      package: {
+        name: 'custom-pkg-b',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    linkWorkspacePackages: true,
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install'])
+
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+  expect(fs.existsSync('packages/pkg-a/pnpm-lock.yaml')).toBe(true)
+  expect(fs.existsSync('packages/pkg-a/node_modules/custom-pkg-b')).toBe(true)
+  expect(fs.lstatSync('packages/pkg-a/node_modules/custom-pkg-b').isSymbolicLink()).toBe(true)
+})
+
+test('package.json is updated when adding a dependency with --filter even if postinstall fails', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        scripts: {
+          postinstall: 'exit 1',
+        },
+      },
+    },
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+
+  await expect(execPnpm(['--filter', 'pkg-a', 'add', 'is-positive@1.0.0'])).rejects.toThrow()
+
+  const pkgAManifest = await readPackageJsonFromDir('packages/pkg-a')
+  expect(pkgAManifest.dependencies?.['is-positive']).toBe('1.0.0')
+})
+
+test('package.json is updated when adding a dependency in member dir even if root postinstall fails', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        scripts: {
+          postinstall: 'exit 1',
+        },
+      },
+    },
+    {
+      location: 'packages/pkg-a',
+      package: {
+        name: 'pkg-a',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+  })
+
+  const monorepoRoot = process.cwd()
+  try {
+    process.chdir('packages/pkg-a')
+    await expect(execPnpm(['add', 'is-positive@1.0.0'])).rejects.toThrow()
+  } finally {
+    process.chdir(monorepoRoot)
+  }
+
+  const pkgAManifest = await readPackageJsonFromDir('packages/pkg-a')
+  expect(pkgAManifest.dependencies?.['is-positive']).toBe('1.0.0')
+})
+
+test('issue 7209: updates injected dependency when sharedWorkspaceLockfile is false', async () => {
+  const projects = preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+  projects['app'].has('shared')
+
+  projects['shared'].writePackageJson({
+    name: 'shared',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+  })
+
+  execPnpmSync(['install'])
+  projects['app'].has('shared')
+  const appLockfile = projects['app'].readLockfile()
+  expect(appLockfile.packages).toHaveProperty(['is-negative@1.0.0'])
+})
+
+test('an injected dependency with a postinstall script is hard linked when sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      scripts: {
+        postinstall: 'node -e "require(\'fs\').writeFileSync(\'built.txt\', \'\')"',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('shared/index.js', 'module.exports = 1', 'utf8')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: { shared: true },
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+
+  for (const file of ['index.js', 'built.txt']) {
+    expect(fs.statSync(path.join('app/node_modules/shared', file)).ino)
+      .toBe(fs.statSync(path.join('shared', file)).ino)
+  }
+})
+
+test('an injected dependency keeps only the files listed in its manifest when sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      files: ['index.js'],
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('shared/index.js', 'module.exports = 1', 'utf8')
+  fs.writeFileSync('shared/tsconfig.json', '{}', 'utf8')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+
+  expect(fs.readdirSync('app/node_modules/shared').sort()).toStrictEqual(['index.js', 'package.json'])
+})
+
+test('an injected dependency built by prepare keeps only the files listed in its manifest', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      files: ['index.js'],
+      scripts: {
+        prepare: 'node -e "require(\'fs\').writeFileSync(\'index.js\', \'built\')"',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('shared/tsconfig.json', '{}', 'utf8')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    dedupeInjectedDeps: false,
+    strictDepBuilds: false,
+  })
+
+  execPnpmSync(['install'])
+
+  expect(fs.readFileSync('app/node_modules/shared/index.js', 'utf8')).toBe('built')
+  expect(fs.readdirSync('app/node_modules/shared').sort()).toStrictEqual(['index.js', 'package.json'])
+})
+
+test('an injected dependency that publishes from a directory built by prepare gets the built content when sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      scripts: {
+        prepare: 'node -e "const fs = require(\'fs\'); fs.mkdirSync(\'dist\', { recursive: true }); fs.copyFileSync(\'package.json\', \'dist/package.json\'); fs.writeFileSync(\'dist/index.js\', \'built\')"',
+      },
+      publishConfig: {
+        directory: 'dist',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+
+  expect(fs.readFileSync('app/node_modules/shared/index.js', 'utf8')).toBe('built')
+})
+
+test('pnpm install --frozen-lockfile fails when workspace package version is bumped and no longer satisfies dependency range', async () => {
+  preparePackages([
+    {
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: {
+        'pkg-b': 'workspace:^1.0.0',
+      },
+    },
+    {
+      name: 'pkg-b',
+      version: '1.0.0',
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**'] })
+
+  await execPnpm(['install'])
+
+  const pkgBManifest = JSON.parse(fs.readFileSync('pkg-b/package.json', 'utf8'))
+  pkgBManifest.version = '2.0.0'
+  fs.writeFileSync('pkg-b/package.json', JSON.stringify(pkgBManifest, null, 2))
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
+test('pnpm install --frozen-lockfile fails when an injected workspace package version is bumped and no longer satisfies dependency range', async () => {
+  preparePackages([
+    {
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: {
+        'pkg-b': 'workspace:1.0.0',
+      },
+      dependenciesMeta: {
+        'pkg-b': {
+          injected: true,
+        },
+      },
+    },
+    {
+      name: 'pkg-b',
+      version: '1.0.0',
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**'] })
+
+  await execPnpm(['install'])
+
+  const pkgBManifest = JSON.parse(fs.readFileSync('pkg-b/package.json', 'utf8'))
+  pkgBManifest.version = '2.0.0'
+  fs.writeFileSync('pkg-b/package.json', JSON.stringify(pkgBManifest, null, 2))
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
+test('pnpm install --frozen-lockfile fails when a dependency of an injected workspace package changes and sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        lib: 'workspace:*',
+      },
+    },
+    {
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+  })
+
+  await execPnpm(['install'])
+  await execPnpm(['--filter=app', 'install', '--frozen-lockfile'])
+
+  const libManifest = JSON.parse(fs.readFileSync('lib/package.json', 'utf8'))
+  libManifest.dependencies['is-positive'] = '3.1.0'
+  fs.writeFileSync('lib/package.json', JSON.stringify(libManifest, null, 2))
+
+  await expect(
+    execPnpm(['--filter=app', 'install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
+test('pnpm install --frozen-lockfile accepts dependenciesMeta on a project whose dependencies are all workspace links', async () => {
+  preparePackages([
+    {
+      name: 'pkg-a',
+      version: '1.0.0',
+      dependencies: {
+        'pkg-b': 'workspace:*',
+      },
+      dependenciesMeta: {
+        'pkg-b': {
+          injected: true,
+        },
+      },
+    },
+    {
+      name: 'pkg-b',
+      version: '1.0.0',
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**'] })
+
+  await execPnpm(['install'])
+
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  const pkgAManifest = JSON.parse(fs.readFileSync('pkg-a/package.json', 'utf8'))
+  delete pkgAManifest.dependenciesMeta
+  fs.writeFileSync('pkg-a/package.json', JSON.stringify(pkgAManifest, null, 2))
+
+  await expect(
+    execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
+test('issue 4407: refreshes an injected copy on a repeat install after the source project is rebuilt', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    dedupeInjectedDeps: false,
+  })
+
+  execPnpmSync(['install'])
+  expect(fs.existsSync('app/node_modules/shared/dist/out.js')).toBe(false)
+
+  fs.mkdirSync('shared/dist')
+  fs.writeFileSync('shared/dist/out.js', 'module.exports = "built"\n')
+  execPnpmSync(['install'])
+
+  expect(fs.readFileSync('app/node_modules/shared/dist/out.js', 'utf8')).toBe('module.exports = "built"\n')
+})
+
+test('pnpm install --frozen-lockfile checks a plain-range workspace child of a directory dependency', async () => {
+  preparePackages([
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: {
+          lib: 'file:../../vendor/lib',
+        },
+      },
+    },
+    {
+      location: 'packages/workspace-child',
+      package: {
+        name: 'workspace-child',
+        version: '1.0.0',
+      },
+    },
+  ])
+  fs.mkdirSync('vendor/lib', { recursive: true })
+  const writeLib = (injected: boolean) => {
+    fs.writeFileSync('vendor/lib/package.json', JSON.stringify({
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: {
+        'workspace-child': '^1.0.0',
+      },
+      ...(injected ? { dependenciesMeta: { 'workspace-child': { injected: true } } } : {}),
+    }, null, 2))
+  }
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    linkWorkspacePackages: 'deep',
+  })
+
+  writeLib(false)
+  await execPnpm(['install'])
+  expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toContain('workspace-child: link:packages/workspace-child')
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  writeLib(true)
+  await expect(
+    execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+
+  await execPnpm(['install'])
+  expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toContain('workspace-child: file:packages/workspace-child')
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  writeLib(false)
+  await expect(
+    execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
+test('pnpm:devPreinstall runs for root when shared-workspace-lockfile is false', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'member\\n\')"',
+        },
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install'])
+
+  expect(fs.readFileSync('order.txt', 'utf8')).toBe('root\n')
+  expect(fs.existsSync('packages/member/order.txt')).toBe(false)
+})
+
+test('pnpm:devPreinstall runs for root when shared-workspace-lockfile is false and the filter excludes root', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['--filter', 'member', 'install'])
+
+  expect(fs.readFileSync('order.txt', 'utf8')).toBe('root\n')
+})
+
+test('pnpm:devPreinstall is skipped when shared-workspace-lockfile is false and --ignore-scripts is used', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install', '--ignore-scripts'])
+
+  expect(fs.existsSync('order.txt')).toBe(false)
+})
+
+test('pnpm:devPreinstall is skipped when shared-workspace-lockfile is false and --dry-run is used', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install', '--dry-run'])
+
+  expect(fs.existsSync('order.txt')).toBe(false)
 })

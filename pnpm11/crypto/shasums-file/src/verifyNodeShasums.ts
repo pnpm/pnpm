@@ -129,13 +129,10 @@ async function signaturePacketVerifies (
   const keyPacket = keyPackets.find((packet) => packet.getKeyID().equals(issuerKeyID))
   if (keyPacket == null) return false
   try {
-    // Resolves on a valid signature, rejects otherwise. This is the raw
-    // cryptographic check against a pinned key — no web-of-trust / key-expiry
-    // evaluation, which is what `openpgp.verify` would (incorrectly here) apply.
+    // Resolves on a valid signature, rejects otherwise.
     await signaturePacket.verify(keyPacket, signaturePacket.signatureType!, literalDataPacket, signaturePacket.created ?? undefined, true)
     return true
   } catch {
-    // Not valid under this key/packet.
     return false
   }
 }

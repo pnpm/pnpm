@@ -15,7 +15,7 @@ import { writeYamlFile } from 'write-yaml-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const resolvePathAsUrl = (...paths: string[]): string => url.pathToFileURL(path.resolve(...paths)).toString()
 
@@ -63,6 +63,89 @@ async function writePackageTarball (tarballPath: string, manifest: ProjectManife
     tarball.on('error', reject)
   })
 }
+
+test.each([
+  ['the default package import method', undefined],
+  ['packageImportMethod=hardlink', 'hardlink' as const],
+])('deploy with a shared lockfile copies workspace package files instead of hard-linking to source with %s', async (_, packageImportMethod) => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+      },
+    },
+    {
+      location: path.join('packages', 'foo'),
+      package: {
+        name: 'foo',
+        version: '1.0.0',
+      },
+    },
+    {
+      location: path.join('packages', 'bar'),
+      package: {
+        name: 'bar',
+        version: '1.0.0',
+        dependencies: {
+          foo: 'workspace:*',
+        },
+      },
+    },
+  ])
+  fs.writeFileSync(path.join('packages', 'foo', 'index.js'), 'module.exports = 1')
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'bar' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    packageImportMethod,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    packageImportMethod,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, [path.resolve('deploy')])
+
+  const virtualStoreDir = path.resolve('deploy', 'node_modules', '.pnpm')
+  const fooName = fs.readdirSync(virtualStoreDir).find(name => name.startsWith('foo@'))
+  expect(fooName).toBeDefined()
+  const deployedFooDir = path.join(virtualStoreDir, fooName!, 'node_modules', 'foo')
+  const deployedFooManifest = path.join(deployedFooDir, 'package.json')
+
+  fs.writeFileSync(path.resolve('packages', 'foo', 'package.json'), JSON.stringify({
+    name: 'foo',
+    version: '9.9.9',
+  }, undefined, 2))
+  fs.writeFileSync(path.join('packages', 'foo', 'index.js'), 'module.exports = 2')
+
+  expect(JSON.parse(fs.readFileSync(deployedFooManifest, 'utf-8'))).toMatchObject({
+    name: 'foo',
+    version: '1.0.0',
+  })
+  expect(fs.readFileSync(path.join(deployedFooDir, 'index.js'), 'utf-8')).toBe('module.exports = 1')
+})
 
 test('deploy with a shared lockfile after full install', async () => {
   const projectNames = ['project-1', 'project-2', 'project-3', 'project-4', 'project-5'] as const
@@ -858,7 +941,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     preparedManifests['project-1'],
   ])
 
-  f.copy('is-positive.patch', '__patches__/is-positive.patch')
+  testFixtures.copy('is-positive.patch', '__patches__/is-positive.patch')
 
   // patchedDependencies with relative paths (as from pnpm-workspace.yaml)
   const patchedDependenciesRelative = {
@@ -1191,3 +1274,128 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
 
   expect(fs.existsSync('deploy/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
+
+test.each([
+  ['the deployed project', false],
+  ['the workspace root', true],
+])('deploy --prod leaves out an optional peer that a devDependency of %s satisfies', async (_, peerFromRoot) => {
+  const peers = { '@pnpm.e2e/peer-a': '1.0.0', '@pnpm.e2e/peer-c': '1.0.0' }
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        devDependencies: peerFromRoot ? peers : {},
+      },
+    },
+    {
+      name: 'app',
+      version: '0.0.0',
+      private: true,
+      dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+      devDependencies: peerFromRoot ? {} : peers,
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    production: true,
+    dev: false,
+    resolvePeersFromWorkspaceRoot: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const virtualStore = fs.readdirSync('deploy/node_modules/.pnpm')
+  expect(virtualStore.filter((name) => name.startsWith('@pnpm.e2e+peer-c@'))).toHaveLength(0)
+  // A required peer is shipped even when only a devDependency provides it.
+  expect(fs.readdirSync(abcSlotScopeDir()).sort()).toStrictEqual(['abc-optional-peers', 'peer-a'])
+  const deployLockfile = assertProject(path.resolve('deploy')).readLockfile()
+  expect(Object.keys(deployLockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toHaveLength(0)
+})
+
+test('deploy --prod ships an optional peer that a production dependency of the workspace root satisfies', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        dependencies: { '@pnpm.e2e/peer-a': '1.0.0', '@pnpm.e2e/peer-c': '1.0.0' },
+      },
+    },
+    {
+      name: 'app',
+      version: '0.0.0',
+      private: true,
+      dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    production: true,
+    dev: false,
+    resolvePeersFromWorkspaceRoot: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const virtualStore = fs.readdirSync('deploy/node_modules/.pnpm')
+  expect(virtualStore.filter((name) => name.startsWith('@pnpm.e2e+peer-c@'))).toHaveLength(1)
+  expect(fs.readdirSync(abcSlotScopeDir()).sort()).toStrictEqual(['abc-optional-peers', 'peer-a', 'peer-c'])
+})
+
+// The `@pnpm.e2e` directory inside the virtual-store slot of abc-optional-peers.
+// Found through the package's link, because the slot's name is truncated and
+// hashed where the virtual store directory length limit is short (Windows).
+function abcSlotScopeDir (): string {
+  return path.dirname(fs.realpathSync('deploy/node_modules/@pnpm.e2e/abc-optional-peers'))
+}

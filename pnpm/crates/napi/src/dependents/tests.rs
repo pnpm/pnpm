@@ -1,13 +1,21 @@
 use std::path::Path;
 
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
-use super::{DependentsOptions, RenderDependentsInput, build_trees, render_dependents};
+use super::{
+    DependentsOptions,
+    RenderDependentsInput,
+    build_trees,
+    render_dependents,
+};
 
 /// A workspace whose root project depends on `dep@1.0.0`, which in turn
 /// depends on `nested@2.0.0`. Only the lockfile and the manifests the tree
-/// walk reads are written — the walk never resolves or fetches.
+/// walk reads are written, the walk never resolves or fetches.
 fn write_workspace(dir: &Path) {
     std::fs::write(
         dir.join("package.json"),
@@ -56,7 +64,10 @@ snapshots:
 fn options(dir: &Path, packages: &[&str]) -> DependentsOptions {
     DependentsOptions {
         dir: dir.to_string_lossy().into_owned(),
-        packages: packages.iter().map(|name| (*name).to_string()).collect(),
+        packages: packages
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect(),
         project_dirs: None,
         exclude_project_patterns: None,
         modules_dir: None,
@@ -66,6 +77,8 @@ fn options(dir: &Path, packages: &[&str]) -> DependentsOptions {
         registries: None,
         virtual_store_dir_max_length: None,
         manifest_fields: None,
+        include_requires: None,
+        resolve_peers_from_workspace_root: None,
     }
 }
 
@@ -88,7 +101,7 @@ fn reports_the_chain_from_the_importer_down_to_the_searched_package() {
 }
 
 /// The excluded importer is the only one that reaches `dep`, so excluding
-/// it leaves nothing to report — proof the pattern is applied to the walk
+/// it leaves nothing to report, proof the pattern is applied to the walk
 /// roots rather than only to the rendered output.
 #[test]
 fn excluded_importers_are_not_walked() {
@@ -131,7 +144,9 @@ fn manifest_fields_are_projected_onto_the_matched_package() {
     let trees = build_trees(&opts).unwrap();
 
     assert_eq!(
-        trees[0].manifest.as_ref().and_then(|manifest| manifest.get("componentId")),
+        trees[0].manifest
+            .as_ref()
+            .and_then(|manifest| manifest.get("componentId")),
         Some(&json!({ "scope": "acme.utils", "name": "nested" })),
     );
 }
@@ -144,6 +159,20 @@ fn without_manifest_fields_no_manifest_is_read() {
     let trees = build_trees(&options(workspace.path(), &["nested"])).unwrap();
 
     assert!(trees[0].manifest.is_none());
+}
+
+#[test]
+fn requires_is_filled_only_when_asked_for() {
+    let workspace = tempfile::tempdir().unwrap();
+    write_workspace(workspace.path());
+    let mut opts = options(workspace.path(), &["dep"]);
+
+    let trees = build_trees(&opts).unwrap();
+    assert_eq!(trees[0].dependents[0].requires, None);
+
+    opts.include_requires = Some(true);
+    let trees = build_trees(&opts).unwrap();
+    assert_eq!(trees[0].dependents[0].requires.as_deref(), Some("1.0.0"));
 }
 
 #[test]

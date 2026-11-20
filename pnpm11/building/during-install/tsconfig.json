@@ -16,6 +16,9 @@
       "path": "../../bins/linker"
     },
     {
+      "path": "../../config/package-is-installable"
+    },
+    {
       "path": "../../config/reader"
     },
     {
@@ -40,6 +43,9 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fs/graceful-fs"
+    },
+    {
       "path": "../../fs/hard-link-dir"
     },
     {
@@ -62,6 +68,9 @@
     },
     {
       "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../pkg-requires-build"
     }
   ]
 }

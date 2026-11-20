@@ -1,16 +1,24 @@
 //! Tests for the production [`Host`] capability impls.
 //!
-//! These cover only the two impls that carry real branching and can be
+//! These cover only the impls that carry real branching and can be
 //! exercised portably without mutating process-global state: [`OidcFetch`]
-//! (driven against a `mockito` server) and [`RunCommand`] (a real
-//! subprocess). The remaining impls are deliberately untested here — `EnvVar`
+//! (driven against a `mockito` server) and [`super::RunCommand`] (a real
+//! subprocess). The remaining impls are deliberately untested here. `EnvVar`
 //! and `Clock` are one-line passes through to `std::env` /
 //! `SystemTime` whose only test seam is `env::set_var` / a wall clock (the
 //! shared-global hazard the `Sys` dependency-injection seam exists to avoid),
 //! and `ConfirmPrompt` reads an interactive TTY. Their consumers are covered
 //! through fake `Sys` providers instead.
 
-use super::{Host, OidcFetch, OidcMethod, OidcRequest, RunCommand};
+use super::{
+    Host,
+    OidcFetch,
+    OidcMethod,
+    OidcRequest,
+};
+
+#[cfg(unix)]
+use super::RunCommand;
 
 #[tokio::test]
 async fn fetch_get_returns_the_response_and_sends_accept_auth_and_timeout() {
@@ -70,8 +78,12 @@ async fn fetch_post_sends_a_zero_length_body() {
 #[tokio::test]
 async fn fetch_reports_a_non_success_status_without_erroring() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("GET", "/token").with_status(403).with_body("forbidden").create_async().await;
+    let mock = server
+        .mock("GET", "/token")
+        .with_status(403)
+        .with_body("forbidden")
+        .create_async()
+        .await;
     let url = format!("{}/token", server.url());
 
     let response = Host::fetch(OidcRequest {
@@ -91,10 +103,11 @@ async fn fetch_reports_a_non_success_status_without_erroring() {
 
 #[tokio::test]
 async fn fetch_maps_a_transport_failure_to_an_error() {
-    // Port 1 refuses the connection, so the request never produces a response.
+    // The connect to `0.0.0.0:1` fails at once on every OS, so the request never
+    // produces a response.
     let error = Host::fetch(OidcRequest {
         method: OidcMethod::Get,
-        url: "http://127.0.0.1:1/token",
+        url: "http://0.0.0.0:1/token",
         authorization: "Bearer t",
         timeout_ms: None,
     })

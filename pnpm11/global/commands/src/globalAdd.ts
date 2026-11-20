@@ -10,24 +10,26 @@ import {
   createInstallDir,
   findGlobalPackage,
   getHashLink,
+  type GlobalPackageBinSnapshot,
   type GlobalPackageInfo,
+  readGlobalGroupDependencies,
 } from '@pnpm/global.packages'
-import { readPackageJsonFromDirRawSync } from '@pnpm/pkg-manifest.reader'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 
-import { getBinNamesOfOtherGroups } from './binOwnership.js'
+import { getGlobalBinOwnership } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
-import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
+import { cleanupFailedGlobalInstall } from './cleanupFailedGlobalInstall.js'
+import { activateGlobalInstall, cleanupReplacedGlobalInstalls, getActualBinNames, type GlobalNodePathOptions } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { isPnpmCliDependency, isPnpmCliOnlyGroup, selectsPnpmCli } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
-import { readInstalledPackages } from './readInstalledPackages.js'
+import { type InstalledGroupPackage, readInstalledPackages } from './readInstalledPackages.js'
 
-export type GlobalAddOptions = CreateStoreControllerOptions & {
+export type GlobalAddOptions = CreateStoreControllerOptions & GlobalNodePathOptions & {
   bin?: string
   globalPkgDir?: string
   registriesByScope: Record<string, string>
-  allowBuild?: string[]
+  /** Already merged with the `--allow-build` selectors by `add`'s handler. */
   allowBuilds?: Record<string, string | boolean>
   saveExact?: boolean
   savePrefix?: string
@@ -45,14 +47,7 @@ export async function handleGlobalAdd (
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
 
-  // Convert allowBuild array to allowBuilds Record (same conversion as add.handler)
-  let allowBuilds = opts.allowBuilds ?? {}
-  if (opts.allowBuild?.length) {
-    allowBuilds = { ...allowBuilds }
-    for (const pkg of opts.allowBuild) {
-      allowBuilds[pkg] = true
-    }
-  }
+  const allowBuilds = opts.allowBuilds ?? {}
 
   // Each space-separated CLI param becomes its own isolated install group.
   // A param containing commas is split into multiple selectors that share a
@@ -70,7 +65,7 @@ export async function handleGlobalAdd (
   }
 
   for (const group of groups) {
-    // eslint-disable-next-line no-await-in-loop
+    // eslint-disable-next-line no-await-in-loop -- groups share the global bin directory, so they are installed one at a time
     await installGroup({ opts, globalDir, globalBinDir, allowBuilds, params: group }, commands)
   }
 
@@ -83,7 +78,7 @@ export async function handleGlobalAdd (
   summaryLogger.debug({ prefix: globalDir })
 }
 
-interface InstallGroupContext {
+export interface InstallGroupContext {
   opts: GlobalAddOptions
   globalDir: string
   globalBinDir: string
@@ -91,25 +86,44 @@ interface InstallGroupContext {
   params: string[]
 }
 
-async function installGroup (
+export async function installGroup (
   ctx: InstallGroupContext,
   commands: CommandHandlerMap
 ): Promise<void> {
-  const { opts, globalDir, globalBinDir, allowBuilds, params } = ctx
+  const { opts, globalDir, allowBuilds, params } = ctx
 
   // Install into a new directory first, then read the resolved aliases
   // from the resulting package.json. This is more reliable than parsing
   // aliases from CLI params (which may be tarballs, git URLs, etc.).
   const installDir = createInstallDir(globalDir)
 
+  const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages(createGroupInstallOptions(ctx, installDir), params)
+
+  await promptApproveGlobalBuilds({
+    globalPkgDir: globalDir,
+    installDir,
+    ignoredBuilds,
+    allowBuilds,
+    inheritedOpts: opts,
+  }, commands)
+
+  const aliases = Object.keys(readGlobalGroupDependencies(installDir))
+
+  const pkgs = await readInstalledPackages(installDir)
+  const plan = await planGroupActivation({ ctx, installDir, aliases, pkgs })
+  await activateGroup({ ctx, installDir, aliases, pkgs, plan })
+  await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
+}
+
+function createGroupInstallOptions (ctx: InstallGroupContext, installDir: string) {
   const include = {
     dependencies: true,
     devDependencies: false,
     optionalDependencies: true,
   }
 
-  const installOpts = {
-    ...opts,
+  return {
+    ...ctx.opts,
     global: false,
     bin: path.join(installDir, 'node_modules/.bin'),
     dir: installDir,
@@ -125,66 +139,73 @@ async function installGroup (
     lockfileOnly: false,
     include,
     includeDirect: include,
-    allowBuilds,
+    allowBuilds: ctx.allowBuilds,
     omitSummaryLog: true,
   }
+}
 
-  const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages(installOpts, params)
+interface GroupActivationInput {
+  ctx: InstallGroupContext
+  installDir: string
+  aliases: string[]
+  pkgs: InstalledGroupPackage[]
+}
 
-  await promptApproveGlobalBuilds({
-    globalPkgDir: globalDir,
-    installDir,
-    ignoredBuilds,
-    allowBuilds,
-    inheritedOpts: opts,
-  }, commands)
+interface GroupActivationPlan {
+  binsToSkip: Set<string>
+  retainedBinNames: Set<string>
+  existingGlobalInstalls: ExistingGlobalInstalls
+}
 
-  // Read resolved aliases from the installed package.json
-  const pkgJson = readPackageJsonFromDirRawSync(installDir)
-  const aliases = Object.keys(pkgJson.dependencies ?? {})
+async function planGroupActivation (input: GroupActivationInput): Promise<GroupActivationPlan> {
+  const { ctx, installDir, aliases, pkgs } = input
   const replacementAliases = getReplacementAliases(aliases)
-
-  const pkgs = await readInstalledPackages(installDir)
-  let binsToSkip: Set<string>
   try {
-    binsToSkip = await checkGlobalBinConflicts({
-      globalDir,
-      globalBinDir,
+    const binsToSkip = await checkGlobalBinConflicts({
+      globalDir: ctx.globalDir,
+      globalBinDir: ctx.globalBinDir,
       newPkgs: pkgs,
       shouldSkip: (pkg) => shouldReplaceExistingGlobalInstall(pkg, aliases, replacementAliases),
     })
+    const retainedBinNames = await getActualBinNames({ pkgs, binsToSkip })
+    const existingGlobalInstalls = await collectExistingGlobalInstalls({
+      globalDir: ctx.globalDir,
+      aliases,
+      replacementAliases,
+      retainedBinNames,
+    })
+    return { binsToSkip, retainedBinNames, existingGlobalInstalls }
   } catch (err) {
-    await fs.promises.rm(installDir, { recursive: true, force: true })
-    throw err
+    return cleanupFailedGlobalInstall(installDir, err)
   }
+}
 
-  const { groupsToReplace, protectedBins } = await collectExistingGlobalInstalls({
-    globalDir,
-    aliases,
-    replacementAliases,
-  })
-
+async function activateGroup (
+  input: GroupActivationInput & { plan: GroupActivationPlan }
+): Promise<void> {
+  const { ctx, installDir, aliases, pkgs, plan } = input
   const cacheHash = createGlobalCacheKey({
     aliases,
-    registriesByScope: opts.registriesByScope,
+    registriesByScope: ctx.opts.registriesByScope,
   })
-  const hashLink = getHashLink(globalDir, cacheHash)
+  const hashLink = getHashLink(ctx.globalDir, cacheHash)
   const activatedBins = await activateGlobalInstall({
     installDir,
     hashLink,
-    globalBinDir,
+    globalBinDir: ctx.globalBinDir,
     pkgs,
-    binsToSkip,
+    binsToSkip: plan.binsToSkip,
+    requiredBinNames: plan.retainedBinNames,
+    nodePathOptions: ctx.opts,
   })
   await cleanupReplacedGlobalInstalls({
-    groups: groupsToReplace,
-    globalDir,
-    globalBinDir,
+    groups: plan.existingGlobalInstalls.groups,
+    globalDir: ctx.globalDir,
+    globalBinDir: ctx.globalBinDir,
     activeHash: cacheHash,
     activatedBins,
-    protectedBins,
+    protectedBins: plan.existingGlobalInstalls.protectedBins,
   })
-  await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
 }
 
 const PNPM_CLI_PACKAGE_ALIASES = ['pnpm', '@pnpm/exe']
@@ -238,7 +259,7 @@ function refersToExistingLocalPath (param: string, baseDir: string): boolean {
   }
 }
 
-function resolveLocalParam (param: string, baseDir: string): string {
+export function resolveLocalParam (param: string, baseDir: string): string {
   for (const prefix of ['file:', 'link:']) {
     if (param.startsWith(prefix)) {
       const rest = param.slice(prefix.length)
@@ -255,7 +276,7 @@ function resolveLocalParam (param: string, baseDir: string): string {
 }
 
 interface ExistingGlobalInstalls {
-  groupsToReplace: GlobalPackageInfo[]
+  groups: GlobalPackageBinSnapshot[]
   protectedBins: Set<string>
 }
 
@@ -264,9 +285,10 @@ async function collectExistingGlobalInstalls (
     globalDir: string
     aliases: string[]
     replacementAliases: string[]
+    retainedBinNames: Set<string>
   }
 ): Promise<ExistingGlobalInstalls> {
-  const { globalDir, aliases, replacementAliases } = opts
+  const { globalDir, aliases, replacementAliases, retainedBinNames } = opts
 
   const groupsToReplace = new Map<string, GlobalPackageInfo>()
   for (const alias of replacementAliases) {
@@ -280,6 +302,5 @@ async function collectExistingGlobalInstalls (
     }
   }
 
-  const protectedBins = await getBinNamesOfOtherGroups(globalDir, new Set(groupsToReplace.keys()))
-  return { groupsToReplace: [...groupsToReplace.values()], protectedBins }
+  return getGlobalBinOwnership(globalDir, [...groupsToReplace.values()], retainedBinNames)
 }

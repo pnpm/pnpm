@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pnpm WebContainer e2e</title>
+<script type="module">
+import { WebContainer } from '/webcontainer-api/index.js'
+
+let webcontainer
+
+window.boot = async () => {
+  webcontainer = await WebContainer.boot({ workdirName: 'project' })
+}
+
+window.mountPnpm = async (files) => {
+  for (const file of files) {
+    const dir = file.split('/').slice(0, -1).join('/')
+    await webcontainer.fs.mkdir(`pnpm/${dir}`, { recursive: true })
+    const content = new Uint8Array(await (await fetch(`/pnpm/${file}`)).arrayBuffer())
+    await webcontainer.fs.writeFile(`pnpm/${file}`, content)
+  }
+}
+
+window.writeFile = async (path, content) => {
+  const dir = path.split('/').slice(0, -1).join('/')
+  if (dir) await webcontainer.fs.mkdir(dir, { recursive: true })
+  await webcontainer.fs.writeFile(path, content)
+}
+
+window.run = async (command, args, cwd, env, input = []) => {
+  const proc = await webcontainer.spawn(command, args, { cwd, env, terminal: { cols: 200, rows: 50 } })
+  const writer = proc.input.getWriter()
+  const drainController = new AbortController()
+  let inputIndex = 0
+  let output = ''
+  let exited = false
+  let writing = false
+  let idleTimer
+  let drainError
+  function resetDrainDeadline () {
+    clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => drainController.abort(), 1000)
+  }
+  const drained = proc.output.pipeTo(new WritableStream({
+    async write (chunk) {
+      writing = true
+      clearTimeout(idleTimer)
+      output += chunk
+      await window.onOutput?.(chunk)
+      while (inputIndex < input.length && output.includes(input[inputIndex].after)) {
+        await writer.write(input[inputIndex++].text)
+      }
+      writing = false
+      if (exited) resetDrainDeadline()
+    },
+  }), { signal: drainController.signal }).catch(error => {
+    if (!drainController.signal.aborted || error.name !== 'AbortError') drainError = error
+  })
+  try {
+    const exitCode = await proc.exit
+    exited = true
+    // A killed descendant can retain WebContainer PTY EOF after the command exits.
+    // Preserve its final output until the stream has been idle for one second.
+    if (!writing) resetDrainDeadline()
+    await drained
+    if (drainError) throw drainError
+    return { exitCode, output }
+  } finally {
+    clearTimeout(idleTimer)
+    drainController.abort()
+    await drained
+    writer.releaseLock()
+  }
+}
+
+window.ready = true
+</script>

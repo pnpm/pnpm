@@ -1,7 +1,13 @@
-use super::{CommandTestExt, is_pnpm_config_var};
+use super::{
+    CommandTestExt,
+    is_pnpm_config_var,
+};
 use crate::env_guard::EnvGuard;
 use command_extra::CommandExtra;
-use std::{ffi::OsStr, process::Command};
+use std::{
+    ffi::OsStr,
+    process::Command,
+};
 
 const SETTING: &str = "PNPM_CONFIG_GLOBAL_SHIMS";
 const CI_SETTING: &str = "PNPM_CONFIG_CI";
@@ -16,6 +22,9 @@ fn pnpm_and_npm_settings_match_in_either_spelling() {
         "npm_config_registry",
         "PNPM_SHIM_BYPASS",
         "pnpm_shim_bypass",
+        "PNPM_SHIM_PREPARING",
+        "npm_lifecycle_event",
+        "NPM_LIFECYCLE_EVENT",
     ] {
         assert!(is_pnpm_config_var(name), "{name} should be stripped");
     }
@@ -41,7 +50,7 @@ fn the_environment_the_suites_rely_on_is_left_alone() {
 }
 
 /// The removal happens at construction precisely so that a test wanting one
-/// of these settings can still set it — the documented contract callers
+/// of these settings can still set it, the documented contract callers
 /// depend on.
 #[test]
 fn an_explicit_value_set_afterwards_survives_the_removal() {
@@ -68,6 +77,18 @@ fn spawned_pnpm_defaults_to_non_ci_after_ambient_config_is_removed() {
     let command = Command::new("pnpm").without_ambient_pnpm_config();
 
     assert_eq!(env_value(&command, CI_SETTING).as_deref(), Some(OsStr::new("false")));
+}
+
+#[test]
+fn spawned_pnpm_keeps_the_test_runners_isolated_npmrc() {
+    const TEST_NPMRC: &str = "PNPM_TEST_NPMRC_AUTH_FILE";
+    const AUTH_NPMRC: &str = "PNPM_CONFIG_NPMRC_AUTH_FILE";
+    let guard = EnvGuard::snapshot([TEST_NPMRC, AUTH_NPMRC]);
+    guard.set(TEST_NPMRC, "/isolated/npmrc");
+    guard.set(AUTH_NPMRC, "/user/npmrc");
+
+    let command = Command::new("pnpm").without_ambient_pnpm_config();
+    assert_eq!(env_value(&command, AUTH_NPMRC).as_deref(), Some(OsStr::new("/isolated/npmrc")));
 }
 
 /// What `command` will pass for `name`: `None` once it is removed, `Some`

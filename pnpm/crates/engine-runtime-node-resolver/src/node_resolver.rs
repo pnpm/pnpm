@@ -7,41 +7,86 @@
 //! dependencies through it.
 
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_crypto_shasums_file::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file_cached,
-    fetch_shasums_file_cached_with_auth_headers, fetch_verified_node_shasums_file_cached,
+    FetchShasumsFileError,
+    FetchVerifiedNodeShasumsError,
+    ShasumsFileItem,
+    fetch_shasums_file_cached,
+    fetch_shasums_file_cached_with_auth_headers,
+    fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers,
 };
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
-    PlatformAssetTarget, VariationsResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PlatformAssetResolution,
+    PlatformAssetTarget,
+    VariationsResolution,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
+};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
 };
 use ssri::Integrity;
 
 use crate::{
-    get_node_artifact_address::{GetNodeArtifactAddressOptions, get_node_artifact_address},
-    get_node_mirror::{
-        DEFAULT_NODE_MIRROR_BASE_URL, UNOFFICIAL_NODE_MIRROR_BASE_URL, get_node_mirror,
+    get_node_artifact_address::{
+        GetNodeArtifactAddressOptions,
+        get_node_artifact_address,
     },
-    parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier},
-    resolve_node_version::{ResolveNodeVersionError, resolve_node_version_with_auth},
+    get_node_mirror::{
+        DEFAULT_NODE_MIRROR_BASE_URL,
+        UNOFFICIAL_NODE_MIRROR_BASE_URL,
+        get_node_mirror,
+    },
+    parse_node_specifier::{
+        NodeSpecifier,
+        ParseNodeSpecifierError,
+        parse_node_specifier,
+    },
+    resolve_node_version::{
+        ResolveNodeVersionError,
+        resolve_node_version_with_auth,
+    },
 };
 
 const RESOLVED_VIA: &str = "nodejs.org";
-const BARE_SPEC_PREFIX: &str = "runtime:";
 
 /// Errors emitted by [`NodeResolver::resolve`] / [`NodeResolver::resolve_latest`].
 ///
@@ -89,13 +134,18 @@ pub enum NodeResolverError {
 /// One instance per install. Owns the throttled HTTP client (so the
 /// asset-list fetch contends with the rest of the install for the
 /// same socket budget) and the `nodeDownloadMirrors` map a user may
-/// have configured. `offline` is honored on every resolve — the
+/// have configured. `offline` is honored on every resolve, the
 /// resolver fails fast rather than spinning a request that's going
 /// to time out behind a proxy.
 pub struct NodeResolver {
     pub http_client: Arc<ThrottledClient>,
     pub auth_headers: Arc<AuthHeaders>,
     pub node_download_mirrors: HashMap<String, String>,
+    /// `tools.node.mirror`: the base every release channel hangs off.
+    pub mirror: Option<String>,
+    /// `tools.node.channels`: where one release channel comes from when
+    /// it does not come from the same place as the rest.
+    pub channel_mirrors: HashMap<String, String>,
     pub offline: bool,
     /// The pnpm cache directory backing the per-version SHASUMS disk
     /// cache. `None` disables the cache and every resolve fetches the
@@ -118,6 +168,8 @@ impl NodeResolver {
             http_client,
             auth_headers,
             node_download_mirrors: HashMap::new(),
+            mirror: None,
+            channel_mirrors: HashMap::new(),
             offline: false,
             cache_dir: None,
         }
@@ -146,34 +198,61 @@ impl NodeResolver {
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
-        _opts: &ResolveOptions,
+        opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency, "node") else {
             return Ok(None);
         };
-
-        // A fast path could reuse the lockfile-pinned
-        // VariationsResolution unchanged when the current package is
-        // already pinned and no update is requested. Pacquet doesn't
-        // thread that signal through `ResolveOptions` yet, so every
-        // resolve re-fetches the asset list. Add the fast path once the
-        // seam carries it.
+        if let Some((current, version)) = opts.refresh.kept_runtime() {
+            let wanted = parse_node_specifier(version_spec)
+                .map_err(|err| {
+                    Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
+                })?;
+            if locked_on_release_channel(version, &wanted.release_channel) {
+                return Ok(Some(node_resolve_result(
+                    wanted_dependency,
+                    current.id.clone(),
+                    current.resolution.clone(),
+                    version,
+                    None,
+                )));
+            }
+        }
 
         let picked = self
-            .pick_node_version(version_spec)
+            .pick_node_version(version_spec, opts.refresh.update)
             .await
             .map_err(|err| Box::new(err) as ResolveError)?;
-        let variants = match self
-            .read_node_assets(&picked.mirror, &picked.version, &picked.release_channel)
-            .await
+        let variants = if opts.specifier.calc_specifier {
+            Vec::new()
+        } else {
+            self.read_picked_assets(&picked, version_spec).await?
+        };
+        let PickedNodeVersion { version, .. } = picked;
+        let range = normalize_node_runtime_version_specifier(
+            version_spec,
+            &version,
+            wanted_dependency.prev_specifier.as_deref(),
+        );
+        Ok(Some(node_resolve_result(
+            wanted_dependency,
+            format!("node@runtime:{version}").into(),
+            LockfileResolution::Variations(VariationsResolution { variants }),
+            &version,
+            Some(format!("{RUNTIME_PROTOCOL}{range}")),
+        )))
+    }
+
+    /// A failed exact-version asset lookup consults the release index to
+    /// distinguish a nonexistent version from a download failure.
+    async fn read_picked_assets(
+        &self,
+        picked: &PickedNodeVersion,
+        version_spec: &str,
+    ) -> Result<Vec<PlatformAssetResolution>, ResolveError> {
+        match self.read_node_assets(&picked.mirror, &picked.version, &picked.release_channel).await
         {
-            Ok(variants) => variants,
-            // An exact-specifier pick skipped the release index, so a
-            // failed asset read is ambiguous: the version may simply not
-            // exist. Consult the index now, purely to raise the same
-            // `ERR_PNPM_NODEJS_VERSION_NOT_FOUND` the index-first path
-            // raises for a nonexistent version; any other outcome
-            // re-raises the asset error unchanged.
+            Ok(variants) => Ok(variants),
             Err(error) if picked.resolved_without_index => {
                 let error = match resolve_node_version_with_auth(
                     &self.http_client,
@@ -188,34 +267,10 @@ impl NodeResolver {
                     }
                     _ => error,
                 };
-                return Err(Box::new(error));
+                Err(Box::new(error))
             }
-            Err(error) => return Err(Box::new(error)),
-        };
-        let PickedNodeVersion { version, .. } = picked;
-        let range = normalize_node_runtime_version_specifier(
-            version_spec,
-            &version,
-            wanted_dependency.prev_specifier.as_deref(),
-        );
-        let resolution = LockfileResolution::Variations(VariationsResolution { variants });
-        let manifest = serde_json::json!({
-            "name": "node",
-            "version": version,
-            "bin": node_bins_for_current_os(current_platform()),
-        });
-        Ok(Some(ResolveResult {
-            id: format!("node@runtime:{version}").into(),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(std::sync::Arc::new(manifest)),
-            resolution,
-            resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("runtime:{range}")),
-            alias: wanted_dependency.alias.clone(),
-            policy_violation: None,
-        }))
+            Err(error) => Err(Box::new(error)),
+        }
     }
 
     /// Parse a `runtime:` version spec, pick the mirror for its release
@@ -223,19 +278,28 @@ impl NodeResolver {
     ///
     /// An exact stable-release specifier is its own resolution, so the
     /// release-index fetch is skipped for it and existence is proven by
-    /// the asset-list fetch that follows —
+    /// the asset-list fetch that follows,
     /// [`resolve_impl`](Self::resolve_impl) maps that fetch's failure
     /// back to the canonical not-found error.
     async fn pick_node_version(
         &self,
         version_spec: &str,
+        update: UpdateBehavior,
     ) -> Result<PickedNodeVersion, NodeResolverError> {
         if self.offline {
             return Err(NodeResolverError::Offline);
         }
-        let parsed =
+        let mut parsed =
             parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
-        let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
+        if update == UpdateBehavior::Latest {
+            "latest".clone_into(&mut parsed.version_specifier);
+        }
+        let mirror = get_node_mirror(
+            self.mirror.as_deref(),
+            self.channel_mirrors.get(&parsed.release_channel).map(String::as_str),
+            Some(&self.node_download_mirrors),
+            &parsed.release_channel,
+        );
         if let Some(version) = exact_release_version(&parsed) {
             return Ok(PickedNodeVersion {
                 version,
@@ -261,7 +325,7 @@ impl NodeResolver {
         })
     }
 
-    /// The specifier an `add node@runtime:<spec>` request saves to the
+    /// The specifier an `add node@tool:<spec>` request saves to the
     /// manifest: `runtime:` plus the picked version, pinned exactly unless
     /// the previous specifier (or the requested spec) carries a `^`/`~`
     /// operator. This is the same normalization [`Resolver::resolve`]
@@ -280,12 +344,12 @@ impl NodeResolver {
         let parsed =
             parse_node_specifier(version_spec).map_err(NodeResolverError::InvalidReleaseChannel)?;
         if let Some(version) = exact_release_version(&parsed) {
-            return Ok(format!("{BARE_SPEC_PREFIX}{version}"));
+            return Ok(format!("{RUNTIME_PROTOCOL}{version}"));
         }
-        let picked = self.pick_node_version(version_spec).await?;
+        let picked = self.pick_node_version(version_spec, UpdateBehavior::Off).await?;
         let range =
             normalize_node_runtime_version_specifier(version_spec, &picked.version, prev_specifier);
-        Ok(format!("{BARE_SPEC_PREFIX}{range}"))
+        Ok(format!("{RUNTIME_PROTOCOL}{range}"))
     }
 
     async fn resolve_latest_impl(
@@ -296,17 +360,22 @@ impl NodeResolver {
         let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency, "node") else {
             return Ok(None);
         };
-        let spec_owned;
-        let version_spec = if query.compatible {
-            manifest_spec
-        } else {
-            spec_owned = "latest";
-            spec_owned
-        };
-        let parsed = parse_node_specifier(version_spec).map_err(|err| {
-            Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
-        })?;
-        let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
+        if self.offline {
+            return Err(Box::new(NodeResolverError::Offline));
+        }
+        let mut parsed = parse_node_specifier(manifest_spec)
+            .map_err(|err| {
+                Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
+            })?;
+        if !query.compatible {
+            "latest".clone_into(&mut parsed.version_specifier);
+        }
+        let mirror = get_node_mirror(
+            self.mirror.as_deref(),
+            self.channel_mirrors.get(&parsed.release_channel).map(String::as_str),
+            Some(&self.node_download_mirrors),
+            &parsed.release_channel,
+        );
         let version = resolve_node_version_with_auth(
             &self.http_client,
             &self.auth_headers,
@@ -332,8 +401,8 @@ impl NodeResolver {
     ///
     /// The musl branch only fires when the active mirror is the
     /// default one (custom mirrors are assumed to publish their own
-    /// musl-or-not policy), and musl-fetch failures are swallowed
-    /// because old releases simply don't have musl builds.
+    /// musl-or-not policy). See [`read_musl_assets`] for which musl
+    /// failures are tolerated.
     async fn read_node_assets(
         &self,
         mirror: &str,
@@ -350,19 +419,17 @@ impl NodeResolver {
             self.cache_dir.as_deref(),
         )
         .await?;
-        if mirror == DEFAULT_NODE_MIRROR_BASE_URL
-            && let Ok(mut musl_assets) = read_node_assets_from_mirror(
-                &self.http_client,
-                &self.auth_headers,
-                UNOFFICIAL_NODE_MIRROR_BASE_URL,
-                version,
-                /* musl_only */ true,
-                /* verify_signature */ false,
-                self.cache_dir.as_deref(),
-            )
-            .await
-        {
-            assets.append(&mut musl_assets);
+        if mirror == DEFAULT_NODE_MIRROR_BASE_URL {
+            assets.extend(
+                read_musl_assets(
+                    &self.http_client,
+                    &self.auth_headers,
+                    UNOFFICIAL_NODE_MIRROR_BASE_URL,
+                    version,
+                    self.cache_dir.as_deref(),
+                )
+                .await?,
+            );
         }
         Ok(assets)
     }
@@ -371,7 +438,7 @@ impl NodeResolver {
 /// The concrete version an exact stable-release specifier names, when
 /// the specifier is already in canonical `X.Y.Z` form. Such a specifier
 /// needs no release-index lookup: the index would resolve it to itself.
-/// Prereleases are excluded — on the `release` channel they never
+/// Prereleases are excluded, on the `release` channel they never
 /// exist, so routing them through the index keeps the canonical
 /// not-found error path.
 fn exact_release_version(parsed: &NodeSpecifier) -> Option<String> {
@@ -380,7 +447,8 @@ fn exact_release_version(parsed: &NodeSpecifier) -> Option<String> {
     }
     Version::parse(&parsed.version_specifier)
         .ok()
-        .filter(|version| version.pre_release.is_empty() && version.build.is_empty())
+        .filter(|version| version.pre_release.is_empty())
+        .filter(|version| version.build.is_empty())
         .map(|version| version.to_string())
         .filter(|version| *version == parsed.version_specifier)
 }
@@ -392,34 +460,80 @@ struct PickedNodeVersion {
     mirror: String,
     release_channel: String,
     /// `true` when the pick came from
-    /// [`exact_release_version`] — the release index was never
+    /// [`exact_release_version`], the release index was never
     /// consulted, so the version's existence is still unproven.
     resolved_without_index: bool,
 }
 
-/// Strip `runtime:` from a `(alias, bareSpecifier)` pair when both
-/// halves match the runtime contract. Returns `None` (defer to the
-/// next resolver) for any other shape.
+/// Whether a runtime locked at `version` may serve `release_channel`. A
+/// version without a channel's prerelease tag cannot be told apart from a
+/// release of any channel, so it stays.
+fn locked_on_release_channel(version: &str, release_channel: &str) -> bool {
+    parse_node_specifier(version)
+        .is_ok_and(|locked| {
+            locked.release_channel == "release" || locked.release_channel == release_channel
+        })
+}
+
+fn node_resolve_result(
+    wanted_dependency: &WantedDependency,
+    id: PkgResolutionId,
+    resolution: LockfileResolution,
+    version: &str,
+    normalized_bare_specifier: Option<String>,
+) -> ResolveResult {
+    let manifest = serde_json::json!({
+        "name": "node",
+        "version": version,
+        "bin": node_bins_for_current_os(current_platform()),
+    });
+    ResolveResult {
+        id,
+        resolution,
+        resolved_via: RESOLVED_VIA.to_string(),
+        normalized_bare_specifier,
+        alias: wanted_dependency.alias.clone(),
+        policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
+        },
+    }
+}
+
+/// The version selector of a `tool:` / `runtime:` `(alias, bareSpecifier)`
+/// pair naming `expected_alias`. `None` (defer to the next resolver) for any
+/// other shape.
 fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> Option<&'a str> {
     if wanted.alias.as_deref() != Some(expected_alias) {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier.as_deref().and_then(strip_tool_protocol)
 }
 
-fn normalize_node_runtime_version_specifier(
+/// The selector a `runtime:` declaration saves for `resolved_version`.
+///
+/// A stable pick keeps the `^`/`~` operator the previous specifier (or the
+/// requested one) pins. A prerelease is pinned exactly, which is what keeps the
+/// release channel it came from: `parse_node_specifier` reads that channel back
+/// out of an `X.Y.Z-<channel>...` version. A release channel written in front
+/// of the selector is not part of what gets saved.
+#[must_use]
+pub fn normalize_node_runtime_version_specifier(
     version_spec: &str,
     resolved_version: &str,
     prev_specifier: Option<&str>,
 ) -> String {
-    if resolved_version == version_spec
+    let stripped_spec = crate::parse_node_specifier::strip_leading_v(version_spec);
+    if resolved_version == stripped_spec
         || matches!(Version::parse(resolved_version), Ok(version) if !version.pre_release.is_empty())
     {
         return resolved_version.to_string();
     }
-    let source = prev_specifier
-        .and_then(|specifier| specifier.strip_prefix(BARE_SPEC_PREFIX))
-        .unwrap_or(version_spec);
+    let source = prev_specifier.and_then(strip_tool_protocol).unwrap_or(version_spec);
     let spec = source.split_once('/').map_or(source, |(_, spec)| spec);
     let prefix = if spec.starts_with('^') {
         "^"
@@ -431,151 +545,13 @@ fn normalize_node_runtime_version_specifier(
     format!("{prefix}{resolved_version}")
 }
 
-/// Read the asset list for one mirror version and decode each row
-/// into a [`PlatformAssetResolution`].
-///
-/// Rows are matched against the nodejs.org artifact pattern
-/// `node-v<version>-<platform>-<arch>(-musl)?.(tar.gz|zip)`.
-/// Files that don't match (e.g. `.pkg`, `.msi`, source tarballs) are
-/// dropped. When `musl_only` is true, glibc builds are filtered out
-/// so the asset list only carries the musl-specific variants the
-/// caller asked for.
-async fn read_node_assets_from_mirror(
-    http_client: &ThrottledClient,
-    auth_headers: &AuthHeaders,
-    node_mirror_base_url: &str,
-    version: &str,
-    musl_only: bool,
-    verify_signature: bool,
-    cache_dir: Option<&Path>,
-) -> Result<Vec<PlatformAssetResolution>, NodeResolverError> {
-    // The URL is pinned to one released version, which is what makes it
-    // eligible for the SHASUMS disk cache.
-    let integrities_url = format!("{node_mirror_base_url}v{version}/SHASUMS256.txt");
-    let items = if verify_signature {
-        if auth_headers.is_empty() {
-            fetch_verified_node_shasums_file_cached(http_client, &integrities_url, cache_dir)
-                .await
-                .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
-        } else {
-            fetch_verified_node_shasums_file_cached_with_auth_headers(
-                http_client,
-                &integrities_url,
-                cache_dir,
-                auth_headers,
-            )
-            .await
-            .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
-        }
-    } else if auth_headers.is_empty() {
-        fetch_shasums_file_cached(http_client, &integrities_url, cache_dir)
-            .await
-            .map_err(NodeResolverError::FetchShasumsFile)?
-    } else {
-        fetch_shasums_file_cached_with_auth_headers(
-            http_client,
-            &integrities_url,
-            cache_dir,
-            auth_headers,
-        )
-        .await
-        .map_err(NodeResolverError::FetchShasumsFile)?
-    };
-    let mut assets = Vec::new();
-    for item in items {
-        let Some(parsed) = parse_node_file_name(&item.file_name, version) else { continue };
-        let is_musl = parsed.is_musl;
-        if musl_only && !is_musl {
-            continue;
-        }
-        let mut platform = parsed.platform;
-        if platform == "win" {
-            platform = "win32".to_string();
-        }
-        let libc = is_musl.then(|| "musl".to_string());
-        let address = get_node_artifact_address(GetNodeArtifactAddressOptions {
-            version,
-            base_url: node_mirror_base_url,
-            platform: &platform,
-            arch: &parsed.arch,
-            libc: libc.as_deref(),
-        });
-        let url = format!("{}/{}{}", address.dirname, address.basename, address.extname);
-        let archive =
-            if address.extname == ".zip" { BinaryArchive::Zip } else { BinaryArchive::Tarball };
-        let integrity: Integrity =
-            item.integrity.parse().map_err(|error| NodeResolverError::ParseIntegrity {
-                integrity: item.integrity.clone(),
-                file_name: item.file_name.clone(),
-                error: Arc::new(error),
-            })?;
-        let prefix = matches!(archive, BinaryArchive::Zip).then(|| address.basename.clone());
-        let binary = BinaryResolution {
-            url,
-            integrity,
-            bin: bin_spec_for_platform(&platform),
-            archive,
-            prefix,
-        };
-        let target = PlatformAssetTarget { os: platform, cpu: parsed.arch, libc };
-        assets.push(PlatformAssetResolution {
-            resolution: LockfileResolution::Binary(binary),
-            targets: vec![target],
-        });
-    }
-    Ok(assets)
-}
-
-struct NodeFileName {
-    platform: String,
-    arch: String,
-    is_musl: bool,
-}
-
-/// Match the nodejs.org artifact pattern
-/// `^node-v<version>-([^-.]+)-([^.-]+)(-musl)?\.(tar\.gz|zip)$` —
-/// implemented by hand so the resolver doesn't pay the regex crate
-/// dependency for a single pattern.
-fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> {
-    let prefix = format!("node-v{version}-");
-    let rest = file_name.strip_prefix(&prefix)?;
-    let head = if let Some(head) = rest.strip_suffix(".tar.gz") {
-        head
-    } else {
-        rest.strip_suffix(".zip")?
-    };
-    let (platform, after_platform) = head.split_once('-')?;
-    if platform.is_empty() || platform.contains('.') {
-        return None;
-    }
-    let (arch_part, is_musl) = match after_platform.strip_suffix("-musl") {
-        Some(arch_part) => (arch_part, true),
-        None => (after_platform, false),
-    };
-    if arch_part.is_empty() || arch_part.contains('.') || arch_part.contains('-') {
-        return None;
-    }
-    Some(NodeFileName { platform: platform.to_string(), arch: arch_part.to_string(), is_musl })
-}
-
-fn bin_spec_for_platform(platform: &str) -> BinarySpec {
-    let path = if platform == "win32" { "node.exe" } else { "bin/node" };
-    BinarySpec::Map(BTreeMap::from([("node".to_string(), path.to_string())]))
-}
-
-fn node_bins_for_current_os(platform: &str) -> serde_json::Value {
-    serde_json::json!({ "node": if platform == "win32" { "node.exe" } else { "bin/node" } })
-}
-
-/// Host platform string in pnpm's normalised form (`win32`, `darwin`,
-/// `linux`, ...). Reads `std::env::consts::OS` rather than spawning a
-/// helper so the lookup is allocation-free.
-fn current_platform() -> &'static str {
-    match std::env::consts::OS {
-        "windows" => "win32",
-        other => other,
-    }
-}
-
 #[cfg(test)]
 mod tests;
+
+mod assets;
+use assets::{
+    current_platform,
+    node_bins_for_current_os,
+    read_musl_assets,
+    read_node_assets_from_mirror,
+};

@@ -15,10 +15,10 @@
 ## Usage
 
 ```ts
-import resolveStorePath from '@pnpm/store.path'
+import { getStorePath } from '@pnpm/store.path'
 
-await resolveStorePath('F:\\project', 'pnpm-store')
-//> F:\\pnpm-store\\2
+await getStorePath({ pkgRoot: 'F:\\project', storePath: 'pnpm-store', pnpmHomeDir: 'C:\\pnpm-home' })
+//> F:\project\pnpm-store\v11
 ```
 
 ## License

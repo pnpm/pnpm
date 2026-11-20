@@ -2,7 +2,7 @@ import { createMatcher } from '@pnpm/config.matcher'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import type { BadPeerDependencyIssue, PeerDependencyIssuesByProjects, PeerDependencyRules } from '@pnpm/types'
+import type { BadPeerDependencyIssue, PeerDependencyIssues, PeerDependencyIssuesByProjects, PeerDependencyRules } from '@pnpm/types'
 import { isEmpty } from 'ramda'
 import semver from 'semver'
 
@@ -35,46 +35,102 @@ export function filterPeerDependencyIssues (
   rules?: PeerDependencyRules
 ): PeerDependencyIssuesByProjects {
   if (!rules) return peerDependencyIssuesByProjects
+  const filters = createPeerIssueFilters(rules)
+  const newPeerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
+  for (const [projectId, peerIssuesOfProject] of Object.entries(peerDependencyIssuesByProjects)) {
+    newPeerDependencyIssuesByProjects[projectId] = filterProjectPeerIssues(peerIssuesOfProject, filters)
+  }
+  return newPeerDependencyIssuesByProjects
+}
+
+interface PeerIssueFilters extends ParsedAllowedVersions {
+  ignoreMissingMatcher: (peerName: string) => boolean
+  allowAnyMatcher: (peerName: string) => boolean
+}
+
+function createPeerIssueFilters (rules: PeerDependencyRules): PeerIssueFilters {
   const ignoreMissingPatterns = [...new Set(rules?.ignoreMissing ?? [])]
   const ignoreMissingMatcher = createMatcher(ignoreMissingPatterns)
   const allowAnyPatterns = [...new Set(rules?.allowAny ?? [])]
   const allowAnyMatcher = createMatcher(allowAnyPatterns)
-  const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } = parseAllowedVersions(rules?.allowedVersions ?? {})
-  const newPeerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
-  for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
-    newPeerDependencyIssuesByProjects[projectId] = { bad: {}, missing: {}, conflicts, intersections }
-    for (const [peerName, issues] of Object.entries(missing)) {
-      if (
-        ignoreMissingMatcher(peerName) || issues.every(({ optional }) => optional)
-      ) {
-        continue
-      }
-      newPeerDependencyIssuesByProjects[projectId].missing[peerName] = issues
+  return {
+    ignoreMissingMatcher,
+    allowAnyMatcher,
+    ...parseAllowedVersions(rules?.allowedVersions ?? {}),
+  }
+}
+
+function filterProjectPeerIssues (
+  { bad, missing, conflicts, intersections }: PeerDependencyIssues,
+  filters: PeerIssueFilters
+): PeerDependencyIssues {
+  const filteredMissing: PeerDependencyIssues['missing'] = {}
+  const filteredIntersections: PeerDependencyIssues['intersections'] = {}
+  for (const [peerName, issues] of Object.entries(missing)) {
+    if (
+      filters.ignoreMissingMatcher(peerName) || issues.every(({ optional }) => optional)
+    ) {
+      continue
     }
-    for (const [peerName, issues] of Object.entries(bad)) {
-      if (allowAnyMatcher(peerName)) continue
-      const filteredIssues: BadPeerDependencyIssue[] = []
-      for (const issue of issues) {
-        if (allowedVersionsMatchAll[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) continue
-        const currentParentPkg = issue.parents.at(-1)
-        if (currentParentPkg && allowedVersionsByParentPkgName[peerName]?.[currentParentPkg.name]) {
-          const allowedVersionsByParent: Record<string, string[]> = {}
-          for (const { targetPkg, parentPkg, ranges } of allowedVersionsByParentPkgName[peerName][currentParentPkg.name]) {
-            if (!parentPkg.bareSpecifier || currentParentPkg.version &&
-              (isSubRange(parentPkg.bareSpecifier, currentParentPkg.version) || semver.satisfies(currentParentPkg.version, parentPkg.bareSpecifier))) {
-              allowedVersionsByParent[targetPkg.name] = ranges
-            }
-          }
-          if (allowedVersionsByParent[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) continue
-        }
-        filteredIssues.push(issue)
-      }
-      if (filteredIssues.length) {
-        newPeerDependencyIssuesByProjects[projectId].bad[peerName] = filteredIssues
-      }
+    filteredMissing[peerName] = issues
+    if (Object.hasOwn(intersections, peerName)) {
+      filteredIntersections[peerName] = intersections[peerName]
     }
   }
-  return newPeerDependencyIssuesByProjects
+  return {
+    bad: filterBadPeers(bad, filters),
+    missing: filteredMissing,
+    conflicts: conflicts.filter((peerName) => Object.hasOwn(filteredMissing, peerName)),
+    intersections: filteredIntersections,
+  }
+}
+
+function filterBadPeers (
+  bad: PeerDependencyIssues['bad'],
+  filters: PeerIssueFilters
+): PeerDependencyIssues['bad'] {
+  const filteredBad: PeerDependencyIssues['bad'] = {}
+  for (const [peerName, issues] of Object.entries(bad)) {
+    if (filters.allowAnyMatcher(peerName)) continue
+    const filteredIssues = issues.filter((issue) => !isAllowedBadPeer(peerName, issue, filters))
+    if (filteredIssues.length) {
+      filteredBad[peerName] = filteredIssues
+    }
+  }
+  return filteredBad
+}
+
+function isAllowedBadPeer (
+  peerName: string,
+  issue: BadPeerDependencyIssue,
+  { allowedVersionsMatchAll, allowedVersionsByParentPkgName }: ParsedAllowedVersions
+): boolean {
+  if (allowedVersionsMatchAll[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range))) return true
+  const currentParentPkg = issue.parents.at(-1)
+  if (!currentParentPkg) return false
+  const parentRules = allowedVersionsByParentPkgName[peerName]?.[currentParentPkg.name]
+  if (!parentRules) return false
+  const allowedVersionsByParent = allowedRangesForParent(parentRules, currentParentPkg)
+  return allowedVersionsByParent[peerName]?.some((range) => semver.satisfies(issue.foundVersion, range)) === true
+}
+
+function allowedRangesForParent (
+  parentRules: AllowedVersionsByParentPkgName[string][string],
+  currentParentPkg: { version: string }
+): Record<string, string[]> {
+  const allowedVersionsByParent: Record<string, string[]> = {}
+  for (const { targetPkg, parentPkg, ranges } of parentRules) {
+    if (parentRangeAdmits(parentPkg.bareSpecifier, currentParentPkg.version)) {
+      allowedVersionsByParent[targetPkg.name] = ranges
+    }
+  }
+  return allowedVersionsByParent
+}
+
+function parentRangeAdmits (parentRange: string | undefined, parentVersion: string): boolean {
+  if (!parentRange) return true
+  return Boolean(parentVersion) &&
+    (isSubRange(parentRange, parentVersion) || semver.satisfies(parentVersion, parentRange))
 }
 
 function isSubRange (superRange: string | undefined, subRange: string): boolean {
@@ -103,8 +159,10 @@ function tryParseAllowedVersions (allowedVersions: Record<string, string>): Vers
 
 function parseAllowedVersions (allowedVersions: Record<string, string>): ParsedAllowedVersions {
   const overrides = tryParseAllowedVersions(allowedVersions)
-  const allowedVersionsMatchAll: Record<string, string[]> = {}
-  const allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName = {}
+  // Null-prototype maps, so a peer or parent named `constructor` reads nothing
+  // off `Object.prototype`.
+  const allowedVersionsMatchAll: Record<string, string[]> = Object.create(null)
+  const allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName = Object.create(null)
   for (const { parentPkg, targetPkg, newBareSpecifier } of overrides) {
     const ranges = parseVersions(newBareSpecifier)
     if (!parentPkg) {
@@ -112,7 +170,7 @@ function parseAllowedVersions (allowedVersions: Record<string, string>): ParsedA
       continue
     }
     if (!allowedVersionsByParentPkgName[targetPkg.name]) {
-      allowedVersionsByParentPkgName[targetPkg.name] = {}
+      allowedVersionsByParentPkgName[targetPkg.name] = Object.create(null)
     }
     if (!allowedVersionsByParentPkgName[targetPkg.name][parentPkg.name]) {
       allowedVersionsByParentPkgName[targetPkg.name][parentPkg.name] = []

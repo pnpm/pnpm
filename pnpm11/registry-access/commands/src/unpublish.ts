@@ -10,7 +10,7 @@ import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { createOtpContext, parsePackageSpec, rcOptionsTypes, readErrorBody, WEB_AUTH_FETCH_OPTIONS } from './common.js'
+import { createOtpContext, normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes, readErrorBody, WEB_AUTH_FETCH_OPTIONS } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -152,8 +152,9 @@ async function unpublishPackage (
     registryUrl,
   }
 
+  const force = opts.cliOptions?.force ?? false
   if (!versionRange) {
-    return unpublishAll(ctx, pkg, opts.cliOptions)
+    return unpublishAll(ctx, pkg, { force })
   }
 
   const versionsToUnpublish = getVersionsMatchingRange(allVersions, versionRange)
@@ -161,9 +162,8 @@ async function unpublishPackage (
     throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${versionRange}"`)
   }
 
-  // If removing all matched versions leaves none, treat as full unpublish
   if (versionsToUnpublish.length === Object.keys(allVersions).length) {
-    return unpublishAll(ctx, pkg, opts.cliOptions)
+    return unpublishAll(ctx, pkg, { force, fullRangeSpec: `${packageName}@${versionRange}` })
   }
 
   return unpublishVersions(ctx, pkg, versionsToUnpublish)
@@ -174,7 +174,7 @@ async function fetchPackument (
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
 ): Promise<PackumentResponse> {
-  const response = await fetchFromRegistry(packageUrl, {
+  const response = await fetchFromRegistry(`${packageUrl}?write=true`, {
     authHeaderValue: authHeader,
     fullMetadata: true,
   })
@@ -196,7 +196,27 @@ async function unpublishVersions (
   pkg: PackumentResponse,
   versions: string[]
 ): Promise<string> {
-  // Collect tarball URLs before mutating
+  const tarballs = removeVersionsFromPackument(pkg, versions)
+
+  const putResponse = await sendMutation(ctx, `${ctx.packageUrl}/-rev/${pkg._rev}`, {
+    method: 'PUT',
+    body: JSON.stringify(pkg),
+  })
+
+  if (!putResponse.ok) {
+    await throwRegistryError(putResponse, 'unpublish')
+  }
+
+  await deleteTarballs(ctx, tarballs)
+
+  return `Successfully unpublished ${versions.length} version(s) of ${pkg.name}`
+}
+
+/**
+ * Removes the versions, the dist-tags pointing at them, and the internal
+ * metadata from the packument. Returns the tarball URLs of the removed versions.
+ */
+function removeVersionsFromPackument (pkg: PackumentResponse, versions: string[]): string[] {
   const tarballs: string[] = []
   for (const version of versions) {
     const versionData = pkg.versions[version]
@@ -206,7 +226,6 @@ async function unpublishVersions (
     delete pkg.versions[version]
   }
 
-  // Update dist-tags: remove any tag pointing to removed versions
   const removedSet = new Set(versions)
   const latestVer = pkg['dist-tags'].latest
   for (const tag of Object.keys(pkg['dist-tags'])) {
@@ -223,26 +242,18 @@ async function unpublishVersions (
     }
   }
 
-  // Clean up internal metadata
   delete pkg._revisions
   delete pkg._attachments
+  return tarballs
+}
 
-  const putResponse = await sendMutation(ctx, `${ctx.packageUrl}/-rev/${pkg._rev}`, {
-    method: 'PUT',
-    body: JSON.stringify(pkg),
-  })
-
-  if (!putResponse.ok) {
-    await throwRegistryError(putResponse, 'unpublish')
-  }
-
-  // Delete each tarball
-  const registryOrigin = new URL(ctx.registryUrl).origin
-  /* eslint-disable no-await-in-loop */
+async function deleteTarballs (ctx: RegistryMutationContext, tarballs: string[]): Promise<void> {
+  const registryUrl = normalizeRegistryUrl(ctx.registryUrl)
+  /* eslint-disable no-await-in-loop -- each DELETE needs the revision produced by the previous one */
   for (const tarball of tarballs) {
     const updated = await fetchPackument(ctx.packageUrl, ctx.fetchFromRegistry, ctx.authHeader)
-    const tarballPathname = getTarballPathname(tarball, ctx.registryUrl)
-    const deleteResponse = await sendMutation(ctx, `${registryOrigin}/${tarballPathname}/-rev/${updated._rev}`, {
+    const tarballPathname = getTarballPathname(tarball, registryUrl)
+    const deleteResponse = await sendMutation(ctx, `${registryUrl}${tarballPathname}/-rev/${updated._rev}`, {
       method: 'DELETE',
     })
 
@@ -253,21 +264,22 @@ async function unpublishVersions (
     }
   }
   /* eslint-enable no-await-in-loop */
-
-  return `Successfully unpublished ${versions.length} version(s) of ${pkg.name}`
 }
 
 async function unpublishAll (
   ctx: RegistryMutationContext,
   pkg: PackumentResponse,
-  cliOptions: UnpublishOptions['cliOptions']
+  opts: { force: boolean, fullRangeSpec?: string }
 ): Promise<string> {
   const packageName = pkg.name
   const versionCount = Object.keys(pkg.versions).length
-  const force = cliOptions?.force ?? false
 
-  if (!force) {
+  if (!opts.force) {
     const versionsList = Object.keys(pkg.versions).join(', ')
+    if (opts.fullRangeSpec) {
+      throw new PnpmError('UNPUBLISH_CONFIRM', `${opts.fullRangeSpec} matches every published version (${versionsList}).
+Run pnpm unpublish "${opts.fullRangeSpec}" --force to remove the whole package from the registry.`)
+    }
     throw new PnpmError('UNPUBLISH_CONFIRM', `Run pnpm unpublish --force to remove all published versions of ${packageName} (${versionsList}) from the registry.
 This is a protection mechanism to prevent accidental unpublish of packages with many versions.
 If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<version>`)
@@ -305,6 +317,7 @@ async function sendMutation (
       method: init.method,
       headers: {
         'npm-auth-type': ctx.authType,
+        'npm-command': 'unpublish',
         ...(init.body != null ? { 'content-type': 'application/json' } : {}),
         ...(otp ? { 'npm-otp': otp } : {}),
       },
@@ -325,9 +338,12 @@ async function throwRegistryError (response: Response, verb: string): Promise<ne
   throw new PnpmError('REGISTRY_ERROR', `Failed to ${verb} package: ${response.status} ${response.statusText}. ${errorBody}`)
 }
 
-function getTarballPathname (tarballUrl: string, registryUrl: string): string {
-  const registryPath = new URL(registryUrl).pathname.slice(1)
-  let tarballPath = new URL(tarballUrl).pathname.slice(1)
+export function getTarballPathname (tarballUrl: string, registryUrl: string): string {
+  let registryPath = new URL(registryUrl).pathname.replace(/^\/+/g, '')
+  if (registryPath && !registryPath.endsWith('/')) {
+    registryPath += '/'
+  }
+  let tarballPath = new URL(tarballUrl).pathname.replace(/^\/+/g, '')
   if (registryPath && tarballPath.startsWith(registryPath)) {
     tarballPath = tarballPath.slice(registryPath.length)
   }
@@ -338,5 +354,5 @@ function getVersionsMatchingRange (
   versions: Record<string, VersionData>,
   range: string
 ): string[] {
-  return Object.keys(versions).filter((v) => semver.satisfies(v, range))
+  return Object.keys(versions).filter((version) => semver.satisfies(version, range))
 }

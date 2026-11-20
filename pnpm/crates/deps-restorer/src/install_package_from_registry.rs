@@ -1,23 +1,38 @@
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, SymlinkPackageError, import_indexed_dir,
-    retry_config::retry_opts_from_config,
-    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
+    ImportIndexedDirError,
+    ImportIndexedDirOpts,
+    SymlinkPackageError,
+    import_indexed_dir,
+    safe_join_modules_dir::{
+        InvalidDependencyAliasError,
+        safe_join_modules_dir,
+    },
     symlink_package,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_config::Config;
 use pnpm_lockfile::LockfileResolution;
-use pnpm_network::ThrottledClient;
-use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
-use pnpm_tarball::{DownloadTarballToStore, MemCache, TarballError};
+use pnpm_store_dir::SharedVerifiedFilesCache;
+use pnpm_tarball::{
+    IngestTarballToStore,
+    TarballError,
+};
 use serde_json::Value;
 use ssri::Integrity;
 use std::{
     path::Path,
-    sync::{Arc, atomic::AtomicU8},
+    sync::atomic::AtomicU8,
 };
 
 /// Materialize one pre-resolved package on disk:
@@ -40,23 +55,7 @@ use std::{
 /// resulting path in so per-package code stays layout-agnostic.
 #[must_use]
 pub struct InstallPackageFromRegistry<'a> {
-    pub tarball_mem_cache: &'a MemCache,
-    pub http_client: &'a ThrottledClient,
-    pub config: &'static Config,
-    pub store_index: Option<&'a SharedReadonlyStoreIndex>,
-    pub store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
-    /// Install-scoped `verifiedFilesCache` shared across every
-    /// per-package fetch. See `DownloadTarballToStore::verified_files_cache`
-    /// for the rationale.
-    pub verified_files_cache: &'a SharedVerifiedFilesCache,
-    /// Warm-cache prefetch result built once per install via
-    /// [`pnpm_tarball::prefetch_cas_paths`] — `cache_key →
-    /// Arc<cas_paths>`. When `Some`, the
-    /// `DownloadTarballToStore::run_without_mem_cache` cache-lookup
-    /// branch reads from here before falling back to the per-snapshot
-    /// `SQLite` lookup, avoiding `Arc<Mutex<StoreIndex>>` contention on
-    /// the resolve hot path.
-    pub prefetched_cas_paths: Option<&'a pnpm_tarball::PrefetchedCasPaths>,
+    pub fetching: crate::RegistryFetchContext<'a>,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
@@ -65,7 +64,7 @@ pub struct InstallPackageFromRegistry<'a> {
     /// [`pnpm_reporter::StageLog`].
     pub requester: &'a str,
     pub node_modules_dir: &'a Path,
-    /// Per-package virtual-store directory — output of
+    /// Per-package virtual-store directory, output of
     /// [`crate::VirtualStoreLayout::slot_dir`] for this package's
     /// snapshot key. The unpacked files land at
     /// `<slot_dir>/node_modules/<real-name>/`.
@@ -87,7 +86,7 @@ pub struct InstallPackageFromRegistry<'a> {
 /// Error type of [`InstallPackageFromRegistry`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallPackageFromRegistryError {
-    DownloadTarballToStore(#[error(source)] TarballError),
+    IngestTarballToStore(#[error(source)] TarballError),
     ImportIndexedDir(#[error(source)] ImportIndexedDirError),
     SymlinkPackage(#[error(source)] SymlinkPackageError),
 
@@ -116,32 +115,15 @@ impl InstallPackageFromRegistry<'_> {
     pub async fn run<Reporter: self::Reporter>(
         self,
     ) -> Result<(), InstallPackageFromRegistryError> {
-        let InstallPackageFromRegistry {
-            tarball_mem_cache,
-            http_client,
-            config,
-            store_index,
-            store_index_writer,
-            verified_files_cache,
-            prefetched_cas_paths,
-            logged_methods,
-            requester,
-            node_modules_dir,
-            slot_dir,
-            alias,
-            resolution,
-            first_visit,
-        } = self;
-
-        let (real_name, version) = real_name_version(resolution).ok_or_else(|| {
-            InstallPackageFromRegistryError::UnsupportedResolution {
+        let (real_name, version) = real_name_version(self.resolution)
+            .ok_or_else(|| InstallPackageFromRegistryError::UnsupportedResolution {
                 detail: format!(
                     "resolver {resolved_via} produced a resolution without a structured \
                      name@version and no manifest name/version to fall back to (alias={alias})",
-                    resolved_via = resolution.resolved_via,
+                    resolved_via = self.resolution.resolved_via,
+                    alias = self.alias,
                 ),
-            }
-        })?;
+            })?;
         let package_id = format!("{real_name}@{version}");
 
         // The exposed symlink under `node_modules/` uses the manifest
@@ -151,90 +133,130 @@ impl InstallPackageFromRegistry<'_> {
         // `real_name` is untrusted for tarball/git/file deps (read from
         // the fetched manifest), so the join is guarded against a
         // traversal-shaped name escaping `node_modules`.
-        let save_path = safe_join_modules_dir(&slot_dir.join("node_modules"), &real_name)
+        let save_path = safe_join_modules_dir(&self.slot_dir.join("node_modules"), &real_name)
             .map_err(InstallPackageFromRegistryError::InvalidAlias)?;
 
-        let symlink_path = node_modules_dir.join(alias);
-
-        if first_visit {
-            let revision_addressed = matches!(
-                &resolution.resolution,
-                LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
-            );
-            let (tarball_url, integrity) = extract_tarball(&resolution.resolution)?;
-            let unpacked_size = manifest_unpacked_size(resolution.manifest.as_deref());
-            let file_count = manifest_file_count(resolution.manifest.as_deref());
-
-            Reporter::emit(&LogEvent::Progress(ProgressLog {
-                level: LogLevel::Debug,
-                message: ProgressMessage::Resolved {
-                    package_id: package_id.clone(),
-                    requester: requester.to_owned(),
-                },
-            }));
-
-            // TODO: skip when it already exists in store?
-            let download = DownloadTarballToStore {
-                http_client,
-                store_dir: &config.store_dir,
-                store_index: store_index.cloned(),
-                store_index_writer: store_index_writer.cloned(),
-                verify_store_integrity: config.verify_store_integrity,
-                strict_store_pkg_content_check: config.strict_store_pkg_content_check,
-                verified_files_cache: SharedVerifiedFilesCache::clone(verified_files_cache),
-                package_integrity: Some(&integrity),
-                package_unpacked_size: unpacked_size,
-                package_file_count: file_count,
-                package_url: tarball_url,
-                package_id: &package_id,
-                requester,
-                prefetched_cas_paths,
-                retry_opts: retry_opts_from_config(config),
-                auth_headers: &config.auth_headers,
-                ignore_file_pattern: None,
-                offline: config.offline,
-                // This recursive install path owns its package-status
-                // progress directly; no resolve-time prefetch shares a
-                // dedupe set with it.
-                progress_reported: None,
-                append_manifest: None,
-            };
-            let cas_paths = if revision_addressed {
-                download.run_revision_addressed_with_mem_cache::<Reporter>(tarball_mem_cache).await
-            } else {
-                download.run_with_mem_cache::<Reporter>(tarball_mem_cache).await
-            }
-            .map_err(InstallPackageFromRegistryError::DownloadTarballToStore)?;
-
-            tracing::info!(target: "pacquet::import", ?save_path, ?symlink_path, "Import package");
-
-            import_indexed_dir::<Reporter>(
-                logged_methods,
-                config.package_import_method,
-                &save_path,
-                &cas_paths,
-                ImportIndexedDirOpts::default(),
-            )
-            .map_err(InstallPackageFromRegistryError::ImportIndexedDir)?;
-
-            // `pnpm:progress imported` — see the matching emit in
-            // `create_virtual_dir_by_snapshot::run` for the rationale
-            // on the optimistic `method` value. `to` is the per-
-            // package virtual-store directory the symlink under
-            // `node_modules/{alias}` resolves to.
-            Reporter::emit(&LogEvent::Progress(ProgressLog {
-                level: LogLevel::Debug,
-                message: ProgressMessage::Imported {
-                    method: crate::optimistic_wire_method(config.package_import_method),
-                    requester: requester.to_owned(),
-                    to: save_path.to_string_lossy().into_owned(),
-                },
-            }));
+        if self.first_visit {
+            self.ingest_and_import::<Reporter>(&package_id, &save_path).await?;
         }
 
-        symlink_package(&save_path, &symlink_path)
+        symlink_package(&save_path, &self.node_modules_dir.join(self.alias))
             .map_err(InstallPackageFromRegistryError::SymlinkPackage)?;
 
+        Ok(())
+    }
+
+    fn tarball_download<'a>(
+        &'a self,
+        package_id: &'a str,
+        tarball_url: &'a str,
+        integrity: &'a ssri::Integrity,
+    ) -> IngestTarballToStore<'a> {
+        let config = self.fetching.config;
+        // TODO: skip when it already exists in store?
+        IngestTarballToStore {
+            fetching: pnpm_tarball::ArchiveFetchOptions {
+                http_client: self.fetching.http_client,
+                auth_headers: &config.auth_headers,
+                retry_opts: config.retry_opts(),
+                offline: config.offline,
+                tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),
+            },
+            package: pnpm_tarball::TarballPackage {
+                integrity_kind: self.resolution.resolution
+                    .integrity_target(config.lockfile_integrity_target)
+                    .into(),
+                integrity: Some(integrity),
+                unpacked_size: manifest_unpacked_size(self.resolution.package.manifest.as_deref()),
+                file_count: manifest_file_count(self.resolution.package.manifest.as_deref()),
+                url: tarball_url,
+                id: package_id,
+            },
+            store: pnpm_tarball::ArchiveStoreContext {
+                dir: std::borrow::Cow::Borrowed(&config.store_dir),
+                index: self.fetching.store_index.cloned(),
+                index_writer: self.fetching.store_index_writer.cloned(),
+                verify_integrity: config.verify_store_integrity,
+                strict_pkg_content_check: config.strict_store_pkg_content_check,
+                verified_files_cache: SharedVerifiedFilesCache::clone(
+                    self.fetching.verified_files_cache,
+                ),
+                prefetched_cas_paths: self.fetching.prefetched_cas_paths,
+            },
+
+            requester: self.requester,
+
+            ignore_file_pattern: None,
+
+            // This recursive install path owns its package-status
+            // progress directly; no resolve-time prefetch shares a
+            // dedupe set with it.
+            progress_reported: None,
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
+        }
+    }
+
+    fn report_resolved<Reporter: self::Reporter>(&self, package_id: &str) {
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::Resolved {
+                package_id: package_id.to_owned(),
+                requester: self.requester.to_owned(),
+            },
+        }));
+    }
+
+    async fn ingest_and_import<Reporter: self::Reporter>(
+        &self,
+        package_id: &str,
+        save_path: &Path,
+    ) -> Result<(), InstallPackageFromRegistryError> {
+        let config = self.fetching.config;
+        let revision_addressed = matches!(
+            &self.resolution.resolution,
+            LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
+        );
+        let (tarball_url, integrity) = extract_tarball(&self.resolution.resolution)?;
+
+        self.report_resolved::<Reporter>(package_id);
+
+        let download = self.tarball_download(package_id, tarball_url, &integrity);
+        let cas_paths = if revision_addressed {
+            download.run_revision_addressed_with_mem_cache::<Reporter>(
+                self.fetching.tarball_mem_cache,
+            )
+            .await
+        } else {
+            download.run_with_mem_cache::<Reporter>(self.fetching.tarball_mem_cache).await
+        }
+        .map_err(InstallPackageFromRegistryError::IngestTarballToStore)?;
+
+        tracing::info!(target: "pacquet::import", ?save_path, "Import package");
+
+        import_indexed_dir::<Reporter>(
+            self.logged_methods,
+            config.package_import_method,
+            save_path,
+            &cas_paths,
+            ImportIndexedDirOpts::default(),
+        )
+        .map_err(InstallPackageFromRegistryError::ImportIndexedDir)?;
+
+        // `pnpm:progress imported`: see the matching emit in
+        // `create_virtual_dir_by_snapshot::run` for the rationale
+        // on the optimistic `method` value. `to` is the per-
+        // package virtual-store directory the symlink under
+        // `node_modules/{alias}` resolves to.
+        Reporter::emit(&LogEvent::Progress(ProgressLog {
+            level: LogLevel::Debug,
+            message: ProgressMessage::Imported {
+                method: crate::optimistic_wire_method(config.package_import_method),
+                requester: self.requester.to_owned(),
+                to: save_path.to_string_lossy().into_owned(),
+            },
+        }));
         Ok(())
     }
 }
@@ -242,15 +264,21 @@ impl InstallPackageFromRegistry<'_> {
 /// The package's canonical `(name, version)`. Prefers the resolver's
 /// structured `name_ver` (npm registry); falls back to the name/version
 /// read from the fetched manifest for resolvers that learn them only
-/// after the fetch — remote (non-registry) tarball, git, and file deps,
+/// after the fetch, remote (non-registry) tarball, git, and file deps,
 /// whose name/version live in `package.json`.
 fn real_name_version(resolution: &ResolveResult) -> Option<(String, String)> {
-    if let Some(name_ver) = resolution.name_ver.as_ref() {
+    if let Some(name_ver) = resolution.package.name_ver.as_ref() {
         return Some((name_ver.name.to_string(), name_ver.suffix.to_string()));
     }
-    let manifest = resolution.manifest.as_deref()?;
-    let name = manifest.get("name")?.as_str()?.to_string();
-    let version = manifest.get("version")?.as_str()?.to_string();
+    let manifest = resolution.package.manifest.as_deref()?;
+    let name = manifest
+        .get("name")?
+        .as_str()?
+        .to_string();
+    let version = manifest
+        .get("version")?
+        .as_str()?
+        .to_string();
     Some((name, version))
 }
 
@@ -261,11 +289,11 @@ pub fn extract_tarball(
 ) -> Result<(&str, Integrity), InstallPackageFromRegistryError> {
     match resolution {
         LockfileResolution::Tarball(t) => {
-            let integrity = t.integrity.clone().ok_or_else(|| {
-                InstallPackageFromRegistryError::UnsupportedResolution {
+            let integrity = t.integrity
+                .clone()
+                .ok_or_else(|| InstallPackageFromRegistryError::UnsupportedResolution {
                     detail: "tarball resolution missing integrity hash".to_string(),
-                }
-            })?;
+                })?;
             Ok((t.tarball.as_str(), integrity))
         }
         LockfileResolution::Registry(_)
@@ -282,7 +310,7 @@ pub fn extract_tarball(
 }
 
 /// Read `dist.unpackedSize` off the resolver-fetched manifest. Returns
-/// `None` when missing or non-numeric — the tarball extractor treats it
+/// `None` when missing or non-numeric, the tarball extractor treats it
 /// as a hint, not a hard requirement.
 #[must_use]
 pub fn manifest_unpacked_size(manifest: Option<&Value>) -> Option<usize> {
@@ -297,11 +325,47 @@ pub fn manifest_file_count(manifest: Option<&Value>) -> Option<usize> {
     manifest_dist_field(manifest, "fileCount")
 }
 
+/// Read `dist.pnpr.requiresBuild` off the resolver-fetched manifest.
+/// Only trusted from this field (never from `dist.requiresBuild` or
+/// top-level `hasInstallScript`) because only `dist.pnpr.requiresBuild`
+/// is derived from the tarball's own bytes and stripped on ingest.
+#[must_use]
+pub fn manifest_requires_build(manifest: Option<&Value>) -> Option<bool> {
+    manifest?
+        .get("dist")?
+        .get("pnpr")?
+        .get("requiresBuild")?
+        .as_bool()
+}
+
+/// Read `dist.pnpr.bins` off the resolver-fetched manifest.
+#[must_use]
+pub fn manifest_bins(
+    manifest: Option<&Value>,
+) -> Option<std::sync::Arc<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>> {
+    let raw = manifest?
+        .get("dist")?
+        .get("pnpr")?
+        .get("bins")?;
+    let bins: std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin> =
+        serde_json::from_value(raw.clone()).ok()?;
+    (!bins.is_empty()
+        && bins
+            .iter()
+            .all(|(name, bin)| pnpm_package_manifest::is_safe_bin_name(name) && bin.is_valid()))
+    .then(|| std::sync::Arc::new(bins))
+}
+
 fn manifest_dist_field(manifest: Option<&Value>, field: &str) -> Option<usize> {
     // `usize::try_from` so a `u64` value larger than the host's
     // `usize` (32-bit targets) degrades to "no hint" rather than
     // truncating silently and producing an undersized pre-allocation.
-    manifest?.get("dist")?.get(field)?.as_u64().and_then(|value| usize::try_from(value).ok())
+    manifest?
+        .get("dist")?
+        .get(field)?
+        .as_u64()
+        .map(usize::try_from)
+        .and_then(Result::ok)
 }
 
 #[cfg(test)]

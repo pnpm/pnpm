@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/split-tie-a",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/split-tie-a-child": "1.0.0"
+  }
+}

@@ -5,7 +5,7 @@ import { lockfileToAuditRequest } from '@pnpm/deps.compliance.audit'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const REGISTRY = 'https://registry.npmjs.org'
 
@@ -35,12 +35,12 @@ async function writeResponse (lockfileDir: string, filename: string, opts: {
 }
 
 ; (async () => {
-  await writeResponse(f.find('has-vulnerabilities'), 'dev-vulnerabilities-only-response.json', {
+  await writeResponse(testFixtures.find('has-vulnerabilities'), 'dev-vulnerabilities-only-response.json', {
     dev: true,
     production: false,
   })
-  await writeResponse(f.find('has-vulnerabilities'), 'all-vulnerabilities-response.json', {})
-  await writeResponse(f.find('has-outdated-deps'), 'no-vulnerabilities-response.json', {})
+  await writeResponse(testFixtures.find('has-vulnerabilities'), 'all-vulnerabilities-response.json', {})
+  await writeResponse(testFixtures.find('has-outdated-deps'), 'no-vulnerabilities-response.json', {})
 })().catch((err: unknown) => {
   console.error(err)
   process.exitCode = 1

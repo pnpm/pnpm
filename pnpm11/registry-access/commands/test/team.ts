@@ -50,6 +50,7 @@ describe('team command', () => {
         method: 'PUT',
         path: '/-/org/myorg/team',
         body: JSON.stringify({ name: 'newteam' }),
+        headers: { 'npm-command': 'team' },
       }).reply(200, { ok: true })
 
       const result = await team.handler({
@@ -157,6 +158,7 @@ describe('team command', () => {
       getMockAgent().get('https://registry.npmjs.org').intercept({
         method: 'DELETE',
         path: '/-/team/myorg/oldteam',
+        headers: { 'npm-command': 'team' },
       }).reply(200, { ok: true })
 
       const result = await team.handler({

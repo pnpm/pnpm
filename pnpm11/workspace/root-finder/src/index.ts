@@ -1,10 +1,20 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { PnpmError } from '@pnpm/error'
+import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
+import { isError, PnpmError } from '@pnpm/error'
+import { isWorkspaceProjectDir } from '@pnpm/workspace.package-patterns'
+import { readWorkspaceManifest, readWorkspaceManifestSync } from '@pnpm/workspace.workspace-manifest-reader'
 import * as find from 'empathic/find'
 
-const WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
+const MANIFEST_BASE_NAMES_SET = new Set<string>(MANIFEST_BASE_NAMES)
+const WORKSPACE_DIR_ENV_VARS = [
+  'PNPM_CONFIG_WORKSPACE_DIR',
+  'pnpm_config_workspace_dir',
+  // The `npm_config_` spelling stays accepted as a fallback.
+  'NPM_CONFIG_WORKSPACE_DIR',
+  'npm_config_workspace_dir',
+]
 const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 const INVALID_WORKSPACE_MANIFEST_FILENAME = [
   'pnpm-workspaces.yaml',
@@ -17,14 +27,86 @@ const INVALID_WORKSPACE_MANIFEST_FILENAME = [
 ]
 
 export async function findWorkspaceDir (cwd: string): Promise<string | undefined> {
-  const workspaceManifestDirEnvVar = process.env[WORKSPACE_DIR_ENV_VAR] ?? process.env[WORKSPACE_DIR_ENV_VAR.toLowerCase()]
-  const workspaceManifestLocation = workspaceManifestDirEnvVar
-    ? path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME)
-    : find.any([WORKSPACE_MANIFEST_FILENAME, ...INVALID_WORKSPACE_MANIFEST_FILENAME], { cwd: await getRealPath(cwd) })
-  if (workspaceManifestLocation && path.basename(workspaceManifestLocation) !== WORKSPACE_MANIFEST_FILENAME) {
+  const workspaceManifestDirEnvVar = getWorkspaceDirFromEnv()
+  if (workspaceManifestDirEnvVar) {
+    return path.dirname(path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME))
+  }
+  const realCwd = await getRealPath(cwd)
+  const workspaceManifestLocation = find.any([WORKSPACE_MANIFEST_FILENAME, ...INVALID_WORKSPACE_MANIFEST_FILENAME], { cwd: realCwd })
+  if (!workspaceManifestLocation) return undefined
+  if (path.basename(workspaceManifestLocation) !== WORKSPACE_MANIFEST_FILENAME) {
     throw new PnpmError('BAD_WORKSPACE_MANIFEST_NAME', `The workspace manifest file should be named "pnpm-workspace.yaml". File found: ${workspaceManifestLocation}`)
   }
-  return workspaceManifestLocation && path.dirname(workspaceManifestLocation)
+  const workspaceDir = path.dirname(workspaceManifestLocation)
+  return await belongsToWorkspace(workspaceDir, realCwd) ? workspaceDir : undefined
+}
+
+export function findWorkspaceDirSync (cwd: string): string | undefined {
+  const workspaceManifestDirEnvVar = getWorkspaceDirFromEnv()
+  if (workspaceManifestDirEnvVar) {
+    return path.dirname(path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME))
+  }
+  const realCwd = getRealPathSync(cwd)
+  const workspaceManifestLocation = find.any([WORKSPACE_MANIFEST_FILENAME, ...INVALID_WORKSPACE_MANIFEST_FILENAME], { cwd: realCwd })
+  if (!workspaceManifestLocation) return undefined
+  if (path.basename(workspaceManifestLocation) !== WORKSPACE_MANIFEST_FILENAME) {
+    throw new PnpmError('BAD_WORKSPACE_MANIFEST_NAME', `The workspace manifest file should be named "pnpm-workspace.yaml". File found: ${workspaceManifestLocation}`)
+  }
+  const workspaceDir = path.dirname(workspaceManifestLocation)
+  return belongsToWorkspaceSync(workspaceDir, realCwd) ? workspaceDir : undefined
+}
+
+function getWorkspaceDirFromEnv (): string | undefined {
+  for (const name of WORKSPACE_DIR_ENV_VARS) {
+    const value = process.env[name]
+    if (value) return value
+  }
+  return undefined
+}
+
+/**
+ * A project that the workspace does not include stands on its own, so pnpm
+ * runs it as a standalone project instead of acting on the whole workspace
+ * (https://github.com/pnpm/pnpm/issues/3561).
+ *
+ * A directory without a manifest of its own is not such a project. It is some
+ * place inside the workspace, like a package's source directory, and a command
+ * run from there still acts on the workspace.
+ */
+async function belongsToWorkspace (workspaceDir: string, dir: string): Promise<boolean> {
+  if (path.relative(workspaceDir, dir) === '' || !await hasProjectManifest(dir)) return true
+  const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+  return isWorkspaceProjectDir({ workspaceDir, dir, patterns: workspaceManifest?.packages ?? ['.'] })
+}
+
+function belongsToWorkspaceSync (workspaceDir: string, dir: string): boolean {
+  if (path.relative(workspaceDir, dir) === '' || !hasProjectManifestSync(dir)) return true
+  const workspaceManifest = readWorkspaceManifestSync(workspaceDir)
+  return isWorkspaceProjectDir({ workspaceDir, dir, patterns: workspaceManifest?.packages ?? ['.'] })
+}
+
+async function hasProjectManifest (dir: string): Promise<boolean> {
+  let entries: string[]
+  try {
+    entries = await fs.promises.readdir(dir)
+  } catch (err: unknown) {
+    // The directory pnpm was pointed at may not exist. Reporting that is the
+    // job of the command that needs it, not of the workspace lookup.
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    throw err
+  }
+  return entries.some((entry) => MANIFEST_BASE_NAMES_SET.has(entry))
+}
+
+function hasProjectManifestSync (dir: string): boolean {
+  let entries: string[]
+  try {
+    entries = fs.readdirSync(dir)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return false
+    throw err
+  }
+  return entries.some((entry) => MANIFEST_BASE_NAMES_SET.has(entry))
 }
 
 async function getRealPath (path: string): Promise<string> {
@@ -37,4 +119,12 @@ async function getRealPath (path: string): Promise<string> {
       resolve(err !== null ? path : resolvedPath)
     })
   })
+}
+
+function getRealPathSync (path: string): string {
+  try {
+    return fs.realpathSync.native(path)
+  } catch {
+    return path
+  }
 }

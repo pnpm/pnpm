@@ -3,29 +3,50 @@
 //!
 //! The npm-resolver intercepts every `workspace:`-shaped wanted
 //! dependency *except* the path-relative forms (`workspace:./foo`,
-//! `workspace:../bar`) — those flow through unchanged so the
+//! `workspace:../bar`); those flow through unchanged so the
 //! local-resolver in the chain takes them as `link:`-shaped
 //! directory specs.
 
-use std::path::{Path, PathBuf};
-
-use derive_more::{Display, Error};
+use crate::{
+    calc_specifier_for_workspace_dep::{
+        DeclaredSpecifiers,
+        calc_specifier_for_workspace_dep,
+    },
+    parse_bare_specifier::parse_bare_specifier,
+    pick_package_from_meta::{
+        RegistryPackageSpec,
+        RegistryPackageSpecType,
+    },
+    workspace_pref_to_npm::{
+        InvalidWorkspaceSpecError,
+        workspace_pref_to_npm,
+    },
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
-use pnpm_config::SaveWorkspaceProtocol;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_resolver_base::{
-    PkgResolutionId, ResolveResult, WantedDependency, WorkspacePackage, WorkspacePackages,
+    DependencyManifest,
+    PkgResolutionId,
+    ResolveResult,
+    SaveWorkspaceProtocol,
+    WantedDependency,
+    WorkspacePackage,
+    WorkspacePackages,
     WorkspacePackagesByVersion,
 };
 use pnpm_workspace_range_resolver::resolve_workspace_range;
-
-use crate::{
-    calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep},
-    parse_bare_specifier::parse_bare_specifier,
-    pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
-    workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm},
+use std::path::{
+    Path,
+    PathBuf,
 };
 
 /// Options threaded into [`try_resolve_from_workspace`].
@@ -68,13 +89,15 @@ pub struct ResolveFromWorkspaceOptions<'a> {
 /// options struct.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SavedSpecifierOptions {
-    /// `false` suppresses the computation entirely — nothing below an
+    /// `false` suppresses the computation entirely; nothing below an
     /// importer's direct dependencies is written to a manifest.
     pub calc_specifier: bool,
     /// Range operator to apply when the dependency declares none.
     pub range_spec_style: Option<RangeSpecStyle>,
     /// The `saveWorkspaceProtocol` setting.
     pub save_workspace_protocol: SaveWorkspaceProtocol,
+    /// `true` when updating an existing dependency rather than adding one.
+    pub is_update: bool,
 }
 
 /// Error envelope for [`try_resolve_from_workspace`]. The two error
@@ -82,7 +105,7 @@ pub struct SavedSpecifierOptions {
 /// are part of the public contract.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveFromWorkspaceError {
-    /// The translated workspace spec failed to parse — practically
+    /// The translated workspace spec failed to parse, practically
     /// unreachable since the caller checks the `workspace:` prefix
     /// before invoking this entry point.
     #[diagnostic(transparent)]
@@ -147,10 +170,7 @@ pub fn try_resolve_from_workspace(
     if !bare.starts_with("workspace:") {
         return Ok(None);
     }
-    // `workspace:./foo` / `workspace:../foo` are owned by the local
-    // resolver; let those fall through so the chain doesn't claim
-    // them here.
-    if bare.starts_with("workspace:.") {
+    if pnpm_workspace_spec::is_workspace_path_specifier(bare) {
         return Ok(None);
     }
 
@@ -180,31 +200,32 @@ pub(crate) fn try_resolve_from_workspace_packages(
     wanted_dependency: &WantedDependency,
     opts: &ResolveFromWorkspaceOptions<'_>,
 ) -> Result<ResolveResult, ResolveFromWorkspaceError> {
-    let matching_name = workspace_packages.get(spec.name.as_str()).ok_or_else(|| {
-        let names = workspace_packages.keys().cloned().collect::<Vec<_>>().join(", ");
-        ResolveFromWorkspaceError::WorkspacePkgNotFound {
-            name: spec.name.clone(),
-            bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
-            project_dir: opts.project_dir.display().to_string(),
-            hint: format!("Packages found in the workspace: {names}"),
-        }
-    })?;
+    let matching_name = workspace_packages
+        .get(spec.name.as_str())
+        .ok_or_else(|| {
+            let names = workspace_packages
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ");
+            ResolveFromWorkspaceError::WorkspacePkgNotFound {
+                name: spec.name.clone(),
+                bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
+                project_dir: opts.project_dir.display().to_string(),
+                hint: format!("Packages found in the workspace: {names}"),
+            }
+        })?;
 
-    let picked = pick_matching_local_version_or_null(matching_name, spec).ok_or_else(|| {
-        let mut versions: Vec<String> = matching_name.keys().cloned().collect();
-        versions.sort_by(|a, b| rcompare_versions(a, b));
-        let available = if versions.is_empty() {
-            String::new()
-        } else {
-            format!(". Available versions: {}", versions.join(", "))
-        };
-        ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
-            alias: wanted_dependency.alias.clone().unwrap_or_default(),
-            bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
-            project_dir: opts.project_dir.display().to_string(),
-            available,
-        }
-    })?;
+    let picked = pick_matching_local_version_or_null(matching_name, spec)
+        .ok_or_else(|| {
+            let available = available_workspace_versions(matching_name);
+            ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace {
+                alias: wanted_dependency.alias.clone().unwrap_or_default(),
+                bare_specifier: wanted_dependency.bare_specifier.clone().unwrap_or_default(),
+                project_dir: opts.project_dir.display().to_string(),
+                available,
+            }
+        })?;
     let local_package =
         matching_name.get(&picked).expect("picked version came from the matching set");
 
@@ -230,7 +251,11 @@ pub fn pick_matching_local_version_or_null(
             resolve_workspace_range("*", &raw)
         }
         RegistryPackageSpecType::Version => {
-            versions.contains_key(&spec.fetch_spec).then(|| spec.fetch_spec.clone())
+            if versions.contains_key(&spec.fetch_spec) {
+                return Some(spec.fetch_spec.clone());
+            }
+            let raw: Vec<String> = versions.keys().cloned().collect();
+            resolve_workspace_range(&spec.fetch_spec, &raw)
         }
         RegistryPackageSpecType::Range => {
             let raw: Vec<String> = versions.keys().cloned().collect();
@@ -248,7 +273,7 @@ pub(crate) fn resolve_from_local_package(
     lockfile_dir: &Path,
     saved_specifier: SavedSpecifierOptions,
 ) -> ResolveResult {
-    let local_dir = resolve_local_package_dir(local_package);
+    let local_dir = resolve_workspace_package_dir(&local_package.root_dir, &local_package.manifest);
 
     let (id_text, directory) = if hard_link_local_packages {
         let relative_to_lockfile = forward_slashes(relative_path(lockfile_dir, &local_dir));
@@ -262,18 +287,20 @@ pub(crate) fn resolve_from_local_package(
 
     ResolveResult {
         id: PkgResolutionId::from(id_text),
-        name_ver: None,
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(local_package.manifest.clone())),
         resolution: LockfileResolution::Directory(DirectoryResolution { directory }),
         resolved_via: "workspace".to_string(),
-        normalized_bare_specifier: saved_specifier
-            .calc_specifier
+        normalized_bare_specifier: saved_specifier.calc_specifier
             .then(|| workspace_specifier(local_package, wanted_dependency, saved_specifier))
             .flatten(),
         alias: wanted_dependency.alias.clone(),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(local_package.manifest.clone())),
+            non_deprecated_alternative: None,
+        },
     }
 }
 
@@ -295,22 +322,28 @@ fn workspace_specifier(
         manifest_field("version"),
         saved_specifier.save_workspace_protocol,
         saved_specifier.range_spec_style.unwrap_or_default(),
+        saved_specifier.is_update,
     ))
 }
 
-/// Honours `publishConfig.directory` when `publishConfig.linkDirectory`
-/// is unset or `true`; otherwise the project's own `rootDir`.
-fn resolve_local_package_dir(local_package: &WorkspacePackage) -> PathBuf {
-    let publish_config = local_package.manifest.get("publishConfig");
-    let publish_dir =
-        publish_config.and_then(|cfg| cfg.get("directory")).and_then(serde_json::Value::as_str);
+/// Return the directory exposed when the workspace project at `root_dir` with
+/// `manifest` is linked.
+///
+/// Honors `publishConfig.directory` when `publishConfig.linkDirectory` is
+/// unset or `true`; otherwise returns the project's own root directory.
+#[must_use]
+pub fn resolve_workspace_package_dir(root_dir: &Path, manifest: &DependencyManifest) -> PathBuf {
+    let publish_config = manifest.get("publishConfig");
+    let publish_dir = publish_config
+        .and_then(|cfg| cfg.get("directory"))
+        .and_then(serde_json::Value::as_str);
     let link_directory = publish_config
         .and_then(|cfg| cfg.get("linkDirectory"))
         .and_then(serde_json::Value::as_bool);
-    if publish_dir.is_none() || link_directory == Some(false) {
-        return local_package.root_dir.clone();
+    if publish_dir.is_none() || !link_directory.unwrap_or(true) {
+        return root_dir.to_path_buf();
     }
-    local_package.root_dir.join(publish_dir.expect("guard above"))
+    root_dir.join(publish_dir.expect("guard above"))
 }
 
 fn relative_path(base: &Path, target: &Path) -> String {
@@ -341,7 +374,10 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
     target_components.drain(..common);
 
     let mut out = PathBuf::new();
-    for _ in base_components.iter().filter(|component| !matches!(component, Component::CurDir)) {
+    for _ in base_components
+        .iter()
+        .filter(|component| !matches!(component, Component::CurDir))
+    {
         out.push("..");
     }
     for component in target_components {
@@ -353,13 +389,31 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
     Some(out.display().to_string())
 }
 
-/// Compare semver versions in *descending* order for the "available
-/// versions" hint. Versions that don't parse fall back to lexicographic
-/// reverse so the message at least stays stable.
+/// Descending order for the "available versions" hint: semver versions
+/// first, then versions that don't parse. Strings compare by UTF-16 code
+/// units so the list matches the TypeScript CLI's.
 fn rcompare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     match (Version::parse(left), Version::parse(right)) {
-        (Ok(left_parsed), Ok(right_parsed)) => right_parsed.cmp(&left_parsed),
-        _ => right.cmp(left),
+        (Ok(left_parsed), Ok(right_parsed)) => {
+            right_parsed.cmp(&left_parsed).then_with(|| rcompare_utf16(left, right))
+        }
+        (Ok(_), Err(_)) => std::cmp::Ordering::Less,
+        (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+        (Err(_), Err(_)) => rcompare_utf16(left, right),
+    }
+}
+
+fn rcompare_utf16(left: &str, right: &str) -> std::cmp::Ordering {
+    right.encode_utf16().cmp(left.encode_utf16())
+}
+
+fn available_workspace_versions(matching_name: &WorkspacePackagesByVersion) -> String {
+    let mut versions: Vec<String> = matching_name.keys().cloned().collect();
+    versions.sort_by(|a, b| rcompare_versions(a, b));
+    if versions.is_empty() {
+        String::new()
+    } else {
+        format!(". Available versions: {}", versions.join(", "))
     }
 }
 

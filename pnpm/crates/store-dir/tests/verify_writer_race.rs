@@ -9,12 +9,12 @@
 //!    disk with a partial body.
 //! 2. A verifier thread runs [`pnpm_store_dir::check_pkg_files_integrity`]
 //!    for an index row that references `F` (different package, same
-//!    content hash — common for shared boilerplate like `LICENSE`
+//!    content hash, common for shared boilerplate like `LICENSE`
 //!    files across sibling packages).
 //! 3. Verifier `stat`s `F` (no lock), sees a size that doesn't
 //!    match the index, and calls `remove_stale_cafs_entry(F)` to
 //!    scrub the "torn" blob.
-//! 4. The writer's `write_all` continues — but `F`'s dirent is now
+//! 4. The writer's `write_all` continues, but `F`'s dirent is now
 //!    gone. The kernel keeps the inode alive while the fd is open;
 //!    once the writer drops the fd, the inode is freed. The
 //!    writer's `ensure_file` returns `Ok(())` and the install
@@ -25,14 +25,14 @@
 //! Option C fix: extend `cas_write_lock` to `verify_file` so the
 //! verifier waits for the writer to finish before deciding whether
 //! the file is stale. With the fix, the verifier always observes
-//! the writer's final state — either fully-written and valid (skip
+//! the writer's final state; either fully-written and valid (skip
 //! the delete) or genuinely stale (delete safely).
 //!
 //! The race is timing-dependent in production because the
 //! writer's `write_all` is fast (milliseconds for a small file).
 //! To make the reproducer deterministic, the test holds
 //! `cas_write_lock` from the main thread for the entire critical
-//! window — this is exactly what an in-flight `ensure_file` would
+//! window; this is exactly what an in-flight `ensure_file` would
 //! do, just on a wall-clock the test controls. The verifier runs
 //! in the background while the lock is held; without the fix it
 //! unlinks the file unconditionally, with the fix it blocks on
@@ -40,15 +40,26 @@
 
 use std::{
     fs,
-    sync::{Arc, Mutex, mpsc},
+    sync::{
+        Arc,
+        Mutex,
+        mpsc,
+    },
     thread,
     time::Duration,
 };
 
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, StoreDir, VerifiedFilesCache, check_pkg_files_integrity,
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    VerifiedFilesCache,
+    check_pkg_files_integrity,
 };
-use sha2::{Digest, Sha512};
+use sha2::{
+    Digest,
+    Sha512,
+};
 use tempfile::tempdir;
 
 const CONTENT_SIZE: usize = 64 * 1024;
@@ -60,7 +71,7 @@ fn sha512_hex(content: &[u8]) -> String {
 
 /// Place a `CafsFileInfo` row that the verifier will check against,
 /// with `checked_at` pinned to the Unix epoch so the file's current
-/// mtime is always > 100 ms past the recorded check time — the
+/// mtime is always > 100 ms past the recorded check time, the
 /// condition that makes `verify_file` enter its destructive branch.
 fn make_index(filename: &str, content: &[u8]) -> PackageFilesIndex {
     let mut files = std::collections::HashMap::new();
@@ -81,6 +92,7 @@ fn make_index(filename: &str, content: &[u8]) -> PackageFilesIndex {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     }
 }
 
@@ -93,31 +105,26 @@ fn cas_path_for(store: &StoreDir, content: &[u8]) -> std::path::PathBuf {
         .expect("sha512 hex is always a valid CAFS path")
 }
 
-/// The reproducer.
-///
-/// Pre-Option-C: the verifier deletes the file while the simulated
-/// writer "holds the lock", because `verify_file` doesn't acquire the
-/// lock at all.
-///
-/// Post-Option-C: the verifier acquires `cas_write_lock(path)`
-/// before deciding whether to delete. While the test holds the
-/// lock, the verifier blocks; we observe the file is still on disk.
-/// Then the test releases the lock, the verifier finishes, and we
-/// observe the file is still there (because the verifier now sees
-/// the final committed state).
+/// The verifier acquires `cas_write_lock(path)` before deciding whether
+/// to delete. While the test holds the lock, the verifier blocks; we
+/// observe the file is still on disk. Then the test releases the lock,
+/// the verifier finishes, and we observe the file is still there,
+/// because the verifier now sees the final committed state.
 #[test]
 fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     let tmp = tempdir().expect("tempdir");
     let store = StoreDir::new(tmp.path().to_path_buf());
 
-    let expected_content: Vec<u8> = (0..CONTENT_SIZE).map(|i| (i % 256) as u8).collect();
+    let expected_content: Vec<u8> = (0..CONTENT_SIZE)
+        .map(|i| (i % 256) as u8)
+        .collect();
     let target = cas_path_for(&store, &expected_content);
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).expect("create shard dir");
     }
 
     // Simulate "writer is mid-`write_all`": F exists on disk with a
-    // partial prefix of the expected content. Size mismatch — exactly
+    // partial prefix of the expected content. Size mismatch, exactly
     // the condition that drives `verify_file` into the
     // `remove_stale_cafs_entry` branch.
     fs::write(&target, &expected_content[..1024]).expect("pre-seed partial blob");
@@ -140,7 +147,9 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     let result_slot_writer = Arc::clone(&result_slot);
     let target_for_verifier = target.clone();
     let verifier = thread::spawn(move || {
-        verifier_started_tx.send(()).expect("send start");
+        verifier_started_tx
+            .send(())
+            .expect("send start");
         let pkg_index = make_index("LICENSE", &verify_content);
         let cache = VerifiedFilesCache::new();
         let result = check_pkg_files_integrity(&verify_store, pkg_index, &cache);
@@ -164,7 +173,7 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     let file_exists_under_lock = target.exists();
 
     // Simulate the writer "finishing" by replacing the partial blob
-    // with the full content — what `ensure_file`'s `write_all` +
+    // with the full content, what `ensure_file`'s `write_all` +
     // close would have produced. Drop the lock guard so the verifier
     // (if it's blocked) can wake up and observe the final state.
     fs::write(&target, &expected_content).expect("commit full content");
@@ -174,7 +183,7 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
     let file_exists_after_verify = target.exists();
 
     // The killer assertion. Without Option C the verifier doesn't
-    // wait — it sees the partial file under the lock and unlinks it,
+    // wait; it sees the partial file under the lock and unlinks it,
     // which means `file_exists_under_lock` is `false`. With Option
     // C, the verifier waits on the lock and never makes a decision
     // until we release it, so `file_exists_under_lock` is `true`.
@@ -203,7 +212,7 @@ fn verify_does_not_unlink_file_while_writer_holds_cas_lock() {
 
 /// Sanity check: the lock acquired by [`pnpm_fs::cas_write_lock`]
 /// keys on the absolute path. Two callers asking for the same path
-/// receive a reference to the same `Mutex` — the property the Option-C
+/// receive a reference to the same `Mutex`, the property the Option-C
 /// fix relies on for the verifier to wait on the writer.
 #[test]
 fn cas_write_lock_returns_same_mutex_for_same_path() {

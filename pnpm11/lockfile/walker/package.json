@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.walker",
-  "version": "1100.0.21",
+  "version": "1100.0.31",
   "description": "Walk over all the dependencies in a lockfile",
   "keywords": [
     "pnpm",
@@ -28,11 +28,12 @@
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pn compile",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/deps.path": "workspace:*",
+    "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/types": "workspace:*"
   },

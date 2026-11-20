@@ -1,25 +1,21 @@
-use derive_more::{From, Into};
-use serde::{Deserialize, Serialize};
+use derive_more::{
+    From,
+    Into,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// The patch-aware package ident used by pnpm's side-effects cache and
 /// dep-graph hashing. A branded string
 /// (`type PkgIdWithPatchHash = string & { __brand: 'PkgIdWithPatchHash' }`).
 ///
 /// The on-disk shape is `<pkg_id>` or `<pkg_id>(patch_hash=<hash>)`. The
-/// two pacquet consumers ([`crate`]'s downstream `virtual_store_layout`
-/// and `hoisted_dep_graph` in `pnpm-package-manager`) build the value
-/// by `to_string()`-ing a [`crate::PackageKey`] today; the format is
-/// fixed by the on-disk contract, so no validating constructor is
+/// format is fixed by the on-disk contract, so no validating constructor is
 /// appropriate here.
 ///
-/// Per `CLAUDE.md`'s "Modeling branded string types" section rule 3:
-/// non-validating brand → infallible `From<String>` / `From<&str>`
-/// via [`derive_more::From`] / [`derive_more::Into`], plus
-/// `#[serde(transparent)]` so the wire format is identical to
-/// `String` (the value crosses JSON / YAML boundaries when it lands
-/// inside `.modules.yaml` or a side-effects-cache key).
-///
-/// Modelled on `pnpm_modules_yaml::DepPath` — the closest existing
+/// Modelled on `pnpm_modules_yaml::DepPath`, the closest existing
 /// peer in pacquet, a sibling brand under the same rules. Bare-text
 /// link rather than an intra-doc link because `pnpm-lockfile` doesn't
 /// depend on `pnpm-modules-yaml` and adding the dep just for a

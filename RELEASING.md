@@ -16,13 +16,14 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 
 3. Fetch the merge commit and tag each product whose version changed. Tag names
    must match what `release.yml` expects — `v<version>` for the pnpm CLIs,
-   `pnpr@<version>` for pnpr:
+   `pnpr@<version>` for pnpr, `get-pnpm@<version>` for get-pnpm:
 
-   | Product            | Manifest                     | Tag prefix |
-   | ------------------ | ---------------------------- | ---------- |
-   | pnpm (TypeScript)  | `pnpm11/pnpm/package.json`   | `v`        |
-   | pacquet (Rust)     | `pnpm/npm/pnpm/package.json` | `v`        |
-   | pnpr               | `pnpr/npm/pnpr/package.json` | `pnpr@`    |
+   | Product           | Manifest                         | Tag prefix  |
+   | ----------------- | -------------------------------- | ----------- |
+   | pnpm (TypeScript) | `pnpm11/pnpm/package.json`       | `v`         |
+   | pacquet (Rust)    | `pnpm/npm/pnpm/package.json`     | `v`         |
+   | pnpr              | `pnpr/npm/pnpr/package.json`     | `pnpr@`     |
+   | get-pnpm          | `pnpm/npm/get-pnpm/package.json` | `get-pnpm@` |
 
    ```bash
    git fetch origin
@@ -37,6 +38,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
      "v$(git show "$SHA:pnpm11/pnpm/package.json" | jq -r .version)"
      "v$(git show "$SHA:pnpm/npm/pnpm/package.json" | jq -r .version)"
      "pnpr@$(git show "$SHA:pnpr/npm/pnpr/package.json" | jq -r .version)"
+     "get-pnpm@$(git show "$SHA:pnpm/npm/get-pnpm/package.json" | jq -r .version)"
    )
 
    # Keep only the products whose version actually changed this release —
@@ -69,18 +71,18 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 6. After the workflow finishes, approve the staged npm packages. The TypeScript
    pnpm release stages `@pnpm/exe` and then `pnpm`. The Rust pnpm release
    stages its native packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
-   `pnpm`. Approve them from a maintainer's machine, from a checkout of this
-   repository so the staged packages are approved in workspace dependency
-   order:
+   `pnpm`. Approve them from a maintainer's machine:
 
    ```bash
    pnpm stage approve
    ```
 
-   The command lists every staged version, approves the ones selected in the
-   picker, and stops before publishing a package whose workspace dependency
-   failed to be approved. Passing the stage IDs from the completed job's
-   summary (`pnpm stage approve <stage-id> ...`) approves that set instead.
+   The command lists every staged version and approves the ones selected in the
+   picker. It downloads the selected tarballs first and reads their published
+   manifests to determine dependency order. It stops before publishing a
+   package whose selected dependency failed to be approved. Passing the stage
+   IDs from the completed job's summary (`pnpm stage approve <stage-id> ...`)
+   approves that set instead.
 
    Approval requires interactive 2FA, once for the whole selection — pnpm asks
    for another one-time password only when the registry stops accepting the
@@ -88,18 +90,28 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
    `@pnpm/napi`, and their platform packages must allow staged publishing only,
    so CI can stage a release but cannot approve or publish it directly.
 
+7. Publish the draft GitHub release the workflow created for each product.
+   For a pnpm release, first check that the "Add the RPM to the pnpm draft
+   release" job succeeded and that the draft carries both
+   `pnpm-<version>-1.el8.x86_64.rpm` and `pnpm-<version>-el8-x86_64-repo.tar.gz`.
+   If the job failed, rerun it while the release is still a draft. A published
+   release is immutable, so assets cannot be added afterwards.
+   Publishing it starts Sync documentation for that version, and the sync fails
+   while the version is still staged on npm. So publish a draft only after its
+   packages are approved.
+
 ## Reruns and partial releases
 
 `release.yml`'s plan job asks npm whether each product's *gate* package is
 already published — the one that product's publish job publishes last (`pnpm`
-for both CLIs, `@pnpm/pnpr` for pnpr) — and skips the product entirely if it
+for both CLIs, `@pnpm/pnpr` for pnpr, `get-pnpm` for get-pnpm) — and skips the product entirely if it
 is. A release that ran to completion is therefore a no-op on rerun.
 
 When a run fails and the fix is a code change, commit the fix, move the tag to
 the new commit and push it again:
 
 ```bash
-TAG=v<version>        # or pnpr@<version> — use the tag of the product that failed
+TAG=v<version>        # or pnpr@<version> or get-pnpm@<version> — the tag of the product that failed
 FIXED=<sha-of-the-fix-commit>
 
 git push origin ":refs/tags/$TAG"     # drop the remote tag
@@ -185,3 +197,12 @@ The release commit itself is created by `create-release-pr.yml` and merged
 through GitHub, so it carries GitHub's web-flow signature rather than a
 maintainer's. The signed tag covers the tree, but the full commit chain is not
 yet maintainer-signed end to end.
+
+## Website documentation
+
+Publishing a GitHub release starts the separate Sync documentation
+workflow, which copies the tagged pnpm v11, v12, or pnpr documentation to pnpm/pnpm.io, plus the release page for a stable v11 or v12 release, and checks the
+website build before pushing it. Check that workflow as part of finishing a
+release. A failed docs sync can be retried independently of package publication.
+See [DOCUMENTATION.md](DOCUMENTATION.md#publication) for retries, documentation-only
+corrections, and the initial credential setup.

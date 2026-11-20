@@ -5,9 +5,18 @@
 //! - the merged `types` table (`pnpmTypes` ∪ `npmConfigTypes`),
 //!   reduced to the only fact the config command reads off a type: whether the
 //!   type list includes `Number` (used by `castField` to coerce a value).
-//! - [`is_ini_config_key`] / [`is_config_file_key`].
+//! - [`is_ini_config_key`] / [`is_config_file_key`] / [`is_never_a_file_setting`].
 
-use std::{collections::HashSet, sync::OnceLock};
+pub use routing::{
+    is_config_file_key,
+    is_ini_config_key,
+    is_never_a_file_setting,
+};
+
+use std::{
+    collections::HashSet,
+    sync::OnceLock,
+};
 
 /// `(kebab-key, type-includes-Number)` for pnpm's own settings (`pnpmTypes`).
 const PNPM_TYPES: &[(&str, bool)] = &[
@@ -38,9 +47,11 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("fetch-timeout", true),
     ("fetch-warn-timeout-ms", true),
     ("fetch-min-speed-ki-bps", true),
+    ("max-tarball-unpacked-size", true),
     ("fetching-concurrency", true),
     ("filter", false),
     ("filter-prod", false),
+    ("force-ignores-platform", false),
     ("force-legacy-deploy", false),
     ("frozen-lockfile", false),
     ("git-checks", false),
@@ -73,6 +84,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("lockfile-include-tarball-url", false),
     ("lockfile-only", false),
     ("loglevel", false),
+    ("max-sockets", true),
     ("maxsockets", true),
     ("modules-cache-max-age", true),
     ("dlx-cache-max-age", true),
@@ -101,8 +113,10 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("prefer-workspace-packages", false),
     ("preserve-absolute-paths", false),
     ("production", false),
+    ("progress", false),
     ("public-hoist-pattern", false),
     ("publish-branch", false),
+    ("publish-wait-timeout", true),
     ("recursive-install", false),
     ("block-exotic-subdeps", false),
     ("reporter", false),
@@ -113,6 +127,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("aggregate-output", false),
     ("reporter-hide-prefix", false),
     ("save-peer", false),
+    ("save-types", false),
     ("save-catalog-name", false),
     ("save-workspace-protocol", false),
     ("script-shell", false),
@@ -122,9 +137,11 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("side-effects-cache", false),
     ("side-effects-cache-readonly", false),
     ("symlink", false),
+    ("symlinked-lockfile-target-dirs", false),
     ("sort", false),
     ("state-dir", false),
     ("store-dir", false),
+    ("store-index-format", false),
     ("stream", false),
     ("strict-dep-builds", false),
     ("strict-store-pkg-content-check", false),
@@ -165,7 +182,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
 
 /// `(kebab-key, type-includes-Number)` for the npm-compatible settings
 /// (`npmConfigTypes`). Applied after [`PNPM_TYPES`], so on the few
-/// overlapping keys these definitions win — but none of the overlaps change
+/// overlapping keys these definitions win, but none of the overlaps change
 /// number-ness, so the merged "includes Number" answer is the union.
 const NPM_CONFIG_TYPES: &[(&str, bool)] = &[
     ("access", false),
@@ -237,187 +254,6 @@ const NPM_CONFIG_TYPES: &[(&str, bool)] = &[
     ("version", false),
 ];
 
-/// Keys from `pnpmTypes` that are valid in a global config file
-/// (`pnpmConfigFileKeys` in `configFileKey.ts`).
-const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
-    "bail",
-    "ci",
-    "color",
-    "cache-dir",
-    "child-concurrency",
-    "dangerously-allow-all-builds",
-    "enable-modules-dir",
-    "enable-global-virtual-store",
-    "exclude-links-from-lockfile",
-    "extend-node-path",
-    "fetch-timeout",
-    "fetch-warn-timeout-ms",
-    "fetch-min-speed-ki-bps",
-    "fetching-concurrency",
-    "frozen-store",
-    "git-checks",
-    "git-shallow-hosts",
-    "global-bin-dir",
-    "global-shims",
-    "global-dir",
-    "global-path",
-    "global-pnpmfile",
-    "global-virtual-store-dir",
-    "http-proxy",
-    "init-package-manager",
-    "init-type",
-    "optimistic-repeat-install",
-    "loglevel",
-    "maxsockets",
-    "modules-cache-max-age",
-    "dlx-cache-max-age",
-    "minimum-release-age",
-    "minimum-release-age-exclude",
-    "minimum-release-age-ignore-missing-time",
-    "minimum-release-age-strict",
-    "network-concurrency",
-    "node-experimental-package-map",
-    "node-package-map-type",
-    "noproxy",
-    "npm-path",
-    "npmrc-auth-file",
-    "package-import-method",
-    "pnpr-server",
-    "prefer-frozen-lockfile",
-    "prefer-offline",
-    "prefer-symlinked-executables",
-    "block-exotic-subdeps",
-    "registry-supports-time-field",
-    "reporter",
-    "resolution-mode",
-    "script-shell",
-    "shell-emulator",
-    "side-effects-cache",
-    "side-effects-cache-readonly",
-    "state-dir",
-    "store-dir",
-    "strict-dep-builds",
-    "trust-lockfile",
-    "trust-policy",
-    "trust-policy-exclude",
-    "trust-policy-ignore-after",
-    "update-notifier",
-    "use-beta-cli",
-    "use-stderr",
-    "verify-deps-before-run",
-    "verify-store-integrity",
-    "virtual-store-dir",
-    "virtual-store-dir-max-length",
-    "virtual-store-type",
-];
-
-/// Structured YAML settings parsed from `pnpm-workspace.yaml` / global
-/// `config.yaml` that have no scalar CLI config type
-/// (`structuredConfigFileKeys` in `configFileKey.ts`).
-const STRUCTURED_CONFIG_FILE_KEYS: &[&str] = &["named-registries", "registries"];
-
-/// Keys present in `pnpmTypes` but excluded from the global config file
-/// (`excludedPnpmKeys` in `configFileKey.ts`) — CLI flags and workspace-only
-/// settings.
-const EXCLUDED_PNPM_KEYS: &[&str] = &[
-    "auto-install-peers",
-    "catalog-mode",
-    "config-dir",
-    "merge-git-branch-lockfiles",
-    "merge-git-branch-lockfiles-branch-pattern",
-    "deploy-all-files",
-    "dedupe-peer-dependents",
-    "dedupe-peers",
-    "dedupe-direct-deps",
-    "dedupe-injected-deps",
-    "dev",
-    "dir",
-    "disallow-workspace-cycles",
-    "enable-pre-post-scripts",
-    "filter",
-    "filter-prod",
-    "force-legacy-deploy",
-    "frozen-lockfile",
-    "git-branch-lockfile",
-    "hoist",
-    "hoist-pattern",
-    "hoist-workspace-packages",
-    "hoisting-limits",
-    "ignore-compatibility-db",
-    "ignore-pnpmfile",
-    "ignore-workspace",
-    "ignore-workspace-cycles",
-    "ignore-workspace-root-check",
-    "include-workspace-root",
-    "inject-workspace-packages",
-    "legacy-dir-filtering",
-    "link-workspace-packages",
-    "lockfile",
-    "lockfile-dir",
-    "lockfile-include-tarball-url",
-    "lockfile-only",
-    "modules-dir",
-    "node-linker",
-    "offline",
-    "pack-destination",
-    "pack-gzip-level",
-    "patches-dir",
-    "pnpmfile",
-    "pm-on-fail",
-    "prefer-workspace-packages",
-    "preserve-absolute-paths",
-    "production",
-    "public-hoist-pattern",
-    "publish-branch",
-    "recursive-install",
-    "resolve-peers-from-workspace-root",
-    "runtime",
-    "runtime-on-fail",
-    "aggregate-output",
-    "reporter-hide-prefix",
-    "save-catalog-name",
-    "save-peer",
-    "save-workspace-protocol",
-    "shamefully-hoist",
-    "shared-workspace-lockfile",
-    "symlink",
-    "sort",
-    "stream",
-    "strict-store-pkg-content-check",
-    "strict-peer-dependencies",
-    "virtual-store-only",
-    "peers-suffix-max-length",
-    "workspace-concurrency",
-    "workspace-packages",
-    "workspace-root",
-    "test-pattern",
-    "changed-files-ignore-pattern",
-    "embed-readme",
-    "skip-manifest-obfuscation",
-    "fail-if-no-match",
-    "sync-injected-deps-after-scripts",
-    "cpu",
-    "libc",
-    "os",
-    "audit-level",
-    "yes",
-];
-
-/// The npm auth settings recognized by [`is_ini_config_key`]
-/// ([`NPM_AUTH_SETTINGS`] in `localConfig.ts`).
-const NPM_AUTH_SETTINGS: &[&str] = &[
-    "ca",
-    "cafile",
-    "cert",
-    "key",
-    "registry",
-    "_auth",
-    "_authToken",
-    "_password",
-    "email",
-    "username",
-];
-
 fn numeric_type_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| {
@@ -432,27 +268,23 @@ fn numeric_type_keys() -> &'static HashSet<&'static str> {
 
 fn all_type_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| PNPM_TYPES.iter().chain(NPM_CONFIG_TYPES).map(|(key, _)| *key).collect())
+    SET.get_or_init(|| {
+        PNPM_TYPES
+            .iter()
+            .chain(NPM_CONFIG_TYPES)
+            .map(|(key, _)| *key)
+            .collect()
+    })
 }
 
 fn npm_config_type_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| NPM_CONFIG_TYPES.iter().map(|(key, _)| *key).collect())
-}
-
-fn pnpm_config_file_keys() -> &'static HashSet<&'static str> {
-    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| PNPM_CONFIG_FILE_KEYS.iter().copied().collect())
-}
-
-fn structured_config_file_keys() -> &'static HashSet<&'static str> {
-    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| STRUCTURED_CONFIG_FILE_KEYS.iter().copied().collect())
-}
-
-fn excluded_pnpm_keys() -> &'static HashSet<&'static str> {
-    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
-    SET.get_or_init(|| EXCLUDED_PNPM_KEYS.iter().copied().collect())
+    SET.get_or_init(|| {
+        NPM_CONFIG_TYPES
+            .iter()
+            .map(|(key, _)| *key)
+            .collect()
+    })
 }
 
 /// Whether `kebab_key` is a known config key (an own key of pnpm's merged
@@ -469,45 +301,7 @@ pub fn type_includes_number(kebab_key: &str) -> bool {
     numeric_type_keys().contains(kebab_key)
 }
 
-/// Whether `key` would be read from an INI config file (auth / scoped /
-/// per-registry). Mirrors `isIniConfigKey`.
-#[must_use]
-pub fn is_ini_config_key(key: &str) -> bool {
-    key.starts_with('@') || key.starts_with("//") || NPM_AUTH_SETTINGS.contains(&key)
-}
-
-/// Whether `kebab_key` is valid in a global config file. Mirrors
-/// `isConfigFileKey`: a pnpm config-file key, or an npm-compatible key that
-/// is not in the excluded list.
-#[must_use]
-pub fn is_config_file_key(kebab_key: &str) -> bool {
-    !is_never_a_file_setting(kebab_key)
-        && (pnpm_config_file_keys().contains(kebab_key)
-            || structured_config_file_keys().contains(kebab_key)
-            || (npm_config_type_keys().contains(kebab_key)
-                && !excluded_pnpm_keys().contains(kebab_key)))
-}
-
-/// Settings that carry a per-invocation value and so mean nothing in a file
-/// that is read on every run, whichever file it is.
-///
-/// npm's config surface admits these because it admits every npm key; pnpm
-/// inherits that wholesale, under a `TODO` in its own `configFileKey.ts`
-/// noting the npm list has never been curated. They are refused here rather
-/// than accepted and ignored.
-const NEVER_A_FILE_SETTING: &[&str] = &[
-    // A one-time password is valid for about thirty seconds. `--otp` and
-    // `PNPM_CONFIG_OTP` are its channels.
-    "otp",
-];
-
-/// Whether `kebab_key` is a setting no config file may carry, because its
-/// value describes one invocation rather than a project or a machine.
-/// Currently `otp`.
-#[must_use]
-pub fn is_never_a_file_setting(kebab_key: &str) -> bool {
-    NEVER_A_FILE_SETTING.contains(&kebab_key)
-}
-
 #[cfg(test)]
 mod tests;
+
+mod routing;

@@ -1,9 +1,18 @@
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 use pretty_assertions::assert_eq;
 
-use super::{FilterByImportersOptions, IncludedDependencies};
-use crate::{Lockfile, PackageKey};
+use super::{
+    FilterByImportersOptions,
+    IncludedDependencies,
+};
+use crate::{
+    Lockfile,
+    PackageKey,
+};
 
 /// Two importers with disjoint dependency graphs, plus a dev-only and an
 /// optional edge on the first, so a filter can be shown to keep exactly
@@ -75,6 +84,7 @@ fn options(include: IncludedDependencies) -> FilterByImportersOptions {
         include,
         skipped: HashSet::new(),
         fail_on_missing_dependencies: false,
+        peer_edges: crate::PeerEdgeOptions::default(),
     }
 }
 
@@ -83,14 +93,22 @@ fn key(text: &str) -> PackageKey {
 }
 
 fn has_alias(group: Option<&crate::ResolvedDependencyMap>, alias: &str) -> bool {
-    group.is_some_and(|group| group.keys().any(|name| name.to_string() == alias))
+    group.is_some_and(|group| {
+        group
+            .keys()
+            .any(|name| name.to_string() == alias)
+    })
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<String> = lockfile
-        .snapshots
+    let mut keys: Vec<String> = lockfile.snapshots
         .as_ref()
-        .map(|snapshots| snapshots.keys().map(ToString::to_string).collect())
+        .map(|snapshots| {
+            snapshots
+                .keys()
+                .map(ToString::to_string)
+                .collect()
+        })
         .unwrap_or_default();
     keys.sort();
     keys
@@ -123,8 +141,16 @@ fn prunes_the_metadata_map_too() {
         .expect("filter lockfile");
 
     let packages = filtered.packages.as_ref().expect("packages survive");
-    assert!(!packages.keys().any(|key| key.to_string() == "other-dep@1.0.0"));
-    assert!(packages.keys().any(|key| key.to_string() == "prod-dep@1.0.0"));
+    assert!(
+        !packages
+            .keys()
+            .any(|key| key.to_string() == "other-dep@1.0.0"),
+    );
+    assert!(
+        packages
+            .keys()
+            .any(|key| key.to_string() == "prod-dep@1.0.0"),
+    );
 }
 
 #[test]
@@ -142,11 +168,16 @@ fn an_excluded_group_is_emptied_and_its_edges_are_not_walked() {
 
     assert_eq!(snapshot_keys(&filtered), vec!["deep@1.0.0", "prod-dep@1.0.0"]);
     let importer = &filtered.importers["packages/app"];
-    assert!(importer.dev_dependencies.as_ref().expect("group present").is_empty());
+    assert!(
+        importer.dev_dependencies
+            .as_ref()
+            .expect("group present")
+            .is_empty(),
+    );
     assert!(has_alias(importer.dependencies.as_ref(), "prod-dep"));
 }
 
-/// Importers the caller did not select keep their entries verbatim — the
+/// Importers the caller did not select keep their entries verbatim, the
 /// filter narrows the package graph, not the workspace.
 #[test]
 fn unselected_importers_are_carried_through_untouched() {
@@ -175,6 +206,34 @@ fn skipped_keys_and_what_only_they_reach_are_dropped() {
 }
 
 #[test]
+fn verify_importer_snapshot_links_accepts_a_clean_lockfile() {
+    lockfile().verify_importer_snapshot_links().expect("every reference has a snapshot");
+}
+
+#[test]
+fn verify_importer_snapshot_links_reports_a_missing_direct_snapshot() {
+    let source = LOCKFILE.replace("  prod-dep@1.0.0:\n    dependencies:\n      deep: 1.0.0\n", "");
+    let lockfile = Lockfile::parse(&source, Path::new("pnpm-lock.yaml"))
+        .expect("parse lockfile")
+        .expect("lockfile is not empty");
+    let error =
+        lockfile.verify_importer_snapshot_links().expect_err("the missing snapshot is reported");
+    assert!(error.to_string().contains("prod-dep@1.0.0"), "{error}");
+}
+
+#[test]
+fn verify_importer_snapshot_links_reports_a_missing_transitive_snapshot() {
+    let source = LOCKFILE.replace("  deep@1.0.0: {}\n\n", "");
+    let lockfile = Lockfile::parse(&source, Path::new("pnpm-lock.yaml"))
+        .expect("parse lockfile")
+        .expect("lockfile is not empty");
+    let error = lockfile
+        .verify_importer_snapshot_links()
+        .expect_err("the missing transitive snapshot is reported");
+    assert!(error.to_string().contains("deep@1.0.0"), "{error}");
+}
+
+#[test]
 fn a_missing_dependency_is_reported_only_when_asked_for() {
     let source = LOCKFILE.replace("  prod-dep@1.0.0:\n    dependencies:\n      deep: 1.0.0\n", "");
     let lockfile = Lockfile::parse(&source, Path::new("pnpm-lock.yaml"))
@@ -193,4 +252,94 @@ fn a_missing_dependency_is_reported_only_when_asked_for() {
         .filter_by_importers(vec!["packages/app".to_string()], &strict)
         .expect_err("the missing snapshot is reported");
     assert!(error.to_string().contains("prod-dep@1.0.0"), "{error}");
+}
+
+/// `abc` has an optional peer `peer-c` that only the importer's
+/// `devDependencies` provide, and a required peer `peer-a` that is also a
+/// devDependency.
+const OPTIONAL_PEER_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      abc:
+        specifier: 1.0.0
+        version: 1.0.0(peer-a@1.0.0)(peer-c@1.0.0)
+    devDependencies:
+      peer-a:
+        specifier: 1.0.0
+        version: 1.0.0
+      peer-c:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  abc@1.0.0:
+    resolution: {integrity: sha512-abc}
+    peerDependencies:
+      peer-a: ^1.0.0
+      peer-c: ^1.0.0
+    peerDependenciesMeta:
+      peer-c:
+        optional: true
+
+  peer-a@1.0.0:
+    resolution: {integrity: sha512-a}
+
+  peer-c@1.0.0:
+    resolution: {integrity: sha512-c}
+
+snapshots:
+
+  abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0):
+    dependencies:
+      peer-a: 1.0.0
+      peer-c: 1.0.0
+
+  peer-a@1.0.0: {}
+
+  peer-c@1.0.0: {}
+";
+
+fn optional_peer_lockfile() -> Lockfile {
+    Lockfile::parse(OPTIONAL_PEER_LOCKFILE, Path::new("pnpm-lock.yaml"))
+        .expect("parse lockfile")
+        .expect("lockfile is not empty")
+}
+
+#[test]
+fn a_prod_filter_drops_an_optional_peer_only_devdependencies_provide() {
+    let prod_only = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    };
+    let filtered = optional_peer_lockfile()
+        .filter_by_importers(vec![".".to_string()], &options(prod_only))
+        .expect("filter lockfile");
+
+    assert_eq!(
+        snapshot_keys(&filtered),
+        vec!["abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)", "peer-a@1.0.0"],
+    );
+    let abc = &filtered.snapshots.as_ref().unwrap()[&key("abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)")];
+    let aliases = abc.dependencies
+        .as_ref()
+        .unwrap()
+        .keys()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(aliases, vec!["peer-a"]);
+}
+
+#[test]
+fn a_filter_over_every_group_keeps_peer_edges() {
+    let lockfile = optional_peer_lockfile();
+    let filtered = lockfile
+        .filter_by_importers(vec![".".to_string()], &options(IncludedDependencies::default()))
+        .expect("filter lockfile");
+
+    assert_eq!(filtered.snapshots, lockfile.snapshots);
 }

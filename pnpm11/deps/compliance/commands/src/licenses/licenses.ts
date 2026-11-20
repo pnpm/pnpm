@@ -35,39 +35,40 @@ export const shorthands: Record<string, string> = {
 
 export const commandNames = ['licenses']
 
+const LICENSES_OPTIONS_HELP = [
+  {
+    description:
+      'Show more details (such as a link to the repo) are not displayed. \
+To display the details, pass this option.',
+    name: '--long',
+  },
+  {
+    description: 'Show information in JSON format',
+    name: '--json',
+  },
+  {
+    description: 'Check only "dependencies" and "optionalDependencies"',
+    name: '--prod',
+    shortAlias: '-P',
+  },
+  {
+    description: 'Check only "devDependencies"',
+    name: '--dev',
+    shortAlias: '-D',
+  },
+  {
+    description: 'Don\'t check "optionalDependencies"',
+    name: '--no-optional',
+  },
+]
+
 export function help (): string {
   return renderHelp({
     description: 'Check the licenses of the installed packages.',
     descriptionLists: [
       {
         title: 'Options',
-
-        list: [
-          {
-            description:
-              'Show more details (such as a link to the repo) are not displayed. \
-To display the details, pass this option.',
-            name: '--long',
-          },
-          {
-            description: 'Show information in JSON format',
-            name: '--json',
-          },
-          {
-            description: 'Check only "dependencies" and "optionalDependencies"',
-            name: '--prod',
-            shortAlias: '-P',
-          },
-          {
-            description: 'Check only "devDependencies"',
-            name: '--dev',
-            shortAlias: '-D',
-          },
-          {
-            description: 'Don\'t check "optionalDependencies"',
-            name: '--no-optional',
-          },
-        ],
+        list: LICENSES_OPTIONS_HELP,
       },
       FILTERING,
     ],

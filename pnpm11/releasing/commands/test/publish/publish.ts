@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { describe, expect, jest, test } from '@jest/globals'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { pack, publish } from '@pnpm/releasing.commands'
@@ -209,7 +209,7 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
   fs.writeFileSync(path.join(externalTarget, 'package.json'), JSON.stringify({ name: 'target', version: '1.0.0' }))
 
   process.chdir(externalTarget)
-  crossSpawn.sync(pnpmBin, ['add', 'project-100', 'project-200', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+  crossSpawn.sync(pnpmBin, ['add', 'project-100', 'project-200', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`], { env: SPAWN_ENV })
 
   expect(fs.readFileSync('node_modules/project-100/LICENSE', 'utf8')).toBe('workspace license')
   expect(fs.readFileSync('node_modules/project-200/LICENSE', 'utf8')).toBe('project-200 license')
@@ -287,7 +287,7 @@ test('publish: package with all possible fields in publishConfig', async () => {
   })
 
   process.chdir('../test-publish-config-installation')
-  crossSpawn.sync(pnpmBin, ['add', 'test-publish-config', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+  crossSpawn.sync(pnpmBin, ['add', 'test-publish-config', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`], { env: SPAWN_ENV })
 
   const { default: publishedManifest } = await import(path.resolve('node_modules/test-publish-config/package.json'))
   expect(publishedManifest).toEqual({
@@ -318,7 +318,7 @@ test('publish: package with publishConfig.registry overrides the default registr
     version: '1.0.0',
 
     publishConfig: {
-      registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+      registry: `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     },
   })
 
@@ -378,7 +378,7 @@ test('publish: package with publishConfig.directory', async () => {
     []
   )
 
-  crossSpawn.sync(pnpmBin, ['add', 'publish_config_directory_dist_package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+  crossSpawn.sync(pnpmBin, ['add', 'publish_config_directory_dist_package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`], { env: SPAWN_ENV })
 
   expect(JSON.parse(fs.readFileSync('node_modules/publish_config_directory_dist_package/package.json', { encoding: 'utf-8' })))
     .toEqual({
@@ -418,7 +418,7 @@ test('publish: preserves packageManager and publish lifecycle scripts when skipM
   }, [])
 
   process.chdir('../test-publish-skip-manifest-obfuscation-installation')
-  crossSpawn.sync(pnpmBin, ['add', 'test-publish-skip-manifest-obfuscation', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+  crossSpawn.sync(pnpmBin, ['add', 'test-publish-skip-manifest-obfuscation', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`], { env: SPAWN_ENV })
 
   const { default: publishedManifest } = await import(path.resolve('node_modules/test-publish-skip-manifest-obfuscation/package.json'))
   expect(publishedManifest).toEqual({
@@ -591,7 +591,7 @@ test.skip('convert specs with workspace protocols to regular version ranges', as
 
   process.chdir('..')
 
-  crossSpawn.sync(pnpmBin, ['multi', 'install', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+  crossSpawn.sync(pnpmBin, ['multi', 'install', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`], { env: SPAWN_ENV })
 
   process.chdir('workspace-protocol-package')
 
@@ -604,7 +604,7 @@ test.skip('convert specs with workspace protocols to regular version ranges', as
 
   process.chdir('../target')
 
-  crossSpawn.sync(pnpmBin, ['add', '--store-dir=store', 'workspace-protocol-package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+  crossSpawn.sync(pnpmBin, ['add', '--store-dir=store', 'workspace-protocol-package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`], { env: SPAWN_ENV })
 
   const { default: publishedManifest } = await import(path.resolve('node_modules/workspace-protocol-package/package.json'))
   expect(publishedManifest.dependencies).toEqual({
@@ -697,7 +697,7 @@ test.skip('convert specs with relative workspace protocols to regular version ra
     '--store-dir=../store',
     'relative-workspace-protocol-package',
     '--no-link-workspace-packages',
-    `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+    `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
   ], { env: SPAWN_ENV })
 
   const { default: publishedManifest } = await import(path.resolve('node_modules/relative-workspace-protocol-package/package.json'))
@@ -767,7 +767,7 @@ describe('catalog protocol converted when publishing', () => {
       '--store-dir=../store',
       testPackageName,
       '--no-link-workspace-packages',
-      `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+      `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     ], { env: SPAWN_ENV })
 
     const { default: publishedManifest } = await import(path.resolve(`node_modules/${testPackageName}/package.json`))
@@ -830,7 +830,7 @@ describe('catalog protocol converted when publishing', () => {
       '--store-dir=../store',
       testPackageName,
       '--no-link-workspace-packages',
-      `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+      `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     ], { env: SPAWN_ENV })
 
     const { default: publishedManifest } = await import(path.resolve(`node_modules/${testPackageName}/package.json`))
@@ -849,18 +849,16 @@ test('publish: runs all the lifecycle scripts', async () => {
     version: '0.0.0',
 
     scripts: {
-      // eslint-disable:object-literal-sort-keys
       prepublish: server.sendLineScript('prepublish'),
       prepare: server.sendLineScript('prepare'),
       prepublishOnly: server.sendLineScript('prepublishOnly'),
       prepack: server.sendLineScript('prepack'),
       publish: server.sendLineScript('publish'),
       postpublish: server.sendLineScript('postpublish'),
-      // eslint-enable:object-literal-sort-keys
     },
   })
 
-  crossSpawn.sync(pnpmBin, ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+  crossSpawn.sync(pnpmBin, ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`], { env: SPAWN_ENV })
 
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -887,18 +885,16 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
     version: '0.0.0',
 
     scripts: {
-      // eslint-disable:object-literal-sort-keys
       prepublish: server.sendLineScript('prepublish'),
       prepare: server.sendLineScript('prepare'),
       prepublishOnly: server.sendLineScript('prepublishOnly'),
       prepack: server.sendLineScript('prepack'),
       publish: server.sendLineScript('publish'),
       postpublish: server.sendLineScript('postpublish'),
-      // eslint-enable:object-literal-sort-keys
     },
   })
 
-  crossSpawn.sync(pnpmBin, ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`], { env: SPAWN_ENV })
+  crossSpawn.sync(pnpmBin, ['install', '--ignore-scripts', '--store-dir=../store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`], { env: SPAWN_ENV })
 
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -1084,3 +1080,188 @@ test('publish --json: writes per-package summary to stdout', async () => {
 
   await checkPkgExists(pkgName, '0.0.0')
 })
+
+test('publish inherits registry from workspace root .npmrc (pnpm/pnpm#7182)', async () => {
+  const pkgName = `@pnpmtest/test-workspace-npmrc-publish-${Date.now()}`
+  preparePackages([
+    {
+      name: pkgName,
+      version: '1.0.0',
+    },
+  ])
+
+  fs.writeFileSync('.npmrc', `registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/\n//localhost:${REGISTRY_MOCK_PORT}/:_authToken=${getRegistryMockToken()}\n`)
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**'] })
+
+  process.chdir(pkgName)
+
+  fs.writeFileSync('.npmrc', 'engine-strict=true\nsave-exact=true\n')
+
+  const result = crossSpawn.sync(pnpmBin, ['publish', '--no-git-checks'], { env: SPAWN_ENV })
+  if (result.status !== 0) {
+    throw new Error(`pnpm publish failed with status ${result.status}: ${result.stderr?.toString()}`)
+  }
+  expect(result.status).toBe(0)
+
+  await checkPkgExists(pkgName, '1.0.0')
+})
+
+test('publish with -C <dir> resolves relative tarball and folder targets against <dir>', async () => {
+  const suffix = Date.now()
+  const tarballPkg = {
+    name: `@pnpmtest/test-c-flag-tarball-${suffix}`,
+    version: '1.0.0',
+  }
+  const folderPkg = {
+    name: `@pnpmtest/test-c-flag-folder-${suffix}`,
+    version: '1.0.0',
+  }
+  prepare({ private: true })
+  const outerDir = process.cwd()
+  const subDir = path.join(outerDir, 'subdir')
+  const nestedPkgDir = path.join(subDir, 'nested-pkg')
+  fs.mkdirSync(nestedPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(subDir, '.npmrc'), `registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/\n//localhost:${REGISTRY_MOCK_PORT}/:_authToken=${getRegistryMockToken()}\n`)
+  fs.writeFileSync(path.join(subDir, 'package.json'), JSON.stringify(tarballPkg))
+  fs.writeFileSync(path.join(nestedPkgDir, 'package.json'), JSON.stringify(folderPkg))
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: subDir,
+    extraBinPaths: [],
+    out: 'built.tgz',
+  })
+  fs.rmSync(path.join(subDir, 'package.json'))
+
+  const tarballResult = crossSpawn.sync(pnpmBin, ['-C', subDir, 'publish', './built.tgz', '--no-git-checks'], {
+    cwd: outerDir,
+    env: SPAWN_ENV,
+  })
+  if (tarballResult.status !== 0) {
+    throw new Error(`pnpm -C subdir publish ./built.tgz failed: ${tarballResult.stdout?.toString()}\n${tarballResult.stderr?.toString()}`)
+  }
+  await checkPkgExists(tarballPkg.name, tarballPkg.version)
+
+  const folderResult = crossSpawn.sync(pnpmBin, ['--dir', subDir, 'publish', './nested-pkg', '--no-git-checks'], {
+    cwd: outerDir,
+    env: SPAWN_ENV,
+  })
+  if (folderResult.status !== 0) {
+    throw new Error(`pnpm --dir subdir publish ./nested-pkg failed: ${folderResult.stdout?.toString()}\n${folderResult.stderr?.toString()}`)
+  }
+  await checkPkgExists(folderPkg.name, folderPkg.version)
+})
+
+const testOnPosix = isWindows() ? test.skip : test
+
+testOnPosix('publish preserves symlink parents before .. in relative tarball and folder targets', async () => {
+  const suffix = Date.now()
+  const tarballPkg = {
+    name: `@pnpmtest/test-symlink-tarball-${suffix}`,
+    version: '1.0.0',
+  }
+  const folderPkg = {
+    name: `@pnpmtest/test-symlink-folder-${suffix}`,
+    version: '1.0.0',
+  }
+  prepare({ private: true })
+  const baseDir = process.cwd()
+  const realReleaseDir = path.join(temporaryDirectory(), 'release')
+  const realBuildSub = path.join(realReleaseDir, 'build')
+  const realFolderPkg = path.join(realReleaseDir, 'pkg')
+  fs.mkdirSync(realBuildSub, { recursive: true })
+  fs.mkdirSync(realFolderPkg, { recursive: true })
+  fs.symlinkSync(realBuildSub, path.join(baseDir, 'link'))
+
+  fs.writeFileSync(path.join(realReleaseDir, 'package.json'), JSON.stringify(tarballPkg))
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: realReleaseDir,
+    extraBinPaths: [],
+    out: 'package.tgz',
+  })
+  fs.rmSync(path.join(realReleaseDir, 'package.json'))
+  fs.writeFileSync(path.join(realFolderPkg, 'package.json'), JSON.stringify(folderPkg))
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', 'link/../package.tgz', '--no-git-checks'] },
+    configByUri: CONFIG_BY_URI,
+    dir: baseDir,
+    gitChecks: false,
+  }, ['link/../package.tgz'])
+  await checkPkgExists(tarballPkg.name, tarballPkg.version)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', 'link/../pkg', '--no-git-checks'] },
+    configByUri: CONFIG_BY_URI,
+    dir: baseDir,
+    gitChecks: false,
+  }, ['link/../pkg'])
+  await checkPkgExists(folderPkg.name, folderPkg.version)
+})
+
+test('publish rethrows unexpected filesystem errors when inspecting a folder target', async () => {
+  prepare({ private: true })
+  const baseDir = process.cwd()
+  const targetDir = path.join(baseDir, 'inaccessible-pkg')
+  const permissionError = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+  const realStatSync = fs.statSync.bind(fs)
+  const statSpy = jest.spyOn(fs, 'statSync').mockImplementation((filePath, options) => {
+    if (String(filePath) === targetDir) {
+      throw permissionError
+    }
+    return realStatSync(filePath, options as Parameters<typeof fs.statSync>[1])
+  })
+
+  try {
+    await expect(publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', 'inaccessible-pkg', '--no-git-checks'] },
+      configByUri: CONFIG_BY_URI,
+      dir: baseDir,
+      gitChecks: false,
+    }, ['inaccessible-pkg'])).rejects.toThrow(permissionError)
+  } finally {
+    statSpy.mockRestore()
+  }
+})
+
+test('publish rejects publishConfig.directory escaping the package root', async () => {
+  prepare({ private: true })
+  const rootDir = process.cwd()
+  const outsideDir = path.join(rootDir, 'outside')
+  const pkgDir = path.join(rootDir, 'pkg')
+  fs.mkdirSync(outsideDir, { recursive: true })
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(outsideDir, 'package.json'), JSON.stringify({
+    name: 'outside-publish-escape-target',
+    version: '1.0.0',
+  }))
+  fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'SENSITIVE_DATA=123\n')
+
+  for (const directory of [outsideDir, '../outside', '/dist']) {
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+      name: 'test-publish-escape-source',
+      version: '1.0.0',
+      publishConfig: { directory },
+    }))
+
+    // eslint-disable-next-line no-await-in-loop -- sequential checks over the same directory fixture
+    await expect(publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', '--no-git-checks', '--ignore-scripts'] },
+      configByUri: CONFIG_BY_URI,
+      dir: pkgDir,
+      gitChecks: false,
+      ignoreScripts: true,
+    }, [])).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_PUBLISH_DIRECTORY',
+    })
+  }
+})
+
+

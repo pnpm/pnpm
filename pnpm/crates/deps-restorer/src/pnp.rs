@@ -1,8 +1,17 @@
-use crate::package_map::{PackageMapOptions, lockfile_to_package_map};
-use derive_more::{Display, Error};
+use crate::package_map::{
+    PackageMapOptions,
+    lockfile_to_package_map,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub const PNP_FILENAME: &str = ".pnp.cjs";
 const PNP_LOADER_TEMPLATE: &str = include_str!("pnp_loader.cjs.inc");
@@ -63,7 +72,9 @@ fn render_pnp_loader(registry: &str, modules_dir: &str) -> String {
 
 #[must_use]
 pub fn pnp_path_for_execution(config: &pnpm_config::Config, dir: &Path) -> Option<PathBuf> {
-    let workspace_path = config.workspace_dir.as_ref().map(|dir| dir.join(PNP_FILENAME));
+    let workspace_path = config.workspace_dir
+        .as_ref()
+        .map(|dir| dir.join(PNP_FILENAME));
     if let Some(path) = workspace_path
         && path.exists()
     {

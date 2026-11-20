@@ -1,25 +1,36 @@
 import path from 'node:path'
 
 import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
+import { withCollapsedVariants } from '@pnpm/deps.path'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   getLockfileImporterId,
   type LockfileObject,
   type PackageSnapshots,
   type ProjectSnapshot,
+  type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
+import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { StoreIndex } from '@pnpm/store.index'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { DependenciesField, DependencyManifest, Finder, RegistriesByScope } from '@pnpm/types'
+import type { DependenciesField, DependencyManifest, DepPath, Finder, RegistriesByScope } from '@pnpm/types'
 import { realpathMissing } from 'realpath-missing'
-import semver from 'semver'
 
 import { buildDependencyGraph, type DependencyGraph } from './buildDependencyGraph.js'
 import { createPackagesSearcher } from './createPackagesSearcher.js'
+import {
+  compareDependentsTrees,
+  getPackageMergeId,
+  recordPackageNodeMergeId,
+  setDependentNodeImporterId,
+  setDependentsTreeMergeId,
+} from './dependentsTreeIdentity.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { peersSuffixHashFromDepPath } from './peersSuffixHash.js'
 import type { TreeNodeId } from './TreeNodeId.js'
+
+export { compareDependentsTrees }
 
 interface ReverseEdge {
   parentSerialized: string
@@ -59,64 +70,48 @@ export interface ImporterInfo {
 }
 
 interface WalkContext {
+  lockfileDir: string
   reverseMap: Map<string, ReverseEdge[]>
   graph: DependencyGraph
   importers: Record<string, ProjectSnapshot>
   currentPackages: PackageSnapshots
   importerInfoMap: Map<string, ImporterInfo>
   resolvedPackageNodes: Map<string, { path: string, readManifest: () => DependencyManifest }>
-  nameFormatter?: (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
+  nameFormatter?: NameFormatter
   /** Tracks nodes on the current path for cycle detection. Mutated during walk. */
   visited: Set<string>
   /** Tracks nodes already fully expanded, for deduplication across branches. */
   expanded: Set<string>
 }
 
+type NameFormatter = (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
+
+interface BuildDependentsTreeOptions {
+  lockfileDir: string
+  include?: { [field in DependenciesField]?: boolean }
+  modulesDir?: string
+  registriesByScope?: RegistriesByScope
+  registriesByPrefix?: Record<string, string>
+  finders?: Finder[]
+  importerInfoMap: Map<string, ImporterInfo>
+  lockfile: LockfileObject
+  nameFormatter?: NameFormatter
+  resolvePeersFromWorkspaceRoot?: boolean
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+}
+
 export async function buildDependentsTree (
   packages: string[],
   projectPaths: string[],
-  opts: {
-    lockfileDir: string
-    include?: { [field in DependenciesField]?: boolean }
-    modulesDir?: string
-    registriesByScope?: RegistriesByScope
-    registriesByPrefix?: Record<string, string>
-    finders?: Finder[]
-    importerInfoMap: Map<string, ImporterInfo>
-    lockfile: LockfileObject
-    nameFormatter?: (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
-  }
+  opts: BuildDependentsTreeOptions
 ): Promise<DependentsTree[]> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
   const modules = await readModulesManifest(modulesDir)
   const registriesByScope = normalizeRegistriesByScope(opts.registriesByScope)
   const storeDir = modules?.storeDir
   const storeIndex = storeDir ? new StoreIndex(storeDir) : undefined
-  const virtualStoreDir = modules?.virtualStoreDir ?? path.join(modulesDir, '.pnpm')
-  const virtualStoreDirMaxLength = modules?.virtualStoreDirMaxLength ?? 120
 
-  const include = opts.include ?? {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-  }
-
-  // Build root IDs from the selected project paths (respects --filter / --recursive)
-  const allRootIds: TreeNodeId[] = []
-  for (const projectPath of projectPaths) {
-    const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
-    if (opts.lockfile.importers[importerId]) {
-      allRootIds.push({ type: 'importer', importerId })
-    }
-  }
-
-  const graph = buildDependencyGraph(allRootIds, {
-    currentPackages: opts.lockfile.packages ?? {},
-    importers: opts.lockfile.importers,
-    include,
-    lockfileDir: opts.lockfileDir,
-  })
-
+  const graph = buildSelectedProjectsGraph(projectPaths, opts)
   const reverseMap = invertGraph(graph)
   const search = createPackagesSearcher(packages, opts.finders)
   const currentPackages = opts.lockfile.packages ?? {}
@@ -125,23 +120,21 @@ export async function buildDependentsTree (
   // graph top-down from importers.  This is needed for global virtual store
   // where symlinks must be resolved through each parent's node_modules.
   const resolvedPackageNodes = resolvePackageNodes(graph, currentPackages, {
-    virtualStoreDir,
-    virtualStoreDirMaxLength,
+    virtualStoreDir: modules?.virtualStoreDir ?? path.join(modulesDir, '.pnpm'),
+    virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? 120,
     modulesDir,
     registriesByScope,
     registriesByPrefix: opts.registriesByPrefix,
     wantedPackages: currentPackages,
     storeDir,
     storeIndex,
+    nodeLinker: modules?.nodeLinker ?? opts.nodeLinker,
+    hoistedLocations: modules?.hoistedLocations && withCollapsedVariants(modules.hoistedLocations),
+    lockfileDir: opts.lockfileDir,
   })
 
-  // Scan all package nodes for matches.
-  // A package matches if any of the aliases used to refer to it (from incoming
-  // edges in the graph) or its canonical name match the search query.
-  // Each distinct depPath (i.e. different peer dep resolutions) is kept as a
-  // separate result so that peer variants are visible in the output.
-  const trees: DependentsTree[] = []
-  const ctx: WalkContext = {
+  const trees = collectMatchedTrees(search, {
+    lockfileDir: opts.lockfileDir,
     reverseMap,
     graph,
     importers: opts.lockfile.importers,
@@ -151,69 +144,112 @@ export async function buildDependentsTree (
     nameFormatter: opts.nameFormatter,
     visited: new Set(),
     expanded: new Set(),
-  }
-
-  for (const [serialized, node] of graph.nodes) {
-    if (node.nodeId.type !== 'package') continue
-    const depPath = node.nodeId.depPath
-    const snapshot = currentPackages[depPath]
-    if (snapshot == null) continue
-
-    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
-    const pkgNode = resolvedPackageNodes.get(serialized)
-    if (!pkgNode) continue
-    const readManifest = pkgNode.readManifest
-
-    // Check canonical name first
-    let matched = search({ alias: name, name, version, readManifest })
-
-    // Also check aliases from incoming edges (handles npm: protocol aliases)
-    if (!matched) {
-      const incomingEdges = reverseMap.get(serialized)
-      if (incomingEdges) {
-        for (const edge of incomingEdges) {
-          if (edge.alias !== name) {
-            matched = search({ alias: edge.alias, name, version, readManifest })
-            if (matched) break
-          }
-        }
-      }
-    }
-    if (!matched) continue
-
-    ctx.visited = new Set([serialized])
-    ctx.expanded = new Set()
-    const dependents = walkReverse(serialized, ctx)
-    const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
-
-    const displayName = opts.nameFormatter
-      ? opts.nameFormatter({ name, version, manifest: readManifest() })
-      : undefined
-    const tree: DependentsTree = {
-      name,
-      displayName,
-      version,
-      path: pkgNode.path,
-      peersSuffixHash,
-      dependents,
-    }
-    if (typeof matched === 'string') {
-      tree.searchMessage = matched
-    }
-    trees.push(tree)
-  }
-
-  trees.sort((a, b) => {
-    const nameCmp = lexCompare(a.name, b.name)
-    if (nameCmp !== 0) return nameCmp
-    const versionCmp = semver.valid(a.version) && semver.valid(b.version)
-      ? semver.compare(a.version, b.version)
-      : lexCompare(a.version, b.version)
-    if (versionCmp !== 0) return versionCmp
-    return lexCompare(a.peersSuffixHash ?? '', b.peersSuffixHash ?? '')
   })
+  trees.sort(compareDependentsTrees)
   storeIndex?.close()
   return trees
+}
+
+function buildSelectedProjectsGraph (projectPaths: string[], opts: BuildDependentsTreeOptions): DependencyGraph {
+  const include = opts.include ?? {
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: true,
+  }
+
+  const allRootIds: TreeNodeId[] = []
+  for (const projectPath of projectPaths) {
+    const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
+    if (opts.lockfile.importers[importerId]) {
+      allRootIds.push({ type: 'importer', importerId })
+    }
+  }
+
+  return buildDependencyGraph(allRootIds, {
+    currentPackages: opts.lockfile.packages ?? {},
+    importers: opts.lockfile.importers,
+    include,
+    lockfileDir: opts.lockfileDir,
+    peerSatisfactionEdges: getPeerSatisfactionEdgesToSkip(opts.lockfile, {
+      include,
+      resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+    }),
+  })
+}
+
+// Scan all package nodes for matches.
+// A package matches if any of the aliases used to refer to it (from incoming
+// edges in the graph) or its canonical name match the search query.
+// Each distinct depPath (i.e. different peer dep resolutions) is kept as a
+// separate result so that peer variants are visible in the output.
+function collectMatchedTrees (search: Finder, ctx: WalkContext): DependentsTree[] {
+  const trees: DependentsTree[] = []
+  for (const [serialized, node] of ctx.graph.nodes) {
+    if (node.nodeId.type !== 'package') continue
+    const tree = buildTreeIfMatched(search, { serialized, depPath: node.nodeId.depPath }, ctx)
+    if (tree != null) trees.push(tree)
+  }
+  return trees
+}
+
+function buildTreeIfMatched (
+  search: Finder,
+  { serialized, depPath }: { serialized: string, depPath: DepPath },
+  ctx: WalkContext
+): DependentsTree | undefined {
+  const snapshot = ctx.currentPackages[depPath]
+  if (snapshot == null) return undefined
+
+  const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+  const pkgNode = ctx.resolvedPackageNodes.get(serialized)
+  if (!pkgNode) return undefined
+  const readManifest = pkgNode.readManifest
+
+  const matched = searchPackage(search, { serialized, name, version, readManifest }, ctx)
+  if (!matched) return undefined
+
+  ctx.visited = new Set([serialized])
+  ctx.expanded = new Set()
+  const dependents = walkReverse(serialized, ctx)
+  const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
+
+  const displayName = ctx.nameFormatter
+    ? ctx.nameFormatter({ name, version, manifest: readManifest() })
+    : undefined
+  const tree: DependentsTree = {
+    name,
+    displayName,
+    version,
+    path: pkgNode.path,
+    peersSuffixHash,
+    dependents,
+  }
+  if (typeof matched === 'string') {
+    tree.searchMessage = matched
+  }
+  const mergeId = getPackageMergeId({ lockfileDir: ctx.lockfileDir, depPath, snapshot, version })
+  if (mergeId != null) {
+    setDependentsTreeMergeId(tree, mergeId)
+  }
+  return tree
+}
+
+function searchPackage (
+  search: Finder,
+  pkg: { serialized: string, name: string, version: string, readManifest: () => DependencyManifest },
+  ctx: WalkContext
+): ReturnType<Finder> {
+  const { name, version, readManifest } = pkg
+  const matched = search({ alias: name, name, version, readManifest })
+  if (matched) return matched
+
+  // Also check aliases from incoming edges (handles npm: protocol aliases)
+  for (const edge of ctx.reverseMap.get(pkg.serialized) ?? []) {
+    if (edge.alias === name) continue
+    const aliasMatched = search({ alias: edge.alias, name, version, readManifest })
+    if (aliasMatched) return aliasMatched
+  }
+  return false
 }
 
 function invertGraph (graph: DependencyGraph): Map<string, ReverseEdge[]> {
@@ -255,11 +291,14 @@ function resolvePackageNodes (
     wantedPackages: PackageSnapshots
     storeDir?: string
     storeIndex?: StoreIndex
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+    hoistedLocations?: Record<string, string[]>
+    lockfileDir: string
   }
 ): Map<string, { path: string, readManifest: () => DependencyManifest }> {
   const resolved = new Map<string, { path: string, readManifest: () => DependencyManifest }>()
 
-  function walk (serialized: string, parentDir: string | undefined): void {
+  function walk (serialized: string, parentDir: string | undefined, importerDir: string): void {
     const node = graph.nodes.get(serialized)
     if (!node) return
     for (const edge of node.edges) {
@@ -273,20 +312,20 @@ function resolvePackageNodes (
         alias: edge.alias,
         currentPackages,
         depTypes: {},
-        linkedPathBaseDir: opts.modulesDir, // This might need adjustment for linked deps?
+        linkedPathBaseDir: importerDir,
         parentDir,
         ref: edge.target.nodeId.depPath,
         skipped: new Set(),
       })
 
       resolved.set(childSerialized, { path: pkgInfo.path, readManifest })
-      walk(childSerialized, pkgInfo.path)
+      walk(childSerialized, pkgInfo.path, importerDir)
     }
   }
 
   for (const [serialized, node] of graph.nodes) {
     if (node.nodeId.type === 'importer') {
-      walk(serialized, undefined)
+      walk(serialized, undefined, path.join(opts.lockfileDir, node.nodeId.importerId))
     }
   }
 
@@ -302,81 +341,104 @@ function walkReverse (
 
   // Sort edges by parent name (with serialized ID as tiebreaker) so that
   // deduplication is deterministic: the first parent always gets fully expanded.
-  const sortedEdges = [...reverseEdges].sort((a, b) => {
-    const cmp = lexCompare(resolveParentName(a, ctx), resolveParentName(b, ctx))
+  const sortedEdges = [...reverseEdges].sort((left, right) => {
+    const cmp = lexCompare(resolveParentName(left, ctx), resolveParentName(right, ctx))
     if (cmp !== 0) return cmp
-    return lexCompare(a.parentSerialized, b.parentSerialized)
+    return lexCompare(left.parentSerialized, right.parentSerialized)
   })
 
   const dependents: DependentNode[] = []
 
   for (const edge of sortedEdges) {
     // Cycle detection: this node is already on our current path
-    if (ctx.visited.has(edge.parentSerialized)) {
-      const parentNode = ctx.graph.nodes.get(edge.parentSerialized)
-      if (parentNode?.nodeId.type === 'importer') {
-        const info = ctx.importerInfoMap.get(parentNode.nodeId.importerId)
-        if (info) {
-          dependents.push({
-            name: info.name,
-            version: info.version,
-            circular: true,
-          })
-        }
-      } else if (parentNode?.nodeId.type === 'package') {
-        const snapshot = ctx.currentPackages[parentNode.nodeId.depPath]
-        if (snapshot) {
-          const { name, version } = nameVerFromPkgSnapshot(parentNode.nodeId.depPath, snapshot)
-          const displayName = resolveDisplayName(edge.parentSerialized, name, version, ctx)
-          dependents.push({ name, displayName, version, circular: true })
-        }
-      }
-      continue
-    }
-
-    const parentGraphNode = ctx.graph.nodes.get(edge.parentSerialized)
-    if (parentGraphNode == null) continue
-
-    if (parentGraphNode.nodeId.type === 'importer') {
-      const importerId = parentGraphNode.nodeId.importerId
-      const info = ctx.importerInfoMap.get(importerId) ?? { name: importerId, version: '' }
-      const depField = getDepFieldForAlias(edge.alias, ctx.importers[importerId])
-      dependents.push({
-        name: info.name,
-        version: info.version,
-        depField,
-      })
-    } else if (parentGraphNode.nodeId.type === 'package') {
-      const snapshot = ctx.currentPackages[parentGraphNode.nodeId.depPath]
-      if (snapshot == null) continue
-      const { name, version } = nameVerFromPkgSnapshot(parentGraphNode.nodeId.depPath, snapshot)
-      const peersSuffixHash = peersSuffixHashFromDepPath(parentGraphNode.nodeId.depPath)
-
-      // Deduplication: if this package was already expanded elsewhere in the
-      // tree, show it as a leaf to keep the output bounded.
-      const displayName = resolveDisplayName(edge.parentSerialized, name, version, ctx)
-
-      if (ctx.expanded.has(edge.parentSerialized)) {
-        dependents.push({ name, displayName, version, peersSuffixHash, deduped: true })
-        continue
-      }
-
-      ctx.visited.add(edge.parentSerialized)
-      ctx.expanded.add(edge.parentSerialized)
-      const childDependents = walkReverse(edge.parentSerialized, ctx)
-      ctx.visited.delete(edge.parentSerialized)
-
-      dependents.push({
-        name,
-        displayName,
-        version,
-        peersSuffixHash,
-        dependents: childDependents.length > 0 ? childDependents : undefined,
-      })
-    }
+    const dependent = ctx.visited.has(edge.parentSerialized)
+      ? createCircularDependent(edge, ctx)
+      : createDependent(edge, ctx)
+    if (dependent != null) dependents.push(dependent)
   }
 
   return dependents
+}
+
+function createCircularDependent (edge: ReverseEdge, ctx: WalkContext): DependentNode | undefined {
+  const parentNode = ctx.graph.nodes.get(edge.parentSerialized)
+  if (parentNode?.nodeId.type === 'importer') {
+    const importerId = parentNode.nodeId.importerId
+    const info = ctx.importerInfoMap.get(importerId)
+    if (!info) return undefined
+    const node: DependentNode = {
+      name: info.name,
+      version: info.version,
+      circular: true,
+    }
+    setDependentNodeImporterId(node, path.join(ctx.lockfileDir, importerId))
+    return node
+  }
+  if (parentNode?.nodeId.type !== 'package') return undefined
+  const depPath = parentNode.nodeId.depPath
+  const snapshot = ctx.currentPackages[depPath]
+  if (!snapshot) return undefined
+  const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+  const displayName = resolveDisplayName(edge.parentSerialized, name, version, ctx)
+  const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
+  const node: DependentNode = { name, displayName, version, peersSuffixHash, circular: true }
+  recordPackageNodeMergeId({ node, lockfileDir: ctx.lockfileDir, depPath, snapshot })
+  return node
+}
+
+function createDependent (edge: ReverseEdge, ctx: WalkContext): DependentNode | undefined {
+  const parentGraphNode = ctx.graph.nodes.get(edge.parentSerialized)
+  if (parentGraphNode == null) return undefined
+
+  const parentNodeId = parentGraphNode.nodeId
+  if (parentNodeId.type === 'importer') {
+    const importerId = parentNodeId.importerId
+    const info = ctx.importerInfoMap.get(importerId) ?? { name: importerId, version: '' }
+    const depField = getDepFieldForAlias(edge.alias, ctx.importers[importerId])
+    const node: DependentNode = {
+      name: info.name,
+      version: info.version,
+      depField,
+    }
+    setDependentNodeImporterId(node, path.join(ctx.lockfileDir, importerId))
+    return node
+  }
+  if (parentNodeId.type === 'package') {
+    return createPackageDependent(edge, parentNodeId.depPath, ctx)
+  }
+  return undefined
+}
+
+function createPackageDependent (edge: ReverseEdge, depPath: DepPath, ctx: WalkContext): DependentNode | undefined {
+  const snapshot = ctx.currentPackages[depPath]
+  if (snapshot == null) return undefined
+  const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+  const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
+
+  // Deduplication: if this package was already expanded elsewhere in the
+  // tree, show it as a leaf to keep the output bounded.
+  const displayName = resolveDisplayName(edge.parentSerialized, name, version, ctx)
+
+  if (ctx.expanded.has(edge.parentSerialized)) {
+    const node: DependentNode = { name, displayName, version, peersSuffixHash, deduped: true }
+    recordPackageNodeMergeId({ node, lockfileDir: ctx.lockfileDir, depPath, snapshot })
+    return node
+  }
+
+  ctx.visited.add(edge.parentSerialized)
+  ctx.expanded.add(edge.parentSerialized)
+  const childDependents = walkReverse(edge.parentSerialized, ctx)
+  ctx.visited.delete(edge.parentSerialized)
+
+  const node: DependentNode = {
+    name,
+    displayName,
+    version,
+    peersSuffixHash,
+    dependents: childDependents.length > 0 ? childDependents : undefined,
+  }
+  recordPackageNodeMergeId({ node, lockfileDir: ctx.lockfileDir, depPath, snapshot })
+  return node
 }
 
 function resolveParentName (edge: ReverseEdge, ctx: WalkContext): string {
@@ -402,8 +464,12 @@ function getDepFieldForAlias (
   alias: string,
   importerSnapshot: ProjectSnapshot
 ): DependenciesField | undefined {
-  if (importerSnapshot.devDependencies?.[alias] != null) return 'devDependencies'
-  if (importerSnapshot.optionalDependencies?.[alias] != null) return 'optionalDependencies'
-  if (importerSnapshot.dependencies?.[alias] != null) return 'dependencies'
+  if (hasDependency(importerSnapshot.devDependencies, alias)) return 'devDependencies'
+  if (hasDependency(importerSnapshot.optionalDependencies, alias)) return 'optionalDependencies'
+  if (hasDependency(importerSnapshot.dependencies, alias)) return 'dependencies'
   return undefined
+}
+
+function hasDependency (dependencies: ResolvedDependencies | undefined, alias: string): boolean {
+  return dependencies != null && Object.hasOwn(dependencies, alias) && dependencies[alias] != null
 }

@@ -1,6 +1,10 @@
+import util from 'node:util'
+import vm from 'node:vm'
+
 import { expect, test } from '@jest/globals'
 import {
   FetchError,
+  isError,
   PnpmError,
   redactAndSanitize,
   redactAndSanitizeMultiline,
@@ -149,4 +153,23 @@ test('redactAndSanitizeMultiline', () => {
   // readable if each line were redacted on its own, so the collapsed form wins.
   expect(redactAndSanitizeMultiline('url: https://user:pass\n@host/x.git\nfailed'))
     .toBe('url: https://host/x.gitfailed')
+})
+
+test('isError accepts an error that inherits from Error without the native constructor', () => {
+  // StackBlitz WebContainers reject async fs calls with errors of this shape.
+  const err = Object.assign(Object.create(Error.prototype) as Error, { code: 'ENOENT', message: 'no such file' })
+  expect(util.types.isNativeError(err)).toBe(false)
+  expect(isError(err)).toBe(true)
+})
+
+test('isError accepts an error from another realm', () => {
+  const err: unknown = vm.runInNewContext('new Error("from another realm")')
+  expect(err instanceof Error).toBe(false)
+  expect(isError(err)).toBe(true)
+})
+
+test('isError rejects values that are not errors', () => {
+  expect(isError({ code: 'ENOENT', message: 'no such file' })).toBe(false)
+  expect(isError('ENOENT')).toBe(false)
+  expect(isError(undefined)).toBe(false)
 })

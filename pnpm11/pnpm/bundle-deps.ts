@@ -3,7 +3,6 @@ import path from 'node:path'
 import { execSync } from 'node:child_process'
 
 // Background
-// ----------
 //
 // The published pnpm package contains a bundled node_modules directory at
 // dist/node_modules.
@@ -21,13 +20,11 @@ import { execSync } from 'node:child_process'
 // This is used to include certain dependencies like node-gyp out of the box
 // when installing pnpm.
 //
-// Note that most pnpm dependencies are baked into the large pnpm.mjs file by
+// Most pnpm dependencies are baked into the large pnpm.mjs file by
 // esbuild. This script handles other dependencies the pnpm bundle config
-// declares as "external" and resolved at runtime — node-gyp, v8-compile-cache,
-// and @reflink/reflink (all platform variants, installed via --force).
+// declares as "external" and resolved at runtime.
 //
 // Strategy
-// --------
 //
 // To create dist/node_modules, we'll run a pnpm deploy and move the results
 // over into the dist dir.
@@ -90,8 +87,10 @@ function createDistNodeModules () {
     '--config.inject-workspace-packages=true',
     '--config.node-linker=hoisted',
     '--ignore-scripts',
-    // --force installs all optional dependencies regardless of platform, so that
-    // all @reflink/reflink-* platform packages end up in dist/node_modules.
+    // --force under forceIgnoresPlatform installs all optional dependencies
+    // regardless of platform, so that all @reflink/reflink-* platform packages
+    // end up in dist/node_modules.
+    '--config.force-ignores-platform=true',
     '--force',
     '--filter=pnpm',
     '--prod',

@@ -14,8 +14,8 @@
 //! 3. Merges each declared field (`dependencies`,
 //!    `optionalDependencies`, `peerDependencies`,
 //!    `peerDependenciesMeta`) onto the manifest with the extension
-//!    *underneath* the manifest's own entries — `{ ...extension,
-//!    ...manifest }` — so an extension can only add missing entries,
+//!    *underneath* the manifest's own entries (`{ ...extension,
+//!    ...manifest }`) so an extension can only add missing entries,
 //!    never overwrite something the package itself declares.
 //!
 //! The manifest is mutated in place via [`serde_json::Map`] writes.
@@ -23,19 +23,31 @@
 //! before passing it in (see [`PackageExtender::apply_to_arc`] for the
 //! shared-Arc case).
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_config::PackageExtension;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use serde_json::{Map, Value};
-use std::{collections::HashMap, sync::Arc};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// Returned by [`PackageExtender::new`] when a selector's
 /// `@<range>` half fails to parse as a `node-semver` range. A malformed
-/// range is a loud failure, surfaced at install start — before any
-/// resolution work — so the user sees the bad selector before any
+/// range is a loud failure, surfaced at install start (before any
+/// resolution work) so the user sees the bad selector before any
 /// tarballs are fetched.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
@@ -61,7 +73,7 @@ pub struct PackageExtender {
 struct ExtensionMatch {
     /// Pre-parsed semver range from the selector's `@<range>` half,
     /// or [`RangeFilter::Any`] when the selector is bare
-    /// (`"is-positive"` — applies to every version). Unparsable
+    /// (`"is-positive"`, applies to every version). Unparsable
     /// ranges never reach this struct; [`PackageExtender::new`]
     /// surfaces them as [`InvalidPackageExtensionSelector`] before
     /// the install can start.
@@ -106,14 +118,14 @@ impl PackageExtender {
         Ok(PackageExtender { by_pkg_name })
     }
 
-    /// `true` when no extension entry matches any selector — callers
+    /// `true` when no extension entry matches any selector, callers
     /// can skip the per-resolve dispatch.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.by_pkg_name.is_empty()
     }
 
-    /// Whether any extension entry selects `manifest` — the name bucket
+    /// Whether any extension entry selects `manifest`, the name bucket
     /// and the per-entry range both. Callers use it to skip the deep
     /// clone for a manifest nothing extends; the cost scales with the
     /// actual hit count rather than with the number of manifests.
@@ -125,20 +137,30 @@ impl PackageExtender {
         let Some(map) = manifest.as_object() else { return false };
         let Some(name) = map.get("name").and_then(Value::as_str) else { return false };
         let Some(entries) = self.by_pkg_name.get(name) else { return false };
-        let version =
-            map.get("version").and_then(Value::as_str).and_then(|raw| raw.parse::<Version>().ok());
+        let version = map
+            .get("version")
+            .and_then(Value::as_str)
+            .map(str::parse::<Version>)
+            .and_then(Result::ok);
         entries.iter().any(|entry| entry_matches(&entry.range, version.as_ref()))
     }
 
     /// Apply extensions in place to a single manifest.
     pub fn apply(&self, manifest: &mut Value) {
         let Some(map) = manifest.as_object_mut() else { return };
-        let Some(name) = map.get("name").and_then(Value::as_str).map(str::to_string) else {
+        let Some(name) = map
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
             return;
         };
         let Some(entries) = self.by_pkg_name.get(&name) else { return };
-        let version =
-            map.get("version").and_then(Value::as_str).and_then(|raw| raw.parse::<Version>().ok());
+        let version = map
+            .get("version")
+            .and_then(Value::as_str)
+            .map(str::parse::<Version>)
+            .and_then(Result::ok);
         for entry in entries {
             if !entry_matches(&entry.range, version.as_ref()) {
                 continue;
@@ -150,7 +172,7 @@ impl PackageExtender {
     /// Apply extensions to a shared manifest, returning a new `Arc`
     /// when any extension matched and the manifest is therefore
     /// modified. Returns the original `Arc` untouched when no
-    /// extension applied — callers can keep using the shared
+    /// extension applied, callers can keep using the shared
     /// resolver-cache copy. The clone-on-match shape gives each
     /// consumer a fresh manifest without paying the deep-clone tax
     /// when nothing changed.
@@ -188,7 +210,7 @@ impl PackageExtender {
 
 /// `true` when an entry's range covers `version`. `RangeFilter::Any`
 /// always matches (a bare selector applies to every version); the
-/// unparsable case is unreachable here — [`PackageExtender::new`]
+/// unparsable case is unreachable here. [`PackageExtender::new`]
 /// already returned an error for it before the install began.
 fn entry_matches(filter: &RangeFilter, version: Option<&Version>) -> bool {
     match filter {

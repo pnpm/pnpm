@@ -1,6 +1,6 @@
 //! Resolves `deno@runtime:<spec>` dependencies. Two pieces:
 //!
-//! 1. **Version selection** delegates to the npm resolver — Deno
+//! 1. **Version selection** delegates to the npm resolver, Deno
 //!    publishes a `deno` package on the registry whose `manifest.version`
 //!    field tracks every GitHub release. Using the registry avoids the
 //!    paginated GitHub releases API and keeps `minimumReleaseAge`
@@ -9,14 +9,15 @@
 //!    that tag, downloads each artifact's per-file `.sha256sum`, and
 //!    emits one [`PlatformAssetResolution`](pnpm_lockfile::PlatformAssetResolution)
 //!    per `(os, cpu)` triple.
-//!
-//! The resolver trait owns an [`Arc<dyn Resolver>`](pnpm_resolving_resolver_base::Resolver)
-//! for the npm side rather than taking a function reference, so the
-//! same instance can plug into the default-resolver chain both
-//! directly and as the version-selection dependency of this resolver.
+
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
+pub use deno_resolver::{
+    DenoResolver,
+    DenoResolverError,
+};
+pub use read_deno_assets::ReadDenoAssetsError;
 
 mod deno_resolver;
 mod read_deno_assets;
-
-pub use deno_resolver::{DenoResolver, DenoResolverError};
-pub use read_deno_assets::ReadDenoAssetsError;

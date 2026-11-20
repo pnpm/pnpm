@@ -1,23 +1,32 @@
-//! `pacquet bugs` / `pacquet issues` — open the bug tracker URL of a package
+//! `pacquet bugs` / `pacquet issues`: open the bug tracker URL of a package
 //! in the browser.
 //!
-//! Covers the error paths that never reach the browser: no `package.json`,
-//! no derivable bugs URL, and a registry package without one. The
-//! URL-opening happy paths are covered by the unit tests in
-//! `src/cli_args/bugs/tests.rs` through the `OpenUrl` seam — running them
+//! The URL-opening happy paths are covered by the unit tests in
+//! `src/cli_args/bugs/tests.rs` through the `OpenUrl` seam, running them
 //! against the real binary would launch the developer's browser.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .with_arg("--dir")
+        .with_arg(workspace)
+        .without_ambient_pnpm_config()
 }
 
 fn empty_auth_file(root: &Path) -> PathBuf {
@@ -27,8 +36,10 @@ fn empty_auth_file(root: &Path) -> PathBuf {
 }
 
 fn run_bugs(workspace: &Path, auth_file: &Path, args: &[&str]) -> std::process::Output {
-    let mut command =
-        pacquet_at(workspace).with_arg("--npmrc-auth-file").with_arg(auth_file).with_arg("bugs");
+    let mut command = pacquet_at(workspace)
+        .with_arg("--npmrc-auth-file")
+        .with_arg(auth_file)
+        .with_arg("bugs");
     for arg in args {
         command = command.with_arg(arg);
     }
@@ -91,7 +102,11 @@ fn fails_when_registry_package_has_no_bugs_url() {
         },
     })
     .to_string();
-    let mock = server.mock("GET", "/no-bugs-pkg/latest").with_status(200).with_body(&body).create();
+    let mock = server
+        .mock("GET", "/no-bugs-pkg/latest")
+        .with_status(200)
+        .with_body(&body)
+        .create();
 
     fs::write(workspace.join(".npmrc"), format!("registry={registry}\n"))
         .expect("write project .npmrc");

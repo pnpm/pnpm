@@ -1,24 +1,85 @@
-use std::{collections::HashMap, sync::Arc};
-
-use chrono::{DateTime, Utc};
-use node_semver::Version;
-use pnpm_config::version_policy::create_package_version_policy;
-use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
-use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors,
+use std::{
+    collections::HashMap,
+    sync::Arc,
 };
+
+use jiff::Timestamp;
+use node_semver::Version;
+use pnpm_registry::{
+    DerivedPackuments,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+};
+use pnpm_resolving_resolver_base::{
+    DIRECT_DEP_SELECTOR_WEIGHT,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    RESOLVED_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
+};
+use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 
 use super::{
-    PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
-    RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
-    filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
-    pick_stable_cached_range_version, pick_version_by_version_range,
+    PickPackageFromMetaError,
+    PickPackageFromMetaOptions,
+    PickVersionByVersionRangeOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    filter_pkg_metadata_by_publish_date,
+    filter_pkg_metadata_versions,
+    pick_lowest_version_by_version_range,
+    pick_package_from_meta,
+    pick_stable_cached_range_version,
+    pick_version_by_version_range,
 };
 
-fn parse_iso(input: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)
+mod stable_cached_range;
+
+fn parse_iso(input: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(input).expect("rfc3339")
+}
+
+#[test]
+fn range_scans_keep_the_first_raw_version_when_precedence_ties() {
+    use super::semver_range::{
+        max_satisfying,
+        max_version,
+        min_satisfying,
+    };
+
+    for versions in [["v1.2.3", "1.2.3"], ["1.2.3", "v1.2.3"]] {
+        let expected = Some(versions[0].to_string());
+        assert_eq!(max_version(&versions), expected);
+        assert_eq!(max_satisfying(versions.iter().copied(), "^1"), expected);
+        assert_eq!(min_satisfying(versions.iter().copied(), "^1"), expected);
+    }
+}
+
+#[test]
+fn range_scans_keep_prerelease_and_build_spelling() {
+    use super::semver_range::{
+        max_satisfying,
+        max_version,
+        min_satisfying,
+    };
+
+    let versions = ["invalid", "1.2.3-beta.1+build.7", "1.2.3-beta.2+build.9"];
+    assert_eq!(max_version(&versions).as_deref(), Some("1.2.3-beta.2+build.9"));
+    assert_eq!(
+        max_satisfying(versions.iter().copied(), ">=1.2.3-beta.1").as_deref(),
+        Some("1.2.3-beta.2+build.9"),
+    );
+    assert_eq!(
+        min_satisfying(versions.iter().copied(), ">=1.2.3-beta.1").as_deref(),
+        Some("1.2.3-beta.1+build.7"),
+    );
+    assert_eq!(max_satisfying(versions.iter().copied(), "*"), None);
+    assert_eq!(min_satisfying(versions.iter().copied(), "*"), None);
+    assert_eq!(max_version(&["invalid"]), None);
 }
 
 fn make_pkg_version(name: &str, version: &str, deprecated: Option<&str>) -> PackageVersion {
@@ -48,8 +109,10 @@ fn make_package(
             (version.to_string(), make_pkg_version(name, version, *deprecated))
         })
         .collect();
-    let dist_tags_map =
-        dist_tags.iter().map(|(tag, version)| (tag.to_string(), version.to_string())).collect();
+    let dist_tags_map = dist_tags
+        .iter()
+        .map(|(tag, version)| (tag.to_string(), version.to_string()))
+        .collect();
     Package {
         name: name.to_string(),
         dist_tags: dist_tags_map,
@@ -131,8 +194,8 @@ fn version_range_lte_partial_allows_entire_major() {
 
 #[test]
 fn partial_lte_upper_bound_returns_none_on_overflow() {
-    assert_eq!(super::partial_lte_upper_bound(&u64::MAX.to_string()), None);
-    assert_eq!(super::partial_lte_upper_bound(&format!("1.{}", u64::MAX)), None);
+    assert_eq!(super::semver_range::partial_lte_upper_bound(&u64::MAX.to_string()), None);
+    assert_eq!(super::semver_range::partial_lte_upper_bound(&format!("1.{}", u64::MAX)), None);
 }
 
 #[test]
@@ -180,6 +243,158 @@ fn version_range_all_deprecated_returns_deprecated_max() {
 }
 
 #[test]
+fn version_range_deprecated_latest_tag_falls_back_to_non_deprecated() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("1.1.0", None), ("2.0.0", Some("use 1.x"))],
+        &[("latest", "2.0.0")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: ">=1.0.0",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
+}
+
+#[test]
+fn version_range_deprecated_prerelease_latest_falls_back_to_non_deprecated_prerelease() {
+    let pkg = make_package(
+        "acme",
+        &[("2.0.0-beta.1", Some("use 2.0.0-beta.2")), ("2.0.0-beta.2", None)],
+        &[("latest", "2.0.0-beta.1")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0-beta.2"));
+}
+
+#[test]
+fn version_range_deprecated_stable_latest_does_not_fall_back_to_prerelease_under_wildcard() {
+    let pkg = make_package(
+        "acme",
+        &[("0.9.0", None), ("1.0.0", Some("use 0.9")), ("2.0.0-beta.1", None)],
+        &[("latest", "1.0.0")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("0.9.0"));
+}
+
+#[test]
+fn version_range_deprecated_prerelease_latest_does_not_fall_back_to_unrelated_prerelease() {
+    let pkg = make_package(
+        "acme",
+        &[("2.0.0-beta.1", Some("deprecated")), ("3.0.0-alpha.1", None)],
+        &[("latest", "2.0.0-beta.1")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0-beta.1"));
+}
+
+#[test]
+fn version_range_deprecated_prerelease_latest_prefers_same_release_prerelease_over_stable() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("2.0.0-beta.1", Some("deprecated")), ("2.0.0-beta.2", None)],
+        &[("latest", "2.0.0-beta.1")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0-beta.2"));
+}
+
+#[test]
+fn version_range_deprecated_range_selector_falls_back_to_non_deprecated() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("2.0.0", Some("use 2.0.0-beta.1")), ("2.0.0-beta.1", None)],
+        &[("latest", "1.0.0"), ("beta", "2.0.0-beta.1")],
+    );
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "^2.0.0-beta.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Range,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "^2.0.0-beta.0",
+        preferred_version_selectors: Some(&selectors),
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0-beta.1"));
+}
+
+#[test]
+fn version_range_all_deprecated_with_range_selector_returns_deprecated_max() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", Some("old")), ("1.1.0", Some("old"))],
+        &[("latest", "0.9.0")],
+    );
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "^1.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Range,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "^1.0.0",
+        preferred_version_selectors: Some(&selectors),
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.1.0"));
+}
+
+#[test]
+fn version_range_deprecated_version_pin_is_kept() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("1.1.0", None), ("2.0.0", Some("use 1.x"))],
+        &[("latest", "1.1.0")],
+    );
+    let mut selectors = VersionSelectors::new();
+    selectors.insert(
+        "2.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: ">=1.0.0",
+        preferred_version_selectors: Some(&selectors),
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("2.0.0"));
+}
+
+#[test]
 fn lowest_version_picker_picks_min_in_range() {
     let pkg = make_package(
         "acme",
@@ -209,6 +424,22 @@ fn lowest_version_star_picks_smallest() {
         published_by: None,
     };
     assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
+}
+
+#[test]
+fn lowest_version_star_includes_prereleases() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("1.0.0-beta.1", None), ("2.0.0", None)],
+        &[("latest", "2.0.0")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0-beta.1"));
 }
 
 #[test]
@@ -341,29 +572,42 @@ fn stable_cached_range_rejects_competing_tie() {
     assert_eq!(pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)), None);
 }
 
+/// A movable tag that outweighs the pin could point at a version the cached
+/// packument lacks, so the pin is not proven.
 #[test]
-fn stable_cached_range_accounts_for_movable_tag_weight() {
+fn stable_cached_range_refuses_a_pin_a_movable_tag_outweighs() {
     let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("next", "1.1.0")]);
-    let mut selectors = VersionSelectors::new();
-    selectors.insert(
-        "1.0.0".to_string(),
-        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Version,
-            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
-        }),
-    );
-    selectors.insert(
-        "next".to_string(),
-        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Tag,
-            weight: 1_000,
-        }),
-    );
+    let selectors = pin_and_tag(EXISTING_VERSION_SELECTOR_WEIGHT, DIRECT_DEP_SELECTOR_WEIGHT);
+    assert_eq!(pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)), None);
+}
 
+#[test]
+fn stable_cached_range_keeps_a_pin_that_outweighs_every_movable_tag() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("next", "1.1.0")]);
+    let selectors = pin_and_tag(
+        DIRECT_DEP_SELECTOR_WEIGHT + EXISTING_VERSION_SELECTOR_WEIGHT,
+        RESOLVED_VERSION_SELECTOR_WEIGHT,
+    );
     assert_eq!(
         pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
         Some("1.0.0"),
     );
+}
+
+/// `1.0.0` preferred at `pin_weight` and the `next` tag at `tag_weight`.
+fn pin_and_tag(pin_weight: u32, tag_weight: u32) -> VersionSelectors {
+    [
+        ("1.0.0", VersionSelectorType::Version, pin_weight),
+        ("next", VersionSelectorType::Tag, tag_weight),
+    ]
+    .into_iter()
+    .map(|(selector, selector_type, weight)| {
+        (
+            selector.to_string(),
+            VersionSelectorEntry::Weighted(VersionSelectorWithWeight { selector_type, weight }),
+        )
+    })
+    .collect()
 }
 
 #[test]
@@ -394,6 +638,38 @@ fn preferred_selector_pick_uses_canonical_packument_name() {
     .expect("manifest");
 
     assert_eq!(picked.name, "@acme/private");
+}
+
+#[test]
+fn pick_from_meta_rejects_packument_naming_another_package() {
+    let pkg = make_package("approved-pkg", &[("1.0.0", None)], &[]);
+    let err = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("@untrusted/denied-pkg", "1.0.0", RegistryPackageSpecType::Version),
+    )
+    .expect_err("name mismatch");
+    assert_eq!(
+        err.to_string(),
+        r#"The registry returned metadata for "approved-pkg" when "@untrusted/denied-pkg" was requested"#,
+    );
+    assert!(matches!(err, PickPackageFromMetaError::NameMismatch { .. }), "got {err:?}");
+}
+
+#[test]
+fn pick_from_meta_resolves_unnamed_packument_under_requested_name() {
+    let mut pkg = make_package("approved-pkg", &[("1.0.0", None)], &[]);
+    pkg.name = String::new();
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("acme", "1.0.0", RegistryPackageSpecType::Version),
+    )
+    .expect("pick")
+    .expect("manifest");
+    assert_eq!(picked.name, "acme");
 }
 
 #[test]
@@ -558,6 +834,32 @@ fn pick_from_meta_published_by_filters_immature_versions() {
 }
 
 #[test]
+fn pick_from_meta_published_by_beats_deprecation_skip() {
+    let mut pkg = make_package(
+        "acme",
+        &[("2.0.0", Some("use 2.0.0-beta.1")), ("2.0.0-beta.1", None)],
+        &[("latest", "2.0.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("2.0.0", "2024-01-01T00:00:00.000Z"),
+        ("2.0.0-beta.1", "2025-06-01T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2025-01-01T00:00:00.000Z");
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions {
+            preferred_version_selectors: None,
+            published_by: Some(cutoff),
+            published_by_exclude: None,
+        },
+        &pkg,
+        &spec("acme", "^2.0.0-beta.0", RegistryPackageSpecType::Range),
+    )
+    .expect("ok");
+    assert_eq!(picked.map(|version| version.version.to_string()).as_deref(), Some("2.0.0"));
+}
+
+#[test]
 fn pick_from_meta_published_by_bare_name_exclude_skips_filter() {
     let mut pkg = make_package("acme", &[("1.0.0", None), ("2.0.0", None)], &[("latest", "2.0.0")]);
     pkg.time = Some(make_time_map(&[
@@ -655,6 +957,65 @@ fn filter_latest_fallback_does_not_exceed_original_tag_target() {
 }
 
 #[test]
+fn filter_latest_fallback_prefers_prerelease_of_new_major_over_lower_major() {
+    let mut pkg = make_package(
+        "acme",
+        &[("0.0.1", None), ("1.0.0-beta.3", None), ("1.0.0-beta.4", None), ("1.0.0", None)],
+        &[("latest", "1.0.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("0.0.1", "2026-01-01T00:00:00.000Z"),
+        ("1.0.0-beta.3", "2026-03-01T00:00:00.000Z"),
+        ("1.0.0-beta.4", "2026-04-01T00:00:00.000Z"),
+        ("1.0.0", "2026-04-20T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-04-19T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("1.0.0-beta.4"));
+}
+
+#[test]
+fn filter_latest_fallback_prefers_stable_of_same_major_over_prerelease() {
+    let mut pkg = make_package(
+        "acme",
+        &[("1.4.0", None), ("1.5.0-rc.1", None), ("1.5.0", None), ("2.0.0-alpha.1", None)],
+        &[("latest", "1.5.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("1.4.0", "2026-01-01T00:00:00.000Z"),
+        ("1.5.0-rc.1", "2026-03-01T00:00:00.000Z"),
+        ("2.0.0-alpha.1", "2026-03-02T00:00:00.000Z"),
+        ("1.5.0", "2026-04-20T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-04-19T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("1.4.0"));
+}
+
+#[test]
+fn filter_latest_fallback_prefers_non_deprecated_lower_major_over_deprecated_prerelease() {
+    let mut pkg = make_package(
+        "acme",
+        &[("0.0.1", None), ("1.0.0-beta.1", Some("broken")), ("1.0.0", None)],
+        &[("latest", "1.0.0")],
+    );
+    pkg.time = Some(make_time_map(&[
+        ("0.0.1", "2026-01-01T00:00:00.000Z"),
+        ("1.0.0-beta.1", "2026-03-01T00:00:00.000Z"),
+        ("1.0.0", "2026-04-20T00:00:00.000Z"),
+    ]));
+    let cutoff = parse_iso("2026-04-19T00:00:00.000Z");
+
+    let filtered = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
+
+    assert_eq!(filtered.dist_tag("latest"), Some("0.0.1"));
+}
+
+#[test]
 fn filter_custom_dist_tag_fallback_does_not_exceed_original_target() {
     let mut pkg = make_package(
         "nightly-fallback",
@@ -693,7 +1054,7 @@ fn filter_is_memoized_per_packument_and_stays_bounded() {
     // Distinct cutoffs past the cap evict the oldest entry, so the
     // original policy is derived again instead of growing the memo.
     for minutes in 1..=4 {
-        let other = cutoff + chrono::Duration::minutes(minutes);
+        let other = cutoff + jiff::SignedDuration::from_mins(minutes);
         let _ = filter_pkg_metadata_by_publish_date(&pkg, other, None);
     }
     let after_eviction = filter_pkg_metadata_by_publish_date(&pkg, cutoff, None);
@@ -825,7 +1186,7 @@ fn filter_tag_rewrite_prefers_non_deprecated_candidate() {
 /// tie-break that hydrates to check `deprecated` sees every candidate
 /// as undecodable (= not deprecated) and picks the higher deprecated
 /// version instead. Guards the no-hydration deprecation probe the
-/// publish-date filter relies on — also matching pnpm, which reads
+/// publish-date filter relies on, also matching pnpm, which reads
 /// `versions[candidate].deprecated` off plain parsed JSON without
 /// validating the rest of the entry.
 #[test]
@@ -853,5 +1214,50 @@ fn filter_tag_rewrite_reads_deprecation_from_raw_fragments() {
         filtered.dist_tag("old"),
         Some("2.1.0"),
         "deprecation must be read from the raw fragment, not via hydration",
+    );
+}
+
+#[test]
+fn thousands_of_matching_manifest_ranges_do_not_overflow_the_weight() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("latest", "1.1.0")]);
+    let selectors: VersionSelectors = (0..5_000)
+        .map(|patch| {
+            (
+                format!(">=1.0.0 <1.1.0-{patch}"),
+                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                    selector_type: VersionSelectorType::Range,
+                    weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                }),
+            )
+        })
+        .collect();
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "^1.0.0",
+        preferred_version_selectors: Some(&selectors),
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
+}
+
+#[test]
+fn stable_cached_range_proves_a_version_resolved_higher_in_the_chain() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[]);
+    let selectors: VersionSelectors =
+        [("1.0.0", EXISTING_VERSION_SELECTOR_WEIGHT), ("1.1.0", RESOLVED_VERSION_SELECTOR_WEIGHT)]
+            .into_iter()
+            .map(|(version, weight)| {
+                (
+                    version.to_string(),
+                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                        selector_type: VersionSelectorType::Version,
+                        weight,
+                    }),
+                )
+            })
+            .collect();
+    assert_eq!(
+        pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
+        Some("1.1.0"),
     );
 }

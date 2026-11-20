@@ -1,42 +1,18 @@
-import { createReadStream, promises as fs } from 'node:fs'
-import path from 'node:path'
-
-import { packageIsInstallable } from '@pnpm/config.package-is-installable'
-import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
-import { depPathToFilename } from '@pnpm/deps.path'
-import { PnpmError } from '@pnpm/error'
-import { assertPackageBuildIsAllowed } from '@pnpm/exec.prepare-package'
-import type {
-  DirectoryFetcherResult,
-  Fetchers,
-  FetchOptions,
-  FetchResult,
-} from '@pnpm/fetching.fetcher-base'
+import type { Fetchers } from '@pnpm/fetching.fetcher-base'
 import { type PickedFetcher, pickFetcher } from '@pnpm/fetching.pick-fetcher'
-import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
-import { logger } from '@pnpm/logger'
-import {
-  type AtomicResolution,
-  classifyResolution,
-  type DirectoryResolution,
-  type PlatformAssetResolution,
-  type PreferredVersions,
-  type Resolution,
-  type ResolveFunction,
-  resolvePlatformSelector,
-  type ResolveResult,
-  selectPlatformVariant,
-  type TarballResolution,
+import type {
+  AtomicResolution,
+  DirectoryResolution,
+  PreferredVersions,
+  Resolution,
+  ResolveFunction,
+  ResolveResult,
+  TarballResolution,
 } from '@pnpm/resolving.resolver-base'
-import {
-  normalizeBundledManifest,
-} from '@pnpm/store.cafs'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type {
-  BundledManifest,
   FetchPackageToStoreFunction,
-  FetchPackageToStoreOptions,
   GetFilesIndexFilePath,
   PackageResponse,
   PkgNameVersion,
@@ -45,51 +21,48 @@ import type {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/store.controller-types'
-import { pickStoreIndexKey } from '@pnpm/store.index'
-import type { DependencyManifest, DepPath, SupportedArchitectures } from '@pnpm/types'
+import type { DependencyManifest } from '@pnpm/types'
 import {
   calcMaxWorkers,
   readPkgFromCafs as _readPkgFromCafs,
-  type ReadPkgFromCafsOptions,
-  type ReadPkgFromCafsResult,
 } from '@pnpm/worker'
-import { familySync } from 'detect-libc'
 import { loadJsonFile } from 'load-json-file'
-import pDefer, { type DeferredPromise } from 'p-defer'
 import PQueue from 'p-queue'
-import { pShare } from 'promise-share'
 import { pick } from 'ramda'
-import ssri from 'ssri'
 
-let currentLibc: 'glibc' | 'musl' | undefined | null
-function getLibcFamilySync () {
-  if (currentLibc === undefined) {
-    currentLibc = familySync() as unknown as typeof currentLibc
-  }
-  return currentLibc
+import { fetcher } from './fetcher.js'
+import { fetchToStore } from './fetchToStore.js'
+import { getFilesIndexFilePath } from './getFilesIndexFilePath.js'
+import {
+  applyReadPackageHook,
+  checkInstallability,
+  createInstallabilityCheck,
+  type InstallabilityCheck,
+  linkFileDepsInsidePackage,
+} from './manifest.js'
+import { getExpectedIntegrity } from './storeEntry.js'
+
+export interface PackageRequesterOptions {
+  engineStrict?: boolean
+  force?: boolean
+  forceIgnoresPlatform?: boolean
+  nodeVersion?: string
+  pnpmVersion?: string
+  resolve: ResolveFunction
+  fetchers: Fetchers
+  cafs: Cafs
+  ignoreFile?: (filename: string) => boolean
+  networkConcurrency?: number
+  storeDir: string
+  verifyStoreIntegrity: boolean
+  virtualStoreDirMaxLength: number
+  strictStorePkgContentCheck?: boolean
+  customFetchers?: CustomFetcher[]
+  frozenStore?: boolean
 }
-const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
-const packageRequestLogger = logger('package-requester')
-
 
 export function createPackageRequester (
-  opts: {
-    engineStrict?: boolean
-    force?: boolean
-    nodeVersion?: string
-    pnpmVersion?: string
-    resolve: ResolveFunction
-    fetchers: Fetchers
-    cafs: Cafs
-    ignoreFile?: (filename: string) => boolean
-    networkConcurrency?: number
-    storeDir: string
-    verifyStoreIntegrity: boolean
-    virtualStoreDirMaxLength: number
-    strictStorePkgContentCheck?: boolean
-    customFetchers?: CustomFetcher[]
-    frozenStore?: boolean
-  }
+  opts: PackageRequesterOptions
 ): RequestPackageFunction & {
   fetchPackageToStore: FetchPackageToStoreFunction
   getFilesIndexFilePath: GetFilesIndexFilePath
@@ -106,30 +79,13 @@ export function createPackageRequester (
     concurrency: networkConcurrency,
   })
 
-  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
-  const readPkgFromCafs = _readPkgFromCafs.bind(null, {
-    storeDir: opts.storeDir,
-    verifyStoreIntegrity: opts.verifyStoreIntegrity,
-    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
-    frozenStore: opts.frozenStore,
-  })
-  const fetchPackageToStore = fetchToStore.bind(null, {
-    readPkgFromCafs,
-    fetch,
-    fetchingLocker: new Map(),
-    requestsQueue: Object.assign(requestsQueue, {
-      counter: 0,
-      concurrency: networkConcurrency,
-    }),
-    storeDir: opts.storeDir,
-    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
-  })
+  const fetchPackageToStore = createFetchPackageToStore(opts, { requestsQueue, networkConcurrency })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.pnpmVersion,
     force: opts.force,
+    forceIgnoresPlatform: opts.forceIgnoresPlatform,
     fetchPackageToStore,
     requestsQueue,
     resolve: opts.resolve,
@@ -148,25 +104,111 @@ export function createPackageRequester (
   })
 }
 
+function createFetchPackageToStore (
+  opts: PackageRequesterOptions,
+  { requestsQueue, networkConcurrency }: { requestsQueue: PQueue, networkConcurrency: number }
+): FetchPackageToStoreFunction {
+  const fetch = fetcher.bind(null, opts.fetchers, opts.cafs, opts.customFetchers)
+  const readPkgFromCafs = _readPkgFromCafs.bind(null, {
+    storeDir: opts.storeDir,
+    verifyStoreIntegrity: opts.verifyStoreIntegrity,
+    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
+    frozenStore: opts.frozenStore,
+  })
+  return fetchToStore.bind(null, {
+    readPkgFromCafs,
+    fetch,
+    fetchingLocker: new Map(),
+    requestsQueue: Object.assign(requestsQueue, {
+      counter: 0,
+      concurrency: networkConcurrency,
+    }),
+    storeDir: opts.storeDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    strictStorePkgContentCheck: opts.strictStorePkgContentCheck,
+  })
+}
+
+interface ResolveAndFetchContext {
+  engineStrict?: boolean
+  force?: boolean
+  forceIgnoresPlatform?: boolean
+  nodeVersion?: string
+  pnpmVersion?: string
+  requestsQueue: { add: <Result>(fn: () => Promise<Result>, opts: { priority: number }) => Promise<Result> }
+  resolve: ResolveFunction
+  fetchPackageToStore: FetchPackageToStoreFunction
+  storeDir: string
+  fetchers: Fetchers
+  customFetchers?: CustomFetcher[]
+}
+
+type RequestedDependency = WantedDependency & { optional?: boolean }
+
+interface ResolvedRequest {
+  ctx: ResolveAndFetchContext
+  options: RequestPackageOptions
+  resolveResult: ResolveResult
+  id: ResolveResult['id']
+  updated: boolean
+  integrityChanged: boolean
+  installability: InstallabilityCheck
+  fetcherForResolution?: PickedFetcher
+  resolutionNeedsFetch: boolean
+}
+
+interface ManifestState {
+  manifest?: DependencyManifest
+  hooked: boolean
+  isInstallable: boolean | null | undefined
+}
+
 async function resolveAndFetch (
-  ctx: {
-    engineStrict?: boolean
-    force?: boolean
-    nodeVersion?: string
-    pnpmVersion?: string
-    requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
-    resolve: ResolveFunction
-    fetchPackageToStore: FetchPackageToStoreFunction
-    storeDir: string
-    fetchers: Fetchers
-    customFetchers?: CustomFetcher[]
-  },
-  wantedDependency: WantedDependency & { optional?: boolean },
+  ctx: ResolveAndFetchContext,
+  wantedDependency: RequestedDependency,
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
-  let resolution = options.currentPkg?.resolution as Resolution
-  let pkgId = options.currentPkg?.id
+  const resolveResult = await resolveDependency(ctx, wantedDependency, options)
+  const change = detectPackageChange(options.currentPkg, resolveResult)
+  const { resolution } = resolveResult
 
+  if (!change.updated) {
+    carryOverIntegrity(resolution, change.previousIntegrity)
+  }
+
+  const id = resolveResult.id
+
+  if ('type' in resolution && resolution.type === 'directory' && !id.startsWith('file:')) {
+    return createLocalDirectoryResponse(resolveResult, { updated: change.updated, wantedDependency })
+  }
+
+  const prepared = await prepareResolvedManifest(resolveResult.manifest, resolution, options)
+  const installability = createInstallabilityCheck({ ctx, id, options, wantedDependency })
+  const isInstallable = installability.includeIncompatiblePackages ||
+    (prepared.manifest == null ? undefined : checkInstallability(installability, prepared.manifest))
+  const request: ResolvedRequest = {
+    ctx,
+    options,
+    resolveResult,
+    id,
+    updated: change.updated,
+    integrityChanged: change.integrityChanged,
+    installability,
+    ...await pickResolutionFetcher(ctx, resolution, id),
+  }
+  const state: ManifestState = { ...prepared, isInstallable }
+  if (fetchCanBeSkipped(request, state)) {
+    return { body: createPackageResponseBody(request, state) }
+  }
+  return fetchResolvedPackage(request, state)
+}
+
+async function resolveDependency (
+  ctx: ResolveAndFetchContext,
+  wantedDependency: RequestedDependency,
+  options: RequestPackageOptions
+): Promise<ResolveResult> {
+  const { currentPkg } = options
   // When we have a currentPkg but a resolution is still performed due to
   // options.skipFetch, it's necessary to make sure the resolution doesn't
   // accidentally return a newer version of the package. When skipFetch is
@@ -177,14 +219,14 @@ async function resolveAndFetch (
   // A naive approach would be to change the bare specifier to be the exact
   // version of the current pkg if the bare specifier is a range, but this
   // would cause the version returned for calcSpecifier to be different.
-  const preferredVersions: PreferredVersions = (resolution && !options.update && options.currentPkg?.name != null && options.currentPkg?.version != null)
+  const preferredVersions: PreferredVersions = (currentPkg?.resolution && !options.update && currentPkg?.name != null && currentPkg?.version != null)
     ? {
       ...options.preferredVersions,
-      [options.currentPkg.name]: { [options.currentPkg.version]: 'version' },
+      [currentPkg.name]: { [currentPkg.version]: 'version' },
     }
     : options.preferredVersions
 
-  const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
+  return ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
     ...options,
     preferredVersions,
     currentPkg: (options.currentPkg?.id && options.currentPkg?.resolution)
@@ -197,76 +239,78 @@ async function resolveAndFetch (
       }
       : undefined,
   }), { priority: options.downloadPriority })
+}
 
-  let { manifest } = resolveResult
-  const {
-    latest,
-    resolvedVia,
-    publishedAt,
-    normalizedBareSpecifier,
-    alias,
-    policyViolation,
-  } = resolveResult
-
-  // Check if the integrity has changed between the current and newly resolved package
+function detectPackageChange (
+  currentPkg: RequestPackageOptions['currentPkg'],
+  resolveResult: ResolveResult
+): { updated: boolean, integrityChanged: boolean, previousIntegrity: unknown } {
   // Use 'in' check to safely access integrity from any resolution type that has it
-  const previousResolution = options.currentPkg?.resolution
+  const previousResolution = currentPkg?.resolution
   const previousIntegrity = previousResolution && 'integrity' in previousResolution ? previousResolution.integrity : undefined
   const newIntegrity = 'integrity' in resolveResult.resolution ? resolveResult.resolution.integrity : undefined
   const integrityChanged = previousIntegrity != null && newIntegrity != null && previousIntegrity !== newIntegrity
 
-  const updated = pkgId !== resolveResult.id || !resolution || integrityChanged
-  resolution = resolveResult.resolution
-  pkgId = resolveResult.id
+  const updated = currentPkg?.id !== resolveResult.id || !previousResolution || integrityChanged
+  return { updated, integrityChanged, previousIntegrity }
+}
 
-  // URL/tarball resolvers don't return an integrity, because it is only known
-  // after the tarball is downloaded. When a package is reused from the lockfile
-  // without being re-fetched, the freshly resolved resolution has no integrity,
-  // so carry it over from the current resolution instead of dropping it.
-  // https://github.com/pnpm/pnpm/issues/12001
+// URL/tarball resolvers don't return an integrity, because it is only known
+// after the tarball is downloaded. When a package is reused from the lockfile
+// without being re-fetched, the freshly resolved resolution has no integrity,
+// so carry it over from the current resolution instead of dropping it.
+// https://github.com/pnpm/pnpm/issues/12001
+function carryOverIntegrity (resolution: Resolution, previousIntegrity: unknown): void {
   if (
-    !updated &&
     typeof previousIntegrity === 'string' &&
     !resolution.type &&
     !(resolution as TarballResolution).integrity
   ) {
     (resolution as TarballResolution).integrity = previousIntegrity
   }
+}
 
-  const id = pkgId!
-
-  if ('type' in resolution && resolution.type === 'directory' && !id.startsWith('file:')) {
-    if (manifest == null) {
-      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`)
-    }
-    return {
-      body: {
-        id,
-        isLocal: true,
-        manifest,
-        resolution: resolution as DirectoryResolution,
-        resolvedVia,
-        updated,
-        normalizedBareSpecifier,
-        alias,
-      },
-    }
+function createLocalDirectoryResponse (
+  { id, manifest, resolution, resolvedVia, normalizedBareSpecifier, alias }: ResolveResult,
+  { updated, wantedDependency }: { updated: boolean, wantedDependency: RequestedDependency }
+): PackageResponse {
+  if (manifest == null) {
+    throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`)
   }
+  return {
+    body: {
+      id,
+      isLocal: true,
+      manifest,
+      resolution: resolution as DirectoryResolution,
+      resolvedVia,
+      updated,
+      normalizedBareSpecifier,
+      alias,
+    },
+  }
+}
 
-  let isInstallable: boolean | null | undefined = (
-    ctx.force === true ||
-    (
-      manifest == null
-        ? undefined
-        : packageIsInstallable(id, manifest, {
-          engineStrict: ctx.engineStrict,
-          lockfileDir: options.lockfileDir,
-          nodeVersion: ctx.nodeVersion,
-          optional: wantedDependency.optional === true,
-          supportedArchitectures: options.supportedArchitectures,
-        })
-    )
-  )
+async function prepareResolvedManifest (
+  resolvedManifest: DependencyManifest | undefined,
+  resolution: Resolution,
+  options: RequestPackageOptions
+): Promise<Pick<ManifestState, 'manifest' | 'hooked'>> {
+  let manifest = resolvedManifest
+  if (manifest != null && resolution.type !== 'directory') {
+    manifest = linkFileDepsInsidePackage(manifest)
+  }
+  if (options.readPackageHook == null || manifest == null) {
+    return { manifest, hooked: false }
+  }
+  return { manifest: await applyReadPackageHook(options.readPackageHook, manifest), hooked: true }
+}
+
+async function pickResolutionFetcher (
+  ctx: ResolveAndFetchContext,
+  resolution: Resolution,
+  id: string
+): Promise<Pick<ResolvedRequest, 'fetcherForResolution' | 'resolutionNeedsFetch'>> {
   const fetcherForResolution = resolution.type === 'variations'
     ? undefined
     : await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
@@ -277,517 +321,134 @@ async function resolveAndFetch (
   const resolutionNeedsFetch = typeof resolutionNeedsFetchHook === 'function'
     ? resolutionNeedsFetchHook(resolution)
     : false
-  // Fetching can be skipped only when the manifest is available, the package content
-  // did not change, and the resolution does not need fetch-derived data.
-  if ((options.skipFetch === true || isInstallable === false) && !resolutionNeedsFetch && !integrityChanged && (manifest != null)) {
-    return {
-      body: {
-        id,
-        isLocal: false as const,
-        isInstallable: isInstallable ?? undefined,
-        latest,
-        manifest,
-        normalizedBareSpecifier,
-        resolution,
-        resolvedVia,
-        updated,
-        publishedAt,
-        alias,
-        policyViolation,
-      },
-    }
-  }
+  return { fetcherForResolution, resolutionNeedsFetch }
+}
 
-  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
+// Fetching can be skipped only when the manifest is available, the package content
+// did not change, and the resolution does not need fetch-derived data.
+function fetchCanBeSkipped (request: ResolvedRequest, state: ManifestState): boolean {
+  return (request.options.skipFetch === true || state.isInstallable === false) &&
+    !request.resolutionNeedsFetch && !request.integrityChanged && (state.manifest != null)
+}
+
+function createPackageResponseBody (request: ResolvedRequest, state: ManifestState): PackageResponse['body'] {
+  const { resolveResult } = request
+  return {
+    id: request.id,
+    isLocal: false as const,
+    isInstallable: state.isInstallable ?? undefined,
+    latest: resolveResult.latest,
+    nonDeprecatedAlternative: resolveResult.nonDeprecatedAlternative,
+    manifest: state.manifest,
+    normalizedBareSpecifier: resolveResult.normalizedBareSpecifier,
+    resolution: resolveResult.resolution,
+    resolvedVia: resolveResult.resolvedVia,
+    updated: request.updated,
+    publishedAt: resolveResult.publishedAt,
+    alias: resolveResult.alias,
+    policyViolation: resolveResult.policyViolation,
+    hooked: state.hooked,
+  }
+}
+
+async function fetchResolvedPackage (request: ResolvedRequest, initialState: ManifestState): Promise<PackageResponse> {
+  const { ctx, options, resolveResult: { resolution } } = request
+  let state = initialState
   const fetchResult = ctx.fetchPackageToStore({
     allowBuild: options.allowBuild,
     fetchRawManifest: true,
-    force: integrityChanged,
-    populateMissingIntegrity: resolutionNeedsFetch,
-    pickedFetcher: fetcherForResolution,
+    force: request.integrityChanged,
+    populateMissingIntegrity: request.resolutionNeedsFetch,
+    pickedFetcher: request.fetcherForResolution,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
-      ...(options.expectedPkg?.name != null
-        ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
-        : pkg
-      ),
-      id,
+      ...pickPkgNameVersion(request, state.manifest),
+      id: request.id,
       resolution,
     },
     onFetchError: options.onFetchError,
     supportedArchitectures: options.supportedArchitectures,
   })
 
-  if (!manifest) {
+  if (!state.manifest) {
     const fetchedResult = await fetchResult.fetching()
-    if (fetchedResult.bundledManifest) {
-      manifest = fetchedResult.bundledManifest as DependencyManifest
-    } else if (fetchedResult.files.filesMap.has('package.json')) {
-      const loadedManifest = await loadJsonFile<Record<string, unknown>>(fetchedResult.files.filesMap.get('package.json')!)
-      // Skip placeholder package.json added as a completion marker by the worker
-      // for packages that genuinely lack one.
-      if (!loadedManifest._pnpmPlaceholder) {
-        manifest = loadedManifest as unknown as DependencyManifest
-      }
-    }
+    state = { ...state, manifest: (await readFetchedManifest(fetchedResult)) ?? state.manifest }
     // Add computed integrity to tarball resolutions. `variations` spans multiple
     // platform variants, so do not write one machine's integrity into the shared resolution.
-    if (resolution.type !== 'variations' && fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
-      (resolution as TarballResolution).integrity = fetchedResult.integrity
+    if (resolution.type !== 'variations') {
+      addFetchedIntegrity(resolution, fetchedResult)
     }
   }
 
-  let fetching = fetchResult.fetching
-  if (resolutionNeedsFetch) {
-    let populating: Promise<PkgRequestFetchResult> | undefined
-    fetching = () => {
-      populating ??= fetchResult.fetching().then((fetchedResult) => {
-        if (fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
-          (resolution as TarballResolution).integrity = fetchedResult.integrity
-        }
-        return fetchedResult
-      }).catch((err: unknown) => {
-        // Cache only fulfilled fetches; rejected fetches may be retried.
-        populating = undefined
-        throw err
-      })
-      return populating
-    }
-  }
+  const fetching = request.resolutionNeedsFetch
+    ? populateIntegrityOnFetch(fetchResult.fetching, resolution)
+    : fetchResult.fetching
   // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
-  if (isInstallable === undefined && manifest != null) {
-    isInstallable = ctx.force === true || packageIsInstallable(id, manifest, {
-      engineStrict: ctx.engineStrict,
-      lockfileDir: options.lockfileDir,
-      nodeVersion: ctx.nodeVersion,
-      optional: wantedDependency.optional === true,
-      supportedArchitectures: options.supportedArchitectures,
-    })
+  if (state.isInstallable === undefined && state.manifest != null) {
+    state = await checkFetchedManifestInstallability(request, { ...state, manifest: state.manifest })
   }
   return {
-    body: {
-      id,
-      isLocal: false as const,
-      isInstallable: isInstallable ?? undefined,
-      latest,
-      manifest,
-      normalizedBareSpecifier,
-      resolution,
-      resolvedVia,
-      updated,
-      publishedAt,
-      alias,
-      policyViolation,
-    },
+    body: createPackageResponseBody(request, state),
     fetching,
     filesIndexFile: fetchResult.filesIndexFile,
-    resolutionNeedsFetch,
+    resolutionNeedsFetch: request.resolutionNeedsFetch,
   }
 }
 
-interface FetchLock {
-  fetching: Promise<PkgRequestFetchResult>
-  filesIndexFile: string
-  fetchRawManifest?: boolean
+function pickPkgNameVersion ({ options, updated }: ResolvedRequest, manifest: DependencyManifest | undefined): PkgNameVersion {
+  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
+  if (options.expectedPkg?.name == null) return pkg
+  return updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg
 }
 
-interface GetFilesIndexFilePathResult {
-  target: string
-  filesIndexFile: string
-  resolution: AtomicResolution
-}
-
-function getFilesIndexFilePath (
-  ctx: {
-    storeDir: string
-    virtualStoreDirMaxLength: number
-  },
-  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts' | 'supportedArchitectures'>
-): GetFilesIndexFilePathResult {
-  const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
-  const target = path.join(ctx.storeDir, targetRelative)
-  const built = !opts.ignoreScripts
-  let resolution: AtomicResolution
-  if (opts.pkg.resolution.type === 'variations') {
-    resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
-  } else {
-    resolution = opts.pkg.resolution
-  }
-  return {
-    target,
-    filesIndexFile: pickStoreIndexKey(resolution as TarballResolution, opts.pkg.id, { built }),
-    resolution,
-  }
-}
-
-function findResolution (resolutionVariants: PlatformAssetResolution[], supportedArchitectures?: SupportedArchitectures): AtomicResolution {
-  const selector = resolvePlatformSelector(supportedArchitectures, {
-    platform: process.platform,
-    arch: process.arch,
-    libc: getLibcFamilySync(),
-  })
-  const variant = selectPlatformVariant(resolutionVariants, selector)
-  if (!variant) {
-    const resolutionTargets = resolutionVariants.map((variant) => variant.targets)
-    throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionTargets)}`)
-  }
-  return variant.resolution
-}
-
-function fetchToStore (
-  ctx: {
-    readPkgFromCafs: (
-      filesIndexFile: string,
-      opts?: ReadPkgFromCafsOptions
-    ) => Promise<ReadPkgFromCafsResult>
-    fetch: (
-      packageId: string,
-      resolution: AtomicResolution,
-      opts: FetchOptions,
-      pickedFetcher?: PickedFetcher
-    ) => Promise<FetchResult>
-    fetchingLocker: Map<string, FetchLock>
-    requestsQueue: {
-      add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
-      counter: number
-      concurrency: number
+async function readFetchedManifest (fetchedResult: PkgRequestFetchResult): Promise<DependencyManifest | undefined> {
+  let manifest: DependencyManifest | undefined
+  if (fetchedResult.bundledManifest) {
+    manifest = fetchedResult.bundledManifest as DependencyManifest
+  } else if (fetchedResult.files.filesMap.has('package.json')) {
+    const loadedManifest = await loadJsonFile<Record<string, unknown>>(fetchedResult.files.filesMap.get('package.json')!)
+    // Skip placeholder package.json added as a completion marker by the worker
+    // for packages that genuinely lack one.
+    if (!loadedManifest._pnpmPlaceholder) {
+      manifest = loadedManifest as unknown as DependencyManifest
     }
-    storeDir: string
-    virtualStoreDirMaxLength: number
-    strictStorePkgContentCheck?: boolean
-  },
-  opts: FetchPackageToStoreOptions
-): {
-  filesIndexFile: string
-  fetching: () => Promise<PkgRequestFetchResult>
-} {
-  if (!opts.pkg.name) {
-    opts.fetchRawManifest = true
   }
+  return manifest != null ? linkFileDepsInsidePackage(manifest) : manifest
+}
 
-  const resolutionKind = classifyResolution(opts.pkg.resolution)
-  const fetchingKey = resolutionKind === 'git' || resolutionKind === 'gitHostedTarball'
-    ? `${opts.lockfileDir}\0${opts.pkg.id}`
-    : opts.pkg.id
-  const reusingPolicySensitiveFetch = ctx.fetchingLocker.has(fetchingKey) &&
-    (resolutionKind === 'git' || resolutionKind === 'gitHostedTarball')
-
-  if (!ctx.fetchingLocker.has(fetchingKey)) {
-    const fetching = pDefer<PkgRequestFetchResult>()
-    const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
-
-    doFetchToStore(filesIndexFile, fetching, target, resolution)
-
-    ctx.fetchingLocker.set(fetchingKey, {
-      fetching: removeKeyOnFail(fetching.promise),
-      filesIndexFile,
-      fetchRawManifest: opts.fetchRawManifest,
-    })
-
-    // When files resolves, the cached result has to set fromStore to true, without
-    // affecting previous invocations: so we need to replace the cache.
-    //
-    // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
-    // Otherwise, if a package was not in store when the server started, it will always be
-    // reported as "downloaded" instead of "reused".
-    fetching.promise.then((cache) => {
-      progressLogger.debug({
-        packageId: opts.pkg.id,
-        requester: opts.lockfileDir,
-        status: cache.files.resolvedFrom === 'remote'
-          ? 'fetched'
-          : 'found_in_store',
-      })
-
-      // If it's already in the store, we don't need to update the cache
-      if (cache.files.resolvedFrom !== 'remote') {
-        return
-      }
-
-      const tmp = ctx.fetchingLocker.get(fetchingKey)
-
-      // If fetching failed then it was removed from the cache.
-      // It is OK. In that case there is no need to update it.
-      if (tmp == null) return
-
-      ctx.fetchingLocker.set(fetchingKey, {
-        ...tmp,
-        fetching: Promise.resolve({
-          ...cache,
-          files: {
-            ...cache.files,
-            resolvedFrom: 'store',
-          },
-        }),
-      })
-    })
-      .catch(() => {
-        ctx.fetchingLocker.delete(fetchingKey)
-      })
+function addFetchedIntegrity (resolution: Resolution, fetchedResult: PkgRequestFetchResult): void {
+  if (fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
+    (resolution as TarballResolution).integrity = fetchedResult.integrity
   }
+}
 
-  const result = ctx.fetchingLocker.get(fetchingKey)!
-
-  if (opts.fetchRawManifest && !result.fetchRawManifest) {
-    result.fetching = removeKeyOnFail(
-      result.fetching.then(async ({ files }) => {
-        if (!files.filesMap.has('package.json')) return {
-          files,
-          bundledManifest: undefined,
-        }
-        return {
-          files,
-          bundledManifest: await readBundledManifest(files.filesMap.get('package.json')!),
-        }
-      })
-    )
-    result.fetchRawManifest = true
-  }
-
-  const fetching = reusingPolicySensitiveFetch
-    ? removeKeyOnFail(result.fetching.then(async (cached) => {
-      if (await cachedPackageCanBeReused({
-        allowBuild: opts.allowBuild,
-        bundledManifest: cached.bundledManifest,
-        filesMap: cached.files.filesMap,
-        ignoreScripts: opts.ignoreScripts,
-        pkgResolutionId: opts.pkg.id,
-        requiresPrepare: cached.files.requiresPrepare,
-        resolutionKind,
-      })) return cached
-      if (ctx.fetchingLocker.get(fetchingKey) === result) {
-        ctx.fetchingLocker.delete(fetchingKey)
-      }
-      return fetchToStore(ctx, opts).fetching()
-    }))
-    : result.fetching
-
-  return {
-    fetching: pShare(fetching),
-    filesIndexFile: result.filesIndexFile,
-  }
-
-  async function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
-    try {
-      return await p
-    } catch (err: any) { // eslint-disable-line
-      ctx.fetchingLocker.delete(fetchingKey)
-      if (opts.onFetchError) {
-        throw opts.onFetchError(err)
-      }
+function populateIntegrityOnFetch (
+  fetchPackage: () => Promise<PkgRequestFetchResult>,
+  resolution: Resolution
+): () => Promise<PkgRequestFetchResult> {
+  let populating: Promise<PkgRequestFetchResult> | undefined
+  return () => {
+    populating ??= fetchPackage().then((fetchedResult) => {
+      addFetchedIntegrity(resolution, fetchedResult)
+      return fetchedResult
+    }).catch((err: unknown) => {
+      // Cache only fulfilled fetches; rejected fetches may be retried.
+      populating = undefined
       throw err
-    }
-  }
-
-  async function doFetchToStore (
-    filesIndexFile: string,
-    fetching: DeferredPromise<PkgRequestFetchResult>,
-    target: string,
-    resolution: AtomicResolution
-  ) {
-    try {
-      const isLocalTarballDep = opts.pkg.id.startsWith('file:')
-      const isLocalPkg = resolution.type === 'directory'
-
-      const populateMissingIntegrity = opts.populateMissingIntegrity === true
-      if (!populateMissingIntegrity) {
-        assertFetchableResolution(opts.pkg.id, resolution)
-      }
-
-      let refetchingStoredPackage = false
-
-      if (
-        !opts.force &&
-        !populateMissingIntegrity &&
-        (
-          !isLocalTarballDep ||
-          await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
-        ) &&
-        !isLocalPkg
-      ) {
-        const { verified, files, bundledManifest } = await ctx.readPkgFromCafs(filesIndexFile, {
-          readManifest: opts.fetchRawManifest,
-          expectedPkg: opts.pkg,
-        })
-        if (verified && await cachedPackageCanBeReused({
-          allowBuild: opts.allowBuild,
-          bundledManifest,
-          filesMap: files.filesMap,
-          ignoreScripts: opts.ignoreScripts,
-          pkgResolutionId: opts.pkg.id,
-          requiresPrepare: files.requiresPrepare,
-          resolutionKind,
-        })) {
-          fetching.resolve({
-            files,
-            bundledManifest,
-          })
-          return
-        }
-        refetchingStoredPackage = !verified && (files?.filesMap) != null
-      }
-
-      if (refetchingStoredPackage) {
-        packageRequestLogger.warn({
-          message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
-          prefix: opts.lockfileDir,
-        })
-      }
-
-      // We fetch into targetStage directory first and then fs.rename() it to the
-      // target directory.
-
-      // Tarballs are requested first because they are bigger than metadata files.
-      // However, when one line is left available, allow it to be picked up by a metadata request.
-      // This is done in order to avoid situations when tarballs are downloaded in chunks
-      // As many tarballs should be downloaded simultaneously as possible.
-      const priority = (++ctx.requestsQueue.counter % ctx.requestsQueue.concurrency === 0 ? -1 : 1) * 1000
-
-      const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
-        opts.pkg.id,
-        resolution,
-        {
-          allowBuild: opts.allowBuild,
-          filesIndexFile,
-          lockfileDir: opts.lockfileDir,
-          pkgResolutionId: opts.pkg.id,
-          readManifest: opts.fetchRawManifest,
-          onProgress: (downloaded) => {
-            fetchingProgressLogger.debug({
-              downloaded,
-              packageId: opts.pkg.id,
-              status: 'in_progress',
-            })
-          },
-          onStart: (size, attempt) => {
-            fetchingProgressLogger.debug({
-              attempt,
-              packageId: opts.pkg.id,
-              size,
-              status: 'started',
-            })
-          },
-          pkg: {
-            name: opts.pkg.name,
-            version: opts.pkg.version,
-          },
-        },
-        opts.pickedFetcher
-      ), { priority })
-
-      const integrity = getExpectedIntegrity(opts.pkg.resolution) ?? fetchedPackage.integrity
-      if (isLocalTarballDep && integrity) {
-        await fs.mkdir(target, { recursive: true })
-        await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), integrity, 'utf8')
-      }
-
-      fetching.resolve({
-        files: {
-          resolvedFrom: fetchedPackage.local ? 'local-dir' : 'remote',
-          filesMap: fetchedPackage.filesMap,
-          packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
-          requiresBuild: fetchedPackage.requiresBuild,
-          requiresPrepare: fetchedPackage.requiresPrepare,
-        },
-        bundledManifest: fetchedPackage.manifest,
-        integrity,
-      })
-    } catch (err: any) { // eslint-disable-line
-      fetching.reject(err)
-    }
-  }
-}
-
-async function cachedPackageCanBeReused (opts: {
-  allowBuild?: FetchPackageToStoreOptions['allowBuild']
-  bundledManifest?: BundledManifest
-  filesMap: Map<string, string>
-  ignoreScripts?: boolean
-  pkgResolutionId: string
-  requiresPrepare?: boolean
-  resolutionKind: ReturnType<typeof classifyResolution>
-}): Promise<boolean> {
-  if (opts.ignoreScripts || (opts.resolutionKind !== 'git' && opts.resolutionKind !== 'gitHostedTarball')) return true
-  if (opts.requiresPrepare === false) return true
-  const pkgJsonPath = opts.filesMap.get('package.json')
-  const manifest = opts.bundledManifest ?? (pkgJsonPath == null ? undefined : await readBundledManifest(pkgJsonPath))
-  if (manifest == null) return false
-  const depPath = `${manifest.name}@${opts.pkgResolutionId}` as DepPath
-  if (opts.allowBuild?.(depPath)) return true
-  if (opts.requiresPrepare == null) return false
-  assertPackageBuildIsAllowed({
-    allowBuild: opts.allowBuild,
-    pkgResolutionId: opts.pkgResolutionId,
-  }, manifest)
-  return false
-}
-
-async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest | undefined> {
-  return normalizeBundledManifest(await loadJsonFile<DependencyManifest>(pkgJsonPath))
-}
-
-function getExpectedIntegrity (resolution: unknown): string | undefined {
-  const integrity = (resolution as { integrity?: unknown }).integrity
-  return typeof integrity === 'string' && integrity.length > 0
-    ? integrity
-    : undefined
-}
-
-function assertFetchableResolution (depPath: string, resolution: AtomicResolution): void {
-  if (classifyResolution(resolution) !== 'remoteTarball') return
-  if (getExpectedIntegrity(resolution) != null) return
-  throw new PnpmError('MISSING_TARBALL_INTEGRITY',
-    `Cannot fetch package "${depPath}" from the lockfile: it has no "integrity" field, so the downloaded tarball cannot be verified. Run a fresh install to repair the lockfile.`)
-}
-
-async function tarballIsUpToDate (
-  resolution: {
-    integrity?: string
-    registry?: string
-    tarball: string
-  },
-  pkgInStoreLocation: string,
-  lockfileDir: string
-) {
-  let currentIntegrity!: string
-  try {
-    currentIntegrity = (await gfs.readFile(path.join(pkgInStoreLocation, TARBALL_INTEGRITY_FILENAME), 'utf8'))
-  } catch (err: any) { // eslint-disable-line
-    return false
-  }
-  if (resolution.integrity && currentIntegrity !== resolution.integrity) return false
-
-  const tarball = path.join(lockfileDir, resolution.tarball.slice(5))
-  const tarballStream = createReadStream(tarball)
-  try {
-    return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))
-  } catch (err: any) { // eslint-disable-line
-    return false
-  }
-}
-
-async function fetcher (
-  fetcherByHostingType: Fetchers,
-  cafs: Cafs,
-  customFetchers: CustomFetcher[] | undefined,
-  packageId: string,
-  resolution: AtomicResolution,
-  opts: FetchOptions,
-  pickedFetcher?: PickedFetcher
-): Promise<FetchResult> {
-  try {
-    const fetch = pickedFetcher ?? await pickFetcher(fetcherByHostingType, resolution, {
-      customFetchers,
-      packageId,
     })
-    const result = await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
-    return result
-  } catch (err: any) { // eslint-disable-line
-    packageRequestLogger.warn({
-      message: `Fetching ${packageId} failed!`,
-      prefix: opts.lockfileDir,
-    })
-    throw err
+    return populating
   }
+}
+
+async function checkFetchedManifestInstallability (
+  { installability, options }: ResolvedRequest,
+  state: ManifestState & { manifest: DependencyManifest }
+): Promise<ManifestState> {
+  let { manifest, hooked } = state
+  if (options.readPackageHook != null && !hooked) {
+    manifest = await applyReadPackageHook(options.readPackageHook, manifest)
+    hooked = true
+  }
+  return { manifest, hooked, isInstallable: checkInstallability(installability, manifest) }
 }

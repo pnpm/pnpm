@@ -1,0 +1,250 @@
+//! Load dotenv-style files named by `--env-file` into the process environment.
+//!
+//! `pnpm --env-file <path> <command>` layers the `KEY=VALUE` pairs from each
+//! named file into the environment before anything else runs, so the
+//! variables are visible to config resolution (`PNPM_CONFIG_<KEY>` overrides
+//! and `${VAR}` tokens in user-level `.npmrc` files), to lifecycle scripts,
+//! and to any pnpm the command dispatches to. This mirrors what
+//! `node --env-file` and `dotenv-cli` wrappers do for pnpm today, without
+//! requiring the wrapper.
+//!
+//! The flag is repeatable and the files are processed in order. Later files
+//! override variables defined in earlier files (matching `node --env-file`),
+//! and a variable already present in the environment is never overridden.
+//! Relative paths resolve against the invocation working directory, before
+//! `--dir` or `--workspace-root` is applied. The contents are read as
+//! `node --env-file` reads them (see [`parse`]). Unlike Node.js, a leading
+//! UTF-8 byte-order mark is dropped instead of becoming part of the first
+//! key. A missing file fails the command loudly rather than running with a
+//! partial environment.
+//!
+//! `--env-file` is this binary's own option: [`strip_flags`] removes its
+//! tokens from the argv a dispatched pnpm receives (an older pnpm would
+//! reject the unknown flag), and the loaded variables travel by
+//! environment inheritance instead. Tokens past the passthrough point
+//! (script arguments after `--`, or after a `run`/`exec` script name) are
+//! left alone (see `crate::parse_boundary`).
+
+mod parse;
+
+use crate::{
+    flag_relocation::ArgTable,
+    parse_boundary::{
+        option_width,
+        passthrough_from,
+        union_arity,
+    },
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::Diagnostic;
+use std::{
+    collections::HashSet,
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+/// Raised when an `--env-file` file cannot be read.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum EnvFileError {
+    /// The env file could not be read.
+    #[display("Failed to read env file '{}': {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_ENV_FILE_READ))]
+    Read { path: PathBuf, source: std::io::Error },
+}
+
+/// Load each file in order, layering its variables into the process
+/// environment. Later files override earlier files, and variables the
+/// environment already defines are left untouched.
+pub fn load<PathItem: AsRef<Path>>(paths: &[PathItem]) -> miette::Result<()> {
+    let mut loaded_keys = HashSet::new();
+    for path in paths {
+        load_one(path.as_ref(), &mut loaded_keys)?;
+    }
+    Ok(())
+}
+
+/// Scan `argv` for `--env-file` paths and load them. Runs on the main
+/// thread before the startup thread exists (see [`crate::main`]), which is
+/// what makes the `set_var` calls in [`load`] sound. Best-effort by
+/// necessity: around an option this binary does not know, the width
+/// computation can only guess, but such a command line is rejected or
+/// forwarded to another pnpm anyway.
+pub fn load_from_argv(argv: &[OsString]) -> miette::Result<()> {
+    load(&scan(argv).0)
+}
+
+/// Remove the `--env-file` tokens from an argv that still carries the
+/// program name at index 0 (the shape the entry point builds the child argv
+/// from), keeping every other token (including tokens past the passthrough
+/// point) in place.
+pub fn strip_flags(argv: &[OsString]) -> Vec<OsString> {
+    scan(argv).1
+}
+
+/// The UTF-8 byte-order mark Windows editors routinely prepend to a `.env`
+/// file. Without stripping it, the first key would carry a leading U+FEFF.
+const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+
+fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()> {
+    let bytes =
+        std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;
+    let stripped = bytes.strip_prefix(&UTF8_BOM).unwrap_or(&bytes);
+    for (key, value) in parse::parse(&String::from_utf8_lossy(stripped)) {
+        // Node.js sets variables through C strings, which end at a NUL byte.
+        // `set_var` would panic on one, and on an empty key.
+        let (key, value) = (until_nul(&key), until_nul(&value));
+        if key.is_empty() {
+            continue;
+        }
+        let id = env_key_id(key);
+        if std::env::var_os(key).is_none() || loaded_keys.contains(&id) {
+            loaded_keys.insert(id);
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "`node --env-file` makes the pairs real environment variables, so even \
+                          a native dependency's `getenv` sees them"
+            )]
+            // SAFETY: `load` runs on the main thread before `run_on_big_stack`
+            // spawns the startup thread, so no other thread exists that
+            // could access the environment concurrently.
+            unsafe {
+                std::env::set_var(key, value);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn until_nul(text: &str) -> &str {
+    text.split_once('\0').map_or(text, |(before, _)| before)
+}
+
+/// Normalize a dotenv variable name for set membership. Windows environment
+/// variable names are case-insensitive.
+fn env_key_id(key: &str) -> String {
+    if cfg!(windows) { key.to_ascii_uppercase() } else { key.to_owned() }
+}
+
+/// The pure core of [`load_from_argv`] and [`strip_flags`]: the `--env-file`
+/// paths in `argv`, in order, alongside `argv` with those tokens removed.
+///
+/// Tokens past the passthrough point belong to the child command line, not
+/// to pnpm, so they are never claimed. A bare `--env-file` claims the next
+/// token only when the token cannot spell an option (see
+/// [`claimable_value`]); a valueless `--env-file` stays in place for clap
+/// to report. The `--env-file=<path>` form always carries its own value.
+fn scan(argv: &[OsString]) -> (Vec<PathBuf>, Vec<OsString>) {
+    let passthrough = passthrough_from(argv);
+    let arity = union_arity();
+    let mut paths = Vec::new();
+    let mut remaining = Vec::with_capacity(argv.len());
+    let mut index = 0;
+    while index < argv.len() {
+        if passthrough.is_some_and(|boundary| index >= boundary) {
+            remaining.extend(argv[index..].iter().cloned());
+            break;
+        }
+        if let Some((path, width)) = claim_env_file(argv, index, passthrough) {
+            paths.push(path);
+            index += width;
+        } else {
+            let end =
+                index + token_width(&argv[index], argv.get(index + 1), arity, argv.len() - index);
+            remaining.extend(argv[index..end].iter().cloned());
+            index = end;
+        }
+    }
+    (paths, remaining)
+}
+
+/// The `--env-file` path named at `index`, with the number of argv slots
+/// the flag occupies, or `None` when the token at `index` is not pnpm's
+/// `--env-file`.
+fn claim_env_file(
+    argv: &[OsString],
+    index: usize,
+    passthrough: Option<usize>,
+) -> Option<(PathBuf, usize)> {
+    if let Some(path) = strip_env_file_prefix(&argv[index]) {
+        return Some((path, 1));
+    }
+    if argv[index].to_str() != Some("--env-file") {
+        return None;
+    }
+    let value = argv
+        .get(index + 1)
+        .filter(|next| claimable_value(next))?;
+    if passthrough.is_some_and(|boundary| index + 1 >= boundary) {
+        return None;
+    }
+    Some((PathBuf::from(value), 2))
+}
+
+/// Strip `--env-file=` from `token`, preserving non-UTF-8 path bytes the
+/// way clap does when splitting `--<name>=<value>`.
+fn strip_env_file_prefix(token: &OsStr) -> Option<PathBuf> {
+    if let Some(text) = token.to_str() {
+        return text.strip_prefix("--env-file=").map(PathBuf::from);
+    }
+    #[cfg(any(unix, target_os = "wasi"))]
+    {
+        #[cfg(unix)]
+        use std::os::unix::ffi::OsStrExt as _;
+        #[cfg(target_os = "wasi")]
+        use std::os::wasi::ffi::OsStrExt as _;
+        token
+            .as_bytes()
+            .strip_prefix(b"--env-file=")
+            .map(OsStr::from_bytes)
+            .map(PathBuf::from)
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::{
+            OsStrExt as _,
+            OsStringExt as _,
+        };
+        let wide: Vec<u16> = token.encode_wide().collect();
+        let prefix: Vec<u16> = "--env-file=".encode_utf16().collect();
+        wide.strip_prefix(prefix.as_slice())
+            .map(OsString::from_wide)
+            .map(PathBuf::from)
+    }
+    #[cfg(not(any(unix, target_os = "wasi", windows)))]
+    {
+        None
+    }
+}
+
+/// Whether `next` can be a bare `--env-file` value: anything but another
+/// option. A non-UTF-8 token cannot spell an option, so it is claimable
+/// (clap parses it into the path all the same).
+fn claimable_value(next: &OsString) -> bool {
+    next.to_str()
+        .is_none_or(|text| !text.starts_with('-'))
+}
+
+/// The argv slots the token at `index` occupies: its option width, or one
+/// slot for a positional or an unrecognized token. Clamped to `rest` so a
+/// trailing value-taking option leaves its flag in place for clap to
+/// report instead of running the scan past the end.
+fn token_width(token: &OsString, next: Option<&OsString>, arity: &ArgTable, rest: usize) -> usize {
+    token
+        .to_str()
+        .and_then(|text| option_width(text, next.and_then(|next| next.to_str()), arity))
+        .unwrap_or(1)
+        .min(rest)
+}
+
+#[cfg(test)]
+mod tests;

@@ -1,23 +1,44 @@
-import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
-import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { rimraf } from '@zkochan/rimraf'
-import { isSubdir } from 'is-subdir'
-import { pathAbsolute } from 'path-absolute'
-import { pathExists } from 'path-exists'
+import { anchorRawLockfileDir, types as allTypes } from '@pnpm/config.reader'
+import type { ProjectsGraph } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
+
+import { collectExplicitLiteralMemberDirs, discoverWorkspacePackagesForClean } from './cleanDiscovery.js'
+import { executePlannedClean, filterCleanableTargets, planRemovesInstallState } from './cleanPlan.js'
+import {
+  collectNonRootRealDirs,
+  dirsIncludeRoot,
+  type PlannedModulesTarget,
+  resolveConfiguredLockfileDir,
+  resolveExternalVirtualStoreTarget,
+  resolveProjectModulesDir,
+  resolveSharedAnchorDir,
+  resolveSharedVirtualStoreDir,
+  tryRealpath,
+} from './cleanRemoval.js'
 
 export const commandNames = ['clean', 'purge']
 
 export const overridableByScript = true
 
-export const rcOptionsTypes = (): Record<string, unknown> => ({})
+export const rcOptionsTypes = (): Record<string, unknown> =>
+  pick([
+    'enable-global-virtual-store',
+    'lockfile-dir',
+    'modules-dir',
+    'shared-workspace-lockfile',
+    'virtual-store-dir',
+  ], allTypes)
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
+    ...rcOptionsTypes(),
     lockfile: Boolean,
+    recursive: Boolean,
   }
 }
 
@@ -50,102 +71,340 @@ the script is executed instead of the built-in command.',
   })
 }
 
-export async function handler (
-  opts: {
-    dir: string
+export interface CleanOptions {
+  cliOptions?: {
     lockfile?: boolean
-    modulesDir?: string
-    virtualStoreDir?: string
-    workspaceDir?: string
-    workspacePackagePatterns?: string[]
-    cliOptions?: {
-      lockfile?: boolean
+    'lockfile-dir'?: string
+    recursive?: boolean
+  }
+  dir: string
+  enableGlobalVirtualStore?: boolean
+  filter?: string[]
+  filterProd?: string[]
+  lockfileDir?: string
+  modulesDir?: string
+  modulesDirsByProjectName?: Record<string, string>
+  rawLockfileDir?: string
+  selectedProjectsGraph?: ProjectsGraph
+  sharedWorkspaceLockfile?: boolean
+  virtualStoreDir?: string
+  workspaceDir?: string
+  workspacePackagePatterns?: string[]
+  workspaceRoot?: boolean
+}
+
+export async function handler (opts: CleanOptions): Promise<void> {
+  await cleanProjects({ ...opts, removeLockfile: opts.cliOptions?.lockfile === true })
+}
+
+interface CleanTarget {
+  dir: string
+  name?: string
+}
+
+interface CleanRunScope {
+  cleansRoot: boolean
+  cwd: string
+  dirs: string[]
+  modulesDir: string
+  narrowed: boolean
+  protectedMemberDirs: string[]
+  realRootDir: string
+  resolvedLockfileDir: string | undefined
+  rootDir: string
+  sharedAnchorDir: string | undefined
+  sharedModulesDir: string | undefined
+  targets: CleanTarget[]
+}
+
+export interface CiCleanPlan {
+  cleansModulesDir: (anchorDir: string, modulesDir?: string) => Promise<boolean>
+  execute: () => Promise<void>
+}
+
+export async function cleanProjects (opts: CleanOptions & { removeLockfile: boolean }): Promise<void> {
+  const scope = await buildCleanRunScope(opts)
+  if (scope == null) return
+  const [modulesTargets, externalVirtualStoreDir] = await Promise.all([
+    collectModulesTargets(opts, scope),
+    resolvePlannedExternalVirtualStore(opts, scope),
+  ])
+  await executePlannedClean({ externalVirtualStoreDir, modulesTargets, removeLockfile: opts.removeLockfile, scope })
+}
+
+export async function prepareCiCleanPlan (opts: CleanOptions): Promise<CiCleanPlan> {
+  const scope = await buildCleanRunScope(opts)
+  if (scope == null) {
+    return {
+      cleansModulesDir: async () => false,
+      execute: async () => {},
     }
   }
-): Promise<void> {
-  const modulesDir = opts.modulesDir ?? 'node_modules'
+  const [modulesTargets, externalVirtualStoreDir] = await Promise.all([
+    collectModulesTargets(opts, scope),
+    resolvePlannedExternalVirtualStore(opts, scope),
+  ])
+  return {
+    cleansModulesDir: async (anchorDir: string, modulesDir = 'node_modules') => planRemovesInstallState({
+      externalVirtualStoreDir,
+      installStateDir: path.resolve(anchorDir, modulesDir, '.pnpm'),
+      modulesTargets,
+      realRootDir: scope.realRootDir,
+    }),
+    execute: async () => executePlannedClean({ externalVirtualStoreDir, modulesTargets, removeLockfile: false, scope }),
+  }
+}
+
+async function resolvePlannedExternalVirtualStore (opts: CleanOptions, scope: CleanRunScope): Promise<string | undefined> {
+  if (scope.narrowed || !opts.virtualStoreDir) return undefined
+  return resolveExternalVirtualStoreTarget({
+    modulesDir: scope.modulesDir,
+    protectedMemberDirs: scope.protectedMemberDirs,
+    rootDir: scope.rootDir,
+    virtualStoreDir: opts.virtualStoreDir,
+  })
+}
+
+async function buildCleanRunScope (opts: CleanOptions): Promise<CleanRunScope | undefined> {
   const rootDir = opts.workspaceDir ?? opts.dir
-  const cleanOpts = { modulesDir, removeLockfile: opts.cliOptions?.lockfile === true }
-  const dirs = await getProjectDirs(opts)
-  await Promise.all(dirs.map(cleanProjectDir.bind(null, cleanOpts)))
-  if (opts.virtualStoreDir) {
-    // virtualStoreDir is resolved relative to the project/workspace root,
-    // matching how pnpm resolves it in get-context (via pathAbsolute).
-    // The default 'node_modules/.pnpm' is inside node_modules and already
-    // cleaned above, so we only need to handle the case where it's outside.
-    const resolvedVirtualStoreDir = path.isAbsolute(opts.virtualStoreDir)
-      ? opts.virtualStoreDir
-      : path.resolve(rootDir, opts.virtualStoreDir)
-    const rootModulesDir = pathAbsolute(modulesDir, rootDir)
-    if (
-      !isSubdir(rootModulesDir, resolvedVirtualStoreDir) &&
-      isSubdir(rootDir, resolvedVirtualStoreDir) &&
-      await pathExists(resolvedVirtualStoreDir)
-    ) {
-      printRemoving(resolvedVirtualStoreDir)
-      await rimraf(resolvedVirtualStoreDir)
-    }
+  const realRootDir = await tryRealpath(rootDir)
+  if (realRootDir == null) return undefined
+  const modulesDir = opts.modulesDir ?? 'node_modules'
+  const narrowed = isNarrowedRun(opts)
+  const targetGroup = await getProjectTargets(opts, { narrowed, realRootDir, rootDir })
+  const dirs = targetGroup.targets.map((target) => target.dir)
+  const rawLockfileSpec = readRawLockfileDirSpec(opts, rootDir)
+  const resolvedLockfileDir = rawLockfileSpec != null
+    ? await resolveConfiguredLockfileDir(rawLockfileSpec, rootDir, realRootDir)
+    : undefined
+  const shared = await resolveSharedWorkspaceModules(opts, {
+    modulesDir,
+    narrowed,
+    rawLockfileSpec,
+    realRootDir,
+    resolvedLockfileDir,
+    rootDir,
+  })
+  return {
+    cleansRoot: !narrowed || await dirsIncludeRoot(dirs, realRootDir),
+    cwd: await tryRealpath(process.cwd()) ?? process.cwd(),
+    dirs,
+    modulesDir,
+    narrowed,
+    protectedMemberDirs: targetGroup.protectedMemberDirs,
+    realRootDir,
+    resolvedLockfileDir,
+    rootDir,
+    sharedAnchorDir: shared.anchorDir,
+    sharedModulesDir: shared.modulesDir,
+    targets: targetGroup.targets,
   }
 }
 
-function printRemoving (p: string): void {
-  process.stdout.write(`Removing ${path.relative(process.cwd(), p) || '.'}\n`)
+function isNarrowedRun (opts: Pick<CleanOptions, 'cliOptions' | 'filter' | 'filterProd' | 'workspaceDir' | 'workspaceRoot'>): boolean {
+  return Boolean(
+    opts.filter?.length ||
+    opts.filterProd?.length ||
+    opts.workspaceRoot ||
+    (opts.workspaceDir && opts.cliOptions?.recursive === false)
+  )
 }
 
-async function cleanProjectDir (opts: { modulesDir: string, removeLockfile?: boolean }, dir: string): Promise<void> {
-  const fullModulesDir = pathAbsolute(opts.modulesDir, dir)
-  if (await hasContentsToRemove(fullModulesDir)) {
-    printRemoving(fullModulesDir)
-    await removeModulesDirContents(fullModulesDir)
+async function resolveSharedWorkspaceModules (
+  opts: CleanOptions,
+  ctx: {
+    modulesDir: string
+    narrowed: boolean
+    rawLockfileSpec: string | undefined
+    realRootDir: string
+    resolvedLockfileDir: string | undefined
+    rootDir: string
   }
-  if (opts.removeLockfile) {
-    const lockfilePath = path.join(dir, 'pnpm-lock.yaml')
-    if (await pathExists(lockfilePath)) {
-      printRemoving(lockfilePath)
-      await rimraf(lockfilePath)
-    }
+): Promise<{ anchorDir?: string, modulesDir?: string }> {
+  if (!ctx.narrowed || !opts.workspaceDir || opts.sharedWorkspaceLockfile === false) {
+    return {}
   }
+  const vsAnchorDir = opts.lockfileDir ?? (ctx.rawLockfileSpec != null ? path.resolve(ctx.rootDir, ctx.rawLockfileSpec) : ctx.rootDir)
+  const anchorDir = await resolveSharedAnchorDir(ctx)
+  const modulesDir = anchorDir != null
+    ? await resolveProjectModulesDir({
+      modulesDir: ctx.modulesDir,
+      projectDir: anchorDir,
+      realRootDir: ctx.realRootDir,
+    })
+    : undefined
+  return { anchorDir: anchorDir ?? vsAnchorDir, modulesDir }
 }
 
-const PNPM_HIDDEN_ENTRIES = new Set(['.bin', '.modules.yaml', '.pnpm', '.pnpm-workspace-state-v1.json'])
-
-async function hasContentsToRemove (modulesDir: string): Promise<boolean> {
-  let items: string[]
-  try {
-    items = await fs.readdir(modulesDir)
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
-    throw err
-  }
-  return items.some((item) => item[0] !== '.' || PNPM_HIDDEN_ENTRIES.has(item))
-}
-
-async function removeModulesDirContents (modulesDir: string): Promise<void> {
-  let items: string[]
-  try {
-    items = await fs.readdir(modulesDir)
-  } catch (err: unknown) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
-    throw err
-  }
-  await Promise.all(items.map(async (item) => {
-    if (item[0] === '.' && !PNPM_HIDDEN_ENTRIES.has(item)) return
-    await rimraf(path.join(modulesDir, item))
+async function collectModulesTargets (
+  opts: CleanOptions,
+  scope: CleanRunScope
+): Promise<PlannedModulesTarget[]> {
+  const sharedVirtualStoreDir = await resolveSharedVirtualStoreDir({
+    anchorDir: scope.sharedAnchorDir,
+    enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+    realRootDir: scope.realRootDir,
+    sharedModulesDir: scope.sharedModulesDir,
+    virtualStoreDir: opts.virtualStoreDir,
+  })
+  const candidateModules = await Promise.all(scope.targets.map(async (target) => {
+    const [resolved, ownerDir] = await Promise.all([
+      resolveProjectModulesDir({
+        modulesDir: resolveModulesLeafForProject(opts, target.name, scope.modulesDir),
+        projectDir: target.dir,
+        realRootDir: scope.realRootDir,
+      }),
+      tryRealpath(target.dir),
+    ])
+    return { ownerDir, resolved }
   }))
+  if (!scope.narrowed && scope.cleansRoot && scope.resolvedLockfileDir != null) {
+    candidateModules.push({
+      ownerDir: undefined,
+      resolved: await resolveProjectModulesDir({
+        modulesDir: scope.modulesDir,
+        projectDir: scope.resolvedLockfileDir,
+        realRootDir: scope.realRootDir,
+      }),
+    })
+  }
+  return filterCleanableTargets(candidateModules, {
+    protectedMemberDirs: scope.protectedMemberDirs,
+    sharedModulesDir: scope.sharedModulesDir,
+    sharedVirtualStoreDir,
+  })
 }
 
-async function getProjectDirs (
-  opts: {
-    dir: string
-    workspaceDir?: string
-    workspacePackagePatterns?: string[]
+function hasPerProjectModulesDirs (opts: CleanOptions): boolean {
+  return opts.lockfileDir == null &&
+    opts.modulesDirsByProjectName != null &&
+    Object.keys(opts.modulesDirsByProjectName).length > 0
+}
+
+function resolveModulesLeafForProject (opts: CleanOptions, projectName: string | undefined, defaultModulesDir: string): string {
+  if (hasPerProjectModulesDirs(opts) && projectName != null) {
+    const custom = opts.modulesDirsByProjectName?.[projectName]
+    if (custom != null) return custom
   }
-): Promise<string[]> {
+  return defaultModulesDir
+}
+
+function readRawLockfileDirSpec (opts: CleanOptions, rootDir: string): string | undefined {
+  if (typeof opts.rawLockfileDir === 'string') {
+    return opts.rawLockfileDir
+  }
+  const cliLockfileDir = opts.cliOptions?.['lockfile-dir']
+  if (typeof cliLockfileDir === 'string') {
+    return anchorRawLockfileDir(opts.dir, cliLockfileDir)
+  }
+  if (opts.lockfileDir != null && opts.lockfileDir !== rootDir) {
+    return opts.lockfileDir
+  }
+  return undefined
+}
+
+async function getProjectTargets (
+  opts: CleanOptions,
+  { narrowed, realRootDir, rootDir }: {
+    narrowed: boolean
+    realRootDir: string
+    rootDir: string
+  }
+): Promise<{ targets: CleanTarget[], protectedMemberDirs: string[] }> {
   if (!opts.workspaceDir) {
-    return [opts.dir]
+    const targets = opts.selectedProjectsGraph != null
+      ? targetsFromGraph(opts.selectedProjectsGraph)
+      : [{ dir: opts.dir, name: await readTargetNameIfNeeded(opts, opts.dir) }]
+    return { targets, protectedMemberDirs: [] }
   }
-  const pkgs = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {
+  if (narrowed) {
+    const targets = await getNarrowedWorkspaceTargets(opts, rootDir)
+    const protectedMemberDirs = hasCustomCleanDirs(opts)
+      ? await readProtectedMemberDirs(opts, opts.workspaceDir, realRootDir)
+      : []
+    return { targets, protectedMemberDirs }
+  }
+  return getWholeWorkspaceTargets(opts, opts.workspaceDir, realRootDir)
+}
+
+async function getNarrowedWorkspaceTargets (opts: CleanOptions, rootDir: string): Promise<CleanTarget[]> {
+  if (opts.selectedProjectsGraph != null) {
+    return targetsFromGraph(opts.selectedProjectsGraph)
+  }
+  const singleDir = resolveSingleNarrowedDir(opts, rootDir)
+  return singleDir != null
+    ? [{ dir: singleDir, name: await readTargetNameIfNeeded(opts, singleDir) }]
+    : []
+}
+
+function resolveSingleNarrowedDir (opts: CleanOptions, rootDir: string): string | undefined {
+  if (opts.workspaceRoot) return rootDir
+  return opts.cliOptions?.recursive === false ? opts.dir : undefined
+}
+
+async function getWholeWorkspaceTargets (
+  opts: CleanOptions,
+  workspaceDir: string,
+  realRootDir: string
+): Promise<{ targets: CleanTarget[], protectedMemberDirs: string[] }> {
+  const pkgs = await discoverWorkspacePackagesForClean(workspaceDir, {
+    hasPerProjectModulesDirs: hasPerProjectModulesDirs(opts),
+    modulesDir: opts.modulesDir,
+    modulesDirsByProjectName: opts.modulesDirsByProjectName,
     patterns: opts.workspacePackagePatterns,
   })
-  return pkgs.map((pkg) => pkg.rootDir)
+  const projectTargets: CleanTarget[] = pkgs.map((pkg) => ({ dir: pkg.rootDir, name: pkg.manifest.name }))
+  const explicitDirs = hasCustomCleanDirs(opts)
+    ? await collectExplicitLiteralMemberDirs(workspaceDir, opts.workspacePackagePatterns)
+    : []
+  const realMemberDirs = await collectNonRootRealDirs(
+    [...projectTargets.map((target) => target.dir), ...explicitDirs],
+    realRootDir
+  )
+  if (await dirsIncludeRoot(projectTargets.map((target) => target.dir), realRootDir)) {
+    return { targets: projectTargets, protectedMemberDirs: realMemberDirs }
+  }
+  return {
+    targets: [
+      { dir: workspaceDir, name: await readTargetNameIfNeeded(opts, workspaceDir) },
+      ...projectTargets,
+    ],
+    protectedMemberDirs: realMemberDirs,
+  }
+}
+
+async function readProtectedMemberDirs (
+  opts: CleanOptions,
+  workspaceDir: string,
+  realRootDir: string
+): Promise<string[]> {
+  const [pkgs, explicitDirs] = await Promise.all([
+    discoverWorkspacePackagesForClean(workspaceDir, {
+      hasPerProjectModulesDirs: hasPerProjectModulesDirs(opts),
+      modulesDir: opts.modulesDir,
+      modulesDirsByProjectName: opts.modulesDirsByProjectName,
+      patterns: opts.workspacePackagePatterns,
+    }),
+    collectExplicitLiteralMemberDirs(workspaceDir, opts.workspacePackagePatterns),
+  ])
+  return collectNonRootRealDirs([...pkgs.map((pkg) => pkg.rootDir), ...explicitDirs], realRootDir)
+}
+
+function hasCustomCleanDirs (opts: CleanOptions): boolean {
+  return (opts.modulesDir != null && opts.modulesDir !== 'node_modules') ||
+    hasPerProjectModulesDirs(opts) ||
+    Boolean(opts.virtualStoreDir) ||
+    readRawLockfileDirSpec(opts, opts.workspaceDir ?? opts.dir) != null
+}
+
+function targetsFromGraph (graph: ProjectsGraph): CleanTarget[] {
+  return Object.entries(graph).map(([dir, node]) => ({ dir, name: node.package.manifest.name }))
+}
+
+async function readTargetNameIfNeeded (opts: CleanOptions, dir: string): Promise<string | undefined> {
+  if (!hasPerProjectModulesDirs(opts)) {
+    return undefined
+  }
+  const manifest = await safeReadProjectManifestOnly(dir)
+  return manifest?.name
 }

@@ -10,7 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../core/core-loggers"
+    },
+    {
       "path": "../../core/error"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
+      "path": "../../store/cafs"
     },
     {
       "path": "../../store/index"

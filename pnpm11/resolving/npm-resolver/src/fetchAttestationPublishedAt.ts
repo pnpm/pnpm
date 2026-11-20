@@ -6,11 +6,9 @@ import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
  * Per-version publish timestamp from npm's attestation endpoint —
  * `/-/npm/v1/attestations/<name>@<version>`.
  *
- * The response is a small JSON document containing one or more Sigstore
- * bundles. We read `bundle.verificationMaterial.tlogEntries[].integratedTime`
- * (the Rekor inclusion time) and surface it as an ISO date. This is a
- * couple of seconds after the actual publish — close enough for a
- * release-age policy that operates in minutes/hours/days.
+ * The Rekor inclusion time (`integratedTime`) is a couple of seconds after
+ * the actual publish — close enough for a release-age policy that operates
+ * in minutes/hours/days.
  *
  * We deliberately do **not** verify the Sigstore signature here: the
  * trust model is identical to reading the registry's `time` field on
@@ -24,8 +22,6 @@ import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
  * - The package has no published attestations (`404`).
  * - The response is malformed or missing the timestamp.
  * - The request itself fails (network error, registry 5xx).
- *
- * In all of those cases the caller falls back to fetching full metadata.
  */
 export interface FetchAttestationOptions {
   registry: string
@@ -99,25 +95,33 @@ function extractPublishedAt (body: unknown): string | undefined {
 }
 
 function readEarliestIntegratedTime (attestation: unknown): number | undefined {
+  const tlogEntries = readTlogEntries(attestation)
+  if (tlogEntries == null) return undefined
+
+  let earliest: number | undefined
+  for (const entry of tlogEntries) {
+    const seconds = readIntegratedTimeSeconds(entry)
+    if (seconds == null) continue
+    if (earliest == null || seconds < earliest) earliest = seconds
+  }
+  return earliest
+}
+
+function readTlogEntries (attestation: unknown): unknown[] | undefined {
   if (!attestation || typeof attestation !== 'object') return undefined
   const bundle = (attestation as { bundle?: unknown }).bundle
   if (!bundle || typeof bundle !== 'object') return undefined
   const verificationMaterial = (bundle as { verificationMaterial?: unknown }).verificationMaterial
   if (!verificationMaterial || typeof verificationMaterial !== 'object') return undefined
   const tlogEntries = (verificationMaterial as { tlogEntries?: unknown }).tlogEntries
-  if (!Array.isArray(tlogEntries)) return undefined
+  return Array.isArray(tlogEntries) ? tlogEntries : undefined
+}
 
-  let earliest: number | undefined
-  for (const entry of tlogEntries) {
-    if (!entry || typeof entry !== 'object') continue
-    const rawIntegratedTime = (entry as { integratedTime?: unknown }).integratedTime
-    // npm serializes integratedTime as a string ("1778583836") to avoid
-    // JSON precision loss; accept either string or number defensively.
-    const seconds = parseIntegratedTimeSeconds(rawIntegratedTime)
-    if (seconds == null) continue
-    if (earliest == null || seconds < earliest) earliest = seconds
-  }
-  return earliest
+function readIntegratedTimeSeconds (entry: unknown): number | undefined {
+  if (!entry || typeof entry !== 'object') return undefined
+  // npm serializes integratedTime as a string ("1778583836") to avoid
+  // JSON precision loss; accept either string or number defensively.
+  return parseIntegratedTimeSeconds((entry as { integratedTime?: unknown }).integratedTime)
 }
 
 function parseIntegratedTimeSeconds (raw: unknown): number | undefined {

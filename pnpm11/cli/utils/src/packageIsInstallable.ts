@@ -21,7 +21,7 @@ export function packageIsInstallable (
   const currentPnpmVersion = packageManager.name === 'pnpm'
     ? packageManager.version
     : undefined
-  const err = checkPackage(pkgPath, pkg, {
+  const checkOptions = {
     nodeVersion: opts.nodeVersion,
     pnpmVersion: currentPnpmVersion,
     supportedArchitectures: opts.supportedArchitectures ?? {
@@ -29,16 +29,22 @@ export function packageIsInstallable (
       cpu: ['current'],
       libc: ['current'],
     },
-  })
-  if (err === null) return
-  if (
-    (err instanceof UnsupportedEngineError && err.wanted.pnpm) ??
-    opts.engineStrict
-  ) throw err
-  logger.warn({
-    message: `Unsupported ${
-      err instanceof UnsupportedEngineError ? 'engine' : 'platform'
-    }: wanted: ${JSON.stringify(err.wanted)} (current: ${JSON.stringify(err.current)})`,
-    prefix: pkgPath,
-  })
+  }
+  // The engines and the platform are checked apart, so that a platform
+  // mismatch, which only warns, does not hide an engine failure.
+  const { engines, ...platform } = pkg
+  for (const part of [{ engines }, platform]) {
+    const err = checkPackage(pkgPath, part, checkOptions)
+    if (err === null) continue
+    if (
+      (err instanceof UnsupportedEngineError && err.wanted.pnpm) ??
+      opts.engineStrict
+    ) throw err
+    logger.warn({
+      message: `Unsupported ${
+        err instanceof UnsupportedEngineError ? 'engine' : 'platform'
+      }: wanted: ${JSON.stringify(err.wanted)} (current: ${JSON.stringify(err.current)})`,
+      prefix: pkgPath,
+    })
+  }
 }

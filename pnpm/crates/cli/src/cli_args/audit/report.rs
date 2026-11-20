@@ -1,9 +1,24 @@
 //! The registry audit response, and the report shape derived from it.
 
 use super::{
-    AuditIndexRequest, AuditPathIndex, BTreeMap, ConfigAuditLevel, Deserialize, Diagnostic,
-    Display, EnvLockfile, Error, HashSet, Include, Lockfile, PathInfo, Serialize,
-    build_audit_path_index, infer_patched_versions, lockfile_to_audit_request, parse_audit_level,
+    AuditIndexRequest,
+    AuditPathIndex,
+    BTreeMap,
+    ConfigAuditLevel,
+    Deserialize,
+    Diagnostic,
+    Display,
+    EnvLockfile,
+    Error,
+    HashSet,
+    Include,
+    Lockfile,
+    PathInfo,
+    Serialize,
+    build_audit_path_index,
+    infer_patched_versions,
+    lockfile_to_audit_request,
+    parse_audit_level,
     satisfies_safe,
 };
 
@@ -14,9 +29,24 @@ pub(crate) enum AuditError {
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_LOCKFILE))]
     NoLockfile,
 
+    #[display(
+        r#"pnpm-lock.yaml has no entry for these selected workspace projects: {importer_ids}. Run "pnpm install" to update it."#
+    )]
+    #[diagnostic(code(ERR_PNPM_AUDIT_MISSING_IMPORTERS))]
+    MissingImporters { importer_ids: String },
+
     #[display("No installed packages found to audit")]
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_PACKAGES))]
     NoPackages,
+
+    #[display(
+        "Cannot audit signatures of package \"{package_key}\": its registry prefix '{registry_name}:' is not declared by the registries setting."
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_MISSING_NAMED_REGISTRY),
+        help("Add a registries entry with \"prefix: {registry_name}\" to pnpm-workspace.yaml.")
+    )]
+    MissingNamedRegistry { package_key: String, registry_name: String },
 
     #[display("No pnpm-lock.yaml found after update: Cannot report fixed vulnerabilities")]
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_LOCKFILE))]
@@ -30,11 +60,16 @@ pub(crate) enum AuditError {
     #[diagnostic(code(ERR_PNPM_INVALID_FIX_OPTION))]
     InvalidFixOption { value: String },
 
+    /// A fix flow writes no ignores, so the ignore flag would be dropped.
+    #[display(r#""{fix_flag}" may not be used with "{ignore_flag}""#)]
+    #[diagnostic(code(ERR_PNPM_AUDIT_FIX_WITH_IGNORE))]
+    FixWithIgnore { fix_flag: &'static str, ignore_flag: &'static str },
+
     #[display(
         "Cannot ignore advisory {id} ({module_name}): the registry did not provide a GHSA id or a resolvable url."
     )]
     #[diagnostic(code(ERR_PNPM_AUDIT_MISSING_GHSA))]
-    MissingGhsa { id: u64, module_name: String },
+    MissingGhsa { id: AdvisoryId, module_name: String },
 
     #[display("Failed to request the audit endpoint (at {url}): {source}")]
     #[diagnostic(code(ERR_PNPM_AUDIT_BAD_RESPONSE))]
@@ -124,9 +159,16 @@ impl AuditVulnerabilityCounts {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the npm audit advisory JSON format."
+    )
+)]
 pub(crate) struct AuditAdvisory {
     pub(crate) findings: Vec<AuditFinding>,
-    pub(crate) id: u64,
+    pub(crate) id: AdvisoryId,
     pub(crate) title: String,
     pub(crate) module_name: String,
     pub(crate) vulnerable_versions: String,
@@ -140,6 +182,27 @@ pub(crate) struct AuditAdvisory {
     pub(crate) cwe: String,
     pub(crate) github_advisory_id: String,
     pub(crate) url: String,
+}
+
+/// An advisory's `id` as the registry sent it. npm sends a number, while
+/// other registries may use their own string ids.
+#[derive(Debug, Display, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub(crate) enum AdvisoryId {
+    Number(u64),
+    String(String),
+}
+
+impl AdvisoryId {
+    fn from_raw(value: &serde_json::Value) -> Option<Self> {
+        match value {
+            serde_json::Value::Number(number) => number.as_u64().map(Self::Number),
+            serde_json::Value::String(text) if !text.trim().is_empty() => {
+                Some(Self::String(text.clone()))
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -196,7 +259,7 @@ pub(crate) fn bulk_response_to_audit_report(
     for (module_name, package_advisories) in bulk {
         let by_version = audit_path_index.get(&module_name);
         for raw in package_advisories {
-            let Some(id) = raw.id.as_ref().and_then(serde_json::Value::as_u64) else {
+            let Some(id) = raw.id.as_ref().and_then(AdvisoryId::from_raw) else {
                 continue;
             };
             let Some(severity) = raw.severity.as_deref().and_then(parse_audit_level) else {
@@ -208,7 +271,7 @@ pub(crate) fn bulk_response_to_audit_report(
             }
             let advisory = normalize_advisory(raw, id, module_name.clone(), severity, findings);
             vulnerabilities.increment(severity);
-            advisories.insert(id.to_string(), advisory);
+            advisories.insert(advisory.id.to_string(), advisory);
         }
     }
 
@@ -260,7 +323,7 @@ pub(crate) fn build_findings(
 
 pub(crate) fn normalize_advisory(
     raw: RawBulkAdvisory,
-    id: u64,
+    id: AdvisoryId,
     module_name: String,
     severity: ConfigAuditLevel,
     findings: Vec<AuditFinding>,
@@ -298,22 +361,6 @@ pub(crate) fn normalize_ghsa_id(ghsa_id: &str) -> String {
         return trimmed.to_ascii_uppercase();
     };
     format!("{}{}", trimmed[..dash].to_ascii_uppercase(), trimmed[dash..].to_ascii_lowercase())
-}
-
-pub(crate) fn normalize_registry(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}
-
-pub(crate) fn redact_url_userinfo(url: &str) -> String {
-    let Ok(mut parsed) = reqwest::Url::parse(url) else {
-        return url.to_string();
-    };
-    if parsed.username().is_empty() && parsed.password().is_none() {
-        return url.to_string();
-    }
-    let _ = parsed.set_username("");
-    let _ = parsed.set_password(None);
-    parsed.to_string()
 }
 
 pub(crate) fn truncate_chars(value: &str, max_chars: usize) -> String {

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 import { PnpmError } from '@pnpm/error'
@@ -30,7 +31,7 @@ const { publish } = await import('@pnpm/releasing.commands')
 
 const mockConfirm = jest.mocked(confirm)
 
-test('publish: fails git check if branch is not on master or main', async () => {
+test.each([false, true])('publish: fails git check if branch is not on master or main (CI=%s)', async (isCI) => {
   prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
@@ -47,6 +48,7 @@ test('publish: fails git check if branch is not on master or main', async () => 
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
+      ci: isCI,
       argv: { original: ['publish'] },
       dir: process.cwd(),
     }, [])
@@ -55,7 +57,7 @@ test('publish: fails git check if branch is not on master or main', async () => 
   )
 })
 
-test('publish: fails git check if branch is not on specified branch', async () => {
+test.each([false, true])('publish: fails git check if branch is not on specified branch (CI=%s)', async (isCI) => {
   prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
@@ -73,6 +75,7 @@ test('publish: fails git check if branch is not on specified branch', async () =
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
+      ci: isCI,
       argv: { original: ['publish'] },
       dir: process.cwd(),
       publishBranch: 'latest',
@@ -82,7 +85,7 @@ test('publish: fails git check if branch is not on specified branch', async () =
   )
 })
 
-test('publish: fails git check if branch is not clean', async () => {
+test.each([false, true])('publish: fails git check if branch is not clean (CI=%s)', async (isCI) => {
   prepare({
     name: 'test-publish-package.json',
     version: '0.0.0',
@@ -99,6 +102,7 @@ test('publish: fails git check if branch is not clean', async () => {
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
+      ci: isCI,
       argv: { original: ['publish'] },
       dir: process.cwd(),
     }, [])
@@ -107,7 +111,7 @@ test('publish: fails git check if branch is not clean', async () => {
   )
 })
 
-test('publish: fails git check if branch is not up to date', async () => {
+test.each([false, true])('publish: fails git check if branch is not up to date (CI=%s)', async (isCI) => {
   const remote = temporaryDirectory()
 
   prepare({
@@ -129,6 +133,7 @@ test('publish: fails git check if branch is not up to date', async () => {
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
+      ci: isCI,
       argv: { original: ['publish'] },
       dir: process.cwd(),
     }, [])
@@ -154,6 +159,7 @@ test('publish: fails git check if HEAD is detached', async () => {
   await expect(
     publish.handler({
       ...DEFAULT_OPTS,
+      ci: false,
       argv: { original: ['publish'] },
       dir: process.cwd(),
     }, [])
@@ -161,3 +167,94 @@ test('publish: fails git check if HEAD is detached', async () => {
     new PnpmError('GIT_UNKNOWN_BRANCH', 'The Git HEAD may not attached to any branch, but your "publish-branch" is set to "master|main".')
   )
 })
+
+test.each([undefined, 'release'])('publish: allows a detached tag in CI (publishBranch=%s)', async (publishBranch) => {
+  await prepareDetachedTag()
+  mockConfirm.mockClear()
+
+  const result = await publish.handler({
+    ...DEFAULT_OPTS,
+    ci: true,
+    argv: { original: ['publish'] },
+    dir: process.cwd(),
+    dryRun: true,
+    publishBranch,
+    json: true,
+  }, [])
+
+  expect(JSON.parse(result!.output!)).toMatchObject({ name: 'test-publish-package.json', version: '0.0.0' })
+  expect(mockConfirm).not.toHaveBeenCalled()
+})
+
+test('publish: rejects a dirty detached tag in CI', async () => {
+  await prepareDetachedTag()
+  fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
+
+  await expect(publish.handler({
+    ...DEFAULT_OPTS,
+    ci: true,
+    argv: { original: ['publish'] },
+    dir: process.cwd(),
+    dryRun: true,
+  }, [])).rejects.toThrow(new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.'))
+})
+
+test('publish: rejects an unknown symbolic HEAD in CI', async () => {
+  await prepareDetachedTag()
+  await execa('git', ['symbolic-ref', 'HEAD', 'refs/tags/v0.0.0'])
+
+  await expect(publish.handler({
+    ...DEFAULT_OPTS,
+    ci: true,
+    argv: { original: ['publish'] },
+    dir: process.cwd(),
+    dryRun: true,
+  }, [])).rejects.toThrow(new PnpmError('GIT_UNKNOWN_BRANCH', 'The Git HEAD may not attached to any branch, but your "publish-branch" is set to "master|main".'))
+})
+
+test('publish: enforces git checks on nested target repository when caller directory is outside it', async () => {
+  const callerDir = temporaryDirectory()
+  const targetRoot = temporaryDirectory()
+  const nestedRepo = path.join(targetRoot, 'nested')
+  fs.mkdirSync(nestedRepo, { recursive: true })
+  fs.writeFileSync(path.join(nestedRepo, 'package.json'), JSON.stringify({
+    name: 'test-nested-git-checks',
+    version: '1.0.0',
+  }))
+
+  await execa('git', ['init', '--initial-branch=main'], { cwd: callerDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: callerDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: callerDir })
+  fs.writeFileSync(path.join(callerDir, 'README.md'), 'clean caller\n')
+  await execa('git', ['add', 'README.md'], { cwd: callerDir })
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'], { cwd: callerDir })
+
+  await execa('git', ['init', '--initial-branch=main'], { cwd: nestedRepo })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: nestedRepo })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: nestedRepo })
+  await execa('git', ['add', 'package.json'], { cwd: nestedRepo })
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'], { cwd: nestedRepo })
+  fs.writeFileSync(path.join(nestedRepo, 'LICENSE'), 'dirty uncommitted change\n')
+
+  process.chdir(callerDir)
+
+  await expect(publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['-C', targetRoot, 'publish', 'nested'] },
+    dir: targetRoot,
+    dryRun: true,
+  }, ['nested'])).rejects.toThrow(
+    new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
+  )
+})
+
+async function prepareDetachedTag (): Promise<void> {
+  prepare({ name: 'test-publish-package.json', version: '0.0.0' })
+  await execa('git', ['init', '--initial-branch=main'])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
+  await execa('git', ['add', '*'])
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+  await execa('git', ['tag', '-a', 'v0.0.0', '-m', 'release', '--no-sign'])
+  await execa('git', ['checkout', 'v0.0.0'])
+}

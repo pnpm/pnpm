@@ -8,6 +8,24 @@ import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom, take, toArray } from 'rxjs'
 
 import type { ReporterPnpmConfig } from '../src/ReporterPnpmConfig.js'
+import { captureOutput } from './utils/captureOutput.js'
+
+test.each(['info', 'warn', 'error'] as const)('prints only the lockfile verdicts permitted at %s level', async (logLevel) => {
+  const output = await captureOutput({
+    context: { argv: ['install'] },
+    reportingOptions: { appendOnly: true, logLevel },
+  }, () => {
+    lockfileVerificationLogger.debug({ status: 'started', entries: 2 })
+    lockfileVerificationLogger.debug({ status: 'cached' })
+    lockfileVerificationLogger.debug({ status: 'done', entries: 2, elapsedMs: 42 })
+    lockfileVerificationLogger.debug({ status: 'failed', entries: 2, elapsedMs: 800 })
+  })
+  const started = '? Verifying lockfile against supply-chain policies (2 entries)...'
+  const cached = '✓ Lockfile passes supply-chain policies (previously verified)'
+  const done = '✓ Lockfile passes supply-chain policies (2 entries in 42ms)'
+  const failed = '✗ Lockfile failed supply-chain policy check (2 entries in 800ms)'
+  expect(output).toEqual(logLevel === 'info' ? [started, cached, done, failed] : [failed])
+})
 
 test('prints lockfile verification in-progress and completion messages', async () => {
   const cwd = '/repo'
@@ -185,3 +203,85 @@ test('emits a brief failure line on failed status', async () => {
   expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
   expect(stripAnsi(failed)).toBe('✗ Lockfile failed supply-chain policy check (12 entries in 800ms)')
 })
+
+test('renders progress updates with the checked count (v12 wire)', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  lockfileVerificationLogger.debug({ status: 'started', entries: 12 })
+  lockfileVerificationLogger.debug({ status: 'progress', entries: 12, checked: 7 })
+
+  const [started, progress] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
+  expect(stripAnsi(progress)).toBe('? Verifying lockfile against supply-chain policies (7/12 entries)...')
+})
+
+test('renders the checked count on terminal messages that carry it (v12 wire)', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  lockfileVerificationLogger.debug({ status: 'started', entries: 12 })
+  lockfileVerificationLogger.debug({
+    status: 'done',
+    entries: 12,
+    checked: 12,
+    elapsedMs: 800,
+  })
+
+  const [started, done] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile passes supply-chain policies (12/12 entries in 800ms)')
+})
+
+test('suppresses intermediate progress in append-only mode', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+    reportingOptions: { appendOnly: true },
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  lockfileVerificationLogger.debug({ status: 'started', entries: 12 })
+  lockfileVerificationLogger.debug({ status: 'progress', entries: 12, checked: 7 })
+  lockfileVerificationLogger.debug({
+    status: 'done',
+    entries: 12,
+    checked: 12,
+    elapsedMs: 800,
+  })
+
+  const [started, done] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
+  expect(stripAnsi(done)).toBe('✓ Lockfile passes supply-chain policies (12/12 entries in 800ms)')
+})
+
+test('renders partial checked count on failed status (v12 wire)', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  lockfileVerificationLogger.debug({ status: 'started', entries: 12 })
+  lockfileVerificationLogger.debug({
+    status: 'failed',
+    entries: 12,
+    checked: 7,
+    elapsedMs: 800,
+  })
+
+  const [started, failed] = await frames
+  expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
+  expect(stripAnsi(failed)).toBe('✗ Lockfile failed supply-chain policy check (7/12 entries in 800ms)')
+})
+

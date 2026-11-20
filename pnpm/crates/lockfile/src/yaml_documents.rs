@@ -20,7 +20,10 @@
 
 use std::{
     borrow::Cow,
-    io::{self, Read},
+    io::{
+        self,
+        Read,
+    },
 };
 
 /// Document-stream marker that ends one YAML document and starts the
@@ -66,13 +69,19 @@ pub fn extract_main_document(content: &str) -> Cow<'_, str> {
 /// - The file must begin with `---\n`; otherwise it carries no env
 ///   document and this returns `None`.
 /// - Returns the slice between the leading `---\n` and the next
-///   `\n---\n` separator. A leading `---\n` with no following separator
-///   (an env-only file with no main document) also yields `None`.
+///   `\n---\n` separator.
+/// - A leading `---\n` with no following separator is an env-only file:
+///   a lockfile with no dependencies whose empty main document was
+///   trimmed off together with the separator. Its env document is
+///   everything after the leading marker, less a closing `---` line, as
+///   long as its root importer opens with `configDependencies`.
 #[must_use]
 pub fn extract_env_document(content: &str) -> Option<Cow<'_, str>> {
     match normalize_lockfile_content(content) {
         Cow::Borrowed(content) => env_document_of(content).map(Cow::Borrowed),
-        Cow::Owned(content) => env_document_of(&content).map(|doc| Cow::Owned(doc.to_string())),
+        Cow::Owned(content) => {
+            env_document_of(&content).map(std::string::ToString::to_string).map(Cow::Owned)
+        }
     }
 }
 
@@ -97,39 +106,19 @@ fn read_first_yaml_document_in_chunks(
     let mut byte_order_mark_pending = true;
     let mut scan_from = YAML_DOCUMENT_START.len();
     loop {
-        let read = match reader.read(&mut chunk) {
-            Ok(read) => read,
-            // A signal interrupting the read is transient, and no command
-            // should fail over one.
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-            Err(error) => return Err(error),
-        };
+        let read = read_chunk(&mut reader, &mut chunk)?;
         if read == 0 {
-            // A withheld carriage return is then the file's last byte,
-            // and no separator ends in one, so it cannot complete one.
-            return Ok(None);
+            return document_without_separator(content, withheld_carriage_return);
         }
         append_normalized(&mut content, &chunk[..read], &mut withheld_carriage_return);
-        if byte_order_mark_pending {
-            if content.len() < BYTE_ORDER_MARK.len() {
-                continue;
-            }
-            if content.starts_with(BYTE_ORDER_MARK) {
-                content.drain(..BYTE_ORDER_MARK.len());
-            }
-            byte_order_mark_pending = false;
+        if !take_byte_order_mark(&mut content, &mut byte_order_mark_pending) {
+            continue;
         }
-        if content.len() >= YAML_DOCUMENT_START.len()
-            && !content.starts_with(YAML_DOCUMENT_START.as_bytes())
-        {
+        if starts_another_document(&content) {
             return Ok(None);
         }
         if let Some(separator) = find_document_separator(&content, scan_from) {
-            content.truncate(separator);
-            content.drain(..YAML_DOCUMENT_START.len());
-            return String::from_utf8(content)
-                .map(Some)
-                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error));
+            return first_document(content, separator).map(Some);
         }
         // A separator may straddle the chunk boundary, so resume the
         // scan far enough back to catch a partial match.
@@ -137,6 +126,68 @@ fn read_first_yaml_document_in_chunks(
             .len()
             .saturating_sub(YAML_DOCUMENT_SEPARATOR.len() - 1)
             .max(YAML_DOCUMENT_START.len());
+    }
+}
+
+/// The env document of a file read to its end without finding a separator,
+/// when it opens with the start marker. A withheld carriage return is the
+/// file's last byte.
+fn document_without_separator(
+    mut content: Vec<u8>,
+    withheld_carriage_return: bool,
+) -> io::Result<Option<String>> {
+    if withheld_carriage_return {
+        content.push(b'\r');
+    }
+    if !content.starts_with(YAML_DOCUMENT_START.as_bytes()) {
+        return Ok(None);
+    }
+    let content = String::from_utf8(content)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    Ok(env_only_document(&content[YAML_DOCUMENT_START.len()..]).map(str::to_string))
+}
+
+/// The document body between the start marker and the separator that closes
+/// it.
+fn first_document(mut content: Vec<u8>, separator: usize) -> io::Result<String> {
+    content.truncate(separator);
+    content.drain(..YAML_DOCUMENT_START.len());
+    String::from_utf8(content).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+}
+
+/// Strip a leading byte-order mark once enough bytes have arrived to tell
+/// whether there is one. Reports whether the caller can go on reading this
+/// chunk, or has to pull more bytes first.
+fn take_byte_order_mark(content: &mut Vec<u8>, pending: &mut bool) -> bool {
+    if !*pending {
+        return true;
+    }
+    if content.len() < BYTE_ORDER_MARK.len() {
+        return false;
+    }
+    *pending = false;
+    if content.starts_with(BYTE_ORDER_MARK) {
+        content.drain(..BYTE_ORDER_MARK.len());
+    }
+    true
+}
+
+/// Whether enough has been read to tell that the file does not open with the
+/// document-start marker this reader expects.
+fn starts_another_document(content: &[u8]) -> bool {
+    content.len() >= YAML_DOCUMENT_START.len()
+        && !content.starts_with(YAML_DOCUMENT_START.as_bytes())
+}
+
+/// Read one chunk, retrying an interrupted read: a signal is transient, and
+/// no command should fail over one.
+fn read_chunk(reader: &mut impl Read, chunk: &mut [u8]) -> io::Result<usize> {
+    loop {
+        match reader.read(chunk) {
+            Ok(read) => return Ok(read),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
     }
 }
 
@@ -157,7 +208,10 @@ fn append_normalized(content: &mut Vec<u8>, mut bytes: &[u8], withheld_carriage_
         *withheld_carriage_return = true;
         bytes = rest;
     }
-    while let Some(index) = bytes.iter().position(|byte| *byte == b'\r') {
+    while let Some(index) = bytes
+        .iter()
+        .position(|byte| *byte == b'\r')
+    {
         let (head, tail) = bytes.split_at(index);
         content.extend_from_slice(head);
         if tail.get(1) == Some(&b'\n') {
@@ -192,8 +246,33 @@ fn main_document_of(content: &str) -> &str {
 
 fn env_document_of(content: &str) -> Option<&str> {
     let rest = content.strip_prefix(YAML_DOCUMENT_START)?;
-    rest.find(YAML_DOCUMENT_SEPARATOR).map(|idx| &rest[..idx])
+    match rest.find(YAML_DOCUMENT_SEPARATOR) {
+        Some(idx) => Some(&rest[..idx]),
+        None => env_only_document(rest),
+    }
 }
+
+/// The env document of a file that has no main document after it: `rest`
+/// up to where the separator would start, so a closing `---` line that has
+/// no newline after it is dropped too. Only a body whose root importer
+/// opens with the `configDependencies` key every env document writes
+/// qualifies, so a main lockfile that merely opens with `---` is not
+/// mistaken for one.
+fn env_only_document(rest: &str) -> Option<&str> {
+    let document = rest
+        .strip_suffix("\n---")
+        .or_else(|| rest.strip_suffix('\n'))
+        .unwrap_or(rest);
+    (document.contains(ROOT_IMPORTER_CONFIG_DEPENDENCIES)
+        || document.contains(ROOT_IMPORTER_CONFIG_DEPENDENCIES_JSON))
+    .then_some(document)
+}
+
+/// How an env document lays out the start of its root importer, in
+/// today's format and in the next format's JSON.
+const ROOT_IMPORTER_CONFIG_DEPENDENCIES: &str = "\n  .:\n    configDependencies:";
+const ROOT_IMPORTER_CONFIG_DEPENDENCIES_JSON: &str =
+    "\n\t\t\".\": {\n\t\t\t\"configDependencies\":";
 
 #[cfg(test)]
 mod tests;

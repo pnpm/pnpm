@@ -6,16 +6,16 @@ import { audit } from '@pnpm/deps.compliance.commands'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
-import type { DepPath } from '@pnpm/types'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
+import { MOCK_REGISTRY_AUDIT_PATH, MOCK_REGISTRY_OPTS, MOCK_REGISTRY_ORIGIN } from './utils/options.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 describe('audit fix with update', () => {
   beforeEach(async () => {
@@ -27,7 +27,7 @@ describe('audit fix with update', () => {
     await teardownMockAgent()
   })
   test('top-level vulnerability is fixed by updating the vulnerable package', async () => {
-    const tmp = f.prepare('update-single-depth-2')
+    const tmp = testFixtures.prepare('update-single-depth-2')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -46,8 +46,8 @@ describe('audit fix with update', () => {
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -88,14 +88,14 @@ The fixed vulnerabilities are:
   })
 
   test('patched versions older than the minimumReleaseAge cutoff are fixed without minimumReleaseAgeExclude entries', async () => {
-    const tmp = f.prepare('update-single-depth-2')
+    const tmp = testFixtures.prepare('update-single-depth-2')
 
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
 
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -123,7 +123,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level pinned vulnerability is fixed by updating the vulnerable package', async () => {
-    const tmp = f.prepare('update-single-pinned')
+    const tmp = testFixtures.prepare('update-single-pinned')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -147,8 +147,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -196,8 +196,61 @@ The fixed vulnerabilities are:
     }
   })
 
+  test('top-level pinned npm-aliased vulnerability is fixed by updating the vulnerable package', async () => {
+    const tmp = testFixtures.prepare('update-single-aliased-pinned')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const { manifest: originalManifest } = await readProjectManifest(tmp)
+    expect(originalManifest).toBeTruthy()
+    expect(originalManifest.dependencies).toBeDefined()
+    expect(originalManifest.dependencies?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile).toBeTruthy()
+    expect(originalLockfile!.packages).toBeDefined()
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+    expect(mockResponse).toBeTruthy()
+
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
+      .reply(200, mockResponse)
+
+    const { exitCode, output } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      rootProjectManifestDir: tmp,
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(output).toBe(`${chalk.green(1)} vulnerability was fixed, ${chalk.red(0)} vulnerabilities remain.\n\nThe fixed vulnerabilities are:\n- (${chalk.green('high')}) "${chalk.green('Title: mock vulnerability in @pnpm.e2e/pkg-with-1-dep')}" ${chalk.blue('@pnpm.e2e/pkg-with-1-dep')}\n`)
+    expect(exitCode).toBe(0)
+
+    const { manifest } = await readProjectManifest(tmp)
+    expect(manifest).toBeTruthy()
+    expect(manifest.dependencies).toBeDefined()
+    expect(manifest.dependencies?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.1.0')
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(lockfile).toBeTruthy()
+    expect(lockfile!.packages).toBeDefined()
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+
+    expect(lockfile!.importers['.' as ProjectId]?.dependencies?.['aliased-pkg'])
+      .toBe('@pnpm.e2e/pkg-with-1-dep@100.1.0')
+  })
+
   test('depth 2 vulnerability is fixed by updating the vulnerable package', async () => {
-    const tmp = f.prepare('update-single-depth-2')
+    const tmp = testFixtures.prepare('update-single-depth-2')
 
     const originalPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
@@ -211,8 +264,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -248,7 +301,7 @@ The fixed vulnerabilities are:
   })
 
   test('depth 3 vulnerability is fixed by updating the vulnerable package', async () => {
-    const tmp = f.prepare('update-single-depth-3')
+    const tmp = testFixtures.prepare('update-single-depth-3')
 
     const originalPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
@@ -262,8 +315,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-3-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -299,7 +352,7 @@ The fixed vulnerabilities are:
   })
 
   test('unfixable vulnerability remains unresolved', async () => {
-    const tmp = f.prepare('update-single-depth-2')
+    const tmp = testFixtures.prepare('update-single-depth-2')
 
     const pkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
 
@@ -316,8 +369,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'unfixable-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -355,7 +408,7 @@ The remaining vulnerabilities are:
   })
 
   test('vulnerable package with multiple versions is updated', async () => {
-    const tmp = f.prepare('update-multiple')
+    const tmp = testFixtures.prepare('update-multiple')
 
     const auditedPkg = '@pnpm.e2e/audit-multi-version'
     const originalPkgId1 = `${auditedPkg}@1.0.0` as DepPath
@@ -379,8 +432,8 @@ The remaining vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'audit-multi-version-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const { exitCode, output } = await audit.handler({
@@ -424,7 +477,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level workspace subpackage vulnerability is fixed by recursive update from root', async () => {
-    const tmp = f.prepare('update-workspace-depth-2')
+    const tmp = testFixtures.prepare('update-workspace-depth-2')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -445,8 +498,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -505,7 +558,7 @@ The fixed vulnerabilities are:
   })
 
   test('depth 2 workspace subpackage vulnerability is fixed by recursive update from root', async () => {
-    const tmp = f.prepare('update-workspace-depth-2')
+    const tmp = testFixtures.prepare('update-workspace-depth-2')
 
     const originalPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0' as DepPath
@@ -519,8 +572,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'depth-2-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -574,7 +627,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level pinned workspace subpackage vulnerability is fixed by recursive update from root', async () => {
-    const tmp = f.prepare('update-workspace-pinned')
+    const tmp = testFixtures.prepare('update-workspace-pinned')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -600,8 +653,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -668,7 +721,7 @@ The fixed vulnerabilities are:
   })
 
   test('top-level pinned workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
-    const tmp = f.prepare('update-workspace-catalog-pinned')
+    const tmp = testFixtures.prepare('update-workspace-catalog-pinned')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -694,8 +747,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {
@@ -755,8 +808,75 @@ The fixed vulnerabilities are:
     expect(packagesArray).toContain(expectedPkgId)
   })
 
+  test('top-level pinned npm-aliased workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
+    const tmp = testFixtures.prepare('update-workspace-catalog-aliased')
+
+    const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
+    const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
+
+    const subPkgDir = join(tmp, 'packages', 'sub-pkg-aliased')
+
+    const { manifest: originalManifest } = await readProjectManifest(subPkgDir)
+    expect(originalManifest.dependencies?.['aliased-pkg']).toBe('catalog:')
+
+    const originalWorkspaceManifest = readYamlFileSync<{ catalog?: Record<string, string> }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(originalWorkspaceManifest.catalog?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.0.0')
+
+    const originalLockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    expect(originalLockfile!.packages![originalPkgId]).toBeDefined()
+    expect(originalLockfile!.packages![expectedPkgId]).toBeUndefined()
+
+    const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
+
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
+      .reply(200, mockResponse)
+
+    const {
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+    } = await filterProjectsFromDir(tmp, [], {
+      workspaceDir: tmp,
+      prefix: tmp,
+    })
+
+    const { exitCode } = await audit.handler({
+      ...MOCK_REGISTRY_OPTS,
+      dir: tmp,
+      workspaceDir: tmp,
+      lockfileDir: tmp,
+      rootProjectManifestDir: tmp,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      catalogs: {
+        default: { 'aliased-pkg': 'npm:@pnpm.e2e/pkg-with-1-dep@100.0.0' },
+      },
+      auditLevel: 'moderate',
+      fix: 'update',
+      lockfileOnly: true,
+    })
+
+    expect(exitCode).toBe(0)
+
+    const { manifest } = await readProjectManifest(subPkgDir)
+    expect(manifest.dependencies?.['aliased-pkg']).toBe('catalog:')
+
+    const workspaceManifest = readYamlFileSync<{ catalog?: Record<string, string> }>(join(tmp, 'pnpm-workspace.yaml'))
+    expect(workspaceManifest.catalog?.['aliased-pkg']).toBe('npm:@pnpm.e2e/pkg-with-1-dep@100.1.0')
+
+    const lockfile = await readWantedLockfile(tmp, { ignoreIncompatible: true })
+    const packagesArray = Object.keys(lockfile!.packages!)
+
+    expect(packagesArray).not.toContain(originalPkgId)
+    expect(packagesArray).toContain(expectedPkgId)
+    expect(lockfile!.importers['packages/sub-pkg-aliased' as ProjectId]?.dependencies?.['aliased-pkg'])
+      .toBe('@pnpm.e2e/pkg-with-1-dep@100.1.0')
+  })
+
   test('top-level workspace catalog vulnerability is fixed by updating the catalog entry', async () => {
-    const tmp = f.prepare('update-workspace-catalog')
+    const tmp = testFixtures.prepare('update-workspace-catalog')
 
     const originalPkgId = '@pnpm.e2e/pkg-with-1-dep@100.0.0' as DepPath
     const expectedPkgId = '@pnpm.e2e/pkg-with-1-dep@100.1.0' as DepPath
@@ -782,8 +902,8 @@ The fixed vulnerabilities are:
     const mockResponse = await loadJsonFile<Record<string, unknown[]>>(join(tmp, 'responses', 'top-level-vulnerability.json'))
     expect(mockResponse).toBeTruthy()
 
-    getMockAgent().get(MOCK_REGISTRY)
-      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+      .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
       .reply(200, mockResponse)
 
     const {

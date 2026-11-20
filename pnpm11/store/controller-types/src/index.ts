@@ -6,6 +6,7 @@ import type {
 } from '@pnpm/fetching.fetcher-base'
 import type {
   DirectoryResolution,
+  NonDeprecatedAlternative,
   PkgResolutionId,
   PreferredVersions,
   Resolution,
@@ -30,6 +31,7 @@ import type {
   PackageManifest,
   PackageVersionPolicy,
   RangeSpecStyle,
+  ReadPackageHook,
   SupportedArchitectures,
   TrustPolicy,
 } from '@pnpm/types'
@@ -52,6 +54,7 @@ export interface UploadPkgToStoreResult {
 export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<UploadPkgToStoreResult>
 
 export interface StoreController {
+  readonly hasCustomFetchers?: boolean
   requestPackage: RequestPackageFunction
   fetchPackage: FetchPackageToStoreFunction | FetchPackageToStoreFunctionAsync
   getFilesIndexFilePath: GetFilesIndexFilePath
@@ -159,17 +162,29 @@ export interface RequestPackageOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  /** Release-age cutoff to try when the time-based cutoff has no match. */
+  fallbackPublishedBy?: Date
   publishedByExclude?: PackageVersionPolicy
   downloadPriority: number
   ignoreScripts?: boolean
   projectDir: string
   lockfileDir: string
+  /**
+   * The Node.js version this package's engines are checked against. Defaults
+   * to the one the store controller was created with.
+   */
+  nodeVersion?: string
+  /**
+   * When this returns true under `engineStrict`, `engines` are not checked
+   * yet. A patch applied later may change them; the build phase checks the
+   * patched manifest.
+   */
+  deferEnginesCheck?: (manifest: { name?: string, version?: string }) => boolean
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
   sideEffectsCache?: boolean
   skipFetch?: boolean
   update?: false | 'compatible' | 'latest'
-  updatePatches?: boolean
   /**
    * True only when this specific package matches the user's update target
    * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated
@@ -178,6 +193,7 @@ export interface RequestPackageOptions {
    * package without forcing unrelated transitives to jump to their latest.
    */
   updateRequested?: boolean
+  trustLockfile?: boolean
   updateChecksums?: boolean
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
@@ -189,6 +205,7 @@ export interface RequestPackageOptions {
   trustPolicy?: TrustPolicy
   trustPolicyExclude?: PackageVersionPolicy
   trustPolicyIgnoreAfter?: number
+  readPackageHook?: ReadPackageHook
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -217,14 +234,16 @@ export interface PackageResponse {
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.
     latest?: string
+    /**
+     * Forwarded from the resolver's `ResolveResult.nonDeprecatedAlternative`.
+     */
+    nonDeprecatedAlternative?: NonDeprecatedAlternative
     alias?: string
     /**
      * Forwarded from the resolver's `ResolveResult.policyViolation`.
-     * The caller (deps-resolver) aggregates these per-pick into a
-     * single set the install command can react to — see
-     * `ResolutionPolicyViolation` in `@pnpm/resolving.resolver-base`.
      */
     policyViolation?: ResolutionPolicyViolation
+    hooked?: boolean
   } & (
     {
       isLocal: true
@@ -236,12 +255,17 @@ export interface PackageResponse {
 }
 
 export interface ImportOptions {
+  symlinkTargets?: 'imported' | 'internal'
   disableRelinkLocalDirDeps?: boolean
   filesMap: FilesMap
   force: boolean
   resolvedFrom: ResolvedFrom
+  /** See `PackageFilesResponse['sourceExists']`. */
+  sourceExists?: boolean
   keepModulesDir?: boolean
   safeToSkip?: boolean
+  /** Symlinks to create in the package, keyed by their path relative to it, with their targets. */
+  symlinks?: Map<string, string>
 }
 
 export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined

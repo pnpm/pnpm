@@ -2,10 +2,23 @@
 //! [`pnpm_resolving_default_resolver::DefaultResolver`] chain.
 
 use pnpm_lockfile::LockfileResolution;
-use pnpm_resolving_default_resolver::{DefaultResolver, SpecNotSupportedByAnyResolverError};
-use pnpm_resolving_local_resolver::{LocalResolver, LocalResolverContext};
-use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
-use std::{fs, path::PathBuf};
+use pnpm_resolving_default_resolver::{
+    DefaultResolver,
+    SpecNotSupportedByAnyResolverError,
+};
+use pnpm_resolving_local_resolver::{
+    LocalResolver,
+    LocalResolverContext,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    UnsupportedProtocolError,
+    WantedDependency,
+};
+use std::{
+    fs,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 fn setup_project() -> (TempDir, PathBuf) {
@@ -27,8 +40,11 @@ async fn dispatcher_routes_link_specifier_through_local_resolver() {
         DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
 
     let opts = ResolveOptions {
-        project_dir: project_dir.clone(),
-        lockfile_dir: project_dir.clone(),
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: project_dir.clone(),
+            lockfile_dir: project_dir.clone(),
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wd = WantedDependency {
@@ -49,8 +65,11 @@ async fn dispatcher_falls_through_when_specifier_is_neither_local_nor_npm() {
     let resolver =
         DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
     let opts = ResolveOptions {
-        project_dir: project_dir.clone(),
-        lockfile_dir: project_dir,
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: project_dir.clone(),
+            lockfile_dir: project_dir,
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let wd = WantedDependency {
@@ -65,14 +84,41 @@ async fn dispatcher_falls_through_when_specifier_is_neither_local_nor_npm() {
     assert!(err.downcast_ref::<SpecNotSupportedByAnyResolverError>().is_some(), "got {err}");
 }
 
+/// The tree walker recovers `ERR_PNPM_UNSUPPORTED_PROTOCOL` by downcast, so
+/// the chain must box the error outermost.
+#[tokio::test]
+async fn dispatcher_boxes_an_unsupported_protocol_error_outermost() {
+    let (_tmp, project_dir) = setup_project();
+    let resolver =
+        DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
+    let opts = ResolveOptions {
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: project_dir.clone(),
+            lockfile_dir: project_dir,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+    let wd = WantedDependency {
+        alias: Some("got".to_string()),
+        bare_specifier: Some("patch:got@npm%3A11.8.2#~/.yarn/patches/got.patch".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver.resolve(&wd, &opts).await.expect_err("unsupported protocol");
+    assert!(err.downcast_ref::<UnsupportedProtocolError>().is_some(), "got {err:?}");
+}
+
 #[tokio::test]
 async fn resolve_latest_claims_local_scheme_specifiers() {
     let (_tmp, project_dir) = setup_project();
     let resolver =
         DefaultResolver::new(vec![Box::new(LocalResolver::new(LocalResolverContext::default()))]);
     let opts = ResolveOptions {
-        project_dir: project_dir.clone(),
-        lockfile_dir: project_dir,
+        project: pnpm_resolving_resolver_base::ResolverProjectOptions {
+            project_dir: project_dir.clone(),
+            lockfile_dir: project_dir,
+            ..Default::default()
+        },
         ..ResolveOptions::default()
     };
     let query = pnpm_resolving_resolver_base::LatestQuery {
@@ -82,6 +128,7 @@ async fn resolve_latest_claims_local_scheme_specifiers() {
             ..WantedDependency::default()
         },
         compatible: false,
+        current_version: None,
     };
     let info = resolver.resolve_latest(&query, &opts).await.expect("resolve_latest");
     assert!(info.is_some(), "local resolver should claim link: specs in resolve_latest");

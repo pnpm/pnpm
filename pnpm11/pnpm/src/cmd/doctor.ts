@@ -1,15 +1,28 @@
-import { spawnSync } from 'node:child_process'
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import util from 'node:util'
 
-import { detectIfCurrentPkgIsExecutable, getCurrentPackageName, isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import { getCurrentPackageName, isExecutedByCorepack, packageManager, resolvePnpmSelfCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
-import { types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
+import { isError } from '@pnpm/error'
+import { ping } from '@pnpm/registry-access.commands'
 import chalk from 'chalk'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
+
+import {
+  areSameDir,
+  canWriteToDir,
+  checkFilesystemCapabilities,
+  checkWritableDir,
+  type LinkOperations,
+  prefetchDoctorCandidatePaths,
+  resolveConfiguredStoreDir,
+} from './doctorFilesystem.js'
+
+export type { LinkOperations }
 
 export const commandNames = ['doctor']
 
@@ -24,7 +37,7 @@ export const commandNames = ['doctor']
 export const skipPackageManagerCheck = true
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return pick(['offline'], allTypes)
+  return pick(['offline', 'store-dir'], allTypes)
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
@@ -73,13 +86,21 @@ export interface CheckResult {
   durationMs?: number
 }
 
-export interface DoctorCommandOptions {
-  dir: string
-  cacheDir: string
-  pnpmHomeDir: string
-  globalBinDir?: string
-  storeDir?: string
-  registries?: Record<string, string>
+export interface DoctorCommandOptions extends Omit<ping.PingOptions, 'registry'>, Pick<Config,
+| 'dir'
+| 'cacheDir'
+| 'pnpmHomeDir'
+| 'globalBinDir'
+| 'storeDir'
+| 'lockfileDir'
+| 'workspaceDir'
+| 'modulesDir'
+| 'packageConfigs'
+| 'virtualStoreDir'
+| 'enableGlobalVirtualStore'
+| 'nodeLinker'
+| 'registriesByScope'
+>, Partial<Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>> {
   offline?: boolean
   json?: boolean
   benchmark?: boolean
@@ -88,19 +109,33 @@ export interface DoctorCommandOptions {
    * the running binary; tests point it at a built entry instead.
    */
   pnpmCommand?: string[]
+  /**
+   * Filesystem link operations used by the filesystem capabilities probe;
+   * tests override them to simulate cross-device (`EXDEV`) mounts.
+   */
+  linkOperations?: LinkOperations
 }
 
-const DEFAULT_REGISTRY = 'https://registry.npmjs.org/'
-
 export async function handler (opts: DoctorCommandOptions): Promise<{ output: string, exitCode: number }> {
-  const pnpmCommand = opts.pnpmCommand ?? resolveSelfCommand()
+  const pnpmCommand = opts.pnpmCommand ?? resolvePnpmSelfCommand()
+  const pkgRoot = opts.workspaceDir ?? opts.dir
+  const configuredStoreDir = opts.storeDir ? resolveConfiguredStoreDir(opts.storeDir, pkgRoot) : undefined
+  prefetchDoctorCandidatePaths([
+    opts.globalBinDir,
+    opts.pnpmHomeDir,
+    opts.cacheDir,
+    configuredStoreDir,
+    pkgRoot,
+    opts.dir,
+    opts.lockfileDir,
+  ])
 
   const checks: CheckResult[] = [
     checkVersions(),
     checkInstallMethod(),
     await checkGlobalBinDir(opts),
     await checkWritableDir('Cache directory', opts.cacheDir),
-    ...(opts.storeDir ? [await checkWritableDir('Store directory', opts.storeDir)] : []),
+    ...(configuredStoreDir ? [await checkWritableDir('Store directory', configuredStoreDir)] : []),
     await checkFilesystemCapabilities(opts),
     await checkConnectivity(opts),
     await checkInstallSmokeTest(pnpmCommand, opts),
@@ -176,75 +211,21 @@ async function checkGlobalBinDir (opts: DoctorCommandOptions): Promise<CheckResu
   return { title, status: 'pass', detail: binDir }
 }
 
-async function checkWritableDir (title: string, dir: string): Promise<CheckResult> {
-  if (!canWriteToDir(dir)) {
-    return {
-      title,
-      status: 'fail',
-      detail: `no write access to ${dir}`,
-      fix: 'Fix the directory permissions or point the setting at a writable path.',
-    }
-  }
-  return { title, status: 'pass', detail: dir }
-}
-
-/**
- * Probe which link strategies work from the store's volume, since that is
- * what determines how packages land in `node_modules` and how fast an install
- * is: a reflink (copy-on-write) or hardlink is near-free, a plain copy is not.
- */
-async function checkFilesystemCapabilities (opts: DoctorCommandOptions): Promise<CheckResult> {
-  const title = 'Filesystem'
-  const probeParent = opts.storeDir ?? opts.cacheDir
-  let probeDir: string
-  try {
-    probeDir = await fs.promises.mkdtemp(path.join(probeParent, '.pnpm-doctor-'))
-  } catch {
-    probeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-doctor-'))
-  }
-  const started = Date.now()
-  try {
-    const capabilities = await probeLinkCapabilities(probeDir)
-    const available = Object.entries(capabilities).filter(([, ok]) => ok).map(([name]) => name)
-    const status: CheckStatus = capabilities.reflink || capabilities.hardlink ? 'pass' : 'warn'
-    return {
-      title,
-      status,
-      detail: available.length > 0 ? `available: ${available.join(', ')}` : 'only copying is available',
-      fix: status === 'warn'
-        ? 'Neither reflink nor hardlink works between the store and this project; installs will copy files and be slower. Put the store on the same filesystem as your projects.'
-        : undefined,
-      durationMs: opts.benchmark ? Date.now() - started : undefined,
-    }
-  } finally {
-    await fs.promises.rm(probeDir, { recursive: true, force: true })
-  }
-}
-
 async function checkConnectivity (opts: DoctorCommandOptions): Promise<CheckResult> {
   const title = 'Registry connectivity'
   if (opts.offline) {
     return { title, status: 'pass', detail: 'skipped (--offline)' }
   }
-  const registry = opts.registries?.default ?? DEFAULT_REGISTRY
-  const pingUrl = new URL('./-/ping?write=true', registry.endsWith('/') ? registry : `${registry}/`)
+  const registry = opts.registriesByScope.default
   const started = Date.now()
   try {
-    const response = await fetch(pingUrl, { signal: AbortSignal.timeout(15_000) })
-    if (!response.ok) {
-      return {
-        title,
-        status: 'fail',
-        detail: `${registry} responded ${response.status} ${response.statusText}`.trimEnd(),
-        fix: 'Check your registry, proxy, and auth configuration.',
-      }
-    }
+    await ping.handler({ ...opts, registry, timeout: 15_000 })
     return { title, status: 'pass', detail: `${registry} (${Date.now() - started}ms)` }
   } catch (err: unknown) {
     return {
       title,
       status: 'fail',
-      detail: `could not reach ${registry}: ${util.types.isNativeError(err) ? err.message : String(err)}`,
+      detail: `could not reach ${registry}: ${isError(err) ? err.message : String(err)}`,
       fix: 'Check your network, proxy, and registry configuration.',
     }
   }
@@ -265,36 +246,8 @@ export async function checkInstallSmokeTest (
   const base = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-doctor-install-'))
   const started = Date.now()
   try {
-    const provider = path.join(base, 'provider')
-    const consumer = path.join(base, 'consumer')
-    await fs.promises.mkdir(provider, { recursive: true })
-    await fs.promises.mkdir(consumer, { recursive: true })
-    await fs.promises.writeFile(
-      path.join(provider, 'package.json'),
-      JSON.stringify({ name: 'pnpm-doctor-fixture', version: '0.0.0' })
-    )
-    await fs.promises.writeFile(
-      path.join(consumer, 'package.json'),
-      JSON.stringify({
-        name: 'pnpm-doctor-consumer',
-        version: '0.0.0',
-        private: true,
-        dependencies: { 'pnpm-doctor-fixture': 'file:../provider' },
-      })
-    )
-
-    const [command, ...baseArgs] = pnpmCommand
-    const args = [
-      ...baseArgs,
-      'install',
-      '--offline',
-      '--ignore-scripts',
-      '--ignore-workspace',
-      '--no-frozen-lockfile',
-      `--store-dir=${path.join(base, 'store')}`,
-      `--cache-dir=${path.join(base, 'cache')}`,
-    ]
-    const result = spawnSync(command, args, { cwd: consumer, encoding: 'utf8', timeout: 120_000 })
+    const consumer = await writeSmokeTestProjects(base)
+    const result = runOfflineInstall({ pnpmCommand, base, consumer })
 
     if (result.status !== 0) {
       const stderr = (result.stderr ?? '').trim()
@@ -318,6 +271,48 @@ export async function checkInstallSmokeTest (
   } finally {
     await fs.promises.rm(base, { recursive: true, force: true })
   }
+}
+
+/**
+ * Write a `provider` package and a `consumer` project that depends on it as a
+ * `file:` dependency. Returns the consumer's directory.
+ */
+async function writeSmokeTestProjects (base: string): Promise<string> {
+  const provider = path.join(base, 'provider')
+  const consumer = path.join(base, 'consumer')
+  await fs.promises.mkdir(provider, { recursive: true })
+  await fs.promises.mkdir(consumer, { recursive: true })
+  await fs.promises.writeFile(
+    path.join(provider, 'package.json'),
+    JSON.stringify({ name: 'pnpm-doctor-fixture', version: '0.0.0' })
+  )
+  await fs.promises.writeFile(
+    path.join(consumer, 'package.json'),
+    JSON.stringify({
+      name: 'pnpm-doctor-consumer',
+      version: '0.0.0',
+      private: true,
+      dependencies: { 'pnpm-doctor-fixture': 'file:../provider' },
+    })
+  )
+  return consumer
+}
+
+function runOfflineInstall (
+  { pnpmCommand, base, consumer }: { pnpmCommand: string[], base: string, consumer: string }
+): SpawnSyncReturns<string> {
+  const [command, ...baseArgs] = pnpmCommand
+  const args = [
+    ...baseArgs,
+    'install',
+    '--offline',
+    '--ignore-scripts',
+    '--ignore-workspace',
+    '--no-frozen-lockfile',
+    `--store-dir=${path.join(base, 'store')}`,
+    `--cache-dir=${path.join(base, 'cache')}`,
+  ]
+  return spawnSync(command, args, { cwd: consumer, encoding: 'utf8', timeout: 120_000 })
 }
 
 function renderReport (checks: CheckResult[]): string {
@@ -346,59 +341,6 @@ function statusMark (status: CheckStatus): string {
   }
 }
 
-/**
- * Re-invoke the pnpm that is running now: `node <entry>` for the bundled
- * package, or the executable itself for the `@pnpm/exe` single-file build,
- * whose `process.argv[1]` is the binary rather than a script.
- */
-function resolveSelfCommand (): string[] {
-  if (detectIfCurrentPkgIsExecutable()) return [process.execPath]
-  const entry = process.argv[1]
-  if (!entry) return [process.execPath]
-  return [process.execPath, entry]
-}
-
-async function probeLinkCapabilities (dir: string): Promise<{ reflink: boolean, hardlink: boolean, symlink: boolean }> {
-  const source = path.join(dir, 'source')
-  await fs.promises.writeFile(source, 'pnpm-doctor')
-  return {
-    reflink: canReflink(source, path.join(dir, 'reflink')),
-    hardlink: await canLink(() => fs.promises.link(source, path.join(dir, 'hardlink'))),
-    symlink: await canLink(() => fs.promises.symlink(source, path.join(dir, 'symlink'))),
-  }
-}
-
-/**
- * Clone exactly the way the importer does, so the answer describes the reflink
- * pnpm would really attempt: Node cannot clone on macOS or Windows — its
- * `COPYFILE_FICLONE_FORCE` fails there with ENOSYS even on a filesystem that
- * supports cloning — so those platforms go through `@reflink/reflink`, as
- * `@pnpm/fs.indexed-pkg-importer` does.
- */
-function canReflink (source: string, dest: string): boolean {
-  try {
-    if (process.platform === 'darwin' || process.platform === 'win32') {
-      // eslint-disable-next-line
-      const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
-      reflinkFileSync(source, dest)
-    } else {
-      fs.copyFileSync(source, dest, fs.constants.COPYFILE_FICLONE_FORCE)
-    }
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function canLink (link: () => Promise<void>): Promise<boolean> {
-  try {
-    await link()
-    return true
-  } catch {
-    return false
-  }
-}
-
 function readPathEnv (env: NodeJS.ProcessEnv): string | undefined {
   if (process.platform !== 'win32') return env.PATH
   const key = Object.keys(env).find((name) => name.toUpperCase() === 'PATH')
@@ -411,19 +353,6 @@ async function dirIsInPath (dir: string, pathEnv: string): Promise<boolean> {
   try {
     const real = await fs.promises.realpath(dir)
     return dirs.some((entry) => areSameDir(real, entry))
-  } catch {
-    return false
-  }
-}
-
-const areSameDir = (a: string, b: string): boolean => a !== '' && b !== '' && path.relative(a, b) === ''
-
-function canWriteToDir (dir: string): boolean {
-  const probe = path.join(dir, `.pnpm-doctor-write-${process.pid}`)
-  try {
-    fs.writeFileSync(probe, '')
-    fs.rmSync(probe, { force: true })
-    return true
   } catch {
     return false
   }

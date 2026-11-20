@@ -7,6 +7,7 @@ import {
   type Identifier,
   type NumericLiteral,
   type StringLiteral,
+  type Token,
   tokenize,
   type UnexpectedToken,
 } from './token/index.js'
@@ -52,73 +53,77 @@ export class UnexpectedEndOfInputError extends PnpmError {
  *   parsePropertyPath('["foo"].bar.baz')
  *   parsePropertyPath(`["foo"]['bar'].baz`)
  *   parsePropertyPath('foo[123]')
- *
- * @param propertyPath The string of property path to parse.
- * @returns The parsed path in the form of an array.
  */
+type ParseStack =
+  | ExactToken<'.'>
+  | ExactToken<'['>
+  | [ExactToken<'['>, NumericLiteral | StringLiteral]
+
 export function * parsePropertyPath (propertyPath: string): Generator<string | number, void, void> {
-  type Stack =
-    | ExactToken<'.'>
-    | ExactToken<'['>
-    | [ExactToken<'['>, NumericLiteral | StringLiteral]
-  let stack: Stack | undefined
+  let stack: ParseStack | undefined
 
   for (const token of tokenize(propertyPath)) {
-    if (token.type === 'exact' && token.content === '.') {
-      if (!stack) {
-        stack = token
-        continue
-      }
-
-      throw new UnexpectedTokenError(token)
+    const step = processPropertyToken(token, stack)
+    stack = step.nextStack
+    if (step.emittedSegment != null) {
+      yield step.emittedSegment
     }
-
-    if (token.type === 'exact' && token.content === '[') {
-      if (!stack) {
-        stack = token
-        continue
-      }
-
-      throw new UnexpectedTokenError(token)
-    }
-
-    if (token.type === 'exact' && token.content === ']') {
-      if (!Array.isArray(stack)) throw new UnexpectedTokenError(token)
-
-      const [openBracket, literal] = stack
-      assert.equal(openBracket.type, 'exact')
-      assert.equal(openBracket.content, '[')
-      assert(literal.type === 'numeric-literal' || literal.type === 'string-literal')
-
-      yield literal.content
-      stack = undefined
-      continue
-    }
-
-    if (token.type === 'identifier') {
-      if (!stack || ('type' in stack && stack.type === 'exact' && stack.content === '.')) {
-        stack = undefined
-        yield token.content
-        continue
-      }
-
-      throw new UnexpectedIdentifierError(token)
-    }
-
-    if (token.type === 'numeric-literal' || token.type === 'string-literal') {
-      if (stack && 'type' in stack && stack.type === 'exact' && stack.content === '[') {
-        stack = [stack, token]
-        continue
-      }
-
-      throw new UnexpectedLiteralError(token)
-    }
-
-    if (token.type === 'whitespace') continue
-    if (token.type === 'unexpected') throw new UnexpectedTokenError(token)
-
-    const _typeGuard: never = token
   }
 
   if (stack) throw new UnexpectedEndOfInputError()
+}
+
+interface StepResult {
+  nextStack: ParseStack | undefined
+  emittedSegment?: string | number
+}
+
+function processPropertyToken (token: Token, stack: ParseStack | undefined): StepResult {
+  if (token.type === 'exact') {
+    return handleExactToken(token, stack)
+  }
+  if (token.type === 'identifier') {
+    return handleIdentifierToken(token, stack)
+  }
+  if (token.type === 'numeric-literal' || token.type === 'string-literal') {
+    return handleLiteralToken(token, stack)
+  }
+  if (token.type === 'whitespace') {
+    return { nextStack: stack }
+  }
+  if (token.type === 'unexpected') {
+    throw new UnexpectedTokenError(token)
+  }
+  const _typeGuard: never = token
+  return { nextStack: stack }
+}
+
+function handleExactToken (token: ExactToken<string>, stack: ParseStack | undefined): StepResult {
+  if (token.content === '.' || token.content === '[') {
+    if (!stack) return { nextStack: token as ExactToken<'.' | '['> }
+    throw new UnexpectedTokenError(token)
+  }
+  if (token.content === ']') {
+    if (!Array.isArray(stack)) throw new UnexpectedTokenError(token)
+    const [openBracket, literal] = stack
+    assert.equal(openBracket.type, 'exact')
+    assert.equal(openBracket.content, '[')
+    assert(literal.type === 'numeric-literal' || literal.type === 'string-literal')
+    return { emittedSegment: literal.content, nextStack: undefined }
+  }
+  throw new UnexpectedTokenError(token)
+}
+
+function handleIdentifierToken (token: Identifier, stack: ParseStack | undefined): StepResult {
+  if (!stack || ('type' in stack && stack.type === 'exact' && stack.content === '.')) {
+    return { emittedSegment: token.content, nextStack: undefined }
+  }
+  throw new UnexpectedIdentifierError(token)
+}
+
+function handleLiteralToken (token: NumericLiteral | StringLiteral, stack: ParseStack | undefined): StepResult {
+  if (stack && 'type' in stack && stack.type === 'exact' && stack.content === '[') {
+    return { nextStack: [stack, token] }
+  }
+  throw new UnexpectedLiteralError(token)
 }

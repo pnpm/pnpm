@@ -4,10 +4,12 @@ import path from 'node:path'
 
 import { beforeAll, beforeEach, describe, expect, it, jest, test } from '@jest/globals'
 import { install } from '@pnpm/installing.commands'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { PatchCommandOptions, PatchRemoveCommandOptions } from '@pnpm/patching.commands'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import type { DepPath } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -40,12 +42,12 @@ const { patch, patchCommit, patchRemove } = await import('@pnpm/patching.command
 const mockSelect = jest.mocked(select)
 const mockConfirm = jest.mocked(confirmPrompt)
 const mockCheckbox = jest.mocked(mockCheckboxFn)
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const basePatchOption = {
   pnpmHomeDir: '',
   configByUri: {},
-  registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+  registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/` },
   userConfig: {},
   virtualStoreDir: 'node_modules/.pnpm',
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -126,6 +128,58 @@ describe('patch and commit', () => {
     expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
   })
 
+  test('after patch-remove is executed, remove the corresponding .pnpm_patches directory info', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(patchDir).toContain(path.join('node_modules', '.pnpm_patches', 'is-positive@1.0.0'))
+    expect(path.basename(patchDir)).toBe('is-positive@1.0.0')
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+    const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+
+    expect(patchContent).not.toContain('The MIT License (MIT)')
+    expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
+
+    await patchRemove.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      storeDir,
+      patchedDependencies: workspaceManifest?.patchedDependencies,
+    }, ['is-positive@1.0.0'])
+
+    const updatedWorkspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(updatedWorkspaceManifest?.patchedDependencies).toBeUndefined()
+    expect(fs.existsSync(patchDir)).toBe(false)
+
+    const statePath = path.join('node_modules', '.pnpm_patches', 'state.json')
+    expect(fs.existsSync(statePath)).toBe(false)
+    expect(fs.existsSync(path.join('node_modules', '.pnpm_patches'))).toBe(false)
+  })
+
   test('patch and commit without exact version', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive'])
     const patchDir = getPatchDirFromPatchOutput(output)
@@ -161,6 +215,54 @@ describe('patch and commit', () => {
 
     expect(patchContent).not.toContain('The MIT License (MIT)')
     expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
+  })
+
+  test('patch and commit with package name', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching by pkg name', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, ['is-positive'])
+
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'is-positive': 'patches/is-positive.patch',
+    })
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching by pkg name')
+  })
+
+  test('patch and commit with package specifier', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching by specifier', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, ['is-positive@1.0.0'])
+
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching by specifier')
   })
 
   test('patch-commit multiple times', async () => {
@@ -338,6 +440,102 @@ describe('patch and commit', () => {
     }, [patchDir])
 
     expect(fs.existsSync('node_modules/is-positive/ignore.txt')).toBe(false)
+  })
+
+  test.each(['EXDEV', 'EACCES'])('patch and commit falls back to copy when hard linking fails with %s', async (code) => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.writeFileSync(path.join(patchDir, 'ignore.txt'), '', 'utf8')
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test fallback', 'utf8')
+
+    const linkSpy = jest.spyOn(fs.promises, 'link').mockRejectedValue(
+      Object.assign(new Error(`${code}: link failure`), { code })
+    )
+
+    try {
+      await patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])
+
+      expect(linkSpy).toHaveBeenCalled()
+      expect(fs.existsSync('node_modules/is-positive/ignore.txt')).toBe(false)
+      expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test fallback')
+    } finally {
+      linkSpy.mockRestore()
+    }
+  })
+
+  test('preparePkgFilesForDiff preserves packaged symlinks when hard linking falls back to copy', async () => {
+    const editDir = path.join(temporaryDirectory(), 'pkg')
+    await fs.promises.mkdir(editDir, { recursive: true })
+    await fs.promises.writeFile(path.join(editDir, 'package.json'), JSON.stringify({ name: 'pkg', version: '1.0.0' }), 'utf8')
+    await fs.promises.writeFile(path.join(editDir, 'index.js'), 'target content\n', 'utf8')
+    await fs.promises.writeFile(path.join(editDir, 'ignore.txt'), 'ignore\n', 'utf8')
+
+    try {
+      await fs.promises.symlink('index.js', path.join(editDir, 'link.js'))
+    } catch (err: unknown) {
+      if (process.platform === 'win32' && err && typeof err === 'object' && 'code' in err && (err.code === 'EPERM' || err.code === 'EACCES')) {
+        return
+      }
+      throw err
+    }
+
+    const linkSpy = jest.spyOn(fs.promises, 'link').mockRejectedValue(
+      Object.assign(new Error('EXDEV: cross-device link not permitted'), { code: 'EXDEV' })
+    )
+
+    try {
+      const preparedDir = await patchCommit.preparePkgFilesForDiff(editDir, ['package.json', 'index.js', 'link.js'])
+      expect(linkSpy).toHaveBeenCalled()
+      expect(preparedDir).toBe(`${editDir}_tmp`)
+
+      const stat = await fs.promises.lstat(path.join(preparedDir, 'link.js'))
+      expect(stat.isSymbolicLink()).toBe(true)
+      const target = await fs.promises.readlink(path.join(preparedDir, 'link.js'))
+      expect(target).toBe('index.js')
+      await fs.promises.rm(preparedDir, { recursive: true, force: true })
+    } finally {
+      linkSpy.mockRestore()
+      await fs.promises.rm(editDir, { recursive: true, force: true })
+    }
+  })
+
+  test('patch and commit rethrows unexpected hard link errors without falling back to copy', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    fs.writeFileSync(path.join(patchDir, 'ignore.txt'), '', 'utf8')
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test failure', 'utf8')
+
+    const linkSpy = jest.spyOn(fs.promises, 'link').mockRejectedValue(
+      Object.assign(new Error('EIO: i/o error'), { code: 'EIO' })
+    )
+
+    try {
+      await expect(patchCommit.handler({
+        ...DEFAULT_OPTS,
+        cacheDir,
+        dir: process.cwd(),
+        rootProjectManifestDir: process.cwd(),
+        frozenLockfile: false,
+        fixLockfile: true,
+        storeDir,
+      }, [patchDir])).rejects.toMatchObject({ code: 'EIO' })
+
+      expect(linkSpy).toHaveBeenCalled()
+    } finally {
+      linkSpy.mockRestore()
+    }
   })
 
   test('patch and commit with a custom edit dir', async () => {
@@ -654,6 +852,34 @@ describe('patch and commit', () => {
     expect(patchContent).not.toContain('diff --git a/subdir/.DS_Store b/subdir/.DS_Store')
     expect(patchContent).not.toContain('// dummy content')
   })
+
+  test('patch-commit should throw an error if git is not found', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    const opts = {
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }
+
+    const originalPath = process.env.PATH
+    process.env.PATH = ''
+
+    try {
+      await expect(patchCommit.handler(opts, [patchDir])).rejects.toThrow('Unable to diff directories')
+    } finally {
+      if (originalPath === undefined) {
+        delete process.env.PATH
+      } else {
+        process.env.PATH = originalPath
+      }
+    }
+  })
 })
 
 describe('multiple versions', () => {
@@ -693,7 +919,7 @@ describe('multiple versions', () => {
     expect(mockSelect).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Choose which version to patch',
-        choices: ['1.0.0', '2.0.0', '3.0.0'].map(x => expect.objectContaining({ name: x, value: x })),
+        choices: ['1.0.0', '2.0.0', '3.0.0'].map(version => expect.objectContaining({ name: version, value: version })),
       })
     )
     expect(mockConfirm).toHaveBeenCalledWith(
@@ -971,6 +1197,105 @@ describe('patching should work when there is a no EOL in the patched file', () =
     expect(patchContent).toContain('No newline at end of file')
     expect(fs.readFileSync('node_modules/safe-execa/lib/index.js', 'utf8')).toContain('//# sourceMappingURL=index.js.map// patch without newline')
   })
+
+  test('patch and commit updates lockfile when dependencies in package.json are removed', async () => {
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      },
+    })
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store')
+    const patchOption = {
+      ...basePatchOption,
+      cacheDir,
+      dir: process.cwd(),
+      storeDir,
+    }
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+
+    const initialLockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: true })
+    expect(Object.keys(initialLockfile!.packages ?? {})).toEqual(
+      expect.arrayContaining([expect.stringContaining('@pnpm.e2e/dep-of-pkg-with-1-dep')])
+    )
+
+    const output = await patch.handler(patchOption, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    const manifestPath = path.join(patchDir, 'package.json')
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    delete manifest.dependencies
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      storeDir,
+    }, [patchDir])
+
+    const updatedLockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: true })
+    const packageKeys = Object.keys(updatedLockfile!.packages ?? {})
+    expect(packageKeys.some(key => key.includes('@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBe(false)
+  })
+
+  test('patch and commit preserves resolved peer dependencies in snapshot', async () => {
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/wants-peer-c-1': '1.0.0',
+        '@pnpm.e2e/peer-c': '1.0.0',
+      },
+    })
+
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store')
+    const patchOption = {
+      ...basePatchOption,
+      cacheDir,
+      dir: process.cwd(),
+      storeDir,
+    }
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+
+    const initialLockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: true })
+    const snapshotKey = Object.keys(initialLockfile!.packages ?? {}).find(key => key.includes('@pnpm.e2e/wants-peer-c-1')) as DepPath
+    expect(initialLockfile!.packages![snapshotKey].dependencies?.['@pnpm.e2e/peer-c']).toBeDefined()
+
+    const output = await patch.handler(patchOption, ['@pnpm.e2e/wants-peer-c-1@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '\n// patched')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      storeDir,
+    }, [patchDir])
+
+    const updatedLockfile = await readWantedLockfile(process.cwd(), { ignoreIncompatible: true })
+    const updatedSnapshotKey = Object.keys(updatedLockfile!.packages ?? {}).find(key => key.includes('@pnpm.e2e/wants-peer-c-1')) as DepPath
+    const updatedSnapshot = updatedLockfile!.packages![updatedSnapshotKey]
+    expect(updatedSnapshot.dependencies?.['@pnpm.e2e/peer-c']).toBeDefined()
+  })
 })
 
 describe('patch and commit in workspaces', () => {
@@ -1000,7 +1325,7 @@ describe('patch and commit in workspaces', () => {
         dependencies: {
           'is-positive': '1.0.0',
           'project-1': '1',
-          hi: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+          hi: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
         },
       },
     ])
@@ -1074,27 +1399,30 @@ describe('patch and commit in workspaces', () => {
     expect(fs.existsSync('project-2/node_modules/is-positive/license')).toBe(false)
   })
 
-  test('patch and patch-commit should work with shared-workspace-lockfile=false', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  test('patch, patch-commit, and patch-remove should work with shared-workspace-lockfile=false', async () => {
+    const workspaceDir = process.cwd()
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
       storeDir,
       allProjects,
       allProjectsGraph,
-      dir: process.cwd(),
+      dir: workspaceDir,
       lockfileDir: undefined,
       selectedProjectsGraph,
-      workspaceDir: process.cwd(),
+      workspaceDir,
       saveLockfile: true,
       sharedWorkspaceLockfile: false,
     })
-    if (path.basename(process.cwd()) !== 'project-1') {
-      process.chdir('./project-1')
-    }
+    const project1Dir = path.join(workspaceDir, 'project-1')
+    process.chdir(project1Dir)
     const output = await patch.handler({
       ...defaultPatchOption,
-      dir: process.cwd(),
+      dir: project1Dir,
+      workspaceDir,
+      sharedWorkspaceLockfile: false,
+      allProjects,
     }, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
@@ -1111,54 +1439,162 @@ describe('patch and commit in workspaces', () => {
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-      dir: process.cwd(),
-      rootProjectManifestDir: process.cwd(),
+      dir: project1Dir,
+      rootProjectManifestDir: workspaceDir,
       cacheDir,
       storeDir,
-      lockfileDir: process.cwd(),
-      workspaceDir: process.cwd(),
+      lockfileDir: undefined,
+      workspaceDir,
       saveLockfile: true,
       frozenLockfile: false,
       fixLockfile: true,
       sharedWorkspaceLockfile: false,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
+    const { manifest } = await readProjectManifest(project1Dir)
     expect((manifest as Record<string, unknown>)['pnpm']).toBeUndefined()
-    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(fs.existsSync(path.join(project1Dir, 'pnpm-workspace.yaml'))).toBe(false)
+    expect(fs.existsSync(path.join(project1Dir, 'patches'))).toBe(false)
+    const workspaceManifest = await readWorkspaceManifest(workspaceDir)
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
-    const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    const patchFilePath = path.join(workspaceDir, 'patches/is-positive@1.0.0.patch')
+    const patchContent = fs.readFileSync(patchFilePath, 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
-    expect(fs.readFileSync('./node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
-    expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
-    expect(fs.readFileSync('../project-2/node_modules/is-positive/index.js', 'utf8')).not.toContain('// test patching')
-    expect(fs.existsSync('../project-2/node_modules/is-positive/license')).toBe(true)
+    expect(fs.readFileSync(path.join(project1Dir, 'node_modules/is-positive/index.js'), 'utf8')).toContain('// test patching')
+    expect(fs.existsSync(path.join(project1Dir, 'node_modules/is-positive/license'))).toBe(false)
+    expect(fs.readFileSync(path.join(workspaceDir, 'project-2/node_modules/is-positive/index.js'), 'utf8')).toContain('// test patching')
+    expect(fs.existsSync(path.join(workspaceDir, 'project-2/node_modules/is-positive/license'))).toBe(false)
+
+    await patchRemove.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: project1Dir,
+      rootProjectManifestDir: workspaceDir,
+      cacheDir,
+      storeDir,
+      lockfileDir: undefined,
+      workspaceDir,
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+      patchedDependencies: {
+        'is-positive@1.0.0': patchFilePath,
+      },
+    }, ['is-positive@1.0.0'])
+
+    expect(fs.existsSync(patchFilePath)).toBe(false)
+    const workspaceManifestAfterRemove = await readWorkspaceManifest(workspaceDir)
+    expect(workspaceManifestAfterRemove?.patchedDependencies).toBeUndefined()
+    expect(fs.readFileSync(path.join(project1Dir, 'node_modules/is-positive/index.js'), 'utf8')).not.toContain('// test patching')
+    expect(fs.existsSync(path.join(project1Dir, 'node_modules/is-positive/license'))).toBe(true)
   })
 
-  test('reusing existing patch file should work with shared-workspace-lockfile=false', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  test('patch and patch-commit from workspace root should work with shared-workspace-lockfile=false', async () => {
+    const workspaceDir = process.cwd()
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
       storeDir,
       allProjects,
       allProjectsGraph,
-      dir: process.cwd(),
+      dir: workspaceDir,
       lockfileDir: undefined,
       selectedProjectsGraph,
-      workspaceDir: process.cwd(),
+      workspaceDir,
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+    })
+
+    const output = await patch.handler({
+      ...defaultPatchOption,
+      dir: workspaceDir,
+      workspaceDir,
+      sharedWorkspaceLockfile: false,
+      allProjects,
+    }, ['hi@0.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '\n// patched from workspace root\n', 'utf8')
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      cacheDir,
+      storeDir,
+      lockfileDir: undefined,
+      workspaceDir,
+      saveLockfile: true,
+      frozenLockfile: false,
+      fixLockfile: true,
+      sharedWorkspaceLockfile: false,
+    }, [patchDir])
+
+    const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'hi@0.0.0': 'patches/hi@0.0.0.patch',
+    })
+    expect(fs.readFileSync(path.join(workspaceDir, 'project-1/node_modules/hi/index.js'), 'utf8')).toContain('// patched from workspace root')
+  })
+
+  test('install with shared-workspace-lockfile=false fails when a patch is unused across all workspace projects', async () => {
+    const workspaceDir = process.cwd()
+    const patchFilePath = path.join(workspaceDir, 'patches/non-existent@1.0.0.patch')
+    fs.mkdirSync(path.dirname(patchFilePath), { recursive: true })
+    fs.writeFileSync(patchFilePath, 'diff --git a/index.js b/index.js\n', 'utf8')
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+    await expect(install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: workspaceDir,
+      lockfileDir: undefined,
+      selectedProjectsGraph,
+      workspaceDir,
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+      patchedDependencies: {
+        'non-existent@1.0.0': patchFilePath,
+      },
+    })).rejects.toThrow('The following patches were not used: non-existent@1.0.0')
+  })
+
+  test('reusing existing patch file should work with shared-workspace-lockfile=false', async () => {
+    const workspaceDir = process.cwd()
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: workspaceDir,
+      lockfileDir: undefined,
+      selectedProjectsGraph,
+      workspaceDir,
       saveLockfile: true,
       sharedWorkspaceLockfile: false,
     })
 
     // patch project-1
-    process.chdir('./project-1')
+    const project1Dir = path.join(workspaceDir, 'project-1')
+    process.chdir(project1Dir)
     let output = await patch.handler({
       ...defaultPatchOption,
-      dir: process.cwd(),
+      dir: project1Dir,
+      workspaceDir,
+      sharedWorkspaceLockfile: false,
+      allProjects,
     }, ['is-positive@1.0.0'])
     let patchDir = getPatchDirFromPatchOutput(output)
 
@@ -1167,19 +1603,19 @@ describe('patch and commit in workspaces', () => {
     fs.unlinkSync(path.join(patchDir, 'license'))
 
     // patch-commit
-    let workspaceManifest = await readWorkspaceManifest(process.cwd())
+    let workspaceManifest = await readWorkspaceManifest(workspaceDir)
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-      dir: process.cwd(),
-      rootProjectManifestDir: process.cwd(),
+      dir: project1Dir,
+      rootProjectManifestDir: workspaceDir,
       patchedDependencies: workspaceManifest?.patchedDependencies,
       cacheDir,
       storeDir,
-      lockfileDir: process.cwd(),
-      workspaceDir: process.cwd(),
+      lockfileDir: undefined,
+      workspaceDir,
       saveLockfile: true,
       frozenLockfile: false,
       fixLockfile: true,
@@ -1192,11 +1628,17 @@ describe('patch and commit in workspaces', () => {
 
     // re-patch project-1
     fs.rmSync(patchDir, { recursive: true })
-    workspaceManifest = await readWorkspaceManifest(process.cwd())
+    workspaceManifest = await readWorkspaceManifest(workspaceDir)
+    const resolvedPatchedDependencies = Object.fromEntries(
+      Object.entries(workspaceManifest?.patchedDependencies ?? {}).map(([key, relPath]) => [key, path.resolve(workspaceDir, relPath)])
+    )
     output = await patch.handler({
       ...defaultPatchOption,
-      dir: process.cwd(),
-      patchedDependencies: workspaceManifest?.patchedDependencies,
+      dir: project1Dir,
+      workspaceDir,
+      sharedWorkspaceLockfile: false,
+      allProjects,
+      patchedDependencies: resolvedPatchedDependencies,
     }, ['is-positive@1.0.0'])
     patchDir = getPatchDirFromPatchOutput(output)
     expect(fs.existsSync(patchDir)).toBe(true)
@@ -1273,6 +1715,15 @@ describe('patch and commit in workspaces', () => {
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
     expect(fs.readFileSync('./project-2/node_modules/hi/index.js', 'utf8')).toContain('// test patching')
+
+    // re-patch
+    fs.rmSync(patchDir, { recursive: true })
+    const repatchOutput = await patch.handler({
+      ...defaultPatchOption,
+      patchedDependencies: workspaceManifest!.patchedDependencies,
+    }, ['hi'])
+    const repatchDir = getPatchDirFromPatchOutput(repatchOutput)
+    expect(fs.readFileSync(path.join(repatchDir, 'index.js'), 'utf8')).toContain('// test patching')
   })
 })
 
@@ -1283,7 +1734,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
   let storeDir: string
   beforeAll(() => {
     customModulesDirFixture = tempDir()
-    f.copy('custom-modules-dir', customModulesDirFixture)
+    testFixtures.copy('custom-modules-dir', customModulesDirFixture)
     cacheDir = path.resolve(customModulesDirFixture, 'cache')
     storeDir = path.resolve(customModulesDirFixture, 'store')
     defaultPatchOption = {
@@ -1409,8 +1860,7 @@ describe('patch-remove', () => {
       rootProjectManifest: manifest,
       patchedDependencies,
     }, [])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((mockCheckbox.mock.calls[0][0] as any).choices.map((c: any) => c.value)).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
+    expect((mockCheckbox.mock.calls[0][0] as { choices: ReadonlyArray<{ value: string }> }).choices.map(choice => choice.value)).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
     mockCheckbox.mockClear()
 
     const workspaceManifest = await readWorkspaceManifest(process.cwd())

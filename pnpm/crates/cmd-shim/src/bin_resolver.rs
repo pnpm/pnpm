@@ -1,7 +1,25 @@
+pub use pnpm_package_manifest::{
+    PackageBin,
+    is_safe_bin_name,
+};
+
 use crate::capabilities::FsWalkFiles;
 use pnpm_fs::is_subdir;
+use pnpm_package_manifest::{
+    ScriptRuntime,
+    declared_bin_entries,
+    normalize_bin_path,
+    normalize_package_relative_path,
+    unscoped_bin_name,
+};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// One bin entry resolved from a package's `package.json`.
 ///
@@ -11,6 +29,36 @@ use std::path::{Path, PathBuf};
 pub struct Command {
     pub name: String,
     pub path: PathBuf,
+    /// Precalculated script runtime (and target existence guarantee) from
+    /// archive inspection or `dist.pnpr.bins`. `None` when resolved from
+    /// `package.json` without precalculated bin metadata.
+    pub precalculated_runtime: Option<Option<ScriptRuntime>>,
+}
+
+/// Convert precalculated [`PackageBin`] entries into [`Command`]s rooted at
+/// `pkg_path`, returning `None` if any entry fails name or path validation.
+#[must_use]
+pub fn commands_from_precalculated_bins(
+    bins: &BTreeMap<String, PackageBin>,
+    pkg_path: &Path,
+) -> Option<Vec<Command>> {
+    let mut commands = Vec::with_capacity(bins.len());
+    for (name, bin) in bins {
+        if !is_safe_bin_name(name) || !bin.is_valid() {
+            return None;
+        }
+        let rel_path = normalize_package_relative_path(&bin.path).filter(|rel| !rel.is_empty())?;
+        let bin_path = pkg_path.join(&rel_path);
+        if !is_subdir(pkg_path, &bin_path) {
+            return None;
+        }
+        commands.push(Command {
+            name: name.clone(),
+            path: bin_path,
+            precalculated_runtime: Some(bin.script_runtime()),
+        });
+    }
+    Some(commands)
 }
 
 /// Bin names that legitimately ship inside a different package than their own
@@ -44,18 +92,35 @@ pub fn pkg_owns_bin(bin_name: &str, pkg_name: &str) -> bool {
 /// rooted at `pkg_path`.
 ///
 /// An empty-string `bin` declares no command, as it does in pnpm v11.
+#[must_use]
 pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
     manifest: &Value,
     pkg_path: &Path,
 ) -> Vec<Command> {
+    get_bins_from_package_manifest_with_walk(manifest, pkg_path, |directory| {
+        Sys::walk_files(directory).map(Iterator::collect::<Vec<_>>)
+    })
+}
+
+/// Resolve bins with a caller-provided recursive file walk, including virtual files.
+pub fn get_bins_from_package_manifest_with_walk<Paths: IntoIterator<Item = PathBuf>>(
+    manifest: &Value,
+    pkg_path: &Path,
+    walk_files: impl FnOnce(&Path) -> std::io::Result<Paths>,
+) -> Vec<Command> {
     let pkg_name = manifest.get("name").and_then(Value::as_str);
-    if let Some(bin) = manifest.get("bin").filter(|bin| bin.as_str() != Some("")) {
+    if let Some(bin) = manifest
+        .get("bin")
+        .filter(|bin| bin.as_str() != Some(""))
+    {
         return commands_from_bin(bin, pkg_name, pkg_path);
     }
-    if let Some(bin_dir_rel) =
-        manifest.get("directories").and_then(|d| d.get("bin")).and_then(Value::as_str)
+    if let Some(bin_dir_rel) = manifest
+        .get("directories")
+        .and_then(|d| d.get("bin"))
+        .and_then(Value::as_str)
     {
-        return commands_from_directories_bin::<Sys>(bin_dir_rel, pkg_path);
+        return commands_from_directories_bin(bin_dir_rel, pkg_path, walk_files);
     }
     Vec::new()
 }
@@ -64,9 +129,10 @@ pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
 /// [`Command`] per file, the `directories.bin` branch of bin resolution.
 ///
 /// Symlinks are not followed.
-fn commands_from_directories_bin<Sys: FsWalkFiles>(
+fn commands_from_directories_bin<Paths: IntoIterator<Item = PathBuf>>(
     bin_dir_rel: &str,
     pkg_path: &Path,
+    walk_files: impl FnOnce(&Path) -> std::io::Result<Paths>,
 ) -> Vec<Command> {
     let bin_dir = pkg_path.join(bin_dir_rel);
     if !is_subdir(pkg_path, &bin_dir) {
@@ -75,7 +141,7 @@ fn commands_from_directories_bin<Sys: FsWalkFiles>(
     // Treat a top-level walk error as "no bins". The trait's production
     // impl already drops per-entry errors inside its iterator, so an `Err`
     // here only fires when the walker can't even open `bin_dir`.
-    let Ok(paths) = Sys::walk_files(&bin_dir) else {
+    let Ok(paths) = walk_files(&bin_dir) else {
         return Vec::new();
     };
     let mut commands = Vec::new();
@@ -87,79 +153,31 @@ fn commands_from_directories_bin<Sys: FsWalkFiles>(
         if !is_safe_bin_name(name) {
             continue;
         }
-        commands.push(Command { name: name.to_string(), path });
+        commands.push(Command { name: name.to_string(), path, precalculated_runtime: None });
     }
     commands
 }
 
 fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Vec<Command> {
-    let mut entries: Vec<(String, String)> = Vec::new();
-    match bin {
-        Value::String(rel_path) => {
-            let Some(name) = pkg_name else {
-                return Vec::new();
-            };
-            entries.push((name.to_string(), rel_path.clone()));
-        }
-        Value::Object(map) => {
-            for (key, value) in map {
-                let Some(rel_path) = value.as_str() else {
-                    continue;
-                };
-                entries.push((key.clone(), rel_path.to_string()));
-            }
-        }
-        _ => return Vec::new(),
-    }
-
+    let entries = declared_bin_entries(bin, pkg_name);
     let mut commands = Vec::with_capacity(entries.len());
     for (command_name, bin_relative_path) in entries {
-        let bin_name = if command_name.starts_with('@') {
-            match command_name.find('/') {
-                Some(slash) => command_name[slash + 1..].to_string(),
-                None => command_name,
-            }
-        } else {
-            command_name
-        };
-
+        let bin_name = unscoped_bin_name(command_name);
         if !is_safe_bin_name(&bin_name) {
             continue;
         }
-
+        let Some(bin_relative_path) =
+            normalize_bin_path(&bin_relative_path).filter(|path| !path.is_empty())
+        else {
+            continue;
+        };
         let bin_path = pkg_path.join(&bin_relative_path);
         if !is_subdir(pkg_path, &bin_path) {
             continue;
         }
-
-        commands.push(Command { name: bin_name, path: bin_path });
+        commands.push(Command { name: bin_name, path: bin_path, precalculated_runtime: None });
     }
     commands
-}
-
-/// Whether `name` matches the URL-safe character set allowed by JavaScript's
-/// `encodeURIComponent`, or is the single-character escape hatch `$` pnpm
-/// permits for awkward but legitimate bin names. Together these are the only
-/// names pnpm allows the linker to write to disk.
-///
-/// `encodeURIComponent` leaves the following bytes unescaped:
-/// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`.
-///
-/// `.` and `..` survive `encodeURIComponent` unchanged but resolve to the bin
-/// directory itself or its parent when joined to a target dir, so they are
-/// rejected explicitly.
-#[must_use]
-pub fn is_safe_bin_name(name: &str) -> bool {
-    if name == "$" {
-        return true;
-    }
-    if name.is_empty() || name == "." || name == ".." {
-        return false;
-    }
-    name.bytes().all(|byte| {
-        byte.is_ascii_alphanumeric()
-            || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
-    })
 }
 
 #[cfg(test)]

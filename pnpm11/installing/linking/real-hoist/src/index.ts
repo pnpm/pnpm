@@ -1,11 +1,12 @@
 import * as dp from '@pnpm/deps.path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
-import type { PackageSnapshot } from '@pnpm/lockfile.types'
+import type { PackageSnapshot, ProjectSnapshot } from '@pnpm/lockfile.types'
 import {
   type LockfileObject,
   nameVerFromPkgSnapshot,
   type ProjectId,
 } from '@pnpm/lockfile.utils'
+import type { DepPath } from '@pnpm/types'
 import { hoist as _hoist, HoisterDependencyKind, type HoisterResult, type HoisterTree } from '@yarnpkg/nm/hoist'
 
 /**
@@ -70,164 +71,279 @@ export function getHoisterPkgId (depPath: string, pkgSnapshot: PackageSnapshot):
  * not hoisted above it. Returns `undefined` for `'none'` (and when
  * unset) so the hoister hoists as far as possible.
  */
-export function getHoistingLimits (lockfile: Pick<LockfileObject, 'importers'>, mode: HoistingLimits | undefined): Map<string, Set<string>> | undefined {
+export function getHoistingLimits (
+  lockfile: Pick<LockfileObject, 'importers'>,
+  mode: HoistingLimits | undefined
+): Map<string, Set<string>> | undefined {
   if (!mode || mode === 'none') return undefined
 
   const hoistingLimits = new Map<string, Set<string>>()
   const rootHoistingLimit = new Set<string>()
 
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
-    const isWorkspaceRoot = importerId === '.'
-    const encodedId = encodeURIComponent(importerId)
-    if (!isWorkspaceRoot) {
-      rootHoistingLimit.add(encodedId)
-      if (mode !== 'dependencies') {
-        // In `'workspaces'` mode it's enough to border each workspace
-        // package at the root; their own direct deps don't need a
-        // per-importer border.
-        continue
-      }
-    }
+    addImporterHoistingLimits({
+      hoistingLimits,
+      importer,
+      importerId,
+      mode,
+      rootHoistingLimit,
+    })
+  }
 
-    const reference = isWorkspaceRoot ? '' : `workspace:${importerId}`
-    const hoistingLimit = isWorkspaceRoot ? rootHoistingLimit : new Set<string>()
-
-    hoistingLimits.set(`${encodedId}@${reference}`, hoistingLimit)
-
-    for (const deps of [importer.dependencies, importer.devDependencies, importer.optionalDependencies]) {
-      if (!deps) continue
-      for (const dep of Object.keys(deps)) {
-        hoistingLimit.add(dep)
-      }
-    }
+  if (!hoistingLimits.has('.@')) {
+    hoistingLimits.set('.@', rootHoistingLimit)
   }
 
   return hoistingLimits
+}
+
+interface AddImporterLimitsOptions {
+  hoistingLimits: Map<string, Set<string>>
+  importer: ProjectSnapshot
+  importerId: string
+  mode: HoistingLimits
+  rootHoistingLimit: Set<string>
+}
+
+function addImporterHoistingLimits (opts: AddImporterLimitsOptions): void {
+  const { hoistingLimits, importer, importerId, mode, rootHoistingLimit } = opts
+  const isWorkspaceRoot = importerId === '.'
+  const encodedId = encodeURIComponent(importerId)
+  if (!isWorkspaceRoot) {
+    rootHoistingLimit.add(encodedId)
+    if (mode !== 'dependencies') {
+      return
+    }
+  }
+
+  const reference = isWorkspaceRoot ? '' : `workspace:${importerId}`
+  const hoistingLimit = isWorkspaceRoot ? rootHoistingLimit : new Set<string>()
+  hoistingLimits.set(`${encodedId}@${reference}`, hoistingLimit)
+
+  collectDirectDeps(importer, hoistingLimit)
+}
+
+function collectDirectDeps (
+  importer: ProjectSnapshot,
+  targetSet: Set<string>
+): void {
+  const depGroups = [importer.dependencies, importer.devDependencies, importer.optionalDependencies]
+  for (const deps of depGroups) {
+    if (!deps) continue
+    for (const dep of Object.keys(deps)) {
+      targetSet.add(dep)
+    }
+  }
 }
 
 export function hoist (
   lockfile: LockfileObject,
   opts?: {
     hoistingLimits?: HoistingLimits
-    // This option was added for Bit CLI in order to prevent pnpm from overwriting dependencies linked by Bit.
-    // However, in the future it might be useful to use it in pnpm for skipping any dependencies added by external tools.
-    externalDependencies?: Set<string>
+    externalDependencies?: Iterable<string>
     autoInstallPeers?: boolean
   }
 ): HoisterResult {
-  const nodes = new Map<string, HoisterTree>()
-  const ctx = {
+  const ctx: TreeContext = {
     autoInstallPeers: opts?.autoInstallPeers,
-    nodes,
-    lockfile,
     depPathByPkgId: new Map<string, string>(),
+    lockfile,
+    nodes: new Map<string, HoisterTree>(),
   }
-  const _toTree = toTree.bind(null, ctx)
-  const node: HoisterTree = {
-    name: '.',
-    identName: '.',
-    reference: '',
-    peerNames: new Set<string>([]),
-    dependencyKind: HoisterDependencyKind.WORKSPACE,
-    dependencies: _toTree({
-      ...lockfile.importers['.' as ProjectId]?.dependencies,
-      ...lockfile.importers['.' as ProjectId]?.devDependencies,
-      ...lockfile.importers['.' as ProjectId]?.optionalDependencies,
-      ...(Array.from(opts?.externalDependencies ?? [])).reduce((acc, dep) => {
-        // It doesn't matter what version spec is used here.
-        // This dependency will be removed from the tree anyway.
-        // It is only needed to prevent the hoister from hoisting deps with this name to the root of node_modules.
-        acc[dep] = 'link:'
-        return acc
-      }, {} as Record<string, string>),
-    }),
-  }
+  const externalDependencies = toExternalDependencySet(opts?.externalDependencies)
+  const rootNode = buildRootHoisterTree(lockfile, ctx, externalDependencies)
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
     if (importerId === '.') continue
-    const importerNode: HoisterTree = {
-      name: encodeURIComponent(importerId),
-      identName: encodeURIComponent(importerId),
-      reference: `workspace:${importerId}`,
-      peerNames: new Set<string>([]),
-      dependencyKind: HoisterDependencyKind.WORKSPACE,
-      dependencies: _toTree({
-        ...importer.dependencies,
-        ...importer.devDependencies,
-        ...importer.optionalDependencies,
-      }),
-    }
-    node.dependencies.add(importerNode)
+    rootNode.dependencies.add(buildImporterHoisterTree(importerId, importer, ctx))
   }
 
   const hoistingLimits = getHoistingLimits(lockfile, opts?.hoistingLimits)
-  const hoisterResult = _hoist(node, { ...opts, hoistingLimits })
-  if (opts?.externalDependencies) {
-    for (const hoistedDep of hoisterResult.dependencies.values()) {
-      if (opts.externalDependencies.has(hoistedDep.name)) {
-        hoisterResult.dependencies.delete(hoistedDep)
-      }
-    }
+  const hoisterResult = _hoist(rootNode, { ...opts, hoistingLimits })
+  if (externalDependencies) {
+    filterExternalDependencies(hoisterResult, externalDependencies)
   }
   return hoisterResult
 }
 
+function toExternalDependencySet (
+  externalDependencies: Iterable<string> | undefined
+): Set<string> | undefined {
+  if (externalDependencies == null) return undefined
+  return externalDependencies instanceof Set
+    ? externalDependencies
+    : new Set(externalDependencies)
+}
+
+function buildRootHoisterTree (
+  lockfile: LockfileObject,
+  ctx: TreeContext,
+  externalDependencies?: Set<string>
+): HoisterTree {
+  const rootImporter = lockfile.importers['.' as ProjectId]
+  const externalDepsMap: Record<string, string> = {}
+  for (const dep of externalDependencies ?? []) {
+    externalDepsMap[dep] = 'link:'
+  }
+  return {
+    dependencies: toTree(ctx, {
+      ...rootImporter?.dependencies,
+      ...rootImporter?.devDependencies,
+      ...rootImporter?.optionalDependencies,
+      ...externalDepsMap,
+    }),
+    dependencyKind: HoisterDependencyKind.WORKSPACE,
+    identName: '.',
+    name: '.',
+    peerNames: new Set<string>([]),
+    reference: '',
+  }
+}
+
+function buildImporterHoisterTree (
+  importerId: string,
+  importer: ProjectSnapshot,
+  ctx: TreeContext
+): HoisterTree {
+  return {
+    dependencies: toTree(ctx, {
+      ...importer.dependencies,
+      ...importer.devDependencies,
+      ...importer.optionalDependencies,
+    }),
+    dependencyKind: HoisterDependencyKind.WORKSPACE,
+    identName: encodeURIComponent(importerId),
+    name: encodeURIComponent(importerId),
+    peerNames: new Set<string>([]),
+    reference: `workspace:${importerId}`,
+  }
+}
+
+function filterExternalDependencies (
+  result: HoisterResult,
+  externalDependencies: Set<string>
+): void {
+  for (const hoistedDep of result.dependencies.values()) {
+    if (externalDependencies.has(hoistedDep.name)) {
+      result.dependencies.delete(hoistedDep)
+    }
+  }
+}
+
+interface TreeContext {
+  autoInstallPeers?: boolean
+  depPathByPkgId: Map<string, string>
+  lockfile: LockfileObject
+  nodes: Map<string, HoisterTree>
+}
+
 function toTree (
-  { nodes, lockfile, depPathByPkgId, autoInstallPeers }: {
-    autoInstallPeers?: boolean
-    depPathByPkgId: Map<string, string>
-    lockfile: LockfileObject
-    nodes: Map<string, HoisterTree>
-  },
+  ctx: TreeContext,
   deps: Record<string, string>
 ): Set<HoisterTree> {
   return new Set(Object.entries(deps).map(([alias, ref]) => {
-    const depPath = dp.refToRelative(ref, alias)!
+    const depPath = dp.refToRelative(ref, alias)
     if (!depPath) {
-      const key = `${alias}:${ref}`
-      let node = nodes.get(key)
-      if (!node) {
-        node = {
-          name: alias,
-          identName: alias,
-          reference: ref,
-          dependencyKind: HoisterDependencyKind.REGULAR,
-          dependencies: new Set(),
-          peerNames: new Set(),
-        }
-        nodes.set(key, node)
-      }
-      return node
+      return getOrCreateWorkspaceNode(ctx.nodes, alias, ref)
     }
-    const key = `${alias}:${depPath}`
-    let node = nodes.get(key)
-    if (!node) {
-      const pkgSnapshot = lockfile.packages![depPath]
-      if (!pkgSnapshot) {
-        throw new LockfileMissingDependencyError(depPath)
-      }
-      const { name: pkgName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const id = getHoisterPkgId(depPath, pkgSnapshot)
-      if (!depPathByPkgId.has(id)) {
-        depPathByPkgId.set(id, depPath)
-      }
-      node = {
-        name: alias,
-        identName: pkgName,
-        reference: depPathByPkgId.get(id)!,
-        dependencyKind: HoisterDependencyKind.REGULAR,
-        dependencies: new Set(),
-        peerNames: new Set(autoInstallPeers
-          ? []
-          : [
-            ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
-            ...(pkgSnapshot.transitivePeerDependencies ?? []),
-          ]),
-      }
-      nodes.set(key, node)
-      node.dependencies = toTree(
-        { nodes, lockfile, depPathByPkgId, autoInstallPeers },
-        { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
-    }
-    return node
+    return getOrCreatePackageNode(ctx, alias, depPath)
   }))
+}
+
+function getOrCreateWorkspaceNode (
+  nodes: Map<string, HoisterTree>,
+  alias: string,
+  ref: string
+): HoisterTree {
+  const key = `${alias}:${ref}`
+  let node = nodes.get(key)
+  if (!node) {
+    node = {
+      dependencies: new Set(),
+      dependencyKind: dp.packageRootLinkTarget(ref) != null
+        ? HoisterDependencyKind.WORKSPACE
+        : HoisterDependencyKind.REGULAR,
+      identName: alias,
+      name: alias,
+      peerNames: new Set(),
+      reference: ref,
+    }
+    nodes.set(key, node)
+  }
+  return node
+}
+
+function getOrCreatePackageNode (
+  ctx: TreeContext,
+  alias: string,
+  depPath: string
+): HoisterTree {
+  const key = `${alias}:${depPath}`
+  let node = ctx.nodes.get(key)
+  if (!node) {
+    const pkgSnapshot = ctx.lockfile.packages?.[depPath as DepPath]
+    if (!pkgSnapshot) {
+      throw new LockfileMissingDependencyError(depPath)
+    }
+    const { name: pkgName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    const id = getHoisterPkgId(depPath, pkgSnapshot)
+    if (!ctx.depPathByPkgId.has(id)) {
+      ctx.depPathByPkgId.set(id, depPath)
+    }
+    node = {
+      dependencies: new Set(),
+      dependencyKind: HoisterDependencyKind.REGULAR,
+      identName: pkgName,
+      name: alias,
+      peerNames: ctx.autoInstallPeers ? new Set() : resolvePeerNames(depPath as DepPath, pkgSnapshot),
+      reference: ctx.depPathByPkgId.get(id)!,
+    }
+    ctx.nodes.set(key, node)
+    node.dependencies = toTree(ctx, {
+      ...pkgSnapshot.dependencies,
+      ...pkgSnapshot.optionalDependencies,
+    })
+  }
+  return node
+}
+
+function resolvePeerNames (depPath: DepPath, pkgSnapshot: PackageSnapshot): Set<string> {
+  const peerNames = new Set([
+    ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
+    ...(pkgSnapshot.transitivePeerDependencies ?? []),
+  ])
+  for (const name of getOwnDependenciesDeclaredAsPeers(depPath, pkgSnapshot)) {
+    peerNames.delete(name)
+  }
+  return peerNames
+}
+
+/**
+ * The declared peers that the package's own dependency provides. The lockfile
+ * records every declared peer, but `depPath`'s peer suffix binds only the
+ * peers resolved from outside the package. A hashed suffix names no provider,
+ * so every declared peer stays a peer.
+ */
+function getOwnDependenciesDeclaredAsPeers (depPath: DepPath, pkgSnapshot: PackageSnapshot): string[] {
+  const declaredPeers = Object.keys(pkgSnapshot.peerDependencies ?? {})
+  if (declaredPeers.length === 0) return []
+  const bindings = dp.parsePeerBindings(depPath)
+  if (bindings?.kind === 'hashed') return []
+  // `dedupePeers` writes a provider as its name and version only, without its
+  // patch hash, so both sides are compared without suffixes.
+  const boundProviders = new Set(bindings == null ? [] : dp.getPeerBindingProviders(bindings).map(dp.removeSuffix))
+  return declaredPeers.filter((name) => {
+    const ref = getOwnDependencyRef(pkgSnapshot, name)
+    const target = ref == null ? null : dp.refToRelative(ref, name)
+    return target != null && !boundProviders.has(dp.removeSuffix(target))
+  })
+}
+
+function getOwnDependencyRef (pkgSnapshot: PackageSnapshot, name: string): string | undefined {
+  if (pkgSnapshot.dependencies != null && Object.hasOwn(pkgSnapshot.dependencies, name)) {
+    return pkgSnapshot.dependencies[name]
+  }
+  if (pkgSnapshot.optionalDependencies != null && Object.hasOwn(pkgSnapshot.optionalDependencies, name)) {
+    return pkgSnapshot.optionalDependencies[name]
+  }
+  return undefined
 }

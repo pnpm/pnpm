@@ -36,7 +36,11 @@ fn restart_runs_stop_restart_start_in_order() {
         .run(dir, &config, ReporterType::Silent)
         .expect("restart should succeed");
     let content = std::fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
     assert_eq!(lines, vec!["stop", "restart", "start"]);
 }
 
@@ -55,6 +59,18 @@ fn restart_with_if_present_skips_missing_stop_and_restart() {
     RestartArgs { args: vec![], if_present: true }
         .run(dir, &config, ReporterType::Silent)
         .expect("--if-present should skip missing stop/restart");
+}
+
+#[cfg(unix)]
+#[test]
+fn restart_with_if_present_skips_when_all_scripts_and_server_js_are_missing() {
+    let tmp = TempDir::new().expect("tmp dir");
+    let dir = tmp.path();
+    setup_project(dir, &json!({}));
+    let config = test_config();
+    RestartArgs { args: vec![], if_present: true }
+        .run(dir, &config, ReporterType::Silent)
+        .expect("--if-present should skip missing stop, restart, and start");
 }
 
 #[cfg(unix)]
@@ -88,13 +104,17 @@ fn restart_passes_args_to_each_script() {
         .run(dir, &config, ReporterType::Silent)
         .expect("restart should succeed");
     let content = std::fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
     assert_eq!(lines, vec!["stop myarg", "restart myarg", "start myarg"]);
 }
 
 /// These tests drive `RestartArgs::run` in-process, so the
 /// verify-deps-before-run gate must stay off: its `install` default
-/// would spawn `current_exe()` — the test harness binary — as the
+/// would spawn `current_exe()` (the test harness binary) as the
 /// installer. pnpm's unit tests equally construct their options
 /// without the setting.
 fn test_config() -> pnpm_config::Config {

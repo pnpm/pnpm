@@ -2,8 +2,7 @@ import { createServer } from 'node:net'
 
 export const isPortInUse = (port: number): Promise<boolean> => new Promise((resolve, reject) => {
   const server = createServer()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  server.once('error', (err: any) => {
+  server.once('error', (err: NodeJS.ErrnoException) => {
     if (err?.code !== 'EADDRINUSE') {
       reject(err); return
     }

@@ -1,4 +1,8 @@
-use super::{MAX_LICENSE_FILE_SIZE, detect_license_from_text, resolve_license_from_dir};
+use super::{
+    MAX_LICENSE_FILE_SIZE,
+    detect_license_from_text,
+    resolve_license_from_dir,
+};
 use tempfile::TempDir;
 
 #[test]

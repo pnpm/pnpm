@@ -13,63 +13,91 @@ export function assertValidWorkspaceManifestVersioning (manifest: { packages?: r
   const versioning = assertPlainObject(manifest.versioning, 'versioning')
 
   if (versioning.fixed != null) {
-    if (!Array.isArray(versioning.fixed)) {
-      throw new InvalidWorkspaceManifestError(`Expected versioning.fixed to be an array of arrays, but found - ${typeof versioning.fixed}`)
-    }
-    for (const group of versioning.fixed) {
-      if (!Array.isArray(group) || group.some((name) => typeof name !== 'string' || name === '')) {
-        throw new InvalidWorkspaceManifestError('Expected every versioning.fixed group to be an array of package names')
-      }
-    }
+    validateFixedGroups(versioning.fixed)
   }
 
   if (versioning.epics != null) {
-    if (!Array.isArray(versioning.epics)) {
-      throw new InvalidWorkspaceManifestError(`Expected versioning.epics to be an array, but found - ${typeof versioning.epics}`)
-    }
-    for (const epic of versioning.epics) {
-      const entry = assertPlainObject(epic, 'versioning.epics entry')
-      if (typeof entry.lead !== 'string' || entry.lead === '') {
-        throw new InvalidWorkspaceManifestError('Expected every versioning.epics entry to have a non-empty "lead" package reference')
-      }
-      if (!Array.isArray(entry.packages) || entry.packages.length === 0 || entry.packages.some((selector) => typeof selector !== 'string' || selector === '')) {
-        throw new InvalidWorkspaceManifestError(`Expected versioning.epics entry for "${entry.lead}" to have a non-empty "packages" array of selector strings`)
-      }
-    }
+    validateEpics(versioning.epics)
   }
 
   if (versioning.ignore != null) {
-    if (!Array.isArray(versioning.ignore) || versioning.ignore.some((name) => typeof name !== 'string' || name === '')) {
-      throw new InvalidWorkspaceManifestError('Expected versioning.ignore to be an array of package names')
-    }
+    validateIgnore(versioning.ignore)
   }
 
   if (versioning.maxBump != null) {
-    if (!(BUMP_TYPES as readonly unknown[]).includes(versioning.maxBump)) {
-      throw new InvalidWorkspaceManifestError(`Expected versioning.maxBump to be one of ${BUMP_TYPES.join(', ')}, but found - ${String(versioning.maxBump)}`)
-    }
+    validateMaxBump(versioning.maxBump)
   }
 
   if (versioning.lanes != null) {
-    const lanes = assertPlainObject(versioning.lanes, 'versioning.lanes')
-    for (const [pkgName, lane] of Object.entries(lanes)) {
-      if (typeof lane !== 'string' || lane === '') {
-        throw new InvalidWorkspaceManifestError(`Expected versioning.lanes entry for ${pkgName} to be a non-empty lane name`)
-      }
-      if (lane.toLowerCase() === 'main') {
-        throw new InvalidWorkspaceManifestError(`Invalid versioning.lanes entry for ${pkgName}: "main" is the reserved default lane. Remove the entry instead.`)
-      }
-    }
+    validateLanes(versioning.lanes)
   }
 
   if (versioning.changelog != null) {
-    const changelog = assertPlainObject(versioning.changelog, 'versioning.changelog')
-    if (changelog.format != null && typeof changelog.format !== 'string') {
-      throw new InvalidWorkspaceManifestError(`Expected versioning.changelog.format to be a string, but found - ${typeof changelog.format}`)
+    validateChangelog(versioning.changelog)
+  }
+}
+
+function validateFixedGroups (fixed: unknown): void {
+  if (!Array.isArray(fixed)) {
+    throw new InvalidWorkspaceManifestError(`Expected versioning.fixed to be an array of arrays, but found - ${typeof fixed}`)
+  }
+  for (const group of fixed) {
+    if (!Array.isArray(group) || group.some((name) => typeof name !== 'string' || name === '')) {
+      throw new InvalidWorkspaceManifestError('Expected every versioning.fixed group to be an array of package names')
     }
-    if (changelog.storage != null && !(CHANGELOG_STORAGE_MODES as readonly unknown[]).includes(changelog.storage)) {
-      throw new InvalidWorkspaceManifestError(`Expected versioning.changelog.storage to be one of ${CHANGELOG_STORAGE_MODES.join(', ')}, but found - ${String(changelog.storage)}`)
+  }
+}
+
+function validateEpics (epics: unknown): void {
+  if (!Array.isArray(epics)) {
+    throw new InvalidWorkspaceManifestError(`Expected versioning.epics to be an array, but found - ${typeof epics}`)
+  }
+  for (const epic of epics) {
+    validateEpicEntry(epic)
+  }
+}
+
+function validateEpicEntry (epic: unknown): void {
+  const entry = assertPlainObject(epic, 'versioning.epics entry')
+  if (typeof entry.lead !== 'string' || entry.lead === '') {
+    throw new InvalidWorkspaceManifestError('Expected every versioning.epics entry to have a non-empty "lead" package reference')
+  }
+  if (!Array.isArray(entry.packages) || entry.packages.length === 0 || entry.packages.some((selector) => typeof selector !== 'string' || selector === '')) {
+    throw new InvalidWorkspaceManifestError(`Expected versioning.epics entry for "${entry.lead}" to have a non-empty "packages" array of selector strings`)
+  }
+}
+
+function validateIgnore (ignore: unknown): void {
+  if (!Array.isArray(ignore) || ignore.some((name) => typeof name !== 'string' || name === '')) {
+    throw new InvalidWorkspaceManifestError('Expected versioning.ignore to be an array of package names')
+  }
+}
+
+function validateMaxBump (maxBump: unknown): void {
+  if (!(BUMP_TYPES as readonly unknown[]).includes(maxBump)) {
+    throw new InvalidWorkspaceManifestError(`Expected versioning.maxBump to be one of ${BUMP_TYPES.join(', ')}, but found - ${String(maxBump)}`)
+  }
+}
+
+function validateLanes (lanesValue: unknown): void {
+  const lanes = assertPlainObject(lanesValue, 'versioning.lanes')
+  for (const [pkgName, lane] of Object.entries(lanes)) {
+    if (typeof lane !== 'string' || lane === '') {
+      throw new InvalidWorkspaceManifestError(`Expected versioning.lanes entry for ${pkgName} to be a non-empty lane name`)
     }
+    if (lane.toLowerCase() === 'main') {
+      throw new InvalidWorkspaceManifestError(`Invalid versioning.lanes entry for ${pkgName}: "main" is the reserved default lane. Remove the entry instead.`)
+    }
+  }
+}
+
+function validateChangelog (changelogValue: unknown): void {
+  const changelog = assertPlainObject(changelogValue, 'versioning.changelog')
+  if (changelog.format != null && typeof changelog.format !== 'string') {
+    throw new InvalidWorkspaceManifestError(`Expected versioning.changelog.format to be a string, but found - ${typeof changelog.format}`)
+  }
+  if (changelog.storage != null && !(CHANGELOG_STORAGE_MODES as readonly unknown[]).includes(changelog.storage)) {
+    throw new InvalidWorkspaceManifestError(`Expected versioning.changelog.storage to be one of ${CHANGELOG_STORAGE_MODES.join(', ')}, but found - ${String(changelog.storage)}`)
   }
 }
 

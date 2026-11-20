@@ -5,18 +5,18 @@ import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/c
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext } from '@pnpm/hooks.types'
-import type { ProjectOptions } from '@pnpm/installing.context'
+import type { HookOptions, ProjectOptions } from '@pnpm/installing.context'
 import type { HoistingLimits } from '@pnpm/installing.deps-restorer'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { PreferredVersions, ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyRules, ProjectRootDir, ReadPackageHook, RegistryConfig, RegistryContext, RemoteSideEffectsCacheSettings, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyIssues, PeerDependencyRules, ProjectManifest, ProjectRootDir, ReadPackageHook, RegistryConfig, RegistryContext, RemoteSideEffectsCacheSettings, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
+import { createInstallReadPackageHook } from './createInstallReadPackageHook.js'
 
 export interface StrictInstallOptions extends RegistryContext {
   autoConfirmAllPrompts: boolean
@@ -25,6 +25,7 @@ export interface StrictInstallOptions extends RegistryContext {
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
   catalogPrune: boolean
+  deploy?: boolean
   minimumReleaseAgeExcludePrune: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
@@ -46,6 +47,13 @@ export interface StrictInstallOptions extends RegistryContext {
   updateChecksums: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
+  /**
+   * When true, the settings recorded in the lockfile are not compared with
+   * the current configuration, so a mismatch neither fails a frozen install
+   * nor triggers a re-resolution. The current `overrides` still apply to the
+   * project manifests, so a changed override still makes them outdated.
+   */
+  ignoreLockfileSettingsChecks: boolean
   ignorePackageManifest: boolean
   /**
    * When true, skip fetching local dependencies (file: protocol pointing to directories).
@@ -74,8 +82,14 @@ export interface StrictInstallOptions extends RegistryContext {
   storeDir: string
   reporter: ReporterFunction
   force: boolean
+  /** See `installabilityUnderForce` in `@pnpm/config.package-is-installable`. */
+  forceIgnoresPlatform: boolean
   depth: number
   lockfileDir: string
+  /** The directory relative local paths in `overrides` resolve from: a pinned `lockfileDir`, else the workspace root. */
+  overridesRootDir: string
+  workspaceDir?: string
+  sharedWorkspaceLockfile: boolean
   modulesDir: string
   configByUri: Record<string, RegistryConfig>
   verifyStoreIntegrity: boolean
@@ -85,6 +99,7 @@ export interface StrictInstallOptions extends RegistryContext {
   nodeExperimentalPackageMap: boolean
   nodePackageMapType: 'standard' | 'loose'
   nodeVersion?: string
+  nodeVersionFromEnginesRuntime?: boolean
   packageExtensions: Record<string, PackageExtension>
   ignoredOptionalDependencies: string[]
   pnpmfile: string[] | string
@@ -101,7 +116,7 @@ export interface StrictInstallOptions extends RegistryContext {
     customResolvers?: CustomResolver[]
     customFetchers?: CustomFetcher[]
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
-    hasUntrackedReadPackageHook?: boolean
+    untrackedPnpmfileReadPackageHook?: boolean
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
@@ -110,6 +125,8 @@ export interface StrictInstallOptions extends RegistryContext {
   includeDirect: IncludedDependencies
   ignoreCurrentSpecifiers: boolean
   ignoreScripts: boolean
+  /** Dependency builds are postponed until the workspace-wide rebuild pass. */
+  deferDependencyBuilds: boolean
   childConcurrency: number
   userAgent: string
   unsafePerm: boolean
@@ -146,8 +163,9 @@ export interface StrictInstallOptions extends RegistryContext {
   globalBin?: string
   patchedDependencies?: Record<string, string>
 
-  allProjects: ProjectOptions[]
+  allProjects: Array<ProjectOptions & HookOptions>
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+  deployAllFiles?: boolean
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
   dedupeInjectedDeps: boolean
@@ -159,11 +177,8 @@ export interface StrictInstallOptions extends RegistryContext {
   /**
    * Don't relink local directory dependencies if they are not hard linked from the local directory.
    *
-   * This option was added to fix an issue with Bit CLI.
    * Bit compile adds dist directories to the injected dependencies, so if pnpm were to relink them,
    * the dist directories would be deleted.
-   *
-   * The option might be used in the future to improve performance.
    */
   disableRelinkLocalDirDeps: boolean
 
@@ -188,7 +203,7 @@ export interface StrictInstallOptions extends RegistryContext {
    * skipped on abort.
    *
    * Intentionally policy-neutral. Each verifier owns its violation
-   * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, …); the
+   * codes (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`, ...); the
    * install command filters by code to decide what to do. Future
    * resolvers can plug verifiers in without touching this signature.
    */
@@ -197,8 +212,7 @@ export interface StrictInstallOptions extends RegistryContext {
   ) => Promise<void>
   /**
    * Resolver-side verifiers that re-check each lockfile-pinned resolution
-   * against policies configured upstream (today: at most one,
-   * `npm.minimumReleaseAge` in strict mode). Constructed by `createClient`
+   * against policies configured upstream. Constructed by `createClient`
    * and surfaced via the `createStoreController` return; mutateModules
    * fans out across the list once, right after the lockfile is loaded
    * from disk. Empty when no policy is active.
@@ -208,9 +222,7 @@ export interface StrictInstallOptions extends RegistryContext {
    * pnpm's on-disk cache directory. When set together with non-empty
    * `resolutionVerifiers`, the lockfile verification result is memoized
    * in `<cacheDir>/lockfile-verified.jsonl` so repeat installs against an
-   * unchanged lockfile skip the per-package registry round trip. The
-   * record is policy-neutral; each active resolver-side verifier writes
-   * its own slot under `verifiers[<key>]`.
+   * unchanged lockfile skip the per-package registry round trip.
    */
   cacheDir?: string
   trustPolicy?: TrustPolicy
@@ -227,7 +239,7 @@ export interface StrictInstallOptions extends RegistryContext {
    * where every commit comes from a trusted author, fully reproducible
    * CI runs against an already-verified lockfile, etc.
    *
-   * Added for #11860: on workspaces with thousands of locked entries,
+   * Added for pnpm/pnpm#11860: on workspaces with thousands of locked entries,
    * the verification pass holds the per-package registry metadata
    * needed for the trust check resident in memory and can OOM CI
    * runners with a 2GB heap cap.
@@ -258,7 +270,7 @@ export interface StrictInstallOptions extends RegistryContext {
    */
   runPacquet?: {
     supportsResolution: boolean
-    run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean }) => Promise<void>
+    run: (opts?: { filterResolvedProgress?: boolean, resolve?: boolean, rootProjectPreinstallRan?: boolean }) => Promise<void>
   }
   /**
    * If true, `mutateModules` does not emit the per-install `summary` log
@@ -268,11 +280,38 @@ export interface StrictInstallOptions extends RegistryContext {
    */
   omitSummaryLog: boolean
   /**
+   * A materialization pass runs straight after this one and links into the
+   * same `node_modules`. It owns the reporter's `importing_done`, because the
+   * default reporter completes a prefix's progress stream on the first one and
+   * the real fetch and import counts would render to a closed stream. It also
+   * lets this pass move aside a `node_modules` entry another package manager
+   * installed, clearing the path the next pass links into.
+   *
+   * False for a standalone `--lockfile-only` or `--dry-run` run: no pass
+   * follows, so it emits its own completion, imports no package, and relocates
+   * no such entry.
+   */
+  materializeAfterResolution: boolean
+  /**
    * URL of a pnpr server that resolves dependencies server-side and serves
    * only the files missing from the client's store.
    */
   pnprServer?: string
   remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  beforeLifecycleScripts?: (result: BeforeLifecycleScriptsResult) => Promise<void>
+}
+
+export interface BeforeLifecycleScriptsResult {
+  updatedProjects: Array<{
+    originalManifest?: ProjectManifest
+    manifest: ProjectManifest
+    peerDependencyIssues?: PeerDependencyIssues
+    rootDir: ProjectRootDir
+  }>
+  updatedCatalogs?: Catalogs
+  newLockfile?: LockfileObject
+  wantedLockfile?: LockfileObject
+  resolutionPolicyViolations?: ResolutionPolicyViolation[]
 }
 
 export type InstallOptions =
@@ -285,28 +324,105 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     version: pnpmPkgJson.version,
   }
   return {
-    allowedDeprecatedVersions: {},
-    allowUnusedPatches: false,
+    ...SCALAR_DEFAULTS,
+    ...createObjectDefaults(),
     autoConfirmAllPrompts: opts.autoConfirmAllPrompts ?? false,
-    autoInstallPeers: true,
-    autoInstallPeersFromHighestMatch: false,
-    catalogs: {},
-    childConcurrency: 5,
     confirmModulesPurge: !(opts.autoConfirmAllPrompts || opts.force),
-    depth: 0,
-    dedupeInjectedDeps: true,
-    enableGlobalVirtualStore: false,
-    enablePnp: false,
-    engineStrict: false,
-    force: false,
-    forceFullResolution: false,
-    frozenLockfile: false,
-    frozenStore: false,
-    hoistPattern: undefined,
-    publicHoistPattern: undefined,
+    deploy: opts.deploy ?? false,
+    lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
+    overridesRootDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir ?? process.cwd(),
+    workspaceDir: opts.workspaceDir,
+    nodeVersion: opts.nodeVersion,
+    packageManager,
+    storeController: opts.storeController,
+    storeDir: opts.storeDir,
+    unsafePerm: process.platform === 'win32' ||
+      process.platform === 'cygwin' ||
+      !process.setgid ||
+      process.getuid?.() !== 0,
+    userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
+  } as StrictInstallOptions
+}
+
+const SCALAR_DEFAULTS = {
+  allowUnusedPatches: false,
+  autoInstallPeers: true,
+  autoInstallPeersFromHighestMatch: false,
+  childConcurrency: 5,
+  depth: 0,
+  dedupeInjectedDeps: true,
+  enableGlobalVirtualStore: false,
+  enablePnp: false,
+  engineStrict: false,
+  force: false,
+  forceIgnoresPlatform: true,
+  forceFullResolution: false,
+  frozenLockfile: false,
+  frozenStore: false,
+  hoistPattern: undefined,
+  publicHoistPattern: undefined,
+  ignoreCurrentSpecifiers: false,
+  ignoreScripts: false,
+  deferDependencyBuilds: false,
+  lockfileOnly: false,
+  updateChecksums: false,
+  nodeLinker: 'isolated',
+  nodeExperimentalPackageMap: false,
+  nodePackageMapType: 'standard',
+  ownLifecycleHooksStdio: 'inherit',
+  ignoreCompatibilityDb: false,
+  ignoreLockfileSettingsChecks: false,
+  ignorePackageManifest: false,
+  ignoreLocalPackages: false,
+  preferFrozenLockfile: true,
+  preferWorkspacePackages: false,
+  preserveWorkspaceProtocol: true,
+  pruneLockfileImporters: false,
+  pruneStore: false,
+  resolutionMode: 'highest',
+  saveWorkspaceProtocol: 'rolling',
+  scriptsPrependNodePath: false,
+  shamefullyHoist: false,
+  sharedWorkspaceLockfile: true,
+  shellEmulator: false,
+  sideEffectsCacheRead: false,
+  sideEffectsCacheWrite: false,
+  symlink: true,
+  strictPeerDependencies: false,
+  tag: 'latest',
+  catalogMode: 'manual',
+  catalogPrune: false,
+  minimumReleaseAgeExcludePrune: false,
+  useLockfile: true,
+  saveLockfile: true,
+  useGitBranchLockfile: false,
+  mergeGitBranchLockfiles: false,
+  verifyStoreIntegrity: true,
+  enableModulesDir: true,
+  virtualStoreOnly: false,
+  modulesCacheMaxAge: 7 * 24 * 60,
+  resolveSymlinksInInjectedDirs: false,
+  dedupeDirectDeps: true,
+  dedupePeerDependents: true,
+  dedupePeers: false,
+  resolvePeersFromWorkspaceRoot: true,
+  extendNodePath: true,
+  ignoreWorkspaceCycles: false,
+  disallowWorkspaceCycles: false,
+  excludeLinksFromLockfile: false,
+  skipRuntimes: false,
+  virtualStoreDirMaxLength: 120,
+  peersSuffixMaxLength: 1000,
+  blockExoticSubdeps: false,
+  omitSummaryLog: false,
+  materializeAfterResolution: false,
+} as const satisfies Partial<StrictInstallOptions>
+
+function createObjectDefaults (): Partial<StrictInstallOptions> {
+  return {
+    allowedDeprecatedVersions: {},
+    catalogs: {},
     hooks: {},
-    ignoreCurrentSpecifiers: false,
-    ignoreScripts: false,
     include: {
       dependencies: true,
       devDependencies: true,
@@ -317,72 +433,13 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
-    lockfileOnly: false,
-    updateChecksums: false,
-    nodeVersion: opts.nodeVersion,
-    nodeLinker: 'isolated',
-    nodeExperimentalPackageMap: false,
-    nodePackageMapType: 'standard',
     overrides: {},
-    ownLifecycleHooksStdio: 'inherit',
-    ignoreCompatibilityDb: false,
-    ignorePackageManifest: false,
-    ignoreLocalPackages: false,
     packageExtensions: {},
     ignoredOptionalDependencies: [] as string[],
-    packageManager,
-    preferFrozenLockfile: true,
-    preferWorkspacePackages: false,
-    preserveWorkspaceProtocol: true,
-    pruneLockfileImporters: false,
-    pruneStore: false,
     configByUri: {},
     registriesByScope: DEFAULT_REGISTRIES_BY_SCOPE,
-    resolutionMode: 'highest',
-    saveWorkspaceProtocol: 'rolling',
-    scriptsPrependNodePath: false,
-    shamefullyHoist: false,
-    shellEmulator: false,
-    sideEffectsCacheRead: false,
-    sideEffectsCacheWrite: false,
-    symlink: true,
-    storeController: opts.storeController,
-    storeDir: opts.storeDir,
-    strictPeerDependencies: false,
-    tag: 'latest',
-    unsafePerm: process.platform === 'win32' ||
-      process.platform === 'cygwin' ||
-      !process.setgid ||
-      process.getuid?.() !== 0,
-    catalogMode: 'manual',
-    catalogPrune: false,
-    minimumReleaseAgeExcludePrune: false,
-    useLockfile: true,
-    saveLockfile: true,
-    useGitBranchLockfile: false,
-    mergeGitBranchLockfiles: false,
-    userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
-    verifyStoreIntegrity: true,
-    enableModulesDir: true,
-    virtualStoreOnly: false,
-    modulesCacheMaxAge: 7 * 24 * 60,
-    resolveSymlinksInInjectedDirs: false,
-    dedupeDirectDeps: true,
-    dedupePeerDependents: true,
-    dedupePeers: false,
-    resolvePeersFromWorkspaceRoot: true,
-    extendNodePath: true,
-    ignoreWorkspaceCycles: false,
-    disallowWorkspaceCycles: false,
-    excludeLinksFromLockfile: false,
-    skipRuntimes: false,
-    virtualStoreDirMaxLength: 120,
-    peersSuffixMaxLength: 1000,
-    blockExoticSubdeps: false,
-    omitSummaryLog: false,
     resolutionVerifiers: [] as ResolutionVerifier[],
-  } as StrictInstallOptions
+  }
 }
 
 export interface ProcessedInstallOptions extends StrictInstallOptions {
@@ -393,6 +450,7 @@ export interface ProcessedInstallOptions extends StrictInstallOptions {
    * `mutateModules` adds its own for a catalog entry it moves.
    */
   preferredVersions?: PreferredVersions
+  preferredVersionsByImporterId?: Record<string, PreferredVersions>
   parsedOverrides: VersionOverride[]
   /**
    * Present when the overrides contain convergence entries (`"pkg@"`). The
@@ -402,16 +460,8 @@ export interface ProcessedInstallOptions extends StrictInstallOptions {
   convergeDeclaredRanges?: Map<string, Set<string>>
 }
 
-export function extendOptions (
-  opts: InstallOptions
-): ProcessedInstallOptions {
-  if (opts) {
-    for (const key in opts) {
-      if (opts[key as keyof InstallOptions] === undefined) {
-        delete opts[key as keyof InstallOptions]
-      }
-    }
-  }
+export function extendOptions (opts: InstallOptions): ProcessedInstallOptions {
+  if (opts) removeUndefinedOptions(opts)
 
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {
@@ -423,56 +473,68 @@ export function extendOptions (
   if (extendedOpts.parsedOverrides.some(({ converge }) => converge)) {
     extendedOpts.convergeDeclaredRanges = new Map()
   }
-  extendedOpts.readPackageHook = createReadPackageHook({
-    ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
-    readPackageHook: extendedOpts.hooks?.readPackage,
-    overrides: extendedOpts.parsedOverrides,
-    convergeDeclaredRanges: extendedOpts.convergeDeclaredRanges,
-    lockfileDir: extendedOpts.lockfileDir,
-    packageExtensions: extendedOpts.packageExtensions,
-    ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,
-  })
-  if (extendedOpts.virtualStoreOnly && !extendedOpts.enableModulesDir && !extendedOpts.enableGlobalVirtualStore) {
+  extendedOpts.readPackageHook = createInstallReadPackageHook(extendedOpts, extendedOpts.parsedOverrides)
+  throwOnConflictingOptions(extendedOpts)
+  applyImpliedOptions(extendedOpts)
+  if (extendedOpts.userAgent.startsWith('npm/')) {
+    extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
+  }
+  extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
+  applyGlobalVirtualStoreOptions(extendedOpts)
+  return extendedOpts
+}
+
+function removeUndefinedOptions (opts: InstallOptions): void {
+  for (const key in opts) {
+    if (opts[key as keyof InstallOptions] === undefined) {
+      delete opts[key as keyof InstallOptions]
+    }
+  }
+}
+
+function throwOnConflictingOptions (opts: ProcessedInstallOptions): void {
+  if (opts.virtualStoreOnly && !opts.enableModulesDir && !opts.enableGlobalVirtualStore) {
     throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_ONLY_WITH_NO_MODULES_DIR',
       'Cannot use virtualStoreOnly when enableModulesDir is false (the standard virtual store requires node_modules/.pnpm)')
   }
-  if (extendedOpts.virtualStoreOnly) {
-    // Ensure .modules.yaml records empty hoist patterns so a subsequent
-    // normal install knows hoisting must be redone from scratch.
-    extendedOpts.hoistPattern = []
-    extendedOpts.publicHoistPattern = []
+  if (opts.lockfileOnly && !opts.useLockfile) {
+    throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
+      `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
   }
-  if (extendedOpts.lockfileOnly) {
-    extendedOpts.ignoreScripts = true
-    if (!extendedOpts.useLockfile) {
-      throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
-        `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
-    }
-  }
-  if (extendedOpts.frozenStore && extendedOpts.force) {
+  if (opts.frozenStore && opts.force) {
     throw new PnpmError('CONFIG_CONFLICT_FROZEN_STORE_WITH_FORCE',
       'Cannot use force together with frozenStore: --force re-imports packages into the store, which is opened read-only when frozenStore is enabled')
   }
-  if (extendedOpts.frozenStore) {
+}
+
+function applyImpliedOptions (opts: ProcessedInstallOptions): void {
+  if (opts.virtualStoreOnly) {
+    // Ensure .modules.yaml records empty hoist patterns so a subsequent
+    // normal install knows hoisting must be redone from scratch.
+    opts.hoistPattern = []
+    opts.publicHoistPattern = []
+  }
+  if (opts.lockfileOnly) {
+    opts.ignoreScripts = true
+  }
+  if (opts.frozenStore) {
     // The side-effects cache is written into the store, which frozenStore opens
     // read-only. Caching is an optimization, not a correctness requirement, so
     // force it off rather than failing (the writable seed-build already
     // populated it). Without this, a build under frozenStore (e.g. with the
     // global virtual store disabled) would attempt a store write.
-    extendedOpts.sideEffectsCacheWrite = false
+    opts.sideEffectsCacheWrite = false
   }
-  if (extendedOpts.userAgent.startsWith('npm/')) {
-    extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
-  }
-  extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
-  if (extendedOpts.enableGlobalVirtualStore) {
-    if (extendedOpts.virtualStoreDir == null) {
-      extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+}
+
+function applyGlobalVirtualStoreOptions (opts: ProcessedInstallOptions): void {
+  if (opts.enableGlobalVirtualStore) {
+    if (opts.virtualStoreDir == null) {
+      opts.virtualStoreDir = path.join(opts.storeDir, 'links')
     }
-    extendedOpts.allowBuilds ??= {}
+    opts.allowBuilds ??= {}
   }
-  extendedOpts.globalVirtualStoreDir = extendedOpts.enableGlobalVirtualStore
-    ? extendedOpts.virtualStoreDir!
-    : path.join(extendedOpts.storeDir, 'links')
-  return extendedOpts
+  opts.globalVirtualStoreDir = opts.enableGlobalVirtualStore
+    ? opts.virtualStoreDir!
+    : path.join(opts.storeDir, 'links')
 }

@@ -1,9 +1,8 @@
 import path from 'node:path'
-import util from 'node:util'
 
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import type { PnpmSettings } from '@pnpm/types'
-import { readYamlFile } from 'read-yaml-file'
+import { readYamlFile, readYamlFileSync } from 'read-yaml-file'
 
 import {
   assertValidWorkspaceManifestCatalog,
@@ -41,18 +40,66 @@ export async function readWorkspaceManifest (dir: string, cfgFileName: ConfigFil
   return manifest
 }
 
+/**
+ * Reads only the listed top-level keys, so a key outside them that does not
+ * validate cannot fail the read, and any listed key that fails validation on
+ * its own is omitted so the remaining keys still load.
+ */
+export async function readWorkspaceManifestKeys (
+  dir: string,
+  keys: ReadonlySet<string>,
+  cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME
+): Promise<WorkspaceManifest | undefined> {
+  const manifest = await readManifestRaw(dir, cfgFileName)
+  if (manifest == null || typeof manifest !== 'object' || Array.isArray(manifest)) return undefined
+  const picked = Object.fromEntries(Object.entries(manifest).filter(([key, value]) => {
+    if (!keys.has(key)) return false
+    try {
+      validateWorkspaceManifest({ [key]: value })
+      return true
+    } catch {
+      return false
+    }
+  }))
+  validateWorkspaceManifest(picked)
+  return picked
+}
+
+export function readWorkspaceManifestSync (dir: string, cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME): WorkspaceManifest | undefined {
+  const manifest = readManifestRawSync(dir, cfgFileName)
+  validateWorkspaceManifest(manifest)
+  return manifest
+}
+
 async function readManifestRaw (dir: string, cfgFileName: ConfigFileName): Promise<unknown> {
   try {
     return await readYamlFile<WorkspaceManifest>(path.join(dir, cfgFileName))
   } catch (err: unknown) {
     // File not exists is the same as empty file (undefined)
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isErrorWithCode(err, 'ENOENT')) {
       return undefined
     }
 
     // Any other error (missing perm, invalid yaml, etc.) fails the process
     throw err
   }
+}
+
+function readManifestRawSync (dir: string, cfgFileName: ConfigFileName): unknown {
+  try {
+    return readYamlFileSync<WorkspaceManifest>(path.join(dir, cfgFileName))
+  } catch (err: unknown) {
+    if (isErrorWithCode(err, 'ENOENT')) {
+      return undefined
+    }
+    throw err
+  }
+}
+
+// Some Node.js-compatible runtimes, such as StackBlitz WebContainers, throw fs
+// errors that carry a code but are not native errors.
+function isErrorWithCode (err: unknown, code: string): boolean {
+  return err != null && typeof err === 'object' && 'code' in err && err.code === code
 }
 
 export function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
@@ -83,7 +130,7 @@ export function validateWorkspaceManifest (manifest: unknown): asserts manifest 
 }
 
 function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
-  if (!manifest.packages) {
+  if (manifest.packages == null) {
     return
   }
 
@@ -105,8 +152,6 @@ function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown })
 
 /**
  * Empty function to ensure TypeScript has narrowed the manifest object to
- * something assignable to the {@see WorkspaceManifest} interface. This helps
- * make sure the validation logic in this file is correct as it's refactored in
- * the future.
+ * something assignable to the {@see WorkspaceManifest} interface.
  */
 function checkWorkspaceManifestAssignability (_manifest: WorkspaceManifest): void {}

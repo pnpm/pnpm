@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.cafs-types",
-  "version": "1100.1.0",
+  "version": "1100.1.2",
   "description": "Types for the cafs",
   "keywords": [
     "pnpm",
@@ -26,8 +26,8 @@
   ],
   "scripts": {
     "test": "pn compile",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     "lint": "eslint \"src/**/*.ts\""
   },
   "devDependencies": {

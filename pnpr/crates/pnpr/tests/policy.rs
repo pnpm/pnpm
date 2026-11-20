@@ -5,12 +5,28 @@
 //! Static-mode (no upstream) to keep the tests hermetic.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{Config, router};
-use serde_json::{Value, json};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use pnpr::{
+    Config,
+    router,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::net::{
+    Ipv4Addr,
+    SocketAddr,
+    SocketAddrV4,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -27,7 +43,7 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
     // Route everything to one local hosted over the flat storage root (an
-    // empty `org` namespace), so the path-less base resolves and the
+    // empty `namespace`), so the path-less base resolves and the
     // registry's own `packages:` rules gate the request. The callers pass a
     // top-level-shaped block ("packages:\n  '<key>': ..."); nest it under
     // the registry by re-indenting.
@@ -39,8 +55,8 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
         .collect::<Vec<_>>()
         .join("\n");
     let yaml = format!(
-        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\nregistries:\n  \
-         local:\n    type: hosted\n    org: \"\"\n    access: $all\n    packages:\n{nested}\n  \
+        "storage: {}\nauth:\n  users:\n    maxUsers: 100\nregistries:\n  \
+         local:\n    type: hosted\n    namespace: \"\"\n    access: $all\n    packages:\n{nested}\n  \
          main:\n    type: router\n    sources: [local]\n\
          defaultRegistry: main\n",
         storage.display(),
@@ -48,12 +64,14 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
     let config =
-        Config::from_yaml(&path, listen(), Some("http://example.test".to_string())).unwrap();
+        pnpr_fixtures::load_seeded_config(&path, listen(), Some("http://example.test".to_string()));
     (dir, config)
 }
 
 fn get(path: &str) -> Request<Body> {
-    Request::get(path).body(Body::empty()).unwrap()
+    Request::get(path)
+        .body(Body::empty())
+        .unwrap()
 }
 
 fn get_auth(path: &str, token: &str) -> Request<Body> {
@@ -84,7 +102,10 @@ async fn add_user_and_get_token(app: &axum::Router, username: &str, password: &s
     assert_eq!(response.status(), StatusCode::CREATED);
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&bytes).unwrap();
-    payload["token"].as_str().expect("token in response").to_string()
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
 }
 
 #[tokio::test]
@@ -95,10 +116,10 @@ async fn authenticated_access_token_from_yaml_gates_anonymous_reads() {
     let app = router(config);
 
     // `@secret/*` requires auth: an anonymous read is 401.
-    assert_eq!(status_of(app.clone(), get("/@secret/thing")).await, StatusCode::UNAUTHORIZED);
-    // A `**` ($all) package is readable anonymously — it's just absent
+    assert_eq!(status_of(app.clone(), get("/npm/@secret/thing")).await, StatusCode::UNAUTHORIZED);
+    // A `**` ($all) package is readable anonymously; it's just absent
     // on disk, so 404, which proves the access check passed.
-    assert_eq!(status_of(app, get("/lodash")).await, StatusCode::NOT_FOUND);
+    assert_eq!(status_of(app, get("/npm/lodash")).await, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -109,28 +130,31 @@ async fn anonymous_rule_admits_anonymous_and_forbids_authenticated() {
     let app = router(config);
 
     // Anonymous read passes the access check (404 = allowed but absent).
-    assert_eq!(status_of(app.clone(), get("/@anon/x")).await, StatusCode::NOT_FOUND);
+    assert_eq!(status_of(app.clone(), get("/npm/@anon/x")).await, StatusCode::NOT_FOUND);
 
     // An authenticated caller is outside the `$anonymous` group → 403.
-    let token = add_user_and_get_token(&app, "alice", "secret").await;
-    assert_eq!(status_of(app, get_auth("/@anon/x", &token)).await, StatusCode::FORBIDDEN);
+    let token = add_user_and_get_token(&app, "alice", "secret123").await;
+    assert_eq!(status_of(app, get_auth("/npm/@anon/x", &token)).await, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
-async fn username_in_access_list_grants_only_that_user() {
-    // verdaccio per-user access: `@team/*` is restricted to `alice`.
-    let (_dir, config) =
-        config_from_yaml("packages:\n  '@team/*':\n    access: alice\n  '**':\n    access: $all\n");
-    let app = router(config);
+async fn account_id_in_access_list_grants_only_that_user() {
+    let auth = pnpr::AuthState::in_memory();
+    let (_, alice_id) = auth.users.add_or_login("alice", "secret123").await.unwrap();
+    assert_ne!(alice_id, "alice");
+    let (_dir, config) = config_from_yaml(&format!(
+        "packages:\n  '@team/*':\n    access: {alice_id}\n  '**':\n    access: $all\n",
+    ));
+    let app = pnpr::router_with_auth(config, auth);
 
     // Anonymous: no creds for a name-gated package → 401.
-    assert_eq!(status_of(app.clone(), get("/@team/x")).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(status_of(app.clone(), get("/npm/@team/x")).await, StatusCode::UNAUTHORIZED);
 
     // A different authenticated user is not `alice` → 403.
-    let bob = add_user_and_get_token(&app, "bob", "secret").await;
-    assert_eq!(status_of(app.clone(), get_auth("/@team/x", &bob)).await, StatusCode::FORBIDDEN);
+    let bob = add_user_and_get_token(&app, "bob", "secret123").await;
+    assert_eq!(status_of(app.clone(), get_auth("/npm/@team/x", &bob)).await, StatusCode::FORBIDDEN);
 
     // `alice` is on the list → access granted (404 = allowed but absent).
-    let alice = add_user_and_get_token(&app, "alice", "secret").await;
-    assert_eq!(status_of(app, get_auth("/@team/x", &alice)).await, StatusCode::NOT_FOUND);
+    let alice = add_user_and_get_token(&app, "alice", "secret123").await;
+    assert_eq!(status_of(app, get_auth("/npm/@team/x", &alice)).await, StatusCode::NOT_FOUND);
 }

@@ -5,7 +5,7 @@ use crate::dep_path::DepPath;
 ///
 /// `Pair` is used when the peer resolver wants to identify a peer by its
 /// `name@version` (the common path, and what `dedupePeers` emits).
-/// `DepPath` carries an already-built depPath — for transitive peers
+/// `DepPath` carries an already-built depPath, for transitive peers
 /// that have their own peers, the suffix is recursive.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PeerId {
@@ -19,7 +19,7 @@ impl PeerId {
     /// leading `/` stripped (the `/`-prefix fast path for the absolute /
     /// relative depPath distinction).
     #[must_use]
-    pub fn as_segment(&self) -> String {
+    pub fn to_segment(&self) -> String {
         match self {
             PeerId::Pair { name, version } => format!("{name}@{version}"),
             PeerId::DepPath(dep_path) => match dep_path.as_str().strip_prefix('/') {

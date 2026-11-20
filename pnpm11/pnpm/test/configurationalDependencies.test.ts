@@ -1,11 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { expect, test } from '@jest/globals'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
-import { getIntegrity } from '@pnpm/testing.registry-mock'
-import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -109,7 +108,7 @@ test('config deps are installed after switching to a pnpm version that supports 
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
   // Write .npmrc so the switched-to pnpm version can find the mock registry
-  fs.writeFileSync('.npmrc', `registry=http://localhost:${REGISTRY_MOCK_PORT}/\n`)
+  fs.writeFileSync('.npmrc', `registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/\n`)
   // Use old inline integrity format that pnpm v10 understands
   writeYamlFileSync('pnpm-workspace.yaml', {
     configDependencies: {
@@ -149,26 +148,21 @@ test('package manager from the packageManager field is not saved into the lockfi
   expect(envLockfile!.importers['.'].packageManagerDependencies).toBeUndefined()
 })
 
-// These tests resolve the running pnpm version's integrity from registry-mock,
-// which proxies pnpm to npmjs. They fail between a release commit and the
-// matching npm publish ("No matching version found for pnpm@<version>"), and
-// pass again once the version lands on npmjs.
-describe('release-brittle: may fail until current version is published to npm', () => {
-  test('packageManagerDependencies is refreshed when pnpm is invoked via corepack (#11397)', async () => {
-    const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
-    prepare({
-      devEngines: {
-        packageManager: {
-          name: 'pnpm',
-          version: pnpmVersion,
-        },
+test('packageManagerDependencies is refreshed when pnpm is invoked via corepack (#11397)', async () => {
+  const pnpmVersion = JSON.parse(fs.readFileSync(path.join(path.dirname(pnpmBinLocation), '..', 'package.json'), 'utf8')).version as string
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
       },
-    })
+    },
+  })
 
-    // Seed the lockfile with a stale packageManagerDependencies entry that no
-    // longer satisfies devEngines.packageManager. Multi-document YAML: env
-    // lockfile is the first doc, the (empty) installer lockfile is the second.
-    fs.writeFileSync('pnpm-lock.yaml', `---
+  // Seed the lockfile with a stale packageManagerDependencies entry that no
+  // longer satisfies devEngines.packageManager. Multi-document YAML: env
+  // lockfile is the first doc, the (empty) installer lockfile is the second.
+  fs.writeFileSync('pnpm-lock.yaml', `---
 lockfileVersion: '9.0'
 importers:
   '.':
@@ -183,17 +177,19 @@ snapshots: {}
 ---
 `)
 
-    // COREPACK_ROOT used to skip the entire pm-handling block, leaving the
-    // stale 0.0.1 entry untouched. The sync must run regardless of how pnpm
-    // was invoked.
-    await execPnpm(['install'], {
-      env: { COREPACK_ROOT: '/fake/corepack' },
-    })
-
-    const envLockfile = await readEnvLockfile(process.cwd())
-    expect(envLockfile).not.toBeNull()
-    expect(envLockfile!.importers['.'].packageManagerDependencies?.['pnpm'].version).toBe(pnpmVersion)
+  // Package-manager dependency synchronization must run when pnpm is invoked
+  // through Corepack, including when COREPACK_ROOT is set, and replace the
+  // stale lockfile entry.
+  await execPnpm(['install'], {
+    env: {
+      COREPACK_ROOT: '/fake/corepack',
+      pnpm_config_registry: process.env.PNPM_CURRENT_VERSION_REGISTRY!,
+    },
   })
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile).not.toBeNull()
+  expect(envLockfile!.importers['.'].packageManagerDependencies?.['pnpm'].version).toBe(pnpmVersion)
 })
 
 test('installing a new configurational dependency', async () => {

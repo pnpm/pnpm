@@ -1,14 +1,36 @@
 //! Read-only git queries shared by the commands that branch on
-//! repository state: `pnpm publish`'s working-tree checks, `pnpm
-//! version`'s clean-tree gate, and the per-branch lockfile settings.
+//! repository state.
+//! Also the environment that keeps the git resolver's and fetcher's
+//! invocations from waiting on the terminal.
 //!
 //! Counterpart of pnpm's `@pnpm/network.git-utils`.
 
+pub(crate) use pnpm_process as process;
+
+pub use capabilities::{
+    CommandOutput,
+    Host,
+    RunCommand,
+};
+pub use non_interactive::{
+    disable_git_prompts,
+    has_configured_ssh_command,
+    non_interactive_git_env,
+};
+
 mod capabilities;
+mod non_interactive;
 
-pub use capabilities::{CommandOutput, Host, RunCommand};
-
-use std::{fs, io, io::Read, path::Path};
+use std::{
+    collections::BTreeSet,
+    fs,
+    io,
+    io::Read,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 /// Whether `cwd` is inside a git repository.
 #[must_use]
@@ -53,11 +75,77 @@ pub fn get_current_branch<Sys: RunCommand>(cwd: &Path) -> Option<String> {
     }
 }
 
+/// Verify that HEAD resolves to a detached commit. Refused metadata and failed
+/// Git queries are not treated as detached.
+#[must_use]
+pub fn is_head_detached<Sys: RunCommand>(cwd: &Path) -> bool {
+    if matches!(read_branch_from_head_file(cwd), HeadBranch::Branch(_) | HeadBranch::Refused) {
+        return false;
+    }
+    Sys::run("git", &["rev-parse", "--verify", "--symbolic-full-name", "HEAD"], Some(cwd))
+        .is_ok_and(|output| output.success && output.stdout.trim() == "HEAD")
+}
+
+/// The branches that contain HEAD, sorted, or empty when git cannot answer,
+/// a repository without commits, or no repository at all.
+///
+/// Remote-tracking branches count under their branch name, because a CI
+/// checkout of a commit SHA usually has no local branch at all. The remote
+/// name is taken to be the first segment after `refs/remotes/`, and symbolic
+/// refs such as `origin/HEAD` are skipped.
+///
+/// An attached HEAD is contained in its own branch and every ancestor branch,
+/// so a caller that wants "the branch HEAD is on" must ask
+/// [`get_current_branch`] first and use this only when that answers `None`.
+#[must_use]
+pub fn get_branches_containing_head<Sys: RunCommand>(cwd: &Path) -> Vec<String> {
+    let Ok(output) = Sys::run(
+        "git",
+        &[
+            "for-each-ref",
+            "refs/heads",
+            "refs/remotes",
+            "--contains",
+            "HEAD",
+            "--format=%(refname) %(symref)",
+        ],
+        Some(cwd),
+    ) else {
+        return Vec::new();
+    };
+    if !output.success {
+        return Vec::new();
+    }
+    let branches: BTreeSet<&str> = output.stdout
+        .lines()
+        .filter_map(|line| {
+            let (ref_name, symref) = line.split_once(' ')?;
+            symref
+                .trim()
+                .is_empty()
+                .then_some(ref_name)
+        })
+        .filter_map(branch_name_of_ref)
+        .collect();
+    branches
+        .into_iter()
+        .map(String::from)
+        .collect()
+}
+
+fn branch_name_of_ref(ref_name: &str) -> Option<&str> {
+    if let Some(branch) = ref_name.strip_prefix("refs/heads/") {
+        return Some(branch);
+    }
+    let (_remote, branch) = ref_name.strip_prefix("refs/remotes/")?.split_once('/')?;
+    Some(branch)
+}
+
 /// The outcomes of reading `.git/HEAD`.
 enum HeadBranch {
     Branch(String),
     Detached,
-    /// Could not determine — ask `git symbolic-ref` instead.
+    /// Could not determine, ask `git symbolic-ref` instead.
     Unknown,
     /// The git metadata is there but must not be read, and asking git is
     /// no safer: it opens the same path with none of the guards below.
@@ -71,37 +159,62 @@ fn read_branch_from_head_file(cwd: &Path) -> HeadBranch {
     let Ok(metadata) = fs::symlink_metadata(&dot_git) else {
         return HeadBranch::Unknown;
     };
-    let git_dir = if metadata.is_dir() {
-        dot_git
-    } else if metadata.is_file() {
-        let content = match read_git_metadata_file(&dot_git) {
-            GitMetadata::Content(content) => content,
-            GitMetadata::Absent => return HeadBranch::Unknown,
-            GitMetadata::Refused => return HeadBranch::Refused,
-        };
-        match content.trim().strip_prefix("gitdir:").map(str::trim) {
-            Some(path) if Path::new(path).is_absolute() => Path::new(path).to_path_buf(),
-            Some(path) => cwd.join(path),
-            None => return HeadBranch::Unknown,
-        }
-    } else {
-        return HeadBranch::Unknown;
+    let git_dir = match git_dir_of(cwd, dot_git, &metadata) {
+        Ok(git_dir) => git_dir,
+        Err(branch) => return branch,
     };
-
     match read_git_metadata_file(&git_dir.join("HEAD")) {
-        GitMetadata::Content(head) => match head.trim().strip_prefix("ref:").map(str::trim) {
-            Some(reference) => match reference.strip_prefix("refs/heads/") {
-                Some(branch) => HeadBranch::Branch(branch.to_owned()),
-                None => HeadBranch::Detached,
-            },
-            None => HeadBranch::Detached,
-        },
+        GitMetadata::Content(head) => branch_of_head(&head),
         GitMetadata::Absent => HeadBranch::Unknown,
         GitMetadata::Refused => HeadBranch::Refused,
     }
 }
 
-/// Both files this reads — the `gitdir:` pointer and a `HEAD` ref — are a
+/// The git directory a `.git` entry names: itself when it is one, or the
+/// `gitdir:` pointer a worktree's `.git` file holds.
+fn git_dir_of(
+    cwd: &Path,
+    dot_git: PathBuf,
+    metadata: &fs::Metadata,
+) -> Result<PathBuf, HeadBranch> {
+    if metadata.is_dir() {
+        return Ok(dot_git);
+    }
+    if !metadata.is_file() {
+        return Err(HeadBranch::Unknown);
+    }
+    let content = match read_git_metadata_file(&dot_git) {
+        GitMetadata::Content(content) => content,
+        GitMetadata::Absent => return Err(HeadBranch::Unknown),
+        GitMetadata::Refused => return Err(HeadBranch::Refused),
+    };
+    match content
+        .trim()
+        .strip_prefix("gitdir:")
+        .map(str::trim)
+    {
+        Some(path) if Path::new(path).is_absolute() => Ok(Path::new(path).to_path_buf()),
+        Some(path) => Ok(cwd.join(path)),
+        None => Err(HeadBranch::Unknown),
+    }
+}
+
+/// The branch a `HEAD` file names, or that it is detached.
+fn branch_of_head(head: &str) -> HeadBranch {
+    let Some(reference) = head
+        .trim()
+        .strip_prefix("ref:")
+        .map(str::trim)
+    else {
+        return HeadBranch::Detached;
+    };
+    match reference.strip_prefix("refs/heads/") {
+        Some(branch) => HeadBranch::Branch(branch.to_owned()),
+        None => HeadBranch::Detached,
+    }
+}
+
+/// Both files this reads, the `gitdir:` pointer and a `HEAD` ref, are a
 /// single short line. The cap sits far above either and far below a size
 /// worth reading into memory.
 const MAX_GIT_METADATA_BYTES: u64 = 8 * 1024;
@@ -113,8 +226,8 @@ enum GitMetadata {
     /// not find it either but knows where else to look.
     Absent,
     /// Something is at the path that must not be read. Asking git instead
-    /// is no safer — it opens the same path with none of the guards in
-    /// [`read_git_metadata_file`] — so this is a dead end, not a fallback.
+    /// is no safer (it opens the same path with none of the guards in
+    /// [`read_git_metadata_file`]) so this is a dead end, not a fallback.
     Refused,
 }
 
@@ -130,7 +243,7 @@ fn read_git_metadata_file(path: &Path) -> GitMetadata {
     options.read(true);
     // A FIFO planted at the path would block a plain `open` until a writer
     // appears; `O_NONBLOCK` makes the open return immediately and is a
-    // no-op for regular files. `O_NOFOLLOW` refuses a symlink outright —
+    // no-op for regular files. `O_NOFOLLOW` refuses a symlink outright,
     // git writes neither. (Windows directory entries cannot be named
     // pipes, so the plain open is safe there.)
     #[cfg(unix)]
@@ -141,8 +254,8 @@ fn read_git_metadata_file(path: &Path) -> GitMetadata {
     let mut file = match options.open(path) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return GitMetadata::Absent,
-        // Everything else — a symlink `O_NOFOLLOW` turned away, a
-        // permission error, a device that cannot be opened this way —
+        // Everything else (a symlink `O_NOFOLLOW` turned away, a
+        // permission error, a device that cannot be opened this way)
         // names something git would have to get past too.
         Err(_) => return GitMetadata::Refused,
     };

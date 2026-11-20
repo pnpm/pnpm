@@ -7,12 +7,15 @@ import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globa
 import { linkBins } from '@pnpm/bins.linker'
 import { STORE_VERSION } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import { getRegisteredProjects } from '@pnpm/store.controller'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import spawn from 'cross-spawn'
 import { familySync } from 'detect-libc'
+
+import { linkPnpmBins } from '../../src/self-updater/linkPnpmBins.js'
 
 const require = createRequire(import.meta.dirname)
 const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
@@ -22,16 +25,19 @@ const mockPackageManager = {
   name: 'pnpm',
   version: '9.0.0',
 }
+const findHomebrewFormula = jest.fn<typeof actualModule.findHomebrewFormula>()
 jest.unstable_mockModule('@pnpm/cli.meta', () => {
   return {
     ...actualModule,
+    findHomebrewFormula,
     packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmExeRunsOn, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
+  findHomebrewFormula.mockReturnValue(undefined)
   await setupMockAgent()
   getMockAgent().enableNetConnect()
 })
@@ -46,7 +52,12 @@ function prepare (manifest: object = {}) {
   return prepareOptions(dir)
 }
 
+// PNPM_HOME is never the project directory in a real installation, and the
+// two must stay apart here too: `self-update` writes an env lockfile to the
+// project (for the pin) and another to PNPM_HOME (for the global install).
 function prepareOptions (dir: string) {
+  const pnpmHomeDir = path.join(dir, 'pnpm-home')
+  fs.mkdirSync(pnpmHomeDir, { recursive: true })
   return {
     argv: {
       original: [],
@@ -55,15 +66,15 @@ function prepareOptions (dir: string) {
     excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     bail: true,
-    globalPkgDir: path.join(dir, 'global', 'v11'),
-    pnpmHomeDir: dir,
+    globalPkgDir: path.join(pnpmHomeDir, 'global', 'v11'),
+    pnpmHomeDir,
     preferWorkspacePackages: true,
     registriesByScope: {
       default: 'https://registry.npmjs.org/',
     },
     sort: false,
     rootProjectManifestDir: dir,
-    bin: path.join(dir, 'bin'),
+    bin: path.join(pnpmHomeDir, 'bin'),
     workspaceConcurrency: 1,
     extraEnv: {},
     pnpmfile: '',
@@ -148,7 +159,7 @@ function mockRegistryForUpdate (registry: string, version: string, metadata: obj
     .reply(200, tgzData)
 }
 
-function seedGlobalPnpm (opts: ReturnType<typeof prepareOptions>, version: string): string {
+async function seedGlobalPnpm (opts: ReturnType<typeof prepareOptions>, version: string): Promise<string> {
   const installDir = path.join(opts.globalPkgDir, `pnpm-${version}`)
   const pkgDir = path.join(installDir, 'node_modules', 'pnpm')
   fs.mkdirSync(pkgDir, { recursive: true })
@@ -157,6 +168,7 @@ function seedGlobalPnpm (opts: ReturnType<typeof prepareOptions>, version: strin
   fs.writeFileSync(path.join(pkgDir, 'bin.js'), `#!/usr/bin/env node
 console.log('${version}')`, 'utf8')
   fs.symlinkSync(installDir, path.join(opts.globalPkgDir, `hash-${version}`))
+  await linkPnpmBins(installDir, path.join(installDir, 'bin'), 'pnpm')
   return installDir
 }
 
@@ -171,7 +183,7 @@ test('self-update', async () => {
   // hash symlink pointing to it. Use lstatSync to pick the real dir.
   const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
   const entries = fs.readdirSync(globalDir)
-  const installDirName = entries.find((e) => fs.lstatSync(path.join(globalDir, e)).isDirectory())
+  const installDirName = entries.find((entry) => fs.lstatSync(path.join(globalDir, entry)).isDirectory())
   expect(installDirName).toBeDefined()
   const installDir = path.join(globalDir, installDirName!)
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(installDir, 'node_modules/pnpm/package.json'), 'utf8'))
@@ -193,6 +205,78 @@ test('self-update', async () => {
   })
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
+test('self-update refuses to update a pnpm installed by Homebrew', async () => {
+  findHomebrewFormula.mockReturnValue('pnpm@11')
+  const opts = prepare()
+
+  await expect(selfUpdate.handler(opts, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CANT_SELF_UPDATE_IN_HOMEBREW',
+    hint: 'Update it with Homebrew instead: brew upgrade pnpm@11',
+  })
+  expect(fs.existsSync(opts.globalPkgDir)).toBe(false)
+})
+
+test('self-update updates the project pin of a pnpm installed by Homebrew', async () => {
+  findHomebrewFormula.mockReturnValue('pnpm@11')
+  const opts = prepare({
+    packageManager: 'pnpm@8.0.0',
+  })
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.1.0\nThe global pnpm was left alone because it is installed by Homebrew. Update it with Homebrew instead: brew upgrade pnpm@11')
+  expect(JSON.parse(fs.readFileSync(path.join(opts.dir, 'package.json'), 'utf8')).packageManager).toBe('pnpm@9.1.0')
+  expect(fs.existsSync(opts.globalPkgDir)).toBe(false)
+})
+
+describe('under Corepack', () => {
+  const originalCorepackRoot = process.env.COREPACK_ROOT
+  beforeEach(() => {
+    process.env.COREPACK_ROOT = '/fake/corepack'
+  })
+  afterEach(() => {
+    if (originalCorepackRoot == null) {
+      delete process.env.COREPACK_ROOT
+    } else {
+      process.env.COREPACK_ROOT = originalCorepackRoot
+    }
+  })
+
+  test('self-update refuses to update pnpm outside a project that pins it', async () => {
+    const opts = prepare()
+
+    await expect(selfUpdate.handler(opts, [])).rejects.toMatchObject({
+      code: 'ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK',
+    })
+  })
+
+  test('self-update updates the project pin', async () => {
+    const opts = prepare({
+      packageManager: 'pnpm@8.0.0',
+    })
+    mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+    const output = await selfUpdate.handler({
+      ...opts,
+      wantedPackageManager: {
+        name: 'pnpm',
+        version: '8.0.0',
+      },
+    }, [])
+
+    expect(output).toMatch(/^The current project has been updated to use pnpm v9\.1\.0\nThe global pnpm was left alone because it is executed by Corepack\. Install pnpm with the standalone script instead: /)
+    expect(JSON.parse(fs.readFileSync(path.join(opts.dir, 'package.json'), 'utf8')).packageManager).toBe('pnpm@9.1.0')
+    expect(fs.existsSync(opts.globalPkgDir)).toBe(false)
+  })
 })
 
 test('self-update refreshes legacy v10 bootstrap shim at pnpmHomeDir', async () => {
@@ -225,6 +309,68 @@ test('self-update refreshes legacy v10 bootstrap shim at pnpmHomeDir', async () 
   expect(status).toBe(0)
   expect(stdout.toString().trim()).toBe('9.1.0')
 })
+
+test('self-update replaces a standalone pnpm.exe that pnpm v10 installed at pnpmHomeDir', async () => {
+  // pnpm/pnpm#9094
+  const opts = prepare()
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, 'pnpm.exe'), 'old standalone pnpm')
+  fs.writeFileSync(path.join(opts.pnpmHomeDir, `.pnpm.exe.${pidOfEndedProcess()}.retired`), 'retired by an earlier update')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await runOnWindows(() => selfUpdate.handler(opts, []))
+
+  expect(fs.readdirSync(opts.pnpmHomeDir).filter((fileName) => fileName.includes('pnpm.exe'))).toStrictEqual([])
+  const pnpmEnv = prependDirsToPath([opts.pnpmHomeDir])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
+})
+
+test('self-update replaces a standalone pnpm.exe in the global bin directory', async () => {
+  const opts = prepare()
+  fs.mkdirSync(opts.bin, { recursive: true })
+  fs.writeFileSync(path.join(opts.bin, 'pnpm.exe'), 'old standalone pnpm')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await runOnWindows(() => selfUpdate.handler(opts, []))
+
+  expect(fs.readdirSync(opts.bin).filter((fileName) => fileName.includes('pnpm.exe'))).toStrictEqual([])
+  expect(fs.existsSync(path.join(opts.pnpmHomeDir, 'pnpm'))).toBe(false)
+})
+
+test('self-update keeps a pnpm.exe retired by a process that is still running', async () => {
+  const opts = prepare()
+  fs.mkdirSync(opts.bin, { recursive: true })
+  const retiredByRunningProcess = path.join(opts.bin, `.pnpm.exe.${process.pid}.retired`)
+  fs.writeFileSync(retiredByRunningProcess, 'retired by an update in progress')
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await runOnWindows(() => selfUpdate.handler(opts, []))
+
+  expect(fs.existsSync(retiredByRunningProcess)).toBe(true)
+})
+
+function pidOfEndedProcess (): number {
+  const { pid } = spawn.sync(process.execPath, ['-e', ''])
+  if (pid == null) throw new Error('Expected the spawned process to have a pid')
+  return pid
+}
+
+async function runOnWindows<Result> (fn: () => Promise<Result>): Promise<Result> {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+  if (platform == null) throw new Error('Expected process.platform to be an own property')
+  Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
+  try {
+    return await fn()
+  } finally {
+    Object.defineProperty(process, 'platform', platform)
+  }
+}
 
 test('self-update does not write shims to pnpmHomeDir on a clean v11 layout', async () => {
   // Mirror image of the previous test: when there is no v10-style shim at
@@ -310,7 +456,7 @@ test('self-update by exact version', async () => {
   // Verify the package was installed in the global dir
   const globalDir = path.join(opts.pnpmHomeDir, 'global', 'v11')
   const entries = fs.readdirSync(globalDir)
-  const installDirName = entries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  const installDirName = entries.find((entry) => fs.statSync(path.join(globalDir, entry)).isDirectory())
   expect(installDirName).toBeDefined()
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(globalDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
@@ -328,7 +474,7 @@ test('self-update by exact version', async () => {
 
 test('self-update does nothing when pnpm is up to date', async () => {
   const opts = prepare()
-  seedGlobalPnpm(opts, '9.0.0')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default))
@@ -347,7 +493,7 @@ test('self-update installs the active pnpm version when it is missing from the g
 
   expect(output).toBe('Successfully updated pnpm to v9.1.0')
   const globalEntries = fs.readdirSync(opts.globalPkgDir)
-  const installDirName = globalEntries.find((e) => fs.lstatSync(path.join(opts.globalPkgDir, e)).isDirectory())
+  const installDirName = globalEntries.find((entry) => fs.lstatSync(path.join(opts.globalPkgDir, entry)).isDirectory())
   expect(installDirName).toBeDefined()
   const pnpmPkgJson = JSON.parse(fs.readFileSync(path.join(opts.globalPkgDir, installDirName!, 'node_modules/pnpm/package.json'), 'utf8'))
   expect(pnpmPkgJson.version).toBe('9.1.0')
@@ -373,6 +519,7 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
     '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
     '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
   })
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, metadata)
@@ -386,8 +533,37 @@ test('self-update respects minimumReleaseAge for implicit latest resolution', as
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
+test('self-update installs the global binary when the project pin already names the resolved version', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@9.1.0',
+  })
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.1.0',
+    },
+  }, [])
+
+  // The pin needs no change, but the active pnpm is still v9.0.0 — without the
+  // global install the project stays unusable. See pnpm/pnpm#14747.
+  expect(output).toBe('The current project is already set to use pnpm v9.1.0\nSuccessfully updated pnpm to v9.1.0')
+
+  const pnpmEnv = prependDirsToPath([path.join(opts.pnpmHomeDir, 'bin')])
+  const { status, stdout } = spawn.sync('pnpm', ['-v'], {
+    env: {
+      ...process.env,
+      [pnpmEnv.name]: pnpmEnv.value,
+    },
+  })
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe('9.1.0')
 })
 
 test('self-update refuses an immature version under strict minimumReleaseAge', async () => {
@@ -440,13 +616,14 @@ test('self-update fetches pnpm from the trusted package-manager registry, not th
   expect(output).toContain('9.1.0')
 })
 
-test('self-update rejects a trust downgrade under trustPolicy=no-downgrade', async () => {
+test('self-update rejects a trust-downgraded version under trustPolicy=no-downgrade', async () => {
   const opts = prepare()
   const registry = opts.registriesByScope.default
   const now = Date.now()
   // The earlier 9.0.5 was published with strong trust evidence (trusted
   // publisher + provenance); the later 9.1.0 has none — a trust downgrade
-  // the no-downgrade policy must refuse to switch to.
+  // the no-downgrade policy must refuse to switch to when it is requested
+  // by version.
   const metadata = {
     name: 'pnpm',
     'dist-tags': { latest: '9.1.0' },
@@ -485,7 +662,71 @@ test('self-update rejects a trust downgrade under trustPolicy=no-downgrade', asy
     .reply(200, metadata).persist()
 
   await expect(
-    selfUpdate.handler({ ...opts, trustPolicy: 'no-downgrade' }, [])
+    selfUpdate.handler({ ...opts, trustPolicy: 'no-downgrade' }, ['9.1.0'])
+  ).rejects.toThrow(/High-risk trust downgrade/)
+})
+
+test('self-update forwards trustPolicy when recording a project pin in pnpm-lock.yaml', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '8.0.0' },
+    },
+  })
+  const registry = opts.registriesByScope.default
+  const now = Date.now()
+  await seedGlobalPnpm(opts, '9.1.0')
+  mockPackageManager.version = '9.1.0'
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.1.0', registry, [], {
+      '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+    })).persist()
+  getMockAgent().get(registry.replace(/\/$/, ''))
+    .intercept({ path: '/@pnpm%2Fexe', method: 'GET' }) // cspell:disable-line
+    .reply(200, {
+      name: '@pnpm/exe',
+      'dist-tags': { latest: '9.1.0' },
+      time: {
+        '9.0.5': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+        '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+      },
+      versions: {
+        '9.0.5': {
+          name: '@pnpm/exe',
+          version: '9.0.5',
+          _npmUser: {
+            name: 'pnpm-bot',
+            trustedPublisher: { id: 'github', oidcConfigId: 'release' },
+          },
+          dist: {
+            shasum: 'abcdef1234567890',
+            tarball: `${registry}@pnpm/exe/-/exe-9.0.5.tgz`,
+            integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+            attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } },
+          },
+        },
+        '9.1.0': {
+          name: '@pnpm/exe',
+          version: '9.1.0',
+          dist: {
+            shasum: 'abcdef1234567890',
+            tarball: `${registry}@pnpm/exe/-/exe-9.1.0.tgz`,
+            integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+          },
+        },
+      },
+    }).persist()
+
+  await expect(
+    selfUpdate.handler({
+      ...opts,
+      trustPolicy: 'no-downgrade',
+      wantedPackageManager: {
+        name: 'pnpm',
+        version: '8.0.0',
+        fromDevEngines: true,
+      },
+    }, ['9.1.0'])
   ).rejects.toThrow(/High-risk trust downgrade/)
 })
 
@@ -529,14 +770,14 @@ test('self-update does not write packageManagerDependencies when package manager
 })
 
 test('global self-update respects minimumReleaseAge: skips immature latest, no-op when older mature matches active', async () => {
-  // Reproduces #11655: a globally-installed pnpm (no project pin / no
+  // Reproduces pnpm/pnpm#11655: a globally-installed pnpm (no project pin / no
   // wantedPackageManager) must not jump to a "latest" version younger than
   // minimumReleaseAge. Active pnpm is mocked as 9.0.0 at the top of this
   // file. The registry's `latest` (9.1.0) is 8h old — immature — so the
   // resolver should fall back to 9.0.0, which equals the active version and is
   // already installed globally, producing a no-op rather than reinstalling.
   const opts = prepare()
-  seedGlobalPnpm(opts, '9.0.0')
+  await seedGlobalPnpm(opts, '9.0.0')
   const globalEntriesBefore = fs.readdirSync(opts.globalPkgDir).sort()
   const now = Date.now()
   const metadata = createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
@@ -563,7 +804,7 @@ test('self-update by dist-tag does not downgrade below the active version', asyn
   // the user to it.
   mockPackageManager.version = '9.1.0'
   const opts = prepare()
-  seedGlobalPnpm(opts, '9.1.0')
+  await seedGlobalPnpm(opts, '9.1.0')
   const globalEntriesBefore = fs.readdirSync(opts.globalPkgDir).sort()
   const now = Date.now()
   const metadata = {
@@ -592,13 +833,10 @@ test('self-update respects minimumReleaseAgeExclude for implicit latest resoluti
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
   const now = Date.now()
-  const metadata = createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
     '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
     '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
-  })
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, metadata)
+  }))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -610,7 +848,7 @@ test('self-update respects minimumReleaseAgeExclude for implicit latest resoluti
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.1.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.1.0\nSuccessfully updated pnpm to v9.1.0')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.1.0')
 })
 
@@ -620,13 +858,10 @@ test('self-update respects minimumReleaseAgeExclude exact version for implicit l
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
   const now = Date.now()
-  const metadata = createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
     '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
     '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
-  })
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, metadata)
+  }))
 
   const output = await selfUpdate.handler({
     ...opts,
@@ -638,7 +873,7 @@ test('self-update respects minimumReleaseAgeExclude exact version for implicit l
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.1.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.1.0\nSuccessfully updated pnpm to v9.1.0')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.1.0')
 })
 
@@ -652,6 +887,7 @@ test('self-update does not bypass minimumReleaseAge when minimumReleaseAgeExclud
     '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
     '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
   })
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, metadata)
@@ -666,7 +902,7 @@ test('self-update does not bypass minimumReleaseAge when minimumReleaseAgeExclud
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
@@ -741,6 +977,89 @@ test('self-update by exact older version skips the no-downgrade guard', async ()
   expect(fs.existsSync(globalDir)).toBe(true)
 })
 
+test('self-update does not suggest downgrading a project pin held back by minimumReleaseAge', async () => {
+  // Reproduces pnpm/pnpm#12006: the project pin is the registry's real
+  // `latest`, but that version is younger than minimumReleaseAge, so
+  // resolution falls back to the previous mature release. Suggesting
+  // `pnpm self-update latest` to "downgrade" would rewrite the pin away
+  // from the version the project already selected.
+  const opts = prepare({
+    packageManager: 'pnpm@9.1.0',
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
+  const now = Date.now()
+  const metadata = createMetadata('9.1.0', opts.registriesByScope.default, ['9.0.0'], {
+    '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    '9.1.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+  })
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, metadata).persist()
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.1.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is set to use pnpm v9.1.0. The latest version that meets minimumReleaseAge is v9.0.0. v9.1.0 on the registry is still within the cutoff. No update performed.')
+  expect(output).not.toMatch(/downgrade/)
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.1.0')
+})
+
+test('self-update still offers a downgrade when latest is actually older, even with minimumReleaseAge', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@10.0.0',
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  const now = Date.now()
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.5.0', opts.registriesByScope.default, [], {
+      '9.5.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+    })).persist()
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '10.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is set to use pnpm v10.0.0, which is newer than the "latest" version on the registry (v9.5.0). No update performed. Run "pnpm self-update latest" to downgrade.')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@10.0.0')
+})
+
+test('self-update names the immature registry latest when it is still older than the pin', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@10.0.0',
+  })
+  const now = Date.now()
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.5.0', opts.registriesByScope.default, ['9.0.0'], {
+      '9.0.0': new Date(now - 48 * 60 * 60 * 1000).toISOString(),
+      '9.5.0': new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+    })).persist()
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    minimumReleaseAge: 24 * 60,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '10.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is set to use pnpm v10.0.0, which is newer than the "latest" version on the registry (v9.5.0). The latest version that meets minimumReleaseAge is v9.0.0. No update performed. Run "pnpm self-update latest" to downgrade.')
+})
+
 test('self-update refuses to downgrade the project pin when latest is older', async () => {
   const opts = prepare({
     packageManager: 'pnpm@10.0.0',
@@ -810,6 +1129,7 @@ test('should update packageManager field when a newer pnpm version is available'
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
     packageManager: 'pnpm@8.0.0',
   }), 'utf8')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default))
@@ -822,8 +1142,134 @@ test('should update packageManager field when a newer pnpm version is available'
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
+test('should update engines.pnpm range along with the packageManager field', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@8.0.0',
+    engines: { pnpm: '^8.0.0' },
+  }), 'utf8')
+  await seedGlobalPnpm(opts, '8.5.0')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@8.5.0')
+  expect(pkgJson.engines.pnpm).toBe('^8.5.0')
+})
+
+test('should update engines.pnpm range along with devEngines.packageManager', async () => {
+  const opts = prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '^8.0.0' },
+    },
+    engines: { pnpm: '^8.0.0' },
+  })
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default)).persist()
+  mockExeMetadata(opts.registriesByScope.default, '8.5.0')
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '^8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.devEngines.packageManager.version).toBe('^8.5.0')
+  expect(pkgJson.engines.pnpm).toBe('^8.5.0')
+})
+
+test('should keep a * engines.pnpm range', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@8.0.0',
+    engines: { pnpm: '*' },
+  }), 'utf8')
+  await seedGlobalPnpm(opts, '8.5.0')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@8.5.0')
+  expect(pkgJson.engines.pnpm).toBe('*')
+})
+
+test('should keep a partial engines.pnpm range that accepts the new version', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@8.0.0',
+    engines: { pnpm: '8' },
+  }), 'utf8')
+  await seedGlobalPnpm(opts, '8.5.0')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('8.5.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@8.5.0')
+  expect(pkgJson.engines.pnpm).toBe('8')
+})
+
+test('should update engines.pnpm range when the packageManager field is already current', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@9.0.0',
+    engines: { pnpm: '^8.0.0' },
+  }), 'utf8')
+  await seedGlobalPnpm(opts, '9.0.0')
+  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.0.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+  }, [])
+
+  const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
+  expect(pkgJson.engines.pnpm).toBe('^9.0.0')
 })
 
 test('should not update packageManager field when current version matches latest', async () => {
@@ -832,6 +1278,7 @@ test('should not update packageManager field when current version matches latest
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
     packageManager: 'pnpm@9.0.0',
   }), 'utf8')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default))
@@ -844,7 +1291,7 @@ test('should not update packageManager field when current version matches latest
     },
   }, [])
 
-  expect(output).toBe('The current project is already set to use pnpm v9.0.0')
+  expect(output).toBe('The current project is already set to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
@@ -855,6 +1302,7 @@ test('should update devEngines.packageManager version when a newer pnpm version 
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -868,7 +1316,7 @@ test('should update devEngines.packageManager version when a newer pnpm version 
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
   expect(pkgJson.packageManager).toBeUndefined()
@@ -884,6 +1332,7 @@ test('should update pnpm entry in devEngines.packageManager array', async () => 
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -897,7 +1346,7 @@ test('should update pnpm entry in devEngines.packageManager array', async () => 
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager[1].version).toBe('9.0.0')
   expect(pkgJson.devEngines.packageManager[0].version).toBe('10.0.0')
@@ -927,7 +1376,7 @@ test.each([
     },
   }, [])
 
-  expect(output).toBe(`The current project has been updated to use pnpm v${resolvedVersion}`)
+  expect(output).toBe(`The current project has been updated to use pnpm v${resolvedVersion}\nThe currently active pnpm v9.0.0 is newer than the "latest" version on the registry (v${resolvedVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`)
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager.version).toBe(expectedRange)
   const lockfile = fs.readFileSync(path.join(opts.dir, 'pnpm-lock.yaml'), 'utf8')
@@ -941,6 +1390,7 @@ test('should not modify complex devEngines.packageManager range when resolved ve
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -954,7 +1404,7 @@ test('should not modify complex devEngines.packageManager range when resolved ve
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   // The range should remain unchanged — the exact version is pinned in the lockfile
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.devEngines.packageManager.version).toBe('>=8.0.0')
@@ -970,6 +1420,7 @@ test('should fall back to ^version when complex range cannot accommodate the new
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -995,6 +1446,7 @@ test('should update both packageManager and devEngines.packageManager when both 
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -1008,7 +1460,7 @@ test('should update both packageManager and devEngines.packageManager when both 
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
   expect(pkgJson.devEngines.packageManager.version).toBe('9.0.0')
@@ -1022,6 +1474,7 @@ test('should update both packageManager (with integrity hash) and devEngines.pac
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -1048,6 +1501,7 @@ test('should sync both fields to the new exact version when their current versio
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -1074,6 +1528,7 @@ test('should pin devEngines.packageManager to an exact version when packageManag
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -1100,6 +1555,7 @@ test('should leave packageManager alone when it pins a different package manager
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -1125,6 +1581,7 @@ test('should update devEngines.packageManager range when resolved version no lon
     },
   })
   const pkgJsonPath = path.join(opts.dir, 'package.json')
+  await seedGlobalPnpm(opts, '9.0.0')
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
     .reply(200, createMetadata('9.0.0', opts.registriesByScope.default)).persist()
@@ -1138,7 +1595,7 @@ test('should update devEngines.packageManager range when resolved version no lon
     },
   }, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0\nThe currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
   // Range operator preserved, version updated
   expect(pkgJson.devEngines.packageManager.version).toBe('^9.0.0')
@@ -1158,6 +1615,7 @@ test('self-update finds pnpm that is already in the global dir', async () => {
 console.log('9.2.0')`, 'utf8')
   // Create a hash symlink pointing to the install dir (like handleGlobalAdd does)
   fs.symlinkSync(installDir, path.join(globalDir, 'fake-hash'))
+  await linkPnpmBins(installDir, path.join(installDir, 'bin'), 'pnpm')
 
   getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/pnpm', method: 'GET' })
@@ -1179,31 +1637,45 @@ console.log('9.2.0')`, 'utf8')
   expect(stdout.toString().trim()).toBe('9.2.0')
 })
 
+test('self-update replaces the pnpm installed under the other package name', async () => {
+  // https://github.com/pnpm/pnpm/issues/14709
+  const opts = prepare()
+  const exeInstallDir = path.join(opts.globalPkgDir, 'exe-install')
+  fs.mkdirSync(path.join(exeInstallDir, 'node_modules/@pnpm/exe'), { recursive: true })
+  fs.writeFileSync(path.join(exeInstallDir, 'package.json'), '{"dependencies":{"@pnpm/exe":"9.0.0"}}', 'utf8')
+  fs.writeFileSync(path.join(exeInstallDir, 'node_modules/@pnpm/exe/package.json'), '{"name":"@pnpm/exe","version":"9.0.0"}', 'utf8')
+  fs.symlinkSync(exeInstallDir, path.join(opts.globalPkgDir, 'exe-hash'))
+  const toolInstallDir = path.join(opts.globalPkgDir, 'tool-install')
+  fs.mkdirSync(toolInstallDir)
+  fs.writeFileSync(path.join(toolInstallDir, 'package.json'), '{"dependencies":{"typescript":"6.0.0"}}', 'utf8')
+  fs.symlinkSync(toolInstallDir, path.join(opts.globalPkgDir, 'tool-hash'))
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+
+  await selfUpdate.handler(opts, ['9.1.0'])
+
+  expect(scanGlobalPackages(opts.globalPkgDir).map((group) => group.dependencies).sort((a, b) => Object.keys(a)[0].localeCompare(Object.keys(b)[0]))).toStrictEqual([
+    { pnpm: '9.1.0' },
+    { typescript: '6.0.0' },
+  ])
+})
+
 test('self-update works globally without package.json', async () => {
   const dir = tempDir(false)
   // No package.json in this directory
-  const pnpmHomeDir = path.join(dir, 'pnpm-home')
-  fs.mkdirSync(pnpmHomeDir, { recursive: true })
-  const opts = {
-    ...prepareOptions(dir),
-    globalPkgDir: path.join(pnpmHomeDir, 'global', 'v11'),
-    pnpmHomeDir,
-    bin: path.join(pnpmHomeDir, 'bin'),
-  }
+  const opts = prepareOptions(dir)
+  const pnpmHomeDir = opts.pnpmHomeDir
   mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
 
   await selfUpdate.handler(opts, [])
 
-  // Verify no package.json was created
   expect(fs.existsSync(path.join(dir, 'package.json'))).toBe(false)
 
-  // Verify pnpm-lock.yaml was written to pnpmHomeDir
   expect(fs.existsSync(path.join(pnpmHomeDir, 'pnpm-lock.yaml'))).toBe(true)
 
   // Verify the package was installed in the global dir
   const globalDir = path.join(pnpmHomeDir, 'global', 'v11')
   const globalEntries = fs.readdirSync(globalDir)
-  const globalInstallDir = globalEntries.find((e) => fs.statSync(path.join(globalDir, e)).isDirectory())
+  const globalInstallDir = globalEntries.find((entry) => fs.statSync(path.join(globalDir, entry)).isDirectory())
   expect(globalInstallDir).toBeDefined()
   expect(fs.existsSync(path.join(globalDir, globalInstallDir!, 'node_modules', 'pnpm', 'package.json'))).toBe(true)
 
@@ -1229,19 +1701,74 @@ test('self-update updates the packageManager field in package.json', async () =>
       version: '9.0.0',
     },
   }
-  getMockAgent().get(opts.registriesByScope.default.replace(/\/$/, ''))
-    .intercept({ path: '/pnpm', method: 'GET' })
-    .reply(200, createMetadata('9.1.0', opts.registriesByScope.default))
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
 
   const output = await selfUpdate.handler(opts, [])
 
-  expect(output).toBe('The current project has been updated to use pnpm v9.1.0')
+  expect(output).toBe('The current project has been updated to use pnpm v9.1.0\nSuccessfully updated pnpm to v9.1.0')
 
   const pkgJson = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'))
   expect(pkgJson.packageManager).toBe('pnpm@9.1.0')
 })
 
-test('installPnpm rejects and cleans up when the installed pnpm has no working executable', async () => {
+test('self-update leaves the project pin alone when the global install fails', async () => {
+  const opts = prepare({
+    packageManager: 'pnpm@9.0.0',
+  })
+  const registry = opts.registriesByScope.default.replace(/\/$/, '')
+  getMockAgent().get(registry)
+    .intercept({ path: '/pnpm', method: 'GET' })
+    .reply(200, createMetadata('9.1.0', opts.registriesByScope.default)).persist()
+  mockExeMetadata(opts.registriesByScope.default, '9.1.0')
+  getMockAgent().get(registry)
+    .intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' })
+    .reply(404, {})
+
+  await expect(selfUpdate.handler({
+    ...opts,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+  }, [])).rejects.toThrow()
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(opts.dir, 'package.json'), 'utf8'))
+  expect(pkgJson.packageManager).toBe('pnpm@9.0.0')
+})
+
+test.each([
+  ['missing', 'fresh'],
+  ['broken', 'fresh'],
+  ['missing', 'existing'],
+  ['broken', 'existing'],
+  ['missing', 'active'],
+  ['broken', 'active'],
+])('self-update repairs a %s engine executable using the %s global install', async (damage, globalInstall) => {
+  const opts = prepare()
+  mockRegistryForUpdate(opts.registriesByScope.default, '9.1.0', createMetadata('9.1.0', opts.registriesByScope.default))
+  await selfUpdate.handler(opts, ['9.1.0'])
+
+  const [installed] = scanGlobalPackages(opts.globalPkgDir)
+  const packageDir = fs.realpathSync(path.join(installed.installDir, 'node_modules', 'pnpm'))
+  const manifest = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'))
+  const executable = path.join(packageDir, manifest.bin.pnpm)
+  const original = fs.readFileSync(executable)
+  fs.unlinkSync(executable)
+  if (damage === 'broken') {
+    fs.writeFileSync(executable, '#!/usr/bin/env node\nprocess.exit(1)\n', { mode: 0o755 })
+  }
+
+  if (globalInstall === 'active') mockPackageManager.version = '9.1.0'
+  const globalPkgDir = globalInstall === 'fresh' ? path.join(opts.pnpmHomeDir, 'another-global') : opts.globalPkgDir
+  await selfUpdate.handler({ ...opts, globalPkgDir }, ['9.1.0'])
+
+  expect(fs.readFileSync(executable)).toEqual(original)
+  const result = spawn.sync(path.join(opts.pnpmHomeDir, 'bin', 'pnpm'), ['--version'], { encoding: 'utf8', cwd: opts.dir })
+  expect(result.status).toBe(0)
+  expect(result.stdout.trim()).toBe('9.1.0')
+})
+
+test.each(['resolution', 'lockfile'])('installPnpm rejects and cleans up a broken release installed from %s', async (source) => {
   const opts = prepare()
   // A package with no bin stands in for a release whose executable is missing.
   // Serving it as pnpm's tarball is the only way here without publishing a
@@ -1269,7 +1796,10 @@ test('installPnpm rejects and cleans up when the installed pnpm has no working e
     .intercept({ path: '/pnpm/-/pnpm-9.1.0.tgz', method: 'GET' })
     .reply(200, tgzWithoutBin)
 
-  await expect(installPnpm('9.1.0', opts)).rejects.toThrow(/cannot run/)
+  const install = source === 'resolution'
+    ? installPnpm('9.1.0', opts)
+    : selfUpdate.handler(opts, ['9.1.0'])
+  await expect(install).rejects.toThrow(/cannot run/)
 
   // The half-installed directory must not survive: leaving it behind would let
   // findGlobalPnpmInstallDir hand the broken install to the next run.
@@ -1297,6 +1827,8 @@ test('installPnpm without env lockfile uses resolution path', async () => {
   expect(fs.existsSync(result.binDir)).toBe(true)
 })
 
+const testOnUnix = process.platform === 'win32' ? test.skip : test
+
 describe('linkExePlatformBinary', () => {
   const platform = process.platform
   const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
@@ -1319,7 +1851,6 @@ describe('linkExePlatformBinary', () => {
     const topLevelExeDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
     const topLevelPlatformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
 
-    // Create the virtual store directories
     fs.mkdirSync(vsExeDir, { recursive: true })
     fs.mkdirSync(vsPlatformDir, { recursive: true })
 
@@ -1328,7 +1859,6 @@ describe('linkExePlatformBinary', () => {
     // Write a package.json (needed on Windows where bin.pnpm is rewritten to pnpm.exe)
     fs.writeFileSync(path.join(vsExeDir, 'package.json'), JSON.stringify({ bin: { pnpm: 'pnpm' } }))
 
-    // Write a fake platform binary
     const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
     fs.writeFileSync(path.join(vsPlatformDir, executable), fakeBinaryContent)
 
@@ -1338,14 +1868,12 @@ describe('linkExePlatformBinary', () => {
     fs.mkdirSync(topLevelPlatformDir)
     fs.writeFileSync(path.join(topLevelPlatformDir, executable), 'wrong platform binary')
 
-    // Run the function
     linkExePlatformBinary(dir)
 
     // The placeholder should be replaced with the platform binary content
     const result = fs.readFileSync(path.join(topLevelExeDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
 
-    // pn is a shell script in the tarball (not created by linkExePlatformBinary)
   })
 
   test('also works with flat node_modules layout', () => {
@@ -1375,7 +1903,6 @@ describe('linkExePlatformBinary', () => {
     const dir = tempDir(false)
     fs.mkdirSync(path.join(dir, 'node_modules'), { recursive: true })
 
-    // Should not throw
     linkExePlatformBinary(dir)
   })
 
@@ -1448,12 +1975,59 @@ describe('linkExePlatformBinary', () => {
     const binDir = path.join(dir, 'bin')
     await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
 
-    linkExePlatformBinary(dir, 'pnpm')
-    await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
+    await linkPnpmBins(dir, binDir, 'pnpm')
 
     const result = spawn.sync(path.join(binDir, 'pnpm'), ['--version'], { encoding: 'utf8' })
     expect(result.status).toBe(0)
     expect(result.stdout.trim()).toBe(platform === 'win32' ? process.version : 'fake pnpm v12 binary')
+  })
+
+  test.each(['pnpm', '@pnpm/exe'])('links every Rust alias without Node for %s', (wrapperPkgName) => {
+    const dir = tempDir(false)
+    const wrapperDir = path.join(dir, 'node_modules', wrapperPkgName)
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', exePlatformPkgDirNameNext(platform, arch, libcFamily))
+    fs.mkdirSync(wrapperDir, { recursive: true })
+    fs.mkdirSync(platformDir, { recursive: true })
+    fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({
+      name: wrapperPkgName, version: '12.99.0',
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+    const nativeBinary = path.join(platformDir, executable)
+    if (platform === 'win32') fs.copyFileSync(process.execPath, nativeBinary)
+    else fs.writeFileSync(nativeBinary, '#!/bin/sh\nprintf "native fixture\\n"\n', { mode: 0o755 })
+    for (const alias of ['pn', 'pnpx', 'pnx']) {
+      fs.writeFileSync(path.join(wrapperDir, alias), '#!/usr/bin/env node\nprocess.exit(99)\n', { mode: 0o755 })
+    }
+
+    linkExePlatformBinary(dir, wrapperPkgName)
+
+    const nativeBytes = fs.readFileSync(nativeBinary)
+    for (const alias of ['pnpm', 'pn', 'pnpx', 'pnx']) {
+      const bin = path.join(wrapperDir, platform === 'win32' ? `${alias}.exe` : alias)
+      expect(fs.readFileSync(bin).equals(nativeBytes)).toBe(true)
+      const result = spawn.sync(bin, ['--version'], {
+        encoding: 'utf8', env: { ...process.env, PATH: path.join(dir, 'no-node-on-path') },
+      })
+      expect(result.status).toBe(0)
+      expect(result.stdout.trim()).toBe(platform === 'win32' ? process.version : 'native fixture')
+    }
+  })
+
+  testOnUnix('preserves legacy SEA Unix alias scripts', () => {
+    const dir = tempDir(false)
+    const wrapperDir = path.join(dir, 'node_modules', '@pnpm', 'exe')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', platformPkgName)
+    fs.mkdirSync(wrapperDir, { recursive: true })
+    fs.mkdirSync(platformDir, { recursive: true })
+    fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({ version: '11.28.3' }))
+    fs.writeFileSync(path.join(platformDir, executable), 'legacy SEA')
+    for (const alias of ['pn', 'pnpx', 'pnx']) fs.writeFileSync(path.join(wrapperDir, alias), `legacy ${alias}`)
+
+    linkExePlatformBinary(dir)
+
+    for (const alias of ['pn', 'pnpx', 'pnx']) {
+      expect(fs.readFileSync(path.join(wrapperDir, alias), 'utf8')).toBe(`legacy ${alias}`)
+    }
   })
 
   test.each([
@@ -1516,7 +2090,7 @@ describe('linkExePlatformBinary', () => {
   // Regression coverage for https://github.com/pnpm/pnpm/issues/11486 — the
   // `pn` / `pnpx` / `pnx` aliases were broken in MSYS2 / Git Bash on Windows.
   // Root cause: linkExePlatformBinary pointed those bin entries at .cmd files,
-  // and @zkochan/cmd-shim's Bash shim for a .cmd source bounces through
+  // and @pnpm/bins.cmd-shim's Bash shim for a .cmd source bounces through
   // `exec cmd /C "...target.cmd" "$@"`. MSYS2's argument-conversion runtime
   // mangles the lone `/C` switch into a Windows path before cmd.exe sees it,
   // so cmd.exe finds no /C or /K and falls into interactive mode (printing its
@@ -1574,6 +2148,39 @@ describe('pnpmPackageNameToInstall', () => {
     // asserts v11 and earlier are not forced onto a different package.
     expect(pnpmPackageNameToInstall('11.9.0')).toBe('pnpm')
     expect(pnpmPackageNameToInstall('9.1.0')).toBe('pnpm')
+  })
+
+  test('an @pnpm/exe on x64 musl installs the JavaScript pnpm where @pnpm/exe has no musl binary', () => {
+    const running = { packageName: '@pnpm/exe', host: { platform: 'linux' as const, arch: 'x64', libcFamily: 'musl' } }
+    expect(pnpmPackageNameToInstall('10.34.4', running)).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('11.0.0-rc.3', running)).toBe('@pnpm/exe')
+    expect(pnpmPackageNameToInstall('12.0.0', running)).toBe('pnpm')
+  })
+
+  test('an @pnpm/exe on glibc Linux keeps @pnpm/exe', () => {
+    const running = { packageName: '@pnpm/exe', host: { platform: 'linux' as const, arch: 'x64', libcFamily: 'glibc' } }
+    expect(pnpmPackageNameToInstall('10.34.4', running)).toBe('@pnpm/exe')
+  })
+})
+
+describe('pnpmExeRunsOn', () => {
+  const alpineX64 = { platform: 'linux' as const, arch: 'x64', libcFamily: 'musl' }
+
+  test.each(['11.0.0-rc.2', '10.34.4', '6.17.1'])('@pnpm/exe@%s ships no x64 musl binary', (version) => {
+    expect(pnpmExeRunsOn(version, alpineX64)).toBe(false)
+  })
+
+  test.each(['11.0.0-rc.3', '11.0.0-rc.4', '11.0.0', '11.26.0'])('@pnpm/exe@%s ships an x64 musl binary', (version) => {
+    expect(pnpmExeRunsOn(version, alpineX64)).toBe(true)
+  })
+
+  test('no pre-v12 @pnpm/exe runs on arm64 musl', () => {
+    expect(pnpmExeRunsOn('11.26.0', { platform: 'linux', arch: 'arm64', libcFamily: 'musl' })).toBe(false)
+  })
+
+  test('glibc Linux and other platforms are unaffected', () => {
+    expect(pnpmExeRunsOn('10.34.4', { platform: 'linux', arch: 'x64', libcFamily: 'glibc' })).toBe(true)
+    expect(pnpmExeRunsOn('10.34.4', { platform: 'darwin', arch: 'arm64', libcFamily: null })).toBe(true)
   })
 })
 

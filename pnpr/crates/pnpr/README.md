@@ -1,24 +1,22 @@
 # pnpr
 
-A pnpm-compatible npm registry server, written in Rust.
+A pnpm-compatible registry server, written in Rust. It speaks the npm, Cargo,
+Python, and OCI distribution protocols, hosts packages, proxies upstream
+registries, and resolves dependency graphs for pnpm.
 
-Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under `registry/`.
+This crate ships the `pnpr` binary and the library behind it. It lives in the
+[pnpm monorepo](https://github.com/pnpm/pnpm) under
+[`pnpr/`](https://github.com/pnpm/pnpm/tree/main/pnpr).
 
-## License
+- User documentation: [pnpm.io/pnpr](https://pnpm.io/pnpr), built from
+  [`pnpr/docs/`](../../docs/).
+- Contributor guide: [`pnpr/AGENTS.md`](../../AGENTS.md) and
+  [`pnpr/CONTRIBUTING.md`](../../CONTRIBUTING.md).
+- License: [PolyForm Shield 1.0.0](../../LICENSE.md).
 
-Source-available under the [PolyForm Shield License 1.0.0](../../LICENSE.md) —
-**not** open source. You may run, modify, and self-host `pnpr` for any purpose
-except providing a product that competes with `pnpr` (or with a product the
-licensor provides using it). Commercial / non-compete licenses are available
-from Zoltan Kochan (<https://kochan.io>).
+## Extensibility
 
-This is the only part of the pnpm monorepo that is not MIT licensed.
-
-Contributions to `pnpr/` are accepted under separate terms — see
-[`CONTRIBUTING.md`](../../CONTRIBUTING.md).
-
-## Trademark notice
-
-pnpr is not affiliated with, endorsed by, or sponsored by npm, Inc., GitHub, or
-Microsoft. "npm" is a trademark of npm, Inc., used here only to describe
-compatibility with the npm registry protocol.
+pnpr v1 uses compile-time trait implementations (`UserBackend`, `TokenBackend`
+in `pnpr-auth`) rather than a dynamic plugin runtime. Custom backends compile
+directly into the server binary, dispatching through trait objects without
+external scripting runtimes.

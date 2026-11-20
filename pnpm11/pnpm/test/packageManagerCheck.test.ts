@@ -1,11 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, test } from '@jest/globals'
+import { expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
+import isWindows from 'is-windows'
+import PATH_NAME from 'path-name'
+import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
+
+// The read-only bit on a Windows directory does not stop a file from being
+// created in it, so the case below has nothing to observe there.
+const testOnPosix = isWindows() ? test.skip : test
 
 test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
   prepare({
@@ -68,6 +75,62 @@ test('install should not fail for packageManager field with hash', async () => {
 
   const { status } = execPnpmSync(['install'])
   expect(status).toBe(0)
+})
+
+test('the version prints past an unreadable setting under a pin the running pnpm satisfies', async () => {
+  prepare()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  writeJsonFileSync('package.json', {
+    packageManager: `pnpm@${pnpmVersion}`,
+  })
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+
+  const { status, stdout } = execPnpmSync(['--version'], { env: { XDG_CONFIG_HOME: configHome } })
+
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe(pnpmVersion)
+})
+
+test('the version fails on a mismatched pin past an unreadable setting', async () => {
+  prepare({
+    packageManager: 'pnpm@0.0.0',
+  })
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+
+  const { status, stderr } = execPnpmSync(['--version'], {
+    env: { XDG_CONFIG_HOME: configHome, pnpm_config_pm_on_fail: 'error' },
+  })
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project is configured to use 0.0.0 of pnpm')
+})
+
+test('a global command does not warn about a pnpm pin that the running pnpm satisfies', async () => {
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
+        onFail: 'download',
+      },
+    },
+  })
+
+  const pnpmHome = path.resolve('pnpm')
+  const env = {
+    PNPM_HOME: pnpmHome,
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]}`,
+  }
+
+  const { status, stderr } = execPnpmSync(['root', '--global'], { env })
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).not.toContain('skips the package manager check')
 })
 
 test('install should not fail for packageManager field with url', async () => {
@@ -166,10 +229,11 @@ test('devEngines.packageManager with onFail=warn should warn on version mismatch
     },
   })
 
-  const { status, stdout } = execPnpmSync(['install'])
+  const { status, stdout, stderr } = execPnpmSync(['install'])
 
   expect(status).toBe(0)
-  expect(stdout.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
+  expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
+  expect(stdout.toString()).not.toContain('0.0.1')
 })
 
 test('devEngines.packageManager with onFail=ignore should not check version', async () => {
@@ -207,6 +271,42 @@ test('devEngines.runtime with onFail=error should fail on Node.js version mismat
   expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
 })
 
+test('help prints despite an unsatisfied devEngines.runtime with onFail=error', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  for (const args of [['help'], ['--help'], ['install', '--help']]) {
+    const { status, stdout } = execPnpmSync(args)
+    expect(status).toBe(0)
+    expect(stdout.toString()).toContain('Usage:')
+  }
+})
+
+test('devEngines.runtime is still checked when --lockfile-dir moves the root project directory', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('lf')
+
+  const { status, stderr } = execPnpmSync(['install', '--lockfile-dir=lf', '--lockfile-only'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+})
+
 test('devEngines.runtime with onFail=warn should warn on Node.js version mismatch', async () => {
   prepare({
     devEngines: {
@@ -219,10 +319,62 @@ test('devEngines.runtime with onFail=warn should warn on Node.js version mismatc
   })
 
   const { status, stdout, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
-  const output = stdout.toString() + stderr.toString()
 
   expect(status).toBe(0)
-  expect(output).toContain('This project requires Node.js 99999.0.0')
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+  expect(stdout.toString()).not.toContain('99999.0.0')
+})
+
+test('a runtime mismatch warning keeps a printed value alone on stdout', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['cache', 'path'])
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+  expect(stdout.toString().trim().split('\n')).toHaveLength(1)
+})
+
+test('the runtime mismatch warning reaches stderr under the ndjson reporter', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stderr } = execPnpmSync(['--reporter=ndjson', 'cache', 'path'])
+
+  expect(status).toBe(0)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+})
+
+test('--loglevel=error hides the runtime mismatch warning', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'warn',
+      },
+    },
+  })
+
+  const { status, stdout, stderr } = execPnpmSync(['--loglevel=error', 'cache', 'path'])
+
+  expect(status).toBe(0)
+  expect(stdout.toString() + stderr.toString()).not.toContain('99999.0.0')
 })
 
 test('devEngines.runtime with onFail=ignore should not check Node.js version', async () => {
@@ -692,20 +844,18 @@ test('devEngines.packageManager check runs even when pnpm is invoked via corepac
     },
   })
 
-  // COREPACK_ROOT signals corepack-managed invocation. The package-manager
-  // handling block (check + lockfile sync) used to be guarded out entirely
-  // when this was set, leaving packageManagerDependencies stale (#11397).
+  // COREPACK_ROOT signals corepack-managed invocation (pnpm/pnpm#11397).
   // The check (and sync) must run regardless of how pnpm was invoked, since
   // different developers on the same project may use either path.
-  const { status, stdout } = execPnpmSync(['install'], {
+  const { status, stderr } = execPnpmSync(['install'], {
     env: { COREPACK_ROOT: '/fake/corepack' },
   })
 
   expect(status).toBe(0)
-  expect(stdout.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
+  expect(stderr.toString()).toContain('This project is configured to use 0.0.1 of pnpm')
   // Make sure the warning explains that pnpm did not switch the version
   // because corepack is in charge — otherwise the warning is confusing.
-  expect(stdout.toString()).toContain('Corepack invoked pnpm')
+  expect(stderr.toString()).toContain('Corepack invoked pnpm')
 })
 
 test('devEngines.packageManager onFail=download surfaces a regular error under corepack instead of switching versions', async () => {
@@ -756,11 +906,8 @@ test('pmOnFail=ignore set in pnpm-workspace.yaml bypasses the devEngines.package
   expect(stderr.toString()).not.toContain('0.0.1')
 })
 
-// Regression for #11487. The --version and --help short-circuits in
-// parse-cli-args used to drop every parsed option, so `--pm-on-fail=ignore`
-// silently disappeared whenever it was combined with `--version` or
-// `--help` — leaving users with no way to opt out of the strict
-// packageManager check just to read help or check the running version.
+// Regression for pnpm/pnpm#11487: `--pm-on-fail=ignore` must survive the
+// --version and --help short-circuits in parse-cli-args.
 test.each([
   [['--pm-on-fail=ignore', '--version']],
   [['--version', '--pm-on-fail=ignore']],
@@ -784,56 +931,161 @@ test.each([
   expect(stderr.toString()).not.toContain('configured to use 0.0.1')
 })
 
-// These tests resolve the running pnpm version's integrity from registry-mock,
-// which proxies pnpm to npmjs. They fail between a release commit and the
-// matching npm publish ("No matching version found for pnpm@<version>"), and
-// pass again once the version lands on npmjs.
-describe('release-brittle: may fail until current version is published to npm', () => {
-  test('pnpm --version exits promptly when devEngines.packageManager matches the running pnpm', async () => {
-    // Regression test: main.ts's `--version` short-circuit returned before
-    // the command-handler `finally` that calls finishWorkers(), and
-    // switchCliVersion had already spawned workers during integrity
-    // resolution. The worker pool then kept the Node event loop alive long
-    // past the version print.
-    // Read the running pnpm version from a fresh empty dir — the previous
-    // test's prepare() leaves cwd in a manifest with a failing pm check, and
-    // checkPackageManager runs before the --version short-circuit.
-    prepareEmpty()
-    const versionProcess = execPnpmSync(['--version'])
-    const pnpmVersion = versionProcess.stdout.toString().trim()
+test('pnpm --version exits promptly when devEngines.packageManager matches the running pnpm', async () => {
+  // Package-manager integrity resolution can start workers, so the
+  // `--version` path must finalize them before returning.
+  // Read the running pnpm version from a fresh empty dir — the previous
+  // test's prepare() leaves cwd in a manifest with a failing pm check, and
+  // checkPackageManager runs before the --version short-circuit.
+  prepareEmpty()
+  const versionProcess = execPnpmSync(['--version'])
+  const pnpmVersion = versionProcess.stdout.toString().trim()
 
-    prepare({
-      devEngines: {
-        packageManager: {
-          name: 'pnpm',
-          version: pnpmVersion,
-          onFail: 'download',
-        },
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
+        onFail: 'download',
       },
-    })
-
-    // 30 s is comfortably above the post-fix exit time (~3 s) and far below
-    // the pre-fix hang. If the regression returns, spawnSync's timeout kicks
-    // in and execPnpmSync throws from its `error`/`signal` checks.
-    const { status, stdout } = execPnpmSync(['--version'], { timeout: 30_000 })
-
-    expect(status).toBe(0)
-    expect(stdout.toString().trim()).toBe(pnpmVersion)
+    },
   })
 
-  test('devEngines.packageManager with version range should match current version', async () => {
-    prepare({
-      devEngines: {
-        packageManager: {
-          name: 'pnpm',
-          version: '>=1.0.0',
-          onFail: 'error',
-        },
-      },
-    })
-
-    const { status } = execPnpmSync(['install'])
-
-    expect(status).toBe(0)
+  // 30 s is comfortably above the post-fix exit time (~3 s) and far below
+  // the pre-fix hang. If the regression returns, spawnSync's timeout kicks
+  // in and execPnpmSync throws from its `error`/`signal` checks.
+  const { status, stdout } = execPnpmSync(['--version'], {
+    env: { pnpm_config_registry: process.env.PNPM_CURRENT_VERSION_REGISTRY! },
+    timeout: 30_000,
   })
+
+  expect(status).toBe(0)
+  expect(stdout.toString().trim()).toBe(pnpmVersion)
+})
+
+test('devEngines.packageManager with version range should match current version', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=1.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  const { status } = execPnpmSync(['install'], {
+    env: { pnpm_config_registry: process.env.PNPM_CURRENT_VERSION_REGISTRY! },
+  })
+
+  expect(status).toBe(0)
+})
+
+testOnPosix('pnpm --version reports a pin it cannot record instead of failing', () => {
+  prepare()
+  const projectDir = process.cwd()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  writeJsonFileSync('package.json', {
+    name: 'project',
+    version: '1.0.0',
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: pnpmVersion,
+        onFail: 'error',
+      },
+    },
+  })
+
+  fs.chmodSync(projectDir, 0o555)
+  let result
+  try {
+    // A test running as root writes through the read-only bit, and this
+    // case then has nothing to observe, so it fails below rather than
+    // passing without having run.
+    if (!canWriteTo(projectDir)) {
+      result = execPnpmSync(['--version'], {
+        env: { pnpm_config_registry: process.env.PNPM_CURRENT_VERSION_REGISTRY! },
+      })
+    }
+  } finally {
+    fs.chmodSync(projectDir, 0o755)
+  }
+
+  if (result == null) {
+    throw new Error('the read-only bit must reject writes; do not run this test as root')
+  }
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString().trim()).toBe(pnpmVersion)
+  expect(result.stderr.toString()).toContain('Cannot use the pnpm version this project pins')
+  expect(result.stderr.toString()).toContain('permission denied')
+  expect(fs.existsSync(path.join(projectDir, 'pnpm-lock.yaml'))).toBe(false)
+})
+
+test('--version should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['--version'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toMatch(/^\d+\.\d+\.\d+/)
+})
+
+test('--help should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['--help'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Usage:')
+})
+
+test('help command should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['help'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Usage:')
+})
+
+function canWriteTo (dir: string): boolean {
+  const probe = path.join(dir, 'write-probe')
+  try {
+    fs.writeFileSync(probe, '')
+  } catch {
+    return false
+  }
+  fs.rmSync(probe)
+  return true
+}
+
+test.each([
+  { args: ['--version'], status: 0 },
+  { args: ['help'], status: 1 },
+])('$args records no pin past an unreadable setting when the running pnpm satisfies it', async ({ args, status }) => {
+  prepare()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: { name: 'pnpm', version: pnpmVersion, onFail: 'download' },
+    },
+  })
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  fs.writeFileSync(path.join(configHome, 'pnpm/config.yaml'), 'registry: [not, a, url\n')
+
+  const result = execPnpmSync(args, { env: { XDG_CONFIG_HOME: configHome } })
+
+  expect(result.status).toBe(status)
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
 })

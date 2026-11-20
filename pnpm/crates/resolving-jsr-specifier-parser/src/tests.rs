@@ -1,6 +1,10 @@
 //! Tests for `parse_jsr_specifier`.
 
-use super::{JsrSpec, ParseJsrSpecifierError, parse_jsr_specifier};
+use super::{
+    JsrSpec,
+    ParseJsrSpecifierError,
+    parse_jsr_specifier,
+};
 
 #[test]
 fn skips_on_non_jsr_specifiers() {
@@ -106,7 +110,10 @@ fn empty_scope_is_an_error() {
 #[test]
 fn path_separators_in_name_are_an_error() {
     for input in ["jsr:@foo/../bar", "jsr:@foo/bar/baz", r"jsr:@foo/bar\baz", r"jsr:@sco\pe/bar"] {
-        let pkg_name = input.strip_prefix("jsr:").unwrap().to_string();
+        let pkg_name = input
+            .strip_prefix("jsr:")
+            .unwrap()
+            .to_string();
         assert_eq!(
             parse_jsr_specifier(input, None),
             Err(ParseJsrSpecifierError::InvalidPackageName { pkg_name }),

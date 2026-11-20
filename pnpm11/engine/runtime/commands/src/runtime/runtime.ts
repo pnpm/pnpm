@@ -68,15 +68,19 @@ export function help (): string {
       },
     ],
     url: docsUrl('runtime'),
-    usages: [
-      'pnpm runtime set node 22',
-      'pnpm runtime set node 22 -g',
-      'pnpm runtime set node lts -g',
-      'pnpm runtime set node rc/22 -g',
-      'pnpm runtime set deno 2 -g',
-      'pnpm runtime set bun latest -g',
-    ],
+    usages: getRuntimeUsages(),
   })
+}
+
+function getRuntimeUsages (): string[] {
+  return [
+    'pnpm runtime set node 22',
+    'pnpm runtime set node 22 -g',
+    'pnpm runtime set node lts -g',
+    'pnpm runtime set node rc/22 -g',
+    'pnpm runtime set deno 2 -g',
+    'pnpm runtime set bun latest -g',
+  ]
 }
 
 export async function handler (opts: RuntimeCommandOptions, params: string[]): Promise<void> {
@@ -103,26 +107,20 @@ function runtimeSet (opts: RuntimeCommandOptions, params: string[]): void {
   if (!runtimeName) {
     throw new PnpmError('MISSING_RUNTIME_NAME', '"pnpm runtime set <name> <version>" requires a runtime name (e.g. node, deno, bun)')
   }
-  // The runtime name is interpolated into an `add` selector, so reject
-  // anything that isn't a known runtime before it can be misread as a
-  // comma-separated package list or a local path by the install pipeline.
   if (!isRuntimeAlias(runtimeName)) {
     throw new PnpmError('INVALID_RUNTIME_NAME', `"${runtimeName}" is not a supported runtime. Supported runtimes are: ${RUNTIME_NAMES.join(', ')}`)
   }
 
   const versionSpec = params[1]?.trim()
-  // The version is interpolated into the same selector, which the global-add
-  // pipeline splits on commas. Reject a comma so `runtime set node 22,evil -g`
-  // can't smuggle in a second install target. No valid runtime version
-  // (semver, dist-tag, channel) contains one.
   if (versionSpec?.includes(',')) {
     throw new PnpmError('INVALID_RUNTIME_VERSION', `Invalid runtime version "${versionSpec}": a version cannot contain a comma`)
   }
 
+  runRuntimeSetCli(opts, runtimeName, versionSpec)
+}
+
+function runRuntimeSetCli (opts: RuntimeCommandOptions, runtimeName: string, versionSpec?: string): void {
   const args = ['add', `${runtimeName}@runtime:${versionSpec ?? ''}`]
-  // Default to `devEngines.runtime`; the manifest writer maps a
-  // `devDependencies.<runtime>: runtime:<version>` entry to it.
-  // `saveDev` wins over `saveProd` to match `getSaveType` precedence.
   if (opts.saveDev || !opts.saveProd) {
     args.push('--save-dev')
   } else {

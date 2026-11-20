@@ -1,9 +1,10 @@
 import type { AuditAdvisory, AuditLevelString } from '@pnpm/deps.compliance.audit'
+import type { RangeSpecStyle } from '@pnpm/types'
 import { getBorderCharacters, table } from '@zkochan/table'
 import chalk from 'chalk'
 import { groupBy } from 'ramda'
 
-import { caretRangeForPatched } from './fix.js'
+import { patchedRangeForStyle } from './fix.js'
 
 const AUDIT_COLOR: Record<AuditLevelString, (s: string) => string> = {
   info: chalk.dim,
@@ -39,12 +40,18 @@ type AuditChoiceGroup = Array<{
   disabled?: boolean
 }>
 
-export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGroup {
+interface RawRow {
+  raw: string[]
+  key: string
+  disabled?: boolean
+}
+
+export function getAuditFixChoices (advisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): AuditChoiceGroup {
   if (advisories.length === 0) {
     return []
   }
 
-  const fixable = advisories.filter(({ patched_versions: p }) => p != null)
+  const fixable = advisories.filter(({ patched_versions: patchedVersions }) => patchedVersions != null)
   if (fixable.length === 0) {
     return []
   }
@@ -60,57 +67,54 @@ export function getAuditFixChoices (advisories: AuditAdvisory[]): AuditChoiceGro
   for (const severity of SEVERITY_ORDER) {
     const groupAdvisories = grouped[severity]
     if (!groupAdvisories?.length) continue
-
-    interface RawRow {
-      raw: string[]
-      key: string
-      disabled?: boolean
-    }
-
-    const rows: RawRow[] = [
-      { raw: COLUMN_HEADER, key: '', disabled: true },
-    ]
-
-    for (const advisory of groupAdvisories) {
-      const key = `${advisory.module_name}@${advisory.vulnerable_versions}`
-      rows.push({
-        raw: [
-          advisory.module_name,
-          advisory.vulnerable_versions,
-          advisory.patched_versions ? caretRangeForPatched(advisory.patched_versions) : '',
-          advisory.github_advisory_id ?? '',
-        ],
-        key,
-      })
-    }
-
-    const rendered = alignColumns(rows.map(r => r.raw))
-
-    const choices = rows.map((row, i) => {
-      if (i === 0) {
-        return {
-          name: rendered[i],
-          message: rendered[i],
-          value: '',
-          disabled: true,
-          hint: '',
-        }
-      }
-      return {
-        name: row.key,
-        message: rendered[i],
-        value: row.key,
-      }
-    })
-
-    finalChoices.push({
-      name: `[${severity}]`,
-      choices,
-      message: AUDIT_COLOR[severity as AuditLevelString](severity),
-    })
+    finalChoices.push(createSeverityChoiceGroup(severity, groupAdvisories, rangeSpecStyle))
   }
 
   return finalChoices
+}
+
+function createSeverityChoiceGroup (severity: AuditLevelString, groupAdvisories: AuditAdvisory[], rangeSpecStyle: RangeSpecStyle): AuditChoiceGroup[number] {
+  const rows: RawRow[] = [
+    { raw: COLUMN_HEADER, key: '', disabled: true },
+    ...groupAdvisories.map((advisory) => toRawRow(advisory, rangeSpecStyle)),
+  ]
+
+  const rendered = alignColumns(rows.map(r => r.raw))
+
+  const choices = rows.map((row, i) => {
+    if (i === 0) {
+      return {
+        name: rendered[i],
+        message: rendered[i],
+        value: '',
+        disabled: true,
+        hint: '',
+      }
+    }
+    return {
+      name: row.key,
+      message: rendered[i],
+      value: row.key,
+    }
+  })
+
+  return {
+    name: `[${severity}]`,
+    choices,
+    message: AUDIT_COLOR[severity](severity),
+  }
+}
+
+function toRawRow (advisory: AuditAdvisory, rangeSpecStyle: RangeSpecStyle): RawRow {
+  return {
+    raw: [
+      advisory.module_name,
+      advisory.vulnerable_versions,
+      advisory.patched_versions ? patchedRangeForStyle(advisory.patched_versions, rangeSpecStyle) : '',
+      advisory.github_advisory_id ?? '',
+    ],
+    key: `${advisory.module_name}@${advisory.vulnerable_versions}`,
+  }
 }
 
 function alignColumns (rows: string[][]): string[] {

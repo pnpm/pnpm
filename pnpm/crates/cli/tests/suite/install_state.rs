@@ -1,23 +1,94 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest, write_modules_manifest};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    read_modules_manifest,
+    write_modules_manifest,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
 };
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
+
+#[test]
+fn empty_node_options_preserves_dependency_lifecycle_environment() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let mut first_install = Some(pacquet);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/write-lifecycle-env":"1.0.0"}}"#,
+    )
+    .expect("write manifest");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeOptions: ''\nsideEffectsCache: false\nallowBuilds:\n  '@pnpm.e2e/write-lifecycle-env': true\n");
+    fs::write(yaml_path, yaml).expect("configure dependency lifecycle");
+
+    let mut lifecycle_options = Vec::new();
+    for (frozen, inherited) in [(false, "--no-warnings"), (true, "--trace-warnings")] {
+        let pacquet = if frozen {
+            fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+            Command::cargo_bin("pnpm")
+                .expect("find pnpm binary")
+                .with_current_dir(&workspace)
+                .with_arg("--frozen-lockfile")
+        } else {
+            first_install.take().expect("the first install uses the fixture's command")
+        };
+        pacquet
+            .with_env("NODE_OPTIONS", inherited)
+            .without_env("PNPM_CONFIG_NODE_OPTIONS")
+            .without_env("pnpm_config_node_options")
+            .with_arg("install")
+            .assert()
+            .success();
+        let dependency_env: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(workspace.join(
+                "node_modules/.pnpm/@pnpm.e2e+write-lifecycle-env@1.0.0/node_modules/@pnpm.e2e/write-lifecycle-env/env.json",
+            ))
+            .expect("read dependency lifecycle environment"),
+        )
+        .expect("parse dependency lifecycle environment");
+        lifecycle_options.push(dependency_env["NODE_OPTIONS"].clone());
+    }
+    dbg!(&lifecycle_options);
+    assert_eq!(lifecycle_options, ["--no-warnings", "--trace-warnings"]);
+    drop((root, mock_instance));
+}
 
 #[test]
 fn frozen_reinstall_writes_modules_manifest_current_lockfile_and_bins() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
         r#"{"dependencies":{"@pnpm.e2e/hello-world-js-bin":"1.0.0"}}"#,
     )
     .expect("write manifest");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
     Command::cargo_bin("pnpm")
@@ -38,8 +109,13 @@ fn frozen_reinstall_writes_modules_manifest_current_lockfile_and_bins() {
 /// (`deps-installer/test/install/misc.ts:1433`).
 #[test]
 fn pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -61,7 +137,10 @@ fn pnp_install_without_symlinks_still_writes_modules_manifest_and_bin_directory(
     yaml.push_str("nodeLinker: pnp\nsymlink: false\n");
     fs::write(&yaml_path, yaml).expect("enable PnP without symlinks");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let modules_dir = workspace.join("node_modules");
     assert!(modules_dir.join(".bin/hello-world-js-bin").exists());
@@ -136,8 +215,13 @@ assert.strictEqual(api.resolveVirtual(packageJson), null);",
 
 #[test]
 fn pnp_loader_is_preloaded_for_lifecycle_run_and_exec_commands() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -180,7 +264,10 @@ fn pnp_loader_is_preloaded_for_lifecycle_run_and_exec_commands() {
     );
     fs::write(&yaml_path, yaml).expect("enable PnP lifecycle scripts");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(
         workspace.join("postinstall-pnp").exists(),
         "the project postinstall should resolve its dependency through PnP",
@@ -339,8 +426,13 @@ fn public_hoist_uses_the_project_root_when_the_lockfile_is_external() {
 /// user's own entries with it (<https://github.com/pnpm/pnpm/issues/14062>).
 #[test]
 fn unreadable_modules_manifest_fails_the_install_without_purging_node_modules() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     fs::write(
@@ -348,7 +440,10 @@ fn unreadable_modules_manifest_fails_the_install_without_purging_node_modules() 
         r#"{"dependencies":{"@pnpm.e2e/hello-world-js-bin":"1.0.0"}}"#,
     )
     .expect("write manifest");
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
 
     let modules_dir = workspace.join("node_modules");
     let vendored = modules_dir.join("vendored");
@@ -380,8 +475,13 @@ fn unreadable_modules_manifest_fails_the_install_without_purging_node_modules() 
 /// is used` (`deps-installer/test/install/modulesCache.ts:52`).
 #[test]
 fn expired_modules_cache_is_pruned_during_frozen_install() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let manifest_path = workspace.join("package.json");
     fs::write(
@@ -400,7 +500,10 @@ fn expired_modules_cache_is_pruned_during_frozen_install() {
     yaml.push_str("modulesCacheMaxAge: 300\noptimisticRepeatInstall: false\n");
     fs::write(&yaml_path, yaml).expect("configure modules cache");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     let stale_slot = workspace.join("node_modules/.pnpm/@pnpm.e2e+foo@100.0.0");
     assert!(stale_slot.exists());
 
@@ -452,7 +555,8 @@ fn expired_modules_cache_is_pruned_during_frozen_install() {
         .success();
     let entries = fs::read_dir(workspace.join("node_modules/.pnpm"))
         .expect("read virtual store")
-        .map(|entry| entry.expect("read entry").file_name())
+        .map(|entry| entry.expect("read entry"))
+        .map(|value| value.file_name())
         .collect::<Vec<_>>();
     assert!(!stale_slot.exists(), "the expired orphaned slot must be pruned: {entries:?}");
 
@@ -463,8 +567,13 @@ fn expired_modules_cache_is_pruned_during_frozen_install() {
 /// (`deps-installer/test/install/misc.ts:1087`).
 #[test]
 fn rewrites_node_modules_created_by_npm() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -484,7 +593,10 @@ fn rewrites_node_modules_created_by_npm() {
     fs::write(workspace.join("package-lock.json"), r#"{"lockfileVersion":3}"#)
         .expect("write npm lockfile");
 
-    pacquet.with_arg("install").assert().success();
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
     assert!(is_symlink_or_junction(&npm_dep).expect("inspect installed dependency"));
     assert!(workspace.join("node_modules/.bin/hello-world-js-bin").exists());
 

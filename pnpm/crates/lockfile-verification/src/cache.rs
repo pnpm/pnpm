@@ -2,16 +2,16 @@
 //!
 //! Two-index JSONL log at `<cache_dir>/lockfile-verified.jsonl`:
 //!
-//! - **by content hash** — recognizes the same lockfile across paths
+//! - **by content hash**, recognizes the same lockfile across paths
 //!   (worktrees, CI checkouts that reset stat fields, lockfile
 //!   copies).
-//! - **by absolute path** — same-machine stat shortcut. When the
+//! - **by absolute path**, same-machine stat shortcut. When the
 //!   cached entry's `(size, mtime_ns, inode)` matches the current
 //!   stat, trust the cached hash and skip reading the lockfile
 //!   altogether.
 //!
 //! Every active verifier must still agree that the cached policy
-//! snapshot is trustworthy under what it currently demands — that's
+//! snapshot is trustworthy under what it currently demands; that's
 //! what [`ResolutionVerifier::can_trust_past_check`] decides.
 //!
 //! All IO is synchronous. The cache is consulted once before the
@@ -21,18 +21,33 @@
 //!
 //! [`ResolutionVerifier::can_trust_past_check`]: pnpm_resolving_resolver_base::ResolutionVerifier::can_trust_past_check
 
-use chrono::{SecondsFormat, Utc};
+use jiff::Timestamp;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value as JsonValue;
 use std::{
     collections::HashMap,
-    fs::{self, OpenOptions},
-    io::{self, Write},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+        OpenOptions,
+    },
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
     time::SystemTime,
 };
@@ -54,7 +69,7 @@ pub const COMPACT_TRIGGER_BYTES: u64 = (MAX_CACHE_ENTRIES as u64) * 1024 * 3 / 2
 
 /// One verified lockfile snapshot persisted to the JSONL log. The wire
 /// shape is shared with pnpm field-for-field so the two stacks share a
-/// cache file (pacquet reads pnpm's records and vice versa — even though
+/// cache file (pacquet reads pnpm's records and vice versa, even though
 /// the hash values are unlikely to collide, the stat shortcut still hits
 /// across both).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -161,8 +176,9 @@ pub fn try_lockfile_verification_cache(
         let hit = every_verifier_trusts_cached_run(record, verifiers);
         return CacheLookupResult {
             hit,
-            verified_at: (hit && !record.verified_at.is_empty())
-                .then(|| record.verified_at.clone()),
+            verified_at: (hit && !record.verified_at.is_empty()).then(|| {
+                record.verified_at.clone()
+            }),
             precomputed: CachePrecomputed {
                 stat: Some(stat),
                 hash: Some(record.lockfile.hash.clone()),
@@ -179,10 +195,25 @@ pub fn try_lockfile_verification_cache(
         };
     };
 
-    // Refresh the byPath slot so the next install at this path takes
-    // the stat shortcut. Failure here is best-effort: even if the
-    // append fails, the cache contract still holds (we just won't
-    // get the speedup at the new path).
+    let refreshed = refresh_record_path(cache_dir, record, path_key, &stat);
+
+    CacheLookupResult {
+        hit: true,
+        verified_at: (!refreshed.verified_at.is_empty()).then(|| {
+            refreshed.verified_at.clone()
+        }),
+        precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
+    }
+}
+
+/// Refresh the path index for the next stat-only lookup. An append failure
+/// loses only the shortcut; the trusted content verdict remains valid.
+fn refresh_record_path(
+    cache_dir: &Path,
+    record: &CacheRecord,
+    path_key: String,
+    stat: &LockfileStat,
+) -> CacheRecord {
     let refreshed = CacheRecord {
         lockfile: CacheLockfile {
             hash: record.lockfile.hash.clone(),
@@ -196,11 +227,7 @@ pub fn try_lockfile_verification_cache(
     };
     let _ = append_record(cache_dir, &refreshed);
 
-    CacheLookupResult {
-        hit: true,
-        verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
-        precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
-    }
+    refreshed
 }
 
 /// Look up a verification by content hash without consulting any
@@ -221,7 +248,7 @@ pub(crate) fn lockfile_verification_is_cached_by_hash(
 /// path doesn't re-stat / re-hash the lockfile. When either is
 /// missing, the function falls back to computing it. A
 /// stat-after-the-fact failure (file disappeared since verification
-/// began) silently drops the record — the gate already passed, the
+/// began) silently drops the record, the gate already passed, the
 /// install proceeds without the speedup next time.
 pub fn record_verification(
     cache_dir: &Path,
@@ -250,9 +277,9 @@ pub fn record_verification(
 }
 
 struct CacheIndexes {
-    /// Latest record per content hash — primary lookup.
+    /// Latest record per content hash, primary lookup.
     by_hash: HashMap<String, CacheRecord>,
-    /// Latest record per absolute path — same-machine stat fast path.
+    /// Latest record per absolute path, same-machine stat fast path.
     by_path: HashMap<String, CacheRecord>,
 }
 
@@ -303,8 +330,11 @@ fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
     let mtime_ns = metadata
         .modified()
         .ok()
-        .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
-        .map_or_else(|| "0".to_string(), |duration| duration.as_nanos().to_string());
+        .map(|modified| modified.duration_since(SystemTime::UNIX_EPOCH))
+        .and_then(Result::ok)
+        .map(|duration| duration.as_nanos())
+        .map(|text| text.to_string())
+        .unwrap_or_else(|| "0".to_string());
     let inode = inode_of(&metadata);
     Some(LockfileStat { size, mtime_ns, inode })
 }
@@ -331,7 +361,9 @@ fn every_verifier_trusts_cached_run(
     record: &CacheRecord,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> bool {
-    verifiers.iter().all(|verifier| verifier.can_trust_past_check(&record.policy))
+    verifiers
+        .iter()
+        .all(|verifier| verifier.can_trust_past_check(&record.policy))
 }
 
 fn merge_policies(verifiers: &[Arc<dyn ResolutionVerifier>]) -> serde_json::Map<String, JsonValue> {
@@ -345,7 +377,7 @@ fn merge_policies(verifiers: &[Arc<dyn ResolutionVerifier>]) -> serde_json::Map<
 }
 
 fn now_rfc3339() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
+    pnpm_time::format_millis(Timestamp::now())
 }
 
 /// Append a record to the cache file. Single-line writes are atomic
@@ -355,7 +387,11 @@ fn append_record(cache_dir: &Path, record: &CacheRecord) -> io::Result<()> {
     fs::create_dir_all(cache_dir)?;
     let line = format!("{}\n", serde_json::to_string(record).map_err(io::Error::other)?);
     let cache_file_path = cache_dir.join(CACHE_FILE_NAME);
-    OpenOptions::new().create(true).append(true).open(&cache_file_path)?.write_all(line.as_bytes())
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&cache_file_path)?
+        .write_all(line.as_bytes())
 }
 
 fn maybe_compact_cache(cache_dir: &Path) {
@@ -370,39 +406,50 @@ fn maybe_compact_cache(cache_dir: &Path) {
     }
     let Ok(contents) = fs::read_to_string(&cache_file_path) else { return };
 
-    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
+    let kept = newest_records(&contents);
+    let start = kept.len().saturating_sub(MAX_CACHE_ENTRIES);
+    let mut new_contents = String::with_capacity(size as usize);
+    for line in &kept[start..] {
+        new_contents.push_str(line);
+        new_contents.push('\n');
+    }
+    replace_cache_file(&cache_file_path, &new_contents);
+}
+
+/// The cache's records with every superseded and unreadable one dropped, in
+/// their original order. The newest record for a lockfile wins, so the file is
+/// read back to front and the survivors reversed.
+fn newest_records(contents: &str) -> Vec<&str> {
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut reversed: Vec<String> = Vec::new();
-    for line in lines.iter().rev() {
-        let parsed: CacheRecord = match serde_json::from_str(line) {
-            Ok(value) => value,
-            Err(_) => continue,
+    let mut newest: Vec<&str> = Vec::new();
+    for line in contents
+        .lines()
+        .filter(|line| !line.is_empty())
+        .rev()
+    {
+        let Ok(parsed) = serde_json::from_str::<CacheRecord>(line) else {
+            continue;
         };
         if parsed.lockfile.hash.is_empty() || parsed.lockfile.path.is_empty() {
             continue;
         }
-        let tuple_key = format!("{}\x00{}", parsed.lockfile.path, parsed.lockfile.hash);
-        if !seen.insert(tuple_key) {
+        if !seen.insert(format!("{}\x00{}", parsed.lockfile.path, parsed.lockfile.hash)) {
             continue;
         }
-        reversed.push((*line).to_string());
+        newest.push(line);
     }
-    reversed.reverse();
-    let start = reversed.len().saturating_sub(MAX_CACHE_ENTRIES);
-    let kept = &reversed[start..];
+    newest.reverse();
+    newest
+}
 
-    // Write to a sibling tempfile + rename so a concurrent install
-    // can't observe a half-written file.
-    let temp_path = compact_temp_path(&cache_file_path);
-    let mut new_contents = String::with_capacity(size as usize);
-    for line in kept {
-        new_contents.push_str(line);
-        new_contents.push('\n');
-    }
-    if fs::write(&temp_path, new_contents.as_bytes()).is_err() {
+/// Write to a sibling tempfile and rename, so a concurrent install cannot
+/// observe a half-written file.
+fn replace_cache_file(cache_file_path: &Path, contents: &str) {
+    let temp_path = compact_temp_path(cache_file_path);
+    if fs::write(&temp_path, contents.as_bytes()).is_err() {
         return;
     }
-    if fs::rename(&temp_path, &cache_file_path).is_err() {
+    if fs::rename(&temp_path, cache_file_path).is_err() {
         let _ = fs::remove_file(&temp_path);
     }
 }
@@ -411,7 +458,7 @@ static COMPACT_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn compact_temp_path(target: &Path) -> PathBuf {
     let counter = COMPACT_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
+    let pid = crate::process_id();
     let suffix = format!(".{pid}.{counter}.tmp");
     let mut name = match target.file_name().and_then(|n| n.to_str()) {
         Some(name) => name.to_string(),

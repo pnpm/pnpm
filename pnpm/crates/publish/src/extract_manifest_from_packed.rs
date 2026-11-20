@@ -2,11 +2,27 @@
 //! a pre-built `.tgz` so a tarball passed to `pnpm publish <tarball>` can be
 //! published without repacking.
 
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    fs::File,
+    io::{
+        self,
+        Read,
+    },
+    path::Path,
+};
 
 use flate2::read::GzDecoder;
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_package_manifest::parse_manifest;
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_package_manifest::{
+    ReadmeKind,
+    decode_readme,
+    is_preferred_readme,
+    parse_manifest,
+    readme_kind,
+};
 use serde_json::Value;
 
 const TARBALL_SUFFIXES: [&str; 2] = [".tar.gz", ".tgz"];
@@ -15,18 +31,25 @@ const TARBALL_SUFFIXES: [&str; 2] = [".tar.gz", ".tgz"];
 /// `.tgz`).
 #[must_use]
 pub fn is_tarball_path(path: &str) -> bool {
-    TARBALL_SUFFIXES.iter().any(|suffix| path.ends_with(suffix))
+    TARBALL_SUFFIXES
+        .iter()
+        .any(|suffix| path.ends_with(suffix))
 }
 
 /// Read and parse `package/package.json` from the gzipped tarball at
 /// `tarball_path`.
-pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, ExtractManifestError> {
+pub fn extract_manifest_from_packed(
+    tarball_path: impl AsRef<Path>,
+) -> Result<Value, ExtractManifestError> {
+    let tarball_path = tarball_path.as_ref();
+    let display_path = || tarball_path.display().to_string();
     let read_err = |source: std::io::Error| ExtractManifestError::Read {
-        tarball_path: tarball_path.to_owned(),
+        tarball_path: display_path(),
         source,
     };
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
+    archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
     let entries = archive.entries().map_err(read_err)?;
 
     for entry in entries {
@@ -35,16 +58,16 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
         if normalize_entry_path(&path) != "package/package.json" {
             continue;
         }
-        let mut text = String::new();
-        entry.read_to_string(&mut text).map_err(read_err)?;
-        return parse_manifest(&text).map_err(|source| ExtractManifestError::Parse {
-            tarball_path: tarball_path.to_owned(),
-            source,
-        });
+        let text = read_packed_text(&mut entry).map_err(read_err)?;
+        return parse_manifest(&text)
+            .map_err(|source| ExtractManifestError::Parse {
+                tarball_path: display_path(),
+                source,
+            });
     }
 
     Err(ExtractManifestError::MissingManifest(PublishArchiveMissingManifestError {
-        tarball_path: tarball_path.to_owned(),
+        tarball_path: display_path(),
     }))
 }
 
@@ -54,54 +77,81 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
 /// pacote's `fullReadJson`) so the registry gets it as metadata even though it
 /// isn't stored in the packed `package.json`.
 pub fn extract_publish_manifest_from_packed(
-    tarball_path: &str,
+    tarball_path: impl AsRef<Path>,
 ) -> Result<Value, ExtractManifestError> {
+    let tarball_path = tarball_path.as_ref();
+    let display_path = || tarball_path.display().to_string();
     let read_err = |source: std::io::Error| ExtractManifestError::Read {
-        tarball_path: tarball_path.to_owned(),
+        tarball_path: display_path(),
         source,
     };
     let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
-    let entries = archive.entries().map_err(read_err)?;
-
-    let mut manifest_text: Option<String> = None;
-    let mut readme: Option<String> = None;
-    for entry in entries {
-        let mut entry = entry.map_err(read_err)?;
-        let normalized = normalize_entry_path(&entry.path().map_err(read_err)?);
-        let target = if normalized == "package/package.json" {
-            &mut manifest_text
-        } else if is_root_readme(&normalized) {
-            &mut readme
-        } else {
-            continue;
-        };
-        let mut text = String::new();
-        entry.read_to_string(&mut text).map_err(read_err)?;
-        *target = Some(text);
-    }
+    archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
+    let PackedEntries { manifest_text, readme } =
+        scan_packed_entries(&mut archive).map_err(read_err)?;
 
     let manifest_text = manifest_text.ok_or_else(|| {
         ExtractManifestError::MissingManifest(PublishArchiveMissingManifestError {
-            tarball_path: tarball_path.to_owned(),
+            tarball_path: display_path(),
         })
     })?;
-    let mut manifest: Value = parse_manifest(&manifest_text).map_err(|source| {
-        ExtractManifestError::Parse { tarball_path: tarball_path.to_owned(), source }
-    })?;
+    let mut manifest: Value = parse_manifest(&manifest_text)
+        .map_err(|source| ExtractManifestError::Parse { tarball_path: display_path(), source })?;
     if let Some(readme) = readme
         && manifest.get("readme").is_none_or(Value::is_null)
         && let Some(object) = manifest.as_object_mut()
     {
-        object.insert("readme".to_string(), Value::String(readme));
+        object.insert("readme".to_string(), Value::String(readme.text));
     }
     Ok(manifest)
 }
 
-/// Whether a normalized tar entry path names the package's root README,
-/// matching pnpm's `/^package\/readme\.md$/i`.
-fn is_root_readme(normalized: &str) -> bool {
-    normalized.strip_prefix("package/").is_some_and(|name| name.eq_ignore_ascii_case("readme.md"))
+struct PackedEntries {
+    manifest_text: Option<String>,
+    readme: Option<PackedReadme>,
+}
+
+struct PackedReadme {
+    kind: ReadmeKind,
+    name: String,
+    text: String,
+}
+
+/// Read `package/package.json` and the package-root README npm would pick.
+/// Only a README entry that beats the current selection is read. The whole
+/// archive is scanned, so a later duplicate entry wins as on extraction.
+fn scan_packed_entries(archive: &mut tar::Archive<GzDecoder<File>>) -> io::Result<PackedEntries> {
+    let mut manifest_text = None;
+    let mut readme: Option<PackedReadme> = None;
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let normalized = normalize_entry_path(&entry.path()?);
+        if normalized == "package/package.json" {
+            let text = read_packed_text(&mut entry)?;
+            manifest_text = Some(text);
+        } else if entry.header().entry_type().is_file()
+            && let Some(name) = root_file_name(&normalized)
+            && let Some(kind) = readme_kind(name)
+            && is_preferred_readme(
+                (kind, name),
+                readme
+                    .as_ref()
+                    .map(|current| (current.kind, current.name.as_str())),
+            )
+        {
+            let bytes = pnpm_tarball::read_buffered_tar_entry(&mut entry)?;
+            let text = decode_readme(bytes);
+            readme = Some(PackedReadme { kind, name: name.to_owned(), text });
+        }
+    }
+    Ok(PackedEntries { manifest_text, readme })
+}
+
+fn root_file_name(normalized: &str) -> Option<&str> {
+    normalized
+        .strip_prefix("package/")
+        .filter(|name| !name.contains('/'))
 }
 
 /// Normalize a tar entry path to forward slashes and collapse `.` / `..`
@@ -177,3 +227,8 @@ pub struct PublishArchiveMissingManifestError {
 
 #[cfg(test)]
 mod tests;
+
+fn read_packed_text(entry: &mut tar::Entry<'_, impl Read>) -> io::Result<String> {
+    let bytes = pnpm_tarball::read_buffered_tar_entry(entry)?;
+    String::from_utf8(bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+}

@@ -1,10 +1,12 @@
+import path from 'node:path'
+
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { list, listForPackages } from '@pnpm/deps.inspection.list'
+import { getPackagesForListing, list, listForPackages, type PackageDependencyHierarchy, searchForPackages } from '@pnpm/deps.inspection.list'
 import { PnpmError } from '@pnpm/error'
 import { findGlobalInstallDirs, listGlobalPackages } from '@pnpm/global.commands'
-import type { Finder, IncludedDependencies } from '@pnpm/types'
+import type { Finder, IncludedDependencies, Project } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -48,32 +50,7 @@ For example: pnpm ls babel-* eslint-*',
       {
         title: 'Options',
 
-        list: [
-          ...SHARED_CLI_HELP_OPTIONS,
-          {
-            description: 'Max display depth of the dependency tree',
-            name: '--depth <number>',
-          },
-          {
-            description: 'Display only direct dependencies',
-            name: '--depth 0',
-          },
-          {
-            description: 'Display only projects. Useful in a monorepo. `pnpm ls -r --depth -1` lists all projects in a monorepo',
-            name: '--depth -1',
-          },
-          {
-            description: 'Display only dependencies that are also projects within the workspace',
-            name: '--only-projects',
-          },
-          {
-            description: 'List packages from the lockfile only, without checking node_modules.',
-            name: '--lockfile-only',
-          },
-          EXCLUDE_PEERS_HELP,
-          OPTIONS.globalDir,
-          ...UNIVERSAL_OPTIONS,
-        ],
+        list: getListHelpOptions(),
       },
       FILTERING,
     ],
@@ -84,12 +61,43 @@ For example: pnpm ls babel-* eslint-*',
   })
 }
 
+function getListHelpOptions (): Array<{ description: string, name: string }> {
+  return [
+    ...SHARED_CLI_HELP_OPTIONS,
+    {
+      description: 'Max display depth of the dependency tree',
+      name: '--depth <number>',
+    },
+    {
+      description: 'Display only direct dependencies',
+      name: '--depth 0',
+    },
+    {
+      description: 'Display only projects. Useful in a monorepo. `pnpm ls -r --depth -1` lists all projects in a monorepo',
+      name: '--depth -1',
+    },
+    {
+      description: 'Display only dependencies that are also projects within the workspace',
+      name: '--only-projects',
+    },
+    {
+      description: 'List packages from the lockfile only, without checking node_modules.',
+      name: '--lockfile-only',
+    },
+    EXCLUDE_PEERS_HELP,
+    OPTIONS.globalDir,
+    ...UNIVERSAL_OPTIONS,
+  ]
+}
+
 export type ListCommandOptions = Pick<Config,
 | 'dev'
 | 'dir'
 | 'optional'
 | 'production'
 | 'modulesDir'
+| 'nodeLinker'
+| 'resolvePeersFromWorkspaceRoot'
 | 'virtualStoreDirMaxLength'
 > & Pick<ConfigContext,
 | 'allProjects'
@@ -107,7 +115,7 @@ export type ListCommandOptions = Pick<Config,
   onlyProjects?: boolean
   recursive?: boolean
   findBy?: string[]
-} & Partial<Pick<Config, 'global' | 'globalPkgDir'>>
+} & Partial<Pick<Config, 'global' | 'globalPkgDir' | 'packageConfigs'>>
 
 export async function handler (
   opts: ListCommandOptions,
@@ -116,53 +124,21 @@ export async function handler (
   const include = computeInclude(opts)
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.global && opts.globalPkgDir) {
-    if (depth > 0) {
-      const allInstallDirs = findGlobalInstallDirs(opts.globalPkgDir, [])
-      if (allInstallDirs.length === 1) {
-        // Single global install: delegate with params unchanged so
-        // listForPackages can search across the whole tree (including
-        // transitive deps), matching regular `pnpm ls` semantics.
-        return render([allInstallDirs[0]], params, {
-          ...opts,
-          depth,
-          include,
-          lockfileDir: allInstallDirs[0],
-          checkWantedLockfileOnly: opts.lockfileOnly,
-          onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
-        })
-      }
-      // Multiple installs — try to narrow to a single one via params,
-      // matching against top-level aliases of each install group.
-      const matchingInstallDirs = findGlobalInstallDirs(opts.globalPkgDir, params)
-      if (matchingInstallDirs.length > 1 || (matchingInstallDirs.length === 0 && allInstallDirs.length > 0)) {
-        throw new PnpmError('GLOBAL_LS_DEPTH_NOT_SUPPORTED',
-          'Cannot list a merged dependency tree across multiple global packages. ' +
-          'Each global package is installed in an isolated directory with its own lockfile, ' +
-          'so transitive dependencies cannot be coherently merged. ' +
-          'Filter to a single global package by its top-level name, or omit --depth.')
-      }
-      if (matchingInstallDirs.length === 1) {
-        // Drop params: they served their purpose of narrowing to a single
-        // install group. Passing them through to `render` would activate
-        // search semantics, which prune the matched package's children.
-        return render([matchingInstallDirs[0]], [], {
-          ...opts,
-          depth,
-          include,
-          lockfileDir: matchingInstallDirs[0],
-          checkWantedLockfileOnly: opts.lockfileOnly,
-          onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
-        })
-      }
-    }
-    return listGlobalPackages(opts.globalPkgDir, params, {
-      long: opts.long,
-      reportAs: determineReportAs(opts),
-    })
+    return listGlobal(opts, params, { depth, globalPkgDir: opts.globalPkgDir, include })
   }
+  const workspaceProjectDirs = opts.allProjects?.map(({ rootDir }) => rootDir)
+  const workspaceProjectPublishDirs = getWorkspaceProjectPublishDirs(opts.allProjects ?? [])
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, params, { ...opts, depth, include, checkWantedLockfileOnly: opts.lockfileOnly, onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects })
+    return listRecursive(pkgs, params, {
+      ...opts,
+      depth,
+      include,
+      checkWantedLockfileOnly: opts.lockfileOnly,
+      onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+      workspaceProjectDirs,
+      workspaceProjectPublishDirs,
+    })
   }
   return render([opts.dir], params, {
     ...opts,
@@ -171,31 +147,133 @@ export async function handler (
     lockfileDir: opts.lockfileDir ?? opts.dir,
     checkWantedLockfileOnly: opts.lockfileOnly,
     onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+    workspaceProjectDirs,
+    workspaceProjectPublishDirs,
   })
+}
+
+interface GlobalListContext {
+  depth: number
+  globalPkgDir: string
+  include: IncludedDependencies
+}
+
+async function listGlobal (
+  opts: ListCommandOptions,
+  params: string[],
+  ctx: GlobalListContext
+): Promise<string> {
+  if (ctx.depth > 0) {
+    const installDirToRender = pickGlobalInstallDirForDepth(ctx.globalPkgDir, params)
+    if (installDirToRender != null) {
+      return render([installDirToRender.installDir], installDirToRender.params, {
+        ...opts,
+        depth: ctx.depth,
+        include: ctx.include,
+        lockfileDir: installDirToRender.installDir,
+        modulesDir: undefined,
+        checkWantedLockfileOnly: opts.lockfileOnly,
+        onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
+      })
+    }
+  }
+  return listGlobalPackages(ctx.globalPkgDir, params, {
+    long: opts.long,
+    reportAs: determineReportAs(opts),
+  })
+}
+
+function pickGlobalInstallDirForDepth (
+  globalPkgDir: string,
+  params: string[]
+): { installDir: string, params: string[] } | undefined {
+  const allInstallDirs = findGlobalInstallDirs(globalPkgDir, [])
+  if (allInstallDirs.length === 1) {
+    // Single global install: delegate with params unchanged so
+    // listForPackages can search across the whole tree (including
+    // transitive deps), matching regular `pnpm ls` semantics.
+    return { installDir: allInstallDirs[0], params }
+  }
+  // Multiple installs — try to narrow to a single one via params,
+  // matching against top-level aliases of each install group.
+  const matchingInstallDirs = findGlobalInstallDirs(globalPkgDir, params)
+  if (matchingInstallDirs.length > 1 || (matchingInstallDirs.length === 0 && allInstallDirs.length > 0)) {
+    throw new PnpmError('GLOBAL_LS_DEPTH_NOT_SUPPORTED',
+      'Cannot list a merged dependency tree across multiple global packages. ' +
+      'Each global package is installed in an isolated directory with its own lockfile, ' +
+      'so transitive dependencies cannot be coherently merged. ' +
+      'Filter to a single global package by its top-level name, or omit --depth.')
+  }
+  if (matchingInstallDirs.length === 1) {
+    // Drop params: they served their purpose of narrowing to a single
+    // install group. Passing them through to `render` would activate
+    // search semantics, which prune the matched package's children.
+    return { installDir: matchingInstallDirs[0], params: [] }
+  }
+  return undefined
+}
+
+/**
+ * Dependents link a project with `publishConfig.directory` through that
+ * directory unless `publishConfig.linkDirectory` is false.
+ */
+function getWorkspaceProjectPublishDirs (projects: Project[]): Record<string, string> {
+  const publishDirs: Record<string, string> = {}
+  for (const { rootDir, manifest } of projects) {
+    const publishConfig = manifest.publishConfig
+    if (publishConfig?.directory != null && publishConfig.linkDirectory !== false) {
+      publishDirs[path.resolve(rootDir, publishConfig.directory)] = rootDir
+    }
+  }
+  return publishDirs
 }
 
 export async function render (
   prefixes: string[],
   params: string[],
-  opts: {
-    alwaysPrintRootPackage?: boolean
-    depth?: number
-    excludePeers?: boolean
-    include: IncludedDependencies
-    lockfileDir: string
-    checkWantedLockfileOnly?: boolean
-    long?: boolean
-    json?: boolean
-    onlyProjects?: boolean
-    parseable?: boolean
-    modulesDir?: string
-    virtualStoreDirMaxLength: number
-    finders?: Record<string, Finder>
-    findBy?: string[]
-  }
+  opts: RenderOptions
 ): Promise<string> {
+  const listOpts = getListOptions(opts)
+  return (params.length > 0) || listOpts.finders.length > 0
+    ? listForPackages(params, prefixes, listOpts)
+    : list(prefixes, listOpts)
+}
+
+export async function loadProjectHierarchies (
+  prefixes: string[],
+  params: string[],
+  opts: RenderOptions
+): Promise<PackageDependencyHierarchy[]> {
+  const listOpts = getListOptions(opts)
+  return (params.length > 0) || listOpts.finders.length > 0
+    ? searchForPackages(params, prefixes, listOpts)
+    : getPackagesForListing(prefixes, listOpts)
+}
+
+interface RenderOptions {
+  alwaysPrintRootPackage?: boolean
+  depth?: number
+  excludePeers?: boolean
+  include: IncludedDependencies
+  lockfileDir: string
+  checkWantedLockfileOnly?: boolean
+  long?: boolean
+  json?: boolean
+  onlyProjects?: boolean
+  workspaceProjectDirs?: string[]
+  workspaceProjectPublishDirs?: Record<string, string>
+  parseable?: boolean
+  modulesDir?: string
+  resolvePeersFromWorkspaceRoot?: boolean
+  virtualStoreDirMaxLength: number
+  finders?: Record<string, Finder>
+  findBy?: string[]
+  nodeLinker?: Config['nodeLinker']
+}
+
+function getListOptions (opts: RenderOptions) {
   const finders = resolveFinders(opts)
-  const listOpts = {
+  return {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth ?? 0,
     excludePeerDependencies: opts.excludePeers,
@@ -204,14 +282,15 @@ export async function render (
     checkWantedLockfileOnly: opts.checkWantedLockfileOnly,
     long: opts.long,
     onlyProjects: opts.onlyProjects,
+    workspaceProjectDirs: opts.workspaceProjectDirs,
+    workspaceProjectPublishDirs: opts.workspaceProjectPublishDirs,
     reportAs: determineReportAs(opts),
     showExtraneous: false,
     showSummary: true,
     modulesDir: opts.modulesDir,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     finders,
+    nodeLinker: opts.nodeLinker,
   }
-  return (params.length > 0) || listOpts.finders.length > 0
-    ? listForPackages(params, prefixes, listOpts)
-    : list(prefixes, listOpts)
 }

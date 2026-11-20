@@ -1,6 +1,6 @@
 //! Claims any wanted dependency whose bare specifier starts with
-//! `http://` or `https://` and resolves it to a tarball URL. Two
-//! pieces of behavior to call out:
+//! `http://` or `https://` and resolves it to a tarball URL.
+//! Behavior to call out:
 //!
 //! - **URL normalization.** The bare specifier is round-tripped
 //!   through `url::Url` so a redundant default port
@@ -22,6 +22,15 @@
 //! manifest, warming the shared mem cache so the install pass reuses
 //! the extraction without re-downloading.
 
-mod tarball_resolver;
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
 
-pub use tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
+pub use tarball_resolver::{
+    PriorTarballEntry,
+    TarballFetchContext,
+    TarballResolver,
+    remote_tarball_id,
+};
+
+mod http_cache;
+mod tarball_resolver;

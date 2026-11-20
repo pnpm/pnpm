@@ -1,6 +1,23 @@
-use super::{CommandOutput, Host, RunCommand, get_current_branch};
-use std::{fs, io, path::Path};
+use super::{
+    CommandOutput,
+    RunCommand,
+    get_branches_containing_head,
+    get_current_branch,
+    is_head_detached,
+};
+#[cfg(unix)]
+use command_extra::CommandExtra;
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::TempDir;
+
+// The real provider is only reached by the FIFO tests, which need a
+// filesystem object Windows has no equivalent of.
+#[cfg(unix)]
+use super::Host;
 
 /// A provider whose subprocess spawn is a hard error, so a test that
 /// reaches it fails instead of consulting the host's real repository.
@@ -91,8 +108,8 @@ fn oversized_git_metadata_is_not_read() {
     assert_eq!(get_current_branch::<GitFails>(&worktree), None);
 }
 
-/// A `HEAD` that is not a plain file — a symlink here, a FIFO or a device
-/// in the cases this stands in for — is never opened, so a repository
+/// A `HEAD` that is not a plain file (a symlink here, a FIFO or a device
+/// in the cases this stands in for) is never opened, so a repository
 /// cannot make the read block or balloon.
 #[cfg(unix)]
 #[test]
@@ -106,6 +123,7 @@ fn a_head_that_is_not_a_plain_file_is_not_read() {
     std::os::unix::fs::symlink(&target, repo.join(".git/HEAD")).unwrap();
 
     assert_eq!(get_current_branch::<GitFails>(&repo), None);
+    assert!(!is_head_detached::<NoGit>(&repo), "refused metadata must not be queried by Git");
 }
 
 /// A FIFO at `HEAD` must be refused rather than opened: a plain `open`
@@ -149,6 +167,103 @@ fn repo_with_fifo_head() -> TempDir {
 
 #[cfg(unix)]
 fn make_fifo(path: &std::path::Path) {
-    let status = std::process::Command::new("mkfifo").arg(path).status().expect("run mkfifo");
+    let status = std::process::Command::new("mkfifo")
+        .with_arg(path)
+        .status()
+        .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed");
+}
+
+#[test]
+fn a_failed_head_verification_is_not_detached() {
+    let repo = repo_with_head("0123456789abcdef0123456789abcdef01234567\n");
+    assert!(
+        !is_head_detached::<GitFails>(repo.path()),
+        "a failed Git query must not confirm detachment",
+    );
+}
+
+/// Providers answering `git for-each-ref` the way a detached HEAD's
+/// repository would, failing every other invocation.
+struct GitSaysFeatureAndMain;
+
+impl RunCommand for GitSaysFeatureAndMain {
+    fn run(program: &str, args: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        assert_eq!(program, "git");
+        assert_eq!(
+            args,
+            [
+                "for-each-ref",
+                "refs/heads",
+                "refs/remotes",
+                "--contains",
+                "HEAD",
+                "--format=%(refname) %(symref)",
+            ],
+        );
+        Ok(CommandOutput {
+            success: true,
+            stdout: [
+                "refs/heads/main ",
+                "refs/heads/feature ",
+                "refs/remotes/origin/HEAD refs/remotes/origin/main",
+                "refs/remotes/origin/main ",
+                "refs/remotes/upstream/fix/login ",
+                "",
+            ]
+            .join("\n"),
+            stderr: String::new(),
+        })
+    }
+}
+
+struct GitSaysNothing;
+
+impl RunCommand for GitSaysNothing {
+    fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        Ok(CommandOutput { success: true, stdout: String::new(), stderr: String::new() })
+    }
+}
+
+struct GitFailsForEachRef;
+
+impl RunCommand for GitFailsForEachRef {
+    fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        Ok(CommandOutput { success: false, stdout: String::new(), stderr: String::new() })
+    }
+}
+
+#[test]
+fn lists_the_local_and_remote_tracking_branches_containing_head_sorted() {
+    assert_eq!(
+        get_branches_containing_head::<GitSaysFeatureAndMain>(std::path::Path::new(".")),
+        ["feature", "fix/login", "main"],
+    );
+}
+
+#[test]
+fn a_failed_branch_listing_is_empty() {
+    assert!(
+        get_branches_containing_head::<GitFailsForEachRef>(std::path::Path::new(".")).is_empty(),
+    );
+}
+
+// A provider whose git spawn itself fails, which is what a machine
+// without git looks like.
+struct GitUnspawnable;
+
+impl RunCommand for GitUnspawnable {
+    fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+        Err(io::Error::new(io::ErrorKind::NotFound, "no git"))
+    }
+}
+
+#[test]
+fn a_failing_git_spawn_yields_no_branches() {
+    assert!(get_branches_containing_head::<GitUnspawnable>(std::path::Path::new(".")).is_empty());
+}
+
+#[test]
+fn a_branch_listing_with_no_matches_is_empty() {
+    assert!(get_branches_containing_head::<GitSaysNothing>(std::path::Path::new(".")).is_empty());
 }

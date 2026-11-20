@@ -1,5 +1,14 @@
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+#[cfg(test)]
+mod tests;
+
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 
 /// Error type of [`crate::prepare_package()`].
 ///
@@ -22,7 +31,7 @@ pub enum PreparePackageError {
     NotAllowed {
         name: String,
         version: String,
-        /// The identity `allowBuilds` is checked against — the name
+        /// The identity `allowBuilds` is checked against, the name
         /// plus the resolution id, not the manifest version. A
         /// name-only key cannot approve a git artifact, so quoting
         /// anything else here suggests an entry that never matches.
@@ -71,8 +80,11 @@ pub enum PreparePackageError {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum GitFetcherError {
+    #[diagnostic(transparent)]
+    SharedSource(#[error(source)] std::sync::Arc<GitFetcherError>),
+
     /// `git` executable not found on `PATH`. Pacquet, like pnpm, does
-    /// not bundle git — the user must install it themselves.
+    /// not bundle git, the user must install it themselves.
     #[display("`git` executable not found on PATH. Install git to fetch git-hosted packages.")]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_GIT_NOT_FOUND))]
     GitNotFound,
@@ -80,15 +92,22 @@ pub enum GitFetcherError {
     /// `git` exited non-zero on `clone` / `fetch` / `checkout` /
     /// `rev-parse`. `operation` is the subcommand, `stderr` is captured
     /// from the child so the failure surfaces in the install log.
-    #[display("`git {operation}` failed ({status}): {stderr}")]
+    #[display(
+        "`git {operation}` failed ({status}): {}",
+        pnpm_network::redact_and_sanitize_multiline(stderr)
+    )]
     #[diagnostic(code(ERR_PNPM_GIT_FETCHER_GIT_EXEC_FAILED))]
-    GitExec { operation: &'static str, stderr: String, status: std::process::ExitStatus },
+    GitExec { operation: &'static str, stderr: String, status: crate::process::ExitStatus },
 
     /// The clone (or shallow fetch) of a git dependency failed. Carries
     /// the package the resolution belongs to, which [`Self::GitExec`]
-    /// alone cannot name — a bare `git clone` failure leaves the user to
+    /// alone cannot name, a bare `git clone` failure leaves the user to
     /// work out which of their dependencies it came from.
-    #[display("Failed to fetch {package:?} from the git repository {repo:?}: {stderr}")]
+    #[display(
+        "Failed to fetch {package:?} from the git repository {:?}: {}",
+        pnpm_network::redact_and_sanitize(repo),
+        pnpm_network::redact_and_sanitize_multiline(stderr)
+    )]
     #[diagnostic(code(ERR_PNPM_GIT_FETCH_FAILED))]
     Fetch { package: String, repo: String, stderr: String },
 
@@ -99,14 +118,22 @@ pub enum GitFetcherError {
     ///
     /// A lockfile written before pnpm v11.21 could record an SSH URL for
     /// a dependency whose specifier never asked for SSH, and resolution
-    /// is skipped while that lockfile stays up to date — so the entry
+    /// is skipped while that lockfile stays up to date, so the entry
     /// survives the upgrade that fixed it and the install keeps failing
     /// wherever no SSH key is configured.
-    #[display("Failed to fetch {package:?} from the git repository {repo:?}: {stderr}")]
+    #[display(
+        "Failed to fetch {package:?} from the git repository {:?}: {}",
+        pnpm_network::redact_and_sanitize(repo),
+        pnpm_network::redact_and_sanitize_multiline(stderr)
+    )]
     #[diagnostic(
         code(ERR_PNPM_GIT_FETCH_FAILED),
         help(
             r#"The lockfile records an SSH remote for this dependency, so fetching it needs an SSH key for {host}.
+
+If git reported "Permission denied (publickey)", the host was reached and refused the key. Make sure ssh-agent has a key loaded:
+
+    ssh-add -l
 
 If its specifier does not ask for SSH (for example "github:owner/repo"), the lockfile entry was written before pnpm v11.21 and can be re-recorded over HTTPS:
 
@@ -129,19 +156,24 @@ If its specifier does not ask for SSH (for example "github:owner/repo"), the loc
     /// allowing a malicious lockfile to execute arbitrary commands on
     /// SSH or local-file transports.
     #[display(
-        "Invalid git commit hash {commit:?} for repository {repo:?}. Expected a 40-character hexadecimal SHA."
+        "Invalid git commit hash {commit:?} for repository {:?}. Expected a 40-character hexadecimal SHA.",
+        pnpm_network::redact_and_sanitize(repo)
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_GIT_COMMIT))]
     InvalidCommit { commit: String, repo: String },
 
-    /// `resolution.repo` begins with `-`. Same class as
-    /// [`Self::InvalidCommit`]: git parses such a value as an option
+    /// `resolution.repo` is empty, begins with `-`, or contains a NUL. A
+    /// leading `-` is the same class as [`Self::InvalidCommit`]: git
+    /// parses such a value as an option
     /// rather than a repository, so `--upload-pack=<cmd>` reaches the
     /// transport and runs `<cmd>`. The `--` end-of-options marker is
     /// passed as well; this rejects the value outright rather than rely
     /// on every subcommand honoring it.
-    #[display("Invalid git repository {repo:?}. A repository must not begin with '-'.")]
-    #[diagnostic(code(INVALID_GIT_REPOSITORY))]
+    #[display(
+        "Invalid git repository {:?}. A repository must not be empty, begin with '-', or contain a null byte.",
+        pnpm_network::redact_and_sanitize(repo)
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_GIT_REPOSITORY))]
     InvalidRepo { repo: String },
 
     #[display("I/O error during git fetch: {_0}")]

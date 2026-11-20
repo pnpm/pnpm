@@ -1,10 +1,16 @@
 //! Classifies a manifest specifier as a concrete `Version`, a semver
 //! `Range`, or a dist-tag `Tag`. Returns `None` for anything that
-//! isn't one of those — those have no place in the version-picker
+//! isn't one of those; those have no place in the version-picker
 //! tie-break table the preferred-versions map feeds.
 
-use node_semver::{Range, Version};
-use pnpm_resolving_resolver_base::{VersionSelectorType, is_any_version_range};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_resolving_resolver_base::{
+    VersionSelectorType,
+    is_any_version_range,
+};
 
 /// Classify a manifest spec as `Version`, `Range`, or `Tag`, using the
 /// loose precedence that tries an exact version first, then a range,
@@ -32,10 +38,12 @@ pub fn get_version_selector_type(spec: &str) -> Option<VersionSelectorType> {
 /// exactly when every character of `s` is in that set.
 fn is_uri_component_safe(spec: &str) -> bool {
     !spec.is_empty()
-        && spec.chars().all(|ch| {
-            ch.is_ascii_alphanumeric()
-                || matches!(ch, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')')
-        })
+        && spec
+            .chars()
+            .all(|ch| {
+                ch.is_ascii_alphanumeric()
+                    || matches!(ch, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')')
+            })
 }
 
 #[cfg(test)]

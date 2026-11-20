@@ -2,6 +2,8 @@ import { createShortHash } from '@pnpm/crypto.hash'
 import type { DepPath, PkgId, PkgIdWithPatchHash, PkgResolutionId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
+export { findHoistedPackageDirs, withCollapsedVariants } from './hoistedPackageDirs.js'
+
 export function isAbsolute (dependencyPath: string): boolean {
   return dependencyPath[0] !== '/'
 }
@@ -66,21 +68,21 @@ export function parseRegistryQualifiedVersion (version: string): RegistryQualifi
 export function indexOfDepPathSuffix (depPath: string): { peersIndex: number, patchHashIndex: number } {
   if (!depPath.endsWith(')')) return { peersIndex: -1, patchHashIndex: -1 }
   let open = 1
-  for (let i = depPath.length - 2; i >= 0; i--) {
-    if (depPath[i] === '(') {
+  for (let charIndex = depPath.length - 2; charIndex >= 0; charIndex--) {
+    if (depPath[charIndex] === '(') {
       open--
-    } else if (depPath[i] === ')') {
+    } else if (depPath[charIndex] === ')') {
       open++
     } else if (!open) {
-      if (depPath.substring(i + 1).startsWith('(patch_hash=')) {
+      if (depPath.substring(charIndex + 1).startsWith('(patch_hash=')) {
         return {
-          patchHashIndex: i + 1,
-          peersIndex: depPath.indexOf('(', i + 2),
+          patchHashIndex: charIndex + 1,
+          peersIndex: depPath.indexOf('(', charIndex + 2),
         }
       }
       return {
         patchHashIndex: -1,
-        peersIndex: i + 1,
+        peersIndex: charIndex + 1,
       }
     }
   }
@@ -115,6 +117,14 @@ export function removeSuffix (relDepPath: string): string {
     return relDepPath.substring(0, peersIndex)
   }
   return relDepPath
+}
+
+/**
+ * Whether the package at `depPath` is itself patched. A patched peer nested in
+ * the peers suffix does not count.
+ */
+export function hasPatchHash (depPath: string): boolean {
+  return indexOfDepPathSuffix(depPath).patchHashIndex !== -1
 }
 
 export function removePeersSuffix (relDepPath: string): string {
@@ -180,10 +190,8 @@ export interface DependencyPath {
 }
 
 export function parse (dependencyPath: string): DependencyPath {
-  // eslint-disable-next-line: strict-type-predicates
   if (typeof dependencyPath !== 'string') {
     throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${
-      // eslint-disable-next-line: strict-type-predicates
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
@@ -192,50 +200,64 @@ export function parse (dependencyPath: string): DependencyPath {
     return {}
   }
   const name = dependencyPath.substring(0, sepIndex)
-  let version = dependencyPath.substring(sepIndex + 1)
-  if (version) {
-    let peerDepGraphHash: string | undefined
-    let patchHash: string | undefined
-    const { peersIndex, patchHashIndex } = indexOfDepPathSuffix(version)
-    if (peersIndex !== -1 || patchHashIndex !== -1) {
-      if (peersIndex === -1) {
-        patchHash = version.substring(patchHashIndex)
-        version = version.substring(0, patchHashIndex)
-      } else if (patchHashIndex === -1) {
-        peerDepGraphHash = version.substring(peersIndex)
-        version = version.substring(0, peersIndex)
-      } else {
-        patchHash = version.substring(patchHashIndex, peersIndex)
-        peerDepGraphHash = version.substring(peersIndex)
-        version = version.substring(0, patchHashIndex)
-      }
-    }
-    if (semver.valid(version)) {
-      return {
-        name,
-        peerDepGraphHash,
-        version,
-        patchHash,
-      }
-    }
-    const registryQualified = parseRegistryQualifiedVersion(version)
-    if (registryQualified != null) {
-      return {
-        name,
-        peerDepGraphHash,
-        version: registryQualified.version,
-        patchHash,
-        registryName: registryQualified.registryName,
-      }
-    }
+  const rawVersion = dependencyPath.substring(sepIndex + 1)
+  if (!rawVersion) {
+    return {}
+  }
+  return buildParsedDependencyPath(name, rawVersion)
+}
+
+interface SplitSuffixResult {
+  version: string
+  peerDepGraphHash?: string
+  patchHash?: string
+}
+
+function splitDepPathSuffixes (rawVersion: string): SplitSuffixResult {
+  const { peersIndex, patchHashIndex } = indexOfDepPathSuffix(rawVersion)
+  if (peersIndex === -1 && patchHashIndex === -1) {
+    return { version: rawVersion }
+  }
+  if (peersIndex === -1) {
     return {
-      name,
-      nonSemverVersion: version as PkgResolutionId,
-      peerDepGraphHash,
-      patchHash,
+      version: rawVersion.substring(0, patchHashIndex),
+      patchHash: rawVersion.substring(patchHashIndex),
     }
   }
-  return {}
+  if (patchHashIndex === -1) {
+    return {
+      version: rawVersion.substring(0, peersIndex),
+      peerDepGraphHash: rawVersion.substring(peersIndex),
+    }
+  }
+  return {
+    version: rawVersion.substring(0, patchHashIndex),
+    patchHash: rawVersion.substring(patchHashIndex, peersIndex),
+    peerDepGraphHash: rawVersion.substring(peersIndex),
+  }
+}
+
+function buildParsedDependencyPath (name: string, rawVersion: string): DependencyPath {
+  const { version, peerDepGraphHash, patchHash } = splitDepPathSuffixes(rawVersion)
+  if (semver.valid(version)) {
+    return { name, peerDepGraphHash, version, patchHash }
+  }
+  const registryQualified = parseRegistryQualifiedVersion(version)
+  if (registryQualified != null) {
+    return {
+      name,
+      peerDepGraphHash,
+      version: registryQualified.version,
+      patchHash,
+      registryName: registryQualified.registryName,
+    }
+  }
+  return {
+    name,
+    nonSemverVersion: version as PkgResolutionId,
+    peerDepGraphHash,
+    patchHash,
+  }
 }
 
 export function depPathToFilename (depPath: string, maxLengthWithoutHash: number): string {
@@ -245,10 +267,36 @@ export function depPathToFilename (depPath: string, maxLengthWithoutHash: number
       .replace(/\)$/, '')
       .replace(/\)\(|\(|\)/g, '_')
   }
-  if (filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
-    return `${filename.substring(0, maxLengthWithoutHash - 33)}_${createShortHash(filename)}`
+  // Windows strips trailing dots and spaces from path segments. Hashing
+  // the unescaped name keeps it apart from a literal `+` path.
+  const escapesAmbiguously = hasAmbiguousEscape(depPath)
+  const hashInput = escapesAmbiguously ? depPath : filename
+  let end = filename.length
+  while (end > 0 && (filename[end - 1] === '.' || filename[end - 1] === ' ')) end--
+  const escapedTrailing = end < filename.length
+  if (escapedTrailing) {
+    filename = filename.substring(0, end) + '+'.repeat(filename.length - end)
+  }
+  if (escapesAmbiguously || escapedTrailing || filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
+    return `${filename.substring(0, maxLengthWithoutHash - 33)}_${createShortHash(hashInput)}`
   }
   return filename
+}
+
+/**
+ * Whether escaping the URL or path of a non-registry dependency could map two
+ * distinct dep paths to one name. Only `/` after the scheme escapes unambiguously.
+ */
+function hasAmbiguousEscape (depPath: string): boolean {
+  const pkgId = depPath.split('(', 1)[0].replace(/^\//, '')
+  const isFileDepPath = pkgId.startsWith('file:')
+  const versionSeparator = pkgId.indexOf('@', 1)
+  if (!isFileDepPath && versionSeparator === -1) return false
+  const version = isFileDepPath ? pkgId : pkgId.slice(versionSeparator + 1)
+  const schemeEnd = version.indexOf(':')
+  if (schemeEnd === -1 || parseRegistryQualifiedVersion(version) != null) return false
+  const location = version.slice(schemeEnd + 1).replace(/^\/\//, '')
+  return /[+\\:*?"<>|#]/.test(location)
 }
 
 function depPathToFilenameUnescaped (depPath: string): string {
@@ -265,6 +313,78 @@ function depPathToFilenameUnescaped (depPath: string): string {
 
 // Peer ID or stringified peer dependency graph
 export type PeerId = { name: string, version: string } | string
+
+/**
+ * The peer providers a depPath records in its peer suffix. `explicit` holds
+ * the spelled-out segments, each a provider's depPath or a `patch_hash=`
+ * marker. `hashed` is the opaque hash written once the segments exceed
+ * `peersSuffixMaxLength`, which names no provider.
+ */
+export type PeerBindings = { kind: 'explicit', segments: string[] } | { kind: 'hashed' }
+
+/**
+ * The bindings `depPath`'s peer suffix records. `undefined` when it has no
+ * peer suffix, or the suffix is not a flat run of balanced groups.
+ */
+export function parsePeerBindings (depPath: string): PeerBindings | undefined {
+  const { peerDepGraphHash } = parseDepPath(depPath)
+  if (peerDepGraphHash === '') return undefined
+  const segments = splitPeerSuffixSegments(peerDepGraphHash)
+  if (segments == null) return undefined
+  const providerSegments = segments.filter((segment) => !segment.startsWith('patch_hash='))
+  if (providerSegments.length === 1 && isPeerSuffixHash(providerSegments[0])) return { kind: 'hashed' }
+  return { kind: 'explicit', segments }
+}
+
+/** The providers' depPaths among `bindings`' segments, in suffix order. */
+export function getPeerBindingProviders (bindings: PeerBindings): DepPath[] {
+  if (bindings.kind === 'hashed') return []
+  return bindings.segments.filter((segment) => parse(segment).name != null) as DepPath[]
+}
+
+/**
+ * The providers `bindings` name, without their own peers: peer segments may
+ * omit them (`dedupePeers`). `undefined` for a hashed suffix, which names
+ * none, so every target counts.
+ */
+export function getBoundPeerProviders (bindings: PeerBindings): Set<string> | undefined {
+  if (bindings.kind === 'hashed') return undefined
+  return new Set(getPeerBindingProviders(bindings).map((provider) => removePeersSuffix(provider)))
+}
+
+function splitPeerSuffixSegments (suffix: string): string[] | undefined {
+  const scan: SegmentScan = { segments: [], depth: 0, start: -1 }
+  for (let index = 0; index < suffix.length; index++) {
+    if (!scanSegmentChar(scan, suffix, index)) return undefined
+  }
+  return scan.depth === 0 ? scan.segments : undefined
+}
+
+interface SegmentScan {
+  segments: string[]
+  depth: number
+  start: number
+}
+
+/** Advances `scan` past `suffix[index]`. `false` when the suffix is not a flat run of balanced groups. */
+function scanSegmentChar (scan: SegmentScan, suffix: string, index: number): boolean {
+  const char = suffix[index]
+  if (char === '(') {
+    if (scan.depth === 0) scan.start = index + 1
+    scan.depth++
+    return true
+  }
+  if (char !== ')') return scan.depth > 0
+  scan.depth--
+  if (scan.depth === 0) scan.segments.push(suffix.substring(scan.start, index))
+  return scan.depth >= 0
+}
+
+const HEX_DIGITS = '0123456789abcdefABCDEF'
+
+function isPeerSuffixHash (segment: string): boolean {
+  return segment.length === 32 && [...segment].every((char) => HEX_DIGITS.includes(char))
+}
 
 export function createPeerDepGraphHash (peerIds: PeerId[], maxLength: number = 1000): string {
   let dirName = peerIds.map(
@@ -288,4 +408,31 @@ const RUNTIME_DEP_PATH_RE = /^(?:node|bun|deno)@runtime:/
 
 export function isRuntimeDepPath (depPath: DepPath): boolean {
   return RUNTIME_DEP_PATH_RE.test(depPath)
+}
+
+/**
+ * The prefix of a lockfile reference to a directory inside the package that
+ * declares it, such as `link:<root>/typings/css-tree`. `<root>` stands for
+ * the declaring package's own directory, which is only known where that
+ * package is placed on disk.
+ */
+export const PACKAGE_ROOT_LINK_PREFIX = 'link:<root>/'
+
+/**
+ * The path, relative to the declaring package's directory, that a
+ * {@link PACKAGE_ROOT_LINK_PREFIX} reference points to, or `undefined` for
+ * any other reference.
+ *
+ * The path comes from a lockfile or a published manifest, so it is accepted
+ * only when every `/`-separated segment is a plain name: no empty, `.` or
+ * `..` segment, and no `\` or `:`, which would let a platform path join
+ * re-anchor it outside the package.
+ */
+export function packageRootLinkTarget (reference: string): string | undefined {
+  if (!reference.startsWith(PACKAGE_ROOT_LINK_PREFIX)) return undefined
+  const target = reference.slice(PACKAGE_ROOT_LINK_PREFIX.length)
+  const isPlainPath = target.split('/').every((segment) =>
+    segment !== '' && segment !== '.' && segment !== '..' && !segment.includes('\\') && !segment.includes(':')
+  )
+  return isPlainPath ? target : undefined
 }

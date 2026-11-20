@@ -1,0 +1,6 @@
+extends: existence
+message: "Use straight quotes."
+level: error
+nonword: true
+tokens:
+  - '[“”‘’]'

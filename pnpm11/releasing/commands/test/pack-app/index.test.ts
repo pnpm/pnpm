@@ -54,14 +54,14 @@ describe('pack-app command', () => {
 
   it('fails fast when no --entry is provided', async () => {
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler(baseOpts() as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_ENTRY' })
   })
 
   it('fails fast when the entry file does not exist', async () => {
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler({ ...baseOpts(), entry: 'missing.cjs' } as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_NOT_FOUND' })
   })
@@ -69,9 +69,19 @@ describe('pack-app command', () => {
   it('fails fast when the entry path is a directory', async () => {
     fs.mkdirSync(path.join(tempDir, 'entry-dir'))
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler({ ...baseOpts(), entry: 'entry-dir' } as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_NOT_FILE' })
+  })
+
+  it('accepts an entry inside a project directory whose name starts with two dots', async () => {
+    fs.mkdirSync(path.join(tempDir, '..build'))
+    fs.writeFileSync(path.join(tempDir, '..build', 'entry.cjs'), 'module.exports = {}')
+    // With a contained entry but no target, we hit MISSING_TARGET.
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
+      handler({ ...baseOpts(), entry: '..build/entry.cjs' } as any, [])
+    ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
   })
 
   it.each([
@@ -81,7 +91,7 @@ describe('pack-app command', () => {
     ['mid-path traversal', 'sub/../../escape.cjs'],
   ])('rejects entry that escapes the project: %s (%s)', async (_label, entry) => {
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler({ ...baseOpts(), entry } as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT' })
   })
@@ -95,7 +105,7 @@ describe('pack-app command', () => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
       handler(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
         { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName: 'app', outputDir } as any,
         []
       )
@@ -108,7 +118,7 @@ describe('pack-app command', () => {
       fs.writeFileSync(path.join(outside, 'secret.cjs'), 'module.exports = {}')
       fs.symlinkSync(path.join(outside, 'secret.cjs'), path.join(tempDir, 'entry.cjs'))
       await expect(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
         handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
       ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT' })
     } finally {
@@ -123,7 +133,7 @@ describe('pack-app command', () => {
       fs.symlinkSync(outside, path.join(tempDir, 'dist-app'))
       await expect(
         handler(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
           { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName: 'app' } as any,
           []
         )
@@ -146,7 +156,7 @@ describe('pack-app command', () => {
       fs.symlinkSync(victim, path.join(targetDir, 'app'))
       await expect(
         handler(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
           { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName: 'app' } as any,
           []
         )
@@ -165,7 +175,7 @@ describe('pack-app command', () => {
     // With entry from config but no target, we hit MISSING_TARGET — that's
     // enough to verify the entry was picked up from pnpm.app.entry.
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler(baseOpts() as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
   })
@@ -179,7 +189,7 @@ describe('pack-app command', () => {
     // A bad-target in the config should reach parseTarget and surface
     // INVALID_TARGET — proves the config list was consulted.
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_TARGET' })
   })
@@ -195,7 +205,7 @@ describe('pack-app command', () => {
     }))
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler({ ...baseOpts(), target: 'linux-x64', runtime: 'node@0.0.0-nonexistent-xxx' } as any, [])
     ).rejects.toMatchObject({ code: expect.not.stringMatching(/INVALID_TARGET/) })
   })
@@ -207,7 +217,7 @@ describe('pack-app command', () => {
     }))
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler(baseOpts() as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_CONFIG' })
   })
@@ -224,7 +234,7 @@ describe('pack-app command', () => {
     }))
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler(baseOpts() as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_CONFIG' })
   })
@@ -232,7 +242,7 @@ describe('pack-app command', () => {
   it('fails fast when no --target is provided', async () => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
   })
@@ -252,7 +262,7 @@ describe('pack-app command', () => {
   ])('rejects invalid target: %s (%s)', async (_label, target) => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler({ ...baseOpts(), entry: 'entry.cjs', target } as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_TARGET' })
   })
@@ -267,7 +277,7 @@ describe('pack-app command', () => {
   ])('rejects invalid --runtime: %s (%s)', async (_label, runtime) => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
       handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', runtime } as any, [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_RUNTIME' })
   })
@@ -297,7 +307,7 @@ describe('pack-app command', () => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
       handler(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
         { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName } as any,
         []
       )
@@ -311,7 +321,7 @@ describe('pack-app command', () => {
     // assert on the error that surfaces when the target list is empty.
     await expect(
       handler(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
         { ...baseOpts(), entry: 'entry.cjs', outputName: 'explicit' } as any,
         []
       )

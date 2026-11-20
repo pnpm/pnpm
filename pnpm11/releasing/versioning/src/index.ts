@@ -7,15 +7,21 @@ export {
 export {
   assembleReleasePlan,
   type AssembleReleasePlanOptions,
+  checkVersioningInvariants,
+  type CheckVersioningInvariantsOptions,
   type DependencyUpdate,
   indexProjectRefs,
   isDirRef,
   materializeWorkspaceRange,
   type PlannedRelease,
+  privateProjectDirs,
   type ProjectRefIndex,
   type ReleaseCause,
   type ReleasePlan,
+  type ResolveWorkspaceVersioningOptions,
   toProjectDir,
+  validateVersioningLanes,
+  type VersioningInvariantViolation,
   type WorkspaceProject,
 } from './assembleReleasePlan.js'
 export {
@@ -23,6 +29,11 @@ export {
   prependChangelogSection,
   renderChangelog,
 } from './changelog.js'
+export {
+  checkPendingRelease,
+  describeCheckedIntents,
+  type PendingReleaseCheck,
+} from './checkPendingRelease.js'
 export {
   BUMP_TYPES,
   type ChangeIntent,

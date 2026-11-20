@@ -4,19 +4,32 @@
 use std::{
     cell::RefCell,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 
 use pipe_trait::Pipe;
-use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
+use pnpm_network_web_auth_testing::{
+    InputResponse,
+    ok_token,
+    web_auth_fake,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::{
-    LoginError, login,
+    LoginError,
+    login,
     support::{
-        PromptScript, ReadScript, client, credential_prompts, login_fake, opts,
+        PromptScript,
+        ReadScript,
+        client,
+        credential_prompts,
+        login_fake,
+        opts,
         written_registry_token,
     },
 };
@@ -55,11 +68,60 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let (path, _) = writes.first().expect("config.yaml was written");
-    assert_eq!(path, &config_dir.join("config.yaml"));
+    let (path, _) = writes.first().expect("auth.ini was written");
+    assert_eq!(path, &config_dir.join("auth.ini"));
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
         Some("classic-token-456".to_owned()),
+    );
+    assert_eq!(infos(), ["Logged in as john"]);
+}
+
+// <https://github.com/pnpm/pnpm/issues/12055>
+#[tokio::test]
+async fn should_log_in_to_an_existing_user_by_sending_the_credentials_as_basic_auth() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost, set_prompt_input, set_prompt_password, login_writes);
+    reset();
+    reset_login();
+    set_prompt_input(credential_prompts("john", "john@example.com"));
+    set_prompt_password(Box::new(|_| Ok("sécret".to_owned())));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
+    let already_registered = server
+        .mock("PUT", "/-/user/org.couchdb.user:john")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(409)
+        .with_body(json!({"error": "username is already registered"}).to_string())
+        .expect(0)
+        .create_async()
+        .await;
+    let logged_in = server
+        .mock("PUT", "/-/user/org.couchdb.user:john")
+        .match_header("authorization", "Basic am9objpzw6ljcmV0")
+        .with_status(201)
+        .with_body(json!({"ok": true, "token": "existing-user-token"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("classic login succeeds for an existing user");
+
+    already_registered.assert_async().await;
+    logged_in.assert_async().await;
+    assert_eq!(result, format!("Logged in on {registry}/"));
+    assert_eq!(
+        written_registry_token(&login_writes(), &format!("{registry}/")),
+        Some("existing-user-token".to_owned()),
     );
     assert_eq!(infos(), ["Logged in as john"]);
 }
@@ -154,7 +216,12 @@ async fn should_handle_classic_otp_challenge_during_login() {
     set_input(InputResponse::Value(Some("999999".to_owned())));
 
     let mut server = mockito::Server::new_async().await;
-    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
     let challenge = server
         .mock("PUT", "/-/user/org.couchdb.user:alice")
         .match_header("npm-otp", mockito::Matcher::Missing)
@@ -196,7 +263,12 @@ async fn should_handle_webauth_otp_challenge_during_login() {
     set_fetch(Box::new(|| Ok(ok_token("web-tok"))));
 
     let mut server = mockito::Server::new_async().await;
-    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
     let challenge = server
         .mock("PUT", "/-/user/org.couchdb.user:bob")
         .match_header("npm-otp", mockito::Matcher::Missing)
@@ -225,7 +297,9 @@ async fn should_handle_webauth_otp_challenge_during_login() {
     retry.assert_async().await;
     assert_eq!(result, format!("Logged in on {registry}/"));
     assert!(
-        infos().iter().any(|message| message.contains("https://example.org/auth/web")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://example.org/auth/web")),
         "the auth URL should be surfaced, got {:?}",
         infos(),
     );
@@ -241,7 +315,12 @@ async fn should_not_trigger_otp_for_non_401_errors() {
     set_prompt_password(Box::new(|_| Ok("pass".to_owned())));
 
     let mut server = mockito::Server::new_async().await;
-    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
     server
         .mock("PUT", "/-/user/org.couchdb.user:alice")
         .with_status(403)
@@ -256,7 +335,9 @@ async fn should_not_trigger_otp_for_non_401_errors() {
         .unwrap_err();
 
     assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_LOGIN_FAILED"),
     );
     assert_eq!(err.to_string(), "Login failed (HTTP 403): Forbidden");
@@ -272,7 +353,12 @@ async fn should_not_trigger_otp_for_401_without_www_authenticate_otp_header() {
     set_prompt_password(Box::new(|_| Ok("pass".to_owned())));
 
     let mut server = mockito::Server::new_async().await;
-    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
     server
         .mock("PUT", "/-/user/org.couchdb.user:alice")
         .with_status(401)
@@ -287,7 +373,9 @@ async fn should_not_trigger_otp_for_401_without_www_authenticate_otp_header() {
         .unwrap_err();
 
     assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_LOGIN_FAILED"),
     );
     assert_eq!(err.to_string(), "Login failed (HTTP 401): Unauthorized");
@@ -307,7 +395,12 @@ async fn should_throw_when_username_is_empty_in_classic_login() {
     set_prompt_password(Box::new(|_| Ok("pass".to_owned())));
 
     let mut server = mockito::Server::new_async().await;
-    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
@@ -317,7 +410,9 @@ async fn should_throw_when_username_is_empty_in_classic_login() {
 
     assert!(matches!(err, LoginError::MissingCredentials), "got {err:?}");
     assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_LOGIN_MISSING_CREDENTIALS"),
     );
     assert_eq!(err.to_string(), "Username, password, and email are all required");
@@ -335,11 +430,19 @@ async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
     // login. The fake returns the raw `dialoguer::Error`, so this exercises the
     // wrapper rather than short-circuiting it with a pre-mapped `PromptError`.
     set_prompt_password(Box::new(|_| {
-        io::ErrorKind::Interrupted.pipe(io::Error::from).pipe(dialoguer::Error::IO).pipe(Err)
+        io::ErrorKind::Interrupted
+            .pipe(io::Error::from)
+            .pipe(dialoguer::Error::IO)
+            .pipe(Err)
     }));
 
     let mut server = mockito::Server::new_async().await;
-    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
@@ -349,7 +452,9 @@ async fn should_cancel_the_login_when_a_credential_prompt_is_interrupted() {
 
     assert!(matches!(err, LoginError::Canceled), "got {err:?}");
     assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_LOGIN_CANCELED"),
     );
     assert_eq!(err.to_string(), "Login canceled");
@@ -365,7 +470,12 @@ async fn should_throw_when_classic_login_returns_no_token() {
     set_prompt_password(Box::new(|_| Ok("pass".to_owned())));
 
     let mut server = mockito::Server::new_async().await;
-    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
     server
         .mock("PUT", "/-/user/org.couchdb.user:alice")
         .with_status(201)
@@ -380,7 +490,9 @@ async fn should_throw_when_classic_login_returns_no_token() {
         .unwrap_err();
 
     assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_LOGIN_NO_TOKEN"),
     );
     assert_eq!(err.to_string(), "The registry did not return an authentication token");
@@ -396,11 +508,19 @@ async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
     reset();
     reset_login();
     set_prompt_input(Box::new(|_| {
-        io::ErrorKind::BrokenPipe.pipe(io::Error::from).pipe(dialoguer::Error::IO).pipe(Err)
+        io::ErrorKind::BrokenPipe
+            .pipe(io::Error::from)
+            .pipe(dialoguer::Error::IO)
+            .pipe(Err)
     }));
 
     let mut server = mockito::Server::new_async().await;
-    server.mock("POST", "/-/v1/login").with_status(404).with_body("Not Found").create_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(404)
+        .with_body("Not Found")
+        .create_async()
+        .await;
     let registry = server.url();
     let config_dir = Path::new("/mock/config");
 
@@ -410,7 +530,9 @@ async fn should_surface_a_non_interrupt_prompt_failure_as_a_prompt_error() {
 
     assert!(matches!(err, LoginError::Prompt { .. }), "got {err:?}");
     assert_eq!(
-        err.pipe_ref(miette::Diagnostic::code).map(|code| code.to_string()).as_deref(),
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
         Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_PROMPT_FAILED"),
     );
     assert!(

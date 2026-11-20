@@ -3,7 +3,13 @@ use std::collections::HashMap;
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
-use super::{AuthHeaders, DerivedPackuments, Package, PackageVersion, ThrottledClient};
+use super::{
+    AuthHeaders,
+    DerivedPackuments,
+    Package,
+    PackageVersion,
+    ThrottledClient,
+};
 use crate::package_distribution::PackageDistribution;
 
 #[test]
@@ -58,6 +64,28 @@ async fn fetch_from_registry_attaches_authorization_header() {
     let pkg = Package::fetch_from_registry("acme", &client, &registry, &auth_headers)
         .await
         .expect("server should accept the request once the bearer header is attached");
+    assert_eq!(pkg.name, "acme");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_from_registry_normalizes_registry_url_without_trailing_slash() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{"name":"acme","dist-tags":{"latest":"1.0.0"},"versions":{}}"#;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let pkg = Package::fetch_from_registry("acme", &client, &server.url(), &auth_headers)
+        .await
+        .expect("server should accept the request when registry url lacks trailing slash");
     assert_eq!(pkg.name, "acme");
     mock.assert_async().await;
 }
@@ -282,12 +310,9 @@ fn package_deserializes_without_npm_user_or_attestations() {
 /// boolean) on never-deprecated versions even though the upstream
 /// type declares the field as a string. JavaScript silently stores
 /// the boolean (and the upstream truthiness check happens to do the
-/// right thing). Rust serde is strict, so we route through a custom
-/// deserializer that normalizes the wire shape: `string` stays a
-/// string, `false` becomes `None`, `true` becomes `Some("")`. This
-/// regression pinned the entire integrated-benchmark workload, which
-/// fails to deserialize `react`, `react-dom`, `scheduler`, and other
-/// real-world packages without the normalization.
+/// right thing). This regression pinned the entire integrated-benchmark
+/// workload, which fails to deserialize `react`, `react-dom`,
+/// `scheduler`, and other real-world packages without the normalization.
 #[test]
 fn package_deserializes_deprecated_boolean_false() {
     let body = r#"{
@@ -336,7 +361,7 @@ fn package_deserializes_deprecated_boolean_true() {
     assert_eq!(
         version.deprecated.as_deref(),
         Some(""),
-        r#"deprecated:true maps to Some("") — recorded as deprecated without a reason"#,
+        r#"deprecated:true maps to Some(""), recorded as deprecated without a reason"#,
     );
 }
 
@@ -365,7 +390,7 @@ fn package_deserializes_deprecated_reason_string() {
 }
 
 /// A packument missing the `time` field entirely still
-/// deserializes — abbreviated metadata responses omit it, and the
+/// deserializes, abbreviated metadata responses omit it, and the
 /// verifier falls through to the attestation / full-metadata
 /// layers in that case rather than failing closed.
 #[test]

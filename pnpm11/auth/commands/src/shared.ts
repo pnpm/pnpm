@@ -1,5 +1,3 @@
-import util from 'node:util'
-
 export function getRegistryConfigKey (registryUrl: string): string {
   const url = new URL(registryUrl)
   return `//${url.host}${url.pathname}`
@@ -12,7 +10,7 @@ export async function safeReadIniFile (
   try {
     return await readIniFile(configPath)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
+    if (err != null && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
 }

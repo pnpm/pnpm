@@ -160,7 +160,6 @@ test('optimally synchronizes source and target', async () => {
       .map(fileId)
   )
 
-  // does not touch filesToKeep
   for (const suffix of filesToKeep) {
     const sourceFile = path.resolve(sourceDir, suffix)
     const targetFile = path.resolve(targetDir, suffix)
@@ -169,7 +168,6 @@ test('optimally synchronizes source and target', async () => {
     expect(fsMethods.link).not.toHaveBeenCalledWith(expect.anything(), targetFile)
   }
 
-  // removes filesToRemove without replacement
   for (const suffix of filesToRemove) {
     const sourceFile = path.resolve(sourceDir, suffix)
     const targetFile = path.resolve(targetDir, suffix)
@@ -178,7 +176,6 @@ test('optimally synchronizes source and target', async () => {
     expect(fsMethods.link).not.toHaveBeenCalledWith(expect.anything(), targetFile)
   }
 
-  // adds filesToAdd without removing old files
   for (const suffix of filesToAdd) {
     const sourceFile = path.resolve(sourceDir, suffix)
     const targetFile = path.resolve(targetDir, suffix)
@@ -186,7 +183,6 @@ test('optimally synchronizes source and target', async () => {
     expect(fsMethods.link).toHaveBeenCalledWith(sourceFile, targetFile)
   }
 
-  // replaces filesToModify by removing old files and add new hardlinks
   for (const suffix of filesToModify) {
     const sourceFile = path.resolve(sourceDir, suffix)
     const targetFile = path.resolve(targetDir, suffix)
@@ -354,4 +350,17 @@ test('removes what the source dropped before replacing the directory that held i
   await Promise.all(patchers.map(async patcher => patcher.apply()))
 
   expect(fs.readFileSync('target/became-a-file', 'utf8')).toBe('now a file')
+})
+
+test('replaces a target manifest left half written instead of parsing it', async () => {
+  prepareEmpty()
+
+  const manifest = JSON.stringify({ name: 'pkg', version: '1.0.0' })
+  createFile('source/package.json', manifest)
+  createFile('target/package.json', '')
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'], true)
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.readFileSync('target/package.json', 'utf8')).toBe(manifest)
 })

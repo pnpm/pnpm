@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-restorer",
-  "version": "1103.1.0",
+  "version": "1103.2.11",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -29,17 +29,19 @@
     "test": "test"
   },
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/bins.remover": "workspace:*",
     "@pnpm/building.during-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -49,6 +51,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/installing.linking.direct-dep-linker": "workspace:*",
     "@pnpm/installing.linking.hoist": "workspace:*",
@@ -63,9 +66,12 @@
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/pnpr.client": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@pnpm/workspace.state": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "p-limit": "catalog:",
     "path-absolute": "catalog:",

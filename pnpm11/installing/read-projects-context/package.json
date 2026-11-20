@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.read-projects-context",
-  "version": "1101.0.2",
+  "version": "1101.0.16",
   "description": "Reads the current state of projects from modules manifest",
   "keywords": [
     "pnpm",
@@ -24,14 +24,15 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "test": "pn compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix"
   },
   "dependencies": {
     "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/types": "workspace:*",

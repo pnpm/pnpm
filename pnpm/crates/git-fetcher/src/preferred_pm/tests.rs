@@ -1,4 +1,9 @@
-use super::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
+use super::{
+    PreferredPm,
+    WantedPm,
+    detect_preferred_pm,
+    detect_wanted_pm,
+};
 use std::fs;
 use tempfile::tempdir;
 
@@ -13,6 +18,36 @@ fn detects_pnpm_via_pnpm_lock_yaml() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n").unwrap();
     assert_eq!(detect_preferred_pm(dir.path()), PreferredPm::Pnpm);
+}
+
+#[test]
+fn detects_pnpm_via_pnpm_workspace_yaml_when_it_ships_no_lockfile() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n").unwrap();
+    assert_eq!(detect_preferred_pm(dir.path()), PreferredPm::Pnpm);
+}
+
+#[test]
+fn a_shipped_lockfile_still_wins_over_pnpm_workspace_yaml() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n").unwrap();
+    fs::write(dir.path().join("yarn.lock"), "").unwrap();
+    assert_eq!(detect_preferred_pm(dir.path()), PreferredPm::Yarn);
+
+    let dir2 = tempdir().unwrap();
+    fs::write(dir2.path().join("pnpm-workspace.yaml"), "packages: []\n").unwrap();
+    fs::write(dir2.path().join("package-lock.json"), "{}").unwrap();
+    assert_eq!(detect_preferred_pm(dir2.path()), PreferredPm::Npm);
+}
+
+#[test]
+fn a_lockfile_less_pnpm_workspace_wants_pnpm_with_no_version_pin() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n").unwrap();
+    assert_eq!(
+        detect_wanted_pm(dir.path(), None),
+        WantedPm { pm: PreferredPm::Pnpm, version_spec: None, pinned: false },
+    );
 }
 
 #[test]
@@ -119,7 +154,7 @@ fn a_dev_engines_pin_wins_over_the_lockfile() {
 
 /// A dependency's manifest is untrusted input and its pin reaches a
 /// command line, so only a plain semver range is carried over. Everything
-/// else — a URL, a dist-tag, a shell payload — leaves the version to pnpm.
+/// else (a URL, a dist-tag, a shell payload) leaves the version to pnpm.
 #[test]
 fn only_a_semver_range_is_carried_over_from_a_pin() {
     let dir = tempdir().unwrap();
@@ -206,7 +241,7 @@ fn a_yarn_declaration_without_a_version_takes_the_line_from_the_lockfile() {
 }
 
 /// Only the header is read, so a lockfile too large to hold in memory
-/// still answers — and a `__metadata` block that is not in the header is
+/// still answers, and a `__metadata` block that is not in the header is
 /// not a Berry stamp.
 #[test]
 fn the_line_is_read_from_the_lockfile_header() {
@@ -276,7 +311,7 @@ fn a_dev_engines_list_falls_through_to_an_entry_pnpm_can_provision() {
 }
 
 /// `devEngines` outranks `packageManager`, but only for a package manager
-/// pnpm can provision — an unknown one there must not bury the pin below
+/// pnpm can provision, an unknown one there must not bury the pin below
 /// it.
 #[test]
 fn an_unknown_dev_engines_pin_leaves_package_manager_in_charge() {

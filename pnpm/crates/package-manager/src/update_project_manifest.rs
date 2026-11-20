@@ -1,5 +1,13 @@
-use crate::{PackageSpecObject, is_workspace_local_path_specifier, update_project_manifest_object};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use crate::{
+    PackageSpecObject,
+    is_workspace_local_path_specifier,
+    update_project_manifest_object,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_registry::RangeSpecStyle;
 
 /// Catalog metadata for a direct dependency requested through the `catalog:`
@@ -70,7 +78,7 @@ pub struct UpdateProjectManifestOptions<'a> {
 /// `owner/repo#sha`, a GitHub URL) be saved even when they resolve to an alias
 /// already present in the manifest. A wanted dep flagged `update_spec` that
 /// resolved to nothing is re-saved with no specifier, so it keeps its existing
-/// version under the importer's target field — a no-op when none is set (a
+/// version under the importer's target field, a no-op when none is set (a
 /// plain install/update).
 pub fn update_project_manifest(
     manifest: &mut PackageManifest,
@@ -96,21 +104,7 @@ pub fn update_project_manifest(
         });
     }
 
-    for wanted in opts.wanted_dependencies {
-        let Some(alias) = wanted.alias.as_deref().filter(|alias| !alias.is_empty()) else {
-            continue;
-        };
-        if wanted.update_spec && !specs.iter().any(|spec| spec.alias == alias) {
-            specs.push(PackageSpecObject {
-                alias: alias.to_string(),
-                peer: opts.peer,
-                bare_specifier: None,
-                resolved_version: None,
-                range_spec_style: None,
-                save_type: opts.target_dependencies_field,
-            });
-        }
-    }
+    preserve_unresolved_specs(&mut specs, opts);
 
     update_project_manifest_object(manifest, &specs)
 }
@@ -130,7 +124,37 @@ fn get_bare_specifier_to_save(
     if preserve_workspace_protocol && is_workspace_local_path_specifier(&wanted.bare_specifier) {
         return wanted.bare_specifier.clone();
     }
-    resolved.normalized_bare_specifier.clone().unwrap_or_else(|| wanted.bare_specifier.clone())
+    resolved.normalized_bare_specifier
+        .clone()
+        .unwrap_or_else(|| wanted.bare_specifier.clone())
+}
+
+fn preserve_unresolved_specs(
+    specs: &mut Vec<PackageSpecObject>,
+    opts: &UpdateProjectManifestOptions<'_>,
+) {
+    for wanted in opts.wanted_dependencies {
+        let Some(alias) = wanted.alias
+            .as_deref()
+            .filter(|alias| !alias.is_empty())
+        else {
+            continue;
+        };
+        if wanted.update_spec
+            && !specs
+                .iter()
+                .any(|spec| spec.alias == alias)
+        {
+            specs.push(PackageSpecObject {
+                alias: alias.to_string(),
+                peer: opts.peer,
+                bare_specifier: None,
+                resolved_version: None,
+                range_spec_style: None,
+                save_type: opts.target_dependencies_field,
+            });
+        }
+    }
 }
 
 #[cfg(test)]

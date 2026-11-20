@@ -12,7 +12,7 @@ import { readYamlFileSync } from 'read-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test.skip('subsequent installation uses same lockfile directory by default', async () => {
   prepareEmpty()
@@ -46,7 +46,7 @@ test.skip('subsequent installation fails if a different lockfile directory is sp
 test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async () => {
   const project = prepareEmpty()
 
-  f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', 'pkg.tgz')
+  testFixtures.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', 'pkg.tgz')
 
   const lockfileDir = path.resolve('..')
   const { updatedProject: { manifest } } = await mutateModulesInSingleProject({

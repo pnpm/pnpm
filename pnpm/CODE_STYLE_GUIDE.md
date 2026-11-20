@@ -40,6 +40,67 @@ The act of cloning or creating an owned data from another owned/borrowed data.
 
 ## Guides
 
+### Function length
+
+Keep production function bodies within 40 lines of code. Extract helpers around distinct responsibilities and reuse existing helpers where possible. `perfectionist::overly_long_function` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Tests are exempt, so a test can keep its setup, action, and assertions together.
+
+### Nesting depth
+
+Keep function and method bodies within three levels of nesting, including tests. Prefer guard clauses, match guards, and helpers named for a distinct responsibility. `perfectionist::excessive_nesting` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Keep iterator closures simple. A single expression can make a chain easy to follow. When a closure needs several statements, prefer an explicit loop or a named helper. Preserve lazy evaluation, allocation behavior, and short-circuiting when choosing between them.
+
+### Condition complexity
+
+Keep `if`, `while`, and match-guard conditions within five `&&` or `||` operators, including tests. `perfectionist::overly_complex_condition` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+A longer condition is two predicates the author did not name. Name the whole condition, extract a helper for the group of clauses that names a concept, or split the leading clauses into a guard clause. Keep a helper call inside the short-circuit chain rather than binding its result above the condition, so the clauses after it stay unevaluated until the condition reaches them, and keep a `while` condition's work on every iteration.
+
+### Method chains
+
+Keep production method chains within nine calls. Consecutive calls to the same method count once; `.await` and `?` do not add to the count. Tests are exempt.
+
+`perfectionist::overly_long_method_chain` enforces this through [`dylint.toml`](../dylint.toml). When a chain exceeds the limit, name an intermediate value or extract a helper for a distinct operation.
+
+### File length
+
+Keep production Rust files within 400 lines of code and test-only Rust files within 800. Count nonblank lines containing code, including multiline string content, and exclude comment-only lines. Split files into modules around distinct responsibilities or test scenarios. Keep tests in their existing test binary.
+
+`perfectionist::overly_long_file` enforces the 400-line production limit across the Rust workspace through [`dylint.toml`](../dylint.toml). Test files are exempt from the rule, so their 800-line limit is on you to keep.
+
+### Struct fields
+
+Keep structs within eight fields, including test structs. `perfectionist::too_many_struct_fields` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml).
+
+Group fields by a shared responsibility and reuse existing types. Pass a group directly to helpers that need it, or put its behavior on the group. Avoid repeating the group name in its fields: prefer `store.dir` and `package.integrity`.
+
+A struct that must match a fixed external configuration, serialized document, or binding interface may use a scoped `#[expect(perfectionist::too_many_struct_fields, reason = "...")]`, gated with `cfg_attr(dylint_lib = "perfectionist", ...)`. Name the format or interface in the reason. Internal runtime state and options should be refactored.
+
+### Boolean parameters and fields
+
+A `bool` is the right type for a fact about the data that reads as a predicate wherever it is used: `optional`, `installable`, `is_leaf`. Keep a parameter, field, or return value a `bool` only while all of these hold:
+
+- Every read and write sits next to a name that says what the value means. A call that passes a bare `true` or `false` fails this test. A call that passes a named variable or field passes it.
+- The question it answers has two answers, not a set of named alternatives. A `bool` named `gzip` answers "which algorithm" with yes and no, which leaves every other algorithm unnamed and gives `zstd` nowhere to go. Those alternatives are an enum's variants, and renaming it `is_gzip` only makes the predicate well formed over the wrong model.
+- The value describes the data rather than selecting which of two behaviors the callee performs. A behavior switch becomes an enum whose variants name the behaviors, or two functions.
+- Both values occur. A parameter that every caller passes the same value for is a default. Remove it.
+- No neighboring `bool` in the same signature, struct, or tuple implies, excludes, or ignores it. A `match` over the group that needs a wildcard arm proves the space is smaller than it looks: `(false, _) => Uncompressed` says the algorithm flag is don't-care whenever the data is not compressed.
+- It does not travel in a tuple position, where it has no name. A tuple that crosses a function boundary with a `bool` in it becomes a struct with named fields, or an enum of the outcomes.
+- The producer had no richer information that a consumer needs again later. If it did, pass the richer type.
+- It answers a predicate rather than reporting an outcome with named cases. A function that reports which of two things happened returns an enum, such as `Created` or `Existing`.
+
+When one of these fails, name the cases: a two-variant enum, a struct with named fields, or an existing type that already carries the information, such as a `DependencyGroup` in place of a manifest key paired with an `optional` flag. Do not convert mechanically. `Installable::Yes` reads no better than `true` when every caller passes it.
+
+Ask what each `bool` answers before asking how they relate. Correlated flags collapse into one type with one variant per reachable state, never into one two-variant enum each: a `Compressed` enum beside an `Algorithm` enum still admits an algorithm for data that was never compressed, the same impossible combination the two `bool`s had. Two independent axes stay two fields, since compression and encryption constrain nothing about each other. A second question that is meaningful for only one answer to the first nests inside it, as a variant carrying that choice: `Uncompressed` beside `Compressed(Gzip | Zstd)`.
+
+Branch on the replacement with an exhaustive `match` that names every variant. No wildcard arm, no `matches!`, and no `==` against a variant: each of those keeps compiling when a variant is added and silently lumps the new one in with the old. A `match` makes the addition a compile error at every site that has to decide.
+
+Name a surviving `bool` as a predicate, with `is_`, `has_`, `should_`, or a past participle such as `optional`, so that a read forms a sentence.
+
+Exempt by construction: setter and builder methods, struct literals with named fields, fields that mirror an external format, and locals destructured on the line that produces them. Clippy's `fn_params_excessive_bools` and `struct_excessive_bools` only count three or more `bool`s in one signature or struct. This rule applies to each one.
+
 ### Naming convention
 
 Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/naming.html). Specific naming conventions for generics, variables, and closure parameters are covered in the sections below.
@@ -61,7 +122,7 @@ pub use install_package_from_registry::InstallPackageFromRegistry;
 
 ### Import Organization
 
-Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by `cargo fmt`; the granularity is enforced by [`perfectionist::import_granularity_mismatch`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/import_granularity_mismatch.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
+Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by the [pinned formatter](../CONTRIBUTING.md#rust-formatting); the granularity is enforced by [`perfectionist::import_granularity_mismatch`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/import_granularity_mismatch.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
 
 ```rust
 use crate::{
@@ -69,7 +130,10 @@ use crate::{
     store::Store,
 };
 use pipe_trait::Pipe;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -77,7 +141,7 @@ use std::os::unix::fs::PermissionsExt;
 
 ### No star imports
 
-Avoid star (glob) imports inside the bodies of regular modules. Import items explicitly by name everywhere except the two cases noted below. The rule applies to production code, tests, integration tests, build scripts, and developer tooling under `tasks/`.
+Avoid star (glob) imports inside the bodies of regular modules. Import items explicitly by name everywhere except the cases noted below. The rule applies to production code, tests, integration tests, build scripts, and developer tooling under `tasks/`.
 
 The two exceptions are:
 
@@ -212,6 +276,14 @@ let a = node_bin_dir(&my_path_buf);
 let b = node_bin_dir(my_path_ref);
 ```
 
+### Getters return the borrowed form
+
+A getter — an inherent `&self` method named for the field it reads, or one named `get_*` — returns the [borrowed] form of that field: `&str` for a `String`, `&Path` for a `PathBuf`, `&[T]` for a `Vec<T>`, `Option<&T>` for an `Option<T>`.
+
+A getter that copies decides for every caller that they wanted an owned value, and most did not: they compare, print, or pass it on. The borrowed form serves every caller and leaves the one that needs ownership to copy at the call site, where the reader can see it. Where every call site would copy the borrow straight back, name the method `to_*` instead, the prefix for a conversion that costs something.
+
+`perfectionist::cloning_getter` enforces this across the Rust workspace through [`dylint.toml`](../dylint.toml). An `Rc` or `Arc` field is exempt, since cloning one bumps a refcount rather than copying what it points at.
+
 ### Trait Bounds
 
 Prefer `where` clauses over inline bounds when there are multiple constraints:
@@ -237,6 +309,29 @@ ExitCode::from(match self {
     InstallError::ManifestParseFailure(_) => 3,
 })
 ```
+
+### `map_or` and `map_or_else`
+
+Prefer a `match`, or `.map(..)` followed by `.unwrap_or(..)` / `.unwrap_or_else(..)`, over `map_or` and `map_or_else`.
+
+Both name the fallback before the value it is a fallback for, so reading one means holding the default in mind while looking past it for what the expression produces. A `match` states the two cases as cases; the chain states them in the order they evaluate.
+
+```rust
+// Prefer
+let label = match lookup(key) {
+    Some(found) => found.name(),
+    None => DEFAULT_LABEL,
+};
+let count = entries.as_ref().map(Vec::len).unwrap_or(0);
+
+// Over
+let label = lookup(key).map_or_else(|| DEFAULT_LABEL, Entry::name);
+let count = entries.as_ref().map_or(0, Vec::len);
+```
+
+No lint enforces this, and two would undo it: [`clippy::map_unwrap_or`](https://rust-lang.github.io/rust-clippy/master/index.html#map_unwrap_or) rewrites the chain into `map_or_else`, and [`clippy::option_if_let_else`](https://rust-lang.github.io/rust-clippy/master/index.html#option_if_let_else) rewrites the `match` into it. Both are set to `allow` in `[workspace.lints.clippy]` in the root `Cargo.toml` for that reason.
+
+A shorter spelling beats both. `is_some_and`, `is_none_or`, `is_ok_and`, `ok()` and `unwrap_or_default` carry the same meaning with fewer moving parts, and [`clippy::unnecessary_map_or`](https://rust-lang.github.io/rust-clippy/master/index.html#unnecessary_map_or) already rejects the boolean cases.
 
 ### Using `pipe-trait`
 
@@ -341,6 +436,10 @@ If the identifier is not directly in scope, use a path link (`` [`crate::store::
 A doc comment (`///` or `//!`) is rendered by `rustdoc` as the documentation of the item it attaches to, and it is visible to every reader who can see that item. The doc comment of a `pub` item therefore reaches every downstream user of the crate, including users who never read the source. Do not reference items more private than the item being documented. Disallowed references include a private function named in the doc comment of a `pub` item, a `pub(crate)` type named in the doc comment of a `pub` item, and a private constant named in the doc comment of a `pub(crate)` item. A reader who only sees the rendered docs cannot follow such a reference, and intra-doc links to inaccessible items become broken links in `cargo doc` output.
 
 If the explanation genuinely depends on that more private item, choose one of two fixes. The first option is to widen the visibility of the referenced item, adding a re-export when one fits the API. The second option is to move the explanation into a regular `//` comment on the implementation, where readers of the source can see it. Reserve `///` and `//!` for things a downstream user of the item needs to know. Use `//` for notes useful only to someone reading the source.
+
+Doc comments on clap commands and arguments are the `--help` output. The `@pnpm/napi` type declarations in `pnpm/npm/napi/index.d.ts`, and the doc comments on the `#[napi]` items they declare, describe the addon to its users. All of these follow the [user-facing text](../AGENTS.md#user-facing-text) rules.
+
+A default is documented on the field that has it, in the spelling the config file uses. The `#[default]` attribute on an enum variant is code and stays; prose on the variant or on the type claiming the default moves to the field, per [prose that cannot go stale](../AGENTS.md#prose-that-cannot-go-stale).
 
 ```rust
 // Bad: public doc references a private helper
@@ -497,7 +596,7 @@ Prefer `Arc::clone(&x)` / `Rc::clone(&x)` over `x.clone()` for reference-counted
 Library code should rarely call `std::env::var`, `std::env::var_os`, or `std::env::current_dir` directly. Process state belongs to the running process, not to the operation a function performs, so reaching for it couples the logic to whichever shell invoked pacquet and hides the dependency from the caller. Prefer one of:
 
 - **Take the value as a parameter.** A function that needs a path declares `path: &Path`; one that needs an env-var value takes it as a `&str` argument or an `Option<String>`.
-- **Thread the read through the DI seam.** Declare `Sys: EnvVar` (or `EnvVarOs`, `GetHomeDir`, `GetCurrentDir`, …) and call `Sys::var(name)` / `Sys::var_os(name)` / `Sys::home_dir()` / `Sys::current_dir()`. See [Dependency injection for tests](#dependency-injection-for-tests) for the convention. This is how `Config::current` resolves the home dir and the `NPM_CONFIG_WORKSPACE_DIR` lookup, and how `crates/workspace`'s `find_workspace_dir_from_env_with` resolves its env-var lookup — both let tests drive the read without touching the process environment.
+- **Thread the read through the DI seam.** Declare `Sys: EnvVar` (or `EnvVarOs`, `GetHomeDir`, `GetCurrentDir`, and so on) and call `Sys::var(name)` / `Sys::var_os(name)` / `Sys::home_dir()` / `Sys::current_dir()`. See [Dependency injection for tests](#dependency-injection-for-tests) for the convention. This is how `Config::current` resolves the home dir and the `NPM_CONFIG_WORKSPACE_DIR` lookup, and how `crates/workspace`'s `find_workspace_dir_from_env_with` resolves its env-var lookup — both let tests drive the read without touching the process environment.
 
 The narrow case where a direct call is acceptable is computing the default of a `Config` field that has no caller to take the value from — `default_store_dir`, `default_modules_dir`, and `default_virtual_store_dir` are the canonical examples. Even there, route the lookup through the DI seam: write the helper as `default_store_dir<Sys: EnvVar + GetHomeDir + GetCurrentDir>()` and inline the production composition at the `SmartDefault` site (`#[default(_code = "default_store_dir::<Host>()")]`), so the fake-`Sys` test path and the production `Host` path resolve through the same generic. The other accepted boundary reads are program-entry knobs (`RAYON_NUM_THREADS` in `crates/cli`, `TRACE` in `crates/diagnostics`) and the lifecycle-script env snapshot in `crates/executor` and `crates/git-fetcher`, which has to forward the parent environment to spawned children verbatim. If new library code seems to need `env::var` / `env::current_dir` for any other reason, the answer is almost always a `&Path` (or equivalent) parameter, not a process-state read.
 
@@ -509,7 +608,7 @@ The dependency-injection seam described below is the **narrow second route**. Re
 
 - **Filesystem error branches the host OS won't reproduce portably.** `PermissionDenied`, `ENOSPC`, a directory that disappears mid-walk, a chmod that fails after the file exists — provoking these on real disks is platform-specific, racy, or both. A fake that returns the exact `io::ErrorKind` is the only portable way to drive the branch.
 - **Deterministic time.** Asserting that `prunedAt` equals a specific HTTP-date (RFC 7231 IMF-fixdate, what `httpdate::fmt_http_date` emits), or that a throttled emitter fires on the second sample, needs the clock to be a known value. The real `SystemTime::now` makes those assertions flaky.
-- **Shared process-global state that tests would otherwise mutate.** When a branch depends on a single per-process slot — environment variables, the current working directory, the umask, signal handlers, the global allocator — the only way to exercise it without DI is to write to that slot, and the write is observed by every other test in the same process. A serialisation lock (the `EnvGuard` pattern that pnpm/pacquet#343 + pnpm/pnpm#11718 retired from `default_store_dir`) restores correctness only by forcing the affected tests to run single-threaded, and leaves an `unsafe { env::set_var(...) }` block at the call site. A capability-trait fake keeps the read deterministic and the mutation contained to the test that needs it, so nextest's in-process parallelism stays useful and `unsafe` stays out of test code. The reverse follows too: a real-fixture happy path should not be promoted to DI just because it crosses a process-global slot — only the *mutation* side of the slot is the problem; reading whatever the shell already has is fine.
+- **Shared process-global state that tests would otherwise mutate.** When a branch depends on a single per-process slot — environment variables, the current working directory, the umask, signal handlers, the global allocator — the only way to exercise it without DI is to write to that slot, and the write is observed by every other test in the same process. A serialisation lock (the `EnvGuard` pattern that pnpm/pacquet#343 + pnpm/pnpm#11718 retired from `default_store_dir`) restores correctness only by forcing the affected tests to run single-threaded, and it cannot make the write sound at all, because the environment's readers include C libraries that take no Rust lock. That is why `.config/clippy.toml` bans `std::env::set_var` and `std::env::remove_var`, leaving `EnvGuard::set` and `EnvGuard::remove` as test code's only route to the slot. A capability-trait fake keeps the read deterministic and the mutation contained to the test that needs it, so nextest's in-process parallelism stays useful and `unsafe` stays out of test code. The reverse follows too: a real-fixture happy path should not be promoted to DI just because it crosses a process-global slot — only the *mutation* side of the slot is the problem; reading whatever the shell already has is fine.
 - **External-service happy paths that can't be staged in CI.** pnpm has features whose *normal* flow depends on real external systems — `pnpm login`'s 2FA prompt round-trip, the OIDC token exchange and provenance attestation in `pnpm publish`, and similar — where the happy path itself is what needs faking, not just the error path. When pacquet grows those features, DI is the right tool for their tests too. (As of writing, these are not yet implemented; this exception is documented so the convention is in place when they land.)
 - **Unreachable-by-design preconditions.** When a function declares a capability bound but a specific test exercises a branch that never reaches that capability, the fake satisfies the bound with `unreachable!` and documents the precondition. See the worked example below.
 
@@ -562,7 +661,7 @@ The rest of this section is the convention that applies *when DI is the right to
 
 5. **Capability traits on the implementor.** `impl FsReadToString for Host` lives on the provider, not on the data type. The data types stay free of test-shim conditional impls; the seam is the provider.
 
-6. **Domain-neutral provider, domain-scoped traits.** The generic is `Sys`, the production type is `Host` (or whatever your crate exports as its provider), and the trait names carry the domain prefix (`Fs*`, `Env*`, `Clock`, `GetHostName`, …). A reader of `Sys: FsReadToString + Clock + EnvVar` knows immediately which side effects the function reaches for.
+6. **Domain-neutral provider, domain-scoped traits.** The generic is `Sys`, the production type is `Host` (or whatever your crate exports as its provider), and the trait names carry the domain prefix (`Fs*`, `Env*`, `Clock`, `GetHostName`, and so on). A reader of `Sys: FsReadToString + Clock + EnvVar` knows immediately which side effects the function reaches for.
 
 7. **Explicit turbofish in production.** Production call sites name the provider:
 
@@ -574,7 +673,7 @@ The rest of this section is the convention that applies *when DI is the right to
 
    The turbofish makes the production choice visible at the call site instead of relying on type inference; if a future caller wants to swap in a different provider (a test driver, a dry-run shim), the spot to change is obvious.
 
-8. **Capabilities are primitives, not algorithms.** Each trait names a leaf-level effect that maps to a single `std` function (`read_to_string`, `create_dir_all`, `write`, `var`, …). Higher-level guarantees — atomic write, retry loops, walk-with-options — become free functions composed on top of those primitives, not new trait methods. That keeps the fake surface dead-simple: a fake declares one method per capability, never a knob-laden builder.
+8. **Capabilities are primitives, not algorithms.** Each trait names a leaf-level effect that maps to a single `std` function (`read_to_string`, `create_dir_all`, `write`, `var`, and so on). Higher-level guarantees — atomic write, retry loops, walk-with-options — become free functions composed on top of those primitives, not new trait methods. That keeps the fake surface dead-simple: a fake declares one method per capability, never a knob-laden builder.
 
 #### Worked example: `modules-yaml`
 
@@ -748,15 +847,15 @@ fn install_step<R: Reporter>(prefix: String) {
 }
 ```
 
-Production callers turbofish at the entry point:
+Production callers turbofish at the entry point. The CLI's entry point is `CliReporter` (`crates/cli/src/cli_args/reporter.rs`), which picks the sink per event:
 
 ```rust
-Install { /* ... */ }.run::<NdjsonReporter>().await
+Install { /* ... */ }.run::<CliReporter>().await
 ```
 
 Tests use the no-op `SilentReporter` when they don't care about emits, or a recording fake when they do (see [Testing](#testing-the-emit) below).
 
-The generic monomorphises away — there's no runtime cost. The ergonomic cost is one `<R: Reporter>` per intermediate fn and one turbofish at the production entry point. When threading reaches into a struct, add `<R: Reporter>` to the impl method or carry an install-scoped state field that the relevant emit depends on (see `link_file::log_method_once`'s `&AtomicU8` parameter for an example of the latter — the function dedupes per-install rather than per-process).
+The generic costs nothing at runtime, but every distinct `R` compiles its own copy of the code generic over it. So the CLI instantiates commands with `CliReporter` rather than once per sink: change the sink with `select_reporter`, and hide events with `EventFilter` rather than a wrapper `Reporter` type. The ergonomic cost is one `<R: Reporter>` per intermediate fn and one turbofish at the production entry point. When threading reaches into a struct, add `<R: Reporter>` to the impl method or carry an install-scoped state field that the relevant emit depends on (see `link_file::log_method_once`'s `&AtomicU8` parameter for an example of the latter — the function dedupes per-install rather than per-process).
 
 #### Where to put the emit
 

@@ -13,10 +13,16 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../config/normalize-registries"
+    },
+    {
       "path": "../../config/package-is-installable"
     },
     {
       "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../config/version-policy"
     },
     {
       "path": "../../config/writer"
@@ -71,6 +77,9 @@
     },
     {
       "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     },
     {
       "path": "../../resolving/tarball-url"

@@ -1,3 +1,5 @@
+import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -7,7 +9,7 @@ import type { ProjectId } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 import yaml from 'yaml-tag'
 
-jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/network.git-utils', () => ({ getCurrentBranch: jest.fn(), getBranchesContainingHead: jest.fn(() => Promise.resolve([])) }))
 
 const { getCurrentBranch } = await import('@pnpm/network.git-utils')
 const {
@@ -99,16 +101,13 @@ test('writeLockfiles() when no specifiers but dependencies present', async () =>
 })
 
 test('writeWantedLockfile() returns the canonical lockfile — matches what readWantedLockfile produces, even when the input carries undefined optional fields', async () => {
-  // Cache-key contract: callers (today, the verification cache) need a
-  // hash of the *as-saved* lockfile, not the in-memory write object.
-  // Those two diverge specifically because YAML drops `undefined` on
-  // serialize. To exercise that drop, the fixture has to actually
-  // carry an explicit `undefined` — `settings.dedupePeers` here, the
-  // same field install-time code produces (see
-  // installing/deps-installer/src/install/index.ts where it's set to
-  // `opts.dedupePeers || undefined`). Without this, the test would
-  // happily pass against a writer that returned a near-canonical-but-
-  // still-divergent object.
+  // Cache-key contract: callers need a hash of the *as-saved* lockfile,
+  // not the in-memory write object. Those two diverge specifically
+  // because YAML drops `undefined` on serialize. To exercise that drop,
+  // the fixture has to actually carry an explicit `undefined` —
+  // `settings.dedupePeers` here, the same field install-time code
+  // produces. Without this, the test would happily pass against a writer
+  // that returned a near-canonical-but-still-divergent object.
   const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
@@ -130,7 +129,7 @@ test('writeWantedLockfile() returns the canonical lockfile — matches what read
         },
       },
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the fixture's package keys are plain strings, not branded DepPaths
   } as any
   const written = await writeWantedLockfile(projectPath, wantedLockfile)
   const loaded = await readWantedLockfile(projectPath, { ignoreIncompatible: false })
@@ -138,6 +137,33 @@ test('writeWantedLockfile() returns the canonical lockfile — matches what read
   // Verify the canonicalization actually dropped the undefined field —
   // toEqual is lenient about undefined-vs-missing, so check explicitly.
   expect('dedupePeers' in (written.settings ?? {})).toBe(false)
+})
+
+test('writeWantedLockfile() returns __proto__ keys of the lockfile as own properties', async () => {
+  const projectPath = temporaryDirectory()
+  const importers = {}
+  Object.defineProperty(importers, '__proto__', {
+    value: {
+      specifiers: { 'is-positive': '^1.0.0' },
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  })
+  const wantedLockfile = {
+    importers,
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/is-positive@1.0.0': {
+        resolution: { integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=' },
+      },
+    },
+  }
+  const written = await writeWantedLockfile(projectPath, wantedLockfile)
+  expect(Object.getPrototypeOf(written.importers)).toBe(Object.prototype)
+  expect(Object.keys(written.importers)).toStrictEqual(['__proto__'])
+  expect(written).toEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }))
 })
 
 test('writeLockfiles() return matches readWantedLockfile/readCurrentLockfile output', async () => {
@@ -246,8 +272,7 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative@1.0.0': {
-        // eslint-disable-next-line
-        dependencies: undefined as any,
+        dependencies: undefined,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -463,6 +488,28 @@ test('writeWantedLockfile() leaves an unchanged CRLF lockfile untouched', async 
   expect(fs.statSync(lockfilePath).mtimeMs).toBe(mtimeBefore)
 })
 
+test('writeWantedLockfile() retries a Windows rename blocked by a transient lock', async () => {
+  const projectPath = temporaryDirectory()
+  await writeWantedLockfile(projectPath, { ...upToDateLockfile, importers: {} })
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+  const rename = jest.spyOn(fs.promises, 'rename').mockRejectedValueOnce(
+    Object.assign(new Error('operation not permitted, rename'), { code: 'EPERM' })
+  )
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  try {
+    await writeWantedLockfile(projectPath, upToDateLockfile)
+  } finally {
+    Object.defineProperty(process, 'platform', platform)
+    rename.mockRestore()
+  }
+
+  const expectedPath = temporaryDirectory()
+  await writeWantedLockfile(expectedPath, upToDateLockfile)
+  expect(fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8'))
+    .toBe(fs.readFileSync(path.join(expectedPath, WANTED_LOCKFILE), 'utf8'))
+  expect(fs.readdirSync(projectPath)).toStrictEqual([WANTED_LOCKFILE])
+})
+
 testOnNonWindows('writeWantedLockfile() accepts a symlinked lockfile when nothing changes', async () => {
   const projectPath = temporaryDirectory()
   const realDir = temporaryDirectory()
@@ -561,4 +608,49 @@ testOnNonWindows('writeWantedLockfile() leaves no temp file behind', async () =>
   await writeWantedLockfile(projectPath, upToDateLockfile)
 
   expect(fs.readdirSync(projectPath)).toStrictEqual([WANTED_LOCKFILE])
+})
+
+// Windows has no SIGINT delivery to a child; `kill` there is TerminateProcess,
+// against which no cleanup can run.
+testOnNonWindows('writeWantedLockfileAtomic() removes the temp file when the process dies from SIGINT mid-write', async () => {
+  const projectPath = temporaryDirectory()
+  const writeModule = path.join(import.meta.dirname, '../lib/write.js')
+  const child = spawn(process.execPath, [
+    '--input-type=module',
+    '--eval',
+    `import { writeWantedLockfileAtomic } from ${JSON.stringify(writeModule)}
+await writeWantedLockfileAtomic(process.env.LOCKFILE_PATH, 'key: ' + 'x'.repeat(400 * 1024 * 1024))`,
+  ], {
+    env: { ...process.env, LOCKFILE_PATH: path.join(projectPath, WANTED_LOCKFILE) },
+    stdio: ['ignore', 'ignore', 'inherit'],
+  })
+  // Interrupt once the temp file exists. Killing earlier — while the child
+  // is still building the write's payload — would pass without exercising
+  // the cleanup, as there would be no temp file to remove.
+  const exited = once(child, 'exit')
+  try {
+    await waitForTempFile(1000)
+  } finally {
+    // Reap the child even when staging failed, so a failed test does not
+    // leave a 400MB write running.
+    child.kill('SIGINT')
+    await exited
+  }
+
+  const [, signal] = await exited
+  expect(signal).toBe('SIGINT')
+  expect(fs.readdirSync(projectPath).filter((entry) => entry.endsWith('.tmp'))).toStrictEqual([])
+
+  function waitForTempFile (attempts: number): Promise<void> {
+    if (fs.readdirSync(projectPath).some((entry) => entry.endsWith('.tmp'))) {
+      return Promise.resolve()
+    }
+    if (child.exitCode != null || child.signalCode != null) {
+      throw new Error('the child exited before staging a temp file')
+    }
+    if (attempts === 0) {
+      throw new Error('the child staged no temp file within 5s')
+    }
+    return new Promise<void>((resolve) => setTimeout(resolve, 5)).then(() => waitForTempFile(attempts - 1))
+  }
 })

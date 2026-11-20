@@ -1,17 +1,37 @@
 use super::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config_parse_overrides::parse_overrides;
+use pnpm_config_parse_overrides::parse_overrides_iter;
 use pnpm_package_manifest::PackageManifest;
-use serde_json::{Value, json};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    DependencyGroups,
+    DependencyRewriter,
+    GraphProject,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::path::{
+    Path,
+    PathBuf,
 };
 
+mod catalog_references;
+mod specificity;
+
 fn parsed(map: &[(&str, &str)]) -> Vec<pnpm_config_parse_overrides::VersionOverride> {
-    let owned: HashMap<String, String> =
-        map.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect();
-    parse_overrides(&owned, &Catalogs::new()).expect("parse_overrides fixture")
+    let owned: Vec<(String, String)> = map
+        .iter()
+        .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+        .collect();
+    parse_overrides_iter(
+        owned
+            .iter()
+            .map(|(key, value)| (key, value)),
+        &Catalogs::new(),
+    )
+    .expect("parse_overrides fixture")
 }
 
 /// Build an in-memory `PackageManifest` from a JSON value. The path
@@ -21,7 +41,11 @@ fn manifest_from_value(value: Value) -> PackageManifest {
 }
 
 fn dep_spec<'a>(manifest: &'a PackageManifest, group: &str, name: &str) -> Option<&'a str> {
-    manifest.value().get(group)?.get(name)?.as_str()
+    manifest
+        .value()
+        .get(group)?
+        .get(name)?
+        .as_str()
 }
 
 /// [`VersionsOverrider::override_for_undeclared_dependency`] for an edge
@@ -76,7 +100,14 @@ fn override_dash_deletes_dependency() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert!(manifest.value().get("dependencies").unwrap().get("foo").is_none());
+    assert!(
+        manifest
+            .value()
+            .get("dependencies")
+            .unwrap()
+            .get("foo")
+            .is_none(),
+    );
     assert_eq!(dep_spec(&manifest, "dependencies", "bar"), Some("^1"));
 }
 
@@ -101,12 +132,18 @@ fn version_scoped_target_only_matches_intersecting_range() {
         "name": "my-app",
         "version": "1.0.0",
         "dependencies": { "foo": "^2" },
+        "devDependencies": { "foo": "npm:bar@>=1.0.0 <2.0.0" },
     }));
     overrider.apply(&mut non_intersecting, Some(Path::new("/workspace")));
     assert_eq!(
         dep_spec(&non_intersecting, "dependencies", "foo"),
         Some("^2"),
         "override is dormant when ranges don't intersect",
+    );
+    assert_eq!(
+        dep_spec(&non_intersecting, "devDependencies", "foo"),
+        Some("npm:bar@>=1.0.0 <2.0.0"),
+        "override does not match an npm alias with space-separated comparators",
     );
 }
 
@@ -252,7 +289,14 @@ fn override_for_missing_dep_does_not_add_entry() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert!(manifest.value().get("dependencies").unwrap().get("foo").is_none());
+    assert!(
+        manifest
+            .value()
+            .get("dependencies")
+            .unwrap()
+            .get("foo")
+            .is_none(),
+    );
     assert_eq!(dep_spec(&manifest, "dependencies", "bar"), Some("^1"));
 }
 
@@ -273,7 +317,7 @@ fn override_with_valid_peer_range_rewrites_peer_dependencies() {
 }
 
 #[test]
-fn override_with_non_peer_range_lands_in_dependencies_and_keeps_the_peer() {
+fn override_with_non_peer_range_leaves_peer_dependencies_unchanged_and_out_of_dependencies() {
     let overrides = parsed(&[("istanbul-reports", "npm:@zkochan/istanbul-reports")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
 
@@ -284,11 +328,8 @@ fn override_with_non_peer_range_lands_in_dependencies_and_keeps_the_peer() {
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
-    assert_eq!(
-        dep_spec(&manifest, "dependencies", "istanbul-reports"),
-        Some("npm:@zkochan/istanbul-reports"),
-    );
     assert_eq!(dep_spec(&manifest, "peerDependencies", "istanbul-reports"), Some("^3.0.0"));
+    assert_eq!(dep_spec(&manifest, "dependencies", "istanbul-reports"), None);
 }
 
 #[test]
@@ -305,6 +346,50 @@ fn dash_override_deletes_the_peer_dependency() {
 
     assert_eq!(dep_spec(&manifest, "peerDependencies", "unwanted-peer"), None);
     assert_eq!(dep_spec(&manifest, "peerDependencies", "kept"), Some("^2.0.0"));
+}
+
+#[test]
+fn dash_override_deletes_optional_peer_metadata() {
+    for selector in ["unwanted-peer", "my-app>unwanted-peer"] {
+        let overrides = parsed(&[(selector, "-")]);
+        let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+        let mut manifest = manifest_from_value(json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "peerDependencies": { "unwanted-peer": "^1.0.0", "kept": "^2.0.0" },
+            "peerDependenciesMeta": {
+                "unwanted-peer": { "optional": true },
+                "kept": { "optional": true },
+            },
+        }));
+        overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+        assert_eq!(dep_spec(&manifest, "peerDependencies", "unwanted-peer"), None);
+        assert_eq!(dep_spec(&manifest, "peerDependencies", "kept"), Some("^2.0.0"));
+        assert_eq!(
+            manifest.value()["peerDependenciesMeta"],
+            json!({ "kept": { "optional": true } }),
+        );
+    }
+}
+
+#[test]
+fn dash_override_deletes_an_optional_peer_declared_only_in_metadata() {
+    for selector in ["unwanted-peer", "my-app>unwanted-peer"] {
+        let overrides = parsed(&[(selector, "-")]);
+        let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+        let original = std::sync::Arc::new(json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "peerDependenciesMeta": {
+                "unwanted-peer": { "optional": true },
+                "kept": { "optional": true },
+            },
+        }));
+        let updated = overrider.apply_to_arc(original, None);
+
+        assert_eq!(updated["peerDependenciesMeta"], json!({ "kept": { "optional": true } }));
+    }
 }
 
 #[test]
@@ -336,13 +421,13 @@ fn convergence_override_skips_non_range_specifiers() {
     let mut manifest = manifest_from_value(json!({
         "dependencies": { "foo": "github:org/foo" },
         "devDependencies": { "foo": "workspace:^" },
-        "optionalDependencies": { "foo": "latest" },
+        "optionalDependencies": { "foo": "npm:bar@>=4.0.0 <5.0.0" },
     }));
     overrider.apply(&mut manifest, Some(Path::new("/workspace")));
 
     assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("github:org/foo"));
     assert_eq!(dep_spec(&manifest, "devDependencies", "foo"), Some("workspace:^"));
-    assert_eq!(dep_spec(&manifest, "optionalDependencies", "foo"), Some("latest"));
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "foo"), Some("npm:bar@>=4.0.0 <5.0.0"));
 }
 
 #[test]
@@ -454,7 +539,10 @@ fn apply_to_arc_clones_when_only_a_peer_matches() {
 
     assert!(!std::sync::Arc::ptr_eq(&original, &updated), "peer-only match must clone");
     assert_eq!(
-        updated.get("peerDependencies").and_then(|peers| peers.get("ajv")).and_then(Value::as_str),
+        updated
+            .get("peerDependencies")
+            .and_then(|peers| peers.get("ajv"))
+            .and_then(Value::as_str),
         Some(">=8.18.0"),
     );
 }
@@ -494,4 +582,417 @@ fn override_for_undeclared_dependency_applies_converge_only_within_range() {
     assert_eq!(undeclared(&overrider, "react", "^18.0.0").as_deref(), Some("18.3.1"));
     assert_eq!(undeclared(&overrider, "react", "^19.0.0"), None);
     assert!(overrider.converge_declared_ranges().is_empty());
+}
+/// An override is written once, at the workspace root, and applied to
+/// every package that matches. A bare path has to move with it the way
+/// its `link:` spelling does, or it names a directory inside whichever
+/// package the override landed on.
+#[test]
+fn bare_path_override_is_reanchored_against_pkg_dir() {
+    let overrides = parsed(&[("foo", "./local-foo")]);
+    let root_dir = PathBuf::from("/workspace");
+    let overrider = VersionsOverrider::new(&overrides, &root_dir);
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^0.1" },
+    }));
+    overrider.apply(&mut manifest, Some(&root_dir.join("packages/app")));
+
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "foo"),
+        Some("../../local-foo"),
+        "a bare path override names the workspace's directory, not the package's",
+    );
+}
+
+/// The shape pnpm/pnpm#11131 reports: a tarball reached by a path prefix
+/// lands on the local resolver like any other path, so it moves with the
+/// file that declared it.
+#[test]
+fn bare_tarball_override_is_reanchored_against_pkg_dir() {
+    let overrides = parsed(&[("foo", "./tarballs/foo.tgz")]);
+    let root_dir = PathBuf::from("/workspace");
+    let overrider = VersionsOverrider::new(&overrides, &root_dir);
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^0.1" },
+    }));
+    overrider.apply(&mut manifest, Some(&root_dir.join("packages/app")));
+
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "foo"),
+        Some("../../tarballs/foo.tgz"),
+        "a bare tarball override names the workspace's directory, not the package's",
+    );
+}
+
+/// The shape pnpm/pnpm#17010 reports: a `workspace:` path moves with the
+/// file that declared it, the way its `link:` spelling does.
+#[test]
+fn workspace_path_override_is_reanchored_against_pkg_dir() {
+    let overrides = parsed(&[("foo", "workspace:./packages/foo")]);
+    let root_dir = PathBuf::from("/workspace");
+    let overrider = VersionsOverrider::new(&overrides, &root_dir);
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^0.1" },
+    }));
+    overrider.apply(&mut manifest, Some(&root_dir.join("packages/deep/app")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("workspace:../../foo"));
+}
+
+#[test]
+fn workspace_path_override_is_anchored_without_a_pkg_dir() {
+    let overrides = parsed(&[("foo", "workspace:./packages/foo")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-dep",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^0.1" },
+    }));
+    overrider.apply(&mut manifest, None);
+
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "foo"),
+        Some("workspace:/workspace/packages/foo"),
+    );
+}
+
+/// The shapes the resolver chain claims before the local resolver keep
+/// their own meaning, so an override naming a git shorthand or a
+/// registry range is passed through untouched.
+#[test]
+fn override_that_another_resolver_claims_is_not_reanchored() {
+    let root_dir = PathBuf::from("/workspace");
+    for value in ["user/repo", "repo.tgz", "^1.2.3", "npm:other@^1"] {
+        let overrides = parsed(&[("foo", value)]);
+        let overrider = VersionsOverrider::new(&overrides, &root_dir);
+        let mut manifest = manifest_from_value(json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "dependencies": { "foo": "^0.1" },
+        }));
+        overrider.apply(&mut manifest, Some(&root_dir.join("packages/app")));
+
+        assert_eq!(
+            dep_spec(&manifest, "dependencies", "foo"),
+            Some(value),
+            "{value} is not a local path",
+        );
+    }
+}
+
+#[test]
+fn dependency_type_pseudo_selectors_only_rewrite_matching_group() {
+    let overrides =
+        parsed(&[("foo:prod", "1.1.1"), ("foo:optional", "3.3.3"), ("foo:peer", "4.4.4")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^1.0.0" },
+        "devDependencies": { "foo": "^2.0.0" },
+        "optionalDependencies": { "foo": "^3.0.0" },
+        "peerDependencies": { "foo": "^4.0.0" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("1.1.1"));
+    assert_eq!(dep_spec(&manifest, "devDependencies", "foo"), Some("^2.0.0"));
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "foo"), Some("3.3.3"));
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "foo"), Some("4.4.4"));
+}
+
+#[test]
+fn peer_removal_leaves_regular_dependency_intact() {
+    let overrides = parsed(&[("react-dom>react:peer", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "react-dom",
+        "version": "18.3.1",
+        "dependencies": { "react": "18.3.1" },
+        "peerDependencies": { "react": "^18.0.0" },
+        "peerDependenciesMeta": { "react": { "optional": false } },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "react"), Some("18.3.1"));
+    assert_eq!(dep_spec(&manifest, "peerDependencies", "react"), None);
+    assert_eq!(manifest.value()["peerDependenciesMeta"], json!({}));
+}
+
+#[test]
+fn optional_dash_override_also_removes_duplicate_from_dependencies() {
+    let overrides = parsed(&[("@esbuild/*:optional", "-"), ("fsevents:optional", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "esbuild",
+        "version": "0.20.0",
+        "dependencies": {
+            "fsevents": "^2.3.2",
+            "only-prod": "^1.0.0",
+        },
+        "optionalDependencies": {
+            "fsevents": "^2.3.2",
+            "@esbuild/linux-x64": "0.20.0",
+            "kept-opt": "^1.0.0",
+        },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "fsevents"), None);
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "@esbuild/linux-x64"), None);
+    assert_eq!(dep_spec(&manifest, "optionalDependencies", "kept-opt"), Some("^1.0.0"));
+    assert_eq!(
+        dep_spec(&manifest, "dependencies", "fsevents"),
+        None,
+        "duplicate in dependencies must also be cleared when removed from optionalDependencies",
+    );
+    assert_eq!(dep_spec(&manifest, "dependencies", "only-prod"), Some("^1.0.0"));
+}
+
+#[test]
+fn optional_dash_override_does_not_remove_prod_only_dependency() {
+    let overrides = parsed(&[("fsevents:optional", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "fsevents": "^2.3.2" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "fsevents"), Some("^2.3.2"));
+}
+
+#[test]
+fn wildcard_and_typed_overrides_respect_specificity() {
+    let overrides = parsed(&[
+        ("@babel/*:peer", "*"),
+        ("@babel/core:peer", "^7.20.0"),
+        ("react", "18.3.1"),
+        ("react:peer", "^18.0.0"),
+        ("@mui/*>react:peer", "17 || 18"),
+        ("@mui/material>react:peer", "^18.2.0"),
+    ]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut plugin = manifest_from_value(json!({
+        "name": "my-plugin",
+        "version": "1.0.0",
+        "dependencies": { "react": "^18.0.0" },
+        "peerDependencies": {
+            "@babel/core": "^7.0.0",
+            "@babel/preset-env": "^7.0.0",
+            "react": "^17.0.0",
+        },
+    }));
+    overrider.apply(&mut plugin, Some(Path::new("/workspace")));
+
+    assert_eq!(dep_spec(&plugin, "dependencies", "react"), Some("18.3.1"));
+    assert_eq!(dep_spec(&plugin, "peerDependencies", "react"), Some("^18.0.0"));
+    assert_eq!(dep_spec(&plugin, "peerDependencies", "@babel/core"), Some("^7.20.0"));
+    assert_eq!(dep_spec(&plugin, "peerDependencies", "@babel/preset-env"), Some("*"));
+
+    let mut mui_button = manifest_from_value(json!({
+        "name": "@mui/button",
+        "version": "5.0.0",
+        "peerDependencies": { "react": "^17.0.0" },
+    }));
+    overrider.apply(&mut mui_button, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&mui_button, "peerDependencies", "react"), Some("17 || 18"));
+
+    let mut mui_material = manifest_from_value(json!({
+        "name": "@mui/material",
+        "version": "5.0.0",
+        "peerDependencies": { "react": "^17.0.0" },
+    }));
+    overrider.apply(&mut mui_material, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&mui_material, "peerDependencies", "react"), Some("^18.2.0"));
+}
+
+#[test]
+fn version_scoped_override_matches_catalog_dependency_by_catalog_specifier() {
+    use super::DependencyGroup;
+    use std::collections::BTreeMap;
+
+    let mut catalogs = Catalogs::new();
+    catalogs.insert(
+        "default".to_string(),
+        BTreeMap::from([
+            ("ms".to_string(), "~2.1.0".to_string()),
+            ("foo".to_string(), "^1.1.0".to_string()),
+        ]),
+    );
+    catalogs.insert(
+        "legacy".to_string(),
+        BTreeMap::from([("ms".to_string(), "^1.0.0".to_string())]),
+    );
+    let overrides = parsed(&[("ms@^2.0.0", "2.1.1"), ("app>foo@^1.0.0", "1.2.3")]);
+    let overrider =
+        VersionsOverrider::new(&overrides, Path::new("/workspace")).with_catalogs(&catalogs);
+
+    let mut matching = manifest_from_value(json!({
+        "name": "app",
+        "version": "1.0.0",
+        "dependencies": {
+            "ms": "catalog:",
+            "foo": "catalog:",
+        },
+    }));
+    overrider.apply(&mut matching, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&matching, "dependencies", "ms"), Some("2.1.1"));
+    assert_eq!(dep_spec(&matching, "dependencies", "foo"), Some("1.2.3"));
+
+    let mut non_matching = manifest_from_value(json!({
+        "name": "other",
+        "version": "1.0.0",
+        "dependencies": {
+            "ms": "catalog:legacy",
+            "foo": "catalog:",
+        },
+    }));
+    overrider.apply(&mut non_matching, Some(Path::new("/workspace")));
+    assert_eq!(dep_spec(&non_matching, "dependencies", "ms"), Some("catalog:legacy"));
+    assert_eq!(dep_spec(&non_matching, "dependencies", "foo"), Some("catalog:"));
+
+    let app_manifest = json!({ "name": "app", "version": "1.0.0" });
+    let matcher = overrider.dependency_matcher(&app_manifest);
+    assert!(matcher.matches(DependencyGroup::Prod, "ms", "catalog:"));
+    assert!(!matcher.matches(DependencyGroup::Prod, "ms", "catalog:legacy"));
+    assert!(matcher.matches(DependencyGroup::Prod, "foo", "catalog:"));
+
+    assert_eq!(undeclared(&overrider, "ms", "catalog:").as_deref(), Some("2.1.1"));
+    assert_eq!(undeclared(&overrider, "ms", "catalog:legacy"), None);
+}
+
+/// A workspace project as [`crate::overrides_dependency_rewriter`]'s
+/// hook sees it: a root dir, the manifest's `name` / `version`, and its
+/// dependency groups.
+struct GraphProjectFixture {
+    root_dir: PathBuf,
+    name: String,
+    groups: DependencyGroups,
+}
+
+impl BaseProject for GraphProjectFixture {
+    fn root_dir(&self) -> &Path {
+        &self.root_dir
+    }
+
+    fn manifest_name(&self) -> Option<&str> {
+        Some(&self.name)
+    }
+}
+
+impl GraphProject for GraphProjectFixture {
+    fn manifest_version(&self) -> Option<&str> {
+        Some("1.0.0")
+    }
+
+    fn dependency_groups(&self, _ignore_dev_deps: bool) -> DependencyGroups {
+        self.groups.clone()
+    }
+}
+
+fn pairs(dependencies: &[(&str, &str)]) -> Vec<(String, String)> {
+    dependencies
+        .iter()
+        .map(|(name, spec)| ((*name).to_string(), (*spec).to_string()))
+        .collect()
+}
+
+/// The merged dependency list `overrider` rewrites for the project `name`
+/// at `/workspace/packages/<name>`.
+fn rewritten(
+    overrider: &VersionsOverrider,
+    name: &str,
+    groups: DependencyGroups,
+) -> Vec<(String, String)> {
+    let project = GraphProjectFixture {
+        root_dir: PathBuf::from("/workspace/packages").join(name),
+        name: name.to_string(),
+        groups,
+    };
+    let mut groups = project.dependency_groups(false);
+    overrider.rewrite_dependencies(&project, &mut groups);
+    groups.merge()
+}
+
+fn prod_only(dependencies: &[(&str, &str)]) -> DependencyGroups {
+    DependencyGroups { prod: pairs(dependencies), ..DependencyGroups::default() }
+}
+
+#[test]
+fn rewrite_dependencies_applies_workspace_and_local_protocol_overrides() {
+    let overrides =
+        parsed(&[("lib", "workspace:*"), ("qar", "link:./packages/qar"), ("baz", "file:../baz")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        rewritten(
+            &overrider,
+            "app",
+            prod_only(&[("lib", "^1.0.0"), ("qar", "^2.0.0"), ("baz", "^3.0.0")]),
+        ),
+        pairs(&[("lib", "workspace:*"), ("qar", "link:../qar"), ("baz", "file:../../../baz")]),
+    );
+}
+
+#[test]
+fn rewrite_dependencies_drops_deleted_dependencies() {
+    let overrides = parsed(&[("qar", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        rewritten(&overrider, "app", prod_only(&[("lib", "^1.0.0"), ("qar", "^2.0.0")])),
+        pairs(&[("lib", "^1.0.0")]),
+    );
+}
+
+#[test]
+fn rewrite_dependencies_applies_a_parent_scoped_override_to_its_parent_only() {
+    let overrides = parsed(&[("app>lib", "workspace:*")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        rewritten(&overrider, "app", prod_only(&[("lib", "^1.0.0")])),
+        pairs(&[("lib", "workspace:*")]),
+    );
+    assert_eq!(
+        rewritten(&overrider, "other", prod_only(&[("lib", "^1.0.0")])),
+        pairs(&[("lib", "^1.0.0")]),
+    );
+}
+
+#[test]
+fn rewrite_dependencies_applies_a_dependency_type_selector_to_its_group_only() {
+    let overrides = parsed(&[("lib:optional", "workspace:*")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let groups = DependencyGroups {
+        optional: pairs(&[("lib", "^1.0.0")]),
+        prod: pairs(&[("other", "^1.0.0")]),
+        ..DependencyGroups::default()
+    };
+    assert_eq!(
+        rewritten(&overrider, "app", groups),
+        pairs(&[("lib", "workspace:*"), ("other", "^1.0.0")]),
+    );
+    assert_eq!(
+        rewritten(&overrider, "app", prod_only(&[("lib", "^1.0.0")])),
+        pairs(&[("lib", "^1.0.0")]),
+    );
 }

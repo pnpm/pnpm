@@ -1,35 +1,16 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
-import { pickRegistryContext } from '@pnpm/config.normalize-registries'
-import { packageIsInstallable } from '@pnpm/config.package-is-installable'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import {
-  progressLogger,
-} from '@pnpm/core-loggers'
 import * as dp from '@pnpm/deps.path'
-import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
-import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.fs'
-import {
-  packageIdFromSnapshot,
-  pkgSnapshotToResolution,
-} from '@pnpm/lockfile.utils'
-import { logger } from '@pnpm/logger'
-import { getPatchInfo, type PatchGroupRecord } from '@pnpm/patching.config'
-import type { PatchInfo } from '@pnpm/patching.types'
+import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.fs'
 import type {
-  FetchResponse,
   PkgRequestFetchResult,
   StoreController,
 } from '@pnpm/store.controller-types'
 import type { AllowBuild, DepPath, PkgIdWithPatchHash, ProjectId, RegistriesByScope, RegistryContext, SupportedArchitectures } from '@pnpm/types'
-import { pathExists } from 'path-exists'
-import { equals, isEmpty } from 'ramda'
 
-import { iteratePkgsForVirtualStore } from './iteratePkgsForVirtualStore.js'
-
-const brokenModulesLogger = logger('_broken_node_modules')
+import { buildGraphFromPackages } from './buildGraphFromPackages.js'
 
 export interface DependenciesGraphNode {
   alias?: string // this is populated in HoistedDepGraphOnly
@@ -49,8 +30,18 @@ export interface DependenciesGraphNode {
   requiresBuild?: boolean
   hasBin: boolean
   filesIndexFile?: string
-  patch?: PatchInfo
-  resolution: LockfileResolution
+  patch?: import('@pnpm/patching.types').PatchInfo
+  resolution: import('@pnpm/lockfile.fs').LockfileResolution
+  /**
+   * Populated in the hoisted graph only. Maps the alias of each
+   * `link:<root>/...` dependency to its path inside this package, where the
+   * hoisted linker symlinks it from the package's own `node_modules`.
+   */
+  packageRootLinks?: Record<string, string>
+  /** See `DependenciesGraphNode.stagingDir` in `@pnpm/building.during-install`. */
+  stagingDir?: string
+  /** See `ImportTarget.buildsForOutsideEffects` in `@pnpm/building.during-install`. */
+  buildsForOutsideEffects?: boolean
 }
 
 export interface DependenciesGraph {
@@ -60,9 +51,15 @@ export interface DependenciesGraph {
 export interface LockfileToDepGraphOptions extends RegistryContext {
   allowBuild?: AllowBuild
   autoInstallPeers: boolean
+  /** See `buildsDependenciesDuringInstall` in `@pnpm/deps.graph-hasher`. */
+  deferDependencyBuilds?: boolean
   enableGlobalVirtualStore?: boolean
+  /** See `buildsDependenciesDuringInstall` in `@pnpm/deps.graph-hasher`. */
+  enableModulesDir?: boolean
   engineStrict: boolean
   force: boolean
+  /** See `installabilityUnderForce` in `@pnpm/config.package-is-installable`. */
+  includeIncompatiblePackages?: boolean
   importerIds: ProjectId[]
   include: IncludedDependencies
   includeUnchangedDeps?: boolean
@@ -75,8 +72,15 @@ export interface LockfileToDepGraphOptions extends RegistryContext {
   ignoreLocalPackages?: boolean
   lockfileDir: string
   nodeVersion: string
+  /**
+   * Skip the `resolved` progress log for every package this graph fetches.
+   * The default reporter counts each event without deduplicating by package,
+   * so a caller that already ran a resolve pass over the same graph has
+   * reported them and repeating them here inflates `Progress: resolved N`.
+   */
+  omitResolvedProgress?: boolean
   pnpmVersion: string
-  patchedDependencies?: PatchGroupRecord
+  patchedDependencies?: import('@pnpm/patching.config').PatchGroupRecord
   /**
    * The dep paths a non-optional edge reaches, as classified by
    * `filterLockfileByImportersAndEngine`. Installability is evaluated as
@@ -129,9 +133,10 @@ export async function lockfileToDepGraph (
     graph,
     locationByDepPath,
     injectionTargetsByDepPath,
+    skippedLocalDepPaths,
   } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
 
-  const _getChildrenPaths = getChildrenPaths.bind(null, {
+  const childrenContext: GetChildrenPathsContext = {
     force: opts.force,
     graph,
     lockfileDir: opts.lockfileDir,
@@ -143,190 +148,99 @@ export async function lockfileToDepGraph (
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     locationByDepPath,
-  } satisfies GetChildrenPathsContext)
+  }
 
+  populateNodeChildren(graph, lockfile, opts.include, childrenContext)
+  const directDependenciesByImporterId = resolveDirectDependencies(lockfile, opts, childrenContext)
+  promoteChildrenOfSkippedLocalDeps(lockfile, opts, {
+    ctx: childrenContext,
+    directDependenciesByImporterId,
+    skippedLocalDepPaths,
+  })
+
+  return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
+}
+
+function populateNodeChildren (
+  graph: DependenciesGraph,
+  lockfile: LockfileObject,
+  include: IncludedDependencies,
+  ctx: GetChildrenPathsContext
+): void {
   for (const node of Object.values(graph)) {
     const pkgSnapshot = lockfile.packages![node.depPath]
     const allDeps = {
       ...pkgSnapshot.dependencies,
-      ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+      ...(include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
     }
     const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
-    node.children = _getChildrenPaths(allDeps, peerDeps, '.')
+    node.children = getChildrenPaths(ctx, allDeps, peerDeps, { importerId: '.', pkgDir: node.dir })
   }
+}
 
+function resolveDirectDependencies (
+  lockfile: LockfileObject,
+  opts: LockfileToDepGraphOptions,
+  ctx: GetChildrenPathsContext
+): DirectDependenciesByImporterId {
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
   for (const importerId of opts.importerIds) {
     const projectSnapshot = lockfile.importers[importerId]
     const rootDeps = {
       ...(opts.include.devDependencies ? projectSnapshot.devDependencies : {}),
       ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
-      ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
+      ...(opts.include.dependencies && opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
     }
-    directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
+    directDependenciesByImporterId[importerId] = getChildrenPaths(ctx, rootDeps, null, { importerId })
   }
-
-  return { graph, directDependenciesByImporterId, injectionTargetsByDepPath }
+  return directDependenciesByImporterId
 }
 
-async function buildGraphFromPackages (
+/**
+ * Packages behind a skipped local dependency are in the graph but no importer
+ * reaches them, so the build and patch traversal would never visit them. They
+ * are added to the root importer under their dep path, which never collides
+ * with an alias. Only `pnpm fetch` skips local dependencies, and it links
+ * nothing into the projects, so these extra roots are never symlinked.
+ */
+function promoteChildrenOfSkippedLocalDeps (
   lockfile: LockfileObject,
-  currentLockfile: LockfileObject | null,
-  opts: LockfileToDepGraphOptions
-): Promise<{
-  graph: DependenciesGraph
-  locationByDepPath: Record<string, string>
-  injectionTargetsByDepPath: Map<string, string[]>
-}> {
-  const currentPackages = currentLockfile?.packages ?? {}
-  const graph: DependenciesGraph = {}
-  const locationByDepPath: Record<string, string> = {}
-  // Only populated for directory deps (injected workspace packages)
-  const injectionTargetsByDepPath = new Map<string, string[]>()
-
-  const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
-  const promises: Array<Promise<void>> = []
-  const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, opts)
-
-  for (const { dirInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
-    promises.push((async () => {
-      const { pkgIdWithPatchHash, name: pkgName, version: pkgVersion, depPath, pkgSnapshot } = pkgMeta
-      if (opts.skipped.has(depPath)) return
-
-      const pkg = {
-        name: pkgName,
-        version: pkgVersion,
-        engines: pkgSnapshot.engines,
-        cpu: pkgSnapshot.cpu,
-        os: pkgSnapshot.os,
-        libc: pkgSnapshot.libc,
-      }
-
-      const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
-      if (!opts.force && packageIsInstallable(packageId, pkg, {
-        // An incompatibility inside an `optionalDependencies` subtree is
-        // reported, not fatal — see `filterLockfileByImportersAndEngine`,
-        // which classifies these dep paths.
-        engineStrict: opts.engineStrict && pkgSnapshot.optional !== true,
-        lockfileDir: opts.lockfileDir,
-        nodeVersion: opts.nodeVersion,
-        optional: !opts.requiredDepPaths.has(depPath),
-        supportedArchitectures: opts.supportedArchitectures,
-      }) === false) {
-        opts.skipped.add(depPath)
-        return
-      }
-
-      const isDirectoryDep = 'directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null
-      if (isDirectoryDep && opts.ignoreLocalPackages) {
-        logger.info({
-          message: `Skipping local dependency ${pkgName}@${pkgVersion} (file: protocol)`,
-          prefix: opts.lockfileDir,
-        })
-        return
-      }
-
-      const depIsPresent = !isDirectoryDep &&
-        currentPackages[depPath] &&
-        equals(currentPackages[depPath].dependencies, pkgSnapshot.dependencies)
-
-      const depIntegrityIsUnchanged = isIntegrityEqual(pkgSnapshot.resolution, currentPackages[depPath]?.resolution)
-
-      const modules = path.join(dirInVirtualStore, 'node_modules')
-      // `pkgName` is reconstructed from the (attacker-controllable) lockfile
-      // depPath key via `dp.parse`, which does no validation. Contain it here so
-      // a traversal name (e.g. `../../../tmp/x`) can't make the package import
-      // escape the virtual store. Mirrors the guard on the hoisted linker.
-      const dir = safeJoinModulesDir(modules, pkgName)
-      locationByDepPath[depPath] = dir
-      // Track directory deps for injected workspace packages
-      if (isDirectoryDep) {
-        injectionTargetsByDepPath.set(depPath, [dir])
-      }
-
-      // In GVS mode, packages that are allowed to build may have a .pnpm-needs-build
-      // marker indicating a previous build failed or was interrupted. When the
-      // marker is present, skip the fast path to force a re-fetch/re-import/re-build.
-      const mightNeedBuild = opts.enableGlobalVirtualStore &&
-        opts.allowBuild?.(depPath) === true
-
-      let dirExists: boolean | undefined
-      if (
-        depIsPresent &&
-        depIntegrityIsUnchanged &&
-        isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
-        isEmpty(pkgSnapshot.optionalDependencies ?? {}) &&
-        !opts.includeUnchangedDeps
-      ) {
-        dirExists = await pathExists(dir)
-        if (dirExists) {
-          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) return
-        } else {
-          brokenModulesLogger.debug({ missing: dir })
-        }
-      }
-
-      let fetchResponse!: Partial<FetchResponse>
-      if (depIsPresent && depIntegrityIsUnchanged && equals(currentPackages[depPath].optionalDependencies, pkgSnapshot.optionalDependencies)) {
-        if (dirExists ?? await pathExists(dir)) {
-          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) {
-            fetchResponse = {}
-          }
-        } else {
-          brokenModulesLogger.debug({ missing: dir })
-        }
-      }
-
-      if (!fetchResponse && opts.enableGlobalVirtualStore && !isDirectoryDep
-        && !opts.force) {
-        if (dirExists ?? await pathExists(dir)) {
-          if (!(mightNeedBuild && fs.existsSync(path.join(dir, '.pnpm-needs-build')))) {
-            fetchResponse = {}
-          }
-        }
-      }
-
-      if (!fetchResponse) {
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, pickRegistryContext(opts))
-        progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
-
-        try {
-          fetchResponse = await opts.storeController.fetchPackage({
-            allowBuild: opts.allowBuild,
-            force: false,
-            lockfileDir: opts.lockfileDir,
-            ignoreScripts: opts.ignoreScripts,
-            pkg: { name: pkgName, version: pkgVersion, id: packageId, resolution },
-            supportedArchitectures: opts.supportedArchitectures,
-          })
-        } catch (err) {
-          if (pkgSnapshot.optional) return
-          throw err
-        }
-      }
-
-      graph[dir] = {
-        children: {},
-        pkgIdWithPatchHash,
-        resolution: pkgSnapshot.resolution,
-        depPath,
-        dir,
-        fetching: fetchResponse.fetching,
-        filesIndexFile: fetchResponse.filesIndexFile,
-        forceImportPackage: !depIntegrityIsUnchanged,
-        hasBin: pkgSnapshot.hasBin === true,
-        hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
-        modules,
-        name: pkgName,
-        version: pkgVersion,
-        optional: !!pkgSnapshot.optional,
-        optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-        patch: _getPatchInfo(pkgName, pkgVersion),
-      }
-    })())
+  opts: Pick<LockfileToDepGraphOptions, 'include'>,
+  { ctx, directDependenciesByImporterId, skippedLocalDepPaths }: {
+    ctx: GetChildrenPathsContext
+    directDependenciesByImporterId: DirectDependenciesByImporterId
+    skippedLocalDepPaths: Set<DepPath>
   }
-  await Promise.all(promises)
-  return { graph, locationByDepPath, injectionTargetsByDepPath }
+): void {
+  if (skippedLocalDepPaths.size === 0) return
+  const targetImporterId = directDependenciesByImporterId['.'] ? '.' : Object.keys(directDependenciesByImporterId)[0]
+  if (targetImporterId == null) return
+  for (const depPath of skippedLocalDepPaths) {
+    Object.assign(
+      directDependenciesByImporterId[targetImporterId],
+      locateChildrenByDepPath(ctx, lockfile.packages![depPath], { include: opts.include, skippedLocalDepPaths })
+    )
+  }
+}
+
+function locateChildrenByDepPath (
+  ctx: GetChildrenPathsContext,
+  pkgSnapshot: PackageSnapshot,
+  opts: { include: IncludedDependencies, skippedLocalDepPaths: Set<DepPath> }
+): Record<string, string> {
+  const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
+  const childDeps = {
+    ...pkgSnapshot.dependencies,
+    ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+  }
+  const locations: Record<string, string> = {}
+  for (const [alias, ref] of Object.entries(childDeps)) {
+    const childDepPath = dp.refToRelative(ref, alias)
+    if (childDepPath == null || opts.skippedLocalDepPaths.has(childDepPath)) continue
+    const dir = resolveDepPathLocation(ctx, childDepPath, ref, alias, peerDeps)
+    if (dir != null) locations[childDepPath] = dir
+  }
+  return locations
 }
 
 interface GetChildrenPathsContext {
@@ -347,35 +261,52 @@ function getChildrenPaths (
   ctx: GetChildrenPathsContext,
   allDeps: { [alias: string]: string },
   peerDeps: Set<string> | null,
-  importerId: string
+  parent: { importerId: string, pkgDir?: string }
 ): { [alias: string]: string } {
   const children: { [alias: string]: string } = {}
   for (const [alias, ref] of Object.entries(allDeps)) {
-    const childDepPath = dp.refToRelative(ref, alias)
-    if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.lockfileDir, importerId, ref.slice(5))
-      continue
-    }
-    const childRelDepPath = dp.refToRelative(ref, alias)!
-    if (ctx.locationByDepPath[childRelDepPath]) {
-      children[alias] = ctx.locationByDepPath[childRelDepPath]
-    } else if (ctx.graph[childRelDepPath]) {
-      children[alias] = ctx.graph[childRelDepPath].dir
-    } else if (ref.startsWith('file:')) {
-      children[alias] = path.resolve(ctx.lockfileDir, ref.slice(5))
-    } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {
-      throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
-    }
+    const childPath = resolveChildPath(ctx, alias, ref, peerDeps, parent)
+    if (childPath != null) children[alias] = childPath
   }
   return children
 }
 
-function isIntegrityEqual (resolutionA?: LockfileResolution, resolutionB?: LockfileResolution) {
-  // The LockfileResolution type is a union, but it doesn't have a "tag"
-  // field to perform a discriminant match on. Using a type assertion is
-  // required to get the integrity field.
-  const integrityA = (resolutionA as ({ integrity?: string } | undefined))?.integrity
-  const integrityB = (resolutionB as ({ integrity?: string } | undefined))?.integrity
+function resolveChildPath (
+  ctx: GetChildrenPathsContext,
+  alias: string,
+  ref: string,
+  peerDeps: Set<string> | null,
+  parent: { importerId: string, pkgDir?: string }
+): string | undefined {
+  const packageRootLinkTarget = dp.packageRootLinkTarget(ref)
+  if (packageRootLinkTarget != null && parent.pkgDir != null) {
+    return path.join(parent.pkgDir, packageRootLinkTarget)
+  }
+  const childDepPath = dp.refToRelative(ref, alias)
+  if (childDepPath === null) {
+    return path.resolve(ctx.lockfileDir, parent.importerId, ref.slice(5))
+  }
+  return resolveDepPathLocation(ctx, childDepPath, ref, alias, peerDeps)
+}
 
-  return integrityA === integrityB
+function resolveDepPathLocation (
+  ctx: GetChildrenPathsContext,
+  childRelDepPath: string,
+  ref: string,
+  alias: string,
+  peerDeps: Set<string> | null
+): string | undefined {
+  if (ctx.locationByDepPath[childRelDepPath]) {
+    return ctx.locationByDepPath[childRelDepPath]
+  }
+  if (ctx.graph[childRelDepPath]) {
+    return ctx.graph[childRelDepPath].dir
+  }
+  if (ref.startsWith('file:')) {
+    return path.resolve(ctx.lockfileDir, ref.slice(5))
+  }
+  if (!ctx.skipped.has(childRelDepPath as DepPath) && (peerDeps == null || !peerDeps.has(alias))) {
+    throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
+  }
+  return undefined
 }

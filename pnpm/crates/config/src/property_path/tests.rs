@@ -1,5 +1,8 @@
 use super::{
-    ParsePropertyPathError, Segment, get_object_value_by_property_path, parse_property_path,
+    ParsePropertyPathError,
+    Segment,
+    get_object_value_by_property_path,
+    parse_property_path,
 };
 use serde_json::json;
 
@@ -54,7 +57,6 @@ fn parses_hyphenated_keys() {
         vec![Segment::Key("a".into()), Segment::Key("b-c".into()), Segment::Key("d-e".into())],
     );
     assert_eq!(keys("foo-bar[0]"), vec![Segment::Key("foo-bar".into()), Segment::Index(0.0)]);
-    // The bracketed form already accepted these keys, and still does.
     assert_eq!(
         keys(r#"dependencies["some-package-name"]"#),
         vec![Segment::Key("dependencies".into()), Segment::Key("some-package-name".into())],

@@ -19,7 +19,11 @@ fn try_fast_update_patched_dependencies(lockfile: &Lockfile, config: &Config) ->
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 const LOCKFILE: &str = r"
@@ -187,15 +191,23 @@ fn lockfile(source: &str) -> Lockfile {
 }
 
 fn snapshot_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.snapshots.as_ref().expect("snapshots").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.snapshots
+        .as_ref()
+        .expect("snapshots")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
 
 fn package_keys(lockfile: &Lockfile) -> Vec<String> {
-    let mut keys: Vec<_> =
-        lockfile.packages.as_ref().expect("packages").keys().map(ToString::to_string).collect();
+    let mut keys: Vec<_> = lockfile.packages
+        .as_ref()
+        .expect("packages")
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     keys.sort();
     keys
 }
@@ -227,7 +239,9 @@ fn workspace(patches: &[&str]) -> TempDir {
 }
 
 fn write_patch(workspace_dir: &Path, key: &str, contents: &str) {
-    let path = workspace_dir.join("patches").join(patch_file_name(key));
+    let path = workspace_dir
+        .join("patches")
+        .join(patch_file_name(key));
     fs::write(path, contents).expect("write patch file");
 }
 
@@ -378,7 +392,11 @@ fn rekeys_around_a_tarball_resolution_no_patch_reaches() {
     )
     .expect("an untouched tarball resolution does not block the rest");
 
-    assert!(snapshot_keys(&updated).iter().any(|key| key.starts_with("bar@2.0.0(patch_hash=")));
+    assert!(
+        snapshot_keys(&updated)
+            .iter()
+            .any(|key| key.starts_with("bar@2.0.0(patch_hash=")),
+    );
     assert!(snapshot_keys(&updated).contains(&"foo@https://example.test/foo.tgz".to_string()));
 }
 
@@ -501,5 +519,19 @@ fn rejects_a_missing_patch_file() {
         )
         .is_none(),
         "the resolver reports the unreadable patch file instead",
+    );
+}
+
+#[test]
+fn declines_a_lockfile_whose_paths_contradict_its_own_map_when_the_map_drifted() {
+    let dir = workspace(&["foo@1.1.0"]);
+    let mut lockfile = lockfile(PATCHED_LOCKFILE);
+    lockfile.patched_dependencies =
+        Some(BTreeMap::from([("foo@1.1.0".to_string(), "cafebabe".to_string())]));
+
+    assert!(
+        try_fast_update_patched_dependencies(&lockfile, &config(dir.path(), &["foo@1.1.0"], true))
+            .is_none(),
+        "a path that disagrees with the lockfile's own map is the resolver's to rewrite",
     );
 }

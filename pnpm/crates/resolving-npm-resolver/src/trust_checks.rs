@@ -5,22 +5,38 @@
 //! asking [`get_trust_evidence`] which "rank" of evidence each
 //! version exposes. The strongest rank seen across the prior history
 //! is the "baseline." If the current version's rank is lower than the
-//! baseline, that's a trust *downgrade* — supply-chain incident
-//! signal — and the verifier rejects the entry with
+//! baseline, that's a trust *downgrade* (supply-chain incident
+//! signal) and the verifier rejects the entry with
 //! [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`].
 
-use chrono::{DateTime, Utc};
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
+use jiff::Timestamp;
 use miette::Diagnostic;
 use node_semver::Version;
-use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pnpm_registry::{Package, PackageVersion};
+use pnpm_registry::{
+    NpmUser,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+    VersionPolicyFields,
+    VersionTrustMetadata,
+};
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
+use pnpm_version_policy::{
+    PackageVersionPolicy,
+    PolicyMatch,
+};
 
-use crate::pick_package::{SkippedTimeCheck, warn_missing_time_once};
+use crate::pick_package::{
+    SkippedTimeCheck,
+    warn_missing_time_once,
+};
 
 /// Rank of supply-chain evidence on a single version. Variants are
-/// declared weakest-first so the derived `Ord` matches `trust_rank`.
+/// declared weakest-first so the derived `Ord` matches the trust ranking.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TrustEvidence {
     /// `dist.attestations.provenance` is set.
@@ -32,7 +48,7 @@ pub enum TrustEvidence {
     /// shipped a provenance attestation.
     TrustedPublisher,
     /// `_npmUser.approver` is set. The version was published through a
-    /// staged publish requiring a 2FA approval — the strongest signal,
+    /// staged publish requiring a 2FA approval, the strongest signal,
     /// ranked above a trusted publisher.
     StagedPublish,
 }
@@ -56,7 +72,7 @@ pub enum TrustViolation {
     },
 
     /// Earlier versions had stronger trust evidence than the version
-    /// being verified — supply-chain incident signal, surfaced with
+    /// being verified, supply-chain incident signal, surfaced with
     /// the `TRUST_DOWNGRADE` code.
     #[display("High-risk trust downgrade for \"{name}@{version}\" (possible package takeover)")]
     #[diagnostic(
@@ -90,8 +106,8 @@ pub struct TrustCheckOptions<'a> {
 
     /// Override for "now" when the check evaluates
     /// `trust_policy_ignore_after_minutes`. Defaults to wall-clock
-    /// `Utc::now`; tests pin it for determinism.
-    pub now: Option<DateTime<Utc>>,
+    /// `Timestamp::now`; tests pin it for determinism.
+    pub now: Option<Timestamp>,
 
     /// The `minimumReleaseAgeIgnoreMissingTime` opt-in, which declares
     /// that the registry cannot date its releases. The downgrade check
@@ -110,89 +126,124 @@ pub struct TrustCheckOptions<'a> {
     pub ignore_missing_time_field: bool,
 }
 
+/// The publish history [`fail_if_trust_downgraded`] reads: a packument,
+/// or a projection of one that keeps only these fields.
+pub trait TrustHistory {
+    fn package_name(&self) -> &str;
+    /// Whether the registry served a `time` map.
+    fn has_publish_times(&self) -> bool;
+    fn published_at(&self, version: &str) -> Option<&str>;
+    /// Every version the history lists, in any order.
+    fn versions(&self) -> impl Iterator<Item = &str>;
+    /// Evidence of the version under check. `None` when the history has no
+    /// manifest for it.
+    fn version_evidence(&self, version: &str) -> Option<Option<TrustEvidence>>;
+    /// Evidence of an earlier version. `None` when its trust fields cannot
+    /// be decoded.
+    fn prior_evidence(&self, version: &str) -> Option<Option<TrustEvidence>>;
+}
+
+impl TrustHistory for Package {
+    fn package_name(&self) -> &str {
+        &self.name
+    }
+
+    fn has_publish_times(&self) -> bool {
+        self.time.is_some()
+    }
+
+    fn published_at(&self, version: &str) -> Option<&str> {
+        Package::published_at(self, version)
+    }
+
+    fn versions(&self) -> impl Iterator<Item = &str> {
+        self.versions.keys().map(String::as_str)
+    }
+
+    fn version_evidence(&self, version: &str) -> Option<Option<TrustEvidence>> {
+        self.versions.get(version).map(|manifest| get_trust_evidence(&manifest))
+    }
+
+    fn prior_evidence(&self, version: &str) -> Option<Option<TrustEvidence>> {
+        self.versions.trust_metadata(version).map(get_trust_evidence_compact)
+    }
+}
+
 /// Reject `version` of `meta` when its trust evidence is weaker
 /// than the strongest evidence seen on any earlier-published
 /// version.
 pub fn fail_if_trust_downgraded(
-    meta: &Package,
+    meta: &impl TrustHistory,
     version: &str,
     opts: &TrustCheckOptions<'_>,
 ) -> Result<(), TrustViolation> {
-    // Exclude policy short-circuit.
-    if let Some(exclude) = opts.trust_policy_exclude {
-        match exclude.matches(&meta.name) {
-            PolicyMatch::AnyVersion => return Ok(()),
-            PolicyMatch::ExactVersions(versions) => {
-                if versions.iter().any(|exact| exact == version) {
-                    return Ok(());
-                }
-            }
-            PolicyMatch::No => {}
-        }
+    if is_trust_excluded(meta, version, opts.trust_policy_exclude) {
+        return Ok(());
     }
 
-    if meta.time.is_none() {
-        if opts.ignore_missing_time_field {
-            warn_missing_time_once(&meta.name, SkippedTimeCheck::TrustPolicy);
+    if !meta.has_publish_times() {
+        return missing_trust_time(meta, opts.ignore_missing_time_field);
+    }
+
+    let version_date = trust_version_date(meta, version)?;
+
+    // Ignore-after cutoff: a version old enough to be "settled" gets a pass.
+    if let Some(ignore_after_minutes) = opts.trust_policy_ignore_after_minutes {
+        let now = opts.now.unwrap_or_else(Timestamp::now);
+        if minutes_since_publish(now, version_date) > ignore_after_minutes {
             return Ok(());
         }
-        return Err(TrustViolation::TrustCheckFailed {
-            reason: format!(
-                r#"The metadata of {name} is missing the "time" field"#,
-                name = meta.name,
-            ),
-        });
     }
 
-    let published_at =
-        meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
+    let current = meta
+        .version_evidence(version)
+        .ok_or_else(|| TrustViolation::TrustCheckFailed {
             reason: format!(
-                "missing time for version {version} of {name} in metadata",
-                name = meta.name,
+                "missing version object for version {version} of {name} in metadata",
+                name = meta.package_name(),
             ),
         })?;
-    let version_date = parse_packument_timestamp(published_at).ok_or_else(|| {
-        TrustViolation::TrustCheckFailed {
-            reason: "publish timestamp is not a valid date".to_string(),
-        }
-    })?;
-
-    // Ignore-after cutoff: a version old enough to be "settled"
-    // gets a pass.
-    if let Some(ignore_after_minutes) = opts.trust_policy_ignore_after_minutes {
-        let now = opts.now.unwrap_or_else(Utc::now);
-        let minutes_since_publish = (now - version_date).num_seconds().max(0) as u64 / 60;
-        if minutes_since_publish > ignore_after_minutes {
-            return Ok(());
-        }
-    }
-
-    let manifest = meta.versions.get(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
-        reason: format!(
-            "missing version object for version {version} of {name} in metadata",
-            name = meta.name,
-        ),
-    })?;
 
     let exclude_prerelease = !is_prerelease(version);
     let Some(strongest_prior) =
-        detect_strongest_trust_evidence_before(meta, version_date, exclude_prerelease)?
+        detect_strongest_trust_evidence_before(meta, (version, version_date), exclude_prerelease)?
     else {
         return Ok(());
     };
 
-    let current = get_trust_evidence(&manifest);
     let current_rank = current.map_or(0u8, trust_rank);
     let prior_rank = trust_rank(strongest_prior);
     if current_rank < prior_rank {
         return Err(TrustViolation::TrustDowngrade {
-            name: meta.name.clone(),
+            name: meta.package_name().to_string(),
             version: version.to_string(),
             past_pretty: pretty_print_trust_evidence(Some(strongest_prior)),
             current_pretty: pretty_print_trust_evidence(current),
         });
     }
     Ok(())
+}
+
+fn minutes_since_publish(now: Timestamp, published: Timestamp) -> u64 {
+    now.duration_since(published)
+        .as_secs()
+        .max(0) as u64
+        / 60
+}
+
+/// Whether `trustPolicyExclude` waives the check for this version.
+fn is_trust_excluded(
+    meta: &impl TrustHistory,
+    version: &str,
+    exclude: Option<&PackageVersionPolicy>,
+) -> bool {
+    match exclude.map(|exclude| exclude.matches(meta.package_name())) {
+        Some(PolicyMatch::AnyVersion) => true,
+        Some(PolicyMatch::ExactVersions(versions)) => versions
+            .iter()
+            .any(|exact| exact == version),
+        Some(PolicyMatch::No) | None => false,
+    }
 }
 
 /// Map a [`TrustEvidence`] rank to its numeric weight. "No evidence"
@@ -215,53 +266,52 @@ fn pretty_print_trust_evidence(evidence: Option<TrustEvidence>) -> &'static str 
     }
 }
 
-/// Walk every version older than `before_date` and return the
+/// Walk every version published before `current` and return the
 /// strongest [`TrustEvidence`] seen. Prereleases are filtered out
 /// when the current version is *not* itself a prerelease.
 ///
-/// Fails closed: a prior version whose manifest is listed but does
-/// not decode makes the scan error rather than skip — skipping could
-/// hide the strongest prior evidence and let a trust downgrade pass
-/// undetected.
+/// Versions published at the same time as `current` are ordered by their
+/// semver precedence. pnpr's own package document gives every version
+/// published before its publish-time window the same time, and without
+/// this, no such version would count as earlier than another.
+///
+/// Fails closed when a prior version's trust metadata cannot be decoded:
+/// skipping it could hide the strongest prior evidence and let a trust
+/// downgrade pass undetected. Other manifest fields are not hydrated.
 fn detect_strongest_trust_evidence_before(
-    meta: &Package,
-    before_date: DateTime<Utc>,
+    meta: &impl TrustHistory,
+    (current, before_date): (&str, Timestamp),
     exclude_prerelease: bool,
 ) -> Result<Option<TrustEvidence>, TrustViolation> {
+    let current = Version::parse(current).ok();
     let mut best: Option<TrustEvidence> = None;
-    for version in meta.versions.keys() {
-        if exclude_prerelease && is_prerelease(version) {
-            continue;
-        }
-        // Skip individual versions that lack a publish timestamp
-        // rather than aborting the entire history walk: a single
-        // prior version with no `time` entry would otherwise mask
-        // every earlier version's evidence and allow a downgrade
-        // to slip through. Each timestamp is checked in isolation.
-        let Some(ts) = meta.published_at(version) else {
-            continue;
-        };
-        let Some(parsed) = parse_packument_timestamp(ts) else {
-            continue;
-        };
-        if parsed >= before_date {
-            continue;
-        }
-        let Some(manifest) = meta.versions.get(version) else {
-            return Err(TrustViolation::TrustCheckFailed {
+    // Skip individual versions that lack a publish timestamp rather than
+    // aborting the entire history walk: a single prior version with no
+    // `time` entry would otherwise mask every earlier version's evidence and
+    // allow a downgrade to slip through. Each timestamp is checked in
+    // isolation.
+    let earlier = meta
+        .versions()
+        .filter(|version| {
+            !(exclude_prerelease && is_prerelease(version))
+                && published_before(meta, version, (current.as_ref(), before_date))
+        });
+    for version in earlier {
+        let Some(evidence) = meta
+            .prior_evidence(version)
+            .ok_or_else(|| TrustViolation::TrustCheckFailed {
                 reason: format!(
-                    "undecodable version object for version {version} of {name} in metadata",
-                    name = meta.name,
+                    "undecodable trust metadata for version {version} of {name} in metadata",
+                    name = meta.package_name(),
                 ),
-            });
-        };
-        let Some(evidence) = get_trust_evidence(&manifest) else {
+            })?
+        else {
             continue;
         };
         // Keep the highest-ranked evidence seen so far. Don't short-
         // circuit on a mid-rank hit: a later version may carry stronger
         // evidence, and missing it would let a real downgrade slip
-        // through. Only `StagedPublish` — the maximum rank — ends the
+        // through. Only `StagedPublish` (the maximum rank) ends the
         // walk early.
         if best.is_none_or(|current| trust_rank(evidence) > trust_rank(current)) {
             best = Some(evidence);
@@ -273,18 +323,92 @@ fn detect_strongest_trust_evidence_before(
     Ok(best)
 }
 
+/// Whether `version` was published before `current`, published at
+/// `current_date`: earlier, or at the same time with a lower semver
+/// precedence.
+fn published_before(
+    meta: &impl TrustHistory,
+    version: &str,
+    (current, current_date): (Option<&Version>, Timestamp),
+) -> bool {
+    let Some(published) = meta.published_at(version).and_then(parse_packument_timestamp) else {
+        return false;
+    };
+    published < current_date
+        || (published == current_date
+            && current
+                .zip(Version::parse(version).ok())
+                .is_some_and(|(current, version)| version < *current))
+}
+
 /// Classify the strongest supply-chain evidence a single version
 /// exposes.
 #[must_use]
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
-    let has_approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some();
+    trust_evidence_of(version.npm_user.as_ref(), &version.dist)
+}
+
+/// [`get_trust_evidence`] for a resolved version's manifest, as the
+/// resolver returns it in `ResolvedPackageInfo::manifest`.
+#[must_use]
+pub fn get_manifest_trust_evidence(manifest: &serde_json::Value) -> Option<TrustEvidence> {
+    let is_set = |pointer: &str| {
+        manifest
+            .pointer(pointer)
+            .is_some_and(|value| !value.is_null())
+    };
+    classify_trust_evidence(
+        is_set("/_npmUser/approver"),
+        is_set("/_npmUser/trustedPublisher"),
+        is_set("/dist/attestations/provenance"),
+    )
+}
+
+/// [`get_trust_evidence`] for the policy fields of a version.
+#[must_use]
+pub(crate) fn get_policy_trust_evidence(fields: &VersionPolicyFields) -> Option<TrustEvidence> {
+    trust_evidence_of(fields.npm_user.as_ref(), &fields.dist)
+}
+
+fn trust_evidence_of(
+    npm_user: Option<&NpmUser>,
+    dist: &PackageDistribution,
+) -> Option<TrustEvidence> {
+    let has_approver = npm_user.and_then(|user| user.approver.as_ref()).is_some();
+    let has_provenance = dist.attestations
+        .as_ref()
+        .and_then(|att| att.provenance.as_ref())
+        .is_some();
+    let has_trusted_publisher = npm_user.and_then(|user| user.trusted_publisher.as_ref()).is_some();
+    classify_trust_evidence(has_approver, has_trusted_publisher, has_provenance)
+}
+
+#[must_use]
+fn get_trust_evidence_compact(version: &VersionTrustMetadata) -> Option<TrustEvidence> {
+    let has_approver = version.npm_user
+        .as_ref()
+        .and_then(|user| user.approver.as_ref())
+        .is_some();
+    let has_provenance = version.dist
+        .as_ref()
+        .and_then(|dist| dist.attestations.as_ref())
+        .and_then(|attestations| attestations.provenance.as_ref())
+        .is_some();
+    let has_trusted_publisher = version.npm_user
+        .as_ref()
+        .and_then(|user| user.trusted_publisher.as_ref())
+        .is_some();
+    classify_trust_evidence(has_approver, has_trusted_publisher, has_provenance)
+}
+
+fn classify_trust_evidence(
+    has_approver: bool,
+    has_trusted_publisher: bool,
+    has_provenance: bool,
+) -> Option<TrustEvidence> {
     if has_approver {
         return Some(TrustEvidence::StagedPublish);
     }
-    let has_provenance =
-        version.dist.attestations.as_ref().and_then(|att| att.provenance.as_ref()).is_some();
-    let has_trusted_publisher =
-        version.npm_user.as_ref().and_then(|user| user.trusted_publisher.as_ref()).is_some();
     if has_trusted_publisher && has_provenance {
         return Some(TrustEvidence::TrustedPublisher);
     }
@@ -300,3 +424,37 @@ fn is_prerelease(version: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+fn trust_version_date(
+    meta: &impl TrustHistory,
+    version: &str,
+) -> Result<Timestamp, TrustViolation> {
+    let published_at = meta
+        .published_at(version)
+        .ok_or_else(|| TrustViolation::TrustCheckFailed {
+            reason: format!(
+                "missing time for version {version} of {name} in metadata",
+                name = meta.package_name(),
+            ),
+        })?;
+    let version_date = parse_packument_timestamp(published_at)
+        .ok_or_else(|| TrustViolation::TrustCheckFailed {
+            reason: "publish timestamp is not a valid date".to_string(),
+        })?;
+
+    Ok(version_date)
+}
+
+fn missing_trust_time(
+    meta: &impl TrustHistory,
+    ignore_missing_time_field: bool,
+) -> Result<(), TrustViolation> {
+    let name = meta.package_name();
+    if ignore_missing_time_field {
+        warn_missing_time_once(name, SkippedTimeCheck::TrustPolicy);
+        return Ok(());
+    }
+    Err(TrustViolation::TrustCheckFailed {
+        reason: format!(r#"The metadata of {name} is missing the "time" field"#),
+    })
+}

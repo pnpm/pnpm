@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/not-compatible-with-any-os-and-has-unpublished-dep",
+  "version": "1.0.0",
+  "os": [
+    "this-os-does-not-exist"
+  ],
+  "dependencies": {
+    "@pnpm.e2e/this-package-is-not-in-the-registry": "1.0.0"
+  }
+}

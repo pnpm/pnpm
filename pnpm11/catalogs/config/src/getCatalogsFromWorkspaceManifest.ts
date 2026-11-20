@@ -6,11 +6,6 @@ export function getCatalogsFromWorkspaceManifest (
   workspaceManifest: Pick<WorkspaceManifest, 'catalog' | 'catalogs'> | undefined
 ): Catalogs {
   // If the pnpm-workspace.yaml file doesn't exist, no catalogs are defined.
-  //
-  // In some cases, it makes sense for callers to handle null/undefined checks
-  // of this form. In this case, let's explicitly handle not found
-  // pnpm-workspace.yaml files by returning an empty catalog to make consuming
-  // logic easier.
   if (workspaceManifest == null) {
     return {}
   }
@@ -18,11 +13,7 @@ export function getCatalogsFromWorkspaceManifest (
   checkDefaultCatalogIsDefinedOnce(workspaceManifest)
 
   return {
-    // If workspaceManifest.catalog is undefined, intentionally allow the spread
-    // below to overwrite it. The check above ensures only one or the either is
-    // defined.
-    default: workspaceManifest.catalog,
-
+    ...(workspaceManifest.catalog != null ? { default: workspaceManifest.catalog } : {}),
     ...workspaceManifest.catalogs,
   }
 }

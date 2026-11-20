@@ -44,7 +44,7 @@ function toArchy (name: string, issue: ResolutionChangesByAlias): TreeNode {
   }
 }
 
-function sortEntries<T> (record: Record<string, T>): Array<[string, T]> {
+function sortEntries<Value> (record: Record<string, Value>): Array<[string, Value]> {
   return Object.entries(record).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
 }
 

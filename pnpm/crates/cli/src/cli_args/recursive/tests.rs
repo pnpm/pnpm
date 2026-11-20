@@ -6,13 +6,58 @@
 //! selection resolves through the prod-pruned graph so the dev edges it
 //! dropped are not pulled back in.
 
-use super::{filtered_projects_dependencies, graph_sequencer, sequence_graph};
-use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
+use super::{
+    RecursiveSelection,
+    dependencies::projects_with_workspace_dependencies_filtered,
+    filtered_projects_dependencies,
+    projects_to_verify,
+    sequence_graph,
+};
+use pnpm_config::{
+    Config,
+    VerifyDepsBeforeRun,
+};
+use pnpm_package_manager::graph_sequencer;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
+use pnpm_workspace_projects_graph::{
+    ProjectGraph,
+    ProjectGraphNode,
+};
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
+
+fn projects_with_workspace_dependencies<'graph, 'dirs, Pkg>(
+    project_dirs: impl IntoIterator<Item = &'dirs Path>,
+    all: &'graph ProjectGraph<Pkg>,
+    prod_all: Option<&'graph ProjectGraph<Pkg>>,
+    prod_only_selected: &HashSet<PathBuf>,
+) -> Vec<PathBuf> {
+    projects_with_workspace_dependencies_filtered(
+        project_dirs,
+        all,
+        prod_all,
+        prod_only_selected,
+        |_, _, deps| {
+            deps.iter()
+                .map(PathBuf::as_path)
+                .collect()
+        },
+    )
+}
 
 fn make_graph(adjacency: &[(&str, &[&str])]) -> ProjectGraph<()> {
     adjacency
@@ -25,7 +70,7 @@ fn make_graph(adjacency: &[(&str, &[&str])]) -> ProjectGraph<()> {
 }
 
 /// A subset of `graph`'s nodes that keep their original `dependencies` arrays
-/// — still referencing the unselected projects — exactly as the real selected
+/// (still referencing the unselected projects) exactly as the real selected
 /// graph is built.
 fn select(graph: &ProjectGraph<()>, names: &[&str]) -> ProjectGraph<()> {
     names
@@ -45,11 +90,17 @@ fn merge(graphs: [ProjectGraph<()>; 2]) -> ProjectGraph<()> {
 }
 
 fn dirs(names: &[&str]) -> Vec<PathBuf> {
-    names.iter().map(PathBuf::from).collect()
+    names
+        .iter()
+        .map(PathBuf::from)
+        .collect()
 }
 
 fn prod_only(names: &[&str]) -> HashSet<PathBuf> {
-    names.iter().map(PathBuf::from).collect()
+    names
+        .iter()
+        .map(PathBuf::from)
+        .collect()
 }
 
 fn filtered_order(
@@ -63,7 +114,14 @@ fn filtered_order(
         .iter()
         .map(|(project, dependencies)| (project.clone(), dependencies.clone()))
         .collect();
-    graph_sequencer(&edges, &dependencies.keys().cloned().collect::<Vec<_>>()).order
+    graph_sequencer(
+        &edges,
+        &dependencies
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
+    .order
 }
 
 #[test]
@@ -181,7 +239,276 @@ fn detects_a_cycle_that_passes_through_unselected_projects() {
     let result = sequence_graph(&select(&graph, &["a", "c"]), &graph);
     dbg!(&result);
     assert!(
-        result.cycles.iter().any(|cycle| cycle.len() > 1),
+        result.cycles
+            .iter()
+            .any(|cycle| cycle.len() > 1),
         "a -> b -> c -> a is a cycle once b is tunneled through",
     );
+}
+
+#[test]
+fn projects_with_workspace_dependencies_follows_dependencies_transitively() {
+    // b is not selected, but the install a filtered command spawns materializes
+    // it, so it is held to the modules-directory requirement too.
+    let full = make_graph(&[("a", &["b"]), ("b", &["c"]), ("c", &[]), ("d", &[])]);
+    assert_eq!(
+        projects_with_workspace_dependencies([Path::new("a")], &full, None, &prod_only(&[])),
+        dirs(&["a", "b", "c"]),
+    );
+}
+
+#[test]
+fn projects_with_workspace_dependencies_reads_a_prod_only_root_from_the_prod_graph() {
+    // a's dev edge to b is gone in the prod graph, so b is not required.
+    let full = make_graph(&[("a", &["b"]), ("b", &[])]);
+    let prod = make_graph(&[("a", &[]), ("b", &[])]);
+    assert_eq!(
+        projects_with_workspace_dependencies(
+            [Path::new("a")],
+            &full,
+            Some(&prod),
+            &prod_only(&["a"]),
+        ),
+        dirs(&["a"]),
+    );
+}
+
+#[test]
+fn projects_with_workspace_dependencies_reads_a_regular_root_from_the_full_graph() {
+    // The same graphs, with a selected by a regular filter: its dev edge holds.
+    let full = make_graph(&[("a", &["b"]), ("b", &[])]);
+    let prod = make_graph(&[("a", &[]), ("b", &[])]);
+    assert_eq!(
+        projects_with_workspace_dependencies([Path::new("a")], &full, Some(&prod), &prod_only(&[])),
+        dirs(&["a", "b"]),
+    );
+}
+
+#[test]
+fn projects_with_workspace_dependencies_lists_a_shared_dependency_once() {
+    let full = make_graph(&[("a", &["c"]), ("b", &["c"]), ("c", &[])]);
+    assert_eq!(
+        projects_with_workspace_dependencies(
+            [Path::new("a"), Path::new("b")],
+            &full,
+            None,
+            &prod_only(&[]),
+        ),
+        dirs(&["a", "c", "b"]),
+    );
+}
+
+#[test]
+fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_only_link_edges() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - '*'\ncatalog:\n  d: link:./d\n",
+    )
+    .unwrap();
+    let write_project = |name: &str, json: &str| {
+        let dir = tmp.path().join(name);
+        fs::create_dir_all(&dir).unwrap();
+        let manifest_path = dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        Project {
+            root_dir: dir,
+            manifest: PackageManifest::from_path(manifest_path).unwrap(),
+            dependency_manifest: None,
+        }
+    };
+    let pkg_a = write_project(
+        "a",
+        r#"{"name":"a","version":"1.0.0","dependencies":{"b":"workspace:*","c":"link:../c","d":"catalog:"}}"#,
+    );
+    let pkg_b = write_project("b", r#"{"name":"b","version":"1.0.0"}"#);
+    let pkg_c = write_project("c", r#"{"name":"c","version":"1.0.0"}"#);
+    let pkg_d = write_project("d", r#"{"name":"d","version":"1.0.0"}"#);
+    let all: ProjectGraph<GraphPkg<'_>> = [
+        (
+            pkg_a.root_dir.clone(),
+            ProjectGraphNode {
+                package: GraphPkg { project: &pkg_a },
+                dependencies: vec![
+                    pkg_b.root_dir.clone(),
+                    pkg_c.root_dir.clone(),
+                    pkg_d.root_dir.clone(),
+                ],
+            },
+        ),
+        (
+            pkg_b.root_dir.clone(),
+            ProjectGraphNode { package: GraphPkg { project: &pkg_b }, dependencies: Vec::new() },
+        ),
+        (
+            pkg_c.root_dir.clone(),
+            ProjectGraphNode { package: GraphPkg { project: &pkg_c }, dependencies: Vec::new() },
+        ),
+        (
+            pkg_d.root_dir.clone(),
+            ProjectGraphNode { package: GraphPkg { project: &pkg_d }, dependencies: Vec::new() },
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let selected =
+        std::iter::once((pkg_a.root_dir.clone(), all[&pkg_a.root_dir].clone())).collect();
+    let selection = RecursiveSelection {
+        selected,
+        all: Some(all),
+        prod_all: None,
+        prod_only_selected: HashSet::new(),
+    };
+    let config = Config {
+        verify_deps_before_run: VerifyDepsBeforeRun::Error,
+        shared_workspace_lockfile: false,
+        inject_workspace_packages: true,
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..Config::default()
+    };
+
+    let mut verified =
+        projects_to_verify([pkg_a.root_dir.as_path()], &selection, &config, tmp.path()).unwrap();
+    verified.sort();
+    let mut expected = vec![pkg_a.root_dir, pkg_c.root_dir, pkg_d.root_dir];
+    expected.sort();
+    assert_eq!(verified, expected);
+}
+
+#[test]
+fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_link_edges_from_overrides() {
+    let tmp = tempfile::tempdir().unwrap();
+    let write_project = |name: &str, json: &str| {
+        let dir = tmp.path().join(name);
+        fs::create_dir_all(&dir).unwrap();
+        let manifest_path = dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        Project {
+            root_dir: dir,
+            manifest: PackageManifest::from_path(manifest_path).unwrap(),
+            dependency_manifest: None,
+        }
+    };
+    let app = write_project(
+        "app",
+        r#"{"name":"app","version":"1.0.0","dependencies":{"injected":"workspace:*","lib":"^1.0.0"}}"#,
+    );
+    let injected = write_project("injected", r#"{"name":"injected","version":"1.0.0"}"#);
+    let lib = write_project("lib", r#"{"name":"lib","version":"1.0.0"}"#);
+    let leaf =
+        |project| ProjectGraphNode { package: GraphPkg { project }, dependencies: Vec::new() };
+    let all: ProjectGraph<GraphPkg<'_>> = [
+        (
+            app.root_dir.clone(),
+            ProjectGraphNode {
+                package: GraphPkg { project: &app },
+                dependencies: vec![injected.root_dir.clone(), lib.root_dir.clone()],
+            },
+        ),
+        (injected.root_dir.clone(), leaf(&injected)),
+        (lib.root_dir.clone(), leaf(&lib)),
+    ]
+    .into_iter()
+    .collect();
+    let selected = std::iter::once((app.root_dir.clone(), all[&app.root_dir].clone())).collect();
+    let selection = RecursiveSelection {
+        selected,
+        all: Some(all),
+        prod_all: None,
+        prod_only_selected: HashSet::new(),
+    };
+    let config = Config {
+        verify_deps_before_run: VerifyDepsBeforeRun::Error,
+        shared_workspace_lockfile: false,
+        inject_workspace_packages: true,
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        overrides: Some(std::iter::once(("lib".to_string(), "link:./lib".to_string())).collect()),
+        ..Config::default()
+    };
+
+    let mut verified =
+        projects_to_verify([app.root_dir.as_path()], &selection, &config, tmp.path()).unwrap();
+    verified.sort();
+    let mut expected = vec![app.root_dir, lib.root_dir];
+    expected.sort();
+    assert_eq!(verified, expected);
+}
+
+#[test]
+fn projects_to_verify_reports_an_invalid_override() {
+    let tmp = tempfile::tempdir().unwrap();
+    let selection = RecursiveSelection {
+        selected: ProjectGraph::default(),
+        all: Some(ProjectGraph::default()),
+        prod_all: None,
+        prod_only_selected: HashSet::new(),
+    };
+    let config = Config {
+        verify_deps_before_run: VerifyDepsBeforeRun::Error,
+        shared_workspace_lockfile: false,
+        inject_workspace_packages: true,
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        overrides: Some(
+            std::iter::once(("lib".to_string(), "catalog:missing".to_string())).collect(),
+        ),
+        ..Config::default()
+    };
+
+    let error = projects_to_verify([tmp.path()], &selection, &config, tmp.path()).unwrap_err();
+    assert!(format!("{error:?}").contains("parsing the overrides"), "{error:?}");
+}
+
+#[test]
+fn select_recursive_projects_combines_filter_prod_with_regular_exclusion() {
+    let tmp = tempfile::tempdir().unwrap();
+    let write_project = |rel: &str, json: &str| {
+        let dir = if rel == "." { tmp.path().to_path_buf() } else { tmp.path().join(rel) };
+        fs::create_dir_all(&dir).unwrap();
+        let manifest_path = dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        Project {
+            root_dir: dir,
+            manifest: PackageManifest::from_path(manifest_path).unwrap(),
+            dependency_manifest: None,
+        }
+    };
+    let ws_root = write_project(".", r#"{"name":"ws-root","private":true}"#);
+    let app = write_project(
+        "packages/app",
+        r#"{"name":"app","version":"1.0.0","dependencies":{"lib-a":"workspace:*"},"devDependencies":{"lib-dev":"workspace:*"}}"#,
+    );
+    let app_dir = app.root_dir.clone();
+    let lib_a = write_project("packages/lib-a", r#"{"name":"lib-a","version":"1.0.0"}"#);
+    let lib_dev = write_project("packages/lib-dev", r#"{"name":"lib-dev","version":"1.0.0"}"#);
+    let unrelated =
+        write_project("packages/unrelated", r#"{"name":"unrelated","version":"1.0.0"}"#);
+    let projects = [ws_root, app, lib_a, lib_dev, unrelated];
+    let patterns = vec!["packages/*".to_string()];
+
+    let config = Config {
+        filter: vec!["!lib-a".to_string()],
+        filter_prod: vec!["app...".to_string()],
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..Config::default()
+    };
+    let selection = super::select_recursive_projects(
+        &projects,
+        &config,
+        tmp.path(),
+        super::AutoExcludeRoot::Enabled { workspace_patterns: Some(&patterns) },
+    )
+    .unwrap();
+
+    assert_eq!(
+        selection.selected
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![app_dir.clone()],
+    );
+    assert!(selection.prod_only_selected.contains(&app_dir));
+
+    let verified =
+        projects_to_verify([app_dir.as_path()], &selection, &config, tmp.path()).unwrap();
+    assert_eq!(verified, vec![app_dir]);
 }

@@ -1,5 +1,10 @@
 import * as dp from '@pnpm/deps.path'
-import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
+import {
+  getPeerSatisfactionEdgesToSkip,
+  isPeerSatisfactionEdge,
+  type PeerSatisfactionEdges,
+} from '@pnpm/lockfile.peer-edges'
+import type { LockfileObject, PackageSnapshot, ProjectSnapshot } from '@pnpm/lockfile.types'
 import type { DependenciesField, DepPath, ProjectId } from '@pnpm/types'
 
 export interface LockedDependency {
@@ -14,32 +19,37 @@ export interface LockfileWalkerStep {
   missing: string[]
 }
 
+export interface LockfileWalkerOptions {
+  include?: { [dependenciesField in DependenciesField]: boolean }
+  skipped?: Set<DepPath>
+  resolvePeersFromWorkspaceRoot?: boolean
+  /**
+   * The peer-satisfaction edges to skip. Defaults to the ones computed from
+   * `lockfile` under `include`. Pass the edges of the unfiltered lockfile when
+   * walking a copy whose importers were already filtered.
+   */
+  peerSatisfactionEdges?: PeerSatisfactionEdges
+}
+
 export function lockfileWalkerGroupImporterSteps (
   lockfile: LockfileObject,
   importerIds: ProjectId[],
-  opts?: {
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    skipped?: Set<DepPath>
-  }
+  opts?: LockfileWalkerOptions
 ): Array<{ importerId: string, step: LockfileWalkerStep }> {
-  const walked = new Set<DepPath>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
+  const ctx = createWalkerContext(lockfile, opts)
 
   return importerIds.map((importerId) => {
     const projectSnapshot = lockfile.importers[importerId]
     const entryNodes = Object.entries({
       ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
+      ...(opts?.include?.dependencies === false || opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
       .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
       .filter((nodeId) => nodeId !== null) as DepPath[]
     return {
       importerId,
-      step: step({
-        includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
-        lockfile,
-        walked,
-      }, entryNodes),
+      step: step(ctx, entryNodes),
     }
   })
 }
@@ -55,45 +65,73 @@ export interface LockfileWalker {
 export function lockfileWalker (
   lockfile: LockfileObject,
   importerIds: ProjectId[],
-  opts?: {
-    include?: { [dependenciesField in DependenciesField]: boolean }
-    skipped?: Set<DepPath>
-  }
+  opts?: LockfileWalkerOptions
 ): LockfileWalker {
-  const walked = new Set<DepPath>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
-  const entryNodes = [] as DepPath[]
-  const directDeps = [] as Array<{ alias: string, depPath: DepPath }>
-
-  for (const importerId of importerIds) {
-    const projectSnapshot = lockfile.importers[importerId]
-    Object.entries({
-      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
-      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
-    })
-      .forEach(([pkgName, reference]) => {
-        const depPath = dp.refToRelative(reference, pkgName)
-        if (depPath === null) return
-        entryNodes.push(depPath)
-        directDeps.push({ alias: pkgName, depPath })
-      })
-  }
+  const { entryNodes, directDeps } = collectDirectDeps(lockfile, importerIds, opts?.include)
   return {
     directDeps,
-    step: step({
-      includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
-      lockfile,
-      walked,
-    }, entryNodes),
+    step: step(createWalkerContext(lockfile, opts), entryNodes),
+  }
+}
+
+interface DirectDepsResult {
+  entryNodes: DepPath[]
+  directDeps: Array<{ alias: string, depPath: DepPath }>
+}
+
+function collectDirectDeps (
+  lockfile: LockfileObject,
+  importerIds: ProjectId[],
+  include?: LockfileWalkerOptions['include']
+): DirectDepsResult {
+  const entryNodes: DepPath[] = []
+  const directDeps: Array<{ alias: string, depPath: DepPath }> = []
+
+  for (const importerId of importerIds) {
+    const deps = getProjectDeps(lockfile.importers[importerId], include)
+    for (const [pkgName, reference] of Object.entries(deps)) {
+      const depPath = dp.refToRelative(reference, pkgName)
+      if (depPath !== null) {
+        entryNodes.push(depPath)
+        directDeps.push({ alias: pkgName, depPath })
+      }
+    }
+  }
+  return { entryNodes, directDeps }
+}
+
+function getProjectDeps (
+  projectSnapshot: ProjectSnapshot,
+  include?: LockfileWalkerOptions['include']
+): Record<string, string> {
+  return {
+    ...(include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
+    ...(include?.dependencies === false ? {} : projectSnapshot.dependencies),
+    ...(include?.dependencies === false || include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
+  }
+}
+
+interface WalkerContext {
+  includeOptionalDependencies: boolean
+  lockfile: LockfileObject
+  walked: Set<DepPath>
+  peerSatisfactionEdges?: PeerSatisfactionEdges
+}
+
+function createWalkerContext (lockfile: LockfileObject, opts: LockfileWalkerOptions | undefined): WalkerContext {
+  return {
+    includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
+    lockfile,
+    walked: new Set<DepPath>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : []),
+    peerSatisfactionEdges: opts?.peerSatisfactionEdges ?? getPeerSatisfactionEdgesToSkip(lockfile, {
+      include: opts?.include,
+      resolvePeersFromWorkspaceRoot: opts?.resolvePeersFromWorkspaceRoot,
+    }),
   }
 }
 
 function step (
-  ctx: {
-    includeOptionalDependencies: boolean
-    lockfile: LockfileObject
-    walked: Set<DepPath>
-  },
+  ctx: WalkerContext,
   nextDepPaths: DepPath[]
 ): LockfileWalkerStep {
   const result: LockfileWalkerStep = {
@@ -115,18 +153,19 @@ function step (
     }
     result.dependencies.push({
       depPath,
-      next: () => step(ctx, next({ includeOptionalDependencies: ctx.includeOptionalDependencies }, pkgSnapshot)),
+      next: () => step(ctx, next(ctx, depPath, pkgSnapshot)),
       pkgSnapshot,
     })
   }
   return result
 }
 
-function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageSnapshot): DepPath[] {
+function next (ctx: WalkerContext, depPath: DepPath, nextPkg: PackageSnapshot): DepPath[] {
   return Object.entries({
     ...nextPkg.dependencies,
-    ...(opts.includeOptionalDependencies ? nextPkg.optionalDependencies : {}),
+    ...(ctx.includeOptionalDependencies ? nextPkg.optionalDependencies : {}),
   })
+    .filter(([pkgName]) => !isPeerSatisfactionEdge(ctx.peerSatisfactionEdges, depPath, pkgName))
     .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null) as DepPath[]
 }

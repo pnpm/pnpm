@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.env-installer",
-  "version": "1103.0.2",
+  "version": "1103.0.17",
   "description": "Installer for configurational dependencies",
   "keywords": [
     "pnpm",
@@ -25,16 +25,18 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "start": "tsgo --watch",
-    "compile": "tsgo --build && pn lint --fix",
+    "start": "tsc --watch",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.package-is-installable": "workspace:*",
     "@pnpm/config.pick-registry-for-package": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
@@ -53,6 +55,7 @@
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/resolving.tarball-url": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",

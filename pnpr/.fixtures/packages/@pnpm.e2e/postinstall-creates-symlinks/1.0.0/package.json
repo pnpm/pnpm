@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm.e2e/postinstall-creates-symlinks",
+  "version": "1.0.0",
+  "description": "A package whose postinstall script creates symlinks to a file and to a directory",
+  "scripts": {
+    "postinstall": "node create-symlinks.js"
+  },
+  "license": "MIT"
+}

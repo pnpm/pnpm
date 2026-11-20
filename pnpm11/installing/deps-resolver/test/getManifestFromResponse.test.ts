@@ -55,7 +55,7 @@ test('getManifestFromResponse returns currentPkg info when manifest is undefined
   })
 })
 
-test('getManifestFromResponse returns default 0.0.0 when manifest and currentPkg are unavailable', () => {
+test('getManifestFromResponse returns manifest without version when manifest and currentPkg are unavailable', () => {
   const pkgResponse = {
     body: {
       manifest: undefined,
@@ -73,7 +73,6 @@ test('getManifestFromResponse returns default 0.0.0 when manifest and currentPkg
 
   expect(result).toEqual({
     name: 'foo',
-    version: '0.0.0',
   })
 })
 
@@ -94,7 +93,6 @@ test('getManifestFromResponse extracts name from bareSpecifier when no alias', (
 
   expect(result).toEqual({
     name: 'package@^1.0.0',
-    version: '0.0.0',
   })
 })
 
@@ -121,7 +119,6 @@ test('getManifestFromResponse does not use currentPkg when only name is availabl
 
   expect(result).toEqual({
     name: 'foo',
-    version: '0.0.0',
   })
 })
 
@@ -148,6 +145,31 @@ test('getManifestFromResponse does not use currentPkg when only version is avail
 
   expect(result).toEqual({
     name: 'foo',
+  })
+})
+
+test('getManifestFromResponse ignores synthesized 0.0.0 version from currentPkg', () => {
+  const pkgResponse = {
+    body: {
+      manifest: undefined,
+    },
+  } as PackageResponse
+
+  const wantedDependency = {
+    alias: 'foo',
+    bareSpecifier: 'foo',
+    dev: false,
+    optional: false,
+  } as WantedDependency
+
+  const currentPkg = {
+    name: 'foo',
     version: '0.0.0',
+  }
+
+  const result = getManifestFromResponse(pkgResponse, wantedDependency, currentPkg)
+
+  expect(result).toEqual({
+    name: 'foo',
   })
 })

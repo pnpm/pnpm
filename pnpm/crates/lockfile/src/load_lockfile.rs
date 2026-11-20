@@ -1,69 +1,66 @@
+pub use error::LoadLockfileError;
+
 use crate::{
-    Lockfile, LockfileResolution, ProjectSnapshot, SnapshotEntry, extract_main_document,
+    ComVer,
+    EnvLockfile,
+    Lockfile,
+    LockfileVersion,
+    NextLockfile,
+    ProjectSnapshot,
+    Shape,
+    declares_next_format,
+    extract_env_document,
+    extract_main_document,
+    git_merge_file::{
+        MERGE_CONFLICT_OURS,
+        ParsedWantedFile,
+        parse_wanted_file,
+    },
+    json_document::{
+        from_json_str,
+        is_json_document,
+    },
+    load_lockfile::repair_document::{
+        prepare_next_value_for_fix,
+        prepare_value_for_fix,
+    },
     merge_lockfile_changes,
 };
-use derive_more::{Display, Error};
 use pipe_trait::Pipe;
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use serde_saphyr::MessageFormatter;
+use serde::Deserialize;
 use std::{
     collections::HashMap,
-    env, fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    env,
+    fs,
+    io::ErrorKind,
+    path::Path,
     sync::Arc,
 };
+
+mod error;
 
 const DEFAULT_YAML_MAX_EVENTS: usize = 1_000_000;
 const DEFAULT_YAML_MAX_NODES: usize = 250_000;
 const DEFAULT_YAML_MAX_SCALAR_BYTES: usize = 64 * 1024 * 1024;
 const DEFAULT_YAML_MAX_READER_INPUT_BYTES: usize = 256 * 1024 * 1024;
-
-/// Error when reading lockfile the filesystem.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum LoadLockfileError {
-    #[display("Failed to get current_dir: {_0}")]
-    #[diagnostic(code(ERR_PNPM_LOCKFILE_CURRENT_DIR))]
-    CurrentDir(io::Error),
-
-    #[display("Failed to read lockfile content: {_0}")]
-    #[diagnostic(code(ERR_PNPM_LOCKFILE_READ_FILE))]
-    ReadFile(io::Error),
-
-    #[display(
-        "The lockfile at \"{}\" is broken: {}",
-        path.display(),
-        reason
-    )]
-    #[diagnostic(code(ERR_PNPM_BROKEN_LOCKFILE))]
-    ParseYaml { path: PathBuf, reason: String },
-}
-
-impl LoadLockfileError {
-    pub(super) fn parse_yaml(path: &Path, source: &serde_saphyr::Error) -> Self {
-        Self::ParseYaml { path: path.to_path_buf(), reason: format_yaml_error(source) }
-    }
-}
-
-fn format_yaml_error(error: &serde_saphyr::Error) -> String {
-    let error = error.without_snippet();
-    let reason = serde_saphyr::DefaultMessageFormatter.format_message(error);
-    if let Some(location) = error.location() {
-        format!("{reason} ({}:{})", location.line(), location.column())
-    } else {
-        reason.into_owned()
-    }
-}
+// Not raised to the document's length: the scanner buffers tokens while a
+// key in a flow collection is pending, so a malformed flow collection would
+// buffer them to the end of the document.
+const YAML_SIMPLE_KEY_MAX_LOOKAHEAD: usize = 1024 * 1024;
 
 /// The parsing budgets for a lockfile document of `document_len` bytes.
 ///
 /// Every size-proportional budget is raised to the document's byte length:
 /// none of these dimensions can exceed the size of an input that is already
-/// in memory, so a valid lockfile must never trip them, however large. The
-/// remaining defaults (aliases, anchors, depth, documents) bound YAML shapes
-/// the lockfile emitter never produces and stay as security caps.
-fn yaml_parse_options(document_len: usize) -> serde_saphyr::Options {
+/// in memory, so a valid lockfile must never trip them, however large.
+///
+/// An implicit key may be up to [`YAML_SIMPLE_KEY_MAX_LOOKAHEAD`] characters
+/// long, past YAML's 1,024-character limit, since a lockfile that another
+/// tool edited can hold one.
+///
+/// The remaining defaults (aliases, anchors, depth, documents) bound YAML
+/// shapes the lockfile emitter never produces and stay as security caps.
+pub(crate) fn yaml_parse_options(document_len: usize) -> serde_saphyr::Options {
     serde_saphyr::options! {
         budget: serde_saphyr::budget! {
             max_events: document_len.max(DEFAULT_YAML_MAX_EVENTS),
@@ -71,6 +68,7 @@ fn yaml_parse_options(document_len: usize) -> serde_saphyr::Options {
             max_total_scalar_bytes: document_len.max(DEFAULT_YAML_MAX_SCALAR_BYTES),
             max_total_comment_bytes: document_len.max(DEFAULT_YAML_MAX_SCALAR_BYTES),
             max_reader_input_bytes: Some(document_len.max(DEFAULT_YAML_MAX_READER_INPUT_BYTES)),
+            simple_key_max_lookahead: YAML_SIMPLE_KEY_MAX_LOOKAHEAD,
         },
     }
 }
@@ -86,6 +84,26 @@ fn read_lockfile_text(file_path: &Path) -> Result<Option<String>, LoadLockfileEr
     }
 }
 
+/// Whether the combined lockfile's leading env document was left
+/// conflicted by Git *and* merges cleanly.
+///
+/// The merge has to be attempted, not guessed at from the markers:
+/// counting a conflict the merge cannot resolve would have the install
+/// report a merge that never happened. A marker inside a YAML comment or
+/// scalar is ruled out the same way, by the document parsing as it
+/// stands.
+///
+/// The substring test only skips that work for the documents that
+/// plainly carry no marker, which is all of them but the conflicted few.
+fn env_document_merges(content: &str, file_path: &Path) -> bool {
+    let Some(env) = extract_env_document(content) else { return false };
+    if !env.contains(MERGE_CONFLICT_OURS) {
+        return false;
+    }
+    EnvLockfile::parse_conflicted_document(&env, file_path)
+        .is_ok_and(|parsed| parsed.merged_conflict_files > 0)
+}
+
 impl Lockfile {
     /// Load lockfile from the current directory.
     pub fn load_from_current_dir() -> Result<Option<Self>, LoadLockfileError> {
@@ -95,7 +113,7 @@ impl Lockfile {
     }
 
     /// Load the *current* lockfile from
-    /// `<virtual_store_dir>/lock.yaml`: the file records what pacquet
+    /// `<install_state_dir>/lock.yaml`: the file records what pacquet
     /// actually materialized on the previous install and is diffed
     /// against the wanted lockfile to decide which snapshots can be
     /// skipped.
@@ -105,20 +123,41 @@ impl Lockfile {
     /// Same parse / version-check path as the wanted lockfile, so a
     /// major-version mismatch surfaces as a parse error rather than
     /// silently dropping the file.
-    pub fn load_current_from_virtual_store_dir(
-        virtual_store_dir: &Path,
+    pub fn load_current_from_install_state_dir(
+        install_state_dir: &Path,
     ) -> Result<Option<Self>, LoadLockfileError> {
-        let file_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
-        Self::load_from_path(&file_path)
+        let file_path = install_state_dir.join(Lockfile::CURRENT_FILE_NAME);
+        let Some(content) = read_lockfile_text(&file_path)? else { return Ok(None) };
+        Self::parse_as(&content, &file_path, Shape::Suffixed)
     }
 
-    /// Load the wanted lockfile (`<dir>/pnpm-lock.yaml`) — a
+    /// The `lockfileVersion` of the lockfile at `file_path` when
+    /// [`LockfileVersion`] rejects it, which makes every load of that file
+    /// fail. `None` when the file is absent or its version is accepted or
+    /// unreadable.
+    pub fn unsupported_version_at(file_path: &Path) -> Result<Option<ComVer>, LoadLockfileError> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct VersionField {
+            lockfile_version: ComVer,
+        }
+        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
+        let main = extract_main_document(&content);
+        let Ok(VersionField { lockfile_version }) =
+            serde_saphyr::from_str_with_options(&main, yaml_parse_options(main.len()))
+        else {
+            return Ok(None);
+        };
+        Ok((!LockfileVersion::<9>::is_compatible(lockfile_version)).then_some(lockfile_version))
+    }
+
+    /// Load the wanted lockfile (`<dir>/pnpm-lock.yaml`), a
     /// directory-addressed loader for callers that resolve into a
     /// directory other than the process's current one. Returns
     /// `Ok(None)` when the file is absent, same as
     /// [`Self::load_from_current_dir`].
     pub fn load_wanted_from_dir(dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
-        Self::load_from_path(&dir.join(Lockfile::FILE_NAME))
+        Ok(Self::load_wanted_from_path(&dir.join(Lockfile::FILE_NAME))?.value)
     }
 
     /// Load the wanted lockfile an install reads, honoring the per-branch
@@ -133,9 +172,9 @@ impl Lockfile {
         dir: &Path,
         selection: &WantedLockfileSelection,
     ) -> Result<Option<Self>, LoadLockfileError> {
-        Ok(Self::load_wanted_detailed(dir, selection)?
-            .lockfile
-            .map(|lockfile| Arc::try_unwrap(lockfile).unwrap_or_else(|shared| (*shared).clone())))
+        Ok(Self::load_wanted_detailed(dir, selection)?.lockfile
+            .map(Arc::try_unwrap)
+            .map(|unwrap| unwrap.unwrap_or_else(|shared| (*shared).clone())))
     }
 
     /// [`Self::load_wanted`] keeping the importers the fold started from.
@@ -145,18 +184,21 @@ impl Lockfile {
     ) -> Result<LoadedWantedLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let path = dir.join(file_name);
-            let Some(lockfile) = Self::load_from_path(&path)? else { continue };
+            let parsed = Self::load_wanted_from_path(&path)?;
+            let Some(lockfile) = parsed.value else { continue };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = lockfile.importers.clone();
-                let merged = merge_git_branch_lockfiles(lockfile, dir)?;
+                let (merged, branch_conflict_files) = merge_git_branch_lockfiles(lockfile, dir)?;
                 Ok(LoadedWantedLockfile {
                     lockfile: Some(Arc::new(merged)),
                     pre_merge_importers: Some(pre_merge_importers),
+                    merged_conflict_files: parsed.merged_conflict_files + branch_conflict_files,
                 })
             } else {
                 Ok(LoadedWantedLockfile {
                     lockfile: Some(Arc::new(lockfile)),
                     pre_merge_importers: None,
+                    merged_conflict_files: parsed.merged_conflict_files,
                 })
             };
         }
@@ -172,16 +214,22 @@ impl Lockfile {
     ) -> Result<LoadedRepairLockfile, LoadLockfileError> {
         for file_name in selection.read_order() {
             let path = dir.join(file_name);
-            let Some(views) = Self::load_repair_views_from_path(&path)? else { continue };
+            let parsed = Self::load_repair_views_from_path(&path)?;
+            let Some(views) = parsed.value else { continue };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = views.seed.importers.clone();
-                let views = merge_git_branch_lockfile_repairs(views, dir)?;
+                let (views, branch_conflict_files) = merge_git_branch_lockfile_repairs(views, dir)?;
                 Ok(LoadedRepairLockfile {
                     views: Some(views),
                     pre_merge_importers: Some(pre_merge_importers),
+                    merged_conflict_files: parsed.merged_conflict_files + branch_conflict_files,
                 })
             } else {
-                Ok(LoadedRepairLockfile { views: Some(views), pre_merge_importers: None })
+                Ok(LoadedRepairLockfile {
+                    views: Some(views),
+                    pre_merge_importers: None,
+                    merged_conflict_files: parsed.merged_conflict_files,
+                })
             };
         }
         Ok(LoadedRepairLockfile::default())
@@ -191,13 +239,13 @@ impl Lockfile {
     /// exists and its main document is non-empty. The same absence
     /// rules as [`Self::load_wanted_from_dir`] (a missing file, an
     /// empty file, and an env-only combined document all count as
-    /// absent) without paying for the YAML parse — only the read and
+    /// absent) without paying for the YAML parse, only the read and
     /// the document split.
     ///
     /// Any read failure other than `NotFound` (permissions, invalid
     /// UTF-8, I/O) reports the file as present: an existing-but-
-    /// unreadable lockfile must not be mistaken for a missing one —
-    /// the regenerate-on-missing path would overwrite it — and the
+    /// unreadable lockfile must not be mistaken for a missing one
+    /// (the regenerate-on-missing path would overwrite it) and the
     /// real load surfaces the underlying error when the contents are
     /// actually needed.
     #[must_use]
@@ -219,22 +267,38 @@ impl Lockfile {
         }
     }
 
-    /// Parse lockfile text that was read from `file_path` — the path is
+    /// Parse lockfile text that was read from `file_path`, the path is
     /// only used to name the file in a parse error. Returns `Ok(None)`
     /// for the same empty-document cases as
     /// [`Self::load_wanted_from_dir`], so a caller holding an in-memory
     /// snapshot of the file gets the same value the loader would.
     pub fn parse(content: &str, file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
+        Self::parse_as(content, file_path, Shape::OfVersion)
+    }
+
+    fn parse_as(
+        content: &str,
+        file_path: &Path,
+        shape: Shape,
+    ) -> Result<Option<Self>, LoadLockfileError> {
         let main = extract_main_document(content);
         if main.trim().is_empty() {
             return Ok(None);
         }
-        serde_saphyr::from_str_with_options::<Self>(&main, yaml_parse_options(main.len()))
-            .map(|mut lockfile| {
-                lockfile.reconstruct_missing_directory_resolutions();
-                Some(lockfile)
-            })
+        let parsed = if shape == Shape::OfVersion && declares_next_format(&main) {
+            parse_next(&main, file_path)
+        } else {
+            let options = yaml_parse_options(main.len());
+            match crate::parallel_parse::parse_sections_in_parallel(&main, yaml_parse_options) {
+                Some(lockfile) => Ok(lockfile),
+                None => serde_saphyr::from_str_with_options::<Self>(&main, options),
+            }
             .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+        };
+        parsed.map(|mut lockfile| {
+            lockfile.reconstruct_missing_directory_resolutions();
+            Some(lockfile)
+        })
     }
 
     fn parse_repair_views(
@@ -245,23 +309,41 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(None);
         }
-        let mut value = serde_saphyr::from_str_with_options::<serde_json::Value>(
-            &main,
-            yaml_parse_options(main.len()),
-        )
-        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
-        prepare_value_for_fix(&mut value);
-        serde_json::from_value::<Self>(value)
-            .map(|mut merge| {
-                merge.reconstruct_missing_directory_resolutions();
-                let mut seed = merge.clone();
-                seed.prepare_for_fix();
-                Some(RepairLockfileViews { seed, merge })
-            })
-            .map_err(|source| LoadLockfileError::ParseYaml {
-                path: file_path.to_path_buf(),
-                reason: source.to_string(),
-            })
+        let parse_error = |source: serde_json::Error| LoadLockfileError::ParseYaml {
+            path: file_path.to_path_buf(),
+            reason: source.to_string(),
+        };
+        let mut value = if is_json_document(&main) {
+            from_json_str::<serde_json::Value>(&main).map_err(parse_error)?
+        } else {
+            serde_saphyr::from_str_with_options::<serde_json::Value>(
+                &main,
+                yaml_parse_options(main.len()),
+            )
+            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?
+        };
+        let next = declares_next_format(&main);
+        if next {
+            prepare_next_value_for_fix(&mut value);
+        } else {
+            prepare_value_for_fix(&mut value);
+        }
+        let parsed = if next {
+            serde_json::from_value::<NextLockfile>(value)
+                .map_err(parse_error)
+                .and_then(|next| {
+                    Lockfile::from_next(next)
+                        .map_err(|source| LoadLockfileError::next_format(file_path, &source))
+                })
+        } else {
+            serde_json::from_value::<Self>(value).map_err(parse_error)
+        };
+        parsed.map(|mut merge| {
+            merge.reconstruct_missing_directory_resolutions();
+            let mut seed = merge.clone();
+            seed.prepare_for_fix();
+            Some(RepairLockfileViews { seed, merge })
+        })
     }
 
     /// Load a lockfile from an explicit path. Returns `Ok(None)` when the
@@ -272,15 +354,44 @@ impl Lockfile {
         Self::parse(&content, file_path)
     }
 
+    /// [`Self::load_from_path`] for the file an install reads and writes
+    /// back, so a Git-conflicted one is merged rather than discarded.
+    fn load_wanted_from_path(
+        file_path: &Path,
+    ) -> Result<ParsedWantedFile<Self>, LoadLockfileError> {
+        let Some(content) = read_lockfile_text(file_path)? else {
+            return Ok(ParsedWantedFile { value: None, merged_conflict_files: 0 });
+        };
+        let mut parsed =
+            parse_wanted_file(&content, file_path, Self::parse, merge_lockfile_changes)?;
+        // A conflict confined to the env document leaves the main one
+        // parsing as it stands, so the recovery above never runs. The file
+        // still holds markers, and only an install that writes it back
+        // clears them, so it counts as conflicted either way.
+        if parsed.merged_conflict_files == 0 && env_document_merges(&content, file_path) {
+            parsed.merged_conflict_files = 1;
+        }
+        Ok(parsed)
+    }
+
     /// [`Self::load_from_path`] deriving both repair views from the
     /// single read.
     fn load_repair_views_from_path(
         file_path: &Path,
-    ) -> Result<Option<RepairLockfileViews>, LoadLockfileError> {
-        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
-        Self::parse_repair_views(&content, file_path)
+    ) -> Result<ParsedWantedFile<RepairLockfileViews>, LoadLockfileError> {
+        let Some(content) = read_lockfile_text(file_path)? else {
+            return Ok(ParsedWantedFile { value: None, merged_conflict_files: 0 });
+        };
+        parse_wanted_file(
+            &content,
+            file_path,
+            Self::parse_repair_views,
+            merge_repair_lockfile_views,
+        )
     }
 }
+
+mod repair_document;
 
 #[cfg(test)]
 mod tests;
@@ -300,10 +411,12 @@ pub struct LoadedWantedLockfile {
     /// lockfile.
     pub lockfile: Option<Arc<Lockfile>>,
     pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+    /// Number of lockfiles whose Git conflict markers were merged while loading.
+    pub merged_conflict_files: usize,
 }
 
 /// The views a repairing install reads the wanted lockfile for, and the
-/// importers the branch-lockfile fold started from — see
+/// importers the branch-lockfile fold started from; see
 /// [`LoadedWantedLockfile`] for why the caller needs those.
 ///
 /// The views are held as one value because they are one file generation
@@ -313,6 +426,7 @@ pub struct LoadedWantedLockfile {
 pub(crate) struct LoadedRepairLockfile {
     views: Option<RepairLockfileViews>,
     pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
+    merged_conflict_files: usize,
 }
 
 impl LoadedRepairLockfile {
@@ -326,7 +440,11 @@ impl LoadedRepairLockfile {
             seed.prepare_for_fix();
             RepairLockfileViews { seed, merge }
         });
-        LoadedRepairLockfile { views, pre_merge_importers: loaded.pre_merge_importers }
+        LoadedRepairLockfile {
+            views,
+            pre_merge_importers: loaded.pre_merge_importers,
+            merged_conflict_files: loaded.merged_conflict_files,
+        }
     }
 
     pub(crate) fn seed(&self) -> Option<&Lockfile> {
@@ -340,6 +458,10 @@ impl LoadedRepairLockfile {
     pub(crate) fn pre_merge_importers(&self) -> Option<&HashMap<String, ProjectSnapshot>> {
         self.pre_merge_importers.as_ref()
     }
+
+    pub(crate) fn merged_conflict_files(&self) -> usize {
+        self.merged_conflict_files
+    }
 }
 
 /// One wanted-lockfile generation seen two ways: `seed` has the fields a
@@ -351,9 +473,19 @@ struct RepairLockfileViews {
     merge: Lockfile,
 }
 
+fn merge_repair_lockfile_views(
+    ours: &RepairLockfileViews,
+    theirs: &RepairLockfileViews,
+) -> RepairLockfileViews {
+    RepairLockfileViews {
+        seed: merge_lockfile_changes(&ours.seed, &theirs.seed),
+        merge: merge_lockfile_changes(&ours.merge, &theirs.merge),
+    }
+}
+
 /// Which wanted-lockfile file an install reads and writes, and whether the
 /// other branches' lockfiles are folded into it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WantedLockfileSelection {
     /// The file the install reads first and writes back:
     /// `pnpm-lock.yaml`, or the `pnpm-lock.<branch>.yaml` that
@@ -363,6 +495,13 @@ pub struct WantedLockfileSelection {
     /// next to the file that was read into the loaded lockfile. The
     /// install deletes them once it has written the merge back.
     pub merge_git_branch_lockfiles: bool,
+    /// Branch lockfile files a detached HEAD reads before
+    /// `file_name`: the lockfiles of the branches containing the
+    /// checked-out commit, which is the closest thing to a current branch
+    /// such a checkout has. Empty when HEAD is attached to a branch. The
+    /// write target is unaffected, a branch containing HEAD need not have
+    /// HEAD at its tip.
+    pub branch_lockfile_candidates: Vec<String>,
 }
 
 impl Default for WantedLockfileSelection {
@@ -370,28 +509,58 @@ impl Default for WantedLockfileSelection {
         WantedLockfileSelection {
             file_name: Lockfile::FILE_NAME.to_owned(),
             merge_git_branch_lockfiles: false,
+            branch_lockfile_candidates: Vec::new(),
         }
     }
 }
 
 impl WantedLockfileSelection {
+    /// Whether any file the read would try holds a wanted lockfile.
+    ///
+    /// With no candidates this asks about `file_name` alone, mirroring the
+    /// single-file check pnpm's `existsNonEmptyWantedLockfile` performs on
+    /// a branch: a branch that has not been installed on yet reads as
+    /// having no lockfile even when the shared one is on disk. A detached
+    /// HEAD's candidates widen the question to the whole read order, where
+    /// the shared lockfile is the last file tried.
+    pub(crate) fn wanted_exists_on_disk(&self, dir: &Path) -> bool {
+        if self.branch_lockfile_candidates.is_empty() {
+            return Lockfile::wanted_exists(dir, &self.file_name);
+        }
+        self.read_order().any(|file_name| Lockfile::wanted_exists(dir, file_name))
+    }
+
     /// The file names to try, most specific first.
-    fn read_order(&self) -> impl Iterator<Item = &str> {
+    pub fn read_order(&self) -> impl Iterator<Item = &str> {
         let branch_file = (self.file_name != Lockfile::FILE_NAME).then_some(&*self.file_name);
-        branch_file.into_iter().chain([Lockfile::FILE_NAME])
+        self.branch_lockfile_candidates
+            .iter()
+            .map(String::as_str)
+            // The candidates are only ever set for a detached HEAD, where
+            // `file_name` is the shared lockfile; the filter keeps a caller
+            // that sets both from reading the same file twice.
+            .filter(move |candidate| Some(*candidate) != branch_file)
+            .chain(branch_file)
+            .chain([Lockfile::FILE_NAME])
     }
 }
 
-fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, LoadLockfileError> {
+fn merge_git_branch_lockfiles(
+    base: Lockfile,
+    dir: &Path,
+) -> Result<(Lockfile, usize), LoadLockfileError> {
     let branch_lockfiles =
         Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
     let mut merged = base;
+    let mut merged_conflict_files = 0;
     for path in branch_lockfiles {
-        if let Some(branch_lockfile) = Lockfile::load_from_path(&path)? {
+        let parsed = Lockfile::load_wanted_from_path(&path)?;
+        merged_conflict_files += parsed.merged_conflict_files;
+        if let Some(branch_lockfile) = parsed.value {
             merged = merge_lockfile_changes(&merged, &branch_lockfile);
         }
     }
-    Ok(merged)
+    Ok((merged, merged_conflict_files))
 }
 
 /// [`merge_git_branch_lockfiles`] folding each branch lockfile into both
@@ -399,80 +568,42 @@ fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, Lo
 fn merge_git_branch_lockfile_repairs(
     mut base: RepairLockfileViews,
     dir: &Path,
-) -> Result<RepairLockfileViews, LoadLockfileError> {
+) -> Result<(RepairLockfileViews, usize), LoadLockfileError> {
     let branch_lockfiles =
         Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
+    let mut merged_conflict_files = 0;
     for path in branch_lockfiles {
-        if let Some(branch) = Lockfile::load_repair_views_from_path(&path)? {
-            base.seed = merge_lockfile_changes(&base.seed, &branch.seed);
-            base.merge = merge_lockfile_changes(&base.merge, &branch.merge);
+        let parsed = Lockfile::load_repair_views_from_path(&path)?;
+        merged_conflict_files += parsed.merged_conflict_files;
+        if let Some(branch) = parsed.value {
+            base = merge_repair_lockfile_views(&base, &branch);
         }
     }
-    Ok(base)
+    Ok((base, merged_conflict_files))
 }
 
-fn prepare_value_for_fix(value: &mut serde_json::Value) {
-    let Some(root) = value.as_object_mut() else { return };
-    for key in [
-        "settings",
-        "catalogs",
-        "overrides",
-        "packageExtensionsChecksum",
-        "pnpmfileChecksum",
-        "ignoredOptionalDependencies",
-        "patchedDependencies",
-        "time",
-    ] {
-        discard_invalid_generated_field(root, key);
-    }
-    if let Some(packages) = root.get_mut("packages").and_then(serde_json::Value::as_object_mut) {
-        packages.retain(|_, metadata| {
-            if serde_json::from_value::<crate::PackageMetadata>(metadata.clone()).is_ok() {
-                return true;
-            }
-            let Some(resolution) = metadata.get("resolution").cloned() else { return false };
-            if serde_json::from_value::<LockfileResolution>(resolution.clone()).is_err() {
-                return false;
-            }
-            *metadata = serde_json::json!({ "resolution": resolution });
-            true
-        });
-    }
-    if let Some(snapshots) = root.get_mut("snapshots").and_then(serde_json::Value::as_object_mut) {
-        for snapshot in snapshots.values_mut() {
-            if serde_json::from_value::<SnapshotEntry>(snapshot.clone()).is_ok() {
-                continue;
-            }
-            let dependencies = snapshot.get("dependencies").cloned();
-            let optional_dependencies = snapshot.get("optionalDependencies").cloned();
-            let mut retained = serde_json::Map::new();
-            if let Some(dependencies) = dependencies {
-                retained.insert("dependencies".to_string(), dependencies);
-            }
-            if let Some(optional_dependencies) = optional_dependencies {
-                retained.insert("optionalDependencies".to_string(), optional_dependencies);
-            }
-            let candidate = serde_json::Value::Object(retained);
-            *snapshot = if serde_json::from_value::<SnapshotEntry>(candidate.clone()).is_ok() {
-                candidate
-            } else {
-                serde_json::json!({})
-            };
+/// A next-format document, written as JSON or, by an earlier pnpm, as YAML,
+/// as the lockfile it describes.
+fn parse_next(main: &str, file_path: &Path) -> Result<Lockfile, LoadLockfileError> {
+    let next = if is_json_document(main) {
+        match crate::parallel_parse::parse_json_in_parallel(main) {
+            Some(next) => Ok(next),
+            None => from_json_str::<NextLockfile>(main),
         }
-    }
-}
-
-fn discard_invalid_generated_field(
-    root: &mut serde_json::Map<String, serde_json::Value>,
-    key: &str,
-) {
-    let Some(value) = root.get(key).cloned() else { return };
-    let mut candidate = serde_json::Map::from_iter([
-        ("lockfileVersion".to_owned(), serde_json::json!("9.0")),
-        ("importers".to_owned(), serde_json::json!({})),
-    ]);
-    candidate.insert(key.to_owned(), value);
-    if serde_json::from_value::<Lockfile>(serde_json::Value::Object(candidate)).is_err() {
-        root.remove(key);
-    }
+        .map_err(|source| LoadLockfileError::ParseYaml {
+            path: file_path.to_path_buf(),
+            reason: source.to_string(),
+        })
+    } else {
+        let options = yaml_parse_options(main.len());
+        match crate::parallel_parse::parse_sections_in_parallel(main, yaml_parse_options) {
+            Some(next) => Ok(next),
+            None => serde_saphyr::from_str_with_options::<NextLockfile>(main, options),
+        }
+        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+    };
+    next.and_then(|next| {
+        Lockfile::from_next(next)
+            .map_err(|source| LoadLockfileError::next_format(file_path, &source))
+    })
 }

@@ -1,12 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, jest, test } from '@jest/globals'
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import type { ApproveBuildsCommandOpts, RebuildCommandOpts } from '@pnpm/building.commands'
 import { getConfig } from '@pnpm/config.reader'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { prepare } from '@pnpm/prepare'
 import { tempDir } from '@pnpm/prepare-temp-dir'
+import { overrideTty } from '@pnpm/testing.command-defaults'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { safeExeca as execa } from 'execa'
 import { omit } from 'ramda'
@@ -31,13 +32,35 @@ jest.unstable_mockModule('@inquirer/prompts', () => {
     select: jest.fn(),
   }
 })
+const actualLogger = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => ({
+  ...actualLogger,
+  globalWarn: jest.fn(),
+}))
+
 const { checkbox, confirm } = await import('@inquirer/prompts')
+const { globalWarn } = await import('@pnpm/logger')
 const { approveBuilds } = await import('@pnpm/building.commands')
 
 const mockCheckbox = jest.mocked(checkbox)
 const mockConfirm = jest.mocked(confirm)
+const mockGlobalWarn = jest.mocked(globalWarn)
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+let restoreTty: (() => void) | undefined
+
+beforeEach(() => {
+  mockGlobalWarn.mockClear()
+  mockCheckbox.mockClear()
+  mockConfirm.mockClear()
+  restoreTty = overrideTty(true)
+})
+
+afterEach(() => {
+  restoreTty?.()
+  restoreTty = undefined
+})
+
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 async function execPnpmInstall (opts?: { enableGlobalVirtualStore?: boolean }): Promise<void> {
@@ -56,7 +79,7 @@ async function getApproveBuildsConfig () {
   const cliOptions = {
     argv: [],
     dir: process.cwd(),
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
   }
   const { config, context } = await getConfig({
     cliOptions,
@@ -65,6 +88,7 @@ async function getApproveBuildsConfig () {
   return {
     ...omit(['reporter'], config),
     ...context,
+    ci: false,
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
@@ -73,6 +97,30 @@ async function getApproveBuildsConfig () {
 }
 
 type ApproveBuildsOptions = Partial<ApproveBuildsCommandOpts & RebuildCommandOpts>
+
+test('approve-builds requires an exact file selector', async () => {
+  const projectDir = tempDir(false)
+  const packageDir = path.join(projectDir, 'fixture')
+  fs.mkdirSync(packageDir)
+  writePackageSync(packageDir, {
+    name: 'fixture',
+    version: '1.0.0',
+    scripts: { postinstall: 'node build.cjs' },
+  })
+  fs.writeFileSync(path.join(packageDir, 'build.cjs'), "require('node:fs').writeFileSync('built', '')")
+  prepare({ dependencies: { fixture: 'file:../fixture' } }, { tempDir: path.join(projectDir, 'project') })
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+  const originalSettings = fs.existsSync('pnpm-workspace.yaml') ? fs.readFileSync('pnpm-workspace.yaml', 'utf8') : undefined
+  const fileSelector = 'fixture@file:../fixture'
+  await expect(approveBuilds.handler(config, ['fixture'], {})).rejects.toMatchObject({
+    code: 'ERR_PNPM_APPROVE_BUILDS_FILE_SELECTOR_REQUIRED',
+    message: expect.stringContaining(fileSelector),
+  })
+  expect(fs.existsSync('pnpm-workspace.yaml') ? fs.readFileSync('pnpm-workspace.yaml', 'utf8') : undefined).toBe(originalSettings)
+  await approveBuilds.handler(config, [fileSelector], {})
+  expect(fs.existsSync('node_modules/fixture/built')).toBe(true)
+})
 
 async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
   await execPnpmInstall()
@@ -125,7 +173,6 @@ test('approve no builds', async () => {
   await approveNoBuilds()
 
   const manifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
-  // allowBuilds is now the unified setting
   expect(Object.keys(manifest.allowBuilds ?? {}).sort()).toStrictEqual([
     '@pnpm.e2e/install-script-example',
     '@pnpm.e2e/pre-and-postinstall-scripts-example',
@@ -150,8 +197,7 @@ test("works when root project manifest doesn't exist in a workspace", async () =
   })
 
   // Install before writing the workspace manifest so the CLI doesn't
-  // detect a workspace (matching the old install.handler() behaviour
-  // where getConfig() didn't read allowBuilds from the manifest).
+  // detect a workspace.
   process.chdir('workspace/packages/project')
   await execPnpmInstall()
 
@@ -225,6 +271,37 @@ test('approve all builds with --all flag', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+})
+
+test('approveBuilds --all excludes packages explicitly denied in allowBuilds while positional args can still approve them', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/install-script-example': '*',
+    },
+  })
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  mockCheckbox.mockClear()
+  mockConfirm.mockClear()
+  await approveBuilds.handler({
+    ...config,
+    all: true,
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': false,
+    },
+  }, [], {})
+
+  expect(mockCheckbox).not.toHaveBeenCalled()
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/install-script-example': false,
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+  })
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
 })
 
 test('approve builds via positional arguments', async () => {
@@ -323,7 +400,7 @@ test('deny-only via !pkg keeps other builds pending', async () => {
   expect(ignoredNames.some((dp) => dp.includes('pre-and-postinstall-scripts-example'))).toBe(true)
 })
 
-test('positional arguments with unknown package throws error', async () => {
+test('positional arguments with unknown package updates allowBuilds setting without error', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
@@ -333,12 +410,16 @@ test('positional arguments with unknown package throws error', async () => {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
-  await expect(
-    approveBuilds.handler(config, ['@pnpm.e2e/nonexistent-package'], {})
-  ).rejects.toThrow('not awaiting approval')
+  await approveBuilds.handler(config, ['@pnpm.e2e/nonexistent-package'], {})
+
+  expect(mockGlobalWarn).toHaveBeenCalledWith('The following packages are not awaiting approval: @pnpm.e2e/nonexistent-package')
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/nonexistent-package': true,
+  })
 })
 
-test('!pkg with unknown package throws error', async () => {
+test('!pkg with unknown package preemptively denies build without error', async () => {
   prepare({
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
@@ -348,9 +429,50 @@ test('!pkg with unknown package throws error', async () => {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()
 
+  await approveBuilds.handler(config, ['!@pnpm.e2e/nonexistent-package'], {})
+
+  expect(mockGlobalWarn).toHaveBeenCalledWith('The following packages are not awaiting approval: @pnpm.e2e/nonexistent-package')
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/nonexistent-package': false,
+  })
+})
+
+test('!pkg is recorded preemptively when no builds are awaiting approval', async () => {
+  prepare({})
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await approveBuilds.handler(config, ['!@pnpm.e2e/pre-and-postinstall-scripts-example'], {})
+
+  expect(mockGlobalWarn).toHaveBeenCalledWith('The following packages are not awaiting approval: @pnpm.e2e/pre-and-postinstall-scripts-example')
+  const workspaceManifest = readYamlFileSync<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(workspaceManifest.allowBuilds).toStrictEqual({
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': false,
+  })
+})
+
+test('no arguments and no pending builds writes nothing', async () => {
+  prepare({})
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
+  await approveBuilds.handler(config, [], {})
+
+  expect(fs.existsSync(path.resolve('pnpm-workspace.yaml'))).toBe(false)
+})
+
+test('an argument that names no package throws an error', async () => {
+  prepare({})
+
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+
   await expect(
-    approveBuilds.handler(config, ['!@pnpm.e2e/nonexistent-package'], {})
-  ).rejects.toThrow('not awaiting approval')
+    approveBuilds.handler(config, ['!'], {})
+  ).rejects.toThrow('A package name is missing from the arguments')
 })
 
 test('contradictory arguments throw error', async () => {
@@ -438,8 +560,7 @@ test('should retain existing allowBuilds entries when approving builds', async (
   })
 
   // Install before writing the workspace manifest with allowBuilds so the
-  // CLI ignores all builds (matching the old install.handler() behaviour
-  // where getConfig() didn't read allowBuilds from the manifest).
+  // CLI ignores all builds.
   await execPnpmInstall()
 
   const workspaceManifestFile = path.join(temp, 'pnpm-workspace.yaml')
@@ -553,4 +674,48 @@ test('GVS approve-builds writes settings to globalPkgDir without scanning siblin
   const globalManifest = readYamlFileSync<any>(path.join(temp, 'pnpm-workspace.yaml')) // eslint-disable-line
   expect(globalManifest.allowBuilds?.['@pnpm.e2e/pre-and-postinstall-scripts-example']).toBe(true)
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+})
+
+test('approve-builds without args or --all rejects CI and non-TTY stdin while allowing non-interactive modes', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  })
+  await execPnpmInstall()
+
+  const config = await getApproveBuildsConfig()
+
+  await expect(approveBuilds.handler({
+    ...config,
+    ci: true,
+  }, [], {})).rejects.toMatchObject({
+    code: 'ERR_PNPM_APPROVE_BUILDS_NON_INTERACTIVE',
+  })
+  expect(mockCheckbox).not.toHaveBeenCalled()
+
+  const restoreNonTty = overrideTty(false)
+  try {
+    await expect(approveBuilds.handler({
+      ...config,
+      ci: false,
+    }, [], {})).rejects.toMatchObject({
+      code: 'ERR_PNPM_APPROVE_BUILDS_NON_INTERACTIVE',
+    })
+    expect(mockCheckbox).not.toHaveBeenCalled()
+
+    await approveBuilds.handler({
+      ...config,
+      ci: true,
+      all: true,
+    }, [], {})
+    expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+
+    await approveBuilds.handler({
+      ...config,
+      ci: true,
+    }, [], {})
+  } finally {
+    restoreNonTty()
+  }
 })

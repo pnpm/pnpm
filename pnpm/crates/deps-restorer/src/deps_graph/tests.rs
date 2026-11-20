@@ -1,9 +1,25 @@
-use super::{build_deps_graph, build_deps_graph_for_platform, build_deps_subgraph};
+use super::{
+    build_deps_graph,
+    build_deps_graph_for_platform,
+    build_deps_subgraph,
+};
 use pnpm_graph_hasher::calc_dep_state_input_key;
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PackageMetadata,
-    PkgName, PkgVerPeer, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry, VariationsResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgVerPeer,
+    PlatformAssetResolution,
+    PlatformAssetTarget,
+    PlatformSelector,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    VariationsResolution,
 };
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
@@ -31,6 +47,7 @@ fn integrity() -> Integrity {
 
 fn registry_metadata() -> PackageMetadata {
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: integrity(),
             revision: None,
@@ -65,6 +82,7 @@ fn variations_metadata() -> PackageMetadata {
         }],
     };
     PackageMetadata {
+        specifiers: None,
         resolution: LockfileResolution::Variations(VariationsResolution {
             variants: vec![
                 variant("sha512-AAAA".parse().unwrap(), "linux", None),
@@ -103,6 +121,20 @@ fn registry_resolution_full_pkg_id_uses_integrity_verbatim() {
 }
 
 #[test]
+fn custom_resolution_full_pkg_id_uses_the_resolver_integrity() {
+    let pkg = key("dep-a", "1.0.0");
+    let snapshots = HashMap::from([(pkg.clone(), SnapshotEntry::default())]);
+    let metadata: PackageMetadata = serde_json::from_value(serde_json::json!({
+        "resolution": { "type": "custom:served", "integrity": "sha512-served" },
+    }))
+    .expect("parse custom package metadata");
+    let packages = HashMap::from([(pkg.clone(), metadata)]);
+
+    let graph = build_deps_graph(&snapshots, &packages);
+    assert_eq!(graph.get(&pkg).expect("graph node").full_pkg_id, "dep-a@1.0.0:sha512-served");
+}
+
+#[test]
 fn variation_input_keys_use_the_selected_platform_integrity() {
     let pkg = key("node", "runtime:22.0.0");
     let snapshots = HashMap::from([(pkg.clone(), SnapshotEntry::default())]);
@@ -124,7 +156,12 @@ fn variation_input_keys_use_the_selected_platform_integrity() {
         calc_dep_state_input_key(&graph, &pkg, None)
     };
     let keys = [input_key(&linux_glibc), input_key(&linux_musl), input_key(&darwin)];
-    assert_eq!(keys.iter().collect::<std::collections::HashSet<_>>().len(), 3);
+    assert_eq!(
+        keys.iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len(),
+        3,
+    );
 }
 
 #[test]
@@ -199,7 +236,11 @@ fn subgraph_with_empty_roots_is_empty() {
         (key("b", "1.0.0"), registry_metadata()),
     ]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::empty());
+    let graph = build_deps_subgraph(
+        &snapshots,
+        &packages,
+        (std::iter::empty(), &crate::host_platform_selector()),
+    );
     assert!(graph.is_empty(), "empty roots must produce an empty graph");
 }
 
@@ -224,7 +265,11 @@ fn subgraph_walks_forward_closure() {
         (key_d.clone(), registry_metadata()),
     ]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(key_a.clone()));
+    let graph = build_deps_subgraph(
+        &snapshots,
+        &packages,
+        (std::iter::once(key_a.clone()), &crate::host_platform_selector()),
+    );
     assert!(graph.contains_key(&key_a));
     assert!(graph.contains_key(&key_b), "b is in a's closure");
     assert!(graph.contains_key(&key_c), "c is in a's closure via b");
@@ -244,7 +289,11 @@ fn subgraph_terminates_on_cycle() {
     let packages =
         HashMap::from([(key_a.clone(), registry_metadata()), (key_b.clone(), registry_metadata())]);
 
-    let graph = build_deps_subgraph(&snapshots, &packages, std::iter::once(key_a.clone()));
+    let graph = build_deps_subgraph(
+        &snapshots,
+        &packages,
+        (std::iter::once(key_a.clone()), &crate::host_platform_selector()),
+    );
     assert_eq!(graph.len(), 2);
     assert!(graph.contains_key(&key_a));
     assert!(graph.contains_key(&key_b));

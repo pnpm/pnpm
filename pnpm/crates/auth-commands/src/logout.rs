@@ -1,6 +1,6 @@
 //! `pnpm logout` revokes the registry auth token on the server and
-//! removes it from the global `config.yaml`, and from the `auth.ini`
-//! earlier versions wrote. A token that instead lives in `.npmrc` or an
+//! removes it from `auth.ini`, and from the global `config.yaml` where
+//! earlier versions wrote it. A token that instead lives in `.npmrc` or an
 //! env var is left in place, with a warning, because pnpm owns only the
 //! files it writes itself.
 //!
@@ -10,23 +10,48 @@
 //! `global*` log channels are emitted through the `Reporter` seam. See
 //! the dependency-injection convention in `pnpm/CODE_STYLE_GUIDE.md`.
 
-use std::{collections::HashMap, future::Future, io, path::PathBuf};
+use std::{
+    collections::HashMap,
+    future::Future,
+    io,
+    path::PathBuf,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::validate_json_auth_registry;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, encode_uri_component, nerf_dart, redact_and_sanitize,
+    RetryOpts,
+    ThrottledClient,
+    encode_uri_component,
+    nerf_dart,
+    redact_and_sanitize,
     send_with_retry,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 
 use crate::{
-    config_yaml::{self, GLOBAL_CONFIG_YAML_FILENAME, ParseConfigYamlError},
+    config_yaml::{
+        self,
+        GLOBAL_CONFIG_YAML_FILENAME,
+        ParseConfigYamlError,
+    },
     ini::IniSettings,
     registry_url::normalize_registry_url,
 };
-use pnpm_workspace_manifest_writer::{EditManifestFieldError, ManifestEdit, edit_manifest_field};
+use pnpm_workspace_manifest_writer::{
+    EditManifestFieldError,
+    ManifestEdit,
+    edit_manifest_field,
+};
 
 /// The registry `pnpm logout` targets when neither `--registry` nor a
 /// configured registry is given.
@@ -45,8 +70,8 @@ pub trait FsWrite {
 }
 
 /// Send the `DELETE -/user/token/<token>` request that revokes a token
-/// on the registry. The outcome the caller acts on — accepted, rejected
-/// with a status, or unreachable — is the whole contract; how the
+/// on the registry. The outcome the caller acts on (accepted, rejected
+/// with a status, or unreachable) is the whole contract; how the
 /// request is retried and parsed is the provider's concern.
 pub trait RevokeToken {
     fn revoke(
@@ -118,8 +143,7 @@ pub struct LogoutOptions<'a> {
     /// The `--registry` value; `None` falls back to [`DEFAULT_REGISTRY`].
     pub registry: Option<&'a str>,
     pub auth_config: &'a HashMap<String, String>,
-    /// pnpm's `configDir`; the global config lives at
-    /// `<config_dir>/config.yaml` and the legacy `auth.ini` beside it.
+    /// pnpm's `configDir`, holding `auth.ini` and the global `config.yaml`.
     pub config_dir: &'a std::path::Path,
     pub retry: RetryOpts,
     /// Reporter prefix for the `global*` log lines (the working directory).
@@ -163,25 +187,10 @@ where
     };
 
     let revoke_url = format!("{registry}-/user/token/{}", encode_uri_component(token));
-    let revoked = match Sys::revoke(http_client, &revoke_url, token, opts.retry).await {
-        RevokeOutcome::Revoked => true,
-        RevokeOutcome::Rejected { status } => {
-            global::<Reporter>(
-                opts.prefix,
-                LogLevel::Info,
-                format!("Registry returned HTTP {status} when revoking token"),
-            );
-            false
-        }
-        RevokeOutcome::Unreachable => {
-            global::<Reporter>(
-                opts.prefix,
-                LogLevel::Info,
-                "Could not reach the registry to revoke the token".to_string(),
-            );
-            false
-        }
-    };
+    let revoked = report_revocation::<Reporter>(
+        Sys::revoke(http_client, &revoke_url, token, opts.retry).await,
+        opts.prefix,
+    );
 
     // The two files hold independent copies of the same credential, so
     // failing to clean one must not leave the other behind: a token pnpm
@@ -212,6 +221,28 @@ where
     }
 
     Ok(format!("Logged out of {registry_display}"))
+}
+
+fn report_revocation<Reporter: self::Reporter>(outcome: RevokeOutcome, prefix: &str) -> bool {
+    match outcome {
+        RevokeOutcome::Revoked => true,
+        RevokeOutcome::Rejected { status } => {
+            global::<Reporter>(
+                prefix,
+                LogLevel::Info,
+                format!("Registry returned HTTP {status} when revoking token"),
+            );
+            false
+        }
+        RevokeOutcome::Unreachable => {
+            global::<Reporter>(
+                prefix,
+                LogLevel::Info,
+                "Could not reach the registry to revoke the token".to_string(),
+            );
+            false
+        }
+    }
 }
 
 /// Drop every credential `registry` holds in the global `config.yaml`,
@@ -250,7 +281,7 @@ fn forget_in_config_yaml<Sys: FsReadToString + FsWrite>(
     Ok(removed)
 }
 
-/// Drop `token_key` from the `auth.ini` earlier versions wrote, reporting
+/// Drop `token_key` from `auth.ini`, reporting
 /// whether there was one to drop.
 fn forget_in_auth_ini<Sys: FsReadToString + FsWrite>(
     config_dir: &std::path::Path,
@@ -280,7 +311,7 @@ fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: Stri
     Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
 }
 
-/// The token-free prefix of a `…/-/user/token/<token>` revoke URL — the
+/// The token-free prefix of a `…/-/user/token/<token>` revoke URL, the
 /// URL with its final, token-bearing path segment dropped. Handed to
 /// `send_with_retry` for routing and logging so the token never reaches the
 /// retry logs; the request itself still targets the full revoke URL. The
@@ -341,11 +372,9 @@ pub enum LogoutError {
         error: io::Error,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     ParseConfigYaml(ParseConfigYamlError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     EditConfigYaml(EditManifestFieldError),
 }

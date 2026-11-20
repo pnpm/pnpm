@@ -1,32 +1,60 @@
-//! Fold one lockfile's changes into another — how an install under
+//! Fold one lockfile's changes into another, how an install under
 //! `mergeGitBranchLockfiles` combines the per-branch lockfiles with the
 //! shared `pnpm-lock.yaml`.
-//!
-//! The result carries only what pnpm's `mergeLockfileChanges` keeps: the
-//! importers, the packages, the lockfile version, the pnpmfile checksum,
-//! and the ignored optional dependencies. Settings, catalogs, overrides,
-//! and the other recorded-config fields are dropped; the install that
-//! consumes the merge writes its own back.
+
+pub use env::merge_env_lockfile_changes;
 
 use crate::{
-    Lockfile, LockfileExtra, LockfileVersion, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    Lockfile,
+    LockfileExtra,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use node_semver::Version;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{
+    Serialize,
+    de::DeserializeOwned,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     hash::Hash,
+};
+
+mod config;
+mod env;
+
+use config::{
+    merge_catalogs,
+    merge_overrides,
+    merge_patched_dependencies,
+    merge_settings,
+    merge_time,
 };
 
 /// Merge `theirs` into `ours`, preferring the higher version wherever the
 /// two disagree on how a dependency resolved.
 #[must_use]
 pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
-    Lockfile {
+    let untracked_hook = match (
+        ours.untracked_pnpmfile_read_package_hook(),
+        theirs.untracked_pnpmfile_read_package_hook(),
+    ) {
+        (ours, theirs) if ours == theirs => ours,
+        _ => Some(true),
+    };
+    let their_graph = TheirGraph::lent_to(ours, theirs);
+    let mut lockfile = Lockfile {
         lockfile_version: newer_version(ours.lockfile_version, theirs.lockfile_version),
-        pnpmfile_checksum: ours
-            .pnpmfile_checksum
+        pnpmfile_checksum: ours.pnpmfile_checksum
             .clone()
             .or_else(|| theirs.pnpmfile_checksum.clone()),
         ignored_optional_dependencies: union_of_lists(
@@ -34,32 +62,89 @@ pub fn merge_lockfile_changes(ours: &Lockfile, theirs: &Lockfile) -> Lockfile {
             theirs.ignored_optional_dependencies.as_deref(),
         ),
         importers: merge_importers(&ours.importers, &theirs.importers),
-        packages: merge_maps(ours.packages.as_ref(), theirs.packages.as_ref(), spread),
-        snapshots: merge_maps(ours.snapshots.as_ref(), theirs.snapshots.as_ref(), merge_snapshot),
-        settings: None,
-        catalogs: None,
-        overrides: None,
-        package_extensions_checksum: None,
-        patched_dependencies: None,
-        time: None,
+        packages: merge_maps(ours.packages.as_ref(), their_graph.packages, spread),
+        snapshots: merge_maps(ours.snapshots.as_ref(), their_graph.snapshots, merge_snapshot),
+        settings: merge_settings(ours.settings.as_ref(), theirs.settings.as_ref()),
+        catalogs: merge_catalogs(ours.catalogs.as_ref(), theirs.catalogs.as_ref()),
+        overrides: merge_overrides(ours.overrides.as_ref(), theirs.overrides.as_ref()),
+        package_extensions_checksum: ours.package_extensions_checksum
+            .clone()
+            .or_else(|| theirs.package_extensions_checksum.clone()),
+        patched_dependencies: merge_patched_dependencies(
+            ours.patched_dependencies.as_ref(),
+            theirs.patched_dependencies.as_ref(),
+        ),
+        time: merge_time(ours.time.as_ref(), theirs.time.as_ref()),
         extra: merge_extra(&ours.extra, &theirs.extra),
+    };
+    lockfile.set_untracked_pnpmfile_read_package_hook(untracked_hook);
+    keep_our_integrity_target(&mut lockfile, ours);
+    lockfile
+}
+
+/// The merged entries pin the hash [`TheirGraph::lent_to`] kept, which is ours.
+fn keep_our_integrity_target(lockfile: &mut Lockfile, ours: &Lockfile) {
+    if let Some(settings) = &mut lockfile.settings {
+        settings.integrity_target = ours.settings.as_ref().and_then(|ours| ours.integrity_target);
     }
 }
 
-/// Union the top-level keys pnpm does not define, ours winning a conflict —
+struct TheirGraph<'a> {
+    packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+}
+
+impl<'a> TheirGraph<'a> {
+    /// The entries `theirs` lends to the merge. A side whose integrities name
+    /// another hash lends none: the merged lockfile would pin both kinds. The
+    /// resolution that follows every merge resolves what is left out again.
+    fn lent_to(ours: &Lockfile, theirs: &'a Lockfile) -> Self {
+        if ours.integrity_target() == theirs.integrity_target() {
+            TheirGraph { packages: theirs.packages.as_ref(), snapshots: theirs.snapshots.as_ref() }
+        } else {
+            TheirGraph { packages: None, snapshots: None }
+        }
+    }
+}
+
+/// Union the top-level keys pnpm does not define, ours winning a conflict,
 /// the same precedence the fields above use. Dropping them would delete the
 /// state a tool driving pnpm records beside the lockfile from whichever
 /// branch is being merged.
 fn merge_extra(ours: &LockfileExtra, theirs: &LockfileExtra) -> LockfileExtra {
     let mut merged = theirs.clone();
-    for (key, value) in ours {
-        merged.insert(key.clone(), value.clone());
+    for (key, our_value) in ours {
+        if let Some(their_value) = merged.get(key) {
+            merged.insert(key.clone(), merge_extra_value(key, our_value, their_value));
+        } else {
+            merged.insert(key.clone(), our_value.clone());
+        }
     }
     merged
 }
 
+fn merge_extra_value(
+    key: &str,
+    ours: &serde_json::Value,
+    theirs: &serde_json::Value,
+) -> serde_json::Value {
+    if (key == "neverBuiltDependencies" || key == "onlyBuiltDependencies")
+        && let (serde_json::Value::Array(our_arr), serde_json::Value::Array(their_arr)) =
+            (ours, theirs)
+    {
+        let mut combined = our_arr.clone();
+        for item in their_arr {
+            if !combined.contains(item) {
+                combined.push(item.clone());
+            }
+        }
+        return serde_json::Value::Array(combined);
+    }
+    ours.clone()
+}
+
 /// Which side of a disagreement a merge keeps.
-enum Winner {
+pub(super) enum Winner {
     Ours,
     Theirs,
 }
@@ -69,13 +154,19 @@ enum Winner {
 /// Both inputs are the rendered `version` of a resolved dependency, so
 /// each may carry a peer suffix (`17.0.2(react@17.0.2)`) or not be semver
 /// at all (`link:../pkg`). The suffix is not part of the comparison, and
-/// anything neither side can parse resolves to theirs — the same "prefer
+/// anything neither side can parse resolves to theirs, the same "prefer
 /// the incoming change" fallback pnpm applies.
-fn winner(ours: &str, theirs: &str) -> Winner {
+pub(super) fn winner(ours: &str, theirs: &str) -> Winner {
     if ours == theirs {
         return Winner::Ours;
     }
-    let without_peers = |version: &str| version.split('(').next().unwrap_or(version).to_owned();
+    let without_peers = |version: &str| {
+        version
+            .split('(')
+            .next()
+            .unwrap_or(version)
+            .to_owned()
+    };
     match (without_peers(ours).parse::<Version>(), without_peers(theirs).parse::<Version>()) {
         (Ok(ours), Ok(theirs)) if ours > theirs => Winner::Ours,
         _ => Winner::Theirs,
@@ -84,7 +175,7 @@ fn winner(ours: &str, theirs: &str) -> Winner {
 
 /// pnpm's `takeChangedValue`: the incoming value, unless it is what we
 /// already had.
-fn take_changed(ours: &str, theirs: &str) -> String {
+pub(super) fn take_changed(ours: &str, theirs: &str) -> String {
     if ours == theirs { ours.to_owned() } else { theirs.to_owned() }
 }
 
@@ -127,7 +218,7 @@ fn merge_maps<Key: Hash + Eq + Clone, Value: Clone>(
     Some(merged)
 }
 
-/// Same as [`merge_maps`], but an empty result collapses to `None` — pnpm
+/// Same as [`merge_maps`], but an empty result collapses to `None`, pnpm
 /// deletes a dependency group that merged to nothing rather than
 /// recording an empty one.
 fn merge_dependency_group<Key: Hash + Eq + Clone, Value: Clone>(
@@ -147,27 +238,87 @@ fn merge_importers(
         if merged.contains_key(id) {
             continue;
         }
-        let (our_importer, their_importer) = (ours.get(id), theirs.get(id));
-        let group = |select: fn(&ProjectSnapshot) -> Option<&ResolvedDependencyMap>| {
-            merge_dependency_group(
-                our_importer.and_then(select),
-                their_importer.and_then(select),
-                merge_resolved_dependency,
-            )
-        };
-        merged.insert(
-            id.clone(),
-            ProjectSnapshot {
-                specifiers: None,
-                dependencies: group(|importer| importer.dependencies.as_ref()),
-                dev_dependencies: group(|importer| importer.dev_dependencies.as_ref()),
-                optional_dependencies: group(|importer| importer.optional_dependencies.as_ref()),
-                dependencies_meta: None,
-                publish_directory: None,
-            },
-        );
+        merged.insert(id.clone(), merge_importer(ours.get(id), theirs.get(id)));
     }
     merged
+}
+
+fn merge_importer(
+    our_importer: Option<&ProjectSnapshot>,
+    their_importer: Option<&ProjectSnapshot>,
+) -> ProjectSnapshot {
+    let group = |select: fn(&ProjectSnapshot) -> Option<&ResolvedDependencyMap>| {
+        merge_dependency_group(
+            our_importer.and_then(select),
+            their_importer.and_then(select),
+            merge_resolved_dependency,
+        )
+    };
+    let publish_directory = their_importer
+        .and_then(|importer| importer.publish_directory.as_ref())
+        .or_else(|| our_importer.and_then(|importer| importer.publish_directory.as_ref()))
+        .cloned();
+    let link_directory = publish_directory
+        .is_some()
+        .then(|| {
+            their_importer
+                .and_then(|importer| importer.link_directory)
+                .or_else(|| our_importer.and_then(|importer| importer.link_directory))
+        })
+        .flatten()
+        .filter(|link_directory| !link_directory);
+    ProjectSnapshot {
+        specifiers: merge_dependency_group(
+            our_importer.and_then(|importer| importer.specifiers.as_ref()),
+            their_importer.and_then(|importer| importer.specifiers.as_ref()),
+            |ours, theirs| take_changed(ours, theirs),
+        ),
+        dependencies: group(|importer| importer.dependencies.as_ref()),
+        dev_dependencies: group(|importer| importer.dev_dependencies.as_ref()),
+        optional_dependencies: group(|importer| importer.optional_dependencies.as_ref()),
+        dependencies_meta: merge_dependencies_meta(
+            our_importer.and_then(|importer| importer.dependencies_meta.as_ref()),
+            their_importer.and_then(|importer| importer.dependencies_meta.as_ref()),
+        ),
+        publish_directory,
+        link_directory,
+    }
+}
+
+fn merge_dependencies_meta(
+    ours: Option<&serde_json::Value>,
+    theirs: Option<&serde_json::Value>,
+) -> Option<serde_json::Value> {
+    if ours.is_none() && theirs.is_none() {
+        return None;
+    }
+    let mut merged = match ours {
+        Some(serde_json::Value::Object(fields)) => fields.clone(),
+        _ => serde_json::Map::new(),
+    };
+    if let Some(serde_json::Value::Object(their_fields)) = theirs {
+        for (dep_name, their_entry) in their_fields {
+            let entry = match merged.get(dep_name) {
+                Some(our_entry) => merge_meta_entry(our_entry, their_entry),
+                None => their_entry.clone(),
+            };
+            merged.insert(dep_name.clone(), entry);
+        }
+    }
+    (!merged.is_empty()).then_some(serde_json::Value::Object(merged))
+}
+
+fn merge_meta_entry(ours: &serde_json::Value, theirs: &serde_json::Value) -> serde_json::Value {
+    match (ours, theirs) {
+        (serde_json::Value::Object(our_fields), serde_json::Value::Object(their_fields)) => {
+            let mut merged = our_fields.clone();
+            for (key, value) in their_fields {
+                merged.insert(key.clone(), value.clone());
+            }
+            serde_json::Value::Object(merged)
+        }
+        _ => theirs.clone(),
+    }
 }
 
 /// The v9 importer block inlines the specifier next to the resolved
@@ -187,7 +338,7 @@ fn merge_resolved_dependency(
     }
 }
 
-fn merge_snapshot(ours: &SnapshotEntry, theirs: &SnapshotEntry) -> SnapshotEntry {
+pub(super) fn merge_snapshot(ours: &SnapshotEntry, theirs: &SnapshotEntry) -> SnapshotEntry {
     SnapshotEntry {
         dependencies: merge_dependency_group(
             ours.dependencies.as_ref(),
@@ -216,10 +367,10 @@ fn merge_snapshot_dep_ref(ours: &SnapshotDepRef, theirs: &SnapshotDepRef) -> Sna
 /// would have to be revisited every time a lockfile entry grows a key.
 ///
 /// Two entries under the same key describe one published version, so they
-/// almost always already agree — and a spread of equal entries is one of
+/// almost always already agree, and a spread of equal entries is one of
 /// them. Taking that shortcut keeps the serialization round-trip off the
 /// merge of two lockfiles that only differ in a handful of packages.
-fn spread<Entry: Serialize + DeserializeOwned + Clone + PartialEq>(
+pub(super) fn spread<Entry: Serialize + DeserializeOwned + Clone + PartialEq>(
     ours: &Entry,
     theirs: &Entry,
 ) -> Entry {

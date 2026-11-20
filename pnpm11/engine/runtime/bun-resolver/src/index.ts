@@ -99,41 +99,41 @@ function normalizeRuntimeSpec (versionSpec: string): string {
 async function readBunAssets (fetch: FetchFromRegistry, version: string): Promise<PlatformAssetResolution[]> {
   const integritiesFileUrl = `https://github.com/oven-sh/bun/releases/download/bun-v${version}/SHASUMS256.txt`
   const shasumsFileItems = await fetchShasumsFile(fetch, integritiesFileUrl)
-  const pattern = /^bun-([^-.]+)-([^-.]+)(-musl)?\.zip$/
   const assets: PlatformAssetResolution[] = []
-  for (const { integrity, fileName } of shasumsFileItems) {
-    const match = pattern.exec(fileName)
-    if (!match) continue
+  for (const item of shasumsFileItems) {
+    const asset = parseBunAsset(item, version)
+    if (asset != null) assets.push(asset)
+  }
+  return assets
+}
 
-    let [, platform, arch, musl] = match
-    if (platform === 'windows') {
-      platform = 'win32'
-    }
-    if (arch === 'aarch64') {
-      arch = 'arm64'
-    }
-    const url = `https://github.com/oven-sh/bun/releases/download/bun-v${version}/${fileName}`
-    const resolution: BinaryResolution = {
+const BUN_ARCHIVE_PATTERN = /^bun-([^-.]+)-([^-.]+)(-musl)?\.zip$/
+
+function parseBunAsset (
+  item: { integrity: string, fileName: string },
+  version: string
+): PlatformAssetResolution | undefined {
+  const match = BUN_ARCHIVE_PATTERN.exec(item.fileName)
+  if (!match) return undefined
+
+  const [, rawPlatform, rawArch, musl] = match
+  const platform = rawPlatform === 'windows' ? 'win32' : rawPlatform
+  const arch = rawArch === 'aarch64' ? 'arm64' : rawArch
+  const target: PlatformAssetTarget = { os: platform, cpu: arch }
+  if (musl != null) {
+    target.libc = 'musl'
+  }
+  return {
+    targets: [target],
+    resolution: {
       type: 'binary',
       archive: 'zip',
       bin: getBunBinLocationForCurrentOS(platform),
-      integrity,
-      url,
-      prefix: fileName.replace(/\.zip$/, ''),
-    }
-    const target: PlatformAssetTarget = {
-      os: platform,
-      cpu: arch,
-    }
-    if (musl != null) {
-      target.libc = 'musl'
-    }
-    assets.push({
-      targets: [target],
-      resolution,
-    })
+      integrity: item.integrity,
+      url: `https://github.com/oven-sh/bun/releases/download/bun-v${version}/${item.fileName}`,
+      prefix: item.fileName.replace(/\.zip$/, ''),
+    },
   }
-  return assets
 }
 
 function getBunBinLocationForCurrentOS (platform: string = process.platform): string {

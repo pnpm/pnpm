@@ -1,0 +1,537 @@
+use super::{
+    FAKE_INTEGRITY,
+    dependencies_graph_to_lockfile,
+    make_named_registry_node,
+    make_node,
+    make_node_with_optional,
+    make_resolve_result,
+    single_importer_opts,
+    write_manifest,
+};
+use pnpm_deps_path::DepPath;
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    TarballResolution,
+};
+use pnpm_resolving_deps_resolver::{
+    ChildEdge,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    DependenciesTreeNode,
+    DirectDep,
+    NodeId,
+    PeerDep,
+    ResolvePeersOptions,
+    ResolvedPackage,
+    ResolvedPackageInput,
+    ResolvedTree,
+    TreeChildren,
+    resolve_peers,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use serde_json::json;
+use ssri::Integrity;
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::Arc,
+};
+
+#[test]
+fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": {
+            "react": "^17.0.2",
+            "react-dom": "^17.0.2",
+        },
+    }));
+
+    let react = make_node(
+        "react",
+        "17.0.2",
+        json!({ "name": "react", "version": "17.0.2" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+
+    let mut react_dom_children = BTreeMap::new();
+    react_dom_children.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
+    let mut react_dom_peers = BTreeMap::new();
+    react_dom_peers.insert(
+        "react".to_string(),
+        PeerDep { version: "17.0.2".to_string(), optional: false },
+    );
+    let react_dom_dep_path = DepPath::from("react-dom@17.0.2(react@17.0.2)".to_string());
+    let react_dom = DependenciesGraphNode {
+        recorded_peer_bindings: None,
+        dep_path: react_dom_dep_path.clone(),
+        resolved_package_id: "react-dom@17.0.2".to_string(),
+        resolve_result: std::sync::Arc::new(make_resolve_result(
+            "react-dom",
+            "17.0.2",
+            json!({
+                "name": "react-dom",
+                "version": "17.0.2",
+                "peerDependencies": { "react": "17.0.2" },
+            }),
+        )),
+        depth: 1,
+        is_pure: false,
+        optional: false,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children: react_dom_children,
+            optional_children: HashSet::default(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::taking_all(react_dom_peers),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: std::iter::once("react".to_string()).collect(),
+        },
+    };
+
+    let mut graph = DependenciesGraph::default();
+    graph.insert(react.dep_path.clone(), react);
+    graph.insert(react_dom_dep_path.clone(), react_dom);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("react".to_string(), DepPath::from("react@17.0.2".to_string()));
+    direct.insert("react-dom".to_string(), react_dom_dep_path);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots");
+    let snap_key: PackageKey = "react-dom@17.0.2(react@17.0.2)".parse().unwrap();
+    assert!(snapshots.contains_key(&snap_key), "snapshot keyed by peer-suffixed depPath");
+    let pkg_key: PackageKey = "react-dom@17.0.2".parse().unwrap();
+    let packages = lockfile.packages.as_ref().expect("packages");
+    let metadata = packages.get(&pkg_key).expect("package metadata for peer-stripped key");
+    assert!(metadata.peer_dependencies.is_some(), "peer_deps on packages metadata");
+
+    let importer = lockfile.root_project().unwrap();
+    let dom = importer.dependencies
+        .as_ref()
+        .unwrap()
+        .get(&PkgName::parse("react-dom").unwrap())
+        .unwrap();
+    match &dom.version {
+        ImporterDepVersion::Regular(ver) => {
+            assert_eq!(ver.to_string(), "17.0.2(react@17.0.2)");
+        }
+        other => panic!("expected Regular(...), got {other:?}"),
+    }
+}
+#[test]
+fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "outer": "^1.0.0" },
+    }));
+
+    let outer_id: Arc<str> = "outer@1.0.0".into();
+    let inner_id: Arc<str> = "inner@1.0.0".into();
+    let outer_node_id = NodeId::next();
+
+    let mut tree = ResolvedTree {
+        direct: vec![DirectDep {
+            alias: "outer".to_string(),
+            node_id: outer_node_id.clone(),
+            id: Arc::<str>::clone(&outer_id),
+        }],
+        packages: HashMap::from_iter([
+            (
+                Arc::<str>::clone(&outer_id),
+                ResolvedPackage::new(ResolvedPackageInput {
+                    id: Arc::<str>::clone(&outer_id),
+                    result: Arc::new(make_resolve_result(
+                        "outer",
+                        "1.0.0",
+                        json!({ "name": "outer", "version": "1.0.0" }),
+                    )),
+                    peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
+                    optional: false,
+                    is_leaf: false,
+                }),
+            ),
+            (
+                Arc::<str>::clone(&inner_id),
+                ResolvedPackage::new(ResolvedPackageInput {
+                    id: Arc::<str>::clone(&inner_id),
+                    result: Arc::new(make_resolve_result(
+                        "inner",
+                        "1.0.0",
+                        json!({ "name": "inner", "version": "1.0.0" }),
+                    )),
+                    peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
+                    optional: true,
+                    is_leaf: true,
+                }),
+            ),
+        ]),
+        dependencies_tree: HashMap::from_iter([(
+            outer_node_id,
+            DependenciesTreeNode::new(Arc::<str>::clone(&outer_id), TreeChildren::Lazy, 0),
+        )]),
+        all_peer_dep_names: HashSet::default(),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::from_iter([(
+            outer_id,
+            Arc::new(vec![ChildEdge {
+                alias: "inner".to_string(),
+                pkg_id: inner_id,
+                optional: true,
+            }]),
+        )]),
+    };
+
+    let resolved = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &resolved.graph,
+        resolved.direct_dependencies_by_alias,
+        false,
+        false,
+        None,
+        None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().unwrap();
+    let outer_key: PackageKey = "outer@1.0.0".parse().unwrap();
+    let outer_snap = &snapshots[&outer_key];
+    assert!(outer_snap.dependencies.is_none(), "optional child must not be written as regular");
+    let opt = outer_snap.optional_dependencies.as_ref().expect("opt deps map");
+    assert!(opt.contains_key(&PkgName::parse("inner").unwrap()));
+
+    let inner_key: PackageKey = "inner@1.0.0".parse().unwrap();
+    assert!(snapshots[&inner_key].optional, "optional child edge keeps the child optional");
+}
+#[test]
+fn snapshot_records_transitive_peer_dependencies_sorted() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "outer": "^1.0.0" },
+    }));
+
+    let mut transitive: HashSet<String> = HashSet::default();
+    transitive.insert("z-peer".to_string());
+    transitive.insert("a-peer".to_string());
+    let outer = make_node(
+        "outer",
+        "1.0.0",
+        json!({ "name": "outer", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        transitive,
+    );
+    let mut graph = DependenciesGraph::default();
+    graph.insert(outer.dep_path.clone(), outer);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("outer".to_string(), DepPath::from("outer@1.0.0".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().unwrap();
+    let outer_key: PackageKey = "outer@1.0.0".parse().unwrap();
+    let recorded = snapshots[&outer_key].transitive_peer_dependencies
+        .as_ref()
+        .expect("transitive peers recorded");
+    assert_eq!(recorded.as_slice(), ["a-peer".to_string(), "z-peer".to_string()].as_slice());
+}
+#[test]
+fn auto_installed_peer_not_declared_in_manifest_is_skipped_from_pruner_seeds() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "optionalDependencies": { "parent": "^1.0.0" },
+    }));
+
+    let peer_x = make_node_with_optional(
+        "peer-x",
+        "1.0.0",
+        json!({ "name": "peer-x", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+        true,
+    );
+
+    let mut parent_children = BTreeMap::new();
+    parent_children.insert("peer-x".to_string(), DepPath::from("peer-x@1.0.0".to_string()));
+    let parent = make_node_with_optional(
+        "parent",
+        "1.0.0",
+        json!({
+            "name": "parent",
+            "version": "1.0.0",
+            "dependencies": { "peer-x": "^1.0.0" },
+        }),
+        parent_children,
+        BTreeMap::new(),
+        HashSet::default(),
+        true,
+    );
+
+    let mut graph = DependenciesGraph::default();
+    graph.insert(parent.dep_path.clone(), parent);
+    graph.insert(peer_x.dep_path.clone(), peer_x);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("parent".to_string(), DepPath::from("parent@1.0.0".to_string()));
+    direct.insert("peer-x".to_string(), DepPath::from("peer-x@1.0.0".to_string()));
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let parent_key: PackageKey = "parent@1.0.0".parse().unwrap();
+    let peer_x_key: PackageKey = "peer-x@1.0.0".parse().unwrap();
+    assert!(snapshots[&parent_key].optional, "parent is the importer's optional direct dep");
+    assert!(
+        snapshots[&peer_x_key].optional,
+        "auto-installed peer reachable only via parent's optional path stays optional",
+    );
+}
+#[test]
+fn auto_installed_peer_declared_in_manifest_is_not_optional() {
+    assert!(
+        !declared_peer_snapshot_is_optional(true),
+        "the importer depends on its auto-installed peer, whatever the consumer's optional peer says",
+    );
+}
+#[test]
+fn declared_peer_stays_optional_when_peers_are_not_auto_installed() {
+    assert!(
+        declared_peer_snapshot_is_optional(false),
+        "a peer the importer does not record is reached only through the consumer's optional peer",
+    );
+}
+/// Whether `peer`'s snapshot is optional when the importer declares it in
+/// `peerDependencies` and its prod dependency `consumer` has it as an
+/// optional peer.
+fn declared_peer_snapshot_is_optional(auto_install_peers: bool) -> bool {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "consumer": "1.0.0" },
+        "peerDependencies": { "peer": "^1.0.0" },
+    }));
+    let peer = make_node(
+        "peer",
+        "1.0.0",
+        json!({ "name": "peer", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let consumer = make_node(
+        "consumer",
+        "1.0.0",
+        json!({
+            "name": "consumer",
+            "version": "1.0.0",
+            "peerDependencies": { "peer": "^1.0.0" },
+            "peerDependenciesMeta": { "peer": { "optional": true } },
+        }),
+        BTreeMap::from([("peer".to_string(), peer.dep_path.clone())]),
+        BTreeMap::from([(
+            "peer".to_string(),
+            PeerDep { version: "^1.0.0".to_string(), optional: true },
+        )]),
+        HashSet::default(),
+    );
+    let mut graph = DependenciesGraph::default();
+    for node in [peer, consumer] {
+        graph.insert(node.dep_path.clone(), node);
+    }
+    let direct = BTreeMap::from([
+        ("consumer".to_string(), DepPath::from("consumer@1.0.0".to_string())),
+        ("peer".to_string(), DepPath::from("peer@1.0.0".to_string())),
+    ]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        direct,
+        auto_install_peers,
+        false,
+        None,
+        None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().expect("snapshots map");
+    let peer_key: PackageKey = "peer@1.0.0".parse().unwrap();
+    snapshots[&peer_key].optional
+}
+/// An alias the writer can't resolve must never drop the tarball URL:
+/// testing it against the default registry could classify it as
+/// reconstructible and leave an entry no install can fetch.
+#[test]
+fn an_unresolvable_alias_keeps_the_tarball_url() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "foo": "work:1.0.0" },
+    }));
+
+    // Canonical under the *default* registry, which is what makes the
+    // unguarded fallback drop it.
+    let tarball = "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz";
+    let node = make_named_registry_node("foo", "work", "1.0.0", tarball);
+    let mut graph = DependenciesGraph::default();
+    graph.insert(node.dep_path.clone(), node);
+
+    let mut direct = BTreeMap::new();
+    direct.insert("foo".to_string(), DepPath::from("foo@work:1.0.0".to_string()));
+
+    // `work` is deliberately absent from the map.
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let packages = lockfile.packages.as_ref().expect("packages map");
+    let key: PackageKey = "foo@work:1.0.0".parse().unwrap();
+    let metadata = packages.get(&key).expect("registry-qualified entry");
+    match &metadata.resolution {
+        LockfileResolution::Tarball(resolution) => assert_eq!(resolution.tarball, tarball),
+        other => panic!("an unresolvable alias must keep its tarball URL, got {other:?}"),
+    }
+}
+
+/// A scoped package is written against the registry its scope routes to,
+/// the one an install rebuilds the URL from.
+/// See <https://github.com/pnpm/pnpm/issues/16866>.
+#[test]
+fn a_scoped_package_tarball_url_is_tested_against_its_scope_registry() {
+    let lockfile_resolution = |tarball: &str| {
+        let (_tmp, manifest) = write_manifest(json!({
+            "name": "fixture",
+            "version": "1.0.0",
+            "dependencies": { "@types/ms": "0.7.34" },
+        }));
+        let mut node = make_node(
+            "@types/ms",
+            "0.7.34",
+            json!({ "name": "@types/ms", "version": "0.7.34" }),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::default(),
+        );
+        let mut resolve_result = make_resolve_result(
+            "@types/ms",
+            "0.7.34",
+            json!({ "name": "@types/ms", "version": "0.7.34" }),
+        );
+        resolve_result.resolution = LockfileResolution::Tarball(TarballResolution {
+            tarball: tarball.to_string(),
+            integrity: Some(Integrity::from_str(FAKE_INTEGRITY).unwrap()),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        });
+        node.resolve_result = Arc::new(resolve_result);
+        let mut graph = DependenciesGraph::default();
+        graph.insert(node.dep_path.clone(), node);
+        let direct = BTreeMap::from([(
+            "@types/ms".to_string(),
+            DepPath::from("@types/ms@0.7.34".to_string()),
+        )]);
+        let registries = std::collections::HashMap::from([
+            ("default".to_string(), "https://registry.npmjs.org/".to_string()),
+            ("@types".to_string(), "https://registry.npmmirror.com/".to_string()),
+        ]);
+        let mut opts = single_importer_opts(&manifest, &graph, direct, true, false, None, None);
+        opts.metadata_sources.registries = &registries;
+        let lockfile = dependencies_graph_to_lockfile(opts);
+        let key: PackageKey = "@types/ms@0.7.34".parse().unwrap();
+        lockfile.packages.expect("packages map")[&key].resolution.clone()
+    };
+
+    let from_scope_registry =
+        lockfile_resolution("https://registry.npmmirror.com/@types/ms/-/ms-0.7.34.tgz");
+    assert!(
+        matches!(from_scope_registry, LockfileResolution::Registry(_)),
+        "a URL the scope registry rebuilds is dropped: {from_scope_registry:?}",
+    );
+
+    let tarball = "https://registry.npmjs.org/@types/ms/-/ms-0.7.34.tgz";
+    match lockfile_resolution(tarball) {
+        LockfileResolution::Tarball(resolution) => assert_eq!(resolution.tarball, tarball),
+        other => panic!("a URL only the default registry rebuilds is kept, got {other:?}"),
+    }
+}
+
+#[test]
+fn tarball_manifest_with_traversal_version_is_not_recorded_in_lockfile() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "tar-dep": "https://example.com/tar-dep.tgz" },
+    }));
+
+    let dep_path = DepPath::from("tar-dep@https://example.com/tar-dep.tgz");
+    let resolve_result = super::ResolveResult {
+        id: super::PkgResolutionId::from("https://example.com/tar-dep.tgz"),
+        resolution: LockfileResolution::Tarball(super::TarballResolution {
+            tarball: "https://example.com/tar-dep.tgz".to_string(),
+            integrity: None,
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        resolved_via: "remote-tarball".to_string(),
+        normalized_bare_specifier: None,
+        alias: Some("tar-dep".to_string()),
+        policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver: None,
+            latest: None,
+            published_at: None,
+            manifest: Some(Arc::new(json!({ "name": "tar-dep", "version": "../../escaped" }))),
+            non_deprecated_alternative: None,
+        },
+    };
+    let node = DependenciesGraphNode {
+        recorded_peer_bindings: None,
+        dep_path: dep_path.clone(),
+        resolved_package_id: dep_path.to_string(),
+        resolve_result: Arc::new(resolve_result),
+        depth: 1,
+        is_pure: true,
+        optional: false,
+        edges: pnpm_resolving_deps_resolver::ResolvedDependencyEdges {
+            children: BTreeMap::new(),
+            optional_children: HashSet::default(),
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
+            transitive_peer_dependencies: HashSet::default(),
+            resolved_peer_names: HashSet::default(),
+        },
+    };
+    let mut graph = DependenciesGraph::default();
+    graph.insert(dep_path.clone(), node);
+    let direct = BTreeMap::from([("tar-dep".to_string(), dep_path)]);
+
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest, &graph, direct, true, false, None, None,
+    ));
+
+    let package_key: PackageKey =
+        "tar-dep@https://example.com/tar-dep.tgz".parse().expect("package key");
+    let packages = lockfile.packages.expect("packages map");
+    let metadata = packages.get(&package_key).expect("package metadata");
+    assert_eq!(metadata.version, None);
+}

@@ -1,12 +1,14 @@
 /// <reference path="../../../../__typings__/index.d.ts"/>
+import path from 'node:path'
+
 import { expect, test } from '@jest/globals'
 import { checkPeerDependencies } from '@pnpm/deps.inspection.peers-checker'
 import { fixtures } from '@pnpm/test-fixtures'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('detects unmet peer dependencies', async () => {
-  const fixture = f.find('with-unmet-peers')
+  const fixture = testFixtures.find('with-unmet-peers')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -26,7 +28,7 @@ test('detects unmet peer dependencies', async () => {
 })
 
 test('detects missing peer dependencies', async () => {
-  const fixture = f.find('with-missing-peer')
+  const fixture = testFixtures.find('with-missing-peer')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -46,7 +48,7 @@ test('detects missing peer dependencies', async () => {
 })
 
 test('reports no issues for satisfied peer dependencies', async () => {
-  const fixture = f.find('with-peer')
+  const fixture = testFixtures.find('with-peer')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -59,7 +61,7 @@ test('reports no issues for satisfied peer dependencies', async () => {
 })
 
 test('reports no issues for satisfied loose peer dependency ranges', async () => {
-  const fixture = f.find('with-loose-peer-range')
+  const fixture = testFixtures.find('with-loose-peer-range')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -71,8 +73,52 @@ test('reports no issues for satisfied loose peer dependency ranges', async () =>
   expect(Object.keys(projectIssues.missing)).toHaveLength(0)
 })
 
+test('resolves the catalog peer range of an injected workspace package through the catalogs', async () => {
+  const fixture = testFixtures.find('with-injected-catalog-peer')
+  const issues = await checkPeerDependencies([path.join(fixture, 'packages/app')], {
+    lockfileDir: fixture,
+    catalogs: { default: { 'is-odd': '3.0.1' } },
+    checkWantedLockfileOnly: true,
+  })
+
+  const projectIssues = issues['packages/app']
+  expect(projectIssues).toBeDefined()
+  expect(Object.keys(projectIssues.bad)).toHaveLength(0)
+  expect(Object.keys(projectIssues.missing)).toHaveLength(0)
+})
+
+test('reports a catalog peer range of an injected workspace package that the installed version does not satisfy', async () => {
+  const fixture = testFixtures.find('with-injected-catalog-peer')
+  const issues = await checkPeerDependencies([path.join(fixture, 'packages/app')], {
+    lockfileDir: fixture,
+    catalogs: { default: { 'is-odd': '^4.0.0' } },
+    checkWantedLockfileOnly: true,
+  })
+
+  const projectIssues = issues['packages/app']
+  expect(projectIssues.bad['is-odd']).toStrictEqual([expect.objectContaining({
+    wantedRange: '^4.0.0',
+    foundVersion: '3.0.1',
+  })])
+})
+
+test('reports the catalog peer range of an injected workspace package that has no catalog entry as written', async () => {
+  const fixture = testFixtures.find('with-injected-catalog-peer')
+  const issues = await checkPeerDependencies([path.join(fixture, 'packages/app')], {
+    lockfileDir: fixture,
+    catalogs: {},
+    checkWantedLockfileOnly: true,
+  })
+
+  const projectIssues = issues['packages/app']
+  expect(projectIssues.bad['is-odd']).toStrictEqual([expect.objectContaining({
+    wantedRange: 'catalog:',
+    foundVersion: '3.0.1',
+  })])
+})
+
 test('respects peerDependencyRules.allowAny', async () => {
-  const fixture = f.find('with-unmet-peers')
+  const fixture = testFixtures.find('with-unmet-peers')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -86,7 +132,7 @@ test('respects peerDependencyRules.allowAny', async () => {
 })
 
 test('respects peerDependencyRules.ignoreMissing', async () => {
-  const fixture = f.find('with-missing-peer')
+  const fixture = testFixtures.find('with-missing-peer')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -100,7 +146,7 @@ test('respects peerDependencyRules.ignoreMissing', async () => {
 })
 
 test('detects conflicting missing peer dependencies', async () => {
-  const fixture = f.find('with-conflicting-peers')
+  const fixture = testFixtures.find('with-conflicting-peers')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -114,7 +160,7 @@ test('detects conflicting missing peer dependencies', async () => {
 })
 
 test('peerDependencyRules.ignoreMissing also removes the conflicts of ignored peers', async () => {
-  const fixture = f.find('with-conflicting-peers')
+  const fixture = testFixtures.find('with-conflicting-peers')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,
@@ -129,7 +175,7 @@ test('peerDependencyRules.ignoreMissing also removes the conflicts of ignored pe
 })
 
 test('returns no issues when there are no peer dependency problems', async () => {
-  const fixture = f.find('empty')
+  const fixture = testFixtures.find('empty')
   const issues = await checkPeerDependencies([fixture], {
     lockfileDir: fixture,
     checkWantedLockfileOnly: true,

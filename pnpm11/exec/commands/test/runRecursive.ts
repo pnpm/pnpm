@@ -6,8 +6,7 @@ import type { PnpmError } from '@pnpm/error'
 import { run } from '@pnpm/exec.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
-import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjects, filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import { safeExeca as execa } from 'execa'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -259,8 +258,8 @@ test('pnpm recursive run concurrently', async () => {
     workspaceDir: process.cwd(),
   }, ['build'])
 
-  const outputs1 = server1.getLines().map(x => Number.parseInt(x))
-  const outputs2 = server2.getLines().map(x => Number.parseInt(x))
+  const outputs1 = server1.getLines().map(line => Number.parseInt(line))
+  const outputs2 = server2.getLines().map(line => Number.parseInt(line))
 
   expect(Math.max(outputs1[0], outputs2[0]) < Math.min(outputs1[outputs1.length - 1], outputs2[outputs2.length - 1])).toBeTruthy()
 })
@@ -447,6 +446,86 @@ test('`pnpm recursive run` fails when run against a subset of packages and no pa
       workspaceDir: process.cwd(),
     }, ['this-command-does-not-exist'])
   ).rejects.toThrow(/None of the selected packages has a/)
+})
+
+test('"pnpm --filter <pkg> <command>" runs the command in the selected projects when none of them has a script by that name', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-1' }, { namePattern: 'project-2' }],
+    { workspaceDir: process.cwd() }
+  )
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    fallbackCommandUsed: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['node', '-e', 'require("fs").writeFileSync("output.txt", process.argv[1])', 'ran'])
+
+  expect(fs.readFileSync('project-1/output.txt', 'utf8')).toBe('ran')
+  expect(fs.readFileSync('project-2/output.txt', 'utf8')).toBe('ran')
+  expect(fs.existsSync('project-3/output.txt')).toBeFalsy()
+})
+
+test('"pnpm -r t" does not fall back to a "test" command when no selected project has a test script', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await expect(run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    fallbackCommandUsed: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['t'])).resolves.toBeUndefined()
+})
+
+test('"pnpm -r start" reports the missing start script instead of running a "start" command', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+
+  await expect(run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    fallbackCommandUsed: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['start'])).rejects.toThrow('None of the packages has a "start" script')
 })
 
 test('"pnpm run --filter <pkg>" without specifying the script name', async () => {

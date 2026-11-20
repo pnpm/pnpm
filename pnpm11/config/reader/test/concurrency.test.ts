@@ -1,72 +1,56 @@
-import os, { cpus } from 'node:os'
-
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 
-import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, resetAvailableParallelismCache } from '../lib/concurrency.js'
+const getAvailableParallelism = jest.fn<() => number>()
+jest.unstable_mockModule('@pnpm/os.available-parallelism', () => ({ getAvailableParallelism }))
 
-const hostCores = cpus().length
+const { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, resetAvailableParallelismCache } = await import('../lib/concurrency.js')
 
 beforeEach(() => {
   resetAvailableParallelismCache()
+  getAvailableParallelism.mockReturnValue(8)
 })
 
 afterEach(() => {
   resetAvailableParallelismCache()
-  jest.restoreAllMocks()
+  getAvailableParallelism.mockReset()
 })
 
-function mockAvailableParallelism (value: number) {
-  if ('availableParallelism' in os) {
-    jest.spyOn(os, 'availableParallelism').mockReturnValue(value)
-  }
-  jest.spyOn(os, 'cpus').mockReturnValue(Array(value).fill(cpus()[0]))
-}
-
 test('getDefaultWorkspaceConcurrency: cpu num < 4', () => {
-  mockAvailableParallelism(1)
+  getAvailableParallelism.mockReturnValue(1)
   expect(getDefaultWorkspaceConcurrency(false)).toBe(1)
 })
 
 test('getDefaultWorkspaceConcurrency: cpu num > 4', () => {
-  mockAvailableParallelism(5)
+  getAvailableParallelism.mockReturnValue(5)
   expect(getDefaultWorkspaceConcurrency(false)).toBe(4)
 })
 
 test('getDefaultWorkspaceConcurrency: cpu num = 4', () => {
-  mockAvailableParallelism(4)
+  getAvailableParallelism.mockReturnValue(4)
   expect(getDefaultWorkspaceConcurrency(false)).toBe(4)
 })
 
 test('getDefaultWorkspaceConcurrency: using cache', () => {
-  mockAvailableParallelism(4)
+  getAvailableParallelism.mockReturnValue(4)
   expect(getDefaultWorkspaceConcurrency()).toBe(4)
 
-  mockAvailableParallelism(5)
+  getAvailableParallelism.mockReturnValue(5)
   expect(getDefaultWorkspaceConcurrency()).toBe(4)
 })
 
 test('default workspace concurrency', () => {
-  const n = getWorkspaceConcurrency(undefined)
-
-  expect(n).toBe(4)
+  expect(getWorkspaceConcurrency(undefined)).toBe(4)
 })
 
 test('get back positive amount', () => {
   expect(getWorkspaceConcurrency(5)).toBe(5)
 })
 
-test('match host cores amount', () => {
-  const n = getWorkspaceConcurrency(0)
-
-  expect(n).toBe(hostCores)
+test('zero means the available CPU count', () => {
+  expect(getWorkspaceConcurrency(0)).toBe(8)
 })
 
-test('host cores minus X', () => {
-  const n1 = getWorkspaceConcurrency(-1)
-
-  expect(n1).toBe(Math.max(1, hostCores - 1))
-
-  const n2 = getWorkspaceConcurrency(-9999)
-
-  expect(n2).toBe(1)
+test('available CPUs minus X, at least 1', () => {
+  expect(getWorkspaceConcurrency(-1)).toBe(7)
+  expect(getWorkspaceConcurrency(-9999)).toBe(1)
 })

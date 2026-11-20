@@ -12,25 +12,35 @@
 
 use crate::{
     local_resolver::{
-        LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, resolve_from_local_path,
-        resolve_from_local_scheme, resolve_latest_from_local,
+        LocalCurrentPkg,
+        LocalResolverContext,
+        LocalResolverOptions,
+        LocalResolverUpdate,
+        ResolveLocalError,
+        resolve_from_local_path,
+        resolve_from_local_scheme,
+        resolve_latest_from_local,
     },
     parse_bare_specifier::WantedLocalDependency,
 };
+use std::sync::Arc;
+
+use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
-    Resolver, UpdateBehavior, WantedDependency,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
 };
 
 /// `Resolver` for the local-scheme branch (`link:` / `file:` /
 /// `workspace:`). Sits between the tarball resolver and the runtime
 /// / named-registry resolvers in the chain.
-///
-/// `resolve_latest` routes through
-/// [`resolve_latest_from_local`]
-/// so a `link:` / `file:` / `workspace:` spec stops here instead of
-/// falling through into a user-configured named-registry alias of
-/// the same name.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LocalSchemeResolver {
     pub ctx: LocalResolverContext,
@@ -56,7 +66,7 @@ impl Resolver for LocalSchemeResolver {
             let local_opts = local_options(opts);
             let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
                 .await
-                .map_err(|err| Box::new(err) as ResolveError)?
+                .map_err(into_resolve_error)?
             else {
                 return Ok(None);
             };
@@ -75,8 +85,8 @@ impl Resolver for LocalSchemeResolver {
 }
 
 /// `Resolver` for the path-shape branch (`./foo`, `foo.tgz`,
-/// `/abs/path`, `~/dir`, `C:\drive`). Runs **last** in the chain —
-/// after named-registry — so a `<alias>:@scope/pkg` specifier reaches
+/// `/abs/path`, `~/dir`, `C:\drive`). Runs **last** in the chain
+/// (after named-registry) so a `<alias>:@scope/pkg` specifier reaches
 /// the named-registry resolver instead of being misrouted here on
 /// the strength of an embedded `/` (`contains_path_sep` in
 /// `parse_bare_specifier.rs`).
@@ -109,7 +119,7 @@ impl Resolver for LocalPathResolver {
             let local_opts = local_options(opts);
             let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts)
                 .await
-                .map_err(|err| Box::new(err) as ResolveError)?
+                .map_err(into_resolve_error)?
             else {
                 return Ok(None);
             };
@@ -127,10 +137,7 @@ impl Resolver for LocalPathResolver {
 }
 
 /// Combined scheme-then-path resolver. Kept for tests and one-off
-/// chains that don't need the split, but the production chain in
-/// `install_without_lockfile.rs` uses [`LocalSchemeResolver`] and
-/// [`LocalPathResolver`] separately so the named-registry resolver
-/// can slot in between them — matching the chain order.
+/// chains that don't need the split.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LocalResolver {
     pub ctx: LocalResolverContext,
@@ -175,19 +182,27 @@ impl LocalResolver {
 
         if let Some(result) = resolve_from_local_scheme(&self.ctx, &wd, &local_opts)
             .await
-            .map_err(|err| Box::new(err) as ResolveError)?
+            .map_err(into_resolve_error)?
         {
             return Ok(Some(into_chain_result(result, wanted_dependency)));
         }
 
         if let Some(result) = resolve_from_local_path(&self.ctx, &wd, &local_opts)
             .await
-            .map_err(|err| Box::new(err) as ResolveError)?
+            .map_err(into_resolve_error)?
         {
             return Ok(Some(into_chain_result(result, wanted_dependency)));
         }
 
         Ok(None)
+    }
+}
+
+/// Boxes the codes the tree walker downcasts outermost.
+fn into_resolve_error(err: ResolveLocalError) -> ResolveError {
+    match err {
+        ResolveLocalError::UnsupportedProtocol(err) => Box::new(err),
+        err => Box::new(err),
     }
 }
 
@@ -201,13 +216,22 @@ fn wanted_local(wanted_dependency: &WantedDependency) -> Option<WantedLocalDepen
 
 fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
     LocalResolverOptions {
-        project_dir: opts.project_dir.clone(),
-        lockfile_dir: Some(opts.lockfile_dir.clone()),
-        current_pkg: None,
-        update: match opts.update {
+        project_dir: opts.project.project_dir.clone(),
+        lockfile_dir: Some(opts.project.lockfile_dir.clone()),
+        workspace_dir: opts.project.workspace_dir.clone(),
+        current_pkg: opts.refresh.current_pkg
+            .as_ref()
+            .filter(|current| matches!(current.resolution, LockfileResolution::Tarball(_)))
+            .map(|current| LocalCurrentPkg {
+                id: current.id.clone(),
+                resolution: current.resolution.clone(),
+                manifest: current.manifest.as_ref().map(Arc::clone),
+            }),
+        update: match opts.refresh.update {
             UpdateBehavior::Compatible | UpdateBehavior::Latest => LocalResolverUpdate::On,
             UpdateBehavior::Off | UpdateBehavior::Patches => LocalResolverUpdate::Off,
         },
+        inject_workspace_packages: opts.project.inject_workspace_packages,
     }
 }
 

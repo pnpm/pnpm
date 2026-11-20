@@ -1,21 +1,11 @@
 #!/usr/bin/env node
-// Preinstall for the pnpm v12 wrapper (shared verbatim by `pnpm` and
-// `@pnpm/exe`): replace the shebang-less placeholder bins with the host's native
-// binary so `pnpm` runs directly, no Node startup per call. The placeholder must
-// stay shebang-less because pnpm 11 records its interpreter before installing
-// the native binary at the same path. npm's global Windows shims still target
-// the extensionless path after the `bin` rewrite, so postinstall asks npm to
-// regenerate them against `pnpm.exe`. When lifecycle scripts are blocked
-// (`--ignore-scripts`, pnpm/Bun default), the placeholder remains and pnpm
-// cannot run.
-//
-// `pn`/`pnpx`/`pnx` are committed `#!/bin/sh` scripts on Unix (so only `pnpm` is
-// relinked); on Windows the native binary is hardlinked onto each and
-// self-detects its launch name to inject `dlx` (see `argv_with_alias_subcommand`
-// in the cli crate).
-//
-// Corepack runs no lifecycle scripts, so it never gets here; it enters through
-// `bin/pnpm.mjs` instead.
+// Native installs replace every bin with the host binary, so `pnpm` runs with
+// no Node.js startup per call. The bins it replaces are shebang-less for the
+// reason ./pnpm gives. npm's Windows shims still target the extensionless path
+// after the `bin` rewrite, so postinstall asks npm to regenerate them against
+// `pnpm.exe`. Installs that block lifecycle scripts keep the placeholders,
+// which reach pnpm through Node.js wherever a shell runs them. Corepack runs no
+// lifecycle scripts and enters through `bin/pnpm.mjs`.
 import console from 'node:console'
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -23,6 +13,7 @@ import path from 'node:path'
 import process from 'node:process'
 import {
   getBinCandidates,
+  hostTarget,
   readWrapperManifest,
   resolveInstalledBinary,
   splitBinSpecifier,
@@ -45,9 +36,14 @@ function setup () {
     return
   }
 
+  // The placeholders stay in place there and point to `@pnpm/wasm`.
+  if ('webcontainer' in process.versions) {
+    return
+  }
+
   const candidates = getBinCandidates()
   if (candidates.length === 0) {
-    fail(`pnpm does not ship a prebuilt binary for ${process.platform}-${process.arch}.`)
+    fail(`pnpm does not ship a prebuilt binary for ${hostTarget()}.`)
   }
 
   const nativeBinary = resolveInstalledBinary()
@@ -71,7 +67,9 @@ function setup () {
     }
     rewriteBin(newBin)
   } else {
-    placeBinary(nativeBinary, path.join(wrapperDir, 'pnpm'), 0o755)
+    for (const name of BIN_NAMES) {
+      placeBinary(nativeBinary, path.join(wrapperDir, name), 0o755)
+    }
   }
 }
 
@@ -124,7 +122,6 @@ function relinkNpmWindowsShims () {
   const npmExecPath = process.env.npm_execpath
   if (
     process.platform !== 'win32' ||
-    process.env.npm_config_global !== 'true' ||
     npmExecPath == null ||
     path.basename(npmExecPath).toLowerCase() !== 'npm-cli.js'
   ) {
@@ -135,19 +132,57 @@ function relinkNpmWindowsShims () {
   if (typeof packageName !== 'string') {
     fail('Could not determine the pnpm wrapper package name when regenerating npm shims.')
   }
-  const result = spawnSync(process.execPath, [
+  const args = [
     npmExecPath,
     'rebuild',
-    '--global',
     '--ignore-scripts',
-    packageName,
-  ], { stdio: 'inherit' })
+  ]
+  if (process.env.npm_config_global === 'true' || process.env.npm_config_location === 'global') {
+    args.push('--global', packageName)
+  } else {
+    const prefix = findNpmProjectPrefix()
+    if (prefix == null) {
+      return
+    }
+    args.push('--prefix', prefix, packageName)
+  }
+  const result = spawnSync(process.execPath, args, { stdio: 'inherit' })
   if (result.error != null) {
     fail(`Could not regenerate the npm shims for pnpm: ${result.error.message}`)
   }
   if (result.status !== 0) {
     fail('npm could not regenerate the shims for pnpm.')
   }
+}
+
+/**
+ * The resolved path of the npm project whose `node_modules` holds this
+ * wrapper. Returns `null` when npm names no project, when its `node_modules`
+ * cannot be resolved, or when it does not contain the wrapper. `npm exec`
+ * installs into its own cache while the prefix still names the caller's
+ * project, and rebuilding there would touch an unrelated project.
+ *
+ * @returns {string | null}
+ */
+function findNpmProjectPrefix () {
+  const prefix = process.env.npm_config_local_prefix
+  if (typeof prefix !== 'string' || prefix === '') {
+    return null
+  }
+  let realPrefix
+  let realModulesDir
+  try {
+    realPrefix = fs.realpathSync(prefix)
+    realModulesDir = fs.realpathSync(path.join(realPrefix, 'node_modules'))
+  } catch {
+    return null
+  }
+  // `wrapperDir` comes from the module URL, which Node resolves through symlinks.
+  const relative = path.relative(realModulesDir, wrapperDir)
+  if (relative === '' || relative.split(path.sep)[0] === '..' || path.isAbsolute(relative)) {
+    return null
+  }
+  return realPrefix
 }
 
 function removeFileIfPossible (filePath) {

@@ -49,7 +49,7 @@ export interface OtpParams {
  * web-based authentication flow.
  *
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
- * @see https://github.com/npm/npm-profile/blob/main/lib/index.js for the webauth polling flow.
+ * @see https://github.com/npm/npm-profile/blob/67b32d049d/lib/index.js for the webauth polling flow.
  */
 export async function publishWithOtpHandling ({
   context = SHARED_CONTEXT,

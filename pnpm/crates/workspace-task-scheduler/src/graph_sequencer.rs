@@ -1,7 +1,17 @@
+pub use strongly_connected_components::StronglyConnectedComponents;
+
+mod strongly_connected_components;
+
 use rustc_hash::FxHashMap;
 use std::{
-    collections::{HashMap, VecDeque},
-    hash::{Hash, Hasher},
+    collections::{
+        HashMap,
+        VecDeque,
+    },
+    hash::{
+        Hash,
+        Hasher,
+    },
     path::Path,
 };
 
@@ -10,7 +20,7 @@ use std::{
 /// path component by component, and on a workspace-scale graph the
 /// interner's hashing dominated the sort. Byte equality is stricter
 /// than component equality, which for node identity can only split a
-/// node the caller spelled two ways — the callers here key their
+/// node the caller spelled two ways, the callers here key their
 /// graphs by one canonical `PathBuf` per project.
 #[derive(Debug, Clone, Copy)]
 pub struct PathNode<'graph>(pub &'graph Path);
@@ -49,15 +59,78 @@ pub struct GraphSequencerResult<Node> {
 /// The nodes are interned to indices up front and each ready set is gathered
 /// from nodes whose degree a removal drops to zero, so a workspace-scale graph
 /// sorts in `O(V log V + E)` instead of repeatedly scanning and hashing every
-/// node. Cycle discovery is confined to each strongly connected component:
-/// nodes that merely lead into a cycle cost nothing extra, and only
-/// enumerating the cycles *inside* one component pays that component's size
-/// per reported cycle (the price of the established cycle-reporting
-/// semantics).
+/// node.
 pub fn graph_sequencer<Node>(
     graph: &HashMap<Node, Vec<Node>>,
     included: &[Node],
 ) -> GraphSequencerResult<Node>
+where
+    Node: Eq + Hash + Clone,
+{
+    let indexed = index_graph(graph, included);
+    let included_count = indexed.included_count;
+
+    let mut sweep = Sweep {
+        reverse_graph: &indexed.reverse_graph,
+        // A non-included node is born removed: the order never contains it
+        // and the cycle search does not walk through it.
+        removed: (0..indexed.adjacency.len())
+            .map(|id| id >= included_count)
+            .collect(),
+        out_degree: indexed.out_degree,
+        next: Vec::new(),
+    };
+
+    let mut order: Vec<usize> = Vec::with_capacity(included_count);
+    let mut cycles: Vec<Vec<Node>> = Vec::new();
+
+    let mut remaining = included_count;
+    // The ids whose degree is zero, i.e. the next ready set. Kept sorted in
+    // `included` order.
+    let mut current: Vec<usize> = (0..included_count)
+        .filter(|&id| sweep.out_degree[id] == 0)
+        .collect();
+    while remaining > 0 {
+        if current.is_empty() {
+            for cycle in sweep.break_cycles(&indexed.adjacency, included_count) {
+                remaining -= cycle.len();
+                order.extend(&cycle);
+                cycles.push(indexed.interner.to_nodes(&cycle));
+            }
+        } else {
+            for &id in &current {
+                sweep.remove(id);
+            }
+            remaining -= current.len();
+            order.extend(&current);
+        }
+        // Breaking a cycle removes its members one by one, so an earlier
+        // member's removal can drop a later member to degree zero right
+        // before that member is removed too, filter those out of the
+        // zero-degree set instead of adding them to the order twice.
+        let mut next = std::mem::take(&mut sweep.next);
+        next.retain(|&id| !sweep.removed[id]);
+        next.sort_unstable();
+        current = next;
+    }
+
+    GraphSequencerResult { order: indexed.interner.to_nodes(&order), cycles }
+}
+
+/// The interned graph the sort runs on. Ids below `included_count` are the
+/// included nodes, in `included` order.
+struct Indexed<'graph, Node> {
+    interner: Interner<'graph, Node>,
+    included_count: usize,
+    adjacency: Vec<Vec<usize>>,
+    reverse_graph: Vec<Vec<usize>>,
+    out_degree: Vec<usize>,
+}
+
+fn index_graph<'graph, Node>(
+    graph: &'graph HashMap<Node, Vec<Node>>,
+    included: &'graph [Node],
+) -> Indexed<'graph, Node>
 where
     Node: Eq + Hash + Clone,
 {
@@ -68,101 +141,99 @@ where
         interner.intern(node);
     }
     let included_count = interner.nodes.len();
+    intern_edge_nodes(&mut interner, graph);
+
+    let node_count = interner.nodes.len();
+    let mut indexed = Indexed {
+        interner,
+        included_count,
+        adjacency: vec![Vec::new(); node_count],
+        reverse_graph: vec![Vec::new(); node_count],
+        out_degree: vec![0; node_count],
+    };
+    for (from, edges) in graph {
+        indexed.add_edges(from, edges);
+    }
+    indexed
+}
+
+fn intern_edge_nodes<'graph, Node: Eq + Hash + Clone>(
+    interner: &mut Interner<'graph, Node>,
+    graph: &'graph HashMap<Node, Vec<Node>>,
+) {
     for (from, edges) in graph {
         interner.intern(from);
         for to in edges {
             interner.intern(to);
         }
     }
-    let node_count = interner.nodes.len();
+}
 
-    let is_included = |id: usize| id < included_count;
-
-    let mut adjacency: Vec<Vec<usize>> = vec![Vec::new(); node_count];
-    let mut reverse_graph: Vec<Vec<usize>> = vec![Vec::new(); node_count];
-    let mut out_degree: Vec<usize> = vec![0; node_count];
-    for (from, edges) in graph {
-        let from = interner.index_of[from];
+impl<Node: Eq + Hash + Clone> Indexed<'_, Node> {
+    /// Only an edge between two included nodes counts toward the degree
+    /// sweep; the rest exist for the cycle search alone.
+    fn add_edges(&mut self, from: &Node, edges: &[Node]) {
+        let from = self.interner.index_of[from];
         for to in edges {
-            let to = interner.index_of[to];
-            adjacency[from].push(to);
-            if is_included(from) && is_included(to) {
-                out_degree[from] += 1;
-                reverse_graph[to].push(from);
+            let to = self.interner.index_of[to];
+            self.adjacency[from].push(to);
+            if from < self.included_count && to < self.included_count {
+                self.out_degree[from] += 1;
+                self.reverse_graph[to].push(from);
             }
         }
     }
+}
 
-    // A non-included node is born removed: the order never contains it and the
-    // cycle search does not walk through it.
-    let mut removed: Vec<bool> = (0..node_count).map(|id| !is_included(id)).collect();
+/// The mutable half of the sort: which nodes are gone, what each remaining
+/// node still waits on, and the ready set the current round uncovered.
+struct Sweep<'a> {
+    reverse_graph: &'a [Vec<usize>],
+    out_degree: Vec<usize>,
+    removed: Vec<bool>,
+    next: Vec<usize>,
+}
 
-    let mut order: Vec<usize> = Vec::with_capacity(included_count);
-    let mut cycles: Vec<Vec<Node>> = Vec::new();
-
-    let mut remaining = included_count;
-    // The ids whose degree is zero, i.e. the next ready set. Kept sorted in
-    // `included` order.
-    let mut current: Vec<usize> = (0..included_count).filter(|&id| out_degree[id] == 0).collect();
-    while remaining > 0 {
-        let mut next: Vec<usize> = Vec::new();
-        let mut remove_node = |id: usize, removed: &mut [bool], next: &mut Vec<usize>| {
-            removed[id] = true;
-            for &parent in &reverse_graph[id] {
-                if out_degree[parent] > 0 {
-                    out_degree[parent] -= 1;
-                    if out_degree[parent] == 0 && !removed[parent] {
-                        next.push(parent);
-                    }
-                }
+impl Sweep<'_> {
+    /// Every remaining node keeps a dependency alive: cycles. Break them the
+    /// way the scan finds them, in `included` order, and return them.
+    ///
+    /// A cycle through a node lies entirely inside the node's strongly
+    /// connected component, so only members of a non-trivial component (or
+    /// self-loops) are searched, and each search stays inside its component.
+    /// Without the filter, every node that merely leads *into* a cycle pays a
+    /// full reachability walk that finds nothing.
+    fn break_cycles(&mut self, adjacency: &[Vec<usize>], included_count: usize) -> Vec<Vec<usize>> {
+        let components = StronglyConnectedComponents::compute(adjacency, &self.removed);
+        let mut broken: Vec<Vec<usize>> = Vec::new();
+        for id in 0..included_count {
+            if self.removed[id] || !components.may_lie_on_cycle(id, adjacency) {
+                continue;
             }
-        };
-
-        if current.is_empty() {
-            // Every remaining node keeps a dependency alive: cycles. Break
-            // them the way the scan finds them, in `included` order.
-            //
-            // A cycle through a node lies entirely inside the node's
-            // strongly connected component, so only members of a
-            // non-trivial component (or self-loops) are searched, and each
-            // search stays inside its component. Without the filter, every
-            // node that merely leads *into* a cycle pays a full
-            // reachability walk that finds nothing.
-            let components = StronglyConnectedComponents::compute(&adjacency, &removed);
-            let mut cycle_ids: Vec<usize> = Vec::new();
-            for id in 0..included_count {
-                if removed[id] || !components.may_lie_on_cycle(id, &adjacency) {
-                    continue;
-                }
-                let cycle = find_cycle(id, &adjacency, &removed, &components);
-                if cycle.is_empty() {
-                    continue;
-                }
-                for &node in &cycle {
-                    remove_node(node, &mut removed, &mut next);
-                }
-                cycle_ids.extend(cycle.iter().copied());
-                cycles.push(interner.to_nodes(&cycle));
+            let cycle = find_cycle(id, adjacency, &self.removed, &components);
+            if cycle.is_empty() {
+                continue;
             }
-            remaining -= cycle_ids.len();
-            order.extend(cycle_ids);
-        } else {
-            for &id in &current {
-                remove_node(id, &mut removed, &mut next);
+            for &node in &cycle {
+                self.remove(node);
             }
-            remaining -= current.len();
-            order.extend(&current);
+            broken.push(cycle);
         }
-        // Breaking a cycle removes its members one by one, so an earlier
-        // member's removal can drop a later member to degree zero right
-        // before that member is removed too — filter those out of the
-        // zero-degree set instead of adding them to the order twice.
-        next.retain(|&id| !removed[id]);
-        next.sort_unstable();
-        current = next;
+        broken
     }
-
-    GraphSequencerResult { order: interner.to_nodes(&order), cycles }
+    /// Remove `id`, collecting into [`Self::next`] the parents its removal
+    /// drops to degree zero.
+    fn remove(&mut self, id: usize) {
+        self.removed[id] = true;
+        for &parent in &self.reverse_graph[id] {
+            if self.out_degree[parent] > 0 {
+                self.out_degree[parent] -= 1;
+                if self.out_degree[parent] == 0 && !self.removed[parent] {
+                    self.next.push(parent);
+                }
+            }
+        }
+    }
 }
 
 /// Node ↔ index mapping: every hash lookup the sort needs happens once
@@ -181,111 +252,24 @@ impl<'graph, Node: Eq + Hash + Clone> Interner<'graph, Node> {
     }
 
     fn intern(&mut self, node: &'graph Node) -> usize {
-        *self.index_of.entry(node).or_insert_with(|| {
-            self.nodes.push(node);
-            self.nodes.len() - 1
-        })
+        *self.index_of
+            .entry(node)
+            .or_insert_with(|| {
+                self.nodes.push(node);
+                self.nodes.len() - 1
+            })
     }
 
     fn to_nodes(&self, ids: &[usize]) -> Vec<Node> {
-        ids.iter().map(|&id| self.nodes[id].clone()).collect()
-    }
-}
-
-/// The strongly connected components of the not-yet-removed subgraph,
-/// computed with an iterative Tarjan walk (recursion would overflow on a
-/// workspace-deep chain). Removed nodes belong to no component.
-struct StronglyConnectedComponents {
-    component_of: Vec<usize>,
-    component_size: Vec<usize>,
-}
-
-impl StronglyConnectedComponents {
-    const NONE: usize = usize::MAX;
-
-    fn compute(adjacency: &[Vec<usize>], removed: &[bool]) -> Self {
-        let node_count = adjacency.len();
-        let mut discovery = vec![Self::NONE; node_count];
-        let mut low_link = vec![0; node_count];
-        let mut on_stack = vec![false; node_count];
-        let mut stack: Vec<usize> = Vec::new();
-        let mut component_of = vec![Self::NONE; node_count];
-        let mut component_size: Vec<usize> = Vec::new();
-        let mut next_discovery = 0;
-        // Explicit DFS frames of (node, next edge position).
-        let mut frames: Vec<(usize, usize)> = Vec::new();
-
-        for root in 0..node_count {
-            if removed[root] || discovery[root] != Self::NONE {
-                continue;
-            }
-            discovery[root] = next_discovery;
-            low_link[root] = next_discovery;
-            next_discovery += 1;
-            stack.push(root);
-            on_stack[root] = true;
-            frames.push((root, 0));
-            while let Some(frame) = frames.last_mut() {
-                let node = frame.0;
-                let edge_index = frame.1;
-                frame.1 += 1;
-                if let Some(&to) = adjacency[node].get(edge_index) {
-                    if removed[to] {
-                        continue;
-                    }
-                    if discovery[to] == Self::NONE {
-                        discovery[to] = next_discovery;
-                        low_link[to] = next_discovery;
-                        next_discovery += 1;
-                        stack.push(to);
-                        on_stack[to] = true;
-                        frames.push((to, 0));
-                    } else if on_stack[to] {
-                        low_link[node] = low_link[node].min(discovery[to]);
-                    }
-                } else {
-                    frames.pop();
-                    if let Some(&(parent, _)) = frames.last() {
-                        low_link[parent] = low_link[parent].min(low_link[node]);
-                    }
-                    if low_link[node] == discovery[node] {
-                        let component = component_size.len();
-                        let mut size = 0;
-                        loop {
-                            let member = stack.pop().expect("Tarjan stack holds the component");
-                            on_stack[member] = false;
-                            component_of[member] = component;
-                            size += 1;
-                            if member == node {
-                                break;
-                            }
-                        }
-                        component_size.push(size);
-                    }
-                }
-            }
-        }
-
-        StronglyConnectedComponents { component_of, component_size }
-    }
-
-    /// Whether a cycle through `node` can exist: it shares a non-trivial
-    /// component with another node, or loops onto itself. Removals since
-    /// [`Self::compute`] can make this a false positive — the search then
-    /// comes back empty, exactly as it would have without the filter —
-    /// but never a false negative, because removals only take cycles away.
-    fn may_lie_on_cycle(&self, node: usize, adjacency: &[Vec<usize>]) -> bool {
-        self.component_size[self.component_of[node]] >= 2 || adjacency[node].contains(&node)
-    }
-
-    fn shares_component(&self, left: usize, right: usize) -> bool {
-        self.component_of[left] == self.component_of[right]
+        ids.iter()
+            .map(|&id| self.nodes[id].clone())
+            .collect()
     }
 }
 
 /// The longest of the shortest cycles running from `start` back to itself
 /// through nodes not yet removed, or empty when there is none. The walk
-/// stays inside `start`'s strongly connected component — no cycle through
+/// stays inside `start`'s strongly connected component, no cycle through
 /// `start` can leave it.
 fn find_cycle(
     start: usize,
@@ -316,7 +300,10 @@ fn find_cycle(
     }
 
     found_cycles.sort_by_key(|cycle| std::cmp::Reverse(cycle.len()));
-    found_cycles.into_iter().next().unwrap_or_default()
+    found_cycles
+        .into_iter()
+        .next()
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

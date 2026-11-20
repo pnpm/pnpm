@@ -4,8 +4,8 @@ export type Matcher = (input: string) => boolean
 export type MatcherWithIndex = (input: string) => number
 
 export function createMatcher (patterns: string[] | string): Matcher {
-  const m = createMatcherWithIndex(Array.isArray(patterns) ? patterns : [patterns])
-  return (input) => m(input) !== -1
+  const matchWithIndex = createMatcherWithIndex(Array.isArray(patterns) ? patterns : [patterns])
+  return (input) => matchWithIndex(input) !== -1
 }
 
 interface MatcherFunction {
@@ -40,8 +40,8 @@ export function createMatcherWithIndex (patterns: string[]): MatcherWithIndex {
 }
 
 function matchInputWithNonIgnoreMatchers (matchArr: MatcherFunction[], input: string): number {
-  for (let i = 0; i < matchArr.length; i++) {
-    if (matchArr[i].match(input)) return i
+  for (let patternIndex = 0; patternIndex < matchArr.length; patternIndex++) {
+    if (matchArr[patternIndex].match(input)) return patternIndex
   }
   return -1
 }
@@ -52,14 +52,14 @@ function matchInputWithoutIgnoreMatchers (matchArr: MatcherFunction[], input: st
 
 function matchInputWithMatchersArray (matchArr: MatcherFunction[], input: string): number {
   let matchedPatternIndex = -1
-  for (let i = 0; i < matchArr.length; i++) {
-    const { ignore, match } = matchArr[i]
+  for (let patternIndex = 0; patternIndex < matchArr.length; patternIndex++) {
+    const { ignore, match } = matchArr[patternIndex]
     if (ignore) {
       if (match(input)) {
         matchedPatternIndex = -1
       }
     } else if (matchedPatternIndex === -1 && match(input)) {
-      matchedPatternIndex = i
+      matchedPatternIndex = patternIndex
     }
   }
   return matchedPatternIndex
@@ -70,12 +70,14 @@ function matcherFromPattern (pattern: string): Matcher {
     return () => true
   }
 
-  const escapedPattern = escapeStringRegexp(pattern).replace(/\\\*/g, '.*')
+  const escapedPattern = escapeStringRegexp(pattern)
+    .replace(/\\\*/g, '.*')
+    .replace(/\\\?/g, '.')
   if (escapedPattern === pattern) {
     return (input: string) => input === pattern
   }
 
-  const regexp = new RegExp(`^${escapedPattern}$`)
+  const regexp = new RegExp(`^${escapedPattern}$`, 'su')
   return (input: string) => regexp.test(input)
 }
 
@@ -84,8 +86,8 @@ function isIgnorePattern (pattern: string): boolean {
 }
 
 function matcherWhenOnlyOnePatternWithIndex (pattern: string): MatcherWithIndex {
-  const m = matcherWhenOnlyOnePattern(pattern)
-  return (input) => m(input) ? 0 : -1
+  const match = matcherWhenOnlyOnePattern(pattern)
+  return (input) => match(input) ? 0 : -1
 }
 
 function matcherWhenOnlyOnePattern (pattern: string): Matcher {
@@ -93,6 +95,6 @@ function matcherWhenOnlyOnePattern (pattern: string): Matcher {
     return matcherFromPattern(pattern)
   }
   const ignorePattern = pattern.substring(1)
-  const m = matcherFromPattern(ignorePattern)
-  return (input) => !m(input)
+  const matchIgnored = matcherFromPattern(ignorePattern)
+  return (input) => !matchIgnored(input)
 }

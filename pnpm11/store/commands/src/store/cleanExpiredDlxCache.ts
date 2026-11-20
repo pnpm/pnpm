@@ -1,6 +1,7 @@
-import { promises as fs, readdirSync, type Stats } from 'node:fs'
+import { lstatSync, promises as fs, readdirSync, type Stats } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
+
+import { isError } from '@pnpm/error'
 
 export async function cleanExpiredDlxCache ({
   cacheDir,
@@ -65,7 +66,7 @@ async function getStats (path: string): Promise<Stats | 'ENOENT'> {
   try {
     return await fs.lstat(path)
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return 'ENOENT'
     }
     throw err
@@ -74,6 +75,7 @@ async function getStats (path: string): Promise<Stats | 'ENOENT'> {
 
 function readOptDir (dirPath: string): string[] | null {
   try {
+    if (lstatSync(dirPath).isSymbolicLink()) return null
     const dirEntries: string[] = []
     for (const entry of readdirSync(dirPath, {
       encoding: 'utf-8',
@@ -85,7 +87,7 @@ function readOptDir (dirPath: string): string[] | null {
     }
     return dirEntries
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err
@@ -96,7 +98,7 @@ async function getRealPath (linkPath: string): Promise<string | null> {
   try {
     return await fs.realpath(linkPath)
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return null
     }
     throw err

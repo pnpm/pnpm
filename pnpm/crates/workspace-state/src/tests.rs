@@ -1,6 +1,15 @@
 use super::{
-    LoadWorkspaceStateError, NodeLinker, ProjectEntry, UpdateWorkspaceStateError, WorkspaceState,
-    WorkspaceStateSettings, get_file_path, load_workspace_state, now_millis,
+    LoadWorkspaceStateError,
+    NodeLinker,
+    ProjectEntry,
+    RuntimeOnFail,
+    UpdateWorkspaceStateError,
+    WORKSPACE_STATE_FILENAME,
+    WorkspaceState,
+    WorkspaceStateSettings,
+    get_file_path,
+    load_workspace_state,
+    now_millis,
     update_workspace_state,
 };
 use indexmap::IndexMap;
@@ -22,7 +31,11 @@ fn write_and_load_round_trip() {
     let mut projects = BTreeMap::new();
     projects.insert(
         workspace_dir.to_string_lossy().into_owned(),
-        ProjectEntry { name: Some("my-pkg".into()), version: Some("1.2.3".into()) },
+        ProjectEntry {
+            name: Some("my-pkg".into()),
+            version: Some("1.2.3".into()),
+            has_modules_dir: false,
+        },
     );
 
     let mut patched = IndexMap::new();
@@ -34,6 +47,7 @@ fn write_and_load_round_trip() {
         pnpmfiles: vec![],
         filtered_install: false,
         config_dependencies: None,
+        validation: None,
         settings: WorkspaceStateSettings {
             auto_install_peers: Some(true),
             dedupe_peer_dependents: Some(true),
@@ -76,6 +90,7 @@ fn omits_settings_that_are_none() {
         pnpmfiles: vec![],
         filtered_install: false,
         config_dependencies: None,
+        validation: None,
         settings: WorkspaceStateSettings { auto_install_peers: Some(true), ..Default::default() },
     };
     let serialized = serde_json::to_string(&state).expect("serialize");
@@ -88,7 +103,7 @@ fn omits_settings_that_are_none() {
 /// `packageExtensions` round-trips through `WorkspaceStateSettings`
 /// as a JSON object preserving the wire shape (`<selector>:
 /// { dependencies: { … } }`). The drift gate in
-/// `optimistic_repeat_install::settings_match` reads this field, so
+/// `first_setting_drift` in `pnpm-package-manager` reads this field, so
 /// the on-disk shape has to stay stable for the gate to be byte-
 /// comparable with pnpm's writer.
 #[test]
@@ -102,6 +117,7 @@ fn package_extensions_round_trip() {
         pnpmfiles: vec![],
         filtered_install: false,
         config_dependencies: None,
+        validation: None,
         settings: WorkspaceStateSettings {
             package_extensions: Some(extensions.clone()),
             ..Default::default()
@@ -127,6 +143,44 @@ fn node_linker_serializes_lowercase() {
     assert_eq!(value, serde_json::Value::from("pnp"));
 }
 
+/// pnpm v11 records `runtimeOnFail` under this key with these values, and
+/// each CLI compares the state the other one wrote.
+#[test]
+fn runtime_on_fail_round_trips_in_the_v11_wire_format() {
+    for (variant, wire) in [
+        (RuntimeOnFail::Download, "download"),
+        (RuntimeOnFail::Error, "error"),
+        (RuntimeOnFail::Warn, "warn"),
+        (RuntimeOnFail::Ignore, "ignore"),
+    ] {
+        let settings =
+            WorkspaceStateSettings { runtime_on_fail: Some(variant), ..Default::default() };
+        let value = serde_json::to_value(&settings).expect("serialize");
+        assert_eq!(value, serde_json::json!({ "runtimeOnFail": wire }));
+        let parsed: WorkspaceStateSettings = serde_json::from_value(value).expect("deserialize");
+        assert_eq!(parsed.runtime_on_fail, Some(variant));
+    }
+}
+
+/// pnpm writes the flag only when it is set, so an entry without it reads
+/// as a project with no recorded modules directory.
+#[test]
+fn has_modules_dir_is_written_only_when_set() {
+    let entry =
+        |has_modules_dir| ProjectEntry { name: Some("pkg".into()), version: None, has_modules_dir };
+    assert_eq!(
+        serde_json::to_value(entry(true)).expect("serialize"),
+        serde_json::json!({ "name": "pkg", "hasModulesDir": true }),
+    );
+    assert_eq!(
+        serde_json::to_value(entry(false)).expect("serialize"),
+        serde_json::json!({ "name": "pkg" }),
+    );
+    let parsed: ProjectEntry =
+        serde_json::from_value(serde_json::json!({ "name": "pkg" })).expect("deserialize");
+    assert!(!parsed.has_modules_dir);
+}
+
 #[test]
 fn update_surfaces_create_dir_error_when_workspace_is_a_regular_file() {
     let tmp = tempdir().expect("create temp dir");
@@ -139,6 +193,7 @@ fn update_surfaces_create_dir_error_when_workspace_is_a_regular_file() {
         pnpmfiles: vec![],
         filtered_install: false,
         config_dependencies: None,
+        validation: None,
         settings: WorkspaceStateSettings::default(),
     };
     let err = update_workspace_state(&blocker, &state)
@@ -149,7 +204,7 @@ fn update_surfaces_create_dir_error_when_workspace_is_a_regular_file() {
     );
 }
 
-/// `load_workspace_state` surfaces non-NotFound read errors via
+/// [`load_workspace_state`] surfaces non-NotFound read errors via
 /// the typed `ReadFile` variant. Here we make the target a
 /// directory: `read_to_string` on a directory returns
 /// `IsADirectory` (or `Other`) on Unix, never `NotFound`, which
@@ -184,4 +239,141 @@ fn load_surfaces_parse_json_error_on_malformed_state() {
         matches!(err, LoadWorkspaceStateError::ParseJson { .. }),
         "expected ParseJson error, got {err:?}",
     );
+}
+
+#[test]
+fn update_overwrites_existing_state_file() {
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+
+    let mut state = WorkspaceState { last_validated_timestamp: 100, ..Default::default() };
+    update_workspace_state(workspace_dir, &state).expect("write first state");
+
+    let loaded1 = load_workspace_state(workspace_dir).expect("load state").expect("file present");
+    assert_eq!(loaded1.last_validated_timestamp, 100);
+
+    state.last_validated_timestamp = 200;
+    update_workspace_state(workspace_dir, &state).expect("overwrite state");
+
+    let loaded2 = load_workspace_state(workspace_dir).expect("load state").expect("file present");
+    assert_eq!(loaded2.last_validated_timestamp, 200);
+}
+
+#[test]
+fn update_surfaces_write_file_error_when_target_is_a_directory() {
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+    let target = get_file_path(workspace_dir);
+    std::fs::create_dir_all(&target).expect("seed directory at state file path");
+
+    let state = WorkspaceState::default();
+    let err = update_workspace_state(workspace_dir, &state)
+        .expect_err("renaming over a directory should fail");
+    assert!(
+        matches!(err, UpdateWorkspaceStateError::WriteFile { .. }),
+        "expected WriteFile error, got {err:?}",
+    );
+    assert_eq!(node_modules_entries(workspace_dir), vec![WORKSPACE_STATE_FILENAME.to_string()]);
+}
+
+/// Another user must be able to read the state file, for example when root
+/// installs in one Docker stage and an unprivileged user runs scripts in the next.
+#[cfg(unix)]
+#[test]
+fn update_gives_the_state_file_the_mode_of_any_new_file() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+    let reference = workspace_dir.join("reference");
+    std::fs::File::create(&reference).expect("create reference file");
+
+    update_workspace_state(workspace_dir, &WorkspaceState::default()).expect("write state");
+
+    let mode_of = |path: &std::path::Path| {
+        std::fs::metadata(path)
+            .expect("stat file")
+            .permissions()
+            .mode()
+            & 0o777
+    };
+    assert_eq!(mode_of(&get_file_path(workspace_dir)), mode_of(&reference));
+}
+
+#[test]
+fn update_leaves_no_temp_file_beside_the_state_file() {
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+
+    update_workspace_state(workspace_dir, &WorkspaceState::default()).expect("write state");
+    update_workspace_state(workspace_dir, &WorkspaceState::default()).expect("overwrite state");
+
+    assert_eq!(node_modules_entries(workspace_dir), vec![WORKSPACE_STATE_FILENAME.to_string()]);
+}
+
+fn node_modules_entries(workspace_dir: &std::path::Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(workspace_dir.join("node_modules"))
+        .expect("read node_modules")
+        .map(|entry| {
+            entry
+                .expect("read entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// The write survives another process holding the destination open
+/// without `FILE_SHARE_DELETE` (an antivirus scan or the search
+/// indexer) for as long as that handle lives
+/// ([#14550](https://github.com/pnpm/pnpm/issues/14550)). A single
+/// `MoveFileEx` fails such a rename with `ERROR_ACCESS_DENIED`, so
+/// without the retry this write reports
+/// `ERR_PNPM_WORKSPACE_STATE_WRITE_IO` instead of waiting the lock
+/// out. Windows-only: on Unix the rename is not blocked by an open
+/// handle at all, so there is nothing to retry.
+#[cfg(windows)]
+#[test]
+fn transient_lock_on_the_state_file_does_not_fail_the_write() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+
+    /// `FILE_SHARE_READ | FILE_SHARE_WRITE`, deliberately without
+    /// `FILE_SHARE_DELETE`: that is the share mode that blocks a
+    /// rename over the open file.
+    const SHARE_READ_WRITE: u32 = 0x0000_0001 | 0x0000_0002;
+    const HOLD: std::time::Duration = std::time::Duration::from_millis(300);
+
+    let tmp = tempdir().expect("create temp dir");
+    let workspace_dir = tmp.path();
+    update_workspace_state(workspace_dir, &WorkspaceState::default()).expect("seed state file");
+
+    let handle = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(SHARE_READ_WRITE)
+        .open(get_file_path(workspace_dir))
+        .expect("hold the state file open");
+    // Start the clock before the releaser, so the measured wait always
+    // covers the whole hold: taking it afterwards lets a descheduled main
+    // thread miss part of the countdown and fail a retry that worked.
+    let started = std::time::Instant::now();
+    let releaser = std::thread::spawn(move || {
+        std::thread::sleep(HOLD);
+        drop(handle);
+    });
+
+    update_workspace_state(workspace_dir, &WorkspaceState::default())
+        .expect("the write should wait the transient lock out");
+    let waited = started.elapsed();
+
+    releaser.join().expect("release the handle");
+    // Succeeding is not on its own evidence that the retry did it: a rename
+    // the handle never blocked would have returned immediately and passed
+    // just the same. Only having waited for the handle shows otherwise.
+    assert!(
+        waited >= HOLD / 2,
+        "the rename returned after {waited:?}, so the open handle never blocked it",
+    );
+    assert_eq!(node_modules_entries(workspace_dir), vec![WORKSPACE_STATE_FILENAME.to_string()]);
 }

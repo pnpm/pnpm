@@ -3,135 +3,60 @@
 //! counterpart of the TypeScript tree-builder's
 //! `buildDependenciesTree`.
 
+pub use loaded_state::LoadedState;
+
+mod loaded_state;
+
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use miette::{Context, IntoDiagnostic};
-use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot, RegistryOptions};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_fs::{
+    lexical_normalize,
+    read_modules_dir,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+    RegistryOptions,
+};
 use pnpm_modules_yaml::{
-    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, IncludedDependencies, Modules,
+    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    Host,
+    IncludedDependencies,
+    Modules,
     read_modules_manifest,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
 
 use super::{
-    DependencyNode, TreeNodeId,
+    DependencyNode,
+    TreeNodeId,
     dep_types::detect_dep_types,
-    get_tree::{GetTreeOptions, MaterializationCache, MaxDepth, get_tree},
+    get_tree::{
+        GetTreeOptions,
+        MaterializationCache,
+        MaxDepth,
+        get_tree,
+    },
     graph::DependencyGraph,
     pkg_info::PkgInfoEnv,
     search::Searcher,
 };
 
-/// The lockfiles and modules-manifest state one tree build runs
-/// against. Owns the loaded lockfiles; [`LoadedState::env`] borrows them.
-pub struct LoadedState {
-    pub modules_dir: PathBuf,
-    pub modules: Option<Modules>,
-    pub current_lockfile: Option<Lockfile>,
-    pub wanted_lockfile: Option<Lockfile>,
-    pub check_wanted_lockfile_only: bool,
-}
-
-impl LoadedState {
-    pub fn load(
-        lockfile_dir: &Path,
-        modules_dir_opt: Option<&Path>,
-        check_wanted_lockfile_only: bool,
-    ) -> miette::Result<LoadedState> {
-        let modules_dir_raw = match modules_dir_opt {
-            Some(dir) if dir.is_absolute() => dir.to_path_buf(),
-            Some(dir) => lockfile_dir.join(dir),
-            None => lockfile_dir.join("node_modules"),
-        };
-        let modules_dir = pnpm_fs::realpath_missing(&modules_dir_raw)
-            .unwrap_or_else(|_| lexical_normalize(&modules_dir_raw));
-        let modules = read_modules_manifest::<Host>(&modules_dir)
-            .into_diagnostic()
-            .wrap_err("read the modules manifest")?;
-        let current_lockfile =
-            Lockfile::load_current_from_virtual_store_dir(&modules_dir.join(".pnpm"))
-                .into_diagnostic()
-                .wrap_err("load the current lockfile")?;
-        let wanted_lockfile = Lockfile::load_wanted_from_dir(lockfile_dir)
-            .into_diagnostic()
-            .wrap_err("load the wanted lockfile")?;
-        Ok(LoadedState {
-            modules_dir,
-            modules,
-            current_lockfile,
-            wanted_lockfile,
-            check_wanted_lockfile_only,
-        })
-    }
-
-    /// The lockfile the tree is built from: the wanted lockfile under
-    /// `--lockfile-only`, otherwise the current lockfile with the
-    /// wanted one as fallback.
-    #[must_use]
-    pub fn lockfile_to_use(&self) -> Option<&Lockfile> {
-        if self.check_wanted_lockfile_only {
-            self.wanted_lockfile.as_ref()
-        } else {
-            self.current_lockfile.as_ref().or(self.wanted_lockfile.as_ref())
-        }
-    }
-
-    #[must_use]
-    pub fn env<'a>(
-        &'a self,
-        lockfile_dir: &Path,
-        virtual_store_dir_max_length: usize,
-        registries_by_scope: &BTreeMap<String, String>,
-        registry_options_by_url: BTreeMap<String, RegistryOptions>,
-    ) -> Option<PkgInfoEnv<'a>> {
-        let lockfile = self.lockfile_to_use()?;
-        let registries: HashMap<String, String> = registries_by_scope
-            .iter()
-            .map(|(scope, registry)| (scope.clone(), registry.clone()))
-            .collect();
-        let virtual_store_dir = match &self.modules {
-            Some(modules) if !modules.virtual_store_dir.is_empty() => {
-                let dir = PathBuf::from(&modules.virtual_store_dir);
-                if dir.is_absolute() { dir } else { self.modules_dir.join(dir) }
-            }
-            _ => self.modules_dir.join(".pnpm"),
-        };
-        Some(PkgInfoEnv {
-            lockfile_dir: lockfile_dir.to_path_buf(),
-            modules_dir: self.modules_dir.clone(),
-            virtual_store_dir,
-            virtual_store_dir_max_length: self.modules.as_ref().map_or(
-                virtual_store_dir_max_length,
-                |modules| {
-                    usize::try_from(modules.virtual_store_dir_max_length)
-                        .unwrap_or(DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize)
-                },
-            ),
-            registries,
-            registry_options_by_url,
-            skipped: self
-                .modules
-                .as_ref()
-                .map(|modules| modules.skipped.iter().cloned().collect::<HashSet<_>>())
-                .unwrap_or_default(),
-            store_dir: self
-                .modules
-                .as_ref()
-                .map(|modules| PathBuf::from(&modules.store_dir))
-                .filter(|dir| !dir.as_os_str().is_empty()),
-            current_lockfile: lockfile,
-            wanted_lockfile: self.wanted_lockfile.as_ref(),
-            dep_types: detect_dep_types(lockfile),
-        })
-    }
-}
-
-/// One project's categorized dependency hierarchy — the input of the
+/// One project's categorized dependency hierarchy, the input of the
 /// `list` renderers.
 #[derive(Debug, Default)]
 pub struct DependenciesHierarchy {
@@ -149,7 +74,7 @@ pub struct BuildTreeOptions<'a> {
     pub only_projects: bool,
     pub search: Option<&'a Searcher>,
     pub show_deduped_search_matches: bool,
-    pub modules_dir_opt: Option<&'a Path>,
+    pub unsaved_modules_dir_name: Option<&'a Path>,
 }
 
 /// The importer root ids of `project_dirs` that exist in the lockfile.
@@ -204,12 +129,6 @@ fn hierarchy_for_project(
         return Ok(DependenciesHierarchy::default());
     };
 
-    let project_modules_dir = match opts.modules_dir_opt {
-        Some(dir) if dir.is_absolute() => dir.to_path_buf(),
-        Some(dir) => project_dir.join(dir),
-        None => project_dir.join("node_modules"),
-    };
-
     let mut hierarchy = DependenciesHierarchy::default();
 
     let get_tree_opts = GetTreeOptions {
@@ -236,28 +155,46 @@ fn hierarchy_for_project(
     );
 
     let field_of = field_map(importer, opts.include);
+    distribute_dependencies(nodes, &field_of, &mut hierarchy);
+
+    // Unsaved (extraneous) dependencies: packages present in the
+    // project's modules dir but absent from its lockfile entry. They
+    // are irrelevant while searching (they are not in the lockfile
+    // graph and cannot contain paths to the search target) and they
+    // are not workspace projects, which is all `only_projects` lists.
+    if opts.search.is_none()
+        && !opts.only_projects
+        && let Some(modules_dir_name) = opts.unsaved_modules_dir_name
+    {
+        let project_modules_dir = if importer_id.as_str() == "." {
+            state.modules_dir.clone()
+        } else {
+            project_dir.join(modules_dir_name)
+        };
+        hierarchy.unsaved_dependencies =
+            read_unsaved_dependencies(importer, project_dir, &project_modules_dir)?;
+    }
+
+    Ok(hierarchy)
+}
+
+fn distribute_dependencies(
+    nodes: Vec<DependencyNode>,
+    field_of: &HashMap<String, DependenciesField>,
+    hierarchy: &mut DependenciesHierarchy,
+) {
     for node in nodes {
         match field_of.get(node.alias.as_str()) {
             Some(DependenciesField::Dependencies) => hierarchy.dependencies.push(node),
-            Some(DependenciesField::DevDependencies) => hierarchy.dev_dependencies.push(node),
+            Some(DependenciesField::DevDependencies) => {
+                hierarchy.dev_dependencies.push(node);
+            }
             Some(DependenciesField::OptionalDependencies) => {
                 hierarchy.optional_dependencies.push(node);
             }
             None => {}
         }
     }
-
-    // Unsaved (extraneous) dependencies: packages present in the
-    // project's modules dir but absent from its lockfile entry. They
-    // are irrelevant while searching — they are not in the lockfile
-    // graph and cannot contain paths to the search target.
-    if opts.search.is_none() {
-        hierarchy.unsaved_dependencies =
-            read_unsaved_dependencies(importer, project_dir, &project_modules_dir)?;
-    }
-
-    let _ = state;
-    Ok(hierarchy)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -289,7 +226,11 @@ fn field_map(
         if !included {
             continue;
         }
-        for alias in group.into_iter().flatten().map(|(alias, _)| alias) {
+        for alias in group
+            .into_iter()
+            .flatten()
+            .map(|(alias, _)| alias)
+        {
             map.insert(alias.to_string(), field);
         }
     }
@@ -302,13 +243,14 @@ pub fn importer_id_for(lockfile_dir: &Path, project_dir: &Path) -> String {
     pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir)
 }
 
-/// The on-disk directory of a lockfile importer key, or `None` for a
-/// key that cannot be safely joined (absolute, drive-prefixed, or
-/// `..`-traversing — a malformed or hostile lockfile).
+/// The on-disk directory of a lockfile importer key, spelled with the
+/// platform's separators, or `None` for a key that cannot be safely
+/// joined (absolute, drive-prefixed, or `..`-traversing, a malformed or
+/// hostile lockfile).
 #[must_use]
 pub fn safe_importer_dir(lockfile_dir: &Path, importer_id: &str) -> Option<PathBuf> {
     pnpm_deps_restorer::validate_importer_id(importer_id).ok()?;
-    Some(pnpm_deps_restorer::importer_root_dir(lockfile_dir, importer_id))
+    Some(lexical_normalize(&pnpm_deps_restorer::importer_root_dir(lockfile_dir, importer_id)))
 }
 
 /// Scan the project's modules dir for packages absent from its
@@ -320,7 +262,7 @@ fn read_unsaved_dependencies(
     modules_dir: &Path,
 ) -> miette::Result<Vec<DependencyNode>> {
     let saved = saved_direct_dep_names(importer);
-    let unsaved: Vec<DependencyNode> = read_modules_dir_names(modules_dir)
+    let unsaved: Vec<DependencyNode> = read_modules_dir(modules_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to read {}", modules_dir.display()))?
         .into_iter()
@@ -331,7 +273,7 @@ fn read_unsaved_dependencies(
 }
 
 /// The alias keys of an importer's `dependencies`, `devDependencies`,
-/// and `optionalDependencies` — always spanning all three groups
+/// and `optionalDependencies`, always spanning all three groups
 /// regardless of the include filter, matching the TypeScript CLI's
 /// `getAllDirectDependencies`.
 fn saved_direct_dep_names(importer: &ProjectSnapshot) -> HashSet<String> {
@@ -344,55 +286,6 @@ fn saved_direct_dep_names(importer: &ProjectSnapshot) -> HashSet<String> {
         }
     }
     names
-}
-
-/// The package directory names directly under `modules_dir`, following
-/// the same enumeration rules as the TypeScript CLI's `readModulesDir`.
-/// A missing `modules_dir` is not an error; any other read failure is.
-fn read_modules_dir_names(modules_dir: &Path) -> io::Result<Vec<String>> {
-    let mut names = Vec::new();
-    collect_module_names(modules_dir, None, &mut names)?;
-    Ok(names)
-}
-
-fn collect_module_names(
-    modules_dir: &Path,
-    scope: Option<&str>,
-    names: &mut Vec<String>,
-) -> io::Result<()> {
-    let parent_dir = match scope {
-        Some(scope) => modules_dir.join(scope),
-        None => modules_dir.to_path_buf(),
-    };
-    let entries = match std::fs::read_dir(&parent_dir) {
-        Ok(entries) => entries,
-        // A missing directory is "no packages"; every other error is
-        // surfaced, matching `readModulesDir`, which only swallows ENOENT.
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    for entry in entries {
-        let entry = entry?;
-        let file_name = entry.file_name();
-        let Some(name) = file_name.to_str() else {
-            continue;
-        };
-        if name.starts_with('.') {
-            continue;
-        }
-        if entry.file_type().is_ok_and(|file_type| file_type.is_file()) {
-            continue;
-        }
-        if scope.is_none() && name.starts_with('@') {
-            collect_module_names(modules_dir, Some(name), names)?;
-            continue;
-        }
-        match scope {
-            Some(scope) => names.push(format!("{scope}/{name}")),
-            None => names.push(name.to_string()),
-        }
-    }
-    Ok(())
 }
 
 /// Build the leaf [`DependencyNode`] for one extraneous package, taking
@@ -410,9 +303,12 @@ fn build_unsaved_node(name: &str, modules_dir: &Path, project_dir: &Path) -> Dep
     };
     DependencyNode {
         alias: name.to_string(),
-        name: name.to_string(),
-        version,
-        path,
+        package: crate::DependencyPackage {
+            name: name.to_string(),
+            version,
+            path,
+            ..Default::default()
+        },
         ..DependencyNode::default()
     }
 }
@@ -437,7 +333,10 @@ fn resolve_link_target(link: &Path) -> Option<PathBuf> {
 fn read_package_version(pkg_dir: &Path) -> Option<String> {
     let bytes = std::fs::read(pkg_dir.join("package.json")).ok()?;
     let manifest = parse_manifest_bytes(&bytes).ok()?;
-    manifest.get("version").and_then(serde_json::Value::as_str).map(str::to_string)
+    manifest
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
 }
 
 #[derive(Debug, Default)]
@@ -458,8 +357,17 @@ pub fn read_project_manifest(project_dir: &Path) -> ProjectManifestSummary {
         return ProjectManifestSummary::default();
     };
     ProjectManifestSummary {
-        name: manifest.get("name").and_then(serde_json::Value::as_str).map(str::to_string),
-        version: manifest.get("version").and_then(serde_json::Value::as_str).map(str::to_string),
-        private: manifest.get("private").and_then(serde_json::Value::as_bool).unwrap_or(false),
+        name: manifest
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        version: manifest
+            .get("version")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string),
+        private: manifest
+            .get("private")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false),
     }
 }

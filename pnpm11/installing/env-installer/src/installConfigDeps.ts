@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { checkPackage } from '@pnpm/config.package-is-installable'
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { installingConfigDepsLogger, skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcGlobalVirtualStorePathWithSubdeps, calcLeafGlobalVirtualStorePath } from '@pnpm/deps.graph-hasher'
 import { PnpmError } from '@pnpm/error'
@@ -11,17 +10,19 @@ import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { type EnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
 import type { StoreController } from '@pnpm/store.controller'
-import type { ConfigDependencies, RegistriesByScope } from '@pnpm/types'
+import type { ConfigDependencies, RegistriesByScope, RegistryContext } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import { symlinkDir } from 'symlink-dir'
 
 import { migrateConfigDepsToLockfile } from './migrateConfigDeps.js'
 import type { NormalizedConfigDep, NormalizedSubdep } from './parseIntegrity.js'
+import { type ConfigDepRegistryOpts, pickTarballUrlOptions } from './pickTarballUrlOptions.js'
 import { verifyEnvLockfile } from './verifyEnvLockfile.js'
 
 export interface InstallConfigDepsOpts {
   frozenLockfile?: boolean
   registriesByScope: RegistriesByScope
+  registryOptionsByUrl?: RegistryContext['registryOptionsByUrl']
   rootDir: string
   store: StoreController
   storeDir: string
@@ -37,114 +38,174 @@ export async function installConfigDeps (
   opts: InstallConfigDepsOpts
 ): Promise<void> {
   const normalizedDeps = await normalizeForInstall(configDepsOrLockfile, opts)
-  const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
-
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
-  const existingConfigDeps: string[] = await readModulesDir(configModulesDir) ?? []
-
-  let startedEmitted = false
-  const reportStarted = (): void => {
-    if (startedEmitted) return
-    startedEmitted = true
-    installingConfigDepsLogger.debug({ status: 'started' })
+  const ctx: ConfigDepInstallContext = {
+    configModulesDir,
+    existingConfigDeps: await readModulesDir(configModulesDir) ?? [],
+    globalVirtualStoreDir: path.join(opts.storeDir, 'links'),
+    installedConfigDeps: [],
+    reportStarted: createStartedReporter(),
+    rootDir: opts.rootDir,
+    store: opts.store,
   }
 
-  await Promise.all(existingConfigDeps.map(async (existingConfigDep) => {
+  await Promise.all(ctx.existingConfigDeps.map(async (existingConfigDep) => {
     if (!normalizedDeps[existingConfigDep]) {
-      reportStarted()
+      ctx.reportStarted()
       await rimraf(path.join(configModulesDir, existingConfigDep))
     }
   }))
 
-  const installedConfigDeps: Array<{ name: string, version: string }> = []
-  await Promise.all(Object.entries(normalizedDeps).map(async ([pkgName, pkg]) => {
-    const configDepPath = path.join(configModulesDir, pkgName)
-    const fullPkgId = `${pkgName}@${pkg.version}:${pkg.resolution.integrity}`
-    // The parent's GVS hash must incorporate its optional subdeps; otherwise
-    // changing a subdep version while keeping the parent pinned would collide
-    // on the same leaf and silently overwrite the previous sibling symlinks.
-    const optionalSubdepIds: Record<string, string> = {}
-    for (const subdep of pkg.optionalSubdeps ?? []) {
-      optionalSubdepIds[subdep.name] = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
-    }
-    const relPath = calcGlobalVirtualStorePathWithSubdeps(fullPkgId, pkgName, pkg.version, optionalSubdepIds)
-    const pkgDirInGlobalVirtualStore = path.join(globalVirtualStoreDir, relPath, 'node_modules', pkgName)
-    // The leaf hash captures parent+subdep identities from the lockfile but
-    // not the host's `process.arch`/`process.platform` selection. So even if
-    // the symlink target is already the expected leaf, the sibling links
-    // inside that leaf may target the wrong platform binary if the host's
-    // effective arch changed between runs (e.g. Rosetta x64 vs arm64 on
-    // macOS). Short-circuit only the parent's re-import/re-symlink in that
-    // case; always run installOptionalSubdeps so platform-specific siblings
-    // get pruned and relinked.
-    const parentSymlinkAlreadyCorrect = existingConfigDeps.includes(pkgName) &&
-      await symlinkPointsTo(configDepPath, pkgDirInGlobalVirtualStore)
-    if (!fs.existsSync(path.join(pkgDirInGlobalVirtualStore, 'package.json'))) {
-      reportStarted()
-      const { fetching } = await opts.store.fetchPackage({
-        force: true,
-        lockfileDir: opts.rootDir,
-        pkg: {
-          id: `${pkgName}@${pkg.version}`,
-          resolution: pkg.resolution,
-        },
-      })
-      const { files: filesResponse } = await fetching()
-      await opts.store.importPackage(pkgDirInGlobalVirtualStore, {
-        force: true,
-        requiresBuild: false,
-        filesResponse,
-      })
-    }
-    if (pkg.optionalSubdeps?.length) {
-      await installOptionalSubdeps({
-        parentName: pkgName,
-        parentVersion: pkg.version,
-        subdeps: pkg.optionalSubdeps,
-        // path.dirname would land in the scope subdir for scoped parents; use
-        // the leaf's node_modules root so sibling symlinks resolve correctly.
-        parentNodeModulesDir: path.join(globalVirtualStoreDir, relPath, 'node_modules'),
-        globalVirtualStoreDir,
-        rootDir: opts.rootDir,
-        store: opts.store,
-        reportStarted,
-      })
-    }
-    if (parentSymlinkAlreadyCorrect) {
-      return
-    }
-    reportStarted()
-    if (existingConfigDeps.includes(pkgName)) {
-      await rimraf(configDepPath)
-    }
-    await fs.promises.mkdir(path.dirname(configDepPath), { recursive: true })
-    await symlinkDir(pkgDirInGlobalVirtualStore, configDepPath)
-    installedConfigDeps.push({
-      name: pkgName,
-      version: pkg.version,
-    })
-  }))
-  if (installedConfigDeps.length) {
-    installingConfigDepsLogger.debug({ status: 'done', deps: installedConfigDeps })
+  await Promise.all(Object.entries(normalizedDeps).map(([pkgName, pkg]) => installConfigDep(ctx, pkgName, pkg)))
+  if (ctx.installedConfigDeps.length) {
+    installingConfigDepsLogger.debug({ status: 'done', deps: ctx.installedConfigDeps })
   }
+}
+
+/**
+ * Whether `node_modules/.pnpm-config` already links every config dependency
+ * to the global virtual store entry derived from the env lockfile, and every
+ * host-compatible optional subdependency is materialized. The store path is
+ * keyed by integrity, so a lockfile entry that changed the package bytes
+ * never counts as installed.
+ */
+export async function areConfigDepsInstalled (
+  envLockfile: EnvLockfile,
+  opts: Pick<InstallConfigDepsOpts, 'registriesByScope' | 'registryOptionsByUrl' | 'rootDir' | 'storeDir'>
+): Promise<boolean> {
+  const normalizedDeps = normalizeFromLockfile(envLockfile, opts)
+  const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
+  const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
+  const installed = await Promise.all(Object.entries(normalizedDeps).map(async ([pkgName, pkg]) => {
+    const pkgDirInGlobalVirtualStore = path.join(globalVirtualStoreDir, calcConfigDepRelPath(pkgName, pkg), 'node_modules', pkgName)
+    if (!await symlinkPointsTo(path.join(configModulesDir, pkgName), pkgDirInGlobalVirtualStore)) return false
+    return (pkg.optionalSubdeps ?? [])
+      .filter((subdep) => isSubdepCompatible(subdep))
+      .every((subdep) => fs.existsSync(path.join(subdepDirInGlobalVirtualStore(globalVirtualStoreDir, subdep), 'package.json')))
+  }))
+  return installed.every(Boolean)
+}
+
+interface ConfigDepInstallContext {
+  configModulesDir: string
+  existingConfigDeps: string[]
+  globalVirtualStoreDir: string
+  installedConfigDeps: Array<{ name: string, version: string }>
+  reportStarted: () => void
+  rootDir: string
+  store: StoreController
+}
+
+function createStartedReporter (): () => void {
+  let startedEmitted = false
+  return () => {
+    if (startedEmitted) return
+    startedEmitted = true
+    installingConfigDepsLogger.debug({ status: 'started' })
+  }
+}
+
+async function installConfigDep (ctx: ConfigDepInstallContext, pkgName: string, pkg: NormalizedConfigDep): Promise<void> {
+  const configDepPath = path.join(ctx.configModulesDir, pkgName)
+  const relPath = calcConfigDepRelPath(pkgName, pkg)
+  const pkgDirInGlobalVirtualStore = path.join(ctx.globalVirtualStoreDir, relPath, 'node_modules', pkgName)
+  // The leaf hash captures parent+subdep identities from the lockfile but
+  // not the host's `process.arch`/`process.platform` selection. So even if
+  // the symlink target is already the expected leaf, the sibling links
+  // inside that leaf may target the wrong platform binary if the host's
+  // effective arch changed between runs (e.g. Rosetta x64 vs arm64 on
+  // macOS). Short-circuit only the parent's re-import/re-symlink in that
+  // case; always run installOptionalSubdeps so platform-specific siblings
+  // get pruned and relinked.
+  const parentSymlinkAlreadyCorrect = ctx.existingConfigDeps.includes(pkgName) &&
+    await symlinkPointsTo(configDepPath, pkgDirInGlobalVirtualStore)
+  await importPackageIfMissing(ctx, {
+    id: `${pkgName}@${pkg.version}`,
+    resolution: pkg.resolution,
+    targetDir: pkgDirInGlobalVirtualStore,
+  })
+  if (pkg.optionalSubdeps?.length) {
+    await installOptionalSubdeps({
+      parentName: pkgName,
+      parentVersion: pkg.version,
+      subdeps: pkg.optionalSubdeps,
+      // path.dirname would land in the scope subdir for scoped parents; use
+      // the leaf's node_modules root so sibling symlinks resolve correctly.
+      parentNodeModulesDir: path.join(ctx.globalVirtualStoreDir, relPath, 'node_modules'),
+      globalVirtualStoreDir: ctx.globalVirtualStoreDir,
+      rootDir: ctx.rootDir,
+      store: ctx.store,
+      reportStarted: ctx.reportStarted,
+    })
+  }
+  if (parentSymlinkAlreadyCorrect) {
+    return
+  }
+  ctx.reportStarted()
+  if (ctx.existingConfigDeps.includes(pkgName)) {
+    await rimraf(configDepPath)
+  }
+  await fs.promises.mkdir(path.dirname(configDepPath), { recursive: true })
+  await symlinkDir(pkgDirInGlobalVirtualStore, configDepPath)
+  ctx.installedConfigDeps.push({
+    name: pkgName,
+    version: pkg.version,
+  })
+}
+
+function calcConfigDepRelPath (pkgName: string, pkg: NormalizedConfigDep): string {
+  const fullPkgId = `${pkgName}@${pkg.version}:${pkg.resolution.integrity}`
+  // The parent's GVS hash must incorporate its optional subdeps; otherwise
+  // changing a subdep version while keeping the parent pinned would collide
+  // on the same leaf and silently overwrite the previous sibling symlinks.
+  const optionalSubdepIds: Record<string, string> = {}
+  for (const subdep of pkg.optionalSubdeps ?? []) {
+    optionalSubdepIds[subdep.name] = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
+  }
+  return calcGlobalVirtualStorePathWithSubdeps(fullPkgId, pkgName, pkg.version, optionalSubdepIds)
+}
+
+interface PackageToImport {
+  id: string
+  resolution: NormalizedConfigDep['resolution']
+  targetDir: string
+}
+
+async function importPackageIfMissing (
+  ctx: Pick<ConfigDepInstallContext, 'reportStarted' | 'rootDir' | 'store'>,
+  pkg: PackageToImport
+): Promise<void> {
+  if (fs.existsSync(path.join(pkg.targetDir, 'package.json'))) return
+  ctx.reportStarted()
+  const { fetching } = await ctx.store.fetchPackage({
+    force: true,
+    lockfileDir: ctx.rootDir,
+    pkg: {
+      id: pkg.id,
+      resolution: pkg.resolution,
+    },
+  })
+  const { files: filesResponse } = await fetching()
+  await ctx.store.importPackage(pkg.targetDir, {
+    force: true,
+    requiresBuild: false,
+    filesResponse,
+  })
 }
 
 async function normalizeForInstall (
   configDepsOrLockfile: ConfigDependencies | EnvLockfile,
   opts: InstallConfigDepsOpts
 ): Promise<Record<string, NormalizedConfigDep>> {
-  // If it's a EnvLockfile object (has lockfileVersion), use it directly
   if (isEnvLockfile(configDepsOrLockfile)) {
     verifyEnvLockfile(configDepsOrLockfile)
-    return normalizeFromLockfile(configDepsOrLockfile, opts.registriesByScope)
+    return normalizeFromLockfile(configDepsOrLockfile, opts)
   }
 
-  // It's ConfigDependencies from workspace manifest.
-  // Try to read the env lockfile first.
   const envLockfile = await readEnvLockfile(opts.rootDir)
   if (envLockfile) {
     verifyEnvLockfile(envLockfile)
-    return normalizeFromLockfile(envLockfile, opts.registriesByScope)
+    return normalizeFromLockfile(envLockfile, opts)
   }
 
   // No env lockfile yet — migrate from old inline integrity format
@@ -169,7 +230,7 @@ function isEnvLockfile (obj: ConfigDependencies | EnvLockfile): obj is EnvLockfi
 
 function normalizeFromLockfile (
   lockfile: EnvLockfile,
-  registriesByScope: RegistriesByScope
+  registryOpts: ConfigDepRegistryOpts
 ): Record<string, NormalizedConfigDep> {
   const deps: Record<string, NormalizedConfigDep> = {}
   const configDeps = lockfile.importers['.']?.configDependencies ?? {}
@@ -190,16 +251,15 @@ function normalizeFromLockfile (
         `pnpm-lock.yaml is corrupted or incomplete: missing integrity for "${pkgKey}"`
       )
     }
-    const registry = pickRegistryForPackage(registriesByScope, pkgName)
     const snapshot = lockfile.snapshots[pkgKey]
     const optionalSubdeps = snapshot?.optionalDependencies
-      ? readOptionalSubdepsFromLockfile(pkgName, snapshot.optionalDependencies, lockfile, registriesByScope)
+      ? readOptionalSubdepsFromLockfile(pkgName, snapshot.optionalDependencies, { lockfile, registryOpts })
       : undefined
     deps[pkgName] = {
       version,
       resolution: {
         integrity: resolution.integrity,
-        tarball: resolution.tarball ?? getNpmTarballUrl(pkgName, version, { registry }),
+        tarball: resolution.tarball ?? getNpmTarballUrl(pkgName, version, pickTarballUrlOptions(registryOpts, pkgName)),
       },
       optionalSubdeps,
     }
@@ -210,8 +270,7 @@ function normalizeFromLockfile (
 function readOptionalSubdepsFromLockfile (
   parentName: string,
   optionalDeps: Record<string, string>,
-  lockfile: EnvLockfile,
-  registriesByScope: RegistriesByScope
+  { lockfile, registryOpts }: { lockfile: EnvLockfile, registryOpts: ConfigDepRegistryOpts }
 ): NormalizedSubdep[] {
   const subdeps: NormalizedSubdep[] = []
   for (const [subdepName, subdepVersion] of Object.entries(optionalDeps)) {
@@ -231,13 +290,12 @@ function readOptionalSubdepsFromLockfile (
         `pnpm-lock.yaml is corrupted or incomplete: missing integrity for "${subdepKey}"`
       )
     }
-    const registry = pickRegistryForPackage(registriesByScope, subdepName)
     subdeps.push({
       name: subdepName,
       version: subdepVersion,
       resolution: {
         integrity: subdepResolution.integrity,
-        tarball: subdepResolution.tarball ?? getNpmTarballUrl(subdepName, subdepVersion, { registry }),
+        tarball: subdepResolution.tarball ?? getNpmTarballUrl(subdepName, subdepVersion, pickTarballUrlOptions(registryOpts, subdepName)),
       },
       os: subdepInfo.os,
       cpu: subdepInfo.cpu,
@@ -259,28 +317,7 @@ interface InstallOptionalSubdepsOpts {
 }
 
 async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promise<void> {
-  const parentLogInfo = { id: `${opts.parentName}@${opts.parentVersion}`, name: opts.parentName, version: opts.parentVersion }
-  const compatibleSubdeps = opts.subdeps.filter((subdep) => {
-    if (!subdep.os && !subdep.cpu && !subdep.libc) return true
-    // Use checkPackage rather than packageIsInstallable: the latter emits a
-    // user-visible warn for every incompatible variant, which would fire on
-    // every install since the env lockfile records all platform variants for
-    // portability. We log skipped subdeps at debug instead.
-    const error = checkPackage(
-      `${subdep.name}@${subdep.version}`,
-      { os: subdep.os, cpu: subdep.cpu, libc: subdep.libc },
-      {}
-    )
-    if (error == null) return true
-    skippedOptionalDependencyLogger.debug({
-      details: error.toString(),
-      package: { id: `${subdep.name}@${subdep.version}`, name: subdep.name, version: subdep.version },
-      parents: [parentLogInfo],
-      prefix: opts.rootDir,
-      reason: error.code === 'ERR_PNPM_UNSUPPORTED_ENGINE' ? 'unsupported_engine' : 'unsupported_platform',
-    })
-    return false
-  })
+  const compatibleSubdeps = opts.subdeps.filter((subdep) => isSubdepInstallable(opts, subdep))
 
   const expectedSiblings = new Set([opts.parentName, ...compatibleSubdeps.map((s) => s.name)])
   const existingSiblings = await readModulesDir(opts.parentNodeModulesDir) ?? []
@@ -290,35 +327,59 @@ async function installOptionalSubdeps (opts: InstallOptionalSubdepsOpts): Promis
   }
   await Promise.all(orphanSiblings.map((name) => rimraf(path.join(opts.parentNodeModulesDir, name))))
 
-  await Promise.all(compatibleSubdeps.map(async (subdep) => {
-    const subdepFullPkgId = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
-    const subdepRelPath = calcLeafGlobalVirtualStorePath(subdepFullPkgId, subdep.name, subdep.version)
-    const subdepDirInGlobalVirtualStore = safeJoinModulesDir(path.join(opts.globalVirtualStoreDir, subdepRelPath, 'node_modules'), subdep.name)
-    if (!fs.existsSync(path.join(subdepDirInGlobalVirtualStore, 'package.json'))) {
-      opts.reportStarted()
-      const { fetching } = await opts.store.fetchPackage({
-        force: true,
-        lockfileDir: opts.rootDir,
-        pkg: {
-          id: `${subdep.name}@${subdep.version}`,
-          resolution: subdep.resolution,
-        },
-      })
-      const { files: filesResponse } = await fetching()
-      await opts.store.importPackage(subdepDirInGlobalVirtualStore, {
-        force: true,
-        requiresBuild: false,
-        filesResponse,
-      })
-    }
-    const linkPath = safeJoinModulesDir(opts.parentNodeModulesDir, subdep.name)
-    if (await symlinkPointsTo(linkPath, subdepDirInGlobalVirtualStore)) {
-      return
-    }
-    opts.reportStarted()
-    await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
-    await symlinkDir(subdepDirInGlobalVirtualStore, linkPath)
-  }))
+  await Promise.all(compatibleSubdeps.map((subdep) => installOptionalSubdep(opts, subdep)))
+}
+
+function isSubdepCompatible (subdep: NormalizedSubdep): boolean {
+  return platformIncompatibility(subdep) == null
+}
+
+function platformIncompatibility (subdep: NormalizedSubdep): ReturnType<typeof checkPackage> {
+  if (!subdep.os && !subdep.cpu && !subdep.libc) return null
+  // Use checkPackage rather than packageIsInstallable: the latter emits a
+  // user-visible warn for every incompatible variant, which would fire on
+  // every install since the env lockfile records all platform variants for
+  // portability. We log skipped subdeps at debug instead.
+  return checkPackage(
+    `${subdep.name}@${subdep.version}`,
+    { os: subdep.os, cpu: subdep.cpu, libc: subdep.libc },
+    {}
+  )
+}
+
+function isSubdepInstallable (opts: InstallOptionalSubdepsOpts, subdep: NormalizedSubdep): boolean {
+  const error = platformIncompatibility(subdep)
+  if (error == null) return true
+  skippedOptionalDependencyLogger.debug({
+    details: error.toString(),
+    package: { id: `${subdep.name}@${subdep.version}`, name: subdep.name, version: subdep.version },
+    parents: [{ id: `${opts.parentName}@${opts.parentVersion}`, name: opts.parentName, version: opts.parentVersion }],
+    prefix: opts.rootDir,
+    reason: error.code === 'ERR_PNPM_UNSUPPORTED_ENGINE' ? 'unsupported_engine' : 'unsupported_platform',
+  })
+  return false
+}
+
+function subdepDirInGlobalVirtualStore (globalVirtualStoreDir: string, subdep: NormalizedSubdep): string {
+  const subdepFullPkgId = `${subdep.name}@${subdep.version}:${subdep.resolution.integrity}`
+  const subdepRelPath = calcLeafGlobalVirtualStorePath(subdepFullPkgId, subdep.name, subdep.version)
+  return safeJoinModulesDir(path.join(globalVirtualStoreDir, subdepRelPath, 'node_modules'), subdep.name)
+}
+
+async function installOptionalSubdep (opts: InstallOptionalSubdepsOpts, subdep: NormalizedSubdep): Promise<void> {
+  const subdepDir = subdepDirInGlobalVirtualStore(opts.globalVirtualStoreDir, subdep)
+  await importPackageIfMissing(opts, {
+    id: `${subdep.name}@${subdep.version}`,
+    resolution: subdep.resolution,
+    targetDir: subdepDir,
+  })
+  const linkPath = safeJoinModulesDir(opts.parentNodeModulesDir, subdep.name)
+  if (await symlinkPointsTo(linkPath, subdepDir)) {
+    return
+  }
+  opts.reportStarted()
+  await fs.promises.mkdir(path.dirname(linkPath), { recursive: true })
+  await symlinkDir(subdepDir, linkPath)
 }
 
 async function symlinkPointsTo (linkPath: string, expectedTarget: string): Promise<boolean> {

@@ -1,10 +1,20 @@
+#[cfg(unix)]
+use super::edit_dir_key;
 use super::{
-    EditDirState, StateFileError, edit_dir_key, read_edit_dir_state, write_edit_dir_state,
-    write_state_file_atomically,
+    EditDirState,
+    StateFileError,
+    clean_patch_state_and_edit_dirs,
+    read_edit_dir_state,
+    write_edit_dir_state,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{env, fs, path::Path, sync::Mutex};
+use std::{
+    env,
+    fs,
+    path::Path,
+    sync::Mutex,
+};
 use tempfile::tempdir;
 
 static CWD_LOCK: Mutex<()> = Mutex::new(());
@@ -37,7 +47,10 @@ fn patch_state_write_creates_pnpm_state_file() {
 
     let state_path = modules_dir.join(".pnpm_patches").join("state.json");
     let text = fs::read_to_string(state_path).expect("state file");
-    let key = dunce::canonicalize(&edit_dir).expect("canonical edit dir").display().to_string();
+    let key = dunce::canonicalize(&edit_dir)
+        .expect("canonical edit dir")
+        .display()
+        .to_string();
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(&text).expect("valid JSON"),
         json!({
@@ -93,17 +106,6 @@ fn patch_state_write_updates_existing_state_file() {
             },
         }),
     );
-}
-
-#[test]
-fn patch_state_atomic_writer_replaces_existing_file() {
-    let tmp = tempdir().expect("temp dir");
-    let state_file = tmp.path().join("state.json");
-    fs::write(&state_file, "old").expect("write old state");
-
-    write_state_file_atomically(&state_file, b"new").expect("replace state");
-
-    assert_eq!(fs::read_to_string(state_file).expect("read state"), "new");
 }
 
 #[test]
@@ -284,6 +286,229 @@ fn patch_state_errors_when_edit_dir_parent_is_not_a_directory() {
     let err = edit_dir_key(&file_parent.join("edit")).expect_err("file parent should fail");
 
     assert!(matches!(err, StateFileError::ResolveEditDir { .. }));
+}
+
+#[test]
+fn patch_state_clean_removes_matching_entry_and_edit_dir() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let first_edit_dir = modules_dir.join(".pnpm_patches").join("is-positive@1.0.0");
+    let second_edit_dir = modules_dir.join(".pnpm_patches").join("is-negative@1.0.0");
+    fs::create_dir_all(&first_edit_dir).expect("create first edit dir");
+    fs::create_dir_all(&second_edit_dir).expect("create second edit dir");
+
+    write_edit_dir_state(&modules_dir, &first_edit_dir, &sample_state()).unwrap();
+    write_edit_dir_state(
+        &modules_dir,
+        &second_edit_dir,
+        &EditDirState {
+            patched_pkg: "is-negative@1.0.0".to_string(),
+            apply_to_all: true,
+            package_key: None,
+        },
+    )
+    .unwrap();
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["is-positive@1.0.0".to_string()]).unwrap();
+
+    assert!(!first_edit_dir.exists());
+    assert!(second_edit_dir.exists());
+    let remaining = read_edit_dir_state(&modules_dir, &second_edit_dir).unwrap();
+    assert_eq!(
+        remaining,
+        Some(EditDirState {
+            patched_pkg: "is-negative@1.0.0".to_string(),
+            apply_to_all: true,
+            package_key: None,
+        }),
+    );
+    assert_eq!(read_edit_dir_state(&modules_dir, &first_edit_dir).unwrap(), None);
+}
+
+#[test]
+fn patch_state_clean_removes_state_file_and_state_dir_when_empty() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let edit_dir = modules_dir.join(".pnpm_patches").join("is-positive@1.0.0");
+    fs::create_dir_all(&edit_dir).expect("create edit dir");
+
+    write_edit_dir_state(&modules_dir, &edit_dir, &sample_state()).unwrap();
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["is-positive@1.0.0".to_string()]).unwrap();
+
+    assert!(!edit_dir.exists());
+    let state_file = modules_dir.join(".pnpm_patches").join("state.json");
+    assert!(!state_file.exists());
+    assert!(!modules_dir.join(".pnpm_patches").exists());
+}
+
+#[test]
+fn patch_state_clean_does_not_remove_entries_with_suffix_names() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let target_edit_dir = modules_dir.join(".pnpm_patches").join("foo");
+    let suffix_edit_dir = modules_dir.join(".pnpm_patches").join("my-foo");
+    fs::create_dir_all(&target_edit_dir).expect("create target edit dir");
+    fs::create_dir_all(&suffix_edit_dir).expect("create suffix edit dir");
+
+    write_edit_dir_state(
+        &modules_dir,
+        &target_edit_dir,
+        &EditDirState { patched_pkg: "foo".to_string(), apply_to_all: true, package_key: None },
+    )
+    .unwrap();
+    write_edit_dir_state(
+        &modules_dir,
+        &suffix_edit_dir,
+        &EditDirState { patched_pkg: "my-foo".to_string(), apply_to_all: true, package_key: None },
+    )
+    .unwrap();
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["foo".to_string()]).unwrap();
+
+    assert!(!target_edit_dir.exists());
+    assert!(suffix_edit_dir.exists());
+    assert_eq!(
+        read_edit_dir_state(&modules_dir, &suffix_edit_dir).unwrap(),
+        Some(EditDirState {
+            patched_pkg: "my-foo".to_string(),
+            apply_to_all: true,
+            package_key: None,
+        }),
+    );
+    assert_eq!(read_edit_dir_state(&modules_dir, &target_edit_dir).unwrap(), None);
+}
+
+#[test]
+fn patch_state_clean_keeps_edit_dirs_when_patch_names_the_state_dir() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let other_edit_dir = modules_dir.join(".pnpm_patches").join("is-positive@1.0.0");
+    fs::create_dir_all(&other_edit_dir).expect("create other edit dir");
+    write_edit_dir_state(&modules_dir, &other_edit_dir, &sample_state()).unwrap();
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &[".".to_string()]).unwrap();
+
+    assert!(other_edit_dir.exists());
+    assert_eq!(read_edit_dir_state(&modules_dir, &other_edit_dir).unwrap(), Some(sample_state()));
+}
+
+#[test]
+fn patch_state_clean_keeps_state_file_when_patch_names_it() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let other_edit_dir = modules_dir.join(".pnpm_patches").join("is-positive@1.0.0");
+    fs::create_dir_all(&other_edit_dir).expect("create other edit dir");
+    write_edit_dir_state(&modules_dir, &other_edit_dir, &sample_state()).unwrap();
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["state.json".to_string()]).unwrap();
+
+    assert_eq!(read_edit_dir_state(&modules_dir, &other_edit_dir).unwrap(), Some(sample_state()));
+}
+
+#[test]
+fn patch_state_clean_removes_empty_scope_dir() {
+    let tmp = tempdir().expect("temp dir");
+    assert_scope_dir_removed(&tmp.path().join("node_modules"));
+}
+
+/// State keys are canonical paths, as on macOS where the temp dir is under
+/// the `/var` -> `/private/var` link. The edit directory is not at the
+/// default path, so only its canonical state key leads to it.
+#[cfg(unix)]
+#[test]
+fn patch_state_clean_removes_empty_scope_dir_through_symlinked_root() {
+    let tmp = tempdir().expect("temp dir");
+    fs::create_dir(tmp.path().join("real")).expect("create real root");
+    std::os::unix::fs::symlink(tmp.path().join("real"), tmp.path().join("alias"))
+        .expect("create root symlink");
+    assert_scope_dir_removed(&tmp.path().join("alias/node_modules"));
+}
+
+fn assert_scope_dir_removed(modules_dir: &Path) {
+    let edit_dir = modules_dir.join(".pnpm_patches/@scope/custom-edit");
+    fs::create_dir_all(&edit_dir).expect("create scoped edit dir");
+    write_edit_dir_state(
+        modules_dir,
+        &edit_dir,
+        &EditDirState {
+            patched_pkg: "@scope/pkg@1.0.0".to_string(),
+            apply_to_all: false,
+            package_key: None,
+        },
+    )
+    .unwrap();
+
+    clean_patch_state_and_edit_dirs(modules_dir, &["@scope/pkg@1.0.0".to_string()]).unwrap();
+
+    assert!(!modules_dir.join(".pnpm_patches").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn patch_state_clean_does_not_follow_symlinked_edit_dir() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let state_dir = modules_dir.join(".pnpm_patches");
+    let bar_edit_dir = state_dir.join("bar@1.0.0");
+    fs::create_dir_all(&bar_edit_dir).expect("create bar edit dir");
+    fs::write(bar_edit_dir.join("index.js"), "edited").expect("write bar edit");
+    let bar_state = EditDirState {
+        patched_pkg: "bar@1.0.0".to_string(),
+        apply_to_all: false,
+        package_key: None,
+    };
+    write_edit_dir_state(&modules_dir, &bar_edit_dir, &bar_state).unwrap();
+    symlink(&bar_edit_dir, state_dir.join("foo@1.0.0")).expect("create symlink");
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["foo@1.0.0".to_string()]).unwrap();
+
+    assert!(bar_edit_dir.join("index.js").exists());
+    assert_eq!(read_edit_dir_state(&modules_dir, &bar_edit_dir).unwrap(), Some(bar_state));
+}
+
+#[cfg(unix)]
+#[test]
+fn patch_state_clean_does_not_follow_symlinked_parent_dir() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let state_dir = modules_dir.join(".pnpm_patches");
+    let bar_edit_dir = state_dir.join("bar@1.0.0");
+    fs::create_dir_all(bar_edit_dir.join("lib")).expect("create bar edit dir");
+    fs::write(bar_edit_dir.join("lib/index.js"), "edited").expect("write bar edit");
+    let bar_state = EditDirState {
+        patched_pkg: "bar@1.0.0".to_string(),
+        apply_to_all: false,
+        package_key: None,
+    };
+    write_edit_dir_state(&modules_dir, &bar_edit_dir, &bar_state).unwrap();
+    symlink(&bar_edit_dir, state_dir.join("@scope")).expect("create symlink");
+
+    clean_patch_state_and_edit_dirs(&modules_dir, &["@scope/lib".to_string()]).unwrap();
+
+    assert!(bar_edit_dir.join("lib/index.js").exists());
+    assert_eq!(read_edit_dir_state(&modules_dir, &bar_edit_dir).unwrap(), Some(bar_state));
+}
+
+#[cfg(unix)]
+#[test]
+fn patch_state_clean_rejects_symlinked_state_dir() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(&modules_dir).expect("create modules dir");
+    fs::create_dir_all(&outside).expect("create outside dir");
+    symlink(&outside, modules_dir.join(".pnpm_patches")).expect("create symlink");
+
+    let err = clean_patch_state_and_edit_dirs(&modules_dir, &["foo".to_string()]).unwrap_err();
+    assert!(matches!(err, StateFileError::UnsafePath { .. }));
+    assert!(outside.exists(), "outside directory was not removed");
 }
 
 struct CurrentDirGuard(std::path::PathBuf);

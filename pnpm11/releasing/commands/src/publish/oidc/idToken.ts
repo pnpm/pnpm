@@ -84,11 +84,8 @@ export async function getIdToken ({
   options,
   registry,
 }: IdTokenParams): Promise<string | undefined> {
-  // `NPM_ID_TOKEN` is the canonical CI-agnostic injection point for an OIDC ID token.
-  // Any CI provider with its own OIDC mechanism (GitLab natively, CircleCI's
-  // `CIRCLE_OIDC_TOKEN_V2`, Buildkite, etc.) can forward its token here and trusted
-  // publishing will work — we don't need to recognize the provider ourselves.
-  if (env?.NPM_ID_TOKEN) return env.NPM_ID_TOKEN
+  const injectedToken = env?.NPM_ID_TOKEN
+  if (injectedToken) return getInjectedIdToken(injectedToken, registry)
 
   // Without an explicit token, the only flow we can drive ourselves is GitHub Actions'
   // request-token endpoint. Anywhere else (other CIs without `NPM_ID_TOKEN`, local dev)
@@ -140,7 +137,36 @@ export async function getIdToken ({
   return json.value
 }
 
+function getInjectedIdToken (token: string, registry: string): string {
+  // `NPM_ID_TOKEN` is the canonical CI-agnostic injection point. Bind it to
+  // this registry before allowing the shared exchange path to use it.
+  const audience = `npm:${new URL(registry).hostname}`
+  if (!tokenHasAudience(token, audience)) {
+    throw new IdTokenRegistryAudienceMismatchError()
+  }
+  return token
+}
+
+function tokenHasAudience (token: string, expected: string): boolean {
+  const payload = token.split('.')[1]
+  if (!payload) return false
+  try {
+    const claims: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
+    if (!claims || typeof claims !== 'object' || !('aud' in claims)) return false
+    const audience = claims.aud
+    return audience === expected || (Array.isArray(audience) && audience.includes(expected))
+  } catch {
+    return false
+  }
+}
+
 export abstract class IdTokenError extends PnpmError {}
+
+export class IdTokenRegistryAudienceMismatchError extends IdTokenError {
+  constructor () {
+    super('ID_TOKEN_REGISTRY_AUDIENCE_MISMATCH', 'NPM_ID_TOKEN is invalid or does not match the selected registry audience')
+  }
+}
 
 export class IdTokenGitHubWorkflowIncorrectPermissionsError extends IdTokenError {
   constructor () {

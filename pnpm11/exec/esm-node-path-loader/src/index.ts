@@ -12,7 +12,23 @@
  * vs require) are preserved. Every entry pnpm puts on `NODE_PATH` ends in
  * `node_modules`, which is why the parent walk finds the entry's packages:
  * the resolver checks `<parent dir>/node_modules`, and the entry's parent
- * dir maps straight back to the entry itself.
+ * dir maps straight back to the entry itself. Node.js merges the context
+ * passed to `nextResolve` into the object every hook in the chain shares, so
+ * the hook puts the importer's `parentURL` back after the retry for the
+ * hooks that run before it.
+ *
+ * Any `--import` flag makes Node.js run the main entry point through the
+ * ESM loader, which rejects file extensions that only CommonJS require
+ * hooks handle, such as the `.ts` entry point of ts-node. The hook marks
+ * such an entry point as CommonJS, which hands it back to the CommonJS
+ * loader, as Node.js does without `--import`. Entry points ending in `.js`
+ * or without an extension are left alone, because Node.js may detect module
+ * syntax in them. A `require()` from a module without a filename also has no
+ * `parentURL`. Unless the user adds `--conditions=import`, only the entry
+ * point resolves with the `import` condition, so the hook leaves such a
+ * `require()` to `require.extensions`. Some Node.js versions pass the
+ * conditions of a `require()` as a `Set`, so the hook spreads them before
+ * searching.
  *
  * The Rust CLI embeds an identical copy of these sources — the two must
  * stay in sync so both CLIs inject the same `NODE_OPTIONS` value.
@@ -20,6 +36,8 @@
 const RESOLVE_HELPERS = `\
 const nodePaths = (process.env.NODE_PATH ?? '').split(delimiter).filter(Boolean)
 const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !specifier.includes(':')
+const isEntryPointUnknownToEsm = (resolved, context) => context.parentURL === undefined && [...(context.conditions ?? ['import'])].includes('import') && resolved.format == null && resolved.url.startsWith('file:') && !['', '.js'].includes(extname(new URL(resolved.url).pathname))
+const markUnknownEntryPointAsCommonJs = (resolved, context) => isEntryPointUnknownToEsm(resolved, context) ? { ...resolved, format: 'commonjs' } : resolved
 `
 
 /*
@@ -30,20 +48,25 @@ const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.
  * natively there.
  */
 const ASYNC_LOADER_SOURCE = `\
-import { delimiter } from 'node:path'
+import { delimiter, extname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 ${RESOLVE_HELPERS}
 export async function resolve (specifier, context, nextResolve) {
   try {
-    return await nextResolve(specifier, context)
+    return markUnknownEntryPointAsCommonJs(await nextResolve(specifier, context), context)
   } catch (originalError) {
     if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
-    for (const nodePath of nodePaths) {
-      try {
-        return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
-      } catch (fallbackError) {
-        if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+    const { parentURL } = context
+    try {
+      for (const nodePath of nodePaths) {
+        try {
+          return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
+        } catch (fallbackError) {
+          if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+        }
       }
+    } finally {
+      context.parentURL = parentURL
     }
     throw originalError
   }
@@ -51,18 +74,19 @@ export async function resolve (specifier, context, nextResolve) {
 `
 
 const REGISTRATION_SOURCE = `\
-if (process.env.NODE_PATH) {
-  const { register, registerHooks } = await import('node:module')
-  const { delimiter } = await import('node:path')
+const { register, registerHooks } = await import('node:module')
+if (registerHooks) {
+  const { delimiter, extname } = await import('node:path')
   const { pathToFileURL } = await import('node:url')
-  if (registerHooks) {
-    ${RESOLVE_HELPERS.replaceAll('\n', '\n    ').trimEnd()}
-    registerHooks({
-      resolve (specifier, context, nextResolve) {
+  ${RESOLVE_HELPERS.replaceAll('\n', '\n  ').trimEnd()}
+  registerHooks({
+    resolve (specifier, context, nextResolve) {
+      try {
+        return markUnknownEntryPointAsCommonJs(nextResolve(specifier, context), context)
+      } catch (originalError) {
+        if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
+        const { parentURL } = context
         try {
-          return nextResolve(specifier, context)
-        } catch (originalError) {
-          if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
           for (const nodePath of nodePaths) {
             try {
               return nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
@@ -70,13 +94,15 @@ if (process.env.NODE_PATH) {
               if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
             }
           }
-          throw originalError
+        } finally {
+          context.parentURL = parentURL
         }
-      },
-    })
-  } else if (register) {
-    register(${JSON.stringify(`data:text/javascript,${strictUriEncode(ASYNC_LOADER_SOURCE)}`)})
-  }
+        throw originalError
+      }
+    },
+  })
+} else if (register) {
+  register(${JSON.stringify(`data:text/javascript,${strictUriEncode(ASYNC_LOADER_SOURCE)}`)})
 }
 `
 
@@ -94,8 +120,9 @@ function strictUriEncode (text: string): string {
  * The hooks are inlined into the flag as data: URLs, so the flag is a
  * self-contained constant: no file has to exist on disk for the child
  * Node.js process to load it, and it stays valid no matter which project or
- * pnpm version spawned the child. When NODE_PATH is empty, the registration
- * module exits without installing any hook.
+ * pnpm version spawned the child. The hook is installed even when NODE_PATH
+ * is empty, because the flag alone already sends the entry point through
+ * the ESM loader.
  */
 export const esmNodePathLoaderImportFlag = `--import=data:text/javascript,${strictUriEncode(REGISTRATION_SOURCE)}`
 

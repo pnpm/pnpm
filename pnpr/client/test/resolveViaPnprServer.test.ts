@@ -11,7 +11,6 @@ interface CapturedResolveRequest {
   patchedDependencies?: Record<string, string>
   packageExtensions?: Record<string, unknown>
   allowUnusedPatches?: boolean
-  updatePatches?: boolean
 }
 
 const resolverSettingNames = ['autoInstallPeers', 'dedupePeers', 'excludeLinksFromLockfile'] as const
@@ -144,21 +143,95 @@ test.each([
   })
 })
 
-test.each([true, false])('serializes updatePatches %s', async (updatePatches) => {
-  const request = await captureResolveRequest({ dependencies: {}, updatePatches })
-
-  expect(request).toMatchObject({ updatePatches })
+test.each([
+  ['omits', {}],
+  ['changes', { publishDirectory: 'build' }],
+] as const)('rejects a server that %s the requested publish directory', async (_behavior, importer) => {
+  await expect(captureResolveRequest({
+    projects: [{
+      dir: 'packages/lib',
+      name: 'lib',
+      publishConfig: { directory: 'dist' },
+    }],
+  }, {
+    lockfileVersion: '9.0',
+    importers: { 'packages/lib': importer },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_PNPR_PUBLISH_DIRECTORY_MISMATCH',
+    message: expect.stringContaining('instead of its publishConfig.directory'),
+  })
 })
 
-test('omits updatePatches when the caller has none', async () => {
+test('does not check a project that the server did not return', async () => {
+  const request = await captureResolveRequest({
+    projects: [{
+      dir: 'packages/lib',
+      name: 'lib',
+      publishConfig: { directory: 'dist' },
+    }],
+  }, {
+    lockfileVersion: '9.0',
+    // A partial install resolves a subset of the workspace, so a project the
+    // response leaves out carries no importer to compare against.
+    importers: {},
+  })
+
+  expect(request.projects).toEqual([{
+    dir: 'packages/lib',
+    name: 'lib',
+    publishConfig: { directory: 'dist' },
+  }])
+})
+
+test('does not check an unreturned project whose dir names an Object.prototype member', async () => {
+  const request = await captureResolveRequest({
+    projects: [{
+      dir: 'constructor',
+      name: 'lib',
+      publishConfig: { directory: 'dist' },
+    }],
+  }, {
+    lockfileVersion: '9.0',
+    importers: {},
+  })
+
+  expect(request.projects).toEqual([{
+    dir: 'constructor',
+    name: 'lib',
+    publishConfig: { directory: 'dist' },
+  }])
+})
+
+test('serializes publishConfig for the single-project compatibility options', async () => {
+  const request = await captureResolveRequest({
+    name: 'lib',
+    version: '1.2.3',
+    publishConfig: { directory: 'dist', linkDirectory: false },
+    dependencies: {},
+  }, {
+    lockfileVersion: '9.0',
+    importers: { '.': { publishDirectory: 'dist' } },
+  })
+
+  expect(request.projects).toEqual([{
+    dir: '.',
+    name: 'lib',
+    version: '1.2.3',
+    publishConfig: { directory: 'dist', linkDirectory: false },
+    dependencies: {},
+  }])
+})
+
+test('omits an absent publishConfig so servers that predate the field see the same body', async () => {
   const request = await captureResolveRequest({ dependencies: {} })
 
-  expect(Object.hasOwn(request, 'updatePatches')).toBe(false)
+  expect(Object.hasOwn(request.projects[0], 'publishConfig')).toBe(false)
 })
 
 async function captureResolveRequest (
   options: Omit<ResolveViaPnprServerOptions, 'registryUrl'>,
-  returnedLockfile?: Record<string, unknown>
+  returnedLockfile?: Record<string, unknown>,
+  policyOverrides: Record<string, unknown> | null = {}
 ): Promise<CapturedResolveRequest> {
   let capturedRequest: CapturedResolveRequest | undefined
   const server = http.createServer(async (request, response) => {
@@ -169,6 +242,7 @@ async function captureResolveRequest (
     capturedRequest = JSON.parse(Buffer.concat(chunks).toString('utf8')) as CapturedResolveRequest
     response.end(`${JSON.stringify({
       type: 'done',
+      appliedPolicies: policyOverrides === null ? undefined : { ...matchingPolicies(options), ...policyOverrides },
       lockfile: returnedLockfile ?? {
         lockfileVersion: '9.0',
         importers: { '.': {} },
@@ -198,8 +272,144 @@ async function captureResolveRequest (
     }
     return capturedRequest
   } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => error == null ? resolve() : reject(error))
-    })
+    await closeServer(server)
   }
 }
+
+async function closeServer (server: http.Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error == null) resolve()
+      else reject(error)
+    })
+  })
+}
+
+test('rejects a server that omits appliedPolicies', async () => {
+  await expect(captureResolveRequest({ dependencies: {} }, undefined, null)).rejects.toThrow('omitted appliedPolicies')
+})
+
+test.each([
+  ['minimumReleaseAge', 60, 0],
+  ['minimumReleaseAgeExclude', ['example-*'], []],
+  ['minimumReleaseAgeIgnoreMissingTime', false, true],
+  ['trustPolicy', 'no-downgrade', null],
+  ['trustPolicyExclude', ['example-*'], []],
+  ['trustPolicyIgnoreAfter', 1440, null],
+  ['trustLockfile', false, true],
+  ['autoInstallPeers', false, true],
+  ['frozenLockfile', true, false],
+  ['resolutionMode', 'time-based', 'highest'],
+] as const)('rejects a mismatched %s echo', async (name, requested, actual) => {
+  await expect(captureResolveRequest({ dependencies: {}, [name]: requested }, undefined, { [name]: actual })).rejects.toThrow(`ignored requested ${name}`)
+})
+
+function matchingPolicies (options: Omit<ResolveViaPnprServerOptions, 'registryUrl'>): Record<string, unknown> {
+  return {
+    autoInstallPeers: options.autoInstallPeers ?? true,
+    dedupePeers: options.dedupePeers ?? true,
+    excludeLinksFromLockfile: options.excludeLinksFromLockfile ?? false,
+    addMissingPeerTypes: false,
+    projectScopedOptionalPeers: false,
+    frozenLockfile: options.frozenLockfile ?? false,
+    resolutionMode: options.resolutionMode ?? 'highest',
+    minimumReleaseAge: options.minimumReleaseAge ?? null,
+    minimumReleaseAgeExclude: options.minimumReleaseAgeExclude ?? [],
+    minimumReleaseAgeIgnoreMissingTime: options.minimumReleaseAgeIgnoreMissingTime ?? true,
+    trustPolicy: options.trustPolicy === 'no-downgrade' ? 'no-downgrade' : null,
+    trustPolicyExclude: options.trustPolicyExclude ?? [],
+    trustPolicyIgnoreAfter: options.trustPolicyIgnoreAfter ?? null,
+    trustLockfile: options.trustLockfile ?? false,
+  }
+}
+
+test.each(Object.keys(matchingPolicies({})))('rejects an incomplete echo missing %s', async (name) => {
+  await expect(captureResolveRequest({ dependencies: {} }, undefined, { [name]: undefined })).rejects.toThrow('pnpr server')
+})
+
+test('accepts the complete requested verification policy', async () => {
+  await captureResolveRequest({
+    minimumReleaseAge: 60,
+    minimumReleaseAgeExclude: ['example-*'],
+    minimumReleaseAgeIgnoreMissingTime: false,
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['legacy-*'],
+    trustPolicyIgnoreAfter: 1440,
+    trustLockfile: false,
+  })
+})
+
+test('surfaces single-code server violations with their PnpmError code', async () => {
+  const server = http.createServer((_request, response) => {
+    response.end(`${JSON.stringify({
+      type: 'violations',
+      violations: [{
+        name: 'safe-pkg',
+        version: '1.0.0',
+        code: 'RESOLUTION_SHAPE_MISMATCH',
+        reason: 'a registry-style dependency path is backed by a non-registry resolution',
+      }],
+    })}\n`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject)
+      resolve()
+    })
+  })
+  try {
+    const { port } = server.address() as AddressInfo
+    await expect(resolveViaPnprServer({
+      registryUrl: `http://127.0.0.1:${port}/`,
+      dependencies: { 'safe-pkg': '1.0.0' },
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+      message: expect.stringContaining('safe-pkg@1.0.0'),
+    })
+  } finally {
+    await closeServer(server)
+  }
+})
+
+test('escalates mixed structural and policy server violations to LOCKFILE_RESOLUTION_VERIFICATION with structural hint', async () => {
+  const server = http.createServer((_request, response) => {
+    response.end(`${JSON.stringify({
+      type: 'violations',
+      violations: [
+        {
+          name: 'safe-pkg',
+          version: '1.0.0',
+          code: 'RESOLUTION_SHAPE_MISMATCH',
+          reason: 'a registry-style dependency path is backed by a non-registry resolution',
+        },
+        {
+          name: 'fresh-pkg',
+          version: '2.0.0',
+          code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+          reason: 'was published 5 minutes ago',
+        },
+      ],
+    })}\n`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject)
+      resolve()
+    })
+  })
+  try {
+    const { port } = server.address() as AddressInfo
+    await expect(resolveViaPnprServer({
+      registryUrl: `http://127.0.0.1:${port}/`,
+      dependencies: { 'safe-pkg': '1.0.0', 'fresh-pkg': '2.0.0' },
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
+      hint: expect.not.stringMatching(/relax the policy/),
+      message: expect.stringMatching(/fresh-pkg@2\.0\.0 \[MINIMUM_RELEASE_AGE_VIOLATION\][\s\S]*safe-pkg@1\.0\.0 \[RESOLUTION_SHAPE_MISMATCH\]/),
+    })
+  } finally {
+    await closeServer(server)
+  }
+})

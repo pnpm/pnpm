@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.reader",
-  "version": "1102.1.0",
+  "version": "1102.3.10",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
@@ -25,17 +25,17 @@
     "!*.map"
   ],
   "scripts": {
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn .test",
-    "start": "tsgo --watch",
-    "compile": "tsgo --build && pn lint --fix",
+    "start": "tsc --watch",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/config.env-replace": "catalog:",
+    "@pnpm/config.env-replace": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
     "@pnpm/config.registry-auth-key": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -43,6 +43,7 @@
     "@pnpm/exec.esm-node-path-loader": "workspace:*",
     "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
+    "@pnpm/os.available-parallelism": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/text.naming-cases": "workspace:*",
     "@pnpm/types": "workspace:*",

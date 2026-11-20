@@ -29,10 +29,10 @@ export function setObjectValueByPropertyPath (object: ObjectOrArray, propertyPat
   rejectUnsafeKeys(path)
 
   let obj: ObjectOrArray = object
-  for (let i = 0; i < path.length - 1; i++) {
-    const key = path[i]
+  for (let depth = 0; depth < path.length - 1; depth++) {
+    const key = path[depth]
     const current = (obj as Record<string | number, unknown>)[key]
-    const needsArray = typeof path[i + 1] === 'number'
+    const needsArray = typeof path[depth + 1] === 'number'
     const isContainer = typeof current === 'object' && current !== null
     if (!isContainer || Array.isArray(current) !== needsArray) {
       const replacement: ObjectOrArray = needsArray ? [] : {}

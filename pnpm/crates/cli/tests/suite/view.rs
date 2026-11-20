@@ -2,18 +2,12 @@
 //! from the registry: a formatted summary, a JSON dump (`--json`), or
 //! selected fields.
 //!
-//! Covered here: command structure, the missing-name / non-registry /
-//! not-found / no-matching-version errors, field selection (single, nested,
-//! multiple, JSON), the summary sections (header, bin, dist, dist-tags, deps
-//! count, deprecation, published-by), and the nearest-manifest fallback when
-//! the package name is omitted.
-//!
 //! The registry is a `mockito` server the spawned `pacquet` connects to over
 //! loopback, so each test serves a crafted packument and asserts on the exact
 //! rendered output. An empty `--npmrc-auth-file` replaces the developer's real
 //! `~/.npmrc` so a token or `registry=` already on the machine can't influence
 //! the test. Output is captured through a pipe, so `supports-color` is off and
-//! the assertions match plain (un-colored) text — the CLI omits styling when
+//! the assertions match plain (un-colored) text, the CLI omits styling when
 //! stdout is not a TTY.
 
 use assert_cmd::prelude::*;
@@ -22,7 +16,10 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -65,7 +62,7 @@ fn stdout_of(output: &std::process::Output) -> String {
 
 /// A full-metadata packument for `is-negative` with two live versions, a
 /// licence, description, maintainer, dist block, and per-version publish
-/// times — enough to exercise every summary section.
+/// times, enough to exercise every summary section.
 fn is_negative_body() -> String {
     serde_json::json!({
         "name": "is-negative",
@@ -108,7 +105,12 @@ fn is_negative_body() -> String {
 /// Serve `body` at `GET /<path>` and return the mock so the test can keep the
 /// server alive for the duration of the request.
 fn serve(server: &mut mockito::Server, path: &str, body: &str) -> mockito::Mock {
-    server.mock("GET", path).with_status(200).with_body(body).expect_at_least(1).create()
+    server
+        .mock("GET", path)
+        .with_status(200)
+        .with_body(body)
+        .expect_at_least(1)
+        .create()
 }
 
 #[test]
@@ -169,6 +171,10 @@ fn prints_summary_for_a_package() {
     mock.assert();
     let stdout = stdout_of(&output);
     assert!(stdout.contains("is-negative"), "summary must mention the package: {stdout:?}");
+    assert!(
+        stdout.contains(&format!("registry: {}/", server.url())),
+        "summary must name the registry the metadata came from: {stdout:?}",
+    );
     drop((root, server));
 }
 
@@ -177,7 +183,10 @@ fn package_not_found_is_fetch_404() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     write_registry_npmrc(&workspace, &format!("{}/", server.url()));
-    let mock = server.mock("GET", "/not-a-real-package").with_status(404).create();
+    let mock = server
+        .mock("GET", "/not-a-real-package")
+        .with_status(404)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_view(&workspace, &auth_file, &["not-a-real-package"]);
@@ -196,7 +205,10 @@ fn package_not_found_is_fetch_404() {
 fn registry_flag_overrides_configured_registry() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut configured = mockito::Server::new();
-    let configured_mock = configured.mock("GET", "/is-negative").expect(0).create();
+    let configured_mock = configured
+        .mock("GET", "/is-negative")
+        .expect(0)
+        .create();
     write_registry_npmrc(&workspace, &format!("{}/", configured.url()));
     let mut overriding = mockito::Server::new();
     let mock = serve(&mut overriding, "/is-negative", &is_negative_body());
@@ -209,6 +221,10 @@ fn registry_flag_overrides_configured_registry() {
     configured_mock.assert();
     let stdout = stdout_of(&output);
     assert!(stdout.contains("is-negative"), "summary must mention the package: {stdout:?}");
+    assert!(
+        stdout.contains(&format!("registry: {}", overriding.url())),
+        "summary must name the overriding registry: {stdout:?}",
+    );
     drop((root, configured, overriding));
 }
 
@@ -219,7 +235,10 @@ fn registry_flag_overrides_configured_registry() {
 fn registry_flag_404_exits_with_code_1() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    let mock = server.mock("GET", "/not-a-real-package").with_status(404).create();
+    let mock = server
+        .mock("GET", "/not-a-real-package")
+        .with_status(404)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     let output = run_view(
@@ -242,7 +261,11 @@ fn registry_flag_404_exits_with_code_1() {
 fn json_flag_prints_errors_to_stdout_for_all_aliases() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
-    let mock = server.mock("GET", "/not-a-real-package").with_status(404).expect(4).create();
+    let mock = server
+        .mock("GET", "/not-a-real-package")
+        .with_status(404)
+        .expect(4)
+        .create();
     let auth_file = empty_auth_file(root.path());
 
     for alias in ["view", "info", "show", "v"] {
@@ -267,9 +290,10 @@ fn json_flag_prints_errors_to_stdout_for_all_aliases() {
             String::from_utf8_lossy(&output.stderr),
         );
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
-            panic!("stdout must be a JSON error envelope: {error}; stdout: {stdout}")
-        });
+        let parsed: Value = serde_json::from_str(&stdout)
+            .unwrap_or_else(|error| {
+                panic!("stdout must be a JSON error envelope: {error}; stdout: {stdout}")
+            });
         assert_eq!(
             parsed,
             serde_json::json!({
@@ -525,7 +549,10 @@ fn summary_header_dist_and_published_sections() {
 
     mock.assert();
     let stdout = stdout_of(&output);
-    let first_line = stdout.lines().next().unwrap_or_default();
+    let first_line = stdout
+        .lines()
+        .next()
+        .unwrap_or_default();
     assert!(first_line.contains("is-negative@1.0.0"), "header: {first_line:?}");
     assert!(first_line.contains("deps: none"), "no-deps package: {first_line:?}");
     assert!(stdout.contains(".tarball:"), "dist tarball: {stdout:?}");
@@ -579,7 +606,10 @@ fn summary_shows_deps_count_and_deprecation() {
 
     mock.assert();
     let stdout = stdout_of(&output);
-    let first_line = stdout.lines().next().unwrap_or_default();
+    let first_line = stdout
+        .lines()
+        .next()
+        .unwrap_or_default();
     assert!(first_line.contains("deps: "), "deps count: {first_line:?}");
     assert!(!first_line.contains("deps: none"), "should not be none: {first_line:?}");
     assert!(stdout.contains("DEPRECATED! - use something else"), "deprecation: {stdout:?}");
@@ -691,7 +721,7 @@ fn searches_upward_for_manifest() {
         .expect("write package.json");
     let nested = workspace.join("a").join("b");
     fs::create_dir_all(&nested).expect("create nested dir");
-    write_registry_npmrc(&nested, &format!("{}/", server.url()));
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
     let mock = serve(&mut server, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 

@@ -1,35 +1,51 @@
 use crate::{
     fast_update_compose::Drift,
-    fast_update_lockfile::{DroppedEdgeTarget, GraphEdits},
+    fast_update_lockfile::{
+        DroppedEdgeTarget,
+        GraphEdits,
+    },
 };
-use pnpm_config::matcher::create_matcher;
-use pnpm_lockfile::{Lockfile, PkgName};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
+use pnpm_matcher::create_matcher;
+use std::collections::{
+    BTreeSet,
+    HashMap,
+    HashSet,
+};
 
 /// Whether `ignoredOptionalDependencies` drifted from what the lockfile
 /// records, and whether the drift is a pure widening this rewrite can
-/// absorb. Anything else — a dropped pattern, a new exclusion, a
-/// previous configuration that ignores by default — is
+/// absorb. Anything else (a dropped pattern, a new exclusion, a
+/// previous configuration that ignores by default) is
 /// [`Drift::Resolve`], because only a resolution can bring packages
 /// back.
 pub(crate) fn detect_ignored_optional_drift(
     lockfile: &Lockfile,
     ignored_optional_dependencies: &[String],
 ) -> Drift<()> {
-    let previous: BTreeSet<_> = lockfile
-        .ignored_optional_dependencies
+    let previous: BTreeSet<_> = lockfile.ignored_optional_dependencies
         .as_deref()
         .unwrap_or_default()
         .iter()
         .cloned()
         .collect();
-    let current: BTreeSet<_> = ignored_optional_dependencies.iter().cloned().collect();
+    let current: BTreeSet<_> = ignored_optional_dependencies
+        .iter()
+        .cloned()
+        .collect();
     if previous == current {
         return Drift::Clean;
     }
-    let added_exclusion = current.difference(&previous).any(|pattern| pattern.starts_with('!'));
-    let previous_ignores_by_default =
-        !previous.is_empty() && previous.iter().all(|pattern| pattern.starts_with('!'));
+    let added_exclusion = current
+        .difference(&previous)
+        .any(|pattern| pattern.starts_with('!'));
+    let previous_ignores_by_default = !previous.is_empty()
+        && previous
+            .iter()
+            .all(|pattern| pattern.starts_with('!'));
     if !previous.is_subset(&current) || added_exclusion || previous_ignores_by_default {
         return Drift::Resolve;
     }
@@ -53,8 +69,10 @@ pub(crate) fn apply_ignored_optional_update(
             edits,
         );
         if let Some(specifiers) = importer.specifiers.as_mut() {
-            let removed_specifiers: HashSet<_> =
-                removed.iter().map(std::string::ToString::to_string).collect();
+            let removed_specifiers: HashSet<_> = removed
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect();
             specifiers.retain(|name, _| !removed_specifiers.contains(name));
         }
     }
@@ -80,7 +98,7 @@ fn remove_ignored_optional_dependencies<
 >(
     optional_dependencies: &mut Option<HashMap<PkgName, OptionalValue>>,
     dependencies: &mut Option<HashMap<PkgName, DependencyValue>>,
-    matcher: &pnpm_config::matcher::Matcher,
+    matcher: &pnpm_matcher::Matcher,
     edits: &mut GraphEdits,
 ) -> HashSet<PkgName> {
     let removed: HashSet<_> = optional_dependencies
@@ -93,7 +111,11 @@ fn remove_ignored_optional_dependencies<
             name.clone()
         })
         .collect();
-    for (name, dependency) in dependencies.as_ref().into_iter().flatten() {
+    for (name, dependency) in dependencies
+        .as_ref()
+        .into_iter()
+        .flatten()
+    {
         if removed.contains(name) {
             edits.dropped.record(name, dependency);
         }
@@ -113,7 +135,7 @@ fn remove_ignored_optional_dependencies<
     removed
 }
 
-fn matches_package_name(matcher: &pnpm_config::matcher::Matcher, name: &PkgName) -> bool {
+fn matches_package_name(matcher: &pnpm_matcher::Matcher, name: &PkgName) -> bool {
     if name.scope.is_some() {
         matcher.matches(&name.to_string())
     } else {

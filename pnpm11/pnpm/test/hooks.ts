@@ -4,9 +4,10 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { createHash } from '@pnpm/crypto.hash'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { getIntegrity } from '@pnpm/testing.registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
@@ -161,6 +162,76 @@ test('importPackage hooks', async () => {
   ])
 })
 
+test('a project with its own lockfile records the checksum of the workspace pnpmfile beside a global pnpmfile', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project'],
+    sharedWorkspaceLockfile: false,
+  })
+  const workspacePnpmfile = 'module.exports = { hooks: { readPackage: (pkg) => pkg } }\n'
+  fs.writeFileSync('.pnpmfile.cjs', workspacePnpmfile)
+  fs.writeFileSync('../global-pnpmfile.cjs', 'module.exports = { hooks: { readPackage: (pkg) => pkg } }\n')
+
+  await execPnpm(['install', '--global-pnpmfile', path.resolve('..', 'global-pnpmfile.cjs')])
+
+  const lockfile = readYamlFileSync<{ pnpmfileChecksum?: string }>('project/pnpm-lock.yaml')
+  expect(lockfile.pnpmfileChecksum).toBe(createHash(workspacePnpmfile))
+})
+
+test('a project with its own lockfile runs the preResolution hooks of the global and the workspace pnpmfile once', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project'],
+    sharedWorkspaceLockfile: false,
+  })
+  // Each pnpmfile counts its runs in a file next to itself.
+  const countingPnpmfile = "module.exports = { hooks: { preResolution: () => { require('fs').appendFileSync(require('path').join(__dirname, 'runs.txt'), 'run;') } } }\n"
+  fs.writeFileSync('.pnpmfile.cjs', countingPnpmfile)
+  fs.mkdirSync('../global')
+  fs.writeFileSync('../global/pnpmfile.cjs', countingPnpmfile)
+
+  await execPnpm(['install', '--global-pnpmfile', path.resolve('..', 'global', 'pnpmfile.cjs')])
+
+  expect(fs.readFileSync('runs.txt', 'utf8')).toBe('run;')
+  expect(fs.readFileSync('../global/runs.txt', 'utf8')).toBe('run;')
+})
+
+test('the workspace root project with its own lockfile runs the workspace pnpmfile once', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', version: '1.0.0' },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.', 'project'],
+    sharedWorkspaceLockfile: false,
+  })
+  fs.writeFileSync('.pnpmfile.cjs', "module.exports = { hooks: { preResolution: () => { require('fs').appendFileSync(require('path').join(__dirname, 'runs.txt'), 'run;') } } }\n")
+
+  await execPnpm(['install'])
+
+  // Once for each of the two projects.
+  expect(fs.readFileSync('runs.txt', 'utf8')).toBe('run;run;')
+})
+
 test('adding or changing pnpmfile should change pnpmfileChecksum and module structure', async () => {
   const project = prepare({
     dependencies: {
@@ -276,6 +347,23 @@ module.exports = {
   expect(nodeModulesFiles).toContain('is-number')
 })
 
+test('an updateConfig hook that drops the default route installs from the configured registry', async () => {
+  prepare()
+  fs.writeFileSync('.pnpmfile.cjs', `
+module.exports = {
+  hooks: {
+    updateConfig: (config) => ({
+      ...config,
+      registriesByScope: { '@acme': 'https://acme.invalid/' },
+    }),
+  },
+}`, 'utf8')
+
+  await execPnpm(['add', 'is-positive@1.0.0'])
+
+  expect(fs.readdirSync('node_modules')).toContain('is-positive')
+})
+
 test('loading an ESM pnpmfile', async () => {
   prepare()
 
@@ -292,6 +380,35 @@ export const hooks = {
 
   const nodeModulesFiles = fs.readdirSync('node_modules')
   expect(nodeModulesFiles).toContain('kind-of')
+  expect(nodeModulesFiles).toContain('is-number')
+})
+
+test('the command line outranks the updateConfig hook', async () => {
+  prepare()
+
+  fs.writeFileSync('.pnpmfile.mjs', `
+export const hooks = {
+  updateConfig: (config) => ({
+    ...config,
+    nodeLinker: 'isolated',
+    registriesByScope: {
+      ...config.registriesByScope,
+      default: 'http://localhost:1/',
+    },
+  }),
+}`, 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
+
+  await execPnpm([
+    'add',
+    'is-odd@1.0.0',
+    `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
+    '--node-linker=hoisted',
+    '--fetch-retries=0',
+  ])
+
+  const nodeModulesFiles = fs.readdirSync('node_modules')
+  expect(nodeModulesFiles).toContain('is-odd')
   expect(nodeModulesFiles).toContain('is-number')
 })
 
@@ -337,4 +454,90 @@ test('automatically loading pnpmfile from a config dependency that has a name th
   const nodeModulesFiles = fs.readdirSync('node_modules')
   expect(nodeModulesFiles).toContain('kind-of')
   expect(nodeModulesFiles).toContain('is-number')
+})
+
+test('the project pnpmfile runs after the pnpmfile of a config dependency plugin', async () => {
+  prepare()
+  fs.writeFileSync('.pnpmfile.cjs', `
+    module.exports = { hooks: { updateConfig: (config) => ({ ...config, nodeLinker: 'isolated' }) } }
+  `, 'utf8')
+
+  await execPnpm(['add', '--config', '@pnpm/plugin-pnpmfile'])
+  await execPnpm(['add', 'is-odd@1.0.0'])
+
+  const nodeModulesFiles = fs.readdirSync('node_modules')
+  expect(nodeModulesFiles).toContain('is-odd')
+  expect(nodeModulesFiles).toContain('.pnpm')
+  expect(nodeModulesFiles).not.toContain('kind-of')
+})
+
+test('updateConfig relative path filter works with --dir and from a subdirectory', async () => {
+  preparePackages([
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        scripts: {
+          hello: 'node -e "fs.writeFileSync(\'ran.txt\', \'app\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/other',
+      package: {
+        name: 'other',
+        version: '1.0.0',
+        scripts: {
+          hello: 'node -e "fs.writeFileSync(\'ran.txt\', \'other\')"',
+        },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  fs.writeFileSync('.pnpmfile.mjs', `
+export const hooks = {
+  updateConfig (config) {
+    return Object.assign(config, { filter: config.filter ?? ['./packages/app'] })
+  },
+}
+`, 'utf8')
+
+  await execPnpm(['--dir', 'packages/other', '-r', 'run', 'hello'])
+  expect(fs.existsSync('packages/app/ran.txt')).toBe(true)
+  expect(fs.existsSync('packages/other/ran.txt')).toBe(false)
+
+  fs.unlinkSync('packages/app/ran.txt')
+  const cwd = process.cwd()
+  process.chdir('packages/other')
+  try {
+    await execPnpm(['-r', 'run', 'hello'])
+  } finally {
+    process.chdir(cwd)
+  }
+  expect(fs.existsSync('packages/app/ran.txt')).toBe(true)
+  expect(fs.existsSync('packages/other/ran.txt')).toBe(false)
+})
+
+test('pack --ignore-pnpmfile --ignore-scripts packs without running project code', async () => {
+  prepare({
+    name: 'project',
+    version: '1.0.0',
+    scripts: {
+      prepack: 'node -e "require(\'fs\').writeFileSync(\'prepack-ran.txt\', \'\')"',
+    },
+  })
+  fs.writeFileSync('.pnpmfile.cjs', `
+require('fs').writeFileSync('pnpmfile-ran.txt', '')
+module.exports = { hooks: {} }
+`, 'utf8')
+
+  await execPnpm(['pack', '--ignore-pnpmfile', '--ignore-scripts'])
+  expect(fs.existsSync('project-1.0.0.tgz')).toBe(true)
+  expect(fs.existsSync('pnpmfile-ran.txt')).toBe(false)
+  expect(fs.existsSync('prepack-ran.txt')).toBe(false)
+
+  await execPnpm(['pack'])
+  expect(fs.existsSync('pnpmfile-ran.txt')).toBe(true)
+  expect(fs.existsSync('prepack-ran.txt')).toBe(true)
 })

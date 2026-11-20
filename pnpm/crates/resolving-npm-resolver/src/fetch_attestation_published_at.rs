@@ -1,11 +1,11 @@
-//! Per-version publish timestamp from npm's attestation endpoint —
+//! Per-version publish timestamp from npm's attestation endpoint,
 //! `/-/npm/v1/attestations/<name>@<version>`.
 //!
 //! The endpoint serves a small JSON document containing one or more
 //! Sigstore bundles. We read
 //! `bundle.verificationMaterial.tlogEntries[].integratedTime`
 //! (the Rekor inclusion time) and surface it as an ISO timestamp.
-//! This is a few seconds after the actual publish — close enough for
+//! This is a few seconds after the actual publish, close enough for
 //! a release-age policy that operates in minutes/hours/days, and
 //! tens of kilobytes versus the multi-megabyte full-metadata fetch.
 //!
@@ -17,8 +17,12 @@
 //! [`crate::FetchMetadataError::Network`] so the verifier can fold
 //! them into a violation reason instead of swallowing.
 
-use chrono::DateTime;
-use pnpm_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
+use jiff::Timestamp;
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    redact_url_credentials,
+};
 
 use crate::FetchMetadataError;
 
@@ -42,17 +46,7 @@ pub async fn fetch_attestation_published_at(
     if !opts.auth_headers.allows_fetch(&url) {
         return Err(FetchMetadataError::OffAllowlist { url: redact_url_credentials(&url) });
     }
-    // Verification-only lookup: queue in the background class so it
-    // never outranks resolution-gating fetches.
-    let mut request = opts
-        .http_client
-        .acquire_for_url_with_priority(&url, pnpm_network::BACKGROUND)
-        .await
-        .get(&url);
-    if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
-        request = request.header("authorization", value);
-    }
-    let response = match request.send().await {
+    let response = match request_attestation(opts, &url, pkg_name).await {
         Ok(response) => response,
         Err(error) => {
             // Swallow the error and return None so the caller falls
@@ -81,6 +75,26 @@ pub async fn fetch_attestation_published_at(
 /// disagree (e.g. publish v0.1 vs SLSA provenance v1) the older
 /// Rekor entry is what tells us when the artifact existed in a
 /// transparency log, which is the floor on publish time.
+async fn request_attestation(
+    opts: &FetchAttestationOptions<'_>,
+    url: &str,
+    pkg_name: &str,
+) -> Result<reqwest::Response, reqwest::Error> {
+    // Verification-only lookup: queue in the background class so it
+    // never outranks resolution-gating fetches.
+    let mut request = opts.http_client
+        .acquire_for_url_with_priority(url, pnpm_network::BACKGROUND)
+        .await
+        .get(url);
+    if let Some(value) = opts.auth_headers.for_url_with_package(url, Some(pkg_name)) {
+        request = request.header("authorization", value);
+    }
+    match opts.auth_headers.fetch_local(url, Some(pkg_name), reqwest::header::HeaderMap::new()) {
+        Some(response) => Ok(response.await),
+        None => request.send().await,
+    }
+}
+
 fn extract_published_at(body: &serde_json::Value) -> Option<String> {
     let attestations = body.get("attestations")?.as_array()?;
     let mut earliest: Option<i64> = None;
@@ -89,11 +103,8 @@ fn extract_published_at(body: &serde_json::Value) -> Option<String> {
         earliest = Some(earliest.map_or(seconds, |current| current.min(seconds)));
     }
     let seconds = earliest?;
-    // `DateTime::from_timestamp` accepts an i64 of seconds-since-epoch.
-    // Any seconds value within the chrono-supported range survives the
-    // conversion; the registry isn't going to send pre-1970 timestamps.
-    let dt = DateTime::from_timestamp(seconds, 0)?;
-    Some(dt.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+    let dt = Timestamp::from_second(seconds).ok()?;
+    Some(pnpm_time::format_millis(dt))
 }
 
 fn read_earliest_integrated_time(attestation: &serde_json::Value) -> Option<i64> {
@@ -110,7 +121,10 @@ fn read_earliest_integrated_time(attestation: &serde_json::Value) -> Option<i64>
 
 fn parse_integrated_time_seconds(value: &serde_json::Value) -> Option<i64> {
     if let Some(text) = value.as_str() {
-        return text.parse::<i64>().ok().filter(|&seconds| seconds > 0);
+        return text
+            .parse::<i64>()
+            .ok()
+            .filter(|&seconds| seconds > 0);
     }
     if let Some(seconds) = value.as_i64() {
         return Some(seconds).filter(|&s| s > 0);

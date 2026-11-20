@@ -1,80 +1,191 @@
 import { type Dirent, promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
+import { isError } from '@pnpm/error'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
 import { rimraf } from '@zkochan/rimraf'
+import { isSubdir } from 'is-subdir'
 import prettyBytes from 'pretty-bytes'
 
+import { getInUse } from './inUseFiles.js'
 import { pruneGlobalVirtualStore } from './pruneGlobalVirtualStore.js'
 
 const BIG_ONE = BigInt(1) as unknown
 
 export interface PruneOptions {
   cacheDir: string
+  protectedDirs?: string[]
   storeDir: string
   storeIndex: StoreIndex
 }
 
-export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
+export async function prune ({ cacheDir, protectedDirs = [], storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
+  // 0. Collect the files that registered projects still use, before any
+  // removal, so an unreadable lockfile stops the prune untouched
+  const inUse = await getInUse(storeDir, storeIndex)
+
   // 1. First, prune the global virtual store
   // This must happen BEFORE pruning the CAS, because removing packages from
   // the virtual store will reduce hard link counts on files in the CAS
-  await pruneGlobalVirtualStore(storeDir)
+  await pruneGlobalVirtualStore(storeDir, inUse.modulesDirs)
 
   // 2. Clean up metadata cache
-  // Metadata dirs may be at top level (legacy metadata-*) or under a version prefix (v11/metadata*)
-  const metadataDirs = await getSubdirsSafely(cacheDir)
-  await Promise.all(metadataDirs.map(async (metadataDir) => {
-    if (!metadataDir.startsWith('metadata') && !/^v\d+$/.test(metadataDir)) return
-    try {
-      await rimraf(path.join(cacheDir, metadataDir))
-    } catch (err: unknown) {
-      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
-        throw err
-      }
+  await removeCachedMetadata(cacheDir, storeDir, protectedDirs)
+  await removeStaleSpillDirectories(storeDir)
+
+  // 3. Prune the content-addressable store (CAS)
+  const removedHashes = await pruneContentAddressableStore(storeDir, removeAlienFiles, inUse.files)
+
+  // 4. Clean up orphaned package index entries
+  removeOrphanedIndexEntries(storeIndex, removedHashes)
+}
+
+async function removeCachedMetadata (cacheDir: string, storeDir: string, protectedDirs: string[]): Promise<void> {
+  const protectedPaths = await Promise.all([storeDir, ...protectedDirs].map(canonicalPath))
+  await removeMetadataDirs(cacheDir, protectedPaths)
+  const layoutDirs = await getSubdirsSafely(cacheDir)
+  await Promise.all(layoutDirs.filter(name => /^v\d+$/.test(name)).map(async (layoutDir) => {
+    const layoutPath = path.join(cacheDir, layoutDir)
+    await removeMetadataDirs(layoutPath, protectedPaths)
+    if (!await holdsProtectedPath(layoutPath, protectedPaths)) {
+      await removeEmptyDir(layoutPath)
     }
   }))
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
+}
 
-  // 3. Prune the content-addressable store (CAS)
+async function removeMetadataDirs (directory: string, protectedPaths: string[]): Promise<void> {
+  const metadataDirs = (await getSubdirsSafely(directory)).filter(name => name.startsWith('metadata'))
+  await Promise.all(metadataDirs.map(async (metadataDir) => {
+    const metadataPath = path.join(directory, metadataDir)
+    if (await holdsProtectedPath(metadataPath, protectedPaths)) return
+    await rimrafIgnoringMissing(metadataPath)
+  }))
+}
+
+async function holdsProtectedPath (directory: string, protectedPaths: string[]): Promise<boolean> {
+  const canonicalDirectory = await canonicalPath(directory)
+  return protectedPaths.some(protectedPath => isSubdir(canonicalDirectory, protectedPath))
+}
+
+async function removeEmptyDir (directory: string): Promise<void> {
+  try {
+    await fs.rmdir(directory)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && (err.code === 'ENOENT' || err.code === 'ENOTEMPTY')) return
+    throw err
+  }
+}
+
+async function canonicalPath (directory: string): Promise<string> {
+  try {
+    return await fs.realpath(directory)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return path.resolve(directory)
+    throw err
+  }
+}
+
+async function removeStaleSpillDirectories (storeDir: string): Promise<void> {
+  const cutoff = Date.now() - 24 * 60 * 60_000
+  const directories = await getSubdirsSafely(storeDir)
+  for (const directory of directories) {
+    if (!directory.startsWith('download-') && !directory.startsWith('tarball-')) continue
+    // eslint-disable-next-line no-await-in-loop -- bound filesystem work across abandoned spill directories
+    await removeSpillDirectoryIfStale(path.join(storeDir, directory), cutoff)
+  }
+}
+
+async function removeSpillDirectoryIfStale (directoryPath: string, cutoff: number): Promise<void> {
+  try {
+    const stats = await fs.lstat(directoryPath)
+    if (stats.isDirectory() && stats.mtimeMs < cutoff && await spillFilesAreStale(directoryPath, cutoff)) {
+      await rimrafIgnoringMissing(directoryPath)
+    }
+  } catch (err: unknown) {
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) throw err
+  }
+}
+
+async function spillFilesAreStale (directoryPath: string, cutoff: number): Promise<boolean> {
+  for await (const file of await fs.opendir(directoryPath)) {
+    const stats = await fs.lstat(path.join(directoryPath, file.name))
+    if (stats.mtimeMs >= cutoff) return false
+  }
+  return true
+}
+
+async function rimrafIgnoringMissing (dir: string): Promise<void> {
+  try {
+    await rimraf(dir)
+  } catch (err: unknown) {
+    if (!(isError(err) && 'code' in err && err.code === 'ENOENT')) {
+      throw err
+    }
+  }
+}
+
+interface CafsPruneStats {
+  fileCounter: number
+  totalSize: number
+  removedHashes: Set<string>
+  inUseFiles: Set<string>
+}
+
+async function pruneContentAddressableStore (storeDir: string, removeAlienFiles: boolean | undefined, inUseFiles: Set<string>): Promise<Set<string>> {
   const cafsDir = path.join(storeDir, 'files')
-  const removedHashes = new Set<string>()
+  const stats: CafsPruneStats = {
+    fileCounter: 0,
+    totalSize: 0,
+    removedHashes: new Set<string>(),
+    inUseFiles,
+  }
   const dirs = await getSubdirsSafely(cafsDir)
-  let fileCounter = 0
-  let totalSize = 0
   await Promise.all(dirs.map(async (dir) => {
     const subdir = path.join(cafsDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
-      const filePath = path.join(subdir, fileName)
-      const stat = await fs.stat(filePath)
-      if (stat.isDirectory()) {
-        if (removeAlienFiles) {
-          await rimraf(filePath)
-          globalWarn(`An alien directory has been removed from the store: ${filePath}`)
-          fileCounter++
-          return
-        } else {
-          globalWarn(`An alien directory is present in the store: ${filePath}`)
-          return
-        }
-      }
-      if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
-        totalSize += stat.size
-        await fs.unlink(filePath)
-        fileCounter++
-        // Store the hex digest, which matches the format stored in PackageFileInfo.digest
-        // The file name in the store is the hex representation of the hash (with optional -exec suffix)
-        removedHashes.add(`${dir}${fileName.replace(/-exec$/, '')}`)
-      }
+      await pruneCafsEntry({ dir, fileName, subdir, removeAlienFiles, stats })
     }))
   }))
-  globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'} (${prettyBytes(totalSize)})`)
+  globalInfo(`Removed ${stats.fileCounter} file${stats.fileCounter === 1 ? '' : 's'} (${prettyBytes(stats.totalSize)})`)
+  return stats.removedHashes
+}
 
-  // 4. Clean up orphaned package index entries
+interface PruneCafsEntryOptions {
+  dir: string
+  fileName: string
+  subdir: string
+  removeAlienFiles: boolean | undefined
+  stats: CafsPruneStats
+}
+
+async function pruneCafsEntry ({ dir, fileName, subdir, removeAlienFiles, stats }: PruneCafsEntryOptions): Promise<void> {
+  const filePath = path.join(subdir, fileName)
+  const stat = await fs.stat(filePath)
+  if (stat.isDirectory()) {
+    if (removeAlienFiles) {
+      await rimraf(filePath)
+      globalWarn(`An alien directory has been removed from the store: ${filePath}`)
+      stats.fileCounter++
+    } else {
+      globalWarn(`An alien directory is present in the store: ${filePath}`)
+    }
+    return
+  }
+  if ((stat.nlink === 1 || stat.nlink === BIG_ONE) && !stats.inUseFiles.has(filePath)) {
+    stats.totalSize += stat.size
+    await fs.unlink(filePath)
+    stats.fileCounter++
+    // Store the hex digest, which matches the format stored in PackageFileInfo.digest
+    // The file name in the store is the hex representation of the hash (with optional -exec suffix)
+    stats.removedHashes.add(`${dir}${fileName.replace(/-exec$/, '')}`)
+  }
+}
+
+function removeOrphanedIndexEntries (storeIndex: StoreIndex, removedHashes: Set<string>): void {
   let pkgCounter = 0
   const toDelete: string[] = []
   for (const [filesIndexFile, data] of storeIndex.entries()) {
@@ -95,7 +206,7 @@ async function getSubdirsSafely (dir: string): Promise<string[]> {
   try {
     entries = await fs.readdir(dir, { withFileTypes: true }) as Dirent[]
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       return []
     }
     throw err

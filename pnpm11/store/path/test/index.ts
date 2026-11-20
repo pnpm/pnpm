@@ -12,9 +12,10 @@ const ROOT_PROJECT = path.join(DRIVE_ROOT, 'src', 'workspace', 'project')
 const SANDBOX_ROOT = path.join(DRIVE_ROOT, 'sandbox')
 const SANDBOX_PROJECT = path.join(SANDBOX_ROOT, 'project')
 
+const touchMock = jest.fn<(file: string) => Promise<void>>()
 jest.unstable_mockModule('touch', () => {
   return {
-    default: jest.fn(),
+    default: touchMock,
   }
 })
 jest.unstable_mockModule('root-link-target', () => {
@@ -75,7 +76,7 @@ jest.unstable_mockModule('can-link', () => {
   }
 })
 
-const { getStorePath } = await import('@pnpm/store.path')
+const { getStorePath, getStorePathInPnpmHome } = await import('@pnpm/store.path')
 
 beforeEach(() => {
   canLinkMock.mockClear()
@@ -121,10 +122,35 @@ test('the store is created in the project when only the project directory is lin
   )
 })
 
+test('the store is created in the pnpm home directory when the project directory is not writable', async () => {
+  touchMock.mockRejectedValueOnce(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }))
+  expect(await getStorePath({
+    pkgRoot: ROOT_PROJECT,
+    pnpmHomeDir: PNPM_HOME_DIR,
+  })).toBe(path.join(PNPM_HOME_DIR, 'store', STORE_VERSION))
+  expect(canLinkMock).not.toHaveBeenCalled()
+})
+
+test('an error other than a permission error from the project directory is rethrown', async () => {
+  touchMock.mockRejectedValueOnce(Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' }))
+  await expect(getStorePath({
+    pkgRoot: ROOT_PROJECT,
+    pnpmHomeDir: PNPM_HOME_DIR,
+  })).rejects.toThrow('ENOSPC')
+})
+
 test('fail when pnpm home directory is not defined', async () => {
   expect(() => getStorePath({
     pkgRoot: 'pkgRoot',
-    // @ts-expect-error
+    // @ts-expect-error -- simulates a caller that has no pnpm home directory
     pnpmHomeDir: undefined,
   })).toThrow('The pnpm home directory is unknown. Cannot calculate the store directory location.')
+})
+
+test('getStorePathInPnpmHome() returns the versioned store in the pnpm home directory', () => {
+  expect(getStorePathInPnpmHome(PNPM_HOME_DIR)).toBe(path.join(PNPM_HOME_DIR, 'store', STORE_VERSION))
+})
+
+test('getStorePathInPnpmHome() fails without a pnpm home directory', () => {
+  expect(() => getStorePathInPnpmHome('')).toThrow('The pnpm home directory is unknown')
 })

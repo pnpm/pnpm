@@ -8,7 +8,7 @@ import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { view } from '@pnpm/deps.inspection.commands'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 const VIEW_OPTIONS = {
   registriesByScope: { default: REGISTRY_URL },

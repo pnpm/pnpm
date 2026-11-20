@@ -1,0 +1,4 @@
+name: pkg-with-package-yaml
+version: 1.0.0
+files:
+  - out

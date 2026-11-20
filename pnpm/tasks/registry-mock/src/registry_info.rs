@@ -1,15 +1,31 @@
-use crate::{MockInstanceOptions, port_to_url::port_to_url, process_kill::kill_process_by_pid};
+use crate::{
+    MockInstanceOptions,
+    port_to_url::{
+        npm_registry_url,
+        port_to_url,
+    },
+    process_kill::kill_process_by_pid,
+};
 use pipe_trait::Pipe;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     env::temp_dir,
     fs,
     io::ErrorKind,
     mem::forget,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::LazyLock,
 };
-use sysinfo::{Pid, Signal};
+use sysinfo::{
+    Pid,
+    Signal,
+};
 
 /// Information of a spawned mocked registry server instance.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,9 +35,10 @@ pub struct RegistryInfo {
 }
 
 impl RegistryInfo {
+    /// The npm registry URL, with a trailing `/`.
     #[must_use]
     pub fn url(&self) -> String {
-        port_to_url(self.port)
+        npm_registry_url(&port_to_url(self.port))
     }
 }
 

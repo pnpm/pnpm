@@ -1,10 +1,20 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use pnpm_config::Config;
-use pnpm_network::{AuthHeaders, AuthHeadersByScope, NoProxySetting};
+use pnpm_network::{
+    AuthHeaders,
+    AuthHeadersByScope,
+    NoProxySetting,
+};
 use pretty_assertions::assert_eq;
 
-use super::{import_method_name, project_config};
+use super::{
+    import_method_name,
+    project_config,
+};
 
 fn config_with_auth(by_scope: AuthHeadersByScope) -> Config {
     Config {
@@ -33,8 +43,7 @@ fn registries_carry_their_static_auth_headers() {
 
     let resolved = project_config(&config);
 
-    let by_name: BTreeMap<&str, Option<&str>> = resolved
-        .registries
+    let by_name: BTreeMap<&str, Option<&str>> = resolved.registries
         .iter()
         .map(|registry| (registry.name.as_str(), registry.auth_header.as_deref()))
         .collect();
@@ -67,8 +76,7 @@ fn scope_registry_prefers_its_scope_credential() {
 
     let resolved = project_config(&config);
 
-    let scope = resolved
-        .registries
+    let scope = resolved.registries
         .iter()
         .find(|registry| registry.name == "@scope")
         .expect("@scope registry");
@@ -80,8 +88,7 @@ fn scope_registry_prefers_its_scope_credential() {
         BTreeMap::from([("@".to_string(), "Bearer registry-wide".to_string())]),
     )])));
     let resolved = project_config(&config);
-    let scope = resolved
-        .registries
+    let scope = resolved.registries
         .iter()
         .find(|registry| registry.name == "@scope")
         .expect("@scope registry");
@@ -123,12 +130,12 @@ fn import_method_names_round_trip_through_the_install_parser() {
         (PackageImportMethod::CloneOrCopy, "clone-or-copy"),
     ] {
         assert_eq!(import_method_name(method), name);
-        assert_eq!(crate::install::parse_import_method(name), Some(method));
+        assert_eq!(crate::install::overlay::parse_import_method(name), Some(method));
     }
 }
 
 /// End-to-end through the real resolver: a project `.npmrc` cascade must
-/// surface in the projection. Asserts only the fixture's own keys — the
+/// surface in the projection. Asserts only the fixture's own keys, the
 /// process environment and user config may add entries, never remove
 /// these.
 #[test]
@@ -150,8 +157,7 @@ fn read_config_resolves_the_project_npmrc_cascade() {
         super::read_config(super::ReadConfigOptions { dir: dir.path().display().to_string() })
             .expect("read config");
 
-    let fixture_registry = resolved
-        .registries
+    let fixture_registry = resolved.registries
         .iter()
         .find(|registry| registry.name == "@fixture")
         .expect("@fixture registry resolved from the project .npmrc");

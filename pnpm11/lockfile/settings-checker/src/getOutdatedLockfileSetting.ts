@@ -32,6 +32,12 @@ export interface LockfileSettingsInput {
   excludeLinksFromLockfile?: boolean
   peersSuffixMaxLength?: number
   pnpmfileChecksum?: string
+  /**
+   * Skips comparing `pnpmfileChecksum`, for an install that loads no
+   * pnpmfile because of `ignorePnpmfile`. The flag skips the pnpmfile for
+   * that run only, so the checksum the lockfile records still stands.
+   */
+  ignorePnpmfileChecksum?: boolean
   injectWorkspacePackages?: boolean
 }
 
@@ -60,58 +66,63 @@ export function getOutdatedLockfileSettings (
 
 function * outdatedLockfileSettings (
   lockfile: LockfileObject,
-  {
-    catalogs,
-    overrides,
-    packageExtensionsChecksum,
-    ignoredOptionalDependencies,
-    patchedDependencies,
-    autoInstallPeers,
-    dedupePeers,
-    excludeLinksFromLockfile,
-    peersSuffixMaxLength,
-    pnpmfileChecksum,
-    injectWorkspacePackages,
-  }: LockfileSettingsInput
+  input: LockfileSettingsInput
 ): Generator<ChangedField> {
-  if (!allCatalogsAreUpToDate(catalogs ?? {}, lockfile.catalogs)) {
+  yield * outdatedTopLevelFields(lockfile, input)
+  yield * outdatedSettingsFields(lockfile, input)
+}
+
+function * outdatedTopLevelFields (
+  lockfile: LockfileObject,
+  input: LockfileSettingsInput
+): Generator<ChangedField> {
+  if (!allCatalogsAreUpToDate(input.catalogs ?? {}, lockfile.catalogs)) {
     yield 'catalogs'
   }
-  if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
+  if (!equals(lockfile.overrides ?? {}, input.overrides ?? {})) {
     yield 'overrides'
   }
-  if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
+  if (lockfile.packageExtensionsChecksum !== input.packageExtensionsChecksum) {
     yield 'packageExtensionsChecksum'
   }
   // Compare copies: the recorded and configured arrays belong to the caller,
   // and `ignoredOptionalDependencies` is order-sensitive downstream — sorting
   // it in place can move an `!` exclusion ahead of the pattern it excludes
   // from and flip which dependencies `createMatcher` ignores.
-  if (!equals([...lockfile.ignoredOptionalDependencies ?? []].sort(), [...ignoredOptionalDependencies ?? []].sort())) {
+  if (!equals([...lockfile.ignoredOptionalDependencies ?? []].sort(), [...input.ignoredOptionalDependencies ?? []].sort())) {
     yield 'ignoredOptionalDependencies'
   }
-  if (!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})) {
+  if (!equals(lockfile.patchedDependencies ?? {}, input.patchedDependencies ?? {})) {
     yield 'patchedDependencies'
   }
-  if ((lockfile.settings?.autoInstallPeers != null && lockfile.settings.autoInstallPeers !== autoInstallPeers)) {
-    yield 'settings.autoInstallPeers'
-  }
-  if (Boolean(lockfile.settings?.dedupePeers) !== Boolean(dedupePeers)) {
-    yield 'settings.dedupePeers'
-  }
-  if (lockfile.settings?.excludeLinksFromLockfile != null && lockfile.settings.excludeLinksFromLockfile !== excludeLinksFromLockfile) {
-    yield 'settings.excludeLinksFromLockfile'
-  }
-  if (
-    lockfile.settings?.peersSuffixMaxLength != null && lockfile.settings.peersSuffixMaxLength !== peersSuffixMaxLength ||
-    lockfile.settings?.peersSuffixMaxLength == null && peersSuffixMaxLength !== DEFAULT_PEERS_SUFFIX_MAX_LENGTH
-  ) {
-    yield 'settings.peersSuffixMaxLength'
-  }
-  if (lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
+  if (!input.ignorePnpmfileChecksum && lockfile.pnpmfileChecksum !== input.pnpmfileChecksum) {
     yield 'pnpmfileChecksum'
   }
-  if (Boolean(lockfile.settings?.injectWorkspacePackages) !== Boolean(injectWorkspacePackages)) {
+}
+
+function * outdatedSettingsFields (
+  lockfile: LockfileObject,
+  input: LockfileSettingsInput
+): Generator<ChangedSettingsField> {
+  const settings = lockfile.settings
+  if (settings?.autoInstallPeers != null && settings.autoInstallPeers !== input.autoInstallPeers) {
+    yield 'settings.autoInstallPeers'
+  }
+  if (Boolean(settings?.dedupePeers) !== Boolean(input.dedupePeers)) {
+    yield 'settings.dedupePeers'
+  }
+  if (settings?.excludeLinksFromLockfile != null && settings.excludeLinksFromLockfile !== input.excludeLinksFromLockfile) {
+    yield 'settings.excludeLinksFromLockfile'
+  }
+  if (isPeersSuffixMaxLengthOutdated(settings?.peersSuffixMaxLength, input.peersSuffixMaxLength)) {
+    yield 'settings.peersSuffixMaxLength'
+  }
+  if (Boolean(settings?.injectWorkspacePackages) !== Boolean(input.injectWorkspacePackages)) {
     yield 'settings.injectWorkspacePackages'
   }
+}
+
+function isPeersSuffixMaxLengthOutdated (lockfileValue: number | undefined, inputValue: number | undefined): boolean {
+  if (lockfileValue != null) return lockfileValue !== inputValue
+  return inputValue !== DEFAULT_PEERS_SUFFIX_MAX_LENGTH
 }

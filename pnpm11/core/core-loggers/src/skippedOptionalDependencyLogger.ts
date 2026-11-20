@@ -20,6 +20,7 @@ export type SkippedOptionalDependencyMessage = {
   reason: 'unsupported_engine'
   | 'unsupported_platform'
   | 'build_failure'
+  | 'fetch_failure'
 } | {
   package: {
     id?: never

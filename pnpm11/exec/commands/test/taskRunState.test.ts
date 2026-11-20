@@ -131,6 +131,35 @@ test('task run state rejects a malformed complete record', async () => {
   await state.close()
 })
 
+test('task run state rejects a null record and a null latest pointer', async () => {
+  const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
+  temporaryDirectories.push(workspaceDir)
+  const project = path.join(workspaceDir, 'project') as ProjectRootDir
+  const key = taskKey(project, 'build')
+  const graph: TaskGraph = new Map([[key, {
+    project,
+    taskName: 'build',
+    scripts: ['build'],
+    requested: true,
+    dependencies: [],
+  }]])
+  const context = new TaskRunStateContext({
+    command: 'run',
+    params: ['build'],
+    graph,
+    workspaceDir,
+    scriptCommands: () => ['build-command'],
+  })
+  const state = await context.start(new Set())
+  await fs.appendFile(state.filePath, 'null\n')
+
+  await expect(context.readCompletedTasks()).resolves.toBeUndefined()
+
+  await fs.writeFile(context.latestStatePath, 'null')
+  await expect(context.readCompletedTasks()).resolves.toBeUndefined()
+  await state.close()
+})
+
 test('task run state recovers its write queue after an append failure', async () => {
   const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-task-state-'))
   temporaryDirectories.push(workspaceDir)

@@ -12,6 +12,7 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import type { diff as DiffFn } from 'jest-diff'
 import { readYamlFileSync } from 'read-yaml-file'
+import { writeJsonFile } from 'write-json-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -20,7 +21,7 @@ import { DEFAULT_OPTS } from './utils/index.js'
 // through CJS to bypass the broken bridge.
 const { diff } = createRequire(import.meta.url)('jest-diff') as { diff: typeof DiffFn }
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const noColor = (str: string) => str
 const diffOptsForLockfile = {
@@ -39,6 +40,40 @@ const diffOptsForLockfile = {
 }
 
 describe('pnpm dedupe', () => {
+  test.each([
+    { chalkSpecifier: '4.1.2', expectedVersion: '4.1.2' },
+    { chalkSpecifier: '^4.1.2', expectedVersion: '4.1.2' },
+    { chalkSpecifier: '^4.1.0', expectedVersion: '4.1.0' },
+  ])('converges on chalk@$expectedVersion after changing a direct dependency to $chalkSpecifier', async ({ chalkSpecifier, expectedVersion }) => {
+    const manifest = {
+      dependencies: {
+        boxen: '5.1.2',
+        chalk: '4.1.0',
+      },
+    }
+    const project = prepare(manifest)
+    const opts = {
+      ...DEFAULT_OPTS,
+      dir: project.dir(),
+      lockfileDir: project.dir(),
+      workspaceDir: project.dir(),
+    }
+
+    await install.handler(opts)
+    expect(project.readLockfile().packages).toHaveProperty(['chalk@4.1.0'])
+    expect(project.readLockfile().packages).not.toHaveProperty(['chalk@4.1.2'])
+
+    manifest.dependencies.chalk = chalkSpecifier
+    await writeJsonFile('package.json', manifest)
+    await dedupe.handler(opts)
+
+    const lockfile = project.readLockfile()
+    expect(lockfile.snapshots['boxen@5.1.2'].dependencies?.chalk).toBe(expectedVersion)
+    expect(Object.keys(lockfile.packages).filter((depPath) => depPath.startsWith('chalk@'))).toEqual([`chalk@${expectedVersion}`])
+    await dedupe.handler({ ...opts, check: true })
+    expect(project.readLockfile()).toEqual(lockfile)
+  })
+
   test('updates old resolutions from importers block and removes old packages', async () => {
     const { originalLockfile, dedupedLockfile, dedupeCheckError } = await testFixture('workspace-with-lockfile-dupes')
     // Many old packages should be deleted as result of deduping. See snapshot file for details.
@@ -108,11 +143,9 @@ describe('pnpm dedupe', () => {
       version: '0.0.0',
 
       scripts: {
-        // eslint-disable:object-literal-sort-keys
         preinstall: server.sendLineScript('preinstall'),
         prepare: server.sendLineScript('prepare'),
         postinstall: server.sendLineScript('postinstall'),
-        // eslint-enable:object-literal-sort-keys
       },
     })
 
@@ -166,6 +199,30 @@ describe('pnpm dedupe', () => {
     expect(fs.existsSync(ignoredPath)).toBeFalsy()
   })
 
+  // A check links nothing, so it must not record the projects as installed.
+  test('dedupe --check writes no workspace state', async () => {
+    const project = prepare({
+      name: 'test-dedupe-check-state',
+      version: '0.0.0',
+      dependencies: {
+        'is-positive': '3.1.0',
+      },
+    })
+    const opts = {
+      ...DEFAULT_OPTS,
+      dir: project.dir(),
+      lockfileDir: project.dir(),
+      workspaceDir: project.dir(),
+    }
+    await install.handler(opts)
+    const statePath = path.join(project.dir(), 'node_modules/.pnpm-workspace-state-v1.json')
+    fs.rmSync(statePath)
+
+    await dedupe.handler({ ...opts, check: true })
+
+    expect(fs.existsSync(statePath)).toBeFalsy()
+  })
+
   describe('cliOptionsTypes', () => {
     test('trivially contains command line arguments from install command', () => {
       // Using --store-dir and --registry as a gut check to ensure the "pnpm
@@ -184,7 +241,7 @@ describe('pnpm dedupe', () => {
 
 async function testFixture (fixtureName: string) {
   const project = prepare(undefined)
-  f.copy(fixtureName, project.dir())
+  testFixtures.copy(fixtureName, project.dir())
 
   const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(project.dir(), [])
 

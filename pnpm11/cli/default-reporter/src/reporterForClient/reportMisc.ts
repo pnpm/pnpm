@@ -10,14 +10,12 @@ import { reportError } from '../reportError.js'
 import { formatWarn } from './utils/formatWarn.js'
 import { autozoom } from './utils/zooming.js'
 
-// eslint-disable:object-literal-sort-keys
 export const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
   error: 0,
   warn: 1,
   info: 2,
   debug: 3,
 }
-// eslint-enable:object-literal-sort-keys
 
 const MAX_SHOWN_WARNINGS = 5
 
@@ -45,20 +43,24 @@ export function reportMisc (
           return reportWarning(obj)
         }
         case 'error': {
-          const errorOutput = reportError(obj, opts.config)
-          if (!errorOutput) return Rx.NEVER
-          if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
-            return Rx.of({
-              msg: `${obj['prefix'] as string}:` + os.EOL + errorOutput,
-            })
-          }
-          return Rx.of({ msg: errorOutput })
+          return reportErrorLog(obj, opts)
         }
         default:
           return Rx.of({ msg: obj.message! })
       }
     })
   )
+}
+
+function reportErrorLog (obj: Log, opts: { cwd: string, config?: ReporterPnpmConfig }): Rx.Observable<{ msg: string }> {
+  const errorOutput = reportError(obj, opts.config)
+  if (!errorOutput) return Rx.NEVER
+  if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
+    return Rx.of({
+      msg: `${obj['prefix'] as string}:` + os.EOL + errorOutput,
+    })
+  }
+  return Rx.of({ msg: errorOutput })
 }
 
 type WarningReporter = (obj: {
@@ -88,7 +90,7 @@ function makeWarningReporter (
     if (!collapsedWarnings) {
       collapsedWarnings = new Rx.Subject()
       // For some reason, without using setTimeout, the warning summary is printed above the rest of the warnings
-      // Even though the summary event happens last. Probably a bug in "most".
+      // Even though the summary event happens last. Likely a bug in "most".
       setTimeout(() => {
         collapsedWarnings.next({ msg: warningMsg })
       }, 0)

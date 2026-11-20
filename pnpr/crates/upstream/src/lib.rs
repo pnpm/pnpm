@@ -1,50 +1,121 @@
-use chrono::{DateTime, Timelike, Utc};
-use pnpm_lockfile::{
-    MAX_TARBALL_REVISION, TarballRevision, integrity_addressed_registry_tarball_url,
-    is_integrity_addressed_registry_tarball_url,
+pub use abbreviate::{
+    abbreviate_packument,
+    abbreviate_version,
 };
-use pnpm_network::{ThrottledClient, read_limited_body};
-use pnpr_config::{RedactedHeaders, UpstreamConfig};
-use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::PackageName;
+pub use discovery::SearchResponse;
+pub use packument::{
+    extract_upstream_revision_integrity,
+    extract_upstream_version_manifest,
+    extract_version_manifest,
+    revision_route_tarball_version,
+    rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls,
+    tarball_basename,
+    tarball_basename_for_package,
+    version_route_tarball_version,
+};
+pub use time::TIME_PRECISION_HORIZON_DAYS;
+
+pub use oci::oci_download_allowed;
+pub use request::UpstreamTarballRoute;
+
+mod http;
+mod request;
+use http::{
+    UpstreamHttp,
+    same_origin,
+};
+use pnpm_network::redact_url_for_display;
+use request::Deadline;
+
+mod circuit_breaker;
+use circuit_breaker::CircuitBreaker;
+
+mod discovery;
+
+mod packument;
+
+mod abbreviate;
+
+mod oci;
+
+mod audit;
+
+mod attestations;
+
+mod time;
+
+use pnpm_lockfile::{
+    MAX_TARBALL_REVISION,
+    TarballRevision,
+    has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
+    revision_registry_tarball_url,
+};
+use pnpm_network::{
+    AddressGuard,
+    GuardedDnsResolver,
+    HeadError,
+    RedirectGuard,
+    ThrottledClient,
+    ThrottledClientGuard,
+    ThrottledResponse,
+    UNPRIORITIZED,
+    is_url_secure_for_credentials,
+    native_dns_resolver,
+    read_limited_body,
+};
+use pnpr_config::{
+    RedactedHeaders,
+    UpstreamConfig,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_package_name::CanonicalPackageName;
 use reqwest::{
     StatusCode,
-    header::{self, HeaderMap, HeaderValue},
+    header::{
+        self,
+        HeaderMap,
+        HeaderValue,
+    },
 };
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 use ssri::Integrity;
 use std::{
     fmt,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
-const UPSTREAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
+const UPSTREAM_DISCOVERY_BODY_LIMIT: usize = 16 * 1024 * 1024;
 
-/// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
-/// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, capped native DNS,
-/// pool/timeout tuning, concurrency semaphore, and per-registry TLS
-/// routing if it's ever wired in later) and adds the per-upstream glue a
+/// Wraps a shared [`ThrottledClient`] and adds the per-upstream glue a
 /// proxy needs: building the upstream URL, applying verdaccio's
 /// `timeout`/`max_fails`/`fail_timeout` knobs, and fishing the packument
 /// or tarball response out of it.
 #[derive(Clone)]
 pub struct Upstream {
-    client: Arc<ThrottledClient>,
     base: String,
     /// The configured upstream name (the YAML `upstreams:` key). Surfaced in
     /// client-facing errors so an open circuit names the upstream rather
     /// than leaking its upstream URL.
     name: String,
-    /// Resolved per-upstream request headers (auth + custom) attached to
-    /// every fetch. Empty for an upstream with no `auth:`/`headers:`.
-    headers: HeaderMap,
-    /// Per-request deadline (verdaccio's `timeout`).
-    timeout: Duration,
-    /// Per-upstream packument freshness window (verdaccio's `maxage`), or
-    /// `None` to defer to the global [`pnpr_config::Config::packument_ttl`].
-    maxage: Option<Duration>,
+    /// Per-upstream packument freshness window (verdaccio's `packument_ttl`), or
+    /// `None` to defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
+    packument_ttl: Option<Duration>,
     /// Whether tarballs from this upstream are written to the local mirror
     /// (verdaccio's `cache`).
     cache: bool,
@@ -53,103 +124,27 @@ pub struct Upstream {
     /// every clone of this `Upstream` (the registry holds one per upstream
     /// and clones it per request) updates the same counters.
     breaker: Arc<CircuitBreaker>,
+    oci_tokens: Arc<Mutex<std::collections::HashMap<String, oci::CachedToken>>>,
+    http: UpstreamHttp,
+    /// The caller this clone serves, when that caller may read what the
+    /// cache holds but may not have the origin fetched. See
+    /// [`Self::cached_only`].
+    cached_only: Option<String>,
 }
 
 impl fmt::Debug for Upstream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Upstream")
-            .field("client", &self.client)
+            .field("client", &self.http.client)
+            .field("fetch_guard", &self.http.fetch_guard.is_some())
             .field("base", &self.base)
             .field("name", &self.name)
-            .field("headers", &RedactedHeaders(&self.headers))
-            .field("timeout", &self.timeout)
-            .field("maxage", &self.maxage)
+            .field("headers", &RedactedHeaders(&self.http.headers))
+            .field("timeout", &self.http.timeout)
+            .field("packument_ttl", &self.packument_ttl)
             .field("cache", &self.cache)
             .field("breaker", &self.breaker)
-            .finish()
-    }
-}
-
-/// Verdaccio's `max_fails` / `fail_timeout` circuit breaker. After
-/// `max_fails` consecutive failures the upstream is considered down and
-/// requests short-circuit, until `fail_timeout` elapses since the last
-/// failure — a single probe is then allowed through, and its success
-/// resets the breaker or its failure restarts the cooldown.
-///
-/// The half-open probe is gated by the cooldown window itself: admitting
-/// a probe advances `last_failure` to now, so concurrent callers in that
-/// window stay short-circuited and a recovering upstream sees one probe
-/// rather than a stampede. Crucially this can't *stick* — a probe whose
-/// request is cancelled or dropped before it reports back simply lets the
-/// window lapse, after which the next caller probes. A sticky in-flight
-/// flag would deadlock the breaker on a cancelled request.
-///
-/// The counter and the timestamp live behind one [`Mutex`] so a threshold
-/// check and its timestamp can never be observed half-updated. The lock
-/// is held only for trivial field reads/writes (never across the network
-/// request), so contention is negligible; a poisoned lock is recovered
-/// rather than propagated as a panic, keeping a failing upstream from
-/// taking the registry down.
-#[derive(Debug)]
-struct CircuitBreaker {
-    max_fails: u32,
-    fail_timeout: Duration,
-    state: Mutex<BreakerState>,
-}
-
-#[derive(Debug, Default)]
-struct BreakerState {
-    failed_requests: u32,
-    last_failure: Option<Instant>,
-}
-
-impl CircuitBreaker {
-    fn new(max_fails: u32, fail_timeout: Duration) -> Self {
-        Self { max_fails, fail_timeout, state: Mutex::new(BreakerState::default()) }
-    }
-
-    /// Recover the guard from a poisoned lock instead of panicking: the
-    /// breaker only ever holds plain counters, so the worst a poisoned
-    /// guard carries is a stale failure count, never an invariant break.
-    fn lock(&self) -> std::sync::MutexGuard<'_, BreakerState> {
-        self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-    }
-
-    /// Try to admit one request. Returns `true` while under `max_fails`
-    /// consecutive failures (or when the breaker is disabled). Once the
-    /// `fail_timeout` cooldown has elapsed it admits one probe per window:
-    /// the admitting caller advances the cooldown, so concurrent callers
-    /// stay short-circuited until the next window opens. `max_fails == 0`
-    /// disables the breaker entirely.
-    fn try_acquire(&self) -> bool {
-        let mut state = self.lock();
-        if self.max_fails == 0 || state.failed_requests < self.max_fails {
-            return true;
-        }
-        // Tripped: stay open until the cooldown since the last failure
-        // lapses. (`failed_requests >= max_fails` always implies a
-        // recorded `last_failure`, so the `None` arm is unreachable; it
-        // fails open for safety.)
-        let cooled_down = state.last_failure.is_none_or(|at| at.elapsed() >= self.fail_timeout);
-        if !cooled_down {
-            return false;
-        }
-        // Admit this probe and re-arm the cooldown so the next caller is
-        // held back for another `fail_timeout`. If the probe never reports
-        // back (cancelled mid-request), the window simply lapses and the
-        // following caller probes — the breaker can't deadlock.
-        state.last_failure = Some(Instant::now());
-        true
-    }
-
-    fn record_success(&self) {
-        *self.lock() = BreakerState::default();
-    }
-
-    fn record_failure(&self) {
-        let mut state = self.lock();
-        state.failed_requests = state.failed_requests.saturating_add(1);
-        state.last_failure = Some(Instant::now());
+            .finish_non_exhaustive()
     }
 }
 
@@ -175,7 +170,15 @@ pub struct CacheValidators {
     pub last_modified: Option<String>,
 }
 
-/// A packument fetched against an upstream.
+/// A document fetched by [`Upstream::fetch_document`].
+#[derive(Debug)]
+pub struct FetchedDocument {
+    pub bytes: Vec<u8>,
+    /// The URL the body was served from, after redirects. Relative URLs
+    /// inside the document resolve against it.
+    pub url: String,
+}
+
 #[derive(Debug)]
 pub struct FetchedPackument {
     pub bytes: Vec<u8>,
@@ -196,27 +199,109 @@ pub enum PackumentFetch {
 impl Upstream {
     /// Build an upstream client from its name (the YAML `upstreams:` key) and
     /// resolved [`UpstreamConfig`], baking in the per-upstream
-    /// `timeout`/`maxage`/`cache` knobs and arming the
+    /// `timeout`/`packument_ttl`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
     #[must_use]
     pub fn new(name: &str, config: &UpstreamConfig) -> Self {
         Self {
-            client: Arc::new(ThrottledClient::new_for_installs()),
+            http: UpstreamHttp::new(config),
             base: config.url.clone(),
             name: name.to_string(),
-            headers: config.headers.clone(),
-            timeout: config.timeout,
-            maxage: config.maxage,
+            packument_ttl: config.packument_ttl,
             cache: config.cache,
-            breaker: Arc::new(CircuitBreaker::new(config.max_fails, config.fail_timeout)),
+            breaker: Arc::new(CircuitBreaker::new(
+                config.requests.max_fails,
+                config.requests.fail_timeout,
+            )),
+            oci_tokens: Arc::default(),
+            cached_only: None,
         }
     }
 
-    /// Per-upstream packument freshness window (`maxage`), or `None` to
-    /// defer to the global [`pnpr_config::Config::packument_ttl`].
+    /// Restrict initial requests and redirects to operator-approved destinations.
     #[must_use]
-    pub fn maxage(&self) -> Option<Duration> {
-        self.maxage
+    pub fn with_fetch_guard(mut self, guard: RedirectGuard) -> Self {
+        let redirect_guard = Arc::clone(&guard);
+        self.http.client =
+            Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+                redirect_guard(url)
+            }));
+        self.http.fetch_guard = Some(guard);
+        self
+    }
+
+    /// Like [`Self::with_fetch_guard`], also checking every address a hostname
+    /// resolves to with `connect_guard` before connecting.
+    #[must_use]
+    pub fn with_fetch_and_connect_guards(
+        mut self,
+        guard: RedirectGuard,
+        connect_guard: AddressGuard,
+    ) -> Self {
+        let redirect_guard = Arc::clone(&guard);
+        self.http.client = Arc::new(ThrottledClient::new_for_installs_with_guards(
+            move |url| redirect_guard(url),
+            Arc::new(GuardedDnsResolver::new(native_dns_resolver(), connect_guard)),
+        ));
+        self.http.fetch_guard = Some(guard);
+        self
+    }
+
+    /// Install a tarball-only URL and connect guard used by tarball downloads,
+    /// keeping metadata, search, and other requests restricted to
+    /// [`Self::with_fetch_and_connect_guards`].
+    #[must_use]
+    pub fn with_declared_tarball_guards(
+        mut self,
+        guard: RedirectGuard,
+        connect_guard: AddressGuard,
+    ) -> Self {
+        let redirect_guard = Arc::clone(&guard);
+        self.http.declared_tarball_client =
+            Some(Arc::new(ThrottledClient::new_for_installs_with_guards(
+                move |url| redirect_guard(url),
+                Arc::new(GuardedDnsResolver::new(native_dns_resolver(), connect_guard)),
+            )));
+        self.http.declared_tarball_guard = Some(guard);
+        self
+    }
+
+    /// Whether `url` shares scheme, host, and port with this upstream's base URL.
+    #[must_use]
+    pub fn is_same_origin(&self, url: &str) -> bool {
+        same_origin(&self.base, url)
+    }
+
+    /// The configured upstream request deadline.
+    #[must_use]
+    pub fn timeout(&self) -> Duration {
+        self.http.timeout
+    }
+
+    /// Per-upstream packument freshness window (`packument_ttl`), or `None` to
+    /// defer to the global [`pnpr_config::HttpConfig::packument_ttl`].
+    #[must_use]
+    pub fn packument_ttl(&self) -> Option<Duration> {
+        if self.cached_only.is_some() {
+            return Some(Duration::MAX);
+        }
+        self.packument_ttl
+    }
+
+    /// The configured freshness window to advertise to HTTP caches, which
+    /// [`Self::cached_only`] does not lengthen.
+    #[must_use]
+    pub fn response_ttl(&self) -> Option<Duration> {
+        self.packument_ttl
+    }
+
+    /// This upstream for `user`, who may read what the cache holds and no
+    /// more: a cached packument never goes stale for it, and every request to
+    /// the origin is refused.
+    #[must_use]
+    pub fn cached_only(mut self, user: &str) -> Self {
+        self.cached_only = Some(user.to_string());
+        self
     }
 
     /// Whether tarballs from this upstream should be written to the local
@@ -230,34 +315,32 @@ impl Upstream {
     /// Fetch a package's packument, conditionally when `validators`
     /// carries an `ETag`/`Last-Modified`. A `304 Not Modified` short-
     /// circuits to [`PackumentFetch::NotModified`] without a body, so the
-    /// caller can keep serving its cached copy — the bandwidth win on a
+    /// caller can keep serving its cached copy, the bandwidth win on a
     /// stale-but-current packument.
     ///
     /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
     /// network when the circuit breaker is open.
     pub async fn fetch_packument(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         validators: &CacheValidators,
     ) -> Result<PackumentFetch> {
         self.ensure_available()?;
         let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
-        let client = self.client.acquire_for_url(&url).await;
-        let mut request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
-        let mut sent_conditional = false;
+        let mut conditional_headers = HeaderMap::new();
         if let Some(etag) = &validators.etag
             && let Ok(value) = HeaderValue::from_str(etag)
         {
-            request = request.header(header::IF_NONE_MATCH, value);
-            sent_conditional = true;
+            conditional_headers.insert(header::IF_NONE_MATCH, value);
         }
         if let Some(last_modified) = &validators.last_modified
             && let Ok(value) = HeaderValue::from_str(last_modified)
         {
-            request = request.header(header::IF_MODIFIED_SINCE, value);
-            sent_conditional = true;
+            conditional_headers.insert(header::IF_MODIFIED_SINCE, value);
         }
-        let response = self.run(request, &url).await?;
+        let sent_conditional = !conditional_headers.is_empty();
+        let (response, _guard) =
+            self.get_with_scoped_headers(&url, &conditional_headers, Deadline::Whole).await?;
         if response.status() == StatusCode::NOT_FOUND {
             // A 404 is an authoritative answer, not an upstream failure.
             self.breaker.record_success();
@@ -273,501 +356,230 @@ impl Upstream {
             return Ok(PackumentFetch::NotModified);
         }
         let response = self.checked(response, &url).await?;
-        let bytes = response.bytes().await.map_err(|source| {
-            self.breaker.record_failure();
-            RegistryError::Upstream { url: url.clone(), source }
-        })?;
-        self.breaker.record_success();
-        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec() }))
+        let bytes = self.read_document_body(response, &url, self.http.max_packument_size).await?;
+        Ok(PackumentFetch::Modified(FetchedPackument { bytes }))
     }
 
-    /// Send the tarball request and return the streaming
-    /// [`reqwest::Response`] so the caller can pipe the body straight
-    /// to the client without buffering. Status and 404 handling
-    /// happen here before any bytes are forwarded.
+    /// Send the tarball request and return a [`ThrottledResponse`]. Use its
+    /// [`bytes_stream`](ThrottledResponse::bytes_stream) to forward the body
+    /// with bounded buffering and network permits held until the producer ends.
+    /// Status and 404 handling happen before any bytes are forwarded.
     ///
     /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
     /// network when the circuit breaker is open.
     pub async fn fetch_tarball_response(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
-    ) -> Result<FetchOutcome<reqwest::Response>> {
-        self.ensure_available()?;
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
         let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
-        let client = self.client.acquire_for_url(&url).await;
-        let request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
-        let response = self.run(request, &url).await?;
+        self.fetch_tarball_url(&url).await
+    }
+
+    /// Fetch a version-addressed tarball (`{base}/{name}@{version}`) from an
+    /// upstream `pnpr` registry.
+    pub async fn fetch_version_tarball_response(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
+        let url = format!("{}/{}@{version}", self.base.trim_end_matches('/'), name.as_str());
+        self.fetch_tarball_url(&url).await
+    }
+
+    /// Fetch a tarball by the route its packument `dist.tarball` declared:
+    /// `{base}/{name}@{version}` when the upstream advertised a `pnpr` version
+    /// route, the declared HTTP(S) `dist.tarball` URL (same-origin or
+    /// split-domain CDN), or `{base}/{name}/-/{filename}` for relative/missing
+    /// URLs.
+    pub async fn fetch_declared_tarball_response(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+        route: &UpstreamTarballRoute,
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
+        match route {
+            UpstreamTarballRoute::Version(version) => {
+                self.fetch_version_tarball_response(name, version).await
+            }
+            UpstreamTarballRoute::Url(url) => self.fetch_tarball_url(url).await,
+            UpstreamTarballRoute::Archive => self.fetch_tarball_response(name, filename).await,
+        }
+    }
+
+    async fn fetch_tarball_url(&self, url: &str) -> Result<FetchOutcome<ThrottledResponse>> {
+        self.ensure_available()?;
+        let (response, guard) = self.get_tarball_with_scoped_headers(url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }
-        let response = self.checked(response, &url).await?;
+        let response = self.checked(response, url).await?;
         // Success here covers only headers; a mid-stream body failure is
         // the caller's to observe. Recording success on a clean status is
         // what verdaccio does too.
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(response))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(response, self.http.timeout)))
     }
 
-    /// Fetch an immutable sha512 registry artifact without following redirects.
+    /// Fetch a document by path relative to the upstream's base URL (a Cargo
+    /// sparse-index file, a Python Simple API page) buffering at most
+    /// `limit` bytes. `accept` sets the request's `Accept` header when the
+    /// upstream negotiates a representation (the Simple API's JSON form).
+    ///
+    /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
+    /// network when the circuit breaker is open.
+    pub async fn fetch_document(
+        &self,
+        relative_path: &str,
+        accept: Option<&str>,
+        limit: usize,
+    ) -> Result<FetchOutcome<FetchedDocument>> {
+        let url = format!(
+            "{}/{}",
+            self.base.trim_end_matches('/'),
+            relative_path.trim_start_matches('/'),
+        );
+        self.fetch_artifact_document(&url, accept, limit).await
+    }
+
+    /// Fetch a bounded document at an absolute artifact URL with the same
+    /// credential scoping and download-host restrictions as artifact downloads.
+    pub async fn fetch_artifact_document(
+        &self,
+        url: &str,
+        accept: Option<&str>,
+        limit: usize,
+    ) -> Result<FetchOutcome<FetchedDocument>> {
+        self.ensure_available()?;
+        let mut headers = HeaderMap::new();
+        if let Some(accept) = accept
+            && let Ok(value) = HeaderValue::from_str(accept)
+        {
+            headers.insert(header::ACCEPT, value);
+        }
+        let (response, _guard) =
+            self.get_with_scoped_headers(url, &headers, Deadline::Whole).await?;
+        if response.status() == StatusCode::NOT_FOUND {
+            self.breaker.record_success();
+            return Ok(FetchOutcome::NotFound);
+        }
+        let response = self.checked(response, url).await?;
+        let final_url = response.url().to_string();
+        let bytes = self.read_document_body(response, url, limit).await?;
+        Ok(FetchOutcome::Ok(FetchedDocument { bytes, url: final_url }))
+    }
+
+    async fn read_document_body(
+        &self,
+        response: reqwest::Response,
+        url: &str,
+        limit: usize,
+    ) -> Result<Vec<u8>> {
+        let body = read_limited_body(response, limit).await
+            .map_err(|err| {
+                self.record_body_failure(&err);
+                RegistryError::Upstream {
+                    url: redact_url_for_display(url),
+                    source: err.without_url(),
+                }
+            })?;
+        self.breaker.record_success();
+        if body.truncated {
+            return Err(RegistryError::UpstreamResponse {
+                url: redact_url_for_display(url),
+                reason: format!("response body exceeds the {limit}-byte limit"),
+            });
+        }
+        Ok(body.bytes)
+    }
+
+    /// Fetch an artifact from the absolute URL an upstream's metadata
+    /// published, a crate archive from the index's `dl` template, a wheel
+    /// from a Simple API page. The configured headers travel only when `url`
+    /// is on the upstream's own origin: an index may point downloads at a
+    /// separate host (crates.io does, so does pypi.org), and the upstream's
+    /// credential must never reach it.
+    ///
+    /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
+    /// network when the circuit breaker is open.
+    pub async fn fetch_artifact_response(
+        &self,
+        url: &str,
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
+        self.ensure_available()?;
+        let (response, guard) =
+            self.get_with_scoped_headers(url, &HeaderMap::new(), Deadline::Head).await?;
+        if response.status() == StatusCode::NOT_FOUND {
+            self.breaker.record_success();
+            return Ok(FetchOutcome::NotFound);
+        }
+        let response = self.checked(response, url).await?;
+        self.breaker.record_success();
+        Ok(FetchOutcome::Ok(guard.retain_for_body(response, self.http.timeout)))
+    }
+
+    /// Fetch an immutable registry revision without following redirects.
+    /// The revision is a tar resource. The response keeps its content coding,
+    /// gzip or none, for the caller to decode and verify.
     pub async fn fetch_revision_tarball_response(
         &self,
-        digest: &str,
-    ) -> Result<FetchOutcome<reqwest::Response>> {
+        pkg: &CanonicalPackageName,
+        version: &str,
+        revision: TarballRevision,
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
-        let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
-        let client = self.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
-        let request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
-        let response = self.run(request, &url).await?;
+        let url =
+            format!("{}/{}@{version}+r{revision}", self.base.trim_end_matches('/'), pkg.as_str());
+        let client = self.http.client.acquire_archive_for_url_with_priority(&url, 0, false).await;
+        let started = Instant::now();
+        let request = client
+            .get(&url)
+            .headers(self.request_headers(&url))
+            .header(reqwest::header::ACCEPT_ENCODING, "gzip");
+        let deadline = started + self.http.timeout;
+        let response = self.within_head_deadline(&url, deadline, self.run(request, &url)).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }
         let response = self.checked(response, &url).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(response))
+        Ok(FetchOutcome::Ok(client.retain_for_body(response, self.http.timeout)))
+    }
+
+    pub(crate) fn request_headers(&self, url: &str) -> HeaderMap {
+        if same_origin(&self.base, url) && is_url_secure_for_credentials(url) {
+            return self.http.headers.clone();
+        }
+        HeaderMap::new()
+    }
+
+    /// Refuse a request to the origin for a [`Self::cached_only`] caller.
+    pub(crate) fn ensure_may_fetch(&self) -> Result<()> {
+        let Some(user) = &self.cached_only else {
+            return Ok(());
+        };
+        Err(RegistryError::Forbidden {
+            user: user.clone(),
+            action: "fetch into the cache of",
+            resource: format!("upstream {:?}", self.name),
+        })
     }
 
     /// Fail fast with [`RegistryError::UpstreamUnavailable`] when the
     /// breaker is open, so callers never pay a request to a known-down
     /// upstream.
-    fn ensure_available(&self) -> Result<()> {
+    pub(crate) fn ensure_available(&self) -> Result<()> {
+        // Before the breaker: a refused caller must not take its probe.
+        self.ensure_may_fetch()?;
         if self.breaker.try_acquire() {
             return Ok(());
         }
-        Err(RegistryError::UpstreamUnavailable { upstream: self.name.clone() })
-    }
-
-    /// Send a built request, mapping a transport error to
-    /// [`RegistryError::Upstream`] and counting it against the breaker.
-    async fn run(&self, request: reqwest::RequestBuilder, url: &str) -> Result<reqwest::Response> {
-        request.send().await.map_err(|source| {
-            self.breaker.record_failure();
-            RegistryError::Upstream { url: url.to_string(), source }
+        Err(RegistryError::UpstreamUnavailable {
+            upstream: self.name.clone(),
+            retry_after: self.breaker.retry_after(),
         })
-    }
-
-    /// Pass a successful response through; map any non-success status to
-    /// [`RegistryError::UpstreamStatus`]. Only a `5xx` counts against the
-    /// breaker — a non-404 `4xx` is an authoritative client error (auth,
-    /// rate-limit, bad request), not an availability signal, so it leaves
-    /// the breaker untouched rather than opening the circuit and masking
-    /// the real status behind a `503`. The `404`/`304` paths are handled
-    /// by the callers before reaching here.
-    async fn checked(&self, response: reqwest::Response, url: &str) -> Result<reqwest::Response> {
-        let status = response.status();
-        if status.is_success() {
-            return Ok(response);
-        }
-        if status.is_server_error() {
-            self.breaker.record_failure();
-        }
-        let body = read_upstream_error_body(response).await;
-        Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
-    }
-}
-
-async fn read_upstream_error_body(response: reqwest::Response) -> String {
-    let Ok(body) = read_limited_body(response, UPSTREAM_ERROR_BODY_LIMIT).await else {
-        return String::new();
-    };
-    let mut text = String::from_utf8_lossy(&body.bytes).into_owned();
-    if body.truncated {
-        if !text.is_empty() && !text.chars().next_back().is_some_and(char::is_whitespace) {
-            text.push(' ');
-        }
-        text.push_str("(response body truncated)");
-    }
-    text
-}
-
-/// Rewrite every `dist.tarball` in `value` to a URL served by *this*
-/// registry instead of whatever URL the source put there. The new URL is
-/// `{public_url}/{pkg}/-/{basename}`, where `basename` is the last
-/// `/`-separated segment of the original tarball URL. This handles both
-/// npm's canonical `/{pkg}/-/{basename}` shape and verdaccio's
-/// `/{scope}/{name}/-/{scope}/{filename}` shape uniformly — we only look
-/// at the basename, never at the path prefix.
-///
-/// The basename is preserved verbatim rather than reconstructed from the
-/// version, so a non-canonical tarball name (e.g. esprima-fb's zero-padded
-/// `esprima-fb-3001.0001.0000-dev-harmony-fb.tgz` for version
-/// `3001.1.0-dev-harmony-fb`) survives into the client's lockfile and is
-/// fetched back from the path the upstream actually hosts. The tarball
-/// endpoint binds each request to a version's declared `dist.integrity`
-/// (see `serve_tarball`), so a preserved name can't smuggle in unverified
-/// bytes.
-///
-/// Walks both packument shape (`{ "versions": { v: { dist: ... } } }`)
-/// and single-version manifest shape (`{ dist: ... }` at the top level)
-/// so a single helper covers both endpoints.
-pub fn rewrite_tarball_urls(value: &mut Value, pkg: &PackageName, public_url: &str) {
-    rewrite_tarball_urls_from_registry(value, pkg, None, public_url);
-}
-
-/// Rewrite tarball URLs from an upstream registry, preserving valid revision routes.
-pub fn rewrite_upstream_tarball_urls(
-    value: &mut Value,
-    pkg: &PackageName,
-    source_registry: &str,
-    public_url: &str,
-) {
-    rewrite_tarball_urls_from_registry(value, pkg, Some(source_registry), public_url);
-}
-
-fn rewrite_tarball_urls_from_registry(
-    value: &mut Value,
-    pkg: &PackageName,
-    source_registry: Option<&str>,
-    public_url: &str,
-) {
-    let public_url = public_url.trim_end_matches('/');
-    if let Some(versions) = value.get_mut("versions").and_then(Value::as_object_mut) {
-        for manifest in versions.values_mut() {
-            rewrite_dist_tarball(manifest, pkg, source_registry, public_url);
-        }
-    }
-    rewrite_dist_tarball(value, pkg, source_registry, public_url);
-}
-
-fn rewrite_dist_tarball(
-    value: &mut Value,
-    pkg: &PackageName,
-    source_registry: Option<&str>,
-    public_url: &str,
-) {
-    // Every string `dist.tarball` must be rewritten to a route on *this*
-    // server, where integrity and OSV are enforced — never passed through.
-    // When the upstream URL has no usable basename (e.g. it ends in `/`), fall
-    // back to the version-derived canonical name (the manifest carries its own
-    // `version`) so a malformed URL still points at pnpr (and 404s there)
-    // rather than directing the client at an arbitrary upstream host.
-    let fallback = value
-        .get("version")
-        .and_then(Value::as_str)
-        .map(|version| pkg.tarball_name_for_version(version));
-    let Some(dist) = value.get_mut("dist").and_then(Value::as_object_mut) else {
-        return;
-    };
-    if let Some(source_registry) = source_registry {
-        rewrite_upstream_revision_tarball_urls(dist, source_registry, public_url);
-    }
-    let revision_url = source_registry.and_then(|source_registry| {
-        let revision = dist.get("revision")?.as_u64()?;
-        TarballRevision::try_from(revision).ok()?;
-        let integrity: Integrity = dist.get("integrity")?.as_str()?.parse().ok()?;
-        let tarball = dist.get("tarball")?.as_str()?;
-        if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
-            return None;
-        }
-        let revision_url = integrity_addressed_registry_tarball_url(&integrity, public_url)?;
-        let matches = dist
-            .get("revisions")?
-            .as_array()?
-            .iter()
-            .filter(|entry| {
-                entry.get("revision").and_then(Value::as_u64) == Some(revision)
-                    && entry
-                        .get("integrity")
-                        .and_then(Value::as_str)
-                        .and_then(|integrity| integrity.parse::<Integrity>().ok())
-                        .is_some_and(|candidate| candidate == integrity)
-                    && entry.get("tarball").and_then(Value::as_str) == Some(revision_url.as_str())
-            })
-            .count();
-        (matches == 1).then_some(revision_url)
-    });
-    if let Some(revision_url) = revision_url {
-        let Some(tarball_value) = dist.get_mut("tarball") else { return };
-        *tarball_value = Value::String(revision_url);
-        return;
-    }
-    dist.remove("revision");
-    let Some(tarball_value) = dist.get_mut("tarball") else { return };
-    if !tarball_value.is_string() {
-        return;
-    }
-    let filename = tarball_value
-        .as_str()
-        .and_then(tarball_basename)
-        .map(str::to_owned)
-        .or(fallback)
-        .unwrap_or_default();
-    *tarball_value = Value::String(format!("{public_url}/{}/-/{filename}", pkg.as_str()));
-}
-
-fn rewrite_upstream_revision_tarball_urls(
-    dist: &mut serde_json::Map<String, Value>,
-    source_registry: &str,
-    public_url: &str,
-) {
-    let Some(revisions) = dist.get_mut("revisions").and_then(Value::as_array_mut) else {
-        return;
-    };
-    revisions.retain_mut(|revision| {
-        let Some(revision) = revision.as_object_mut() else {
-            return false;
-        };
-        let Some(number) = revision.get("revision").and_then(Value::as_u64) else {
-            return false;
-        };
-        if number > MAX_TARBALL_REVISION || !revision.get("manifest").is_some_and(Value::is_object)
-        {
-            return false;
-        }
-        let Some(integrity) = revision
-            .get("integrity")
-            .and_then(Value::as_str)
-            .and_then(|integrity| integrity.parse::<Integrity>().ok())
-        else {
-            return false;
-        };
-        let Some(tarball) = revision.get("tarball").and_then(Value::as_str) else {
-            return false;
-        };
-        if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
-            return false;
-        }
-        let Some(tarball) = integrity_addressed_registry_tarball_url(&integrity, public_url) else {
-            return false;
-        };
-        revision.insert("tarball".to_string(), Value::String(tarball));
-        true
-    });
-}
-
-/// The tarball filename a `dist.tarball` URL points at: the final path
-/// segment, with any `?query`/`#fragment` stripped. This basename is the
-/// trust key shared by the rewritten public URL ([`rewrite_tarball_urls`])
-/// and the serve-time version match (`expected_tarball_dist`), so both
-/// must derive it identically — including for query-bearing URLs (signed
-/// CDN links), where the query is not part of the route path a client
-/// later requests. Returns `None` for a URL whose path ends in `/`.
-#[must_use]
-pub fn tarball_basename(url: &str) -> Option<&str> {
-    let path = url.split(['?', '#']).next().unwrap_or(url);
-    path.rsplit('/').next().filter(|segment| !segment.is_empty())
-}
-
-/// Look up the version manifest for `version_or_tag` inside a parsed
-/// packument: if the string matches a dist-tag it resolves through
-/// `dist-tags[tag]` first, otherwise it's taken as a literal version.
-/// Returns the version's manifest *with* the `dist.tarball` rewritten
-/// to point at this server.
-#[must_use]
-pub fn extract_version_manifest(
-    packument: &Value,
-    pkg: &PackageName,
-    version_or_tag: &str,
-    public_url: &str,
-) -> Option<Value> {
-    extract_version_manifest_from_registry(packument, pkg, version_or_tag, None, public_url)
-}
-
-/// Extract a version manifest while preserving valid upstream revision routes.
-#[must_use]
-pub fn extract_upstream_version_manifest(
-    packument: &Value,
-    pkg: &PackageName,
-    version_or_tag: &str,
-    source_registry: &str,
-    public_url: &str,
-) -> Option<Value> {
-    extract_version_manifest_from_registry(
-        packument,
-        pkg,
-        version_or_tag,
-        Some(source_registry),
-        public_url,
-    )
-}
-
-fn extract_version_manifest_from_registry(
-    packument: &Value,
-    pkg: &PackageName,
-    version_or_tag: &str,
-    source_registry: Option<&str>,
-    public_url: &str,
-) -> Option<Value> {
-    let resolved = packument
-        .get("dist-tags")
-        .and_then(|tags| tags.get(version_or_tag))
-        .and_then(Value::as_str)
-        .unwrap_or(version_or_tag);
-    let mut manifest = packument.get("versions")?.get(resolved)?.clone();
-    rewrite_tarball_urls_from_registry(&mut manifest, pkg, source_registry, public_url);
-    Some(manifest)
-}
-
-/// Top-level packument fields *copied verbatim* into the abbreviated
-/// (`application/vnd.npm.install-v1+json`) form.
-///
-/// `time` isn't here because it's coarsened rather than copied — see
-/// [`coarsen_time_map`]. It goes beyond the npm spec but the
-/// pnpm/pacquet resolvers read it for the `minimumReleaseAge` check,
-/// so it stays (in a shrunken form).
-///
-/// `modified` isn't here either because it's synthesized: it's
-/// extracted from `time.modified` (real npm packuments nest it
-/// there). pacquet reads `meta.modified` in its version-pick
-/// heuristics (`pick_package_from_meta.rs`) and as a freshness check
-/// (`pick_package.rs`); omitting it pushes the resolver onto a slower
-/// fallback path.
-const ABBREVIATED_TOP_FIELDS: &[&str] = &["name", "dist-tags"];
-
-/// Age past which a `time` entry loses its time-of-day in the
-/// abbreviated form, keeping only the (rounded-up) bare date.
-/// `minimumReleaseAge` cutoffs sit in the recent past (days, not
-/// weeks), so a week-old entry rounded up to the next day is still
-/// unambiguously on the mature side of any realistic cutoff. See
-/// [`coarsen_time_map`].
-const TIME_PRECISION_HORIZON_DAYS: i64 = 7;
-
-/// Per-version fields preserved in the abbreviated form — a subset of
-/// the npm spec's abbreviated version object
-/// (<https://github.com/npm/registry/blob/ae49abf1ba/docs/responses/package-metadata.md#abbreviated-version-object>).
-/// Fields neither the pnpm nor the pacquet resolver reads are dropped
-/// to shrink the document: `funding`, `acceptDependencies`,
-/// `_hasShrinkwrap`, and `devDependencies` (a dependency's dev
-/// dependencies are never installed). Redundant `dist` subfields are
-/// trimmed per-version by [`trim_dist_fields`].
-const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
-    "name",
-    "version",
-    "deprecated",
-    "bin",
-    "dist",
-    "engines",
-    "directories",
-    "dependencies",
-    "peerDependencies",
-    "optionalDependencies",
-    "bundleDependencies",
-    "cpu",
-    "os",
-    "libc",
-    "peerDependenciesMeta",
-    "hasInstallScript",
-];
-
-/// Strip a parsed packument down to the abbreviated install-v1 form.
-/// Should be called *after* [`rewrite_tarball_urls`] so the returned
-/// document's `dist.tarball` URLs already point at this server.
-pub fn abbreviate_packument(packument: &Value, now: DateTime<Utc>) -> Value {
-    let mut out = serde_json::Map::new();
-    if let Some(obj) = packument.as_object() {
-        for &field in ABBREVIATED_TOP_FIELDS {
-            if let Some(value) = obj.get(field) {
-                out.insert(field.to_string(), value.clone());
-            }
-        }
-        // Coarsen `time`, then synthesize `modified` from the
-        // coarsened map — npm packuments nest `modified` under `time`
-        // and pacquet's resolver reads it at the top level.
-        if let Some(time) = obj.get("time").and_then(Value::as_object) {
-            let time = coarsen_time_map(time, now);
-            if let Some(modified) = time.get("modified") {
-                out.insert("modified".to_string(), modified.clone());
-            }
-            out.insert("time".to_string(), Value::Object(time));
-        }
-        if let Some(versions) = obj.get("versions").and_then(Value::as_object) {
-            let mut abbreviated_versions = serde_json::Map::with_capacity(versions.len());
-            for (version_id, version_value) in versions {
-                let Some(version_obj) = version_value.as_object() else { continue };
-                let mut trimmed = serde_json::Map::new();
-                for &field in ABBREVIATED_VERSION_FIELDS {
-                    if let Some(value) = version_obj.get(field) {
-                        trimmed.insert(field.to_string(), value.clone());
-                    }
-                }
-                trim_dist_fields(&mut trimmed);
-                abbreviated_versions.insert(version_id.clone(), Value::Object(trimmed));
-            }
-            out.insert("versions".to_string(), Value::Object(abbreviated_versions));
-        }
-    }
-    Value::Object(out)
-}
-
-/// Trim `dist` subfields the resolver and installer never read:
-///
-/// * `npm-signature` — the legacy PGP detached signature. npm stopped
-///   populating it years ago in favour of the ECDSA `signatures`, and
-///   nothing in pnpm or pacquet reads it.
-/// * `shasum` — the legacy sha1 hash, redundant once `integrity` (SRI)
-///   is present. "Present" mirrors pnpm's `getIntegrity` truthiness
-///   check (`if (dist.integrity)`): a non-empty string. An absent,
-///   empty, or non-string `integrity` keeps `shasum` so pnpm's
-///   sha1 fallback still has a hash (pre-2017 publishes).
-///
-/// `dist.signatures` (the ECDSA registry signatures) is deliberately
-/// preserved: it binds `name@version:integrity` to the upstream
-/// registry's key and is the input to a potential client-side
-/// install-time verification on the pnpr path.
-///
-/// `unpackedSize` and `fileCount` are preserved: pacquet reads both
-/// off the resolver-fetched manifest — `unpackedSize` sizes the
-/// decompression buffer, and together they form the download's
-/// queueing priority (the estimated pipeline work that starts the
-/// most expensive tarballs first).
-fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
-    let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
-        return;
-    };
-    dist.remove("npm-signature");
-    if dist.get("integrity").and_then(Value::as_str).is_some_and(|integrity| !integrity.is_empty())
-    {
-        dist.remove("shasum");
-    }
-}
-
-/// Shrink a packument `time` map by dropping precision the resolvers
-/// don't need: seconds come off every timestamp, and entries older
-/// than [`TIME_PRECISION_HORIZON_DAYS`] lose the time-of-day entirely
-/// (down to the bare `YYYY-MM-DD`). Responses go out uncompressed, so
-/// every character dropped is a byte off the wire.
-///
-/// Both reduced forms stay parseable by pnpm (`new Date`) and pacquet
-/// (`pnpm_resolving_resolver_base::parse_packument_timestamp`).
-/// Values are rounded *up* (see [`coarsen_timestamp`]) so the
-/// maturity- and trust-checks that read them stay fail-safe.
-/// Non-timestamp entries (the reserved `unpublished` object) and any
-/// value pnpr can't parse as RFC 3339 pass through untouched.
-fn coarsen_time_map(
-    time: &serde_json::Map<String, Value>,
-    now: DateTime<Utc>,
-) -> serde_json::Map<String, Value> {
-    let horizon = now - chrono::Duration::days(TIME_PRECISION_HORIZON_DAYS);
-    let mut out = serde_json::Map::with_capacity(time.len());
-    for (key, value) in time {
-        let coarsened = value.as_str().and_then(|raw| coarsen_timestamp(raw, horizon));
-        out.insert(key.clone(), coarsened.map_or_else(|| value.clone(), Value::String));
-    }
-    out
-}
-
-/// Re-render one RFC 3339 timestamp at reduced precision, **rounding
-/// up**: a bare date (the next day, unless already midnight) when it
-/// predates `horizon`, otherwise the next whole minute (unless already
-/// on a minute boundary). Rounding up keeps the coarsened value at or
-/// after the real publish time, so `minimumReleaseAge` and trust
-/// checks can only ever read a version as *newer* than it is — the
-/// fail-safe direction (a too-new version is never coarsened into
-/// looking mature). Returns `None` for strings that aren't RFC 3339 so
-/// the caller keeps the original verbatim.
-fn coarsen_timestamp(raw: &str, horizon: DateTime<Utc>) -> Option<String> {
-    let parsed = DateTime::parse_from_rfc3339(raw).ok()?.with_timezone(&Utc);
-    if parsed < horizon {
-        let date = parsed.date_naive();
-        let rounded =
-            if parsed == date.and_hms_opt(0, 0, 0)?.and_utc() { date } else { date.succ_opt()? };
-        Some(rounded.format("%Y-%m-%d").to_string())
-    } else {
-        let minute = parsed.with_second(0)?.with_nanosecond(0)?;
-        let rounded = if parsed == minute { minute } else { minute + chrono::Duration::minutes(1) };
-        Some(rounded.format("%Y-%m-%dT%H:%MZ").to_string())
     }
 }
 

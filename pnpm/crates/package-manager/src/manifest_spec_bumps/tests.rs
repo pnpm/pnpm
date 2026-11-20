@@ -1,17 +1,34 @@
 use super::{
-    ManifestSpecBumps, OverriddenDeclarations, apply_manifest_spec_bumps, bumped_range,
-    split_npm_alias,
+    ManifestSpecBumps,
+    OverriddenDeclarations,
+    apply_manifest_spec_bumps,
+    bumped_range,
+    split_registry_alias,
 };
 use crate::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::parse_overrides;
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName, ResolvedDependencyMap};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ResolvedDependencyMap,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use serde_json::json;
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn lockfile(source: &str) -> Lockfile {
@@ -26,8 +43,8 @@ fn specifier_of(group: Option<&ResolvedDependencyMap>, alias: &str) -> String {
 fn bumps(targets: &[(&str, DependencyGroup, &str)]) -> ManifestSpecBumps {
     let targets = targets
         .iter()
-        .map(|(alias, group, declared)| ((*alias).to_string(), (*group, (*declared).to_string())))
-        .collect::<HashMap<_, _>>();
+        .map(|(alias, group, declared)| ((*alias).to_string(), *group, (*declared).to_string()))
+        .collect();
     ManifestSpecBumps {
         targets: BTreeMap::from([(".".to_string(), targets)]),
         range_spec_style: RangeSpecStyle::Major,
@@ -36,8 +53,12 @@ fn bumps(targets: &[(&str, DependencyGroup, &str)]) -> ManifestSpecBumps {
 }
 
 fn bump(declared: &str, version: &str) -> Option<String> {
+    bump_under("dep", declared, version)
+}
+
+fn bump_under(alias: &str, declared: &str, version: &str) -> Option<String> {
     let version = version.parse::<ImporterDepVersion>().expect("parse the resolved version");
-    bumped_range(declared, &version, RangeSpecStyle::Major)
+    bumped_range(alias, declared, &version, RangeSpecStyle::Major)
 }
 
 #[test]
@@ -49,9 +70,15 @@ fn keeps_the_declared_range_operator() {
 }
 
 #[test]
-fn falls_back_to_the_default_operator_when_the_declaration_pins_none() {
-    assert_eq!(bump(">=1.0.0", "3.1.0").as_deref(), Some("^3.1.0"));
-    assert_eq!(bump("1 || 2", "1.2.0").as_deref(), Some("^1.2.0"));
+fn registry_ranges_still_bump_without_runtime_provisioning() {
+    assert_eq!(bump("^1.0.0", "1.2.0").as_deref(), Some("^1.2.0"));
+}
+
+#[test]
+fn a_declaration_that_pins_no_operator_keeps_its_shape_while_it_admits_the_version() {
+    assert_eq!(bump(">=1.0.0", "3.1.0"), None);
+    assert_eq!(bump("1 || 2", "1.2.0"), None);
+    assert_eq!(bump(">=1.0.0 <2.0.0", "3.1.0").as_deref(), Some("^3.1.0"));
     assert_eq!(bump("*", "2.1.0").as_deref(), Some("^2.1.0"));
 }
 
@@ -94,6 +121,87 @@ fn an_npm_alias_keeps_pointing_at_the_same_package() {
 }
 
 #[test]
+fn a_jsr_range_moves_under_its_prefix() {
+    assert_eq!(bump("jsr:^1.0.0", "@jsr/scope__pkg@1.2.0").as_deref(), Some("jsr:^1.2.0"));
+    assert_eq!(
+        bump("jsr:@scope/pkg@~1.0.0", "@jsr/scope__pkg@1.0.4").as_deref(),
+        Some("jsr:@scope/pkg@~1.0.4"),
+    );
+}
+
+/// A declaration naming only the package tracks the default tag, so there
+/// is nothing to move.
+#[test]
+fn a_declaration_without_a_range_is_left_alone() {
+    assert_eq!(bump("jsr:@scope/pkg", "@jsr/scope__pkg@1.2.0"), None);
+    assert_eq!(bump("npm:is-positive", "is-positive@3.1.0"), None);
+}
+
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
+#[test]
+fn a_node_runtime_range_moves_under_its_prefix() {
+    let bump_node = |declared, version| bump_under("node", declared, version);
+    assert_eq!(bump_node("runtime:^26.8.2", "runtime:26.9.0").as_deref(), Some("runtime:^26.9.0"));
+    assert_eq!(bump_node("runtime:~26.8.2", "runtime:26.8.5").as_deref(), Some("runtime:~26.8.5"));
+}
+
+#[test]
+fn a_node_runtime_declaration_that_already_names_the_version_is_left_alone() {
+    assert_eq!(bump_under("node", "runtime:^26.9.0", "runtime:26.9.0"), None);
+    assert_eq!(bump_under("node", "runtime:26.8.2", "runtime:26.8.2"), None);
+}
+
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
+#[test]
+fn a_node_runtime_channel_is_dropped_unless_the_pick_is_a_prerelease() {
+    let bump_node = |declared, version| bump_under("node", declared, version);
+    assert_eq!(
+        bump_node("runtime:rc/^26.8.2", "runtime:26.9.0").as_deref(),
+        Some("runtime:^26.9.0"),
+    );
+    assert_eq!(
+        bump_node("runtime:rc/^24.0.0-rc.3", "runtime:24.0.0-rc.4").as_deref(),
+        Some("runtime:24.0.0-rc.4"),
+    );
+}
+
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
+#[test]
+fn a_node_runtime_tag_is_pinned_to_the_pick() {
+    assert_eq!(
+        bump_under("node", "runtime:latest", "runtime:26.9.0").as_deref(),
+        Some("runtime:26.9.0"),
+    );
+}
+
+#[test]
+fn a_node_runtime_declaration_with_an_unknown_channel_is_left_alone() {
+    assert_eq!(bump_under("node", "runtime:unknown/^26.8.2", "runtime:26.9.0"), None);
+}
+
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
+#[test]
+fn a_deno_or_bun_runtime_declaration_moves_its_range_and_leaves_tags_alone() {
+    for alias in ["deno", "bun"] {
+        assert_eq!(
+            bump_under(alias, "runtime:^1.2.0", "runtime:1.2.5").as_deref(),
+            Some("runtime:^1.2.5"),
+        );
+        assert_eq!(
+            bump_under(alias, "runtime:1.2.0", "runtime:1.2.5").as_deref(),
+            Some("runtime:1.2.5"),
+        );
+        for declared in ["runtime:latest", "runtime:canary"] {
+            assert_eq!(
+                bump_under(alias, declared, "runtime:1.2.5"),
+                None,
+                "bump of {declared} under {alias}",
+            );
+        }
+    }
+}
+
+#[test]
 fn declarations_of_other_protocols_are_left_alone() {
     for declared in [
         "workspace:*",
@@ -101,7 +209,7 @@ fn declarations_of_other_protocols_are_left_alone() {
         "link:../foo",
         "file:../foo.tgz",
         "catalog:default",
-        "jsr:^1.0.0",
+        "gh:^1.0.0",
         "https://example.com/foo.tgz",
     ] {
         assert_eq!(bump(declared, "1.2.0"), None, "{declared} should be left alone");
@@ -120,12 +228,51 @@ fn a_peer_suffix_is_dropped_from_the_written_range() {
 }
 
 #[test]
-fn npm_aliases_split_into_the_prefix_they_keep() {
-    assert_eq!(split_npm_alias("^1.0.0"), Some(("", "^1.0.0")));
-    assert_eq!(split_npm_alias("npm:foo@^1.0.0"), Some(("npm:foo@", "^1.0.0")));
-    assert_eq!(split_npm_alias("npm:@scope/foo@^1.0.0"), Some(("npm:@scope/foo@", "^1.0.0")));
-    assert_eq!(split_npm_alias("npm:^1.0.0"), Some(("npm:", "^1.0.0")));
-    assert_eq!(split_npm_alias("workspace:^1.0.0"), None);
+fn registry_aliases_split_into_the_prefix_they_keep() {
+    let split = |declared: &str| -> Option<(String, String)> {
+        split_registry_alias(declared)
+            .map(|(prefix, range)| (prefix.into_owned(), range.to_string()))
+    };
+    let some = |prefix: &str, range: &str| Some((prefix.to_string(), range.to_string()));
+    assert_eq!(split("^1.0.0"), some("", "^1.0.0"));
+    assert_eq!(split("npm:foo@^1.0.0"), some("npm:foo@", "^1.0.0"));
+    assert_eq!(split("npm:foo@>=1.0.0 <2.0.0"), some("npm:foo@", ">=1.0.0 <2.0.0"));
+    assert_eq!(split("npm:@scope/foo@^1.0.0"), some("npm:@scope/foo@", "^1.0.0"));
+    assert_eq!(split("npm:^1.0.0"), some("npm:", "^1.0.0"));
+    assert_eq!(split("npm:foo"), some("npm:foo@", ""));
+    assert_eq!(split("jsr:^1.0.0"), some("jsr:", "^1.0.0"));
+    assert_eq!(split("jsr:@scope/foo@^1.0.0"), some("jsr:@scope/foo@", "^1.0.0"));
+    assert_eq!(split("jsr:@scope/foo@>=1.0.0 <2.0.0"), some("jsr:@scope/foo@", ">=1.0.0 <2.0.0"));
+    assert_eq!(split("jsr:@scope/foo"), some("jsr:@scope/foo@", ""));
+    assert_eq!(split("workspace:^1.0.0"), None);
+    assert_eq!(split("gh:^1.0.0"), None);
+}
+
+/// `devEngines.runtime` reaches the update as a `runtime:` dependency under
+/// `devDependencies`.
+#[cfg_attr(not(feature = "runtime-provisioning"), ignore = "requires runtime provisioning")]
+#[test]
+fn a_runtime_bump_moves_the_lockfile_entry_and_reports_the_new_range() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    devDependencies:
+      node:
+        specifier: runtime:^26.8.2
+        version: runtime:26.9.0
+",
+    );
+
+    let bumps = bumps(&[("node", DependencyGroup::Dev, "runtime:^26.8.2")]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
+
+    let importer = &lockfile.importers["."];
+    assert_eq!(specifier_of(importer.dev_dependencies.as_ref(), "node"), "runtime:^26.9.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    let expected = (DependencyGroup::Dev, "runtime:^26.9.0".to_string());
+    assert!(applied.manifests["."].contains(&("node".to_string(), expected.0, expected.1)));
 }
 
 /// A package declared in more than one direct group has one entry per group,
@@ -157,12 +304,70 @@ importers:
     assert_eq!(specifier_of(importer.dependencies.as_ref(), "foo"), "^1.0.0");
     let applied = bumps.applied.into_inner().expect("never poisoned");
     let expected = (DependencyGroup::Dev, "^2.1.0".to_string());
-    assert_eq!(applied.manifests["."]["foo"], expected);
+    assert!(applied.manifests["."].contains(&("foo".to_string(), expected.0, expected.1)));
+}
+
+#[test]
+fn a_peer_bump_moves_the_materialized_lockfile_entry_and_reports_peer_group() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.2.0
+",
+    );
+
+    let bumps = bumps(&[("foo", DependencyGroup::Peer, "^1.0.0")]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
+
+    let importer = &lockfile.importers["."];
+    assert_eq!(specifier_of(importer.dependencies.as_ref(), "foo"), "^1.2.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    let expected = (DependencyGroup::Peer, "^1.2.0".to_string());
+    assert!(applied.manifests["."].contains(&("foo".to_string(), expected.0, expected.1)));
+}
+
+#[test]
+fn shared_alias_bumps_are_reported_for_both_manifest_groups() {
+    let mut lockfile = lockfile(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.2.0
+",
+    );
+
+    let bumps = bumps(&[
+        ("foo", DependencyGroup::Prod, "^1.0.0"),
+        ("foo", DependencyGroup::Peer, "~1.0.0"),
+    ]);
+    apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
+
+    assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^1.2.0");
+    let applied = bumps.applied.into_inner().expect("never poisoned");
+    assert!(applied.manifests["."].contains(&(
+        "foo".to_string(),
+        DependencyGroup::Prod,
+        "^1.2.0".to_string(),
+    )));
+    assert!(applied.manifests["."].contains(&(
+        "foo".to_string(),
+        DependencyGroup::Peer,
+        "~1.2.0".to_string(),
+    )));
 }
 
 /// The declared text is what the resolver read. When the lockfile entry
-/// carries something else — an override replaced the declaration before
-/// resolution — the entry is not the update's to move (pnpm/pnpm#12115).
+/// carries something else (an override replaced the declaration before
+/// resolution) the entry is not the update's to move (pnpm/pnpm#12115).
 #[test]
 fn a_declaration_an_override_replaced_is_left_alone() {
     let mut lockfile = lockfile(
@@ -181,7 +386,12 @@ importers:
     apply_manifest_spec_bumps(&mut lockfile, &bumps, None);
 
     assert_eq!(specifier_of(lockfile.importers["."].dependencies.as_ref(), "foo"), "^1.0.0");
-    assert!(bumps.applied.into_inner().expect("never poisoned").is_empty());
+    assert!(
+        bumps.applied
+            .into_inner()
+            .expect("never poisoned")
+            .is_empty(),
+    );
 }
 
 /// Mirrors `update moves a declaration a range-scoped override does not claim`
@@ -233,5 +443,10 @@ importers:
     let claimed = bumps(&[("foo", DependencyGroup::Dev, "^1.0.0")]);
     apply_manifest_spec_bumps(&mut lockfile, &claimed, Some(&overridden));
     assert_eq!(specifier_of(lockfile.importers["."].dev_dependencies.as_ref(), "foo"), "^1.0.0");
-    assert!(claimed.applied.into_inner().expect("never poisoned").is_empty());
+    assert!(
+        claimed.applied
+            .into_inner()
+            .expect("never poisoned")
+            .is_empty(),
+    );
 }

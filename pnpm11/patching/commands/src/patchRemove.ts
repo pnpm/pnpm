@@ -5,12 +5,13 @@ import path from 'node:path'
 import { checkbox } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { isSubdirectory } from './isSubdirectory.js'
+import { deleteEditDirStates, readStateFile } from './stateFile.js'
 import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -36,30 +37,8 @@ export function help (): string {
 export type PatchRemoveCommandOptions = install.InstallCommandOptions & Pick<Config, 'dir' | 'lockfileDir' | 'patchesDir' | 'patchedDependencies'> & Pick<ConfigContext, 'rootProjectManifest'>
 
 export async function handler (opts: PatchRemoveCommandOptions, params: string[]): Promise<void> {
-  let patchesToRemove = params
   const patchedDependencies = { ...opts.patchedDependencies }
-
-  if (!params.length) {
-    const allPatches = Object.keys(patchedDependencies)
-    if (allPatches.length) {
-      try {
-        patchesToRemove = await checkbox({
-          choices: allPatches.map((name) => ({ name, value: name })),
-          message: 'Select the patch to be removed',
-          required: true,
-          validate: (values) => {
-            return values.length === 0 ? 'Select at least one option.' : true
-          },
-          theme: { keybindings: ['vim'] },
-        })
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'ExitPromptError') {
-          throw new PnpmError('PATCH_REMOVE_CANCELED', 'Canceled')
-        }
-        throw err
-      }
-    }
-  }
+  const patchesToRemove = params.length ? params : await promptForPatchesToRemove(Object.keys(patchedDependencies))
 
   if (!patchesToRemove.length) {
     throw new PnpmError('NO_PATCHES_TO_REMOVE', 'There are no patches that need to be removed')
@@ -71,6 +50,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     }
   }
 
+  const editDirsContext = await getEditDirsContext(opts)
   const patchRemovalContext = await getPatchRemovalContext(opts)
   const patchesToRemoveTargets = await Promise.all(patchesToRemove.map(async (patch) => {
     const patchFile = patchedDependencies[patch]
@@ -85,6 +65,44 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     delete patchedDependencies[patch]
   }
 
+  await removeEmptyPatchesDirs(patchesToRemoveTargets)
+  await removeEditDirs(patchesToRemove, editDirsContext)
+  const resolvedPatchedDependencies: Record<string, string> = {}
+  for (const [key, patchPath] of Object.entries(patchedDependencies)) {
+    resolvedPatchedDependencies[key] = path.resolve(patchRemovalContext.lockfileDir, patchPath)
+  }
+  await updatePatchedDependencies(resolvedPatchedDependencies, {
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir ?? patchRemovalContext.lockfileDir,
+  })
+
+  await install.handler({
+    ...opts,
+    patchedDependencies: resolvedPatchedDependencies,
+  })
+}
+
+async function promptForPatchesToRemove (allPatches: string[]): Promise<string[]> {
+  if (!allPatches.length) return []
+  try {
+    return await checkbox({
+      choices: allPatches.map((name) => ({ name, value: name })),
+      message: 'Select the patch to be removed',
+      required: true,
+      validate: (values) => {
+        return values.length === 0 ? 'Select at least one option.' : true
+      },
+      theme: { keybindings: ['vim'] },
+    })
+  } catch (err: unknown) {
+    if (isError(err) && err.name === 'ExitPromptError') {
+      throw new PnpmError('PATCH_REMOVE_CANCELED', 'Canceled')
+    }
+    throw err
+  }
+}
+
+async function removeEmptyPatchesDirs (patchesToRemoveTargets: PatchRemovalTarget[]): Promise<void> {
   const patchesDirs = new Set(patchesToRemoveTargets.map(({ parentDir }) => parentDir))
   await Promise.all(Array.from(patchesDirs).map(async (dir) => {
     try {
@@ -94,15 +112,76 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
       }
     } catch {}
   }))
-  await updatePatchedDependencies(patchedDependencies, {
-    ...opts,
-    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-  })
+}
 
-  await install.handler({
-    ...opts,
-    patchedDependencies,
+interface EditDirsContext {
+  modulesDir: string
+  pnpmPatches: string
+}
+
+async function getEditDirsContext (opts: PatchRemoveCommandOptions): Promise<EditDirsContext> {
+  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
+  const pnpmPatches = path.join(modulesDir, '.pnpm_patches')
+  await Promise.all([pnpmPatches, path.join(pnpmPatches, 'state.json')].map(rejectSymlink))
+  readStateFile(modulesDir)
+  return { modulesDir, pnpmPatches }
+}
+
+async function rejectSymlink (targetPath: string): Promise<void> {
+  if ((await lstatIfExists(targetPath))?.isSymbolicLink()) {
+    throw new PnpmError('PATCH_STATE_UNSAFE_PATH', `Unsafe patch state path ${targetPath}: must not be a symbolic link`)
+  }
+}
+
+/**
+ * Removes the state entries of the given patches and their edit directories.
+ * Only edit directories inside `.pnpm_patches` are deleted. Edit directories
+ * created elsewhere with `--edit-dir` belong to the user.
+ */
+async function removeEditDirs (patches: string[], ctx: EditDirsContext): Promise<void> {
+  const defaultEditDirs = patches.map((patch) => path.join(ctx.pnpmPatches, patch))
+  const recordedEditDirs = deleteEditDirStates({
+    modulesDir: ctx.modulesDir,
+    patchedPkgs: patches,
+    editDirs: defaultEditDirs,
   })
+  const realPnpmPatches = await realpathIfExists(ctx.pnpmPatches)
+  if (realPnpmPatches == null) return
+  await Promise.all(Array.from(new Set([...defaultEditDirs, ...recordedEditDirs])).map(async (editDir) => {
+    if (!isStrictSubdirectory(ctx.pnpmPatches, editDir) || !(await lstatIfExists(editDir))?.isDirectory()) return
+    // A link anywhere below .pnpm_patches could point the removal at another edit directory.
+    const linkFreeRealPath = path.join(realPnpmPatches, path.relative(ctx.pnpmPatches, editDir))
+    if (await realpathIfExists(editDir) !== linkFreeRealPath) return
+    await fs.rm(editDir, { recursive: true, force: true })
+    await removeEmptyAncestors(ctx.pnpmPatches, editDir)
+  }))
+  await removeDirIfEmpty(ctx.pnpmPatches)
+}
+
+/**
+ * Removes the directories between `pnpmPatches` and a removed edit directory,
+ * such as the scope directory of `@scope/pkg@1.0.0`, while they are empty.
+ */
+async function removeEmptyAncestors (pnpmPatches: string, removedDir: string): Promise<void> {
+  for (let dir = path.dirname(removedDir); isStrictSubdirectory(pnpmPatches, dir); dir = path.dirname(dir)) {
+    // eslint-disable-next-line no-await-in-loop -- each parent can only be removed after its child
+    if (!await removeDirIfEmpty(dir)) return
+  }
+}
+
+async function removeDirIfEmpty (dir: string): Promise<boolean> {
+  try {
+    await fs.rmdir(dir)
+    return true
+  } catch (err: unknown) {
+    if (isErrorWithCode(err, 'ENOENT') || isErrorWithCode(err, 'ENOTEMPTY')) return false
+    throw err
+  }
+}
+
+function isStrictSubdirectory (parentDir: string, childPath: string): boolean {
+  return path.resolve(parentDir) !== path.resolve(childPath) && isSubdirectory(parentDir, childPath)
 }
 
 interface PatchRemovalContext {
@@ -120,7 +199,7 @@ interface PatchRemovalTarget {
 }
 
 async function getPatchRemovalContext (opts: PatchRemoveCommandOptions): Promise<PatchRemovalContext> {
-  const lockfileDir = path.resolve(opts.lockfileDir ?? opts.dir ?? process.cwd())
+  const lockfileDir = path.resolve(opts.workspaceDir ?? opts.lockfileDir ?? opts.rootProjectManifestDir ?? opts.dir ?? process.cwd())
   const realLockfileDir = await fs.realpath(lockfileDir)
   const patchesDirSetting = opts.patchesDir ?? 'patches'
   const patchesDir = path.join(lockfileDir, path.normalize(patchesDirSetting))

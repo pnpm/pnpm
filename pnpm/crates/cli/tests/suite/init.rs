@@ -2,12 +2,18 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::get_filenames_in_folder,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// The version the pinning fixture's registry serves as pnpm's `latest`.
 /// Far ahead of any real release, so the no-downgrade guard never picks the
@@ -25,14 +31,25 @@ fn pinning_fixture(served_pnpm_version: &str) -> CommandTempCwd<AddMockedRegistr
     let mut fixture =
         CommandTempCwd::init().add_mocked_registry_with_pnpm_version(served_pnpm_version);
     let registry = fixture.npmrc_info.mock_instance.url();
-    fixture.pacquet.env("PNPM_CONFIG_REGISTRY", registry);
+    fixture.pacquet = fixture.pacquet.with_env("PNPM_CONFIG_REGISTRY", registry);
+    fixture.pacquet =
+        fixture.pacquet.with_env("PNPM_CONFIG_CACHE_DIR", &fixture.npmrc_info.cache_dir);
     fixture
 }
 
 #[test]
 fn should_create_package_json() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
-    pacquet.with_arg("init").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest_path = workspace.join("package.json");
     dbg!(&manifest_path);
@@ -56,8 +73,17 @@ fn should_create_package_json() {
 
 #[test]
 fn the_pin_follows_the_registry_latest_rather_than_the_running_pnpm() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
-    pacquet.with_arg("init").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
         .expect("read from package.json")
@@ -76,8 +102,17 @@ fn the_pin_follows_the_registry_latest_rather_than_the_running_pnpm() {
 /// being tagged; the pin must not move a fresh project backwards onto it.
 #[test]
 fn a_latest_older_than_the_running_pnpm_is_not_pinned() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture("1.0.0");
-    pacquet.with_arg("init").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture("1.0.0");
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_pinned_to_the_running_pnpm(&workspace);
 
@@ -89,10 +124,13 @@ fn a_latest_older_than_the_running_pnpm_is_not_pinned() {
 #[test]
 fn an_unreachable_registry_pins_the_running_pnpm() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
-    // Port 1 is reserved and unbound, so the connection is refused at once
-    // rather than waiting out the lookup's timeout.
-    pacquet.env("PNPM_CONFIG_REGISTRY", "http://127.0.0.1:1/");
-    pacquet.with_arg("init").assert().success();
+    // The connect to `0.0.0.0:1` fails at once on every OS rather than
+    // waiting out the lookup's timeout.
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", "http://0.0.0.0:1/");
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_pinned_to_the_running_pnpm(&workspace);
 
@@ -104,10 +142,18 @@ fn an_unreachable_registry_pins_the_running_pnpm() {
 /// version is only possible if the lookup never happened.
 #[test]
 fn offline_pins_the_running_pnpm_without_a_lookup() {
-    let CommandTempCwd { mut pacquet, root, workspace, npmrc_info, .. } =
-        pinning_fixture(LATEST_PNPM);
-    pacquet.env("PNPM_CONFIG_OFFLINE", "true");
-    pacquet.with_arg("init").assert().success();
+    let CommandTempCwd {
+        mut pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet = pacquet.with_env("PNPM_CONFIG_OFFLINE", "true");
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_pinned_to_the_running_pnpm(&workspace);
 
@@ -131,7 +177,10 @@ fn should_throw_on_existing_file() {
     fs::write(&manifest_path, "{}").expect("write to package.json");
 
     eprintln!("Executing pacquet init...");
-    let output = pacquet.with_arg("init").output().expect("execute pacquet init");
+    let output = pacquet
+        .with_arg("init")
+        .output()
+        .expect("execute pacquet init");
     dbg!(&output);
 
     eprintln!("Exit status code");
@@ -146,7 +195,11 @@ fn should_throw_on_existing_file() {
 #[test]
 fn no_init_package_manager_leaves_the_manifest_unpinned() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    pacquet.with_arg("init").with_arg("--no-init-package-manager").assert().success();
+    pacquet
+        .with_arg("init")
+        .with_arg("--no-init-package-manager")
+        .assert()
+        .success();
 
     assert_unpinned(&workspace);
 
@@ -158,7 +211,10 @@ fn init_package_manager_off_in_the_workspace_manifest_leaves_the_manifest_unpinn
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "initPackageManager: false\n")
         .expect("write to pnpm-workspace.yaml");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_unpinned(&workspace);
 
@@ -167,10 +223,19 @@ fn init_package_manager_off_in_the_workspace_manifest_leaves_the_manifest_unpinn
 
 #[test]
 fn a_workspace_root_is_pinned() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write to pnpm-workspace.yaml");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest =
         fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
@@ -188,9 +253,36 @@ fn a_new_workspace_member_is_not_pinned() {
         .expect("write to pnpm-workspace.yaml");
     let member = workspace.join("packages/foo");
     fs::create_dir_all(&member).expect("create the workspace member directory");
-    pacquet.with_current_dir(&member).with_arg("init").assert().success();
+    pacquet
+        .with_current_dir(&member)
+        .with_arg("init")
+        .assert()
+        .success();
 
     assert_unpinned(&member);
+
+    drop(root);
+}
+
+/// Every other command run from a plain subdirectory of a project acts on
+/// the project, but `init` scaffolds where the user stands; otherwise
+/// there would be no way to start a package inside an existing one.
+#[test]
+fn init_scaffolds_in_the_cwd_inside_an_existing_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "outer" }"#)
+        .expect("write the outer package.json");
+    let subdir = workspace.join("packages/inner");
+    fs::create_dir_all(&subdir).expect("create the subdirectory");
+
+    pacquet
+        .with_current_dir(&subdir)
+        .with_args(["init", "--no-init-package-manager"])
+        .assert()
+        .success();
+
+    let manifest = fs::read_to_string(subdir.join("package.json")).expect("read package.json");
+    assert!(manifest.contains(r#""name": "inner""#), "{manifest}");
 
     drop(root);
 }
@@ -203,8 +295,19 @@ fn assert_unpinned(dir: &Path) {
 
 #[test]
 fn init_type_commonjs_leaves_the_type_field_out() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
-    pacquet.with_arg("init").with_arg("--init-type").with_arg("commonjs").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_arg("init")
+        .with_arg("--init-type")
+        .with_arg("commonjs")
+        .assert()
+        .success();
 
     let manifest =
         fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
@@ -215,10 +318,19 @@ fn init_type_commonjs_leaves_the_type_field_out() {
 
 #[test]
 fn init_type_from_the_workspace_manifest_is_honored() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
     fs::write(workspace.join("pnpm-workspace.yaml"), "initType: commonjs\n")
         .expect("write to pnpm-workspace.yaml");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest =
         fs::read_to_string(workspace.join("package.json")).expect("read from package.json");
@@ -229,7 +341,13 @@ fn init_type_from_the_workspace_manifest_is_honored() {
 
 #[test]
 fn the_author_license_and_version_settings_replace_the_scaffold_placeholders() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         "initAuthorName: pnpm\n\
@@ -239,7 +357,10 @@ fn the_author_license_and_version_settings_replace_the_scaffold_placeholders() {
          initVersion: 2.0.0\n",
     )
     .expect("write to pnpm-workspace.yaml");
-    pacquet.with_arg("init").assert().success();
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
         .expect("read from package.json")
@@ -256,8 +377,17 @@ fn the_author_license_and_version_settings_replace_the_scaffold_placeholders() {
 /// the empty `author` field npm's scaffold carries.
 #[test]
 fn the_scaffold_placeholders_stand_without_the_init_settings() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } = pinning_fixture(LATEST_PNPM);
-    pacquet.with_arg("init").assert().success();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_arg("init")
+        .assert()
+        .success();
 
     let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
         .expect("read from package.json")
@@ -268,4 +398,129 @@ fn the_scaffold_placeholders_stand_without_the_init_settings() {
     assert_eq!(manifest["author"], json!(""));
 
     drop((root, npmrc_info));
+}
+
+#[test]
+fn init_fails_when_package_yaml_already_exists() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.yaml"), "name: test-pkg\nversion: 1.0.0\n")
+        .expect("write to package.yaml");
+    let output = pacquet
+        .with_arg("init")
+        .output()
+        .expect("run pacquet init");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("package.yaml"), "stderr should mention package.yaml: {stderr}");
+    assert!(!workspace.join("package.json").exists());
+    drop(root);
+}
+
+#[test]
+fn init_bare_creates_minimal_package_json() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    pacquet
+        .with_args(["init", "--bare"])
+        .assert()
+        .success();
+
+    let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
+        .expect("read from package.json")
+        .pipe_deref(serde_json::from_str)
+        .expect("parse package.json");
+
+    assert_eq!(
+        manifest,
+        json!({
+            "devEngines": {
+                "packageManager": {
+                    "name": "pnpm",
+                    "version": LATEST_PNPM,
+                    "onFail": "download",
+                },
+            },
+            "packageManager": format!("pnpm@{LATEST_PNPM}"),
+            "type": "module",
+        }),
+    );
+    assert_eq!(manifest.get("name"), None);
+    assert_eq!(manifest.get("version"), None);
+    assert_eq!(manifest.get("description"), None);
+    assert_eq!(manifest.get("main"), None);
+    assert_eq!(manifest.get("scripts"), None);
+    assert_eq!(manifest.get("keywords"), None);
+    assert_eq!(manifest.get("author"), None);
+    assert_eq!(manifest.get("license"), None);
+
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn init_bare_without_package_manager_and_commonjs() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    pacquet
+        .with_args(["init", "--bare", "--no-init-package-manager", "--init-type", "commonjs"])
+        .assert()
+        .success();
+
+    let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
+        .expect("read from package.json")
+        .pipe_deref(serde_json::from_str)
+        .expect("parse package.json");
+
+    assert_eq!(manifest, json!({}));
+
+    drop(root);
+}
+
+#[test]
+fn init_bare_honors_explicit_init_settings() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = pinning_fixture(LATEST_PNPM);
+    fs::write(workspace.join("pnpm-workspace.yaml"), "initLicense: MIT\ninitVersion: 2.0.0\n")
+        .expect("write to pnpm-workspace.yaml");
+    pacquet
+        .with_args(["init", "--bare"])
+        .assert()
+        .success();
+
+    let manifest: serde_json::Value = fs::read_to_string(workspace.join("package.json"))
+        .expect("read from package.json")
+        .pipe_deref(serde_json::from_str)
+        .expect("parse package.json");
+
+    assert_eq!(manifest["version"], json!("2.0.0"));
+    assert_eq!(manifest["license"], json!("MIT"));
+    assert_eq!(manifest.get("name"), None);
+    assert_eq!(manifest.get("description"), None);
+    assert_eq!(manifest.get("main"), None);
+    assert_eq!(manifest.get("scripts"), None);
+    assert_eq!(manifest.get("keywords"), None);
+    assert_eq!(manifest.get("author"), None);
+
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn init_help_mentions_bare() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let output = pacquet
+        .with_args(["init", "--help"])
+        .output()
+        .expect("run pnpm init --help");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("--bare"), "help should mention --bare: {stdout}");
+    drop(root);
 }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "11.25.0",
+  "version": "11.28.13",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -21,14 +21,12 @@
     "prepare.js",
     "dist/",
     "pn.cmd",
-    "pn.ps1",
     "pnpx.cmd",
-    "pnpx.ps1",
-    "pnx.cmd",
-    "pnx.ps1"
+    "pnx.cmd"
   ],
   "scripts": {
     "preinstall": "node setup.js",
+    "postinstall": "node setup.js",
     "prepare": "node prepare.js",
     "build-artifacts": "pn --filter=pnpm prepublishOnly && node ./scripts/build-artifacts.ts",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
@@ -41,7 +39,6 @@
   "optionalDependencies": {
     "@pnpm/linux-arm64": "workspace:*",
     "@pnpm/linux-x64": "workspace:*",
-    "@pnpm/linuxstatic-arm64": "workspace:*",
     "@pnpm/linuxstatic-x64": "workspace:*",
     "@pnpm/macos-arm64": "workspace:*",
     "@pnpm/win-arm64": "workspace:*",
@@ -49,9 +46,9 @@
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
+    "@pnpm/bins.cmd-shim": "workspace:*",
     "@pnpm/exe": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
-    "@zkochan/cmd-shim": "catalog:",
     "execa": "catalog:"
   },
   "jest": {

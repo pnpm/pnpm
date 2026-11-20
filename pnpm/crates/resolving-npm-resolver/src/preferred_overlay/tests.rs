@@ -1,20 +1,53 @@
-use std::collections::HashMap;
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    sync::Arc,
+};
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use node_semver::Version;
-use pnpm_config::version_policy::create_package_version_policy;
-use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_lockfile::{
+    LockfileResolution,
+    RegistryResolution,
+};
+use pnpm_registry::{
+    DerivedPackuments,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+};
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    CurrentPkg,
+    DIRECT_DEP_SELECTOR_WEIGHT,
+    PreferredVersions,
+    PreferredVersionsOverlay,
+    RESOLVED_VERSION_SELECTOR_WEIGHT,
+    ResolveOptions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
     VersionSelectors,
 };
+use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 
-use super::held_back_preferred;
-use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
+use super::{
+    held_back_preferred,
+    overlay_merged_selectors,
+    preferred_selectors,
+};
+use crate::pick_package_from_meta::{
+    PickVersionByVersionRangeOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    apply_published_by_policy,
+    pick_version_by_version_range,
+};
 
-fn parse_iso(input: &str) -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)
+fn parse_iso(input: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(input).expect("rfc3339")
 }
 
 fn make_pkg_version(name: &str, version: &str) -> PackageVersion {
@@ -79,14 +112,23 @@ fn range_selectors() -> VersionSelectors {
 }
 
 fn update_opts() -> ResolveOptions {
-    ResolveOptions { update_requested: true, ..ResolveOptions::default() }
+    ResolveOptions {
+        refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+            update_requested: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    }
 }
 
 // <https://github.com/pnpm/pnpm/issues/13071>
 #[test]
 fn no_warning_when_minimum_release_age_is_the_reason_for_the_held_back_pick() {
     let opts = ResolveOptions {
-        published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
+            ..update_opts().policy
+        },
         ..update_opts()
     };
     let preferred = held_back_preferred(
@@ -105,7 +147,7 @@ fn warns_when_a_manifest_pin_is_the_reason_for_the_held_back_pick() {
         "2.1.3".to_string(),
         VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1000,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
         }),
     )]);
     let preferred = held_back_preferred(
@@ -124,11 +166,14 @@ fn warns_when_the_newer_version_is_mature_under_the_cutoff() {
         "2.1.3".to_string(),
         VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
             selector_type: VersionSelectorType::Version,
-            weight: 1000,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
         }),
     )]);
     let opts = ResolveOptions {
-        published_by: Some(parse_iso("2026-08-01T00:00:00.000Z")),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(parse_iso("2026-08-01T00:00:00.000Z")),
+            ..update_opts().policy
+        },
         ..update_opts()
     };
     let preferred =
@@ -140,8 +185,11 @@ fn warns_when_the_newer_version_is_mature_under_the_cutoff() {
 fn excluded_package_keeps_the_unfiltered_baseline() {
     let policy = create_package_version_policy(["foo"]).expect("policy");
     let opts = ResolveOptions {
-        published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
-        published_by_exclude: Some(policy),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
+            published_by_exclude: Some(policy),
+            ..update_opts().policy
+        },
         ..update_opts()
     };
     let preferred = held_back_preferred(
@@ -158,8 +206,11 @@ fn excluded_package_keeps_the_unfiltered_baseline() {
 fn version_trusted_by_exact_version_stays_in_the_baseline() {
     let policy = create_package_version_policy(["foo@2.1.4"]).expect("policy");
     let opts = ResolveOptions {
-        published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
-        published_by_exclude: Some(policy),
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some(parse_iso("2026-07-01T00:00:00.000Z")),
+            published_by_exclude: Some(policy),
+            ..update_opts().policy
+        },
         ..update_opts()
     };
     let preferred = held_back_preferred(
@@ -170,4 +221,312 @@ fn version_trusted_by_exact_version_stays_in_the_baseline() {
         "2.1.3",
     );
     assert_eq!(preferred, Some("2.1.4".to_string()));
+}
+
+#[test]
+fn overlay_merged_selectors_bumps_weight_of_existing_version() {
+    let mut preferred = PreferredVersions::new();
+    let mut selectors = VersionSelectors::default();
+    selectors.insert(
+        "100.0.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+    selectors.insert(
+        "100.1.0".to_string(),
+        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+    preferred.insert("foo".to_string(), selectors);
+
+    let overlay = PreferredVersionsOverlay::layer_direct(
+        None,
+        BTreeMap::from([("foo".to_string(), vec!["100.0.0".to_string()])]),
+    );
+
+    let opts = ResolveOptions {
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            preferred_versions: Arc::new(preferred),
+            preferred_versions_overlay: overlay,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let merged = overlay_merged_selectors(&opts, "foo").expect("overlay merged");
+    let foo_100_0 = merged.get("100.0.0").expect("has 100.0.0");
+    let foo_100_1 = merged.get("100.1.0").expect("has 100.1.0");
+
+    assert_eq!(
+        foo_100_0,
+        &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: 2 * DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+    assert_eq!(
+        foo_100_1,
+        &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+}
+
+#[test]
+fn overlay_merged_selectors_inserts_new_version_with_direct_dep_weight() {
+    let overlay = PreferredVersionsOverlay::layer_direct(
+        None,
+        BTreeMap::from([("foo".to_string(), vec!["100.0.0".to_string()])]),
+    );
+    let opts = ResolveOptions {
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            preferred_versions_overlay: overlay,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let merged = overlay_merged_selectors(&opts, "foo").expect("overlay merged");
+    let foo_100_0 = merged.get("100.0.0").expect("has 100.0.0");
+    assert_eq!(
+        foo_100_0,
+        &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+}
+
+#[test]
+fn overlay_merged_selectors_returns_none_when_overlay_is_absent_or_empty() {
+    let opts = ResolveOptions::default();
+    assert_eq!(overlay_merged_selectors(&opts, "foo"), None);
+
+    let overlay = PreferredVersionsOverlay::layer(
+        None,
+        BTreeMap::from([("bar".to_string(), vec!["1.0.0".to_string()])]),
+    );
+    let opts_with_bar = ResolveOptions {
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            preferred_versions_overlay: overlay,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    assert_eq!(overlay_merged_selectors(&opts_with_bar, "foo"), None);
+}
+
+#[test]
+fn overlay_merged_selectors_weights_root_layer_higher_than_descendant_layer() {
+    let direct_layer = PreferredVersionsOverlay::layer_direct(
+        None,
+        BTreeMap::from([("foo".to_string(), vec!["100.0.0".to_string()])]),
+    );
+    let child_layer = PreferredVersionsOverlay::layer(
+        direct_layer,
+        BTreeMap::from([("bar".to_string(), vec!["200.0.0".to_string()])]),
+    );
+    let opts = ResolveOptions {
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            preferred_versions_overlay: child_layer,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let merged_foo = overlay_merged_selectors(&opts, "foo").expect("overlay merged foo");
+    let foo_entry = merged_foo.get("100.0.0").expect("has 100.0.0");
+    assert_eq!(
+        foo_entry,
+        &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+
+    let merged_bar = overlay_merged_selectors(&opts, "bar").expect("overlay merged bar");
+    let bar_entry = merged_bar.get("200.0.0").expect("has 200.0.0");
+    assert_eq!(
+        bar_entry,
+        &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: RESOLVED_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+}
+
+#[test]
+fn overlay_descendant_without_parent_layer_retains_descendant_weight() {
+    let child_layer = PreferredVersionsOverlay::layer(
+        None,
+        BTreeMap::from([("bar".to_string(), vec!["200.0.0".to_string()])]),
+    );
+    let opts = ResolveOptions {
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            preferred_versions_overlay: child_layer,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let merged_bar = overlay_merged_selectors(&opts, "bar").expect("overlay merged bar");
+    let bar_entry = merged_bar.get("200.0.0").expect("has 200.0.0");
+    assert_eq!(
+        bar_entry,
+        &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: RESOLVED_VERSION_SELECTOR_WEIGHT,
+        }),
+    );
+}
+
+#[test]
+fn overlay_duplicate_version_across_layers_retains_maximum_weight() {
+    let direct_layer = PreferredVersionsOverlay::layer_direct(
+        None,
+        BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]),
+    );
+    let child_layer = PreferredVersionsOverlay::layer(
+        direct_layer,
+        BTreeMap::from([("foo".to_string(), vec!["1.0.0".to_string()])]),
+    );
+    let opts = ResolveOptions {
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            preferred_versions_overlay: child_layer,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let merged_foo = overlay_merged_selectors(&opts, "foo").expect("overlay merged foo");
+    let foo_entry = merged_foo.get("1.0.0").expect("has 1.0.0");
+    assert_eq!(
+        foo_entry,
+        &VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }),
+    );
+}
+
+#[test]
+fn overlay_manifest_specifiers_preserves_ranges_and_bumps_matching_direct_versions() {
+    let manifest_layer =
+        PreferredVersionsOverlay::manifest_specifiers(PreferredVersions::from([(
+            "foo".to_string(),
+            VersionSelectors::from([
+                (
+                    "100.0.0".to_string(),
+                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                        selector_type: VersionSelectorType::Version,
+                        weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                    }),
+                ),
+                (
+                    "~100.0.0".to_string(),
+                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                        selector_type: VersionSelectorType::Range,
+                        weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                    }),
+                ),
+            ]),
+        )]));
+    let direct_layer = PreferredVersionsOverlay::layer_direct(
+        manifest_layer,
+        BTreeMap::from([("foo".to_string(), vec!["100.0.0".to_string(), "100.1.0".to_string()])]),
+    );
+    let opts = ResolveOptions {
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            preferred_versions_overlay: direct_layer,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let merged = overlay_merged_selectors(&opts, "foo").expect("overlay merged foo");
+    assert_eq!(
+        merged.get("100.0.0"),
+        Some(&VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: 2 * DIRECT_DEP_SELECTOR_WEIGHT,
+        })),
+    );
+    assert_eq!(
+        merged.get("100.1.0"),
+        Some(&VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        })),
+    );
+    assert_eq!(
+        merged.get("~100.0.0"),
+        Some(&VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Range,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        })),
+    );
+}
+
+#[test]
+fn current_version_preference_overrules_workspace_selectors_but_respects_the_range() {
+    let mut opts = current_version_opts("2.1.3");
+    let meta = make_package();
+    for (prefer_current, range, expected) in
+        [(false, "^2.1.3", "2.1.4"), (true, "^2.1.3", "2.1.3"), (true, "^2.1.4", "2.1.4")]
+    {
+        opts.refresh.prefer_current_version = prefer_current;
+        let selectors = preferred_selectors(&opts, "foo");
+        let picked = pick_version_by_version_range(&PickVersionByVersionRangeOptions {
+            meta: &meta,
+            version_range: range,
+            preferred_version_selectors: selectors.as_deref(),
+            published_by: None,
+        });
+        assert_eq!(picked.as_deref(), Some(expected));
+    }
+}
+
+#[test]
+fn current_version_preference_does_not_bypass_release_age() {
+    let opts = current_version_opts("2.1.4");
+    let meta = make_package();
+    let cutoff = parse_iso("2026-07-01T00:00:00.000Z");
+    let view = apply_published_by_policy(&meta, cutoff, None);
+    let selectors = preferred_selectors(&opts, "foo");
+    let picked = pick_version_by_version_range(&PickVersionByVersionRangeOptions {
+        meta: view.filtered.as_deref().unwrap_or(&meta),
+        version_range: "^2.1.3",
+        preferred_version_selectors: selectors.as_deref(),
+        published_by: Some(cutoff),
+    });
+    assert_eq!(picked.as_deref(), Some("2.1.3"));
+}
+
+fn current_version_opts(version: &str) -> ResolveOptions {
+    let mut opts = ResolveOptions::default();
+    opts.version.preferred_versions = Arc::new(PreferredVersions::from([(
+        "foo".to_string(),
+        VersionSelectors::from([(
+            "2.1.4".to_string(),
+            VersionSelectorEntry::Plain(VersionSelectorType::Version),
+        )]),
+    )]));
+    opts.refresh.prefer_current_version = true;
+    opts.refresh.current_pkg = Some(CurrentPkg {
+        id: format!("foo@{version}").into(),
+        name: Some("foo".to_string()),
+        version: Some(version.to_string()),
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: ssri::Integrity::from(b"locked version test"),
+            revision: None,
+        }),
+        published_at: None,
+        manifest: None,
+    });
+    opts
 }

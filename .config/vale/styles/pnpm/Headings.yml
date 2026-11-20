@@ -1,0 +1,48 @@
+extends: existence
+message: "Use sentence case in headings. Lowercase '%s' unless it is a proper noun."
+link: https://developers.google.com/style/capitalization#capitalization-in-titles-and-headings
+level: error
+scope: heading
+nonword: true
+ignorecase: false
+tokens:
+  - '(?<=[a-z0-9,)] )[A-Z][a-z]+\b'
+exceptions:
+  - Actions
+  - Alpine
+  - AppVeyor
+  - Azure
+  - Bitbucket
+  - Bitcoin
+  - Btrfs
+  - Bun
+  - Cargo
+  - Cash
+  - Changesets
+  - Cloudflare
+  - Corepack
+  - Deno
+  - Docker
+  - Ethereum
+  - Git
+  - GitHub
+  - GitLab
+  - Hub
+  - Homebrew
+  - Application Load Balancer
+  - Intel
+  - Jest
+  - Linux
+  - Macs?
+  - Node
+  - Pipelines
+  - Podman
+  - Python
+  - Remote Cache
+  - Rust
+  - TypeScript
+  - Vector
+  - Vercel
+  - WebContainers
+  - Windows
+  - Yarn

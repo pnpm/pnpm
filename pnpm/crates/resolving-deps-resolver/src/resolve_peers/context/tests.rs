@@ -1,15 +1,25 @@
 //! Unit tests for the peer-resolution context helpers.
 
 use super::{
-    ChainSuffixMemo, SharedChain, importer_relative_link_dep_path, peer_segment_names,
-    remap_link_node_id, satisfies_with_prereleases,
+    ChainSuffixMemo,
+    SharedChain,
+    importer_relative_link_dep_path,
+    peer_segment_names,
+    remap_link_node_id,
+    satisfies_with_prereleases,
 };
 use crate::{
     node_id::NodeId,
-    resolve_peers::{ResolvePeersOptions, test_support::linked_package},
+    resolve_peers::{
+        ResolvePeersOptions,
+        test_support::linked_package,
+    },
 };
 use pnpm_deps_path::DepPath;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const PATCHED_WORKFLOWS_SDK: &str = concat!(
     "@medusajs/workflows-sdk@2.13.3",
@@ -35,7 +45,7 @@ fn importer_relative_self_link_keeps_an_empty_target() {
 
 /// The link target is relative to the importer, so a project dir that
 /// still carries `.` / `..` segments must be normalized before it is used
-/// as the base — otherwise those segments are counted as real directories
+/// as the base; otherwise those segments are counted as real directories
 /// and the target gains extra `..` hops.
 #[test]
 fn importer_relative_link_normalizes_the_project_dir() {
@@ -61,14 +71,14 @@ fn importer_relative_link_normalizes_the_project_dir() {
 
 /// A workspace link records its `directory` relative to the importer,
 /// so the containment check has to resolve it against `project_dir`
-/// first — comparing the relative form with `lockfile_dir` never
+/// first, comparing the relative form with `lockfile_dir` never
 /// matches and remaps links that are already stable across machines.
 #[test]
 fn workspace_internal_link_is_not_remapped() {
     for directory in ["../lib", "/ws/packages/lib"] {
         let dep = linked_package("lib", "link:packages/lib", directory);
         assert_eq!(
-            remap_link_node_id(&exclude_links_opts(), "lib", &dep.result),
+            remap_link_node_id(&exclude_links_opts(), "lib", dep.result()),
             None,
             "unexpected remap of internal link target {directory:?}",
         );
@@ -80,7 +90,7 @@ fn external_link_is_remapped_to_the_importers_modules_dir() {
     for directory in ["../../../outside/lib", "/outside/lib"] {
         let dep = linked_package("lib", "link:../../../outside/lib", directory);
         assert_eq!(
-            remap_link_node_id(&exclude_links_opts(), "lib", &dep.result),
+            remap_link_node_id(&exclude_links_opts(), "lib", dep.result()),
             Some(NodeId::leaf("link:packages/app/node_modules/lib")),
             "unexpected remap of external link target {directory:?}",
         );
@@ -93,15 +103,17 @@ fn external_link_is_remapped_to_the_importers_modules_dir() {
 #[test]
 fn injected_workspace_dep_is_not_remapped() {
     let dep = linked_package("lib", "file:../outside/lib", "../outside/lib");
-    assert_eq!(remap_link_node_id(&exclude_links_opts(), "lib", &dep.result), None);
+    assert_eq!(remap_link_node_id(&exclude_links_opts(), "lib", dep.result()), None);
 }
 
 fn exclude_links_opts() -> ResolvePeersOptions {
     ResolvePeersOptions {
-        exclude_links_from_lockfile: true,
-        lockfile_dir: Some(PathBuf::from("/ws")),
         project_dir: Some(PathBuf::from("/ws/packages/app")),
-        modules_dir: Some(PathBuf::from("/ws/packages/app/node_modules")),
+        links: crate::PeerLinkOptions {
+            exclude_links_from_lockfile: true,
+            lockfile_dir: Some(PathBuf::from("/ws")),
+            modules_dir: Some(PathBuf::from("/ws/packages/app/node_modules")),
+        },
         ..ResolvePeersOptions::default()
     }
 }
@@ -113,6 +125,12 @@ fn parses_peer_suffix_after_patch_hash() {
         peer_segment_names(&dep_path),
         Some(vec!["@types/node".to_string(), "better-sqlite3".to_string(), "express".to_string(),]),
     );
+}
+
+#[test]
+fn named_registry_handles_multibyte_utf8_package_names() {
+    let dep = linked_package("ä", "ä@work:1.0.0", ".");
+    assert_eq!(super::peer_specifier::named_registry_of(dep.result()), Some("work"));
 }
 
 #[test]
@@ -142,7 +160,9 @@ fn link_strong_count(chain: &SharedChain<String>) -> usize {
 
 /// Build `root -> ... -> tip` and return the chain at the tip.
 fn chain_of(values: &[&str]) -> SharedChain<String> {
-    values.iter().fold(SharedChain::default(), |chain, value| chain.pushed((*value).to_string()))
+    values
+        .iter()
+        .fold(SharedChain::default(), |chain, value| chain.pushed((*value).to_string()))
 }
 
 #[test]
@@ -158,15 +178,19 @@ fn memoized_any_matches_the_unmemoized_answer() {
     let mut fresh = ChainSuffixMemo::default();
     assert_eq!(
         with_match.any_memoized(&mut fresh, |value| value == "needle"),
-        with_match.iter().any(|value| value == "needle"),
+        with_match
+            .iter()
+            .any(|value| value == "needle"),
     );
 }
 
 #[test]
 fn a_match_in_a_shared_suffix_answers_every_chain_built_on_it() {
     let shared = chain_of(&["root", "needle"]);
-    let branches: Vec<_> =
-        ["a", "b", "c"].iter().map(|tip| shared.pushed((*tip).to_string())).collect();
+    let branches: Vec<_> = ["a", "b", "c"]
+        .iter()
+        .map(|tip| shared.pushed((*tip).to_string()))
+        .collect();
 
     let mut memo = ChainSuffixMemo::default();
     let mut visits = 0;
@@ -174,7 +198,7 @@ fn a_match_in_a_shared_suffix_answers_every_chain_built_on_it() {
         assert!(branch.any_memoized(&mut memo, |value| {
             visits += 1;
             value == "needle"
-        }));
+        }),);
     }
 
     assert_eq!(
@@ -187,8 +211,10 @@ fn a_match_in_a_shared_suffix_answers_every_chain_built_on_it() {
 #[test]
 fn an_unmatched_shared_suffix_is_still_evaluated_only_once() {
     let shared = chain_of(&["root", "plain"]);
-    let branches: Vec<_> =
-        ["a", "b", "c"].iter().map(|tip| shared.pushed((*tip).to_string())).collect();
+    let branches: Vec<_> = ["a", "b", "c"]
+        .iter()
+        .map(|tip| shared.pushed((*tip).to_string()))
+        .collect();
 
     let mut memo = ChainSuffixMemo::default();
     let mut visits = 0;
@@ -196,7 +222,7 @@ fn an_unmatched_shared_suffix_is_still_evaluated_only_once() {
         assert!(!branch.any_memoized(&mut memo, |value| {
             visits += 1;
             value == "needle"
-        }));
+        }),);
     }
 
     assert_eq!(visits, 5, "two shared links once, plus each branch's own tip");
@@ -225,7 +251,7 @@ fn a_memo_keeps_the_links_it_keyed_on_alive() {
     };
 
     // The chain that produced the entry is gone, but the memo's own
-    // reference keeps its link — and therefore its address — reserved,
+    // reference keeps its link (and therefore its address) reserved,
     // so nothing else can be allocated there and inherit the answer.
     assert_eq!(held_by, 2, "the memo holds a reference alongside the caller's");
     assert!(!chain_of(&["root", "other"]).any_memoized(&mut memo, |value| value == "temporary"));

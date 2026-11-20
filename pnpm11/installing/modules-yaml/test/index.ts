@@ -33,7 +33,7 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
   await writeModulesManifest(modulesDir, modulesYaml)
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 
-  const raw = readYamlFileSync<any>(path.join(modulesDir, '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const raw = readYamlFileSync<{ virtualStoreDir: string }>(path.join(modulesDir, '.modules.yaml'))
   expect(raw.virtualStoreDir).toBeDefined()
   expect(path.isAbsolute(raw.virtualStoreDir)).toEqual(isWindows())
 })
@@ -130,7 +130,7 @@ test('readModulesManifest() should create a node_modules directory', async () =>
 
 test('readModulesManifest does not fail on empty file', async () => {
   const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/empty-modules-yaml'))
-  expect(modulesYaml).toBeUndefined()
+  expect(modulesYaml).toBeNull()
 })
 
 test('readModulesManifest() rejects a manifest it cannot parse', async () => {

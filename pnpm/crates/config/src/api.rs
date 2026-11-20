@@ -15,12 +15,6 @@
 //! [Dependency injection for tests](../../../CODE_STYLE_GUIDE.md#dependency-injection-for-tests)
 //! section of the style guide for the full convention.
 
-use std::{
-    ffi::OsString,
-    io,
-    path::{Path, PathBuf},
-};
-
 /// Capability: read a process environment variable as a UTF-8 string.
 ///
 /// Defined in the `pnpm-env-replace` crate and re-exported here so
@@ -28,14 +22,19 @@ use std::{
 /// the other capability traits. [`Host`] implements it for production code.
 pub use pnpm_env_replace::EnvVar;
 
+use std::{
+    ffi::OsString,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
 /// Capability: read a process environment variable as a raw
-/// [`OsString`]. Used for env vars whose value is a filesystem path
-/// — invalid UTF-8 is preserved verbatim so the path can be passed
+/// [`OsString`]. Used for env vars whose value is a filesystem path,
+/// invalid UTF-8 is preserved verbatim so the path can be passed
 /// to `std::fs` without round-tripping through `String`.
-///
-/// The `NPM_CONFIG_WORKSPACE_DIR` lookup in `findWorkspaceDir` goes
-/// through this trait so tests can drive the "set", "unset", and
-/// "empty" branches without touching process state.
 pub trait EnvVarOs {
     /// Return the value of the named environment variable as an
     /// [`OsString`], or `None` when unset. Mirrors
@@ -45,30 +44,25 @@ pub trait EnvVarOs {
 
 /// Capability: locate the user's home directory.
 ///
-/// Mirrors the [`home::home_dir`] crate function. Threaded through a
+/// Mirrors the [`crate::home_dir`] crate function. Threaded through a
 /// trait so tests don't have to consult the host's actual home
 /// directory.
 pub trait GetHomeDir {
     /// Return the user's home directory, or `None` when it can't be
-    /// determined. Mirrors [`home::home_dir`].
+    /// determined.
     fn home_dir() -> Option<PathBuf>;
 }
 
 /// Capability: read the process's current working directory.
 ///
-/// Mirrors [`std::env::current_dir`]. Only used by code that
-/// genuinely needs the cwd — the `SmartDefault` for
-/// [`crate::Config::store_dir`] consults it on Windows for the
-/// drive-letter derivation, and [`crate::Config::current`] anchors a
-/// relative `npmrcAuthFile` value at the cwd (matching where the file
-/// is actually read from, and pnpm's `path.resolve`). Code that needs
-/// a "starting path" — like [`crate::Config::current`] — otherwise
+/// Mirrors [`std::env::current_dir`]. Code that needs
+/// a "starting path", like [`crate::Config::current`],
 /// takes a direct path parameter, because production passes a
 /// caller-supplied path (the canonicalized `--dir`) rather than the
 /// host's cwd.
 pub trait GetCurrentDir {
     /// Return the process's current working directory, or an error
-    /// if it can't be determined. Mirrors [`std::env::current_dir`].
+    /// if it can't be determined.
     fn current_dir() -> io::Result<PathBuf>;
 }
 
@@ -78,8 +72,7 @@ pub trait GetCurrentDir {
 /// Abstracted as a single yes/no question so the production impl owns
 /// all filesystem effects (creating the source file, the destination
 /// temp dir, the link attempt, and cleanup) and tests can answer
-/// without touching disk. Lets `store_path_relative_to_home` drive its
-/// branches deterministically.
+/// without touching disk.
 ///
 /// "Linkable" means
 /// [`std::fs::hard_link`] returns `Ok(())`; everything else (EXDEV,
@@ -91,8 +84,13 @@ pub trait LinkProbe {
     /// Return `true` when a hardlink can be created from a file in
     /// `from_dir` into a subdirectory of `to_dir`, `false` otherwise.
     /// Implementations must clean up any temp file or directory they
-    /// create — no filesystem effects survive the call.
+    /// create, no filesystem effects survive the call.
     fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool;
+}
+
+/// Capability: read a whole file as bytes.
+pub(crate) trait FsReadFile {
+    fn read_file(path: &Path) -> io::Result<Vec<u8>>;
 }
 
 /// Production provider for the capability traits in this crate.
@@ -102,9 +100,6 @@ pub trait LinkProbe {
 /// ```ignore
 /// let config = Config::default().current::<Host>(&dir);
 /// ```
-///
-/// Tests substitute their own zero-sized struct that implements only
-/// the trait bounds the function under test declares.
 pub struct Host;
 
 impl EnvVar for Host {
@@ -129,7 +124,7 @@ impl EnvVarOs for Host {
 
 impl GetHomeDir for Host {
     fn home_dir() -> Option<PathBuf> {
-        home::home_dir()
+        crate::home_dir()
     }
 }
 
@@ -142,5 +137,11 @@ impl GetCurrentDir for Host {
 impl LinkProbe for Host {
     fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool {
         crate::store_path::host_can_link_between_dirs(from_dir, to_dir)
+    }
+}
+
+impl FsReadFile for Host {
+    fn read_file(path: &Path) -> io::Result<Vec<u8>> {
+        std::fs::read(path)
     }
 }

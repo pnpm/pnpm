@@ -3,7 +3,7 @@ const KNOWN_HOSTS = new Set(['github.com', 'gitlab.com', 'bitbucket.org'])
 /**
  * `true` when a lockfile specifier and a manifest specifier denote the same
  * dependency. Falls back to Git specifier equivalence when they aren't byte
- * equal, so a lockfile written with the canonical `git+https://….git#<sha>`
+ * equal, so a lockfile written with the canonical `git+https://...git#<sha>`
  * form still satisfies a manifest that uses `git://`, a hosted shortcut, or
  * the bare `owner/repo` form. `undefined` on either side is never equal to a
  * present specifier.
@@ -81,16 +81,9 @@ function normalizeUrl (specifier: string): string | undefined {
 }
 
 function normalizeParts (host: string, path: string, committish: string | undefined): string | undefined {
-  if (
-    path === '' ||
-    path.startsWith('/') ||
-    path.endsWith('/') ||
-    path.includes('//') ||
-    path.includes('@') ||
-    path.includes('?') ||
-    /\s/.test(path) ||
-    path.split('/').some((segment) => segment === '')
-  ) {
+  // Also rejects an empty path, a leading or trailing slash, and `//`.
+  const hasEmptySegment = path.split('/').some((segment) => segment === '')
+  if (hasEmptySegment || path.includes('@') || path.includes('?') || /\s/.test(path)) {
     return undefined
   }
   const repositoryPath = path.endsWith('.git') ? path.slice(0, -'.git'.length) : path

@@ -74,50 +74,53 @@ export async function handler (opts: CacheCommandOptions, params: string[]): Pro
     case 'path':
       return path.resolve(opts.cacheDir)
     case 'list-registries':
-      return cacheListRegistries({
-        ...opts,
-        cacheDir,
-      })
+      return cacheListRegistries({ ...opts, cacheDir })
     case 'list':
       return cacheList({
         ...opts,
         cacheDir,
         registry: opts.cliOptions['registry'],
       }, params.slice(1))
-    case 'delete': {
-      // A package's metadata can be cached under any of the metadata directories
-      // depending on the resolution mode used when it was fetched.
-      const deleted = await Promise.all(
-        [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR].map((metaDir) =>
-          cacheDelete({
-            ...opts,
-            cacheDir: path.join(opts.cacheDir, metaDir),
-            registry: opts.cliOptions['registry'],
-          }, params.slice(1))
-        )
-      )
-      return [...new Set(deleted.flatMap((result) => result.split('\n')).filter(Boolean))].sort().join('\n')
-    }
-    case 'view': {
-      if (!params[1]) {
-        throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm cache view` requires the package name')
-      }
-      if (params.length > 2) {
-        throw new PnpmError('TOO_MANY_PARAMS', '`pnpm cache view` only accepts one package name')
-      }
-      const storeDir = await getStorePath({
-        pkgRoot: process.cwd(),
-        storePath: opts.storeDir,
-        pnpmHomeDir: opts.pnpmHomeDir,
-      })
-      return cacheView({
-        ...opts,
-        cacheDir,
-        storeDir,
-        registry: opts.cliOptions['registry'],
-      }, params[1])
-    }
+    case 'delete':
+      return deleteCacheEntries(opts, params.slice(1))
+    case 'view':
+      return viewCacheEntry(opts, cacheDir, params.slice(1))
     default:
       return help()
   }
+}
+
+async function deleteCacheEntries (opts: CacheCommandOptions, patterns: string[]): Promise<string> {
+  // A package's metadata can be cached under any of the metadata directories
+  // depending on the resolution mode used when it was fetched.
+  const deleted = await Promise.all(
+    [ABBREVIATED_META_DIR, FULL_META_DIR, FULL_FILTERED_META_DIR].map((metaDir) =>
+      cacheDelete({
+        ...opts,
+        cacheDir: path.join(opts.cacheDir, metaDir),
+        registry: opts.cliOptions['registry'],
+      }, patterns)
+    )
+  )
+  return [...new Set(deleted.flatMap((result) => result.split('\n')).filter(Boolean))].sort().join('\n')
+}
+
+async function viewCacheEntry (opts: CacheCommandOptions, cacheDir: string, params: string[]): Promise<string> {
+  if (!params[0]) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm cache view` requires the package name')
+  }
+  if (params.length > 1) {
+    throw new PnpmError('TOO_MANY_PARAMS', '`pnpm cache view` only accepts one package name')
+  }
+  const storeDir = await getStorePath({
+    pkgRoot: process.cwd(),
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
+  return cacheView({
+    ...opts,
+    cacheDir,
+    storeDir,
+    registry: opts.cliOptions['registry'],
+  }, params[0])
 }

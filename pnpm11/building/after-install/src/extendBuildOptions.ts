@@ -11,7 +11,9 @@ export type StrictBuildOptions = {
   autoInstallPeers: boolean
   cacheDir: string
   childConcurrency: number
+  deploy?: boolean
   excludeLinksFromLockfile: boolean
+  extendNodePath?: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
   lockfileDir: string
@@ -54,10 +56,12 @@ export type StrictBuildOptions = {
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+  resolvePeersFromWorkspaceRoot?: boolean
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
   supportedArchitectures?: SupportedArchitectures
-} & Pick<Config, 'allowBuilds'>
+  stages?: string[]
+} & Pick<Config, 'allowBuilds' | 'patchedDependencies'>
 
 export type BuildOptions = Partial<StrictBuildOptions> &
 Pick<StrictBuildOptions, 'storeDir' | 'storeController'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'>
@@ -69,6 +73,7 @@ const defaults = async (opts: BuildOptions): Promise<StrictBuildOptions> => {
   const lockfileDir = opts.lockfileDir ?? dir
   return {
     childConcurrency: 5,
+    deploy: opts.deploy ?? false,
     development: true,
     dir,
     force: false,
@@ -112,14 +117,15 @@ export async function extendBuildOptions (
   }
   extendedOpts.registriesByScope = normalizeRegistriesByScope(extendedOpts.registriesByScope)
   // Mirror extendInstallOptions: under a global virtual store, the virtual
-  // store directory is `<storeDir>/links`, not the per-project
-  // `node_modules/.pnpm`. Without this, getContext() in the build step
-  // defaults virtualStoreDir to the local `.pnpm` and writeModulesManifest
-  // overwrites the correct value the install step recorded — which makes the
-  // next install in that project detect a virtual-store mismatch and prompt
-  // to purge node_modules.
-  if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
-    extendedOpts.virtualStoreDir = extendedOpts.globalVirtualStoreDir ?? path.join(extendedOpts.storeDir, 'links')
+  // store directory is the configured `virtualStoreDir` (or `<storeDir>/links`
+  // by default), not the per-project `node_modules/.pnpm`. Without this,
+  // getContext() in the build step defaults virtualStoreDir to the local
+  // `.pnpm` and writeModulesManifest overwrites the correct value the install
+  // step recorded — which makes the next install in that project detect a
+  // virtual-store mismatch and prompt to purge node_modules.
+  if (extendedOpts.enableGlobalVirtualStore) {
+    extendedOpts.globalVirtualStoreDir ??= extendedOpts.virtualStoreDir ?? path.join(extendedOpts.storeDir, 'links')
+    extendedOpts.virtualStoreDir ??= extendedOpts.globalVirtualStoreDir
   }
   return extendedOpts
 }

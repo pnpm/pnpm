@@ -1,21 +1,44 @@
-//! Acceptance tests for issue [#11974] — pnpr must keep user
+//! Acceptance tests for issue [#11974], pnpr must keep user
 //! accounts and bearer tokens across process restarts so an
 //! operator can run it as a hosted registry without losing every
 //! account on the next container redeploy.
 //!
 //! [#11974]: https://github.com/pnpm/pnpm/issues/11974
+use command_extra::CommandExtra;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
+    AuthState,
+    BackendConfig,
+    Config,
+    MaxUsers,
+    router,
+    router_with_auth,
 };
-use serde_json::{Value, json};
+use pnpr_fixtures::MockConfigPresets;
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::PathBuf,
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use tempfile::TempDir;
@@ -25,14 +48,38 @@ fn listen() -> SocketAddr {
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
 }
 
-fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) -> Config {
+fn persistent_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth = AuthConfig {
-        htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
-        tokens: TokensConfig { file: Some(tokens_db) },
-    };
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
+}
+
+/// The database that holds the accounts and tokens of `config`.
+fn auth_database(config: &Config) -> &Path {
+    let BackendConfig::Sqlite(path) = &config.identity.backend else {
+        panic!("a static-serve config keeps accounts in its SQLite database");
+    };
+    path
+}
+
+fn stored_password_hash(config: &Config, username: &str) -> String {
+    rusqlite::Connection::open(auth_database(config))
+        .unwrap()
+        .query_row("SELECT password_hash FROM users WHERE username = ?1", [username], |row| {
+            row.get(0)
+        })
+        .unwrap()
+}
+
+fn usernames(config: &Config) -> Vec<String> {
+    let connection = rusqlite::Connection::open(auth_database(config)).unwrap();
+    let mut statement = connection.prepare("SELECT username FROM users ORDER BY username").unwrap();
+    statement
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {
@@ -70,43 +117,43 @@ fn adduser_body(username: &str, password: &str) -> Value {
 /// back in with the same password.
 #[tokio::test]
 async fn user_and_token_survive_restart() {
-    let auth_dir = TempDir::new().unwrap();
     let storage = TempDir::new().unwrap();
-    let htpasswd = auth_dir.path().join("htpasswd");
-    let tokens_db = auth_dir.path().join("tokens.db");
-
-    let config =
-        persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
+    let config = persistent_config(storage.path().to_path_buf());
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("first boot");
     let app = router_with_auth(config.clone(), auth);
 
     // adduser pulls a fresh token out of the response body.
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    let token = payload["token"].as_str().expect("token in response").to_string();
+    let token = payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string();
     assert!(!token.is_empty());
 
-    // Both files should now exist on disk.
-    assert!(htpasswd.exists(), "htpasswd should be created on first registration");
-    assert!(tokens_db.exists(), "tokens.db should be created on first token issue");
+    assert_eq!(usernames(&config), ["alice"], "the account is in the database");
 
     // Simulate a restart: drop the router (and the in-memory map),
     // re-load from disk, rebuild the router. Same config, same paths.
     drop(app);
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("reload after restart");
     let app = router_with_auth(config, auth);
 
     // The token issued before the "restart" must still resolve to
-    // alice — proves token hash round-tripped through SQLite.
+    // alice, proves token hash round-tripped through SQLite.
     let response = app
         .clone()
         .oneshot(
-            Request::put("/-/package/anything/dist-tags/latest")
+            Request::put("/npm/-/package/anything/dist-tags/latest")
                 .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
@@ -114,14 +161,14 @@ async fn user_and_token_survive_restart() {
         )
         .await
         .unwrap();
-    // 404 from the dist-tag handler is fine — the point is we got
+    // 404 from the dist-tag handler is fine, the point is we got
     // past the 401 gate, which proves the token still authenticates.
     assert_ne!(response.status(), StatusCode::UNAUTHORIZED, "token should still authenticate");
 
     // The existing username must accept the same password and not
     // be re-registered as a brand-new user.
     let response = app
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -134,24 +181,21 @@ async fn user_and_token_survive_restart() {
 }
 
 #[tokio::test]
-async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
-    let auth_dir = TempDir::new().unwrap();
+async fn invalid_usernames_do_not_change_accounts_across_restart() {
     let storage = TempDir::new().unwrap();
-    let htpasswd = auth_dir.path().join("htpasswd");
-    let tokens_db = auth_dir.path().join("tokens.db");
-
-    let config =
-        persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
+    let config = persistent_config(storage.path().to_path_buf());
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("first boot");
     let app = router_with_auth(config.clone(), auth);
 
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
-    let original_htpasswd = std::fs::read_to_string(&htpasswd).unwrap();
+    let original_hash = stored_password_hash(&config, "alice");
 
     for (case, encoded_username, username) in [
         ("newline", "alice%0Aadmin", "alice\nadmin"),
@@ -162,70 +206,59 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
         ("trailing whitespace", "alice%20", "alice "),
     ] {
         let path = format!("/-/user/org.couchdb.user:{encoded_username}");
-        let response =
-            app.clone().oneshot(put_json(&path, adduser_body(username, "secret"))).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(put_json(&path, adduser_body(username, "secret123")))
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{case} username");
-        assert_eq!(
-            std::fs::read_to_string(&htpasswd).unwrap(),
-            original_htpasswd,
-            "{case} username must not alter htpasswd",
-        );
+        assert_eq!(usernames(&config), ["alice"], "{case} username must not add an account");
     }
 
     drop(app);
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
-    // The reloaded htpasswd still logs the user in with the original password.
-    let (_, username) = auth.users.add_or_login("alice", "secret").await.unwrap();
-    assert_eq!(username, "alice");
-    assert_eq!(std::fs::read_to_string(&htpasswd).unwrap(), original_htpasswd);
-}
-
-/// Corrupt the htpasswd file → server returns a parse diagnostic on
-/// startup, not a silent empty user list. The acceptance criterion
-/// is that the operator sees an error rather than the server happily
-/// booting up with every existing account effectively erased.
-#[tokio::test]
-async fn corrupt_htpasswd_fails_startup_with_diagnostic() {
-    let auth_dir = TempDir::new().unwrap();
-    let htpasswd = auth_dir.path().join("htpasswd");
-    std::fs::write(&htpasswd, "this-line-has-no-colon-and-is-not-a-comment\n").unwrap();
-
-    let config = persistent_config(
-        TempDir::new().unwrap().path().to_path_buf(),
-        htpasswd.clone(),
-        auth_dir.path().join("tokens.db"),
-    );
-    let err = AuthState::load(&config.auth, &config.backend)
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
-        .expect_err("malformed htpasswd should fail to load");
-    let message = err.to_string();
-    assert!(
-        message.contains("htpasswd") && message.contains(&htpasswd.display().to_string()),
-        "error must name the htpasswd file and explain what went wrong; got {message:?}",
-    );
+        .expect("reload after restart");
+    // The reloaded account still logs in with the original password.
+    let (_, username) = auth.users.add_or_login("alice", "secret123").await.unwrap();
+    assert_eq!(Some(username), auth.users.account_id("alice").await.unwrap());
+    assert_eq!(stored_password_hash(&config, "alice"), original_hash);
 }
 
-/// htpasswd file produced by pnpr is readable by Apache's `htpasswd
-/// -v` — cross-tool compatibility. Skipped silently when the host
-/// doesn't have htpasswd installed (some CI images don't).
+/// A damaged database fails startup instead of booting with every
+/// existing account effectively erased.
 #[tokio::test]
-async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
-    if Command::new("htpasswd").arg("-h").output().is_err() {
-        eprintln!("apache htpasswd not on PATH — skipping cross-tool compat test");
+async fn unreadable_auth_database_fails_startup() {
+    let storage = TempDir::new().unwrap();
+    let config = persistent_config(storage.path().to_path_buf());
+    let database = auth_database(&config);
+    std::fs::create_dir_all(database.parent().unwrap()).unwrap();
+    std::fs::write(database, "this is not an SQLite database, it only says so at length").unwrap();
+    AuthState::load(&config.identity.auth, &config.identity.backend).await
+        .expect_err("a damaged database should fail to load");
+}
+
+/// Stored bcrypt hashes can be verified by Apache when its htpasswd tool is installed.
+#[tokio::test]
+async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
+    if Command::new("htpasswd")
+        .with_arg("-h")
+        .output()
+        .is_err()
+    {
+        eprintln!("apache htpasswd not on PATH, skipping cross-tool compat test");
         return;
     }
 
     let auth_dir = TempDir::new().unwrap();
     let storage = TempDir::new().unwrap();
-    let htpasswd = auth_dir.path().join("htpasswd");
+    let htpasswd = auth_dir.path().join("apache-htpasswd");
 
-    let config = persistent_config(
-        storage.path().to_path_buf(),
-        htpasswd.clone(),
-        auth_dir.path().join("tokens.db"),
-    );
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
-    let app = router_with_auth(config, auth);
+    let config = persistent_config(storage.path().to_path_buf());
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("first boot");
+    let app = router_with_auth(config.clone(), auth);
 
     let response = app
         .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "compat-secret")))
@@ -233,12 +266,15 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
+    let hash = stored_password_hash(&config, "alice");
+    std::fs::write(&htpasswd, format!("alice:{hash}\n")).unwrap();
+
     // `htpasswd -v` (verify-only) exits 0 when the password matches.
     let status = Command::new("htpasswd")
-        .args(["-v", "-b"])
-        .arg(&htpasswd)
-        .arg("alice")
-        .arg("compat-secret")
+        .with_args(["-v", "-b"])
+        .with_arg(&htpasswd)
+        .with_arg("alice")
+        .with_arg("compat-secret")
         .status()
         .expect("spawn htpasswd");
     assert!(
@@ -248,10 +284,10 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
 
     // And a wrong password should be rejected by the same tool.
     let status = Command::new("htpasswd")
-        .args(["-v", "-b"])
-        .arg(&htpasswd)
-        .arg("alice")
-        .arg("wrong-password")
+        .with_args(["-v", "-b"])
+        .with_arg(&htpasswd)
+        .with_arg("alice")
+        .with_arg("wrong-password")
         .status()
         .expect("spawn htpasswd");
     assert!(
@@ -260,30 +296,25 @@ async fn htpasswd_file_is_verifiable_by_apache_htpasswd_tool() {
     );
 }
 
-/// `auth.htpasswd.max_users: -1` blocks new registrations — but
+/// `auth.users.max_users: -1` blocks new registrations, but
 /// existing users can still log in. Wired end-to-end through the
 /// adduser HTTP endpoint to confirm the policy surfaces as a 403,
 /// not a silent 201.
 #[tokio::test]
 async fn max_users_minus_one_disables_registration_end_to_end() {
-    let auth_dir = TempDir::new().unwrap();
     let storage = TempDir::new().unwrap();
     let mut config = Config::static_serve(listen(), storage.path().to_path_buf());
-    config.auth = AuthConfig {
-        htpasswd: HtpasswdConfig {
-            file: Some(auth_dir.path().join("htpasswd")),
-            max_users: MaxUsers::Disabled,
-        },
-        tokens: TokensConfig { file: Some(auth_dir.path().join("tokens.db")) },
-    };
-    let auth = AuthState::load(&config.auth, &config.backend).await.unwrap();
+    config.identity.auth.users.max_users = MaxUsers::Disabled;
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .unwrap();
     let app = router_with_auth(config, auth);
 
     let response = app
         .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -296,32 +327,95 @@ async fn missing_max_users_disables_registration_end_to_end() {
         .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     let body = body_bytes(response.into_body()).await;
     assert!(
-        !body.windows(b"\"token\"".len()).any(|window| window == b"\"token\""),
+        !body
+            .windows(b"\"token\"".len())
+            .any(|window| window == b"\"token\""),
         "registration denial must not issue a token",
     );
 }
 
 #[tokio::test]
-async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
+async fn finite_max_users_reaches_the_sqlite_backend_end_to_end() {
     let storage = TempDir::new().unwrap();
     let mut config = Config::static_serve(listen(), storage.path().to_path_buf());
-    config.auth.htpasswd.max_users = MaxUsers::Limited(1);
-    let auth = AuthState::load(&config.auth, &config.backend).await.unwrap();
+    config.identity.auth.users.max_users = MaxUsers::Limited(1);
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .unwrap();
     let app = router_with_auth(config, auth);
 
     let first = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(first.status(), StatusCode::CREATED);
 
     let second = app
-        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret123")))
         .await
         .unwrap();
-    assert_eq!(second.status(), StatusCode::FORBIDDEN);
+    assert_eq!(second.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
+    let storage = TempDir::new().unwrap();
+    let config = persistent_config(storage.path().to_path_buf());
+    // "test-password" hashed with SHA-1 in Apache/Verdaccio format
+    pnpr::SqliteAuth::open(auth_database(&config), MaxUsers::Unlimited)
+        .unwrap()
+        .import_password_hashes(
+            [("alice".to_string(), "{SHA}eJy+BAeECxwgQcszRS/2Dxm/WMw=".to_string())].into(),
+            pnpr_auth::PasswordImport {
+                collisions: pnpr_auth::PasswordCollisions::Keep,
+                mode: pnpr_auth::ImportMode::Apply,
+            },
+        )
+        .await
+        .unwrap();
+
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("load auth");
+    let app = router_with_auth(config.clone(), auth);
+
+    // Legacy SHA user logs in via npm adduser / login endpoint
+    let response = app
+        .clone()
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test-password")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["ok"].as_str(), Some("you are authenticated as 'alice'"));
+    let token = body["token"].as_str().expect("token issued");
+    assert!(!token.is_empty());
+
+    // Verify token authenticates whoami
+    let whoami_req = Request::get("/-/whoami")
+        .header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let whoami_res = app
+        .clone()
+        .oneshot(whoami_req)
+        .await
+        .unwrap();
+    assert_eq!(whoami_res.status(), StatusCode::OK);
+    let whoami_body = body_json(whoami_res.into_body()).await;
+    assert_eq!(whoami_body["username"], "alice");
+
+    // The stored hash has been upgraded from {SHA} to bcrypt
+    assert!(stored_password_hash(&config, "alice").starts_with("$2y$"));
+
+    // Subsequent login succeeds with the upgraded hash
+    let second_response = app
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test-password")))
+        .await
+        .unwrap();
+    assert_eq!(second_response.status(), StatusCode::CREATED);
 }

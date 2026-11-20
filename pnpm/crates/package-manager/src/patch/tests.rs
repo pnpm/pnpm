@@ -1,26 +1,55 @@
 use super::{
-    PatchCandidate, PatchTarget, WritePackageForPatch, WritePackageForPatchError,
-    compare_candidates, default_patch_target, executor_scripts_prepend_node_path,
-    patch_candidates_from_lockfile, resolution_kind,
+    PatchCandidate,
+    PatchTarget,
+    WritePackageForPatch,
+    WritePackageForPatchError,
+    compare_candidates,
+    default_patch_target,
+    patch_candidates_from_lockfile,
+    resolution_kind,
 };
-use pnpm_config::ScriptsPrependNodePath;
-use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, ComVer, GitResolution, Lockfile,
-    LockfileResolution, LockfileVersion, PackageKey, PackageMetadata, RegistryResolution,
-    TarballResolution, VariationsResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    ComVer,
+    GitResolution,
+    Lockfile,
+    LockfileResolution,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    RegistryResolution,
+    TarballResolution,
+    VariationsResolution,
 };
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    NpmResolver,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndex,
+    store_index_key,
+};
 use pnpm_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 const GIT_HOSTED_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
@@ -43,8 +72,10 @@ fn empty_lockfile() -> Lockfile {
 }
 
 fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
-    let packages =
-        keys.iter().map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata())).collect();
+    let packages = keys
+        .iter()
+        .map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata()))
+        .collect();
     Lockfile { packages: Some(packages), ..empty_lockfile() }
 }
 
@@ -70,7 +101,10 @@ fn patch_target(raw: &str, lockfile: &Lockfile) -> PatchTarget {
 }
 
 fn versions(candidates: &[PatchCandidate]) -> Vec<&str> {
-    candidates.iter().map(|candidate| candidate.version.as_str()).collect()
+    candidates
+        .iter()
+        .map(|candidate| candidate.version.as_str())
+        .collect()
 }
 
 #[test]
@@ -247,7 +281,7 @@ async fn patch_extract_records_download_in_store_index() {
     std::fs::create_dir_all(&store_dir).expect("create store dir");
 
     let mut config = pnpm_config::Config::new();
-    config.registry = registry.url();
+    config.registry = registry.url().to_string();
     config.store_dir = StoreDir::new(&store_dir);
     let config: &'static pnpm_config::Config = Box::leak(Box::new(config));
 
@@ -260,13 +294,14 @@ async fn patch_extract_records_download_in_store_index() {
         "1.0.0",
     )
     .await;
-    let name_ver = resolved.name_ver.as_ref().expect("npm resolver fills name/version");
+    let name_ver = resolved.package.name_ver.as_ref().expect("npm resolver fills name/version");
     let package_id = name_ver.to_string();
     let integrity = resolved.resolution.integrity().expect("registry fixture has integrity");
     let store_index_key = store_index_key(&integrity.to_string(), &package_id);
     let lockfile = lockfile_with_package_metadata(
         &package_id,
         PackageMetadata {
+            specifiers: None,
             resolution: resolved.resolution,
             version: None,
             engines: None,
@@ -298,8 +333,11 @@ async fn patch_extract_records_download_in_store_index() {
 
     let store_index = StoreIndex::shared_readonly_in(&config.store_dir)
         .expect("patch extraction should create a store index");
-    let indexed_package =
-        store_index.lock().expect("store index lock").get(&store_index_key).expect("read row");
+    let indexed_package = store_index
+        .lock()
+        .expect("store index lock")
+        .get(&store_index_key)
+        .expect("read row");
     assert!(indexed_package.is_some(), "store index row should exist for {store_index_key}");
 }
 
@@ -343,7 +381,7 @@ async fn patch_extract_git_hosted_tarball_runs_packlist() {
 
     assert_eq!(
         std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
-        r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
+        r#"{"name":"foo","version":"1.0.0","files":["index.js"],"scripts":{"prepare":"exit 1"}}"#,
     );
     assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
     assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
@@ -368,7 +406,7 @@ async fn patch_extract_url_inferred_git_hosted_tarball_runs_packlist() {
 
     assert_eq!(
         std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
-        r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
+        r#"{"name":"foo","version":"1.0.0","files":["index.js"],"scripts":{"prepare":"exit 1"}}"#,
     );
     assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
     assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
@@ -441,22 +479,6 @@ async fn patch_extract_rejects_missing_package_metadata() {
     assert!(
         matches!(err, WritePackageForPatchError::MissingPackageMetadata { .. }),
         "missing metadata should be reported, got {err:?}",
-    );
-}
-
-#[test]
-fn executor_scripts_prepend_node_path_maps_all_variants() {
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Always),
-        ExecScriptsPrependNodePath::Always,
-    );
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Never),
-        ExecScriptsPrependNodePath::Never,
-    );
-    assert_eq!(
-        executor_scripts_prepend_node_path(ScriptsPrependNodePath::WarnOnly),
-        ExecScriptsPrependNodePath::WarnOnly,
     );
 }
 
@@ -549,8 +571,14 @@ impl PatchExtractFixture {
         use_git_hosted_url: bool,
         git_hosted_flag: bool,
     ) -> Self {
-        use pnpm_tarball::CacheValue;
-        use std::{collections::HashMap, path::PathBuf, sync::Arc};
+        use pnpm_tarball::{
+            CacheValue,
+            CachedTarball,
+        };
+        use std::{
+            collections::HashMap,
+            sync::Arc,
+        };
 
         let tmp = tempfile::tempdir().expect("temp dir");
         let store_dir = tmp.path().join("store");
@@ -558,7 +586,9 @@ impl PatchExtractFixture {
         let pkg_json = store_dir.join("pkg-json");
         let index = store_dir.join("index");
         let manifest = if use_git_hosted_url {
-            format!(r#"{{"name":"{name}","version":"{version}","files":["index.js"]}}"#)
+            format!(
+                r#"{{"name":"{name}","version":"{version}","files":["index.js"],"scripts":{{"prepare":"exit 1"}}}}"#,
+            )
         } else {
             format!(r#"{{"name":"{name}","version":"{version}"}}"#)
         };
@@ -588,15 +618,21 @@ impl PatchExtractFixture {
         } else {
             format!("https://registry.test/{name}/-/{name}-{version}.tgz")
         };
-        let seeded: HashMap<String, PathBuf> = HashMap::from([
-            ("package.json".to_string(), pkg_json),
-            ("index.js".to_string(), index),
-            ("ignore.txt".to_string(), ignored),
+        let seeded: pnpm_fs::CasPaths = HashMap::from([
+            ("package.json".to_string(), pkg_json.into()),
+            ("index.js".to_string(), index.into()),
+            ("ignore.txt".to_string(), ignored.into()),
         ]);
         let mem_cache = pnpm_tarball::MemCache::default();
         mem_cache.insert(
-            tarball_url,
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
+            pnpm_tarball::package_mem_cache_key(
+                &tarball_url,
+                Some(&"sha512-aGVsbG8=".parse().expect("parse integrity")),
+                false,
+            ),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
+                seeded,
+            )))),
         );
 
         Self {
@@ -621,20 +657,28 @@ async fn resolve_registry_fixture(
     registries.insert("default".to_string(), registry.to_string());
     let resolver = NpmResolver {
         registries,
-        registries_by_prefix: HashMap::new(),
-        http_client,
-        auth_headers: Arc::default(),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(cache_dir.to_path_buf()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: true,
-        full_metadata: false,
-        needs_full_metadata_for: None,
-        filter_metadata: false,
-        retry_opts: RetryOpts::default(),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::default(),
+        metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+            http_client,
+            auth_headers: Arc::default(),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(cache_dir.to_path_buf()),
+            retry_opts: RetryOpts::default(),
+        },
+        format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+            registry_options_by_url: std::sync::Arc::default(),
+            minimum_release_age: None,
+        },
+        cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+            network: pnpm_config::NetworkPolicy::Online,
+            ignore_missing_time_field: true,
+        },
+        store_view: None,
     };
     let wanted = WantedDependency {
         alias: Some(alias.to_string()),

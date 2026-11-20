@@ -1,13 +1,25 @@
 use super::{
-    calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
-    calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
+    calc_global_virtual_store_path_with_subdeps,
+    calc_graph_node_hash,
+    calc_leaf_global_virtual_store_path,
+    format_global_virtual_store_path,
     join_global_virtual_store_path,
 };
-use crate::{build_required_dep_paths, dep_state::DepsGraphNode};
+use crate::{
+    build_required_dep_paths,
+    dep_state::DepsGraphNode,
+};
 use indexmap::IndexMap;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{MAIN_SEPARATOR, Path},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        MAIN_SEPARATOR,
+        Path,
+    },
 };
 
 #[test]
@@ -33,7 +45,7 @@ fn join_expands_suffix_into_native_components() {
     // The four suffix segments plus `base` become five components.
     assert_eq!(joined.components().count(), 5, "{joined:?}");
 
-    // The portion appended after `base` must carry no `/` on any OS —
+    // The portion appended after `base` must carry no `/` on any OS,
     // on Windows that would otherwise survive into the symlink syscall.
     let tail = joined.strip_prefix("base").unwrap();
     assert!(
@@ -58,7 +70,7 @@ fn identical_leaves_hash_identically() {
         &mut cache_a,
         &"leaf@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
         None,
     );
     let second = calc_graph_node_hash(
@@ -66,7 +78,7 @@ fn identical_leaves_hash_identically() {
         &mut cache_b,
         &"leaf@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
         None,
     );
     assert_eq!(first, second, "deterministic for same input");
@@ -86,7 +98,7 @@ fn engine_string_changes_hash() {
         &mut cache,
         &"leaf@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
         None,
     );
     let mut cache_other = HashMap::new();
@@ -95,12 +107,18 @@ fn engine_string_changes_hash() {
         &mut cache_other,
         &"leaf@1.0.0".to_string(),
         Some("linux-x64-node22"),
-        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
         None,
     );
     let mut cache_null = HashMap::new();
-    let with_null =
-        calc_graph_node_hash(&graph, &mut cache_null, &"leaf@1.0.0".to_string(), None, None, None);
+    let with_null = calc_graph_node_hash(
+        &graph,
+        &mut cache_null,
+        &"leaf@1.0.0".to_string(),
+        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
+        None,
+    );
     assert_ne!(with_engine, with_other_engine);
     assert_ne!(with_engine, with_null);
     assert_ne!(with_other_engine, with_null);
@@ -124,7 +142,7 @@ fn engine_agnostic_when_subtree_has_no_builders() {
         &mut cache_a,
         &"pure-js@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        Some(&build_required),
+        crate::BuildRequired { dep_paths: Some(&build_required), builds_run: true },
         None,
     );
     let mut cache_b = HashMap::new();
@@ -133,7 +151,7 @@ fn engine_agnostic_when_subtree_has_no_builders() {
         &mut cache_b,
         &"pure-js@1.0.0".to_string(),
         Some("linux-x64-node22"),
-        Some(&build_required),
+        crate::BuildRequired { dep_paths: Some(&build_required), builds_run: true },
         None,
     );
     assert_eq!(
@@ -159,7 +177,7 @@ fn engine_included_when_self_in_built_set() {
         &mut cache_a,
         &"native@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        Some(&build_required),
+        crate::BuildRequired { dep_paths: Some(&build_required), builds_run: true },
         None,
     );
     let mut cache_b = HashMap::new();
@@ -168,7 +186,7 @@ fn engine_included_when_self_in_built_set() {
         &mut cache_b,
         &"native@1.0.0".to_string(),
         Some("linux-x64-node22"),
-        Some(&build_required),
+        crate::BuildRequired { dep_paths: Some(&build_required), builds_run: true },
         None,
     );
     assert_ne!(darwin, linux, "builder must partition by engine string");
@@ -198,7 +216,7 @@ fn engine_included_for_ancestor_of_builder() {
         &mut cache_a,
         &"root@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        Some(&build_required),
+        crate::BuildRequired { dep_paths: Some(&build_required), builds_run: true },
         None,
     );
     let mut cache_b = HashMap::new();
@@ -207,7 +225,7 @@ fn engine_included_for_ancestor_of_builder() {
         &mut cache_b,
         &"root@1.0.0".to_string(),
         Some("linux-x64-node22"),
-        Some(&build_required),
+        crate::BuildRequired { dep_paths: Some(&build_required), builds_run: true },
         None,
     );
     assert_ne!(darwin, linux, "ancestor of a builder must partition by engine string");
@@ -263,7 +281,7 @@ fn engine_included_for_every_cycle_member_that_reaches_builder() {
                 &mut dep_state_cache,
                 dep_path,
                 Some(engine),
-                Some(&build_required),
+                crate::BuildRequired { dep_paths: Some(&build_required), builds_run: true },
                 None,
             )
         })
@@ -307,7 +325,7 @@ fn no_build_required_set_disables_gating() {
         &mut cache_a,
         &"pure-js@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
         None,
     );
     let mut cache_b = HashMap::new();
@@ -316,7 +334,7 @@ fn no_build_required_set_disables_gating() {
         &mut cache_b,
         &"pure-js@1.0.0".to_string(),
         Some("linux-x64-node22"),
-        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
         None,
     );
     assert_ne!(darwin, linux, "without build gating, engine is always part of the hash");
@@ -345,7 +363,7 @@ fn different_children_change_hash() {
         &mut cache_a,
         &"root@1.0.0(a)".to_string(),
         Some("darwin-arm64-node20"),
-        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
         None,
     );
     let mut cache_b = HashMap::new();
@@ -354,7 +372,7 @@ fn different_children_change_hash() {
         &mut cache_b,
         &"root@1.0.0(b)".to_string(),
         Some("darwin-arm64-node20"),
-        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
         None,
     );
     assert_ne!(with_dep, without_dep, "same root, different children must not collide on GVS hash");
@@ -369,8 +387,14 @@ fn leaf_matches_single_node_graph_hash() {
         DepsGraphNode { full_pkg_id: full.to_string(), children: IndexMap::new() },
     );
     let mut cache = HashMap::new();
-    let digest =
-        calc_graph_node_hash(&graph, &mut cache, &"leaf@1.0.0".to_string(), None, None, None);
+    let digest = calc_graph_node_hash(
+        &graph,
+        &mut cache,
+        &"leaf@1.0.0".to_string(),
+        None,
+        crate::BuildRequired { dep_paths: None, builds_run: true },
+        None,
+    );
     assert_eq!(
         calc_leaf_global_virtual_store_path(full, "leaf", "1.0.0"),
         format_global_virtual_store_path("leaf", "1.0.0", &digest),
@@ -404,4 +428,112 @@ fn subdeps_partition_the_hash() {
     assert_ne!(none, with_sub, "adding a subdep must change the parent hash");
     assert_ne!(with_sub, with_other_sub, "changing a subdep id must change the parent hash");
     assert_eq!(with_sub.matches('/').count(), 3, "path stays at <prefix>name/version/hash depth");
+}
+
+/// The slot hash names a directory in a shared store, so the payload
+/// [`calc_graph_node_hash`] hashes is a layout contract. It writes the
+/// object-hash bytestream itself rather than building the
+/// `serde_json` value; this pins the two to the same output, with and
+/// without the optional `project` key.
+#[test]
+fn graph_node_hash_matches_the_object_hash_of_the_value_it_models() {
+    let mut children = IndexMap::new();
+    children.insert("leaf".to_string(), "leaf".to_string());
+    let graph: HashMap<String, DepsGraphNode<String>> = HashMap::from([
+        (
+            "root".to_string(),
+            DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-root".to_string(), children },
+        ),
+        (
+            "leaf".to_string(),
+            DepsGraphNode {
+                full_pkg_id: "leaf@1.0.0:sha512-leaf".to_string(),
+                children: IndexMap::new(),
+            },
+        ),
+    ]);
+
+    for (engine, project) in [
+        (Some("darwin;arm64;node20"), None),
+        (Some("darwin;arm64;node20"), Some("/workspace/app")),
+        (None, Some("/workspace/app")),
+    ] {
+        let mut cache = HashMap::new();
+        let actual = calc_graph_node_hash(
+            &graph,
+            &mut cache,
+            &"root".to_string(),
+            engine,
+            crate::BuildRequired { dep_paths: None, builds_run: true },
+            project,
+        );
+
+        let mut reference_cache = HashMap::new();
+        let deps_hash = crate::dep_state::calc_dep_graph_hash(
+            &graph,
+            &mut reference_cache,
+            &"root".to_string(),
+        );
+        let engine_value = match engine {
+            Some(engine) => serde_json::Value::String(engine.to_owned()),
+            None => serde_json::Value::Null,
+        };
+        let payload = match project {
+            None => serde_json::json!({ "engine": engine_value, "deps": deps_hash }),
+            Some(project) => {
+                serde_json::json!({ "engine": engine_value, "deps": deps_hash, "project": project })
+            }
+        };
+        let expected = crate::hash_object_without_sorting(&payload, crate::HashEncoding::Hex);
+        assert_eq!(actual, expected, "graph-node hash diverged for {engine:?} / {project:?}");
+    }
+}
+
+#[test]
+fn a_built_slot_hashes_the_built_field() {
+    let graph: HashMap<String, DepsGraphNode<String>> = HashMap::from([(
+        "native".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "native@1.0.0:sha512-native".to_string(),
+            children: IndexMap::new(),
+        },
+    )]);
+    let built = HashSet::from(["native".to_string()]);
+    let deps_hash =
+        crate::dep_state::calc_dep_graph_hash(&graph, &mut HashMap::new(), &"native".to_string());
+
+    for project in [None, Some("/workspace/app")] {
+        let actual = calc_graph_node_hash(
+            &graph,
+            &mut HashMap::new(),
+            &"native".to_string(),
+            Some("linux-x64-node22"),
+            crate::BuildRequired { dep_paths: Some(&built), builds_run: true },
+            project,
+        );
+        let mut payload = serde_json::json!({
+            "engine": "linux-x64-node22",
+            "deps": deps_hash,
+            "built": true,
+        });
+        if let Some(project) = project {
+            payload["project"] = serde_json::Value::String(project.to_owned());
+        }
+        let expected = crate::hash_object_without_sorting(&payload, crate::HashEncoding::Hex);
+        assert_eq!(actual, expected, "built-slot hash diverged for {project:?}");
+    }
+
+    let unbuilt = calc_graph_node_hash(
+        &graph,
+        &mut HashMap::new(),
+        &"native".to_string(),
+        Some("linux-x64-node22"),
+        crate::BuildRequired { dep_paths: Some(&built), builds_run: false },
+        None,
+    );
+    let pristine = crate::hash_object_without_sorting(
+        &serde_json::json!({ "engine": "linux-x64-node22", "deps": deps_hash }),
+        crate::HashEncoding::Hex,
+    );
+    assert_eq!(unbuilt, pristine, "an install that runs no build leaves the built field out");
 }

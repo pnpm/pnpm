@@ -1,8 +1,11 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { afterAll, afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { safeExeca as execa } from 'execa'
+import YAML from 'yaml'
 
 jest.unstable_mockModule('@pnpm/logger', () => ({
   globalWarn: jest.fn(),
@@ -10,10 +13,13 @@ jest.unstable_mockModule('@pnpm/logger', () => ({
 
 const { globalWarn } = await import('@pnpm/logger')
 const {
+  expandGitHubActionSelectors,
   findOutdatedGitHubActions,
+  hasPositiveGitHubActionSelector,
   isGitHubActionSelector,
   normalizeGitHubActionSelector,
   updateGitHubActions,
+  withoutGitHubActionSelectors,
 } = await import('@pnpm/deps.github-actions')
 
 const dirs: string[] = []
@@ -42,16 +48,423 @@ afterEach(async () => {
 describe('GitHub Actions dependencies', () => {
   test('distinguishes action selectors from npm package selectors', () => {
     expect(isGitHubActionSelector('actions/checkout')).toBe(true)
+    expect(isGitHubActionSelector('!actions/cache/save')).toBe(true)
     expect(isGitHubActionSelector('@scope/package')).toBe(false)
     expect(isGitHubActionSelector('!@scope/package')).toBe(false)
+    expect(isGitHubActionSelector('pkg:npm/pkg-a')).toBe(false)
+    expect(isGitHubActionSelector('!pkg:npm/pkg-a')).toBe(false)
+    expect(isGitHubActionSelector('jsr:@std/path')).toBe(false)
     expect(isGitHubActionSelector('typescript')).toBe(false)
   })
 
-  test('normalizes action selectors without changing package selectors', () => {
+  test('normalizes and expands action selectors without changing package selectors', () => {
     expect(normalizeGitHubActionSelector('actions/checkout@v4')).toBe('actions/checkout')
     expect(normalizeGitHubActionSelector('!actions/checkout@v4')).toBe('!actions/checkout')
     expect(normalizeGitHubActionSelector('actions/checkout')).toBe('actions/checkout')
     expect(normalizeGitHubActionSelector('@scope/package')).toBe('@scope/package')
+    expect(normalizeGitHubActionSelector('pkg:npm/pkg-a@1.0.0')).toBe('pkg:npm/pkg-a@1.0.0')
+    expect(expandGitHubActionSelectors(['actions/cache@v4', '!actions/cache/save', '!actions/checkout'])).toEqual([
+      'actions/cache',
+      'actions/cache/*',
+      '!actions/cache/save',
+      '!actions/checkout',
+      '!actions/checkout/*',
+    ])
+    expect(hasPositiveGitHubActionSelector(['!actions/checkout'])).toBe(false)
+    expect(hasPositiveGitHubActionSelector(['actions/checkout'])).toBe(true)
+    expect(withoutGitHubActionSelectors(['actions/checkout', '!lodash'])).toEqual([])
+    expect(withoutGitHubActionSelectors(['!lodash'])).toEqual(['!lodash'])
+    expect(withoutGitHubActionSelectors(['!actions/checkout', '!lodash'])).toEqual(['!lodash'])
+    expect(withoutGitHubActionSelectors(['react', 'actions/checkout', '!lodash'])).toEqual(['react', '!lodash'])
+  })
+
+  test('updates workflows using YAML anchors, aliases, merge keys, and multibyte comments once', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `x-checkout: &top_checkout
+  uses: actions/checkout@${'a'.repeat(40)} # v4.1.1000
+jobs:
+  first:
+    runs-on: ubuntu-latest
+    steps: &shared
+      - uses: 'actions/checkout@${'a'.repeat(40)}' # v4.1.1000
+      - <<: *top_checkout
+        name: Merged checkout
+# café: 🌍🌍🌍🌍
+  second:
+    runs-on: ubuntu-latest
+    steps: *shared
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.1000', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toBe(`x-checkout: &top_checkout
+  uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+jobs:
+  first:
+    runs-on: ubuntu-latest
+    steps: &shared
+      - uses: 'actions/checkout@${'b'.repeat(40)}' # v4.2.0
+      - <<: *top_checkout
+        name: Merged checkout
+# café: 🌍🌍🌍🌍
+  second:
+    runs-on: ubuntu-latest
+    steps: *shared
+`)
+  })
+
+  test('does not re-walk shared YAML merge-key DAGs exponentially', async () => {
+    const branches = Array.from({ length: 20 }, (_, idx) => idx)
+    const dagLines = ['m0: &m0 { runs-on: ubuntu-latest }']
+    for (let level = 1; level <= 8; level++) {
+      const refs = branches.map(() => `*m${level - 1}`).join(', ')
+      dagLines.push(`m${level}: &m${level} { <<: [${refs}] }`)
+    }
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `${dagLines.join('\n')}\njobs:\n  build:\n    <<: *m8\n`,
+    })
+    await expect(findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async () => ({}),
+    })).resolves.toEqual([])
+  })
+
+  test('discovers actions on a shallower merge branch after a deep branch hits the depth cap', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `base: &base
+  uses: actions/checkout@${'a'.repeat(40)} # v4.1.0
+shared: &shared
+  <<: *base
+d7: &d7 { <<: *shared }
+d6: &d6 { <<: *d7 }
+d5: &d5 { <<: *d6 }
+d4: &d4 { <<: *d5 }
+d3: &d3 { <<: *d4 }
+d2: &d2 { <<: *d3 }
+d1: &d1 { <<: *d2 }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - <<: [*d1, *shared]
+        name: Checkout
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(
+      `uses: actions/checkout@${'b'.repeat(40)} # v4.2.0`
+    )
+  })
+
+  test('updates actions inherited through root and jobs-map merges with direct overrides', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const dir = await fixture({
+      '.github/workflows/root-merged.yml': `template: &template
+  jobs:
+    lint:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@${shaOld} # v4.1.0
+<<: *template
+`,
+      '.github/workflows/jobs-merged.yml': `ignored_root: &ignored_root
+  jobs:
+    shadowed_root_job:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@${shaOld} # v4.1.0
+shared_jobs: &shared_jobs
+  inherited_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${shaOld} # v4.1.0
+  overridden_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${shaOld} # v4.1.0
+<<: *ignored_root
+jobs:
+  <<: *shared_jobs
+  overridden_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@${shaOld} # v4.1.0
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/root-merged.yml'), 'utf8')).resolves.toContain(
+      `uses: actions/checkout@${shaNew} # v4.2.0`
+    )
+    const jobsMerged = await fs.readFile(path.join(dir, '.github/workflows/jobs-merged.yml'), 'utf8')
+    expect(jobsMerged).toBe(`ignored_root: &ignored_root
+  jobs:
+    shadowed_root_job:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@${shaOld} # v4.1.0
+shared_jobs: &shared_jobs
+  inherited_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${shaNew} # v4.2.0
+  overridden_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@${shaOld} # v4.1.0
+<<: *ignored_root
+jobs:
+  <<: *shared_jobs
+  overridden_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@${shaNew} # v4.2.0
+`)
+  })
+
+  test('ignores quoted and str-tagged << keys while honoring explicit !!merge tags and next-line anchors', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `inactive_root: &inactive_root
+  jobs:
+    unused:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/setup-python@${shaOld} # v4.1.0
+inactive_step: &inactive_step
+  uses: actions/cache@${shaOld} # v4.1.0
+"pin#id": &pin # explanation
+  actions/checkout@${shaOld} # v4.1.0
+active_step: &active_step
+  uses: *pin
+plain_merge_step: &plain_merge_step
+  uses: owner/plain-merge@${shaOld} # v4.1.0
+active_jobs: &active_jobs
+  "bu\\u0069ld":
+    runs-on: ubuntu-latest
+    steps:
+      - "<<": *inactive_step
+        !!merge <<: *active_step
+      - "<<": *inactive_step
+        <<: *plain_merge_step
+      - '<<': *inactive_step
+        run: echo single-quoted
+      - !!str <<: *inactive_step
+        run: echo str-tagged
+  "li\\u006et":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@${shaOld} # v4.1.0
+"<<": *inactive_root
+jobs:
+  '<<': *inactive_root
+  !!merge <<: *active_jobs
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@${shaOld} # v4.1.0
+`,
+    })
+    const updated = await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    expect(updated.map((action) => action.name).sort()).toEqual([
+      'actions/checkout',
+      'actions/setup-node',
+      'owner/plain-merge',
+    ])
+    const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
+    expect(content).toContain(`uses: actions/setup-python@${shaOld} # v4.1.0`)
+    expect(content).toContain(`uses: actions/cache@${shaOld} # v4.1.0`)
+    expect(content).toContain(`"pin#id": &pin # explanation\n  actions/checkout@${shaNew} # v4.2.0`)
+    expect(content).toContain(`uses: owner/plain-merge@${shaNew} # v4.2.0`)
+    expect(content).toContain(`uses: actions/setup-node@${shaNew} # v4.2.0`)
+  })
+
+  test('stops fallback after merge depth cutoff while keeping direct overrides', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const lines = [
+      `s0: &s0 { uses: actions/checkout@${shaOld} }`,
+      `shadowed_step: &shadowed_step { uses: actions/setup-node@${shaOld} }`,
+      'j0: &j0',
+      '  ci:',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      `      - uses: actions/checkout@${shaOld}`,
+      'shadowed_jobs: &shadowed_jobs',
+      '  ci:',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      `      - uses: actions/setup-python@${shaOld}`,
+    ]
+    for (let depth = 1; depth <= 65; depth++) {
+      lines.push(`s${depth}: &s${depth} { <<: *s${depth - 1} }`)
+      lines.push(`j${depth}: &j${depth} { <<: *j${depth - 1} }`)
+    }
+    lines.push(
+      'jobs:',
+      '  <<: [*j65, *shadowed_jobs]',
+      '  direct:',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      '      - <<: [*s65, *shadowed_step]',
+      '        name: Deep cutoff step',
+      `      - uses: actions/cache@${shaOld}`,
+      '        <<: [*s65, *shadowed_step]'
+    )
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `${lines.join('\n')}\n`,
+    })
+    const updated = await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    expect(updated.map((action) => action.name)).toEqual(['actions/cache'])
+    const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
+    expect(content).toContain(`actions/setup-node@${shaOld}`)
+    expect(content).toContain(`actions/setup-python@${shaOld}`)
+    expect(content).toContain(`actions/cache@${shaNew} # v4.2.0`)
+  })
+
+  test('bounds cyclic shared YAML merge graphs in lookup and job collection', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const branches = Array.from({ length: 10 }, (_, idx) => idx)
+    const stepLayers = [
+      'linear_cycle: &linear_cycle { <<: *linear_cycle }',
+      'step_cycle: &step_cycle',
+      '  m1: &sm1 { <<: *step_cycle }',
+    ]
+    const activeJobsCycle = [
+      '  self_m1: &jm1 { <<: *jobs_self }',
+    ]
+    for (let level = 2; level <= 7; level++) {
+      const stepRefs = branches.map(() => `*sm${level - 1}`).join(', ')
+      stepLayers.push(`  m${level}: &sm${level} { <<: [${stepRefs}] }`)
+      const jobRefs = branches.map(() => `*jm${level - 1}`).join(', ')
+      activeJobsCycle.push(`  self_m${level}: &jm${level} { <<: [${jobRefs}] }`)
+    }
+    stepLayers.push('  <<: *sm7')
+
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `${stepLayers.join('\n')}
+inherited_jobs: &inherited_jobs
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@${shaOld} # v4.1.0
+fallback_step: &fallback_step
+  uses: actions/checkout@${shaOld} # v4.1.0
+jobs: &jobs_self
+${activeJobsCycle.join('\n')}
+  <<: [*linear_cycle, *jm7, *inherited_jobs]
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - <<: [*linear_cycle, *step_cycle]
+        run: echo empty-cycle
+      - <<: [*step_cycle, *fallback_step]
+`,
+    })
+    const updated = await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    expect(updated.map((action) => action.name).sort()).toEqual(['actions/checkout', 'actions/setup-node'])
+    const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
+    expect(content).toContain(`uses: actions/checkout@${shaNew} # v4.2.0`)
+    expect(content).toContain(`uses: actions/setup-node@${shaNew} # v4.2.0`)
+  })
+
+  test('updates escaped double-quoted uses scalars and skips block scalars', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const sharedJobs = Array.from({ length: 50 }, (_, index) => (
+      `  job_${index}:\n    runs-on: ubuntu-latest\n    steps: *shared_steps`
+    )).join('\n')
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `escaped_pin: &escaped_pin "actions\\/checkout\\u0040${shaOld}" # v4.1.0 keep
+block_folded: &block_folded >-
+  actions/cache@${shaOld}
+block_literal: &block_literal |-
+  actions/setup-python@${shaOld}
+shared_steps: &shared_steps
+  - uses: *escaped_pin
+  - uses: "actions/setup-node\\u0040v4.1.0"
+  - uses: *block_folded
+  - uses: *block_literal
+  - uses: >-
+      actions/upload-artifact@${shaOld}
+jobs:
+${sharedJobs}
+`,
+    })
+
+    const updated = await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    expect(updated.map((action) => action.name).sort()).toEqual(['actions/checkout', 'actions/setup-node'])
+
+    const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
+    expect(content).toContain(`escaped_pin: &escaped_pin "actions/checkout@${shaNew}" # v4.2.0 keep\n`)
+    expect(content).toContain(`  - uses: "actions/setup-node@${shaNew}" # v4.2.0\n`)
+    const parsed = YAML.parse(content, { maxAliasCount: 1000, merge: true }) as {
+      jobs: Record<string, { steps: Array<{ uses: string }> }>
+    }
+    expect(parsed.jobs.job_0.steps.map((step) => step.uses)).toEqual([
+      `actions/checkout@${shaNew}`,
+      `actions/setup-node@${shaNew}`,
+      `actions/cache@${shaOld}`,
+      `actions/setup-python@${shaOld}`,
+      `actions/upload-artifact@${shaOld}`,
+    ])
+  })
+
+  test('rejects duplicate ordinary mapping keys when merge keys are enabled', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/cache@v4
+        uses: actions/checkout@v4
+`,
+    })
+    await expect(findOutdatedGitHubActions({ dir })).rejects.toMatchObject({
+      code: 'ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_PARSE',
+    })
   })
 
   test('finds actions in workflows and referenced local composite actions', async () => {
@@ -246,6 +659,75 @@ describe('GitHub Actions dependencies', () => {
     })).rejects.toMatchObject({ code: 'ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL' })
   })
 
+  test.each([findOutdatedGitHubActions, updateGitHubActions])('redacts credentials from homepages (%p)', async (operation) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': 'jobs: { test: { steps: [{ uses: actions/checkout@v4.1.0 }] } }\n' })
+    const results = await operation({
+      dir,
+      serverUrl: 'https://username:secret@github.example.com',
+      readRepoRefs: async () => repoRefs([['v4.1.0', 'a'.repeat(40)], ['v4.2.0', 'b'.repeat(40)]]),
+    })
+    expect(results[0].homepage).toBe('https://github.example.com/actions/checkout')
+  })
+
+  test.each([
+    'http://username:secret@github.example.com',
+    'http://127.example.com',
+    'http://localhost.example.com',
+    'https://',
+    'ext::sh -c secret',
+  ])('rejects insecure or invalid servers before looking up refs: %s', async (serverUrl) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': 'jobs: { test: { steps: [{ uses: actions/checkout@v4.1.0 }] } }\n' })
+    const readRepoRefs = jest.fn(async () => ({}))
+    await expect(updateGitHubActions({ dir, serverUrl, readRepoRefs })).rejects.toMatchObject({
+      code: 'ERR_PNPM_GITHUB_ACTIONS_SERVER_PROTOCOL',
+      message: 'The GitHub Actions server URL must use HTTPS, except for HTTP on loopback hosts',
+    })
+    expect(readRepoRefs).not.toHaveBeenCalled()
+  })
+
+  test.each(['localhost', '127.0.0.1', '127.2.3.4', '[::1]'])('allows HTTP on loopback host %s', async (host) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': 'jobs: { test: { steps: [{ uses: actions/checkout@v4.1.0 }] } }\n' })
+    const readRepoRefs = jest.fn(async () => repoRefs([['v4.1.0', 'a'.repeat(40)], ['v4.2.0', 'b'.repeat(40)]]))
+    const results = await findOutdatedGitHubActions({ dir, serverUrl: `http://${host}:8080`, readRepoRefs })
+    expect(readRepoRefs).toHaveBeenCalledTimes(1)
+    expect(results[0].homepage).toBe(`http://${host}:8080/actions/checkout`)
+  })
+
+  test.each([
+    ['changed action', 'jobs: { test: { steps: [{ uses: actions/checkout@v4.2.0 }] } }\n'],
+    ['truncated file', 'jobs: {}\n'],
+    ['multibyte replacement', 'jobs: { test: { steps: [{ uses: 🦀🦀🦀🦀🦀🦀🦀🦀🦀🦀🦀🦀 }] } }\n'],
+  ])('rejects stale workflow ranges after lookup: %s', async (_scenario, changed) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': 'jobs: { test: { steps: [{ uses: actions/checkout@v4.1.0 }] } }\n' })
+    const workflow = path.join(dir, '.github/workflows/ci.yml')
+    await expect(updateGitHubActions({
+      dir,
+      readRepoRefs: async () => {
+        await fs.writeFile(workflow, changed)
+        return repoRefs([['v4.1.0', 'a'.repeat(40)], ['v4.2.0', 'b'.repeat(40)]])
+      },
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_CHANGED',
+      message: `GitHub Actions workflow ${await fs.realpath(workflow)} changed while resolving updates; retry the command`,
+    })
+    await expect(fs.readFile(workflow, 'utf8')).resolves.toBe(changed)
+  })
+
+  test('preserves unrelated workflow edits made during lookup', async () => {
+    const original = 'name: 🦀\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4.1.0\n'
+    const dir = await fixture({ '.github/workflows/ci.yml': original })
+    const workflow = path.join(dir, '.github/workflows/ci.yml')
+    const changed = original.replace('🦀', '🌍') + '# concurrent edit\n'
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => {
+        await fs.writeFile(workflow, changed)
+        return repoRefs([['v4.1.0', 'a'.repeat(40)], ['v4.2.0', 'b'.repeat(40)]])
+      },
+    })
+    await expect(fs.readFile(workflow, 'utf8')).resolves.toBe(changed.replace('actions/checkout@v4.1.0', `actions/checkout@${'b'.repeat(40)} # v4.2.0`))
+  })
+
   test('updates within the current major and preserves SHA comments and unrelated formatting', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `name: CI
@@ -309,6 +791,102 @@ jobs:
       ]),
     })
     await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: actions/checkout@${'b'.repeat(40)} # v5.0.0`)
+  })
+
+  test('updates the comment version when the action name contains the same text', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: owner/setup-v4.1.0@${'a'.repeat(40)} # v4.1.0
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`uses: owner/setup-v4.1.0@${'b'.repeat(40)} # v4.2.0`)
+  })
+
+  test('updates partial version comments and non-version comments without mangling', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@${'a'.repeat(40)} # v4
+      - uses: actions/checkout@${'a'.repeat(40)} # v4.1
+      - uses: actions/checkout@${'a'.repeat(40)} # 4
+      - uses: actions/checkout@${'a'.repeat(40)} # v4 — pin for CI
+      - uses: actions/checkout@${'a'.repeat(40)} # pinned manually
+      - uses: actions/checkout@${'a'.repeat(40)} # 2 runners only
+      - uses: actions/checkout@${'a'.repeat(40)} # 3.11 toolchain
+      - uses: actions/checkout@${'a'.repeat(40)} #
+`,
+    })
+    await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toBe(`jobs:
+  test:
+    steps:
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 — pin for CI
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 pinned manually
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 2 runners only
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0 3.11 toolchain
+      - uses: actions/checkout@${'b'.repeat(40)} # v4.2.0
+`)
+  })
+
+  test('preserves distinct outdated versions across workflows while collapsing duplicates', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@v4.1.0
+      - uses: actions/checkout@v4.1.0
+`,
+      '.github/workflows/release.yml': `jobs:
+  release:
+    steps:
+      - uses: actions/checkout@v3.6.0
+`,
+    })
+    const refs = repoRefs([
+      ['v3.6.0', '1'.repeat(40)],
+      ['v3.6.1', '2'.repeat(40)],
+      ['v4.1.0', 'a'.repeat(40)],
+      ['v4.2.0', 'b'.repeat(40)],
+      ['v5.0.0', 'c'.repeat(40)],
+    ])
+    await expect(findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async () => refs,
+    })).resolves.toEqual([
+      {
+        current: '3.6.0',
+        homepage: 'https://github.com/actions/checkout',
+        latest: '5.0.0',
+        name: 'actions/checkout',
+        wanted: '3.6.1',
+      },
+      {
+        current: '4.1.0',
+        homepage: 'https://github.com/actions/checkout',
+        latest: '5.0.0',
+        name: 'actions/checkout',
+        wanted: '4.2.0',
+      },
+    ])
   })
 
   test('pins an already-current floating major tag', async () => {
@@ -489,6 +1067,120 @@ ${Array.from({ length: actionCount }, (_, index) => `      - uses: owner/action-
 
     await expect(fs.readFile(workflow, 'utf8')).resolves.toContain(`uses: actions/checkout@${'a'.repeat(40)} # v4.2.0`)
     await expect(fs.readFile(outsideWorkflow, 'utf8')).resolves.toBe(original)
+  })
+})
+
+describe('minimumReleaseAge', () => {
+  const now = Date.now()
+  const checkoutRefs = repoRefs([
+    ['v4.1.0', 'a'.repeat(40)],
+    ['v4.2.0', 'b'.repeat(40)],
+    ['v5.0.0', 'c'.repeat(40)],
+  ])
+  const tagDates: Record<string, Date> = {
+    'v4.2.0': new Date(now - 2 * 24 * 60 * 60 * 1000),
+    'v5.0.0': new Date(now - 60 * 1000),
+  }
+  const workflow = `jobs:
+  test:
+    steps:
+      - uses: actions/checkout@${'a'.repeat(40)} # v4.1.0
+`
+
+  test('offers only versions older than the minimum release age', async () => {
+    const dir = await fixture({ '.github/workflows/ci.yml': workflow })
+    const readTagDates = jest.fn(async (_repo: string, tags: string[]) => Object.fromEntries(tags.map((tag) => [tag, tagDates[tag]])))
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      minimumReleaseAge: 1440,
+      readRepoRefs: async () => checkoutRefs,
+      readTagDates,
+    })).resolves.toMatchObject([{ current: '4.1.0', latest: '4.2.0', name: 'actions/checkout' }])
+    expect(readTagDates).toHaveBeenCalledWith('actions/checkout', ['v4.2.0', 'v5.0.0'])
+  })
+
+  test('updates to the newest version old enough', async () => {
+    const dir = await fixture({ '.github/workflows/ci.yml': workflow })
+
+    await updateGitHubActions({
+      dir,
+      latest: true,
+      minimumReleaseAge: 1440,
+      readRepoRefs: async () => checkoutRefs,
+      readTagDates: async () => tagDates,
+    })
+
+    await expect(fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')).resolves.toContain(`actions/checkout@${'b'.repeat(40)} # v4.2.0`)
+  })
+
+  test.each(['actions/checkout', 'actions/*', 'actions/checkout@5.0.0'])('minimumReleaseAgeExclude %s skips the check', async (exclude) => {
+    const dir = await fixture({ '.github/workflows/ci.yml': workflow })
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      minimumReleaseAge: 1440,
+      minimumReleaseAgeExclude: [exclude],
+      readRepoRefs: async () => checkoutRefs,
+      readTagDates: async () => tagDates,
+    })).resolves.toMatchObject([{ latest: '5.0.0' }])
+  })
+
+  test('skips actions whose release dates cannot be read and warns', async () => {
+    const dir = await fixture({ '.github/workflows/ci.yml': workflow })
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      minimumReleaseAge: 1440,
+      readRepoRefs: async () => checkoutRefs,
+      readTagDates: async () => {
+        throw new Error('fetch failed')
+      },
+    })).resolves.toEqual([])
+    expect(globalWarn).toHaveBeenCalledWith('Skipping the GitHub Actions from "actions/checkout": cannot read the release dates that minimumReleaseAge needs: fetch failed')
+  })
+
+  test('reads the tagger date of annotated tags and the commit date of lightweight ones', async () => {
+    const repo = await fixture({})
+    const day = 24 * 60 * 60
+    const old = Math.floor(now / 1000) - 400 * day
+    const git = async (args: string[], date: number) => execa('git', ['-c', 'user.name=pnpm', '-c', 'user.email=pnpm@example.com', ...args], {
+      cwd: repo,
+      // The user's own git config may sign tags or commits.
+      env: { ...process.env, GIT_AUTHOR_DATE: `${date} +0000`, GIT_COMMITTER_DATE: `${date} +0000`, GIT_CONFIG_GLOBAL: path.join(repo, '.no-global-config'), GIT_CONFIG_NOSYSTEM: '1' },
+    })
+    await git(['init', '--quiet'], old)
+    await git(['commit', '--quiet', '--allow-empty', '-m', 'one'], old)
+    await git(['tag', 'v1.0.0'], old)
+    await git(['commit', '--quiet', '--allow-empty', '-m', 'two'], old + day)
+    await git(['tag', 'v1.1.0'], old + day)
+    // An old commit tagged just now is a new release.
+    await git(['tag', '-a', '-m', 'v1.2.0', 'v1.2.0'], Math.floor(now / 1000))
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: owner/tool@v1.0.0
+`,
+    })
+    const originalEnv = { ...process.env }
+    Object.assign(process.env, {
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: `url.${pathToFileURL(repo).href}.insteadOf`,
+      GIT_CONFIG_VALUE_0: 'https://github.com/owner/tool.git',
+    })
+    try {
+      await expect(findOutdatedGitHubActions({ dir, minimumReleaseAge: 1440 })).resolves.toMatchObject([{ latest: '1.1.0' }])
+      await expect(findOutdatedGitHubActions({ dir })).resolves.toMatchObject([{ latest: '1.2.0' }])
+    } finally {
+      for (const name of ['GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0']) {
+        if (originalEnv[name] == null) {
+          delete process.env[name]
+        } else {
+          process.env[name] = originalEnv[name]
+        }
+      }
+    }
   })
 })
 

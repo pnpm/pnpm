@@ -1,14 +1,18 @@
 import fs from 'node:fs'
-import util, { promisify } from 'node:util'
+import os from 'node:os'
+import { promisify } from 'node:util'
 
+import { isError } from '@pnpm/error'
 import gfs from 'graceful-fs'
 
-const RENAME_RETRY_BUDGET_MS = 60_000
-const RENAME_RETRY_BACKOFF_CAP_MS = 100
-const renameRetrySleepBuffer = new Int32Array(new SharedArrayBuffer(4))
+const FILE_LOCK_RETRY_BUDGET_MS = 60_000
+const PERMISSION_DENIED_RETRY_BUDGET_MS = 1_000
+const FILE_LOCK_RETRY_BACKOFF_CAP_MS = 100
+const fileLockRetrySleepBuffer = new Int32Array(new SharedArrayBuffer(4))
 
 export default { // eslint-disable-line
   chmod: promisify(gfs.chmod),
+  close: promisify(gfs.close),
   copyFile: promisify(gfs.copyFile),
   copyFileSync: withEagainRetry(gfs.copyFileSync),
   createReadStream: gfs.createReadStream,
@@ -16,6 +20,8 @@ export default { // eslint-disable-line
   linkSync: withEagainRetry(gfs.linkSync),
   mkdir: promisify(gfs.mkdir),
   mkdirSync: withEagainRetry(gfs.mkdirSync),
+  open: promisify(gfs.open),
+  read: promisify(gfs.read),
   renameSync: withEagainRetry(gfs.renameSync),
   readFile: promisify(gfs.readFile),
   readFileSync: gfs.readFileSync,
@@ -28,57 +34,174 @@ export default { // eslint-disable-line
   writeFileSync: withEagainRetry(gfs.writeFileSync),
 }
 
-function withEagainRetry<T extends unknown[], R> (
-  fn: (...args: T) => R,
+function withEagainRetry<Args extends unknown[], Result> (
+  fn: (...args: Args) => Result,
   maxRetries: number = 15
-): (...args: T) => R {
-  return (...args: T): R => {
+): (...args: Args) => Result {
+  return (...args: Args): Result => {
     let attempts = 0
     while (attempts <= maxRetries) {
-      try {
-        return fn(...args)
-      } catch (err: unknown) {
-        if (util.types.isNativeError(err) && 'code' in err && err.code === 'EAGAIN' && attempts < maxRetries) {
-          attempts++
-          // Exponential backoff: wait 2^attempts milliseconds, max 300ms
-          const delay = Math.min(Math.pow(2, attempts), 300)
-          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
-          continue
-        }
-        throw err
-      }
+      const outcome = tryCallWithEagain(fn, args, attempts, maxRetries)
+      if (outcome.success) return outcome.value
+      attempts = outcome.attempts
     }
     throw new Error('Unreachable')
   }
 }
 
+type CallOutcome<Result> =
+  | { success: true, value: Result }
+  | { success: false, attempts: number }
+
+function tryCallWithEagain<Args extends unknown[], Result> (
+  fn: (...args: Args) => Result,
+  args: Args,
+  attempts: number,
+  maxRetries: number
+): CallOutcome<Result> {
+  try {
+    return { success: true, value: fn(...args) }
+  } catch (err: unknown) {
+    if (!isEagainError(err) || attempts >= maxRetries) throw err
+    const nextAttempts = attempts + 1
+    waitEagainBackoff(nextAttempts)
+    return { success: false, attempts: nextAttempts }
+  }
+}
+
+function isEagainError (err: unknown): boolean {
+  return isError(err) && 'code' in err && err.code === 'EAGAIN'
+}
+
+function waitEagainBackoff (attempts: number): void {
+  const delay = Math.min(Math.pow(2, attempts), 300)
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay)
+}
+
 /**
- * Renames `src` over `dest`, waiting out a Windows sharing violation — an
- * EPERM, EACCES or EBUSY from whoever else holds the file open — for up to a
- * minute before rethrowing it. Every other error is thrown right away.
+ * Renames `src` over `dest`, retrying Windows EBUSY errors for up to a minute.
+ * Windows drives mounted into WSL get the same retries.
+ * EPERM and EACCES have a one-second budget because they can also indicate
+ * permanent permission or destination conflicts. Other errors are thrown
+ * right away.
  *
  * `dest` is never removed to make room for the rename: a concurrent install may
  * still be reading that dirent, and a reader has to see either the whole file
  * that was there or the whole file replacing it.
  */
 export function renameFileWithRetry (src: string, dest: string): void {
-  const startedAt = Date.now()
-  let backoffMs = 0
+  withFileLockRetry(() => {
+    fs.renameSync(src, dest)
+  })
+}
+
+/**
+ * Asynchronous {@link renameFileWithRetry}, which waits between attempts
+ * without blocking the event loop.
+ */
+export async function renameFileWithRetryAsync (src: string, dest: string): Promise<void> {
+  await withFileLockRetryAsync(() => fs.promises.rename(src, dest))
+}
+
+/**
+ * Reads `target`'s stats without following it, with the retry policy of
+ * {@link renameFileWithRetry}.
+ *
+ * A Windows path another process has just unlinked stays delete-pending until
+ * the last handle on it closes, and inspecting it fails with EPERM for as long
+ * as that lasts. Retrying lets the unlink land, so a caller that reads ENOENT
+ * as an absent entry sees the same absence POSIX shows it at once.
+ */
+export function lstatWithRetry (target: string): fs.Stats {
+  return withFileLockRetry(() => fs.lstatSync(target))
+}
+
+/**
+ * Removes a file, with the retry policy of {@link renameFileWithRetry}.
+ */
+export function unlinkWithRetry (target: string): void {
+  withFileLockRetry(() => {
+    fs.unlinkSync(target)
+  })
+}
+
+/**
+ * Runs a filesystem operation with the retry policy of
+ * {@link renameFileWithRetry}.
+ */
+export function withFileLockRetry<Result> (operation: () => Result): Result {
+  const retry = createFileLockRetry()
   for (;;) {
     try {
-      fs.renameSync(src, dest)
-      return
+      return operation()
     } catch (err) {
-      if (!isTransientRenameError(err) || Date.now() - startedAt >= RENAME_RETRY_BUDGET_MS) throw err
-      if (backoffMs > 0) Atomics.wait(renameRetrySleepBuffer, 0, 0, backoffMs)
-      backoffMs = Math.min(backoffMs + 10, RENAME_RETRY_BACKOFF_CAP_MS)
+      const delayMs = retry.delayBeforeNextAttempt(err)
+      if (delayMs > 0) Atomics.wait(fileLockRetrySleepBuffer, 0, 0, delayMs)
+      retry.checkBudgetAfterDelay(err)
     }
   }
 }
 
-function isTransientRenameError (err: unknown): boolean {
-  return process.platform === 'win32' &&
-    util.types.isNativeError(err) &&
+/**
+ * Asynchronous {@link withFileLockRetry}, which waits between attempts
+ * without blocking the event loop.
+ */
+export async function withFileLockRetryAsync<Result> (operation: () => Promise<Result>): Promise<Result> {
+  const retry = createFileLockRetry()
+  for (;;) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- the next attempt runs only after this one fails
+      return await operation()
+    } catch (err) {
+      // eslint-disable-next-line no-await-in-loop -- backs off before the next attempt
+      await backOffWithFileLockRetryAsync(retry, err)
+    }
+  }
+}
+
+async function backOffWithFileLockRetryAsync (retry: FileLockRetry, err: unknown): Promise<void> {
+  const delayMs = retry.delayBeforeNextAttempt(err)
+  if (delayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+  retry.checkBudgetAfterDelay(err)
+}
+
+interface FileLockRetry {
+  /** Rethrows `err` unless another attempt fits the budget; returns the delay before it. */
+  delayBeforeNextAttempt: (err: unknown) => number
+  checkBudgetAfterDelay: (err: unknown) => void
+}
+
+function createFileLockRetry (): FileLockRetry {
+  const startedAt = Date.now()
+  let backoffMs = 0
+  let budgetMs = FILE_LOCK_RETRY_BUDGET_MS
+  return {
+    delayBeforeNextAttempt (err) {
+      if (!isTransientFileLockError(err)) throw err
+      if (err.code === 'EPERM' || err.code === 'EACCES') budgetMs = Math.min(budgetMs, PERMISSION_DENIED_RETRY_BUDGET_MS)
+      const remainingMs = budgetMs - (Date.now() - startedAt)
+      if (remainingMs <= 0) throw err
+      return Math.min(backoffMs, remainingMs)
+    },
+    checkBudgetAfterDelay (err) {
+      if (Date.now() - startedAt >= budgetMs) throw err
+      backoffMs = Math.min(backoffMs + 10, FILE_LOCK_RETRY_BACKOFF_CAP_MS)
+    },
+  }
+}
+
+export function isTransientFileLockError (err: unknown): err is NodeJS.ErrnoException {
+  return (process.platform === 'win32' || isWsl()) &&
+    isError(err) &&
     'code' in err &&
     (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')
+}
+
+// A Windows drive mounted into WSL (/mnt/c) keeps Windows file locking, so an
+// antivirus or indexer handle fails a rename there with EACCES. WSL kernels
+// carry "microsoft" in their release, e.g. 5.15.167.4-microsoft-standard-WSL2.
+function isWsl (): boolean {
+  return process.platform === 'linux' && os.release().toLowerCase().includes('microsoft')
 }

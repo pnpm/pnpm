@@ -6,16 +6,16 @@
 //! across a real network, so the proxy reintroduces both
 //! ([`LinkProfile`]):
 //!
-//! * **Latency** — a chunk read at time `t` is forwarded no earlier than
+//! * **Latency**, a chunk read at time `t` is forwarded no earlier than
 //!   `t + one_way`, in each direction independently. A request → response
 //!   exchange pays the delay twice (one round trip); a single large
 //!   transfer pays it once at the front and then streams.
-//! * **Bandwidth** — with a `rate_limit`, each direction serializes bytes
+//! * **Bandwidth**, with a `rate_limit`, each direction serializes bytes
 //!   at no more than the cap, so a tarball download takes
 //!   `≈ one_way + size / rate`. Without it, loopback throughput (~GB/s)
 //!   makes every download effectively free, which hides exactly the cost
 //!   the public npm registry imposes (measured ~20-25 MB/s peak, and far
-//!   less on a typical link) — and with it the fetch-overlaps-resolution
+//!   less on a typical link), and with it the fetch-overlaps-resolution
 //!   win has nothing to overlap.
 //!
 //! It is deliberately dependency-free (std threads + blocking sockets):
@@ -24,15 +24,33 @@
 //! runtime into the benchmark path.
 
 use std::{
-    io::{Read as _, Write as _},
-    net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream},
+    io::{
+        Read as _,
+        Write as _,
+    },
+    net::{
+        Ipv4Addr,
+        Shutdown,
+        SocketAddr,
+        TcpListener,
+        TcpStream,
+    },
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
         mpsc,
     },
-    thread::{self, JoinHandle},
-    time::{Duration, Instant},
+    thread::{
+        self,
+        JoinHandle,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The emulated link applied to each direction of a proxied connection.
@@ -48,7 +66,7 @@ pub struct LinkProfile {
     /// (`cwnd ÷ RTT`) doubles per delivered window until it reaches
     /// `rate_limit`. Without it a transfer runs at the full cap from
     /// its first byte, which overstates real-TCP throughput for small
-    /// and mid-size objects — a transfer under ~10 windows never gets
+    /// and mid-size objects, a transfer under ~10 windows never gets
     /// near the link's capacity. Requires both `one_way > 0` (the ramp
     /// is per-RTT) and a `rate_limit` (the ceiling); ignored otherwise.
     pub slow_start: bool,
@@ -148,7 +166,7 @@ fn accept_loop(
 /// together when either side closes.
 fn handle_connection(inbound: TcpStream, upstream: SocketAddr, profile: LinkProfile) {
     // The accept listener is non-blocking, and BSD-derived platforms
-    // (macOS) hand accepted sockets the listener's O_NONBLOCK — the
+    // (macOS) hand accepted sockets the listener's O_NONBLOCK, the
     // pump's blocking reads would then surface spurious `WouldBlock`
     // errors and drop the connection before the first byte.
     if inbound.set_nonblocking(false).is_err() {
@@ -168,29 +186,13 @@ fn handle_connection(inbound: TcpStream, upstream: SocketAddr, profile: LinkProf
 }
 
 /// Copy `src` → `dst`, applying the link `profile`: each chunk is held
-/// back until `one_way` has elapsed since it was read (latency), and —
-/// when a `rate_limit` is set — chunks are paced so the direction never
-/// transmits faster than the cap (bandwidth). A reader thread stamps and
-/// queues chunks so the source is never blocked by the delay; the writer
-/// tracks when the link next frees up so a back-to-back burst is spread
-/// at the cap rate instead of flushed at loopback speed.
+/// back until `one_way` has elapsed since it was read (latency), and
+/// (when a `rate_limit` is set) chunks are paced so the direction never
+/// transmits faster than the cap (bandwidth).
 fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
     let (tx, rx) = mpsc::channel::<(Instant, Vec<u8>)>();
 
-    let reader = thread::spawn(move || {
-        let mut buf = vec![0u8; 32 * 1024];
-        loop {
-            match src.read(&mut buf) {
-                Ok(0) | Err(_) => break,
-                Ok(n) => {
-                    let release = Instant::now() + profile.one_way;
-                    if tx.send((release, buf[..n].to_vec())).is_err() {
-                        break;
-                    }
-                }
-            }
-        }
-    });
+    let reader = thread::spawn(move || queue_chunks(&mut src, &tx, profile.one_way));
 
     // Earliest instant the link is free to begin the next chunk. Advances
     // by each chunk's serialization time (`len / rate`) so the cap is a
@@ -201,15 +203,12 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
         // A chunk leaves no earlier than its latency release *and* no
         // earlier than the link finishing the previous chunk.
         let send_at = release.max(link_free_at);
-        let now = Instant::now();
-        if send_at > now {
-            thread::sleep(send_at - now);
-        }
+        sleep_until(send_at);
         if let Some(rate) = profile.rate_limit {
-            let effective = match slow_start.as_mut() {
-                Some(ramp) => ramp.effective_rate(rate as f64, bytes.len()),
-                None => rate as f64,
-            };
+            let effective = slow_start
+                .as_mut()
+                .map(|ramp| ramp.effective_rate(rate as f64, bytes.len()))
+                .unwrap_or(rate as f64);
             link_free_at = send_at + Duration::from_secs_f64(bytes.len() as f64 / effective);
         }
         if dst.write_all(&bytes).is_err() {
@@ -226,6 +225,30 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
     let _ = reader.join();
 }
 
+/// Read `src` to its end, stamping each chunk with the instant it may be
+/// released so the source is never blocked by the delay.
+fn queue_chunks(src: &mut TcpStream, tx: &mpsc::Sender<(Instant, Vec<u8>)>, one_way: Duration) {
+    let mut buf = vec![0u8; 32 * 1024];
+    while let Ok(read) = src.read(&mut buf) {
+        if read == 0 {
+            break;
+        }
+        if tx
+            .send((Instant::now() + one_way, buf[..read].to_vec()))
+            .is_err()
+        {
+            break;
+        }
+    }
+}
+
+fn sleep_until(instant: Instant) {
+    let now = Instant::now();
+    if instant > now {
+        thread::sleep(instant - now);
+    }
+}
+
 /// Initial congestion window, mirroring RFC 6928's 10 segments of
 /// ~1460 bytes.
 const INITIAL_CWND_BYTES: f64 = 14_600.0;
@@ -233,7 +256,7 @@ const INITIAL_CWND_BYTES: f64 = 14_600.0;
 /// Per-connection slow-start state: effective rate is `cwnd ÷ RTT`,
 /// and `cwnd` doubles each time a full window has been delivered,
 /// until the rate reaches the link's cap. An approximation of real
-/// TCP — no loss events, no congestion-avoidance phase — but it
+/// TCP (no loss events, no congestion-avoidance phase) but it
 /// reproduces the property that matters for install benchmarks:
 /// per-connection throughput is a function of bytes already
 /// delivered, so short transfers never reach the cap.
@@ -248,8 +271,9 @@ impl SlowStart {
     /// cap the model needs; `None` keeps the flat-rate behavior.
     fn for_profile(profile: &LinkProfile) -> Option<SlowStart> {
         let rtt_secs = profile.one_way.as_secs_f64() * 2.0;
-        (profile.slow_start && rtt_secs > 0.0 && profile.rate_limit.is_some())
-            .then_some(SlowStart { cwnd: INITIAL_CWND_BYTES, rtt_secs, bytes_in_round: 0.0 })
+        (profile.slow_start && rtt_secs > 0.0 && profile.rate_limit.is_some()).then_some(
+            SlowStart { cwnd: INITIAL_CWND_BYTES, rtt_secs, bytes_in_round: 0.0 },
+        )
     }
 
     /// The rate (bytes/sec) at which the next `len`-byte chunk

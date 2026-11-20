@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.graceful-fs",
-  "version": "1100.2.0",
+  "version": "1100.2.6",
   "description": "Promisified graceful-fs",
   "keywords": [
     "pnpm",
@@ -24,15 +24,18 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
-    "test": "pn compile",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix"
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:*",
     "graceful-fs": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@types/graceful-fs": "catalog:"
   },

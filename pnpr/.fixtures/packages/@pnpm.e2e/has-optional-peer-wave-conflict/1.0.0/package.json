@@ -1,0 +1,12 @@
+{
+  "name": "@pnpm.e2e/has-optional-peer-wave-conflict",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/peer-wave-conflict": "*"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm.e2e/peer-wave-conflict": {
+      "optional": true
+    }
+  }
+}

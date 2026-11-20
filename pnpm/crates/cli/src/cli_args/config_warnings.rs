@@ -1,23 +1,40 @@
 //! The stderr channel for config-load warnings.
 //!
 //! pnpm collects the warnings raised while reading config and prints them
-//! with `console.warn` — to stderr, outside the reporter, on every command
-//! and under every reporter — so they never mix into the stdout a script
+//! with `console.warn` (to stderr, outside the reporter, on every command
+//! and under every reporter) so they never mix into the stdout a script
 //! captures. Warnings emitted through the reporter stay on stdout; only
-//! config-load warnings belong here.
+//! config-load warnings and the project checks that run before the command
+//! belong here.
 
-use derive_more::{Display, Error};
+pub(crate) use load_report::ConfigWarnings;
+
+mod load_report;
+
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, WorkspaceKeyIssues, known_settings::annotate_unknown_setting,
-    naming_cases::to_camel_case, refused_keys::where_refused_key_belongs,
+    Config,
+    ProjectConfig,
+    UnrecognizedSettings,
+    WorkspaceKeyIssues,
+    known_settings::annotate_unknown_setting,
+    naming_cases::to_camel_case,
+    refused_keys::where_refused_key_belongs,
 };
 use pnpm_default_reporter::colors::Colors;
 use pnpm_network::redact_and_sanitize;
 use pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX;
 use std::{
     collections::BTreeSet,
-    io::{IsTerminal, Write},
+    fmt::Write as _,
+    io::{
+        IsTerminal,
+        Write,
+    },
 };
 
 /// Write a `[WARN]`-labelled config-load warning to stderr. Best-effort:
@@ -35,7 +52,7 @@ pub(crate) fn emit_config_warning(message: &str) {
 
 /// Warn about `registries` entries that name no configured registry.
 ///
-/// Such an entry is inert — the wrong URL, a stale entry, a scope that moved —
+/// Such an entry is inert (the wrong URL, a stale entry, a scope that moved)
 /// and silently doing nothing is the failure mode users cannot debug. A warning
 /// rather than an error: a shared config dependency can legitimately describe
 /// registries a given project does not use.
@@ -52,15 +69,14 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
     if config.registry_options_by_url.is_empty() {
         return None;
     }
-    let configured: BTreeSet<&str> = config
-        .registries_by_scope
+    let registries_by_scope = config.resolved_registries();
+    let configured: BTreeSet<&str> = registries_by_scope
         .values()
         .chain(config.registries_by_prefix.values())
         .map(String::as_str)
         .chain(BUILTIN_REGISTRIES_BY_PREFIX.iter().map(|(_, url)| *url))
         .collect();
-    let unmatched = config
-        .registry_options_by_url
+    let unmatched = config.registry_options_by_url
         .keys()
         .filter(|registry| !configured.contains(registry.as_str()))
         .map(|registry| format!(r#""{}""#, redact_and_sanitize(registry)))
@@ -78,6 +94,58 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
     Some(format!(
         r#"The following "registries" entries do not match any configured registry and were ignored: {}. The configured registries are: {configured}."#,
         unmatched.join(", "),
+    ))
+}
+
+/// Warn about `packageConfigs` entries the run cannot apply.
+///
+/// A per-project setting reaches its project through the install that
+/// project owns. A workspace that shares one lockfile runs no such
+/// install (it resolves and writes every project together) so the
+/// entries are inert there, and silently keeping the workspace-wide
+/// value is the failure mode users cannot debug.
+pub(crate) fn warn_unapplied_package_configs(config: &Config) {
+    if let Some(message) = unapplied_package_configs_warning(config) {
+        emit_config_warning(&message);
+    }
+}
+
+/// The message [`warn_unapplied_package_configs`] emits, or [`None`] when
+/// every entry applies. Split out so the wording is testable without
+/// capturing stderr.
+fn unapplied_package_configs_warning(config: &Config) -> Option<String> {
+    if !config.shares_one_lockfile() {
+        return None;
+    }
+    let ignored = config.package_configs
+        .iter()
+        .flatten()
+        .flat_map(|(project, settings)| {
+            let ProjectConfig {
+                hoist,
+                modules_dir,
+                overrides,
+                save_exact,
+                save_prefix,
+            } = settings;
+            [
+                hoist.is_some().then_some("hoist"),
+                modules_dir.is_some().then_some("modulesDir"),
+                overrides.is_some().then_some("overrides"),
+                save_exact.is_some().then_some("saveExact"),
+                save_prefix.is_some().then_some("savePrefix"),
+            ]
+            .into_iter()
+            .flatten()
+            .map(move |setting| format!(r#""{}.{setting}""#, redact_and_sanitize(project)))
+        })
+        .collect::<Vec<_>>();
+    if ignored.is_empty() {
+        return None;
+    }
+    Some(format!(
+        r#"The following "packageConfigs" settings were ignored: {}. They apply only when each project has its own lockfile ("sharedWorkspaceLockfile: false")."#,
+        ignored.join(", "),
     ))
 }
 
@@ -100,32 +168,77 @@ pub(crate) struct UnrecognizedWorkspaceSettingsError {
     keys: String,
 }
 
+/// The `tasks` section's counterpart to
+/// [`UnrecognizedWorkspaceSettingsError`], raised under the same condition
+/// and for the same reason.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm: {settings}."
+)]
+#[diagnostic(
+    code(ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS),
+    help(
+        r#"The project pins pnpm to a version the running pnpm satisfies, so these settings cannot be meant for a different pnpm version. A task declares "concurrency", "concurrencyGroup", "priority", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
+    )
+)]
+pub(crate) struct UnrecognizedTaskSettingsError {
+    settings: String,
+}
+
 /// Report the problem keys of the project's `pnpm-workspace.yaml`, in pnpm's
 /// order (refused, unrecognized, kebab-case). Unrecognized keys are a
-/// warning, or — when `strict` (the running pnpm is the version the project
-/// pins) — the error above, raised after the other warnings are out.
+/// warning, or (when `strict` (the running pnpm is the version the project
+/// pins)) the errors above, raised after the other warnings are out.
 pub(crate) fn report_workspace_key_issues(
     issues: &WorkspaceKeyIssues,
     strict: bool,
-) -> Result<(), UnrecognizedWorkspaceSettingsError> {
+) -> miette::Result<()> {
     if !issues.refused.is_empty() {
         emit_config_warning(&refused_workspace_keys_warning(&issues.refused));
     }
     let unrecognized = annotate_unknown_settings(&issues.unrecognized);
-    if let Some(unrecognized) = unrecognized.as_deref()
-        && !strict
-    {
+    let task_settings = render_unrecognized_settings(&issues.unrecognized_task_settings);
+    if !strict && let Some(unrecognized) = unrecognized.as_deref() {
         emit_config_warning(&format!(
             "The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {unrecognized}.",
         ));
     }
+    // Under `strict` an unrecognized top-level key is raised below and
+    // preempts the task settings, which would otherwise go unreported until
+    // the run after the one that fixed it.
+    if let Some(task_settings) = task_settings.as_deref()
+        && (!strict || unrecognized.is_some())
+    {
+        emit_config_warning(&format!(
+            "The following task settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {task_settings}.",
+        ));
+    }
+    warn_unrecognized_permissions(&issues.unrecognized_permissions);
     if !issues.non_camel_case.is_empty() {
         emit_config_warning(&non_camel_case_workspace_keys_warning(&issues.non_camel_case));
     }
-    match unrecognized {
-        Some(keys) if strict => Err(UnrecognizedWorkspaceSettingsError { keys }),
-        _ => Ok(()),
+    if !strict {
+        return Ok(());
     }
+    if let Some(keys) = unrecognized {
+        return Err(UnrecognizedWorkspaceSettingsError { keys }.into());
+    }
+    if let Some(settings) = task_settings {
+        return Err(UnrecognizedTaskSettingsError { settings }.into());
+    }
+    Ok(())
+}
+
+/// Whether [`report_workspace_key_issues`] fails under `strict`.
+pub(crate) fn key_issues_fail_when_strict(issues: &WorkspaceKeyIssues) -> bool {
+    !issues.unrecognized.is_empty() || issues.unrecognized_task_settings.total > 0
+}
+
+fn warn_unrecognized_permissions(permissions: &UnrecognizedSettings) {
+    let Some(paths) = render_unrecognized_settings(permissions) else { return };
+    emit_config_warning(&format!(
+        "The following permissions in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: {paths}.",
+    ));
 }
 
 fn refused_workspace_keys_warning(keys: &[String]) -> String {
@@ -152,6 +265,22 @@ fn annotate_unknown_settings(keys: &[String]) -> Option<String> {
     )
 }
 
+fn render_unrecognized_settings(settings: &UnrecognizedSettings) -> Option<String> {
+    if settings.total == 0 {
+        return None;
+    }
+    let mut rendered = settings.named
+        .iter()
+        .map(|setting| format!(r#""{}""#, redact_and_sanitize(setting)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let unnamed = settings.total - settings.named.len();
+    if unnamed > 0 {
+        let _ = write!(rendered, ", and {unnamed} more");
+    }
+    Some(rendered)
+}
+
 fn non_camel_case_workspace_keys_warning(keys: &[String]) -> String {
     let keys = keys
         .iter()
@@ -162,6 +291,28 @@ fn non_camel_case_workspace_keys_warning(keys: &[String]) -> String {
     format!(
         "The following settings in pnpm-workspace.yaml were ignored because they are not written in camelCase: {keys}.",
     )
+}
+
+pub(crate) fn warn_shared_workspace_lockfile_outside_workspace(
+    shared_workspace_lockfile_cli: Option<bool>,
+    workspace_dir: Option<&std::path::Path>,
+) {
+    if let Some(message) = shared_workspace_lockfile_outside_workspace_warning(
+        shared_workspace_lockfile_cli,
+        workspace_dir,
+    ) {
+        emit_config_warning(&message);
+    }
+}
+
+pub(super) fn shared_workspace_lockfile_outside_workspace_warning(
+    shared_workspace_lockfile_cli: Option<bool>,
+    workspace_dir: Option<&std::path::Path>,
+) -> Option<String> {
+    (shared_workspace_lockfile_cli.is_some() && workspace_dir.is_none()).then(|| {
+        r#"The "shared-workspace-lockfile" option was ignored because no "pnpm-workspace.yaml" was found."#
+            .to_string()
+    })
 }
 
 #[cfg(test)]

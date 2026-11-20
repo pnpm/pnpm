@@ -1,13 +1,29 @@
 //! pnpm's tests inject a `_config` / `_context`; pacquet builds a [`Config`]
 //! and sets the public fields the command reads ([`Config::config_dir`],
-//! [`Config::explicit_settings`], [`Config::raw_auth_config`]) — the same
+//! [`Config::explicit_settings`], [`Config::raw_auth_config`]), the same
 //! injection, expressed against pacquet's loaded-config shape.
 
-use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
+use super::{
+    ConfigFlags,
+    ConfigLocation,
+    config_get,
+    config_list,
+    config_set,
+    ini,
+};
 use indexmap::IndexMap;
-use pnpm_config::Config;
-use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use pnpm_config::{
+    Config,
+    Host,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use tempfile::TempDir;
 
 fn config_with_dir(config_dir: &Path) -> Config {
@@ -24,7 +40,12 @@ fn read_yaml(path: &Path) -> Option<Value> {
 }
 
 fn read_ini(path: &Path) -> IndexMap<String, String> {
-    ini::read(path).expect("read ini")
+    let doc = ini::read(path).expect("read ini");
+    let mut map = IndexMap::new();
+    for (key, value) in doc.entries() {
+        map.insert(key.to_string(), value.to_string());
+    }
+    map
 }
 
 // --- config set: INI routing -----------------------------------------------
@@ -81,7 +102,11 @@ fn set_scoped_registry_project_creates_npmrc() {
         read_ini(&tmp.path().join(".npmrc")).get("@myorg:registry").map(String::as_str),
         Some("https://test-registry.example.com/"),
     );
-    assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -158,6 +183,54 @@ fn set_registries_and_named_registries_global_writes_config_yaml() {
 }
 
 #[test]
+fn set_macos_backup_requires_a_json_object() {
+    let tmp = TempDir::new().unwrap();
+    let config_dir = tmp.path().join("global-config");
+    let config = config_with_dir(&config_dir);
+
+    let err = config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, false),
+        "macos-backup",
+        Some("false".into()),
+    )
+    .unwrap_err();
+    assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
+    assert!(!config_dir.join("config.yaml").exists());
+
+    for value in [
+        r#"{"excludeModulesDir":"invalid"}"#,
+        r#"{"excludeStoreDir":"invalid"}"#,
+        r#"{"excludeStoreDirectory":false}"#,
+    ] {
+        let err = config_set(
+            &config,
+            tmp.path(),
+            flags(true, None, true),
+            "macos-backup",
+            Some(value.into()),
+        )
+        .unwrap_err();
+        assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE");
+        assert!(!config_dir.join("config.yaml").exists());
+    }
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(true, None, true),
+        "macos-backup",
+        Some(r#"{"excludeModulesDir":false,"excludeStoreDir":true}"#.into()),
+    )
+    .unwrap();
+    assert_eq!(
+        read_yaml(&config_dir.join("config.yaml")).unwrap(),
+        json!({ "macosBackup": { "excludeModulesDir": false, "excludeStoreDir": true } }),
+    );
+}
+
+#[test]
 fn set_camel_key_location_global() {
     let tmp = TempDir::new().unwrap();
     let config_dir = tmp.path().join("global-config");
@@ -194,6 +267,62 @@ fn set_pnpm_key_project_writes_workspace_yaml() {
         read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
         json!({ "virtualStoreDir": ".pnpm" }),
     );
+}
+
+/// <https://github.com/pnpm/pnpm/issues/13757>
+#[test]
+fn set_pnpm_key_project_from_sub_package_writes_workspace_root_yaml() {
+    let tmp = TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let sub_package_dir = tmp.path().join("packages/a");
+    std::fs::create_dir_all(&sub_package_dir).unwrap();
+    let config = Config {
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..config_with_dir(&tmp.path().join("global-config"))
+    };
+
+    config_set(
+        &config,
+        &sub_package_dir,
+        flags(false, Some(ConfigLocation::Project), false),
+        "virtual-store-dir",
+        Some(".pnpm".into()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
+        json!({ "packages": ["packages/*"], "virtualStoreDir": ".pnpm" }),
+    );
+    assert!(!sub_package_dir.join("pnpm-workspace.yaml").exists());
+}
+
+/// <https://github.com/pnpm/pnpm/issues/13757>
+#[test]
+fn set_ini_key_project_from_sub_package_keeps_npmrc_in_current_dir() {
+    let tmp = TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let sub_package_dir = tmp.path().join("packages/a");
+    std::fs::create_dir_all(&sub_package_dir).unwrap();
+    let config = Config {
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..config_with_dir(&tmp.path().join("global-config"))
+    };
+
+    config_set(
+        &config,
+        &sub_package_dir,
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        Some("https://npm-registry.example.com/".into()),
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_ini(&sub_package_dir.join(".npmrc")).get("registry").map(String::as_str),
+        Some("https://npm-registry.example.com/"),
+    );
+    assert!(!sub_package_dir.join("pnpm-workspace.yaml").exists());
 }
 
 #[test]
@@ -399,6 +528,96 @@ fn set_refuses_kebab_workspace_key() {
     assert_eq!(err.code().unwrap().to_string(), "ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY");
 }
 
+/// A project's `pnpm-workspace.yaml` carries no machine-level state, so
+/// writing one there would leave behind a key pnpm ignores. The documented
+/// error names the key, and the file is left as it was.
+#[test]
+fn set_refuses_a_machine_level_key_in_the_project_manifest() {
+    for key in ["stateDir", "pnpm-home-dir", "config-dir", "scope"] {
+        let tmp = TempDir::new().unwrap();
+        let config = config_with_dir(&tmp.path().join("global-config"));
+        std::fs::write(tmp.path().join("pnpm-workspace.yaml"), "storeDir: ~/store\n").unwrap();
+
+        let err = config_set(
+            &config,
+            tmp.path(),
+            flags(false, Some(ConfigLocation::Project), false),
+            key,
+            Some("/tmp/somewhere".into()),
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            err.code().unwrap().to_string(),
+            "ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING",
+            "{key}",
+        );
+        assert!(
+            err.to_string().contains("cannot be set in a project's pnpm-workspace.yaml"),
+            "{key}: {err}",
+        );
+        assert_eq!(
+            read_yaml(&tmp.path().join("pnpm-workspace.yaml")),
+            Some(json!({ "storeDir": "~/store" })),
+            "{key} must not be written",
+        );
+    }
+}
+
+/// Deleting is how a user clears a manifest that already carries a
+/// machine-level key, so the write-side refusal must not block it.
+#[test]
+fn delete_clears_a_machine_level_key_from_the_project_manifest() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    std::fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "configDir: /tmp/somewhere\nstoreDir: ~/store\n",
+    )
+    .unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "config-dir",
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")),
+        Some(json!({ "storeDir": "~/store" })),
+    );
+}
+
+/// The reader refuses a machine-level key under any spelling, so a delete
+/// clears the kebab-case spelling a hand-edited manifest may carry too.
+#[test]
+fn delete_clears_every_spelling_of_a_machine_level_key() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    std::fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "state-dir: /tmp/kebab\nstateDir: /tmp/camel\nstoreDir: ~/store\n",
+    )
+    .unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "stateDir",
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")),
+        Some(json!({ "storeDir": "~/store" })),
+    );
+}
+
 // --- config delete ---------------------------------------------------------
 
 #[test]
@@ -414,7 +633,11 @@ fn delete_last_yaml_key_removes_file() {
         Some(".pnpm".into()),
     )
     .unwrap();
-    assert!(tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 
     config_set(
         &config,
@@ -424,7 +647,11 @@ fn delete_last_yaml_key_removes_file() {
         None,
     )
     .unwrap();
-    assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
+    assert!(
+        !tmp.path()
+            .join("pnpm-workspace.yaml")
+            .exists(),
+    );
 }
 
 #[test]
@@ -454,6 +681,194 @@ fn delete_auth_key_set_and_unset() {
     .unwrap();
     config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
     assert!(read_ini(&config_dir.join("auth.ini")).is_empty());
+}
+
+#[test]
+fn set_unrelated_key_preserves_repeated_ca_and_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\n; Registry config\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        Some("https://registry.example.com/".to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("; Registry config"));
+    assert!(text.contains("ca=certificate-A"));
+    assert!(text.contains("ca=certificate-B"));
+    assert!(text.contains("registry=https://registry.example.com/"));
+    assert!(!text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["certificate-A", "certificate-B"]);
+    assert_eq!(doc.get("registry"), Some("https://registry.example.com/"));
+}
+
+#[test]
+fn delete_key_preserves_repeated_ca_and_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\n; Registry config\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        None,
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("; Registry config"));
+    assert!(text.contains("ca=certificate-A"));
+    assert!(text.contains("ca=certificate-B"));
+    assert!(!text.contains("registry="));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["certificate-A", "certificate-B"]);
+    assert_eq!(doc.get("registry"), None);
+}
+
+#[test]
+fn delete_repeated_key_removes_all_occurrences_and_preserves_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca=certificate-A\nca=certificate-B\n\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(&config, tmp.path(), flags(false, Some(ConfigLocation::Project), false), "ca", None)
+        .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(!text.contains("ca="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), Vec::<&str>::new());
+    assert_eq!(doc.get("registry"), Some("https://registry.npmjs.org/"));
+}
+
+#[test]
+fn set_ca_array_json_writes_repeated_keys_preserving_comments() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial =
+        "# Corporate CA certificates\nca=old-cert\n\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "ca",
+        Some(r#"["cert-1", "cert-2"]"#.to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("ca=cert-1"));
+    assert!(text.contains("ca=cert-2"));
+    assert!(!text.contains("ca=old-cert"));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["cert-1", "cert-2"]);
+
+    let runtime_config = load_isolated_project_config(config, tmp.path());
+    assert_eq!(runtime_config.tls.ca, vec!["cert-1", "cert-2"]);
+}
+
+#[test]
+fn set_ca_array_json_appends_unbracketed_ca_to_file_without_existing_ca() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Registry config\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), true),
+        "ca",
+        Some(r#"["cert-x", "cert-y"]"#.to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Registry config"));
+    assert!(text.contains("ca=cert-x"));
+    assert!(text.contains("ca=cert-y"));
+    assert!(!text.contains("ca[]="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["cert-x", "cert-y"]);
+
+    let runtime_config = load_isolated_project_config(config, tmp.path());
+    assert_eq!(runtime_config.tls.ca, vec!["cert-x", "cert-y"]);
+}
+
+#[test]
+fn set_ca_replaces_existing_bracketed_ca_lines() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    let npmrc_path = tmp.path().join(".npmrc");
+
+    let initial = "# Corporate CA certificates\nca[]=certificate-A\nca[]=certificate-B\n\nregistry=https://registry.npmjs.org/\n";
+    std::fs::write(&npmrc_path, initial).unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "ca",
+        Some("certificate-C".to_string()),
+    )
+    .unwrap();
+
+    let text = std::fs::read_to_string(&npmrc_path).unwrap();
+    assert!(text.contains("# Corporate CA certificates"));
+    assert!(text.contains("ca=certificate-C"));
+    assert!(!text.contains("ca[]="));
+    assert!(text.contains("registry=https://registry.npmjs.org/"));
+
+    let doc = ini::read(&npmrc_path).unwrap();
+    assert_eq!(doc.get_all("ca"), vec!["certificate-C"]);
+
+    let runtime_config = load_isolated_project_config(config, tmp.path());
+    assert_eq!(runtime_config.tls.ca, vec!["certificate-C"]);
+}
+
+fn load_isolated_project_config(config: Config, dir: &Path) -> Config {
+    std::fs::write(dir.join("pnpm-workspace.yaml"), "packages: []\n").unwrap();
+    let user_npmrc = dir.join("user.npmrc");
+    std::fs::write(&user_npmrc, "").unwrap();
+    Config { npmrc_auth_file: Some(user_npmrc), ..config }
+        .current::<Host>(dir)
+        .expect("load runtime config")
 }
 
 #[test]
@@ -563,9 +978,10 @@ fn get_scoped_registry_from_auth_and_merged() {
 
     // merged `registries` block wins over the raw .npmrc value (pnpm/pnpm#11492)
     let mut merged = config_for_get(&[], &[("@scope:registry", "https://from-npmrc.example.com/")]);
-    merged
-        .registries_by_scope
-        .insert("@scope".to_string(), "https://from-workspace-yaml.example.com/".to_string());
+    merged.registries_by_scope.insert(
+        "@scope".to_string(),
+        "https://from-workspace-yaml.example.com/".to_string(),
+    );
     assert_eq!(
         config_get(&merged, flags(false, None, false), "@scope:registry").unwrap(),
         "https://from-workspace-yaml.example.com/",
@@ -578,8 +994,23 @@ fn get_scoped_registry_from_auth_and_merged() {
     );
 }
 
-/// `registry` and `@jsr:registry` answer the merged routes — the built-in
-/// defaults when nothing routes them elsewhere — rather than `undefined`.
+/// A registry's `networkConcurrency` is part of the resolved `registries` view.
+#[test]
+fn list_shows_a_registry_network_concurrency() {
+    let mut config = config_for_get(&[], &[]);
+    config.network_concurrency_by_registry.insert(
+        "https://npm.corp.example/".to_string(),
+        std::num::NonZeroUsize::new(4).unwrap(),
+    );
+    let listed: Value = serde_json::from_str(&config_list(&config)).unwrap();
+    assert_eq!(
+        listed["registries"]["https://npm.corp.example/"],
+        json!({ "networkConcurrency": 4 }),
+    );
+}
+
+/// `registry` and `@jsr:registry` answer the merged routes (the built-in
+/// defaults when nothing routes them elsewhere) rather than `undefined`.
 #[test]
 fn get_registry_and_jsr_answer_the_merged_routes() {
     let config = config_for_get(&[], &[]);
@@ -596,7 +1027,7 @@ fn get_registry_and_jsr_answer_the_merged_routes() {
     assert_eq!(listed["registry"], json!("https://registry.npmjs.org/"));
     assert_eq!(listed["@jsr:registry"], json!("https://npm.jsr.io/"));
 
-    // The resolved default — wherever it was routed from — wins over a raw
+    // The resolved default (wherever it was routed from) wins over a raw
     // `.npmrc` row, so `get` and `list` cannot contradict the `registries`
     // view.
     let mut routed = config_for_get(&[], &[("registry", "https://from-npmrc.example.com/")]);
@@ -870,7 +1301,11 @@ fn set_preserves_existing_npmrc_mode() {
     )
     .unwrap();
 
-    let mode = std::fs::metadata(&npmrc).unwrap().permissions().mode() & 0o777;
+    let mode = std::fs::metadata(&npmrc)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o777;
     assert_eq!(mode, 0o644, "existing .npmrc mode must be preserved, got {mode:o}");
 }
 
@@ -907,3 +1342,14 @@ fn set_does_not_follow_symlinked_npmrc_mode() {
         "credentials written through a symlinked .npmrc must stay 0600, got {mode:o}",
     );
 }
+
+#[test]
+fn global_flag_and_global_location_are_the_same_scope() {
+    assert!(flags(true, None, false).is_global());
+    assert!(flags(false, Some(ConfigLocation::Global), false).is_global());
+    assert!(flags(true, Some(ConfigLocation::Global), false).is_global());
+    assert!(!flags(true, Some(ConfigLocation::Project), false).is_global());
+    assert!(!flags(false, None, false).is_global());
+}
+
+mod scope_routing;

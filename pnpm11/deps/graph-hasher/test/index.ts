@@ -1,6 +1,13 @@
 import { describe, expect, test } from '@jest/globals'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { calcDepState, calcDepStateInputKey, calcGraphNodeHash, computeBuildRequiredDepPaths, findRuntimeNodeVersion, readSnapshotRuntimePin } from '@pnpm/deps.graph-hasher'
+import {
+  buildsDependenciesDuringInstall,
+  calcDepState,
+  calcDepStateInputKey,
+  calcGraphNodeHash,
+  computeBuildRequiredDepPaths,
+  readSnapshotRuntimePin,
+} from '@pnpm/deps.graph-hasher'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
@@ -31,51 +38,34 @@ const depsGraph = {
   },
 }
 
+// foo and bar depend on each other, so they hash as one cycle.
+const fooLabel = hashObject({ id: 'foo@1.0.0:000', deps: {} })
+const barLabel = hashObject({ id: 'bar@1.0.0:001', deps: {} })
+const cycleShape = hashObject({
+  [fooLabel]: { bar: barLabel },
+  [barLabel]: { foo: fooLabel },
+})
+const fooDepsHash = hashObject({ member: fooLabel, component: cycleShape })
+const barDepsHash = hashObject({ member: barLabel, component: cycleShape })
+
 test('calcDepState()', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeDepGraphHash: true,
-  })).toBe(`${ENGINE_NAME};deps=${hashObject({
-    id: 'foo@1.0.0:000',
-    deps: {
-      bar: hashObject({
-        id: 'bar@1.0.0:001',
-        deps: {
-          foo: hashObject({
-            id: 'foo@1.0.0:000',
-            deps: {},
-          }),
-        },
-      }),
-    },
-  })}`)
+  })).toBe(`${ENGINE_NAME};format=2;deps=${fooDepsHash}`)
 })
 
 test('calcDepState() when scripts are ignored', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeDepGraphHash: false,
-  })).toBe(ENGINE_NAME)
+  })).toBe(`${ENGINE_NAME};format=2`)
 })
 
 test('calcDepStateInputKey() excludes the host engine and includes patches', () => {
-  const expectedDepsHash = hashObject({
-    id: 'foo@1.0.0:000',
-    deps: {
-      bar: hashObject({
-        id: 'bar@1.0.0:001',
-        deps: {
-          foo: hashObject({
-            id: 'foo@1.0.0:000',
-            deps: {},
-          }),
-        },
-      }),
-    },
-  })
   expect(calcDepStateInputKey({
     depsGraph,
     depPath: 'foo@1.0.0',
     patchFileHash: 'patch-hash',
-  })).toBe(`dependency-side-effects:v1:deps=${expectedDepsHash};patch=patch-hash`)
+  })).toBe(`dependency-side-effects:v1:deps=${fooDepsHash};patch=patch-hash`)
 })
 
 test('calcDepStateInputKey() rejects a missing root', () => {
@@ -86,56 +76,14 @@ test('calcDepStateInputKey() rejects a missing root', () => {
 })
 
 test('calcDepStateInputKey() isolates cyclic roots', () => {
-  const truncatedFoo = hashObject({
-    id: 'foo@1.0.0:000',
-    deps: {},
-  })
-  const nestedBar = hashObject({
-    id: 'bar@1.0.0:001',
-    deps: { foo: truncatedFoo },
-  })
-  const rootFoo = hashObject({
-    id: 'foo@1.0.0:000',
-    deps: { bar: nestedBar },
-  })
-  const truncatedBar = hashObject({
-    id: 'bar@1.0.0:001',
-    deps: {},
-  })
-  const nestedFoo = hashObject({
-    id: 'foo@1.0.0:000',
-    deps: { bar: truncatedBar },
-  })
-  const rootBar = hashObject({
-    id: 'bar@1.0.0:001',
-    deps: { foo: nestedFoo },
-  })
-
   expect(calcDepStateInputKey({
     depsGraph,
     depPath: 'foo@1.0.0',
-  })).toBe(`dependency-side-effects:v1:deps=${rootFoo}`)
+  })).toBe(`dependency-side-effects:v1:deps=${fooDepsHash}`)
   expect(calcDepStateInputKey({
     depsGraph,
     depPath: 'bar@1.0.0',
-  })).toBe(`dependency-side-effects:v1:deps=${rootBar}`)
-})
-
-test('findRuntimeNodeVersion() pulls the pinned major from a node@runtime: snapshot key', () => {
-  // Mirrors pacquet's `find_runtime_node_major` helper; both must
-  // agree on the version-extraction rule or the two tools would
-  // hash GVS slots under different engine majors for the same
-  // project. The peer-suffixed form must reduce to the same bare
-  // version as the form without a peer suffix.
-  expect(
-    findRuntimeNodeVersion(['leftpad@1.3.0', 'node@runtime:22.11.0'])
-  ).toBe('22.11.0')
-  expect(
-    findRuntimeNodeVersion(['node@runtime:22.11.0(node@22.11.0)'])
-  ).toBe('22.11.0')
-  expect(
-    findRuntimeNodeVersion(['leftpad@1.3.0', 'is-positive@3.1.0'])
-  ).toBeUndefined()
+  })).toBe(`dependency-side-effects:v1:deps=${barDepsHash}`)
 })
 
 test('readSnapshotRuntimePin() pulls the own pin from a graph node child', () => {
@@ -175,7 +123,7 @@ test('calcDepState() uses the snapshot\'s own engines.runtime pin', () => {
   expect(calcDepState(graph, {}, 'pinned@1.0.0', {
     includeDepGraphHash: false,
     nodeVersion: '20.5.0', // install-wide fallback differs from own pin
-  })).toBe(`${process.platform};${process.arch};node22`)
+  })).toBe(`${process.platform};${process.arch};node22;format=2`)
 })
 
 describe('calcGraphNodeHash', () => {
@@ -241,10 +189,24 @@ describe('calcGraphNodeHash', () => {
     expect(hash).toBe(`@/foo/1.0.0/${expectedDigest}`)
   })
 
-  test('includes ENGINE_NAME for packages that require a build', () => {
+  test('includes ENGINE_NAME and built for packages that require a build', () => {
     const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
     const hash = calcGraphNodeHash(
       { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
+      { depPath: 'native@1.0.0' as DepPath, name: 'native', version: '1.0.0' }
+    )
+    const depsHash = hashObject({ id: 'native@1.0.0:002', deps: {} })
+    const expectedDigest = hashObjectWithoutSorting(
+      { engine: ENGINE_NAME, deps: depsHash, built: true },
+      { encoding: 'hex' }
+    )
+    expect(hash).toBe(`@/native/1.0.0/${expectedDigest}`)
+  })
+
+  test('includes ENGINE_NAME but not built for packages that require a build when the install runs no builds', () => {
+    const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
+    const hash = calcGraphNodeHash(
+      { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths), buildsRun: false },
       { depPath: 'native@1.0.0' as DepPath, name: 'native', version: '1.0.0' }
     )
     const depsHash = hashObject({ id: 'native@1.0.0:002', deps: {} })
@@ -255,7 +217,7 @@ describe('calcGraphNodeHash', () => {
     expect(hash).toBe(`@/native/1.0.0/${expectedDigest}`)
   })
 
-  test('includes ENGINE_NAME for packages that transitively depend on a built package', () => {
+  test('includes ENGINE_NAME and built for packages that transitively depend on a built package', () => {
     const builtDepPaths = new Set<DepPath>(['native@1.0.0' as DepPath])
     const hash = calcGraphNodeHash(
       { graph: graphNodeGraph, cache: {}, buildRequiredDepPaths: computeBuildRequiredDepPaths(graphNodeGraph, builtDepPaths) },
@@ -268,7 +230,7 @@ describe('calcGraphNodeHash', () => {
       },
     })
     const expectedDigest = hashObjectWithoutSorting(
-      { engine: ENGINE_NAME, deps: depsHash },
+      { engine: ENGINE_NAME, deps: depsHash, built: true },
       { encoding: 'hex' }
     )
     expect(hash).toBe(`@/depends-on-native/1.0.0/${expectedDigest}`)
@@ -292,4 +254,12 @@ describe('calcGraphNodeHash', () => {
     )
     expect(hash).toBe(`@/foo/1.0.0/${expectedDigest}`)
   })
+})
+
+test('buildsDependenciesDuringInstall()', () => {
+  expect(buildsDependenciesDuringInstall({})).toBe(true)
+  expect(buildsDependenciesDuringInstall({ ignoreScripts: true })).toBe(false)
+  expect(buildsDependenciesDuringInstall({ ignoreScripts: true, enableGlobalVirtualStore: true })).toBe(false)
+  expect(buildsDependenciesDuringInstall({ ignoreScripts: true, deferDependencyBuilds: true })).toBe(false)
+  expect(buildsDependenciesDuringInstall({ ignoreScripts: true, deferDependencyBuilds: true, enableGlobalVirtualStore: true })).toBe(true)
 })

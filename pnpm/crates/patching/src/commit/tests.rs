@@ -1,14 +1,35 @@
 use super::{
-    DiffTempFile, PatchCommitError, PatchCommitFs, PkgFilesForDiff, RealPatchCommitFs,
-    diff_folders, normalize_diff_output, prepare_pkg_files_for_diff,
-    prepare_pkg_files_for_diff_with_fs, remove_existing_temp_dir_with_fs, safe_package_file_path,
+    PatchCommitError,
+    PatchCommitFs,
+    PkgFilesForDiff,
+    RealPatchCommitFs,
+    diff_folders,
+    normalize_diff_output,
+    prepare_pkg_files_for_diff,
+    prepare_pkg_files_for_diff_with_fs,
+    remove_existing_temp_dir_with_fs,
+    safe_package_file_path,
     temporary_filtered_dir,
 };
+use diffy::patch_set::{
+    FileOperation,
+    ParseOptions,
+    PatchSet,
+};
+use pnpm_fs::LinkFailure;
 use pretty_assertions::assert_eq;
+use std::{
+    cell::Cell,
+    fs,
+    io,
+    path::Path,
+};
+use tempfile::tempdir;
+
+#[cfg(unix)]
+use super::DiffTempFile;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::{cell::Cell, fs, io, path::Path};
-use tempfile::tempdir;
 
 #[test]
 fn patch_commit_diff_dirs_strips_absolute_temp_paths() {
@@ -89,7 +110,10 @@ fn patch_commit_diff_dirs_accepts_paths_that_start_with_dash() {
 fn patch_commit_diff_temp_files_are_owner_only() {
     let temp_file = DiffTempFile::new("stdout").expect("diff temp file");
 
-    let mode = fs::metadata(&temp_file.path).expect("diff temp metadata").permissions().mode();
+    let mode = fs::metadata(&temp_file.path)
+        .expect("diff temp metadata")
+        .permissions()
+        .mode();
 
     assert_eq!(mode & 0o777, 0o600);
 }
@@ -161,8 +185,73 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_nested_parent_create_errors()
     assert!(matches!(err, PatchCommitError::CreateTempDir { .. }));
 }
 
+/// The filtered tree is scratch for `git diff`, so every failure but a
+/// path error is answered with a copy.
 #[test]
-fn patch_commit_prepare_pkg_files_for_diff_reports_hard_link_errors() {
+fn patch_commit_prepare_pkg_files_for_diff_copies_what_the_filesystem_will_not_link() {
+    for failure in LinkFailure::ALL {
+        let edit_dir = tempdir().expect("edit dir");
+        fs::write(
+            edit_dir.path().join("package.json"),
+            r#"{"name":"pkg","version":"1.0.0","files":["index.js"]}"#,
+        )
+        .unwrap();
+        fs::write(edit_dir.path().join("index.js"), "included\n").unwrap();
+        fs::write(edit_dir.path().join("ignore.txt"), "excluded\n").unwrap();
+        let fs_ops = FailingLinkFs::new(failure);
+
+        let prepared = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &fs_ops);
+
+        if failure == LinkFailure::Path {
+            let err = prepared.expect_err("a path error is not answered with a copy");
+            assert!(matches!(err, PatchCommitError::LinkFile { .. }), "{err:?}");
+            assert!(!fs_ops.copied.get(), "{failure:?}: nothing is copied");
+            continue;
+        }
+        let PkgFilesForDiff::Temporary(path) = prepared.expect("prepare files by copying") else {
+            panic!("package files should be prepared in a temporary filtered dir");
+        };
+        assert!(fs_ops.copied.get(), "{failure:?}: the file is copied");
+        assert_eq!(fs::read_to_string(path.join("index.js")).unwrap(), "included\n");
+        assert!(!path.join("ignore.txt").exists());
+        fs::remove_dir_all(path).unwrap();
+    }
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn patch_commit_prepare_pkg_files_for_diff_preserves_symlinks_on_copy_fallback() {
+    let edit_dir = tempdir().expect("edit dir");
+    fs::write(
+        edit_dir.path().join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","main":"link.js","files":["index.js"]}"#,
+    )
+    .unwrap();
+    fs::write(edit_dir.path().join("index.js"), "target content\n").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("index.js", edit_dir.path().join("link.js")).unwrap();
+    #[cfg(windows)]
+    match std::os::windows::fs::symlink_file("index.js", edit_dir.path().join("link.js")) {
+        Ok(()) => {}
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => return,
+        Err(err) => panic!("failed to create test symlink: {err}"),
+    }
+
+    let fs_ops = FailingLinkFs::new(LinkFailure::CrossDevice);
+    let prepared = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &fs_ops)
+        .expect("prepare files with copy fallback");
+    let PkgFilesForDiff::Temporary(path) = prepared else {
+        panic!("package files should be prepared in a temporary filtered dir");
+    };
+
+    let link_meta = fs::symlink_metadata(path.join("link.js")).unwrap();
+    assert!(link_meta.file_type().is_symlink(), "link.js must remain a symlink");
+    assert_eq!(fs::read_link(path.join("link.js")).unwrap(), Path::new("index.js"));
+    fs::remove_dir_all(path).unwrap();
+}
+
+#[test]
+fn patch_commit_prepare_pkg_files_for_diff_reports_error_when_hard_link_and_copy_fail() {
     let edit_dir = tempdir().expect("edit dir");
     fs::write(
         edit_dir.path().join("package.json"),
@@ -172,17 +261,17 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_hard_link_errors() {
     fs::write(edit_dir.path().join("index.js"), "included\n").unwrap();
     fs::write(edit_dir.path().join("ignore.txt"), "excluded\n").unwrap();
 
-    let err = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &HardLinkErrorFs)
-        .expect_err("hard link creation should fail");
+    let fs_ops = FailingLinkFs { copy_fails: true, ..FailingLinkFs::new(LinkFailure::Denied) };
+    let err = prepare_pkg_files_for_diff_with_fs(edit_dir.path(), &fs_ops)
+        .expect_err("hard link and copy creation should fail");
 
     assert!(matches!(err, PatchCommitError::LinkFile { .. }));
 }
 
 /// `safe_package_file_path` is patch-commit's defense-in-depth guard
 /// against a packlist entry that escapes the source dir. It is unit-tested
-/// directly because the packlist now filters escaping `main` / `bin`
-/// fields upstream (see `escaping_main_and_bin_fields_are_not_force_included`
-/// in `pnpm-fs-packlist`), so the integration path below no longer
+/// directly because the packlist filters escaping `main` / `bin`
+/// fields upstream, so the integration path below never
 /// surfaces one.
 #[test]
 fn safe_package_file_path_rejects_paths_that_escape_source() {
@@ -276,6 +365,159 @@ index 123..456 100644
 }
 
 #[test]
+fn patch_commit_diff_dirs_strips_temp_paths_from_deleted_files() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::write(before.path().join("index.js"), "module.exports = true\n").unwrap();
+    fs::write(after.path().join("index.js"), "module.exports = true\n").unwrap();
+    fs::write(before.path().join("readme.md"), "# readme\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    assert!(diff.contains("diff --git a/readme.md b/readme.md\n"), "diff: {diff}");
+    assert!(diff.contains("deleted file mode 100644\n"), "diff: {diff}");
+    assert!(!diff.contains(&before.path().display().to_string()), "diff: {diff}");
+}
+
+#[test]
+fn patch_commit_diff_normalization_keeps_dst_prefix_of_deleted_files() {
+    let diff = "\
+diff --git a/tmp/before/readme.md b/tmp/before/readme.md
+deleted file mode 100644
+index 123..000
+";
+
+    let normalized = normalize_diff_output(diff, "/tmp/before", "/tmp/after");
+
+    let expected = "\
+diff --git a/readme.md b/readme.md
+deleted file mode 100644
+index 123..000
+";
+    eprintln!("normalized:\n{normalized}");
+    eprintln!("expected:\n{expected}");
+    assert_eq!(normalized, expected);
+}
+
+#[test]
+fn patch_commit_diff_dirs_strips_temp_paths_from_added_files() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::write(before.path().join("index.js"), "module.exports = true\n").unwrap();
+    fs::write(after.path().join("index.js"), "module.exports = true\n").unwrap();
+    fs::write(after.path().join("added.txt"), "added\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    assert!(diff.contains("diff --git a/added.txt b/added.txt\n"), "diff: {diff}");
+    assert!(diff.contains("new file mode 100644\n"), "diff: {diff}");
+    assert!(diff.contains("+++ b/added.txt\n"), "diff: {diff}");
+    assert!(!diff.contains(&after.path().display().to_string()), "diff: {diff}");
+}
+
+#[test]
+fn patch_commit_diff_normalization_keeps_src_prefix_of_added_files() {
+    let diff = "\
+diff --git a/tmp/after/added.txt b/tmp/after/added.txt
+new file mode 100644
+index 000..123
+--- /dev/null
++++ b/tmp/after/added.txt
+";
+
+    let normalized = normalize_diff_output(diff, "/tmp/before", "/tmp/after");
+
+    let expected = "\
+diff --git a/added.txt b/added.txt
+new file mode 100644
+index 000..123
+--- /dev/null
++++ b/added.txt
+";
+    eprintln!("normalized:\n{normalized}");
+    eprintln!("expected:\n{expected}");
+    assert_eq!(normalized, expected);
+}
+
+/// `apply` reads a patch through `PatchSet` with the same options, so a header that
+/// `patch-commit` writes but the parser rejects fails the next install.
+#[test]
+fn patch_commit_diff_dirs_writes_a_parseable_deleted_file_patch() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::write(before.path().join("readme.md"), "package documentation\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
+    let patch = patches
+        .next()
+        .expect("deleted file patch")
+        .expect("parse generated patch");
+    let FileOperation::Delete(path) = patch.operation().strip_prefix(1) else {
+        panic!("expected a file deletion, diff: {diff}");
+    };
+    assert_eq!(path.as_ref(), "readme.md");
+    assert!(patches.next().is_none(), "expected one file patch, diff: {diff}");
+}
+
+/// See [`patch_commit_diff_dirs_writes_a_parseable_deleted_file_patch`]. The `+++` marker lets
+/// the parser recover the target of an added file even from a malformed `diff --git` header, so
+/// the header is asserted here as well.
+#[test]
+fn patch_commit_diff_dirs_writes_a_parseable_nested_added_file_patch() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::create_dir(after.path().join("docs")).unwrap();
+    fs::write(
+        after
+            .path()
+            .join("docs")
+            .join("readme.md"),
+        "package documentation\n",
+    )
+    .unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    assert_eq!(diff.lines().next(), Some("diff --git a/docs/readme.md b/docs/readme.md"));
+    let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
+    let patch = patches
+        .next()
+        .expect("added file patch")
+        .expect("parse generated patch");
+    let FileOperation::Create(path) = patch.operation().strip_prefix(1) else {
+        panic!("expected a file creation, diff: {diff}");
+    };
+    assert_eq!(path.as_ref(), "docs/readme.md");
+    assert!(patches.next().is_none(), "expected one file patch, diff: {diff}");
+}
+
+#[test]
+fn patch_commit_diff_dirs_writes_a_rename_with_package_relative_paths() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    for dir in [before.path(), after.path()] {
+        fs::create_dir(dir.join("lib")).unwrap();
+    }
+    fs::write(before.path().join("lib/a.js"), "module.exports = 1\n").unwrap();
+    fs::write(after.path().join("lib/b.js"), "module.exports = 1\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
+    let patch = patches
+        .next()
+        .expect("rename patch")
+        .expect("parse generated patch");
+    let FileOperation::Rename { from, to } = patch.operation() else {
+        panic!("expected a rename, diff: {diff}");
+    };
+    assert_eq!((from.as_ref(), to.as_ref()), ("lib/a.js", "lib/b.js"));
+    assert!(patches.next().is_none(), "expected one file patch, diff: {diff}");
+}
+
+#[test]
 fn patch_commit_diff_dirs_reports_git_errors() {
     let tmp = tempdir().expect("temp dir");
 
@@ -347,6 +589,10 @@ impl PatchCommitFs for CreateDirErrorFs {
         fs::hard_link(source, target)
     }
 
+    fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
+        fs::copy(source, target)
+    }
+
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
         match fs::remove_dir_all(path) {
             Ok(()) => Ok(()),
@@ -356,9 +602,21 @@ impl PatchCommitFs for CreateDirErrorFs {
     }
 }
 
-struct HardLinkErrorFs;
+/// Hardlinks fail as `failure` says; copies are the real ones, counted,
+/// unless `copy_fails`.
+struct FailingLinkFs {
+    failure: LinkFailure,
+    copy_fails: bool,
+    copied: Cell<bool>,
+}
 
-impl PatchCommitFs for HardLinkErrorFs {
+impl FailingLinkFs {
+    fn new(failure: LinkFailure) -> Self {
+        FailingLinkFs { failure, copy_fails: false, copied: Cell::new(false) }
+    }
+}
+
+impl PatchCommitFs for FailingLinkFs {
     fn symlink_metadata(&self, path: &Path) -> io::Result<fs::Metadata> {
         fs::symlink_metadata(path)
     }
@@ -368,7 +626,15 @@ impl PatchCommitFs for HardLinkErrorFs {
     }
 
     fn hard_link(&self, _source: &Path, _target: &Path) -> io::Result<()> {
-        Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked hard_link"))
+        Err(self.failure.sample_error())
+    }
+
+    fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
+        self.copied.set(true);
+        if self.copy_fails {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied, "blocked copy"));
+        }
+        RealPatchCommitFs.copy(source, target)
     }
 
     fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
@@ -393,6 +659,10 @@ impl PatchCommitFs for RemoveDirErrorFs {
 
     fn hard_link(&self, source: &Path, target: &Path) -> io::Result<()> {
         fs::hard_link(source, target)
+    }
+
+    fn copy(&self, source: &Path, target: &Path) -> io::Result<u64> {
+        fs::copy(source, target)
     }
 
     fn remove_dir_all(&self, _path: &Path) -> io::Result<()> {

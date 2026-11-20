@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 12.x  | :white_check_mark: |
 | 11.x  | :white_check_mark: till 2027 April 30 |
 | 10.x  | :white_check_mark: till 2027 April 30 |
 | <= 9.x   | :x:                |
@@ -14,12 +15,12 @@ Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
 
 **We do not operate a bounty program.**
 
-### pacquet and pnpr
+### pnpr
 
-The Rust port (`pnpm/`) and the resolver server (`pnpr/`) are **not
-production ready** and are under active development. Do not report security
-issues in them through the security advisory process — open a
-[regular issue](https://github.com/pnpm/pnpm/issues) in this repository instead.
+The resolver server (`pnpr/`) is **not production ready** and is under active
+development. Do not report security issues in it through the security advisory
+process — open a [regular issue](https://github.com/pnpm/pnpm/issues) in this
+repository instead.
 
 ## Threat Model and Scope
 
@@ -84,6 +85,13 @@ In particular:
   vulnerability on that basis alone. What matters is what the gap grants an
   attacker beyond what the repository could already do without it.
 
+  In particular, static settings in repository `.npmrc` or `pnpm-workspace.yaml`
+  that configure network transport or TLS verification (such as `strict-ssl=false`,
+  `cafile`, `registry`, or proxies) reflect standard configuration supported by
+  npm and Yarn for legitimate enterprise and intranet deployments. Ignoring or
+  forbidding these settings would break valid projects and diverge from upstream
+  package managers.
+
 The following are examples of reports we consider **out of scope**:
 
 - Tampering with store, lockfile, `node_modules`, or config files that the
@@ -97,9 +105,12 @@ The following are examples of reports we consider **out of scope**:
 - Behavior that matches npm and Yarn and that we would have to diverge from the
   ecosystem to change. Report it upstream first; if they treat it as a
   vulnerability, we will follow.
+- Repository-level configuration files (`.npmrc`, `pnpm-workspace.yaml`) setting
+  static transport or TLS options (such as `strict-ssl=false` or custom registry
+  URLs) without environment variable expansion.
 
 If you believe a report falls outside these assumptions — for example, a way to
-bypass a trust boundary that pnpm *does* enforce — please include the exact
+bypass a trust boundary that pnpm *does* enforce — include the exact
 privilege the attacker starts with and how pnpm escalates it. When the report is
 about a hardening measure that does not cover some setting, state what the
 attacker gains from that gap beyond what they could already do without it.

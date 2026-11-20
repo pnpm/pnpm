@@ -8,18 +8,41 @@
 //! artifact and emits one
 //! [`VariationsResolution`](pnpm_lockfile::VariationsResolution)
 //! variant per `(os, cpu, libc?)` triple.
-//!
-//! Three pieces:
-//!
-//! - [`parse_node_specifier()`] — recognise the `<channel>/<spec>`,
-//!   `<channel>`, prerelease, alias, and bare-range forms.
-//! - [`get_node_mirror()`] / [`get_node_artifact_address()`] /
-//!   [`get_normalized_arch`] — mirror URL normalisation, archive URL
-//!   composition, and the arch quirks for ia32 Windows / armv7l Linux
-//!   / Apple-Silicon-on-pre-16 macOS.
-//! - [`NodeResolver`] — the [`Resolver`](pnpm_resolving_resolver_base::Resolver)
-//!   impl that ties the parser, mirror config, and asset-list fetch
-//!   into the dispatcher chain.
+
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
+pub use get_node_artifact_address::{
+    GetNodeArtifactAddressOptions,
+    NodeArtifactAddress,
+    get_node_artifact_address,
+};
+pub use get_node_mirror::{
+    DEFAULT_NODE_MIRROR_BASE_URL,
+    UNOFFICIAL_NODE_MIRROR_BASE_URL,
+    get_node_mirror,
+};
+pub use node_resolver::{
+    NodeResolver,
+    NodeResolverError,
+    normalize_node_runtime_version_specifier,
+};
+pub use normalize_arch::get_normalized_arch;
+pub use parse_node_specifier::{
+    NodeSpecifier,
+    ParseNodeSpecifierError,
+    RELEASE_CHANNELS,
+    parse_node_specifier,
+    strip_leading_v,
+};
+pub use resolve_node_version::{
+    NODE_EXTRAS_IGNORE_PATTERN,
+    ResolveNodeVersionError,
+    resolve_node_version,
+    resolve_node_version_with_auth,
+    resolve_node_versions,
+    resolve_node_versions_with_auth,
+};
 
 mod get_node_artifact_address;
 mod get_node_mirror;
@@ -27,17 +50,3 @@ mod node_resolver;
 mod normalize_arch;
 mod parse_node_specifier;
 mod resolve_node_version;
-
-pub use get_node_artifact_address::{
-    GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifact_address,
-};
-pub use get_node_mirror::{
-    DEFAULT_NODE_MIRROR_BASE_URL, UNOFFICIAL_NODE_MIRROR_BASE_URL, get_node_mirror,
-};
-pub use node_resolver::{NodeResolver, NodeResolverError};
-pub use normalize_arch::get_normalized_arch;
-pub use parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier};
-pub use resolve_node_version::{
-    NODE_EXTRAS_IGNORE_PATTERN, ResolveNodeVersionError, resolve_node_version,
-    resolve_node_version_with_auth, resolve_node_versions, resolve_node_versions_with_auth,
-};

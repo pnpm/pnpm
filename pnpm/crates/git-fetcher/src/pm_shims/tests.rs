@@ -1,6 +1,15 @@
-use super::write_pm_shims;
-use crate::preferred_pm::{PreferredPm, WantedPm};
-use std::{fs, path::Path};
+use super::{
+    write_pm_shims,
+    write_running_pnpm_shim,
+};
+use crate::preferred_pm::{
+    PreferredPm,
+    WantedPm,
+};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn shim_body(dir: &Path, name: &str) -> String {
@@ -88,7 +97,10 @@ fn the_shims_are_executable() {
     let wanted = WantedPm { pm: PreferredPm::Npm, version_spec: None, pinned: false };
     write_pm_shims(dir.path(), &wanted, Path::new("/opt/pnpm")).expect("write the shims");
 
-    let mode = fs::metadata(dir.path().join("npm")).unwrap().permissions().mode();
+    let mode = fs::metadata(dir.path().join("npm"))
+        .unwrap()
+        .permissions()
+        .mode();
     assert_eq!(mode & 0o111, 0o111, "mode was {mode:o}");
 }
 
@@ -112,7 +124,7 @@ fn a_hostile_pnpm_path_is_quoted() {
 
 /// A quote cannot be escaped inside a quoted `cmd.exe` argument, so a
 /// specifier that is not a semver range never reaches the command line at
-/// all — on either platform, since only the check is shared.
+/// all, on either platform, since only the check is shared.
 #[test]
 fn a_hostile_version_spec_is_dropped() {
     let dir = tempdir().unwrap();
@@ -127,12 +139,14 @@ fn a_hostile_version_spec_is_dropped() {
 }
 
 /// The shim is regenerated every time, so an entry planted at its path
-/// cannot survive to be executed — and a symlink there cannot redirect
+/// cannot survive to be executed, and a symlink there cannot redirect
 /// the write.
 #[test]
 fn a_planted_entry_is_replaced() {
     let dir = tempdir().unwrap();
-    let planted = dir.path().join(if cfg!(windows) { "npm.cmd" } else { "npm" });
+    let planted = dir
+        .path()
+        .join(if cfg!(windows) { "npm.cmd" } else { "npm" });
     let elsewhere = dir.path().join("elsewhere");
     fs::write(&elsewhere, "original\n").unwrap();
     #[cfg(unix)]
@@ -145,4 +159,15 @@ fn a_planted_entry_is_replaced() {
 
     assert!(shim_body(dir.path(), "npm").contains("dlx"));
     assert_eq!(fs::read_to_string(&elsewhere).unwrap(), "original\n");
+}
+
+/// The running pnpm is called directly, so nothing is provisioned for it.
+#[test]
+fn the_running_pnpm_is_called_without_dlx() {
+    let dir = tempdir().unwrap();
+    write_running_pnpm_shim(dir.path(), Path::new("/opt/pnpm")).expect("write the shim");
+
+    let body = shim_body(dir.path(), "pnpm");
+    assert!(body.contains("/opt/pnpm"), "{body}");
+    assert!(!body.contains("dlx"), "{body}");
 }

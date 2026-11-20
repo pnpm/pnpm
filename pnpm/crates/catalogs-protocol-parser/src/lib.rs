@@ -1,7 +1,5 @@
 //! Splits the `catalog:` protocol prefix off a manifest bare specifier
-//! and returns the requested catalog name. Used by the resolver chain
-//! to decide whether a wanted dependency should be looked up in a
-//! catalog before falling through to the npm / git / tarball resolvers.
+//! and returns the requested catalog name.
 
 use pnpm_catalogs_types::DEFAULT_CATALOG_NAME;
 

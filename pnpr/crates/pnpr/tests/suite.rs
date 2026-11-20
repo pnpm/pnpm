@@ -1,0 +1,64 @@
+// Shared helpers, declared once so the files below can use them without
+// each loading a copy.
+#[path = "common/ecosystem.rs"]
+mod ecosystem;
+#[path = "common/managed_registries.rs"]
+mod managed_registries;
+#[path = "common/multi_ecosystem.rs"]
+mod multi_ecosystem;
+#[path = "common/network.rs"]
+mod network;
+#[path = "common/npm.rs"]
+mod npm;
+#[path = "common/pausing_store.rs"]
+mod pausing_store;
+#[path = "common/storage.rs"]
+mod storage;
+#[path = "common/tokens.rs"]
+mod tokens;
+
+mod access_log;
+mod account_identity;
+mod admin_audit_log;
+// Keep in sync with the `cfg` on `mod allocator` in `src/main.rs`.
+#[cfg(all(
+    any(target_os = "linux", target_os = "macos", target_os = "windows"),
+    any(target_arch = "x86_64", target_arch = "aarch64"),
+))]
+mod allocator;
+mod atomic_publication;
+mod auth_persistence;
+mod auth_publish;
+mod auth_user_endpoints;
+mod batch_publish;
+mod cache_eviction;
+mod cargo_registry;
+mod cargo_resolve;
+mod cross_ecosystem_publish;
+mod grant_administration;
+mod htpasswd_import;
+mod managed_refresh;
+mod multi_replica;
+mod oci_registry;
+mod package_ownership;
+mod policy;
+mod provenance;
+mod pypi_registry;
+mod pypi_resolve;
+mod registry_administration;
+mod registry_mock;
+mod release_databases;
+mod release_notes;
+mod s3_backend;
+mod scim;
+mod server;
+mod sql_metadata;
+#[cfg(feature = "backend-libsql")]
+mod sql_round_trips;
+mod staged_archives;
+mod staged_publish;
+mod team_administration;
+mod team_package_access;
+mod token_management;
+mod tooling;
+mod user_administration;

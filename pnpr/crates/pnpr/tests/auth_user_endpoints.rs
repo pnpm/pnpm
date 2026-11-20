@@ -1,21 +1,45 @@
 //! Acceptance tests for the npm-CLI-compatible user and token
-//! endpoints — `whoami`, profile, token listing, token revocation,
+//! endpoints, `whoami`, profile, token listing, token revocation,
 //! and logout. The token-listing endpoint backs `npm token list`;
 //! the rest gate behind a valid bearer token in the same way as
 //! `npm whoami` / `npm profile get` / `npm logout` expect.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{HeaderValue, Request, StatusCode, header},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        HeaderValue,
+        Request,
+        StatusCode,
+        header,
+    },
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokenStore, TokensConfig,
-    UpsertOutcome, UserBackend, router, router_with_auth,
+    AuthState,
+    Config,
+    MaxUsers,
+    PasswordChange,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    router,
+    router_with_auth,
 };
-use serde_json::{Value, json};
+use pnpr_fixtures::MockConfigPresets;
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     fmt::Write as _,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
     sync::Arc,
 };
@@ -28,17 +52,8 @@ fn listen() -> SocketAddr {
 
 fn static_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
-    config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    config
-}
-
-fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) -> Config {
-    let mut config = static_config(storage);
-    config.auth = AuthConfig {
-        htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
-        tokens: TokensConfig { file: Some(tokens_db) },
-    };
+    config.http.public_url = "http://example.test".to_string();
+    config.identity.auth.users.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -93,11 +108,17 @@ async fn add_user_and_get_token(
     password: &str,
 ) -> (axum::Router, String) {
     let path = format!("/-/user/org.couchdb.user:{username}");
-    let response =
-        app.clone().oneshot(put_json(&path, adduser_body(username, password))).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(put_json(&path, adduser_body(username, password)))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    let token = payload["token"].as_str().expect("token in response").to_string();
+    let token = payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string();
     (app, token)
 }
 
@@ -113,15 +134,69 @@ impl UserBackend for CanonicalUserBackend {
         assert_eq!(username, "alice");
         Ok((UpsertOutcome::LoggedIn, "Alice".to_string()))
     }
+
+    async fn list_users(&self) -> pnpr::Result<Vec<String>> {
+        Ok(vec!["Alice".to_string()])
+    }
+
+    async fn credential(
+        &self,
+        username: &str,
+    ) -> pnpr::Result<Option<pnpr_auth::AccountCredential>> {
+        Ok(username
+            .eq_ignore_ascii_case("alice")
+            .then(|| pnpr_auth::AccountCredential::PasswordHash("hash".to_string())))
+    }
+
+    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<UserCreation> {
+        Ok(UserCreation::NameTaken)
+    }
+
+    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
+    async fn clear_password(&self, _user_id: &str) -> pnpr::Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
+    async fn delete_user(&self, _username: &str) -> pnpr::Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
+    }
+
+    async fn account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(Some("Alice".to_string()))
+    }
+    async fn active_account_id(&self, _name: &str) -> pnpr::Result<Option<String>> {
+        Ok(Some("Alice".to_string()))
+    }
+    async fn account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(Some("Alice".to_string()))
+    }
+    async fn active_account_name(&self, _id: &str) -> pnpr::Result<Option<String>> {
+        Ok(Some("Alice".to_string()))
+    }
+    async fn account_status(&self, _id: &str) -> pnpr::Result<Option<pnpr_auth::AccountStatus>> {
+        Ok(Some(pnpr_auth::AccountStatus::Active))
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> pnpr::Result<()> {
+        unreachable!()
+    }
+    async fn provision_user(&self, _name: &str) -> pnpr::Result<String> {
+        unreachable!()
+    }
 }
 
 #[tokio::test]
 async fn whoami_returns_username_for_authenticated_caller() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
-    let response = app.oneshot(get_with_bearer("/-/whoami", &token)).await.unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let payload = body_json(response.into_body()).await;
     assert_eq!(payload["username"].as_str(), Some("alice"));
@@ -130,27 +205,52 @@ async fn whoami_returns_username_for_authenticated_caller() {
 #[tokio::test]
 async fn adduser_issues_token_for_canonical_username() {
     let tmp = TempDir::new().unwrap();
-    let auth = AuthState {
-        users: Arc::new(CanonicalUserBackend),
-        tokens: Arc::new(TokenStore::in_memory()),
-    };
-    let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth);
+    let config = static_config(tmp.path().to_path_buf());
+    let accounts = crate::tokens::seeded_auth(&config, &[("Alice", "secret123")]);
+    let auth = AuthState { users: Arc::new(CanonicalUserBackend), tokens: accounts.tokens };
+    let app = router_with_auth(config, auth);
 
     let response = app
         .clone()
-        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret123")))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
-    assert_eq!(payload["id"].as_str(), Some("org.couchdb.user:Alice"));
+    assert_eq!(payload["id"].as_str(), Some("Alice"));
     assert_eq!(payload["ok"].as_str(), Some("you are authenticated as 'Alice'"));
     let token = payload["token"].as_str().expect("token in response");
 
-    let response = app.oneshot(get_with_bearer("/-/whoami", token)).await.unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let payload = body_json(response.into_body()).await;
     assert_eq!(payload["username"].as_str(), Some("Alice"));
+}
+
+#[tokio::test]
+async fn adduser_accepts_bare_user_route_without_couchdb_prefix() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+
+    let response = app
+        .clone()
+        .oneshot(put_json("/-/user/alice", adduser_body("alice", "secret123")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let payload = body_json(response.into_body()).await;
+    let token = payload["token"].as_str().expect("token in response");
+
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = body_json(response.into_body()).await;
+    assert_eq!(payload["username"].as_str(), Some("alice"));
 }
 
 #[tokio::test]
@@ -162,7 +262,10 @@ async fn oversized_login_body_is_rejected() {
     let app = router(static_config(tmp.path().to_path_buf()));
 
     let body = adduser_body("alice", &"x".repeat(65 * 1024));
-    let response = app.oneshot(put_json("/-/user/org.couchdb.user:alice", body)).await.unwrap();
+    let response = app
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", body))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }
 
@@ -171,8 +274,14 @@ async fn whoami_returns_401_when_unauthenticated() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
 
-    let response =
-        app.oneshot(Request::get("/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/-/whoami")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -181,7 +290,10 @@ async fn whoami_returns_401_for_unknown_bearer() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
 
-    let response = app.oneshot(get_with_bearer("/-/whoami", "not-a-real-token")).await.unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", "not-a-real-token"))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -189,7 +301,7 @@ async fn whoami_returns_401_for_unknown_bearer() {
 async fn whoami_rejects_duplicate_authorization_headers() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
     let mut request = get_with_bearer("/-/whoami", &token);
     request
         .headers_mut()
@@ -203,8 +315,12 @@ async fn whoami_rejects_duplicate_authorization_headers() {
 async fn whoami_rejects_non_text_authorization_header() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let mut request = Request::get("/-/whoami").body(Body::empty()).unwrap();
-    request.headers_mut().insert(header::AUTHORIZATION, HeaderValue::from_bytes(&[0xff]).unwrap());
+    let mut request = Request::get("/-/whoami")
+        .body(Body::empty())
+        .unwrap();
+    request
+        .headers_mut()
+        .insert(header::AUTHORIZATION, HeaderValue::from_bytes(&[0xff]).unwrap());
 
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -214,15 +330,18 @@ async fn whoami_rejects_non_text_authorization_header() {
 async fn profile_returns_user_info() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
-    let response = app.oneshot(get_with_bearer("/-/npm/v1/user", &token)).await.unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/npm/v1/user", &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let payload = body_json(response.into_body()).await;
     assert_eq!(payload["name"].as_str(), Some("alice"));
     assert_eq!(payload["tfa"].as_bool(), Some(false));
     // npm CLI's table renderer expects these keys to be present even
-    // when empty — make sure we don't omit them.
+    // when empty, make sure we don't omit them.
     assert!(payload.get("email").is_some(), "email field must be present");
     assert!(payload.get("cidr_whitelist").is_some(), "cidr_whitelist field must be present");
 }
@@ -232,8 +351,14 @@ async fn profile_returns_401_when_unauthenticated() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
 
-    let response =
-        app.oneshot(Request::get("/-/npm/v1/user").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/-/npm/v1/user")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -241,19 +366,25 @@ async fn profile_returns_401_when_unauthenticated() {
 async fn token_list_returns_only_callers_tokens() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, _bob_token) = add_user_and_get_token(app, "bob", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, _bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
     // Issue a second token to alice so the listing has more than one.
-    let (app, _alice_token_2) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, _alice_token_2) = add_user_and_get_token(app, "alice", "secret123").await;
 
-    let response = app.oneshot(get_with_bearer("/-/npm/v1/tokens", &alice_token)).await.unwrap();
+    let alice_id = crate::tokens::account_id(&app, "alice", Some(&alice_token))
+        .await
+        .unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/npm/v1/tokens", &alice_token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let payload = body_json(response.into_body()).await;
     let objects = payload["objects"].as_array().expect("objects array");
     assert_eq!(objects.len(), 2, "alice owns two tokens, bob's must not leak");
     for entry in objects {
-        assert_eq!(entry["user"].as_str(), Some("alice"));
+        assert_eq!(entry["user"].as_str(), Some(alice_id.as_str()));
         let key = entry["key"].as_str().expect("key field");
         assert_eq!(key.len(), 64, "key is the SHA-256 hex of the raw token");
         let preview = entry["token"].as_str().expect("token preview");
@@ -267,8 +398,14 @@ async fn token_list_returns_401_when_unauthenticated() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
 
-    let response =
-        app.oneshot(Request::get("/-/npm/v1/tokens").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/-/npm/v1/tokens")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -276,12 +413,15 @@ async fn token_list_returns_401_when_unauthenticated() {
 async fn revoke_token_by_key_removes_the_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, victim_token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, victim_token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // Read the key for the victim token via the list endpoint.
-    let response =
-        app.clone().oneshot(get_with_bearer("/-/npm/v1/tokens", &alice_token)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get_with_bearer("/-/npm/v1/tokens", &alice_token))
+        .await
+        .unwrap();
     let payload = body_json(response.into_body()).await;
     let objects = payload["objects"].as_array().unwrap();
     let alice_key = objects[0]["key"].as_str().unwrap();
@@ -295,25 +435,37 @@ async fn revoke_token_by_key_removes_the_token() {
     };
 
     let path = format!("/-/npm/v1/tokens/token/{target_key}");
-    let response = app.clone().oneshot(delete_with_bearer(&path, &alice_token)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(delete_with_bearer(&path, &alice_token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
     // The revoked token must no longer authenticate.
-    let response = app.clone().oneshot(get_with_bearer("/-/whoami", &victim_token)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get_with_bearer("/-/whoami", &victim_token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
     // The other token still works.
-    let response = app.oneshot(get_with_bearer("/-/whoami", &alice_token)).await.unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", &alice_token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
 
 /// Returns true when `key` is the hash of `raw_token`. We can't
 /// inspect the store from the test, so we drive a revocation through
 /// the public API and check whether the raw token stopped working.
-/// Used by [`revoke_token_by_key_removes_the_token`] to pick which of
-/// the two listed keys belongs to the token we want to revoke.
 async fn uses_token(app: &axum::Router, raw_token: &str, candidate_key: &str) -> bool {
-    use sha2::{Digest, Sha256};
+    use sha2::{
+        Digest,
+        Sha256,
+    };
     let mut hasher = Sha256::new();
     hasher.update(raw_token.as_bytes());
     let digest = hasher.finalize();
@@ -329,10 +481,13 @@ async fn uses_token(app: &axum::Router, raw_token: &str, candidate_key: &str) ->
 async fn revoke_token_by_key_404s_for_unknown_key() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let path = format!("/-/npm/v1/tokens/token/{}", "0".repeat(64));
-    let response = app.oneshot(delete_with_bearer(&path, &token)).await.unwrap();
+    let response = app
+        .oneshot(delete_with_bearer(&path, &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -340,22 +495,41 @@ async fn revoke_token_by_key_404s_for_unknown_key() {
 async fn revoke_token_by_key_rejects_revoking_someone_elses_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
     // Pull bob's key out of bob's listing.
-    let response =
-        app.clone().oneshot(get_with_bearer("/-/npm/v1/tokens", &bob_token)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(get_with_bearer("/-/npm/v1/tokens", &bob_token))
+        .await
+        .unwrap();
     let payload = body_json(response.into_body()).await;
-    let bob_key = payload["objects"][0]["key"].as_str().unwrap().to_string();
+    let bob_key = payload["objects"][0]["key"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     // Alice cannot revoke bob's token.
     let path = format!("/-/npm/v1/tokens/token/{bob_key}");
-    let response = app.clone().oneshot(delete_with_bearer(&path, &alice_token)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(delete_with_bearer(&path, &alice_token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert!(
+        body_json(response.into_body()).await["error"]
+            .as_str()
+            .unwrap()
+            .contains("alice"),
+    );
 
     // Bob's token must still work.
-    let response = app.oneshot(get_with_bearer("/-/whoami", &bob_token)).await.unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", &bob_token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
 
@@ -365,7 +539,14 @@ async fn revoke_token_by_key_requires_auth() {
     let app = router(static_config(tmp.path().to_path_buf()));
 
     let path = format!("/-/npm/v1/tokens/token/{}", "0".repeat(64));
-    let response = app.oneshot(Request::delete(&path).body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::delete(&path)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -373,14 +554,21 @@ async fn revoke_token_by_key_requires_auth() {
 async fn logout_deletes_the_callers_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let path = format!("/-/user/token/{token}");
-    let response = app.clone().oneshot(delete_with_bearer(&path, &token)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(delete_with_bearer(&path, &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
     // The token must no longer authenticate.
-    let response = app.oneshot(get_with_bearer("/-/whoami", &token)).await.unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -388,10 +576,13 @@ async fn logout_deletes_the_callers_token() {
 async fn logout_returns_404_for_unknown_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     let path = "/-/user/token/not-a-real-token";
-    let response = app.oneshot(delete_with_bearer(path, &token)).await.unwrap();
+    let response = app
+        .oneshot(delete_with_bearer(path, &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -399,16 +590,29 @@ async fn logout_returns_404_for_unknown_token() {
 async fn logout_requires_caller_to_own_the_token() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
-    // Alice asks to log out using bob's token — forbidden.
+    // Alice asks to log out using bob's token, forbidden.
     let path = format!("/-/user/token/{bob_token}");
-    let response = app.clone().oneshot(delete_with_bearer(&path, &alice_token)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(delete_with_bearer(&path, &alice_token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert!(
+        body_json(response.into_body()).await["error"]
+            .as_str()
+            .unwrap()
+            .contains("alice"),
+    );
 
     // Bob's token must still work.
-    let response = app.oneshot(get_with_bearer("/-/whoami", &bob_token)).await.unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", &bob_token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
 
@@ -418,13 +622,17 @@ async fn logout_requires_auth() {
     let app = router(static_config(tmp.path().to_path_buf()));
 
     let response = app
-        .oneshot(Request::delete("/-/user/token/anything").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::delete("/-/user/token/anything")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-/// Every auth-endpoint response — success, 401, 403, 404 alike —
+/// Every auth-endpoint response (success, 401, 403, 404 alike)
 /// must mark itself uncacheable so an intermediary HTTP cache that
 /// ignores `Vary` can't latch onto one user's identity and serve it
 /// to another.
@@ -432,20 +640,30 @@ async fn logout_requires_auth() {
 async fn auth_endpoints_set_private_no_cache_headers() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret").await;
-    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret").await;
+    let (app, alice_token) = add_user_and_get_token(app, "alice", "secret123").await;
+    let (app, bob_token) = add_user_and_get_token(app, "bob", "secret123").await;
 
-    // Bob's key — used to drive the 403 cross-user revoke branch below.
-    let response =
-        app.clone().oneshot(get_with_bearer("/-/npm/v1/tokens", &bob_token)).await.unwrap();
-    let bob_key =
-        body_json(response.into_body()).await["objects"][0]["key"].as_str().unwrap().to_string();
+    // Bob's key, used to drive the 403 cross-user revoke branch below.
+    let response = app
+        .clone()
+        .oneshot(get_with_bearer("/-/npm/v1/tokens", &bob_token))
+        .await
+        .unwrap();
+    let bob_key = body_json(response.into_body()).await["objects"][0]["key"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     // (request, authenticated-or-not, expected-status). Each entry
     // exercises a branch that must still carry the privacy headers.
     let cases: Vec<(Request<Body>, StatusCode)> = vec![
         (get_with_bearer("/-/whoami", &alice_token), StatusCode::OK),
-        (Request::get("/-/whoami").body(Body::empty()).unwrap(), StatusCode::UNAUTHORIZED),
+        (
+            Request::get("/-/whoami")
+                .body(Body::empty())
+                .unwrap(),
+            StatusCode::UNAUTHORIZED,
+        ),
         (get_with_bearer("/-/npm/v1/user", &alice_token), StatusCode::OK),
         (get_with_bearer("/-/npm/v1/tokens", &alice_token), StatusCode::OK),
         (
@@ -461,7 +679,11 @@ async fn auth_endpoints_set_private_no_cache_headers() {
 
     for (request, expected_status) in cases {
         let path = request.uri().path().to_string();
-        let response = app.clone().oneshot(request).await.unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), expected_status, "unexpected status for {path}");
         let cache_control = response
             .headers()
@@ -484,31 +706,123 @@ async fn auth_endpoints_set_private_no_cache_headers() {
     }
 }
 
-/// Revocation must persist across a restart — once a token is
+/// Revocation must persist across a restart, once a token is
 /// revoked, reopening the `SQLite` store must not reload it.
 #[tokio::test]
 async fn revocation_survives_restart() {
-    let auth_dir = TempDir::new().unwrap();
     let storage = TempDir::new().unwrap();
-    let htpasswd = auth_dir.path().join("htpasswd");
-    let tokens_db = auth_dir.path().join("tokens.db");
-
-    let config =
-        persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
+    let config = static_config(storage.path().to_path_buf());
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("first boot");
     let app = router_with_auth(config.clone(), auth);
-    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, token) = add_user_and_get_token(app, "alice", "secret123").await;
 
     // Logout (revoke own token).
     let path = format!("/-/user/token/{token}");
-    let response = app.clone().oneshot(delete_with_bearer(&path, &token)).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(delete_with_bearer(&path, &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
     drop(app);
-    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("reload after restart");
     let app = router_with_auth(config, auth);
 
     // Token must remain revoked after restart.
-    let response = app.oneshot(get_with_bearer("/-/whoami", &token)).await.unwrap();
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", &token))
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn login_rate_limiting_enforces_retry_after_after_repeated_failures() {
+    let storage = TempDir::new().unwrap();
+    let app = router(static_config(storage.path().to_path_buf()));
+    let (app, _) = add_user_and_get_token(app, "alice", "correct-secret").await;
+
+    let login_request = || {
+        let body = json!({
+            "_id": "org.couchdb.user:alice",
+            "name": "alice",
+            "password": "wrong-password",
+            "email": "foo@bar.net",
+            "type": "user",
+            "roles": [],
+        });
+        {
+            let mut request = put_json("/-/user/org.couchdb.user:alice", body);
+            request
+                .headers_mut()
+                .insert(header::AUTHORIZATION, HeaderValue::from_static("Bearer unknown-token"));
+            request
+        }
+    };
+
+    // First 5 attempts fail with 401 Unauthorized
+    for _ in 0..5 {
+        let res = app
+            .clone()
+            .oneshot(login_request())
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(res.headers()[header::WWW_AUTHENTICATE], "Bearer");
+        let payload = body_json(res.into_body()).await;
+        assert!(
+            payload["error"]
+                .as_str()
+                .unwrap()
+                .contains("Authentication required"),
+        );
+        assert_eq!(payload["error"], payload["reason"]);
+    }
+
+    // 6th attempt is rate-limited: 429 Too Many Requests with Retry-After header
+    let res = app
+        .oneshot(login_request())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(res.headers().contains_key("retry-after"));
+    let payload = body_json(res.into_body()).await;
+    assert_eq!(payload["error"], "too many failed login attempts, please try again later");
+    assert_eq!(payload["error"], payload["reason"]);
+}
+
+#[tokio::test]
+async fn user_lookup_requires_authentication_before_checking_existence() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "member", "password").await;
+    for (path, expected) in [
+        ("/-/user/member", StatusCode::OK),
+        ("/-/user/missing", StatusCode::NOT_FOUND),
+        ("/~missing/-/user/member", StatusCode::OK),
+        ("/~missing/-/user/missing", StatusCode::NOT_FOUND),
+        ("/-/user/org.couchdb.user:member", StatusCode::OK),
+        ("/-/user/org.couchdb.user:missing", StatusCode::NOT_FOUND),
+    ] {
+        let anonymous = Request::get(path)
+            .body(Body::empty())
+            .unwrap();
+        for (request, expected) in [
+            (anonymous, StatusCode::UNAUTHORIZED),
+            (get_with_bearer(path, "invalid"), StatusCode::UNAUTHORIZED),
+            (get_with_bearer(path, &token), expected),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(request)
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected, "{path}");
+        }
+    }
 }

@@ -6,26 +6,28 @@
 //! absolute paths walks and re-allocates the anchors' long common
 //! prefix on every edge; both anchors hang off the same lockfile root,
 //! so the prefix always cancels out. The helpers here run the same
-//! component math on the root-relative suffixes instead — and since
+//! component math on the root-relative suffixes instead, and since
 //! both anchors are constant per importer, [`ImporterAnchor`] derives
 //! the suffix once so the per-edge work is the suffix math alone.
 //!
 //! The anchor is a *fast path*: it disarms itself for any input where
-//! the relative-space result is not trivially the same as the
-//! absolute-space one — a dot-carrying anchor, a driveless-yet-rooted
-//! Windows anchor, an importer outside the lockfile root — and each
+//! the relative-space result is not guaranteed to be the same as the
+//! absolute-space one (a dot-carrying anchor, a driveless-yet-rooted
+//! Windows anchor, an importer outside the lockfile root) and each
 //! rendering falls back to the caller's absolute-space math the same
 //! way for an absolute or escaping target. Within the guarded domain
 //! the two computations agree component-for-component, because
 //! `diff_paths` and `lexical_normalize` are lexical: prefixing both
 //! arguments with the same clean root never changes the outcome.
 //!
-//! Each rendering returns the final `link:`-body string — the
-//! forward-slashed form every caller previously produced from the
-//! `PathBuf` via `display` + `replace` — so the per-edge cost is one
-//! pass over the target's components and a single allocation.
+//! Each rendering returns the final `link:`-body string, so the
+//! per-edge cost is one pass over the target's components and a single
+//! allocation.
 
-use std::path::{Component, Path};
+use std::path::{
+    Component,
+    Path,
+};
 
 /// The importer-side inputs of `link:` re-anchoring, derived once per
 /// importer: its directory as a clean relative suffix of the lockfile
@@ -33,9 +35,9 @@ use std::path::{Component, Path};
 /// the empty suffix.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ImporterAnchor {
-    /// `None` — an anchor carries dot components, is not truly
+    /// `None` (an anchor carries dot components, is not truly
     /// absolute, is not valid UTF-8, or the importer is not under the
-    /// lockfile root — turns every rendering into the caller's
+    /// lockfile root) turns every rendering into the caller's
     /// fallback.
     rel_components: Option<Vec<String>>,
 }
@@ -43,11 +45,17 @@ pub(crate) struct ImporterAnchor {
 impl ImporterAnchor {
     pub(crate) fn new(project_dir: &Path, lockfile_dir: &Path) -> Self {
         ImporterAnchor {
-            rel_components: importer_rel_dir(project_dir, lockfile_dir).and_then(|rel| {
-                rel.components()
-                    .map(|component| component.as_os_str().to_str().map(str::to_owned))
-                    .collect()
-            }),
+            rel_components: importer_rel_dir(project_dir, lockfile_dir)
+                .and_then(|rel| {
+                    rel.components()
+                        .map(|component| {
+                            component
+                                .as_os_str()
+                                .to_str()
+                                .map(str::to_owned)
+                        })
+                        .collect()
+                }),
         }
     }
 
@@ -58,22 +66,25 @@ impl ImporterAnchor {
     /// target, or one that carries `..` components.
     pub(crate) fn target_relative_to_importer(&self, target: &str) -> Option<String> {
         let rel = self.rel_components.as_deref()?;
-        let mut target_segments = Vec::new();
-        for segment in relative_segments(target)? {
-            if segment == ".." {
-                return None;
-            }
-            target_segments.push(segment);
+        if target.starts_with(SEPARATORS) {
+            return None;
         }
-        let shared = rel
-            .iter()
-            .zip(&target_segments)
-            .take_while(|(rel_name, target_name)| rel_name.as_str() == **target_name)
-            .count();
-        Some(render(
-            std::iter::repeat_n("..", rel.len() - shared)
-                .chain(target_segments[shared..].iter().copied()),
-        ))
+        let scan = ImporterRelativeScan::of(target, rel)?;
+        let climb = rel.len() - scan.shared;
+        let tail = match scan.tail_start {
+            Some(tail_start) if scan.tail_verbatim => &target[tail_start..],
+            None => "",
+            // A tail that dropped or collapsed segments re-renders
+            // through the general segment join.
+            Some(_) => {
+                return Some(render(
+                    std::iter::repeat_n("..", climb)
+                        .chain(relative_segments(target)?.skip(scan.shared)),
+                    3 * climb + target.len(),
+                ));
+            }
+        };
+        Some(render_climb_and_tail(climb, tail))
     }
 
     /// Express an importer-relative `target` (which typically climbs
@@ -97,8 +108,124 @@ impl ImporterAnchor {
                 descended.push(segment);
             }
         }
-        Some(render(rel[..kept].iter().map(String::as_str).chain(descended)))
+        Some(render(
+            rel[..kept]
+                .iter()
+                .map(String::as_str)
+                .chain(descended),
+            rel[..kept]
+                .iter()
+                .map(|name| name.len() + 1)
+                .sum::<usize>()
+                + target.len(),
+        ))
     }
+}
+
+/// One scan of a target path against the importer's own components.
+///
+/// The tail is located by offset rather than collected, so the common case
+/// (nothing collapsed or dropped) copies over as one slice instead of
+/// splitting the target a second time to render it.
+struct ImporterRelativeScan {
+    /// How many leading components the target shares with the importer.
+    shared: usize,
+    /// Where the part that is not shared begins.
+    tail_start: Option<usize>,
+    /// Whether that part can be copied out of the target verbatim.
+    tail_verbatim: bool,
+    still_shared: bool,
+}
+
+impl ImporterRelativeScan {
+    /// `None` when the target cannot be expressed relative to the importer.
+    fn of(target: &str, rel: &[String]) -> Option<Self> {
+        let mut scan = ImporterRelativeScan {
+            shared: 0,
+            tail_start: None,
+            tail_verbatim: true,
+            still_shared: true,
+        };
+        for (pos, segment) in path_segments(target) {
+            if !scan.push_segment(pos, segment, rel) {
+                return None;
+            }
+        }
+        Some(scan)
+    }
+
+    /// Fold one segment in, answering whether the target is still expressible.
+    fn push_segment(&mut self, pos: usize, segment: &str, rel: &[String]) -> bool {
+        if segment.is_empty() || segment == "." {
+            // A dropped segment means the tail is no longer a verbatim slice.
+            if self.tail_start.is_some() {
+                self.tail_verbatim = false;
+            }
+            return true;
+        }
+        if segment == ".." || is_drive_qualified(pos, segment) {
+            return false;
+        }
+        if self.still_shared
+            && rel
+                .get(self.shared)
+                .is_some_and(|name| name == segment)
+        {
+            self.shared += 1;
+            return true;
+        }
+        self.still_shared = false;
+        if self.tail_start.is_none() {
+            self.tail_start = Some(pos);
+        }
+        true
+    }
+}
+
+/// The `(offset, segment)` pairs of a separator-delimited path, in order and
+/// including the empty ones a repeated separator produces.
+fn path_segments(path: &str) -> impl Iterator<Item = (usize, &str)> {
+    let mut pos = 0;
+    path.split(SEPARATORS)
+        .map(move |segment| {
+            let start = pos;
+            pos += segment.len() + 1;
+            (start, segment)
+        })
+}
+
+/// A drive-qualified first segment (`C:...`) makes the path absolute, which
+/// no importer-relative form can express.
+#[cfg(windows)]
+fn is_drive_qualified(pos: usize, segment: &str) -> bool {
+    pos == 0 && segment.contains(':')
+}
+
+#[cfg(not(windows))]
+fn is_drive_qualified(_pos: usize, _segment: &str) -> bool {
+    false
+}
+
+/// `climb` levels of `..` followed by `tail`, with any backslash inside the
+/// tail normalized the way [`render`] does.
+fn render_climb_and_tail(climb: usize, tail: &str) -> String {
+    let mut rendered = String::with_capacity(3 * climb + tail.len());
+    for _ in 0..climb {
+        if !rendered.is_empty() {
+            rendered.push('/');
+        }
+        rendered.push_str("..");
+    }
+    if !tail.is_empty() {
+        if !rendered.is_empty() {
+            rendered.push('/');
+        }
+        rendered.push_str(tail);
+    }
+    if rendered.contains('\\') {
+        rendered = rendered.replace('\\', "/");
+    }
+    rendered
 }
 
 #[cfg(windows)]
@@ -110,25 +237,36 @@ const SEPARATORS: &[char] = &['/'];
 /// would yield, without the per-component `OsStr` machinery:
 /// separators collapse and `.` segments vanish (`lexical_normalize`
 /// erases a leading one too, so the two directions agree on it).
-/// `None` for an anchored target — one starting with a separator, or
+/// `None` for an anchored target; one starting with a separator, or
 /// (on Windows) whose first segment carries a `:` and so may be a
-/// prefix — where suffix math does not apply; the caller's
+/// prefix, where suffix math does not apply; the caller's
 /// absolute-space fallback handles those.
-fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str>> {
+fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str> + Clone> {
     if target.starts_with(SEPARATORS) {
         return None;
     }
     #[cfg(windows)]
-    if target.split(SEPARATORS).next().is_some_and(|first| first.contains(':')) {
+    if target
+        .split(SEPARATORS)
+        .next()
+        .is_some_and(|first| first.contains(':'))
+    {
         return None;
     }
-    Some(target.split(SEPARATORS).filter(|segment| !segment.is_empty() && *segment != "."))
+    Some(
+        target
+            .split(SEPARATORS)
+            .filter(|segment| !segment.is_empty())
+            .filter(|segment| *segment != "."),
+    )
 }
 
-/// Join components with `/` and normalize any backslash inside one, the
-/// way the callers' former `display` + `replace('\\', "/")` pass did.
-fn render<'component>(components: impl Iterator<Item = &'component str>) -> String {
-    let mut rendered = String::new();
+/// Join components with `/` and normalize any backslash inside one.
+fn render<'component>(
+    components: impl Iterator<Item = &'component str>,
+    capacity: usize,
+) -> String {
+    let mut rendered = String::with_capacity(capacity);
     for component in components {
         if !rendered.is_empty() {
             rendered.push('/');
@@ -142,8 +280,8 @@ fn render<'component>(components: impl Iterator<Item = &'component str>) -> Stri
 }
 
 /// The importer's directory as a clean relative suffix of the lockfile
-/// root. `None` — an anchor carries `.` / `..` components, or the
-/// importer is not under the root — sends the caller to the
+/// root. `None` (an anchor carries `.` / `..` components, or the
+/// importer is not under the root) sends the caller to the
 /// absolute-space math. The workspace root importer yields the empty
 /// path.
 pub(crate) fn importer_rel_dir<'dir>(
@@ -158,7 +296,7 @@ pub(crate) fn importer_rel_dir<'dir>(
 }
 
 fn is_clean_absolute(path: &Path) -> bool {
-    // `is_absolute` carries the platform rules — on Windows it demands
+    // `is_absolute` carries the platform rules, on Windows it demands
     // a prefix *and* a root, rejecting drive-relative `C:foo` and
     // rootless `\foo` alike.
     path.is_absolute()
@@ -168,7 +306,8 @@ fn is_clean_absolute(path: &Path) -> bool {
 }
 
 fn all_normal(path: &Path) -> bool {
-    path.components().all(|component| matches!(component, Component::Normal(_)))
+    path.components()
+        .all(|component| matches!(component, Component::Normal(_)))
 }
 
 #[cfg(test)]

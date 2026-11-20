@@ -275,7 +275,8 @@ describe('logout', () => {
       globalWarn,
       fetch: async () => createMockResponse({ ok: true, status: 200 }),
       readIniFile: async () => {
-        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+        // StackBlitz WebContainers throw fs errors that are not native errors.
+        throw Object.assign(Object.create(Error.prototype) as Error, { code: 'ENOENT', message: 'ENOENT: no such file or directory' })
       },
       writeIniFile: async () => {
         throw new Error('writeIniFile should not be called when auth.ini does not exist')

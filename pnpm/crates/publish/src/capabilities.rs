@@ -1,8 +1,8 @@
 //! Per-capability dependency-injection traits and the production [`Host`]
 //! provider for the publish flow.
 //!
-//! Each side effect the publish flow needs — HTTP requests, the clock,
-//! environment reads, subprocess spawns — is its own
+//! Each side effect the publish flow needs (HTTP requests, the clock,
+//! environment reads, subprocess spawns) is its own
 //! `self`-less capability trait, composed as bounds on a single `Sys` type
 //! parameter, with the real OS behind [`Host`] and `fn`-bound unit-struct
 //! fakes in tests. See the "Dependency injection for tests" section of
@@ -14,19 +14,27 @@
 //! [`pnpm_network_web_auth`], whose [`pnpm_network_web_auth::Host`] this
 //! crate reuses to drive the publish request's OTP handling.
 
-use std::{
-    sync::LazyLock,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
-
-/// The subprocess capability (used to run the configured token helper and
+/// The subprocess capability (which runs the configured token helper and
 /// the git working-tree checks) and the production provider every
 /// capability trait below is also implemented for.
 ///
-/// Both are defined in the `pnpm-git-utils` crate — the git queries need
-/// the same seam — and re-exported here so this crate's callers keep
+/// Both are defined in the `pnpm-git-utils` crate (the git queries need
+/// the same seam) and re-exported here so this crate's callers keep
 /// importing them from `pnpm_publish` alongside the rest.
-pub use pnpm_git_utils::{CommandOutput, Host, RunCommand};
+pub use pnpm_git_utils::{
+    CommandOutput,
+    Host,
+    RunCommand,
+};
+
+use std::{
+    sync::LazyLock,
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
+};
 
 /// Read an environment variable.
 ///
@@ -73,7 +81,7 @@ pub struct OidcResponse {
     pub body: String,
 }
 
-/// The OIDC request never produced a response — the transport itself failed.
+/// The OIDC request never produced a response, the transport itself failed.
 /// The auth-token path catches this and surfaces it as a fetch failure.
 #[derive(Debug, derive_more::Display, derive_more::Error)]
 #[display("the OIDC request failed: {reason}")]
@@ -105,7 +113,9 @@ impl Clock for Host {
     fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+            .map(|elapsed| elapsed.as_millis())
+            .map(u64::try_from)
+            .map_or(0, |converted| converted.unwrap_or(u64::MAX))
     }
 }
 
@@ -116,7 +126,10 @@ impl OidcFetch for Host {
 
         let mut builder = match request.method {
             OidcMethod::Get => CLIENT.get(request.url),
-            OidcMethod::Post => CLIENT.post(request.url).header("content-length", "0").body(""),
+            OidcMethod::Post => CLIENT
+                .post(request.url)
+                .header("content-length", "0")
+                .body(""),
         };
         builder = builder
             .header("accept", "application/json")
@@ -124,8 +137,10 @@ impl OidcFetch for Host {
         if let Some(timeout) = request.timeout_ms {
             builder = builder.timeout(Duration::from_millis(timeout));
         }
-        let response =
-            builder.send().await.map_err(|error| OidcFetchError { reason: error.to_string() })?;
+        let response = builder
+            .send()
+            .await
+            .map_err(|error| OidcFetchError { reason: error.to_string() })?;
         let ok = response.status().is_success();
         let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
@@ -135,7 +150,11 @@ impl OidcFetch for Host {
 
 impl ConfirmPrompt for Host {
     fn confirm(message: &str) -> bool {
-        dialoguer::Confirm::new().with_prompt(message).interact().unwrap_or(false)
+        #[cfg(not(target_family = "wasm"))]
+        let result = dialoguer::Confirm::new().with_prompt(message).interact();
+        #[cfg(target_family = "wasm")]
+        let result = pnpm_wasm_host::confirm(message, None);
+        result.unwrap_or(false)
     }
 }
 

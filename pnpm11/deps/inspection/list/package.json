@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.inspection.list",
-  "version": "1101.0.2",
+  "version": "1101.1.5",
   "description": "List installed packages in a symlinked `node_modules`",
   "keywords": [
     "pnpm",
@@ -29,10 +29,10 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
-    "prepublishOnly": "tsgo --build",
+    "prepublishOnly": "tsc --build",
     "pretest": "pnpm run --filter tree-builder pretest",
     "test": "pn compile && pn .test",
-    "compile": "tsgo --build && pn lint --fix",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "pn pretest && cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {

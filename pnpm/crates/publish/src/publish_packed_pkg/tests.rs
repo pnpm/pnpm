@@ -1,28 +1,72 @@
-use std::time::Duration;
-
 use super::{
-    DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
-    PublishPackedPkgOptions, build_publish_document, clean_version, is_otp_challenge,
-    parse_otp_challenge, publish_packed_pkg, publish_with_otp_handling, put_publish,
-    registry_for_display, web_auth_fetch_options,
+    DistHashes,
+    PackedPkg,
+    PublishHttpError,
+    PublishNetwork,
+    PublishPackedPkgError,
+    PublishPackedPkgOptions,
+    build_publish_document,
+    document::clean_version,
+    publish_packed_pkg,
+    publish_with_otp_handling,
+    registry_for_display,
+    request::{
+        is_otp_challenge,
+        parse_otp_challenge,
+        put_publish,
+    },
+    web_auth_fetch_options,
 };
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
-    provenance_gen::{ProvenanceGenError, SignProvenance, SignedProvenance},
-    publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
+    provenance_gen::{
+        ProvenanceGenError,
+        SignProvenance,
+        SignedProvenance,
+    },
+    publish_options::{
+        CreatePublishOptionsError,
+        PublishUnsupportedRegistryProtocolError,
+    },
     registry_config_keys::parse_supported_registry_url,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use base64::{
+    Engine,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_network_web_auth::{
-    Host as WebAuthHost, OtpChallenge, OtpError, WebAuthFetchOptions, WithOtpError,
+    Host as WebAuthHost,
+    OtpChallenge,
+    OtpError,
+    WebAuthFetchOptions,
+    WithOtpError,
 };
 use pnpm_network_web_auth_testing::{
-    InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake,
+    InputResponse,
+    SleepBehavior,
+    ok_202,
+    ok_token,
+    web_auth_fake,
 };
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
+use std::time::Duration;
 
 /// A `WebAuthFetchOptions` the success paths never reach: when the PUT
 /// resolves without a 401 challenge the web-auth poller is never invoked, so
@@ -153,8 +197,13 @@ fn parse_otp_challenge_reads_each_url_independently() {
 #[tokio::test]
 async fn put_publish_returns_an_ok_response_on_success() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("PUT", "/pkg").with_status(200).with_body("").expect(1).create_async().await;
+    let mock = server
+        .mock("PUT", "/pkg")
+        .with_status(200)
+        .with_body("")
+        .expect(1)
+        .create_async()
+        .await;
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
@@ -172,11 +221,16 @@ async fn put_publish_returns_an_ok_response_on_success() {
 #[tokio::test]
 async fn put_publish_reports_a_non_success_status_without_erroring() {
     let mut server = mockito::Server::new_async().await;
-    server.mock("PUT", "/pkg").with_status(500).with_body("boom").create_async().await;
+    server
+        .mock("PUT", "/pkg")
+        .with_status(500)
+        .with_body("boom")
+        .create_async()
+        .await;
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    // A 5xx is a completed response (`ok: false`), not a transport error — the
+    // A 5xx is a completed response (`ok: false`), not a transport error, the
     // caller inspects `ok` and raises `FailedToPublishError`, matching pnpm.
     let response = put_publish(&client, &url, None, "publish", body(), None, false)
         .await
@@ -208,7 +262,12 @@ async fn put_publish_maps_a_www_authenticate_otp_to_a_challenge() {
 async fn put_publish_maps_a_one_time_pass_body_to_a_web_auth_challenge() {
     let mut server = mockito::Server::new_async().await;
     let challenge_body = r#"{"error":"one-time pass required","authUrl":"https://r/auth/abc","doneUrl":"https://r/auth/abc/done"}"#;
-    server.mock("PUT", "/pkg").with_status(401).with_body(challenge_body).create_async().await;
+    server
+        .mock("PUT", "/pkg")
+        .with_status(401)
+        .with_body(challenge_body)
+        .create_async()
+        .await;
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
@@ -295,17 +354,17 @@ async fn put_publish_omits_auth_and_otp_headers_when_absent() {
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    put_publish(&client, &url, None, "publish", body(), None, false)
-        .await
+    put_publish(&client, &url, None, "publish", body(), None, false).await
         .expect("the PUT completes");
     mock.assert_async().await;
 }
 
 #[tokio::test]
 async fn put_publish_classifies_a_connection_failure_as_a_transport_error() {
-    // Port 1 has no listener, so the request never gets a response.
+    // The connect to `0.0.0.0:1` fails at once on every OS, so the request never
+    // gets a response.
     let client = ThrottledClient::default();
-    let err = put_publish(&client, "http://127.0.0.1:1/pkg", None, "publish", body(), None, false)
+    let err = put_publish(&client, "http://0.0.0.0:1/pkg", None, "publish", body(), None, false)
         .await
         .expect_err("a refused connection is a transport failure");
     assert!(matches!(err, PublishHttpError::Transport { .. }));
@@ -314,8 +373,13 @@ async fn put_publish_classifies_a_connection_failure_as_a_transport_error() {
 #[tokio::test]
 async fn publish_with_otp_handling_returns_the_response_when_no_otp_is_required() {
     let mut server = mockito::Server::new_async().await;
-    let mock =
-        server.mock("PUT", "/pkg").with_status(200).with_body("").expect(1).create_async().await;
+    let mock = server
+        .mock("PUT", "/pkg")
+        .with_status(200)
+        .with_body("")
+        .expect(1)
+        .create_async()
+        .await;
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
@@ -339,9 +403,7 @@ async fn publish_with_otp_handling_returns_the_response_when_no_otp_is_required(
 /// not just a post-challenge retry. `publish_with_otp_handling` invokes its
 /// operation with no challenge OTP first, so the configured one has to fall
 /// through; regressing that would make `--otp` a no-op until the registry
-/// challenges. The single `expect(1)` mock matches `npm-otp` on the first
-/// request and returns 200, so a dropped OTP or an extra challenge round-trip
-/// fails the assertion.
+/// challenges.
 #[tokio::test]
 async fn publish_with_otp_handling_sends_a_configured_otp_on_the_first_attempt() {
     let mut server = mockito::Server::new_async().await;
@@ -373,11 +435,8 @@ async fn publish_with_otp_handling_sends_a_configured_otp_on_the_first_attempt()
 }
 
 /// The classic OTP flow, driven end-to-end through the publish HTTP layer:
-/// prompt for an OTP on the challenge and retry. The first PUT
-/// (no `npm-otp`) gets a 401 OTP challenge, the fake host prompts and returns
-/// the code, and the retry PUT — distinguished by the `npm-otp` header it now
-/// carries — succeeds. Exercises the `put_publish` ↔ `with_otp_handling` seam
-/// a mocked operation cannot.
+/// prompt for an OTP on the challenge and retry. Exercises the `put_publish`
+/// ↔ `with_otp_handling` seam a mocked operation cannot.
 #[tokio::test]
 async fn classic_otp_flow_prompts_then_retries_with_the_code() {
     web_auth_fake!(FakeHost, RecordingReporter, set_input);
@@ -544,7 +603,9 @@ async fn web_auth_flow_polls_then_retries_with_the_web_token() {
     .expect("the web-auth retry succeeds");
     assert!(response.ok);
     assert!(
-        infos().iter().any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
+        infos()
+            .iter()
+            .any(|message| message.contains("https://registry.npmjs.org/auth/abc")),
         "the auth URL should be surfaced, got {:?}",
         infos(),
     );
@@ -631,7 +692,7 @@ fn publish_packed_pkg_error_wraps_option_and_otp_failures() {
 
 /// A host outside CI: no `NPM_ID_TOKEN`, not GitHub Actions, so the OIDC probe
 /// in `create_publish_options` resolves to "not applicable" without touching
-/// the network — and the token exchange (clock) and any registry fetch stay
+/// the network, and the token exchange (clock) and any registry fetch stay
 /// unreachable.
 struct OfflineSys;
 impl Clock for OfflineSys {
@@ -672,17 +733,23 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
         tarball_path: "@scope/pkg-1.2.3.tgz",
         contents: &contents,
         unpacked_size: 42,
+        notes: None,
     };
     let opts = PublishPackedPkgOptions {
-        default_registry: "https://registry.example/".to_owned(),
-        scoped_registries: std::collections::BTreeMap::new(),
-        access: None,
-        tag: "latest".to_owned(),
-        otp: None,
-        provenance: None,
         dry_run: true,
         stage: false,
-        http: OidcHttpOptions::default(),
+        wait_timeout: Duration::ZERO,
+        registry: crate::PublishRegistryOptions {
+            default: "https://registry.example/".to_owned(),
+            scoped: std::collections::BTreeMap::new(),
+            access: None,
+            tag: "latest".to_owned(),
+            otp: None,
+            provenance: None,
+            http: OidcHttpOptions::default(),
+        },
+        release_notes: crate::ReleaseNotesTarget::default(),
+        pnpr_registries: std::collections::HashSet::new(),
     };
     let client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();
@@ -700,13 +767,14 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
     assert_eq!(summary.stage_id, None);
 }
 
-/// A GitHub-Actions host wired for the whole `--provenance` publish flow: an
-/// `NPM_ID_TOKEN` short-circuits the OIDC id-token fetch, the `fetch` answers
-/// both the auth-token exchange and the sigstore-audience token request, the
-/// build-statement env is present, and the signer returns a canned bundle so no
-/// real sigstore call is made. The registry `PUT` itself still goes over the
-/// wire to the mocked server.
+/// Fakes GitHub Actions and sigstore; registry requests use the real HTTP client.
 struct ProvenanceSys;
+fn npm_id_token() -> String {
+    let payload =
+        URL_SAFE_NO_PAD.encode(serde_json::to_vec(&json!({ "aud": "npm:127.0.0.1" })).unwrap());
+    format!("header.{payload}.signature")
+}
+
 impl Clock for ProvenanceSys {
     fn now_ms() -> u64 {
         0
@@ -714,9 +782,11 @@ impl Clock for ProvenanceSys {
 }
 impl EnvVar for ProvenanceSys {
     fn var(name: &str) -> Option<String> {
+        if name == "NPM_ID_TOKEN" {
+            return Some(npm_id_token());
+        }
         let value = match name {
             "GITHUB_ACTIONS" => "true",
-            "NPM_ID_TOKEN" => "npm-id-token",
             "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => "request-token",
             "ACTIONS_ID_TOKEN_REQUEST_URL" => "https://github.example/token",
             "GITHUB_SERVER_URL" => "https://github.com",
@@ -735,7 +805,7 @@ impl OidcFetch for ProvenanceSys {
         let body = if request.url.contains("audience=sigstore") {
             r#"{"value":"sigstore-token"}"#
         } else if request.url.contains("/oidc/token/exchange/") {
-            r#"{"token":"registry-token"}"#
+            return crate::capabilities::Host::fetch(request).await;
         } else {
             unreachable!("unexpected OIDC request: {}", request.url)
         };
@@ -760,8 +830,28 @@ impl SignProvenance for ProvenanceSys {
 /// `.sigstore` bundle into the document's `_attachments` before the `PUT`.
 #[tokio::test]
 async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
+    publish_with_provenance("1.0.0").await;
+}
+
+/// The statement and its attachment name the version as the document keys
+/// it, without build metadata.
+#[tokio::test]
+async fn provenance_names_the_version_without_build_metadata() {
+    publish_with_provenance("1.0.0+build").await;
+}
+
+/// Publish `pkg` at `version` with provenance to a registry that accepts
+/// only a document carrying `pkg-1.0.0.sigstore`.
+async fn publish_with_provenance(version: &str) {
     let mut server = mockito::Server::new_async().await;
-    let manifest = json!({ "name": "pkg", "version": "1.0.0" });
+    let exchange = server
+        .mock("POST", "/npm/private/-/npm/v1/oidc/token/exchange/package/pkg")
+        .match_header("authorization", format!("Bearer {}", npm_id_token()).as_str())
+        .with_status(200)
+        .with_body(r#"{"token":"registry-token"}"#)
+        .create_async()
+        .await;
+    let manifest = json!({ "name": "pkg", "version": version });
     let tarball = b"tarball-bytes";
     let pkg = PackedPkg {
         published_manifest: &manifest,
@@ -769,20 +859,27 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         tarball_path: "pkg-1.0.0.tgz",
         contents: &[],
         unpacked_size: 0,
+        notes: None,
     };
     let opts = PublishPackedPkgOptions {
-        default_registry: format!("{}/", server.url()),
-        scoped_registries: std::collections::BTreeMap::new(),
-        access: None,
-        tag: "latest".to_owned(),
-        otp: None,
-        provenance: Some(true),
         dry_run: false,
         stage: false,
-        http: OidcHttpOptions::default(),
+        wait_timeout: Duration::ZERO,
+        registry: crate::PublishRegistryOptions {
+            default: format!("{}/npm/private", server.url()),
+            scoped: std::collections::BTreeMap::new(),
+            access: None,
+            tag: "latest".to_owned(),
+            otp: None,
+            provenance: Some(true),
+            http: OidcHttpOptions::default(),
+        },
+        release_notes: crate::ReleaseNotesTarget::default(),
+        pnpr_registries: std::collections::HashSet::new(),
     };
     let mock = server
-        .mock("PUT", "/pkg")
+        .mock("PUT", "/npm/private/pkg")
+        .match_header("authorization", "Bearer registry-token")
         .match_body(mockito::Matcher::PartialJsonString(
             r#"{"_attachments":{"pkg-1.0.0.sigstore":{"content_type":"application/vnd.dev.sigstore.bundle.v0.3+json","data":"signed-bundle-json"}}}"#
                 .to_owned(),
@@ -801,6 +898,7 @@ async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
         .expect("a provenance publish succeeds");
 
     assert_eq!(summary.name, "pkg");
+    exchange.assert_async().await;
     mock.assert_async().await;
 }
 
@@ -822,7 +920,7 @@ fn registry_for_display_strips_userinfo_and_leaves_a_plain_registry_untouched() 
 fn rejects_a_package_name_that_could_redirect_the_publish_url() {
     // A crafted tarball name that would parse as an absolute (or protocol-relative)
     // URL under `Url::join` must be rejected before it reaches the authenticated
-    // PUT URL — mirroring libnpmpublish's `npa.resolve` name validation.
+    // PUT URL, mirroring libnpmpublish's `npa.resolve` name validation.
     for bad in ["https://evil.com", r"\\evil.com\pkg", "pnpm:evil", "foo/bar", "//evil.com"] {
         let manifest = json!({ "name": bad, "version": "1.0.0" });
         let err = build_publish_document(&manifest, b"x", &registry(), None, "latest", &hashes())

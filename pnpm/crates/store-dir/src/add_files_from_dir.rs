@@ -7,14 +7,30 @@
 //! the directory so [`upload`](crate::upload()) can diff it against
 //! the pristine `PackageFilesIndex.files` row and seed the cache.
 
-use crate::{CafsFileInfo, StoreDir, WriteCasFileError};
-use derive_more::{Display, Error};
+use crate::{
+    CafsFileInfo,
+    SYMLINK_MODE,
+    StoreDir,
+    WriteCasFileError,
+    normalize_symlink_target,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_fs::file_mode::is_executable;
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Result of [`add_files_from_dir()`]. The map's key is the file's
@@ -24,6 +40,9 @@ use std::{
 #[derive(Debug)]
 pub struct AddedFiles {
     pub files: HashMap<String, CafsFileInfo>,
+    /// Whether the walk followed a symlink it could not record as a
+    /// [`SYMLINK_MODE`] entry.
+    pub has_unrecorded_symlinks: bool,
 }
 
 /// Error type of [`add_files_from_dir()`].
@@ -48,6 +67,12 @@ pub enum AddFilesFromDirError {
         #[error(source)]
         source: io::Error,
     },
+    #[display("Failed to read symlink {}: {source}", path.display())]
+    ReadLink {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
     #[display("Failed to read file {}: {source}", path.display())]
     ReadFile {
         path: PathBuf,
@@ -61,7 +86,11 @@ pub enum AddFilesFromDirError {
 /// Walk `pkg_root` and write every regular file into `store_dir`'s
 /// CAFS, producing an `AddedFiles { files }` map.
 ///
-/// Cycle-safe: `WalkCtx.visited` is a *recursion-stack* set —
+/// On Unix a symlink whose target [`normalize_symlink_target`] accepts is
+/// recorded as a [`SYMLINK_MODE`] entry instead of being followed. Other
+/// symlinks are followed when they stay inside the package.
+///
+/// Cycle-safe: `WalkCtx.visited` is a *recursion-stack* set;
 /// each canonical directory path is inserted when we descend
 /// into it and removed when we return. A symlink pointing back
 /// at an ancestor of the current branch finds the ancestor's
@@ -73,24 +102,40 @@ pub fn add_files_from_dir(
     store_dir: &StoreDir,
     pkg_root: &Path,
 ) -> Result<AddedFiles, AddFilesFromDirError> {
-    let canonical_root = dunce::canonicalize(pkg_root).map_err(|source| {
-        AddFilesFromDirError::CanonicalizeRoot { root: pkg_root.to_path_buf(), source }
-    })?;
+    add_files_from_dir_with_bundled(store_dir, pkg_root, None)
+}
+
+/// [`add_files_from_dir()`], also walking the directories of `bundled`
+/// under the top-level `node_modules`.
+pub(crate) fn add_files_from_dir_with_bundled(
+    store_dir: &StoreDir,
+    pkg_root: &Path,
+    bundled: Option<BundledPackageDirs>,
+) -> Result<AddedFiles, AddFilesFromDirError> {
+    let canonical_root = dunce::canonicalize(pkg_root)
+        .map_err(|source| AddFilesFromDirError::CanonicalizeRoot {
+            root: pkg_root.to_path_buf(),
+            source,
+        })?;
     let mut ctx = WalkCtx {
         files: HashMap::new(),
+        has_unrecorded_symlinks: false,
         canonical_root: canonical_root.clone(),
         visited: HashSet::from([canonical_root.clone()]),
         store_dir,
+        bundled,
     };
     walk(&mut ctx, pkg_root, "", &canonical_root)?;
-    Ok(AddedFiles { files: ctx.files })
+    Ok(AddedFiles { files: ctx.files, has_unrecorded_symlinks: ctx.has_unrecorded_symlinks })
 }
 
 struct WalkCtx<'a> {
     files: HashMap<String, CafsFileInfo>,
+    has_unrecorded_symlinks: bool,
     canonical_root: PathBuf,
     visited: HashSet<PathBuf>,
     store_dir: &'a StoreDir,
+    bundled: Option<BundledPackageDirs>,
 }
 
 fn walk(
@@ -102,8 +147,10 @@ fn walk(
     let entries = fs::read_dir(dir)
         .map_err(|source| AddFilesFromDirError::ReadDir { dir: dir.to_path_buf(), source })?;
     for entry in entries {
-        let entry = entry
-            .map_err(|source| AddFilesFromDirError::ReadDir { dir: dir.to_path_buf(), source })?;
+        let entry = entry.map_err(|source| AddFilesFromDirError::ReadDir {
+            dir: dir.to_path_buf(),
+            source,
+        })?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
         let relative_subpath = if relative_dir.is_empty() {
@@ -111,96 +158,239 @@ fn walk(
         } else {
             format!("{relative_dir}/{name}")
         };
-        let absolute = entry.path();
-        let file_type = entry
-            .file_type()
-            .map_err(|source| AddFilesFromDirError::Stat { path: absolute.clone(), source })?;
 
-        let mut next_real_dir: Option<PathBuf> = None;
-        // Path to use for the read/stat after this branch:
-        // - regular file or directory: the original entry path.
-        // - symlink to a file: the *resolved* target path. Reading
-        //   from the resolved path closes a TOCTOU where the
-        //   symlink could be retargeted between the containment
-        //   check and the read, otherwise letting us ingest data
-        //   from outside `pkg_root`.
-        let mut read_path = absolute.clone();
-        let mut symlink_target_meta: Option<fs::Metadata> = None;
-
-        if file_type.is_symlink() {
-            let Ok(real) = dunce::canonicalize(&absolute) else { continue };
-            if !real.starts_with(&ctx.canonical_root) {
-                continue;
-            }
-            let meta = fs::metadata(&real)
-                .map_err(|source| AddFilesFromDirError::Stat { path: real.clone(), source })?;
-            if meta.is_dir() {
-                next_real_dir = Some(real);
-            } else {
-                symlink_target_meta = Some(meta);
-                read_path = real;
-            }
-        } else if file_type.is_dir() {
-            next_real_dir = Some(current_real_path.join(&*name));
-        }
-
-        if let Some(real_dir) = next_real_dir {
-            if ctx.visited.contains(&real_dir) {
-                continue;
-            }
-            if relative_dir.is_empty() && name == "node_modules" {
-                continue;
-            }
-            ctx.visited.insert(real_dir.clone());
-            // Recurse via the resolved directory so a symlinked
-            // sub-directory's contents are walked from the canonical
-            // path. Matches the TOCTOU rationale above for file
-            // reads.
-            walk(ctx, &real_dir, &relative_subpath, &real_dir)?;
-            ctx.visited.remove(&real_dir);
+        if !is_included_node_modules_entry(ctx, relative_dir, &relative_subpath) {
             continue;
         }
 
-        let meta = match symlink_target_meta {
-            Some(m) => m,
-            None => fs::metadata(&read_path)
-                .map_err(|source| AddFilesFromDirError::Stat { path: read_path.clone(), source })?,
+        let Some(target) = resolve_entry(
+            ctx,
+            &entry,
+            current_real_path,
+            (relative_dir, &relative_subpath),
+            &name,
+        )?
+        else {
+            continue;
         };
-        if !meta.is_file() {
-            continue;
+        match target {
+            EntryTarget::Directory(real_dir) => {
+                walk_subdirectory(ctx, &real_dir, relative_dir, &name, &relative_subpath)?;
+            }
+            EntryTarget::File { read_path, meta } => {
+                ingest_file(ctx, &read_path, meta.as_ref(), relative_subpath)?;
+            }
         }
-        let buffer = fs::read(&read_path)
-            .map_err(|source| AddFilesFromDirError::ReadFile { path: read_path.clone(), source })?;
-        let mode = file_mode_from(&meta);
-        let executable = is_executable(mode);
-        let (_path, hash) = ctx
-            .store_dir
-            .write_cas_file(&buffer, executable)
-            .map_err(AddFilesFromDirError::WriteCas)?;
-        ctx.files.insert(
-            relative_subpath,
-            CafsFileInfo {
-                digest: format!("{hash:x}"),
-                mode,
-                size: buffer.len() as u64,
-                checked_at: None,
-            },
-        );
     }
     Ok(())
 }
 
+/// The directories under a package's top-level `node_modules` that hold its
+/// bundled dependencies, with the scope directories and `node_modules` itself
+/// that lead to them.
+pub(crate) struct BundledPackageDirs(HashSet<String>);
+
+impl BundledPackageDirs {
+    /// The bundled packages that `files` (package-relative paths) have files
+    /// in, or `None` when there are none.
+    pub(crate) fn from_files<'a>(files: impl IntoIterator<Item = &'a str>) -> Option<Self> {
+        let mut dirs = HashSet::new();
+        for file in files
+            .into_iter()
+            .filter(|file| file.starts_with("node_modules/"))
+        {
+            let mut dir = Some(bundled_package_dir(file).unwrap_or(file));
+            while let Some(path) = dir
+                && dirs.insert(path.to_string())
+            {
+                dir = path.rsplit_once('/').map(|(parent, _)| parent);
+            }
+        }
+        (!dirs.is_empty()).then_some(BundledPackageDirs(dirs))
+    }
+
+    fn contains(&self, path: &str) -> bool {
+        self.0.contains(bundled_package_dir(path).unwrap_or(path))
+    }
+}
+
+/// The `node_modules/<name>` or `node_modules/@scope/<name>` prefix of
+/// `path`, or `None` when `path` does not reach that deep.
+fn bundled_package_dir(path: &str) -> Option<&str> {
+    let name = path.strip_prefix("node_modules/")?;
+    let segments = if name.starts_with('@') { 2 } else { 1 };
+    let end = name
+        .match_indices('/')
+        .nth(segments - 1)
+        .map(|(index, _)| index)
+        .unwrap_or(name.len());
+    let package_dir = &path[..("node_modules/".len() + end)];
+    (package_dir.matches('/').count() == segments).then_some(package_dir)
+}
+
+fn is_included_node_modules_entry(ctx: &WalkCtx<'_>, relative_dir: &str, path: &str) -> bool {
+    if relative_dir != "node_modules"
+        && !relative_dir.starts_with("node_modules/")
+        && path != "node_modules"
+    {
+        return true;
+    }
+    ctx.bundled
+        .as_ref()
+        .is_some_and(|bundled| bundled.contains(path))
+}
+
+/// What an entry resolves to, or `None` when it points outside the package
+/// root and is skipped.
+enum EntryTarget {
+    Directory(PathBuf),
+    /// Path to read the payload from, and the target's metadata when
+    /// resolving the entry already stat'ed it.
+    ///
+    /// For a symlink this is the *resolved* target path. Reading from the
+    /// resolved path closes a TOCTOU where the symlink could be retargeted
+    /// between the containment check and the read, otherwise letting us
+    /// ingest data from outside `pkg_root`.
+    File {
+        read_path: PathBuf,
+        meta: Option<fs::Metadata>,
+    },
+}
+
+fn resolve_entry(
+    ctx: &mut WalkCtx<'_>,
+    entry: &fs::DirEntry,
+    current_real_path: &Path,
+    (relative_dir, relative_subpath): (&str, &str),
+    name: &str,
+) -> Result<Option<EntryTarget>, AddFilesFromDirError> {
+    let absolute = entry.path();
+    let file_type = entry
+        .file_type()
+        .map_err(|source| AddFilesFromDirError::Stat { path: absolute.clone(), source })?;
+
+    if file_type.is_dir() {
+        return Ok(Some(EntryTarget::Directory(current_real_path.join(name))));
+    }
+    if !file_type.is_symlink() {
+        return Ok(Some(EntryTarget::File { read_path: absolute, meta: None }));
+    }
+
+    if relative_dir.is_empty() && name == "node_modules" {
+        return Ok(None);
+    }
+    if cfg!(any(unix, target_os = "wasi")) && record_symlink(ctx, &absolute, relative_subpath)? {
+        return Ok(None);
+    }
+    ctx.has_unrecorded_symlinks = true;
+    let Ok(real) = dunce::canonicalize(&absolute) else { return Ok(None) };
+    if !real.starts_with(&ctx.canonical_root) {
+        return Ok(None);
+    }
+    let meta = fs::metadata(&real)
+        .map_err(|source| AddFilesFromDirError::Stat { path: real.clone(), source })?;
+    if meta.is_dir() {
+        return Ok(Some(EntryTarget::Directory(real)));
+    }
+    Ok(Some(EntryTarget::File { read_path: real, meta: Some(meta) }))
+}
+
+/// Record the symlink at `absolute` as a [`SYMLINK_MODE`] entry, reporting
+/// whether its target could be recorded.
+fn record_symlink(
+    ctx: &mut WalkCtx<'_>,
+    absolute: &Path,
+    relative_subpath: &str,
+) -> Result<bool, AddFilesFromDirError> {
+    let target = fs::read_link(absolute)
+        .map_err(|source| AddFilesFromDirError::ReadLink {
+            path: absolute.to_path_buf(),
+            source,
+        })?;
+    let Some(target) =
+        target.to_str().and_then(|target| normalize_symlink_target(relative_subpath, target))
+    else {
+        return Ok(false);
+    };
+    let written = ctx.store_dir
+        .write_cas_file(target.as_bytes(), false)
+        .map_err(AddFilesFromDirError::WriteCas)?;
+    ctx.files.insert(relative_subpath.to_string(), written.index_entry(SYMLINK_MODE, None));
+    Ok(true)
+}
+
+/// Recurse via the resolved directory so a symlinked sub-directory's
+/// contents are walked from the canonical path, matching the TOCTOU
+/// rationale for file reads. A directory already on the walk's path is a
+/// symlink cycle and is skipped.
+fn walk_subdirectory(
+    ctx: &mut WalkCtx<'_>,
+    real_dir: &Path,
+    relative_dir: &str,
+    name: &str,
+    relative_subpath: &str,
+) -> Result<(), AddFilesFromDirError> {
+    if ctx.visited.contains(real_dir)
+        || (relative_dir.is_empty() && name == "node_modules" && ctx.bundled.is_none())
+    {
+        return Ok(());
+    }
+    ctx.visited.insert(real_dir.to_path_buf());
+    walk(ctx, real_dir, relative_subpath, real_dir)?;
+    ctx.visited.remove(real_dir);
+    Ok(())
+}
+
+fn ingest_file(
+    ctx: &mut WalkCtx<'_>,
+    read_path: &Path,
+    meta: Option<&fs::Metadata>,
+    relative_subpath: String,
+) -> Result<(), AddFilesFromDirError> {
+    let stat;
+    let meta = if let Some(meta) = meta {
+        meta
+    } else {
+        stat = fs::metadata(read_path)
+            .map_err(|source| AddFilesFromDirError::Stat {
+                path: read_path.to_path_buf(),
+                source,
+            })?;
+        &stat
+    };
+    if !meta.is_file() {
+        return Ok(());
+    }
+    let buffer = fs::read(read_path)
+        .map_err(|source| AddFilesFromDirError::ReadFile {
+            path: read_path.to_path_buf(),
+            source,
+        })?;
+    #[cfg(not(target_os = "wasi"))]
+    let mode = file_mode_from(meta);
+    #[cfg(target_os = "wasi")]
+    let mode = pnpm_fs::copy_permissions(read_path)
+        .map_err(|source| AddFilesFromDirError::Stat { path: read_path.to_path_buf(), source })?
+        .mode()
+        & 0o777;
+    let written = ctx.store_dir
+        .write_cas_file(&buffer, is_executable(mode))
+        .map_err(AddFilesFromDirError::WriteCas)?;
+    ctx.files.insert(relative_subpath, written.index_entry(mode, None));
+    Ok(())
+}
+
 /// Return the file mode bits in pnpm's canonical form.
-/// On Unix this is `metadata.mode() & 0o777`; on Windows there is
-/// no analog so a fixed `0o644` is reported (matches what pnpm
-/// itself writes for tarball entries on Windows hosts).
+/// On Unix this is `metadata.mode() & 0o777`. Off Unix there is no
+/// analog, so a fixed `0o644` is reported, and [`crate::calculate_diff`]
+/// ignores mode differences on those hosts.
 #[cfg(unix)]
 fn file_mode_from(meta: &fs::Metadata) -> u32 {
     use std::os::unix::fs::PermissionsExt;
     meta.permissions().mode() & 0o777
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "wasi")))]
 fn file_mode_from(_meta: &fs::Metadata) -> u32 {
     0o644
 }

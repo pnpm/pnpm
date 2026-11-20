@@ -1,6 +1,13 @@
-use crate::{PkgName, ResolvedDependencyMap, ResolvedDependencySpec};
+use crate::{
+    PkgName,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+};
 use pnpm_package_manifest::DependencyGroup;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::HashMap;
 
 /// Snapshot of a single project.
@@ -8,9 +15,9 @@ use std::collections::HashMap;
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSnapshot {
     /// Direct-dependency specifiers, keyed by alias. The v9 lockfile file
-    /// format does not carry a top-level `specifiers` map — each specifier is
+    /// format does not carry a top-level `specifiers` map (each specifier is
     /// inlined next to its resolved version in the dependency blocks (see
-    /// [`ResolvedDependencySpec`]) — so this field is never serialized. pnpm's
+    /// [`ResolvedDependencySpec`])) so this field is never serialized. pnpm's
     /// in-memory [`ProjectSnapshot`] keeps it for catalog-snapshot construction,
     /// and pacquet does the same; it also still deserializes from older
     /// lockfiles that recorded it.
@@ -37,6 +44,9 @@ pub struct ProjectSnapshot {
     pub dependencies_meta: Option<serde_json::Value>, // TODO: DependenciesMeta
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publish_directory: Option<String>,
+    /// `Some(false)` when workspace links must ignore [`Self::publish_directory`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link_directory: Option<bool>,
 }
 
 impl ProjectSnapshot {
@@ -56,7 +66,33 @@ impl ProjectSnapshot {
         &self,
         groups: impl IntoIterator<Item = DependencyGroup>,
     ) -> impl Iterator<Item = (&'_ PkgName, &'_ ResolvedDependencySpec)> {
-        groups.into_iter().filter_map(|group| self.get_map_by_group(group)).flatten()
+        groups
+            .into_iter()
+            .filter_map(|group| self.get_map_by_group(group))
+            .flatten()
+    }
+
+    /// `meta`, a `dependenciesMeta` value, as the next lockfile format records
+    /// it: `{"<alias>": {"injected": true}}` for each dependency of this
+    /// importer that `meta` marks `injected`. `None` when there is none.
+    #[must_use]
+    pub fn injected_dependencies_meta(
+        &self,
+        meta: Option<&serde_json::Value>,
+    ) -> Option<serde_json::Value> {
+        let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        let injected: serde_json::Map<String, serde_json::Value> = self
+            .dependencies_by_groups(groups)
+            .map(|(alias, _)| alias.to_string())
+            .filter(|alias| {
+                meta.and_then(|meta| meta.get(alias))
+                    .and_then(|entry| entry.get("injected"))
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false)
+            })
+            .map(|alias| (alias, serde_json::json!({ "injected": true })))
+            .collect();
+        (!injected.is_empty()).then_some(serde_json::Value::Object(injected))
     }
 }
 

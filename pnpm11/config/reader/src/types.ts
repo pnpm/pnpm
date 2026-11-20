@@ -32,9 +32,11 @@ export const pnpmTypes = {
   'fetch-timeout': Number,
   'fetch-warn-timeout-ms': Number,
   'fetch-min-speed-ki-bps': Number,
+  'max-tarball-unpacked-size': Number,
   'fetching-concurrency': Number,
   filter: [String, Array],
   'filter-prod': [String, Array],
+  'force-ignores-platform': Boolean,
   'force-legacy-deploy': Boolean,
   'frozen-lockfile': Boolean,
   'git-checks': Boolean,
@@ -75,6 +77,7 @@ export const pnpmTypes = {
   'minimum-release-age-strict': Boolean,
   'modules-dir': String,
   'network-concurrency': Number,
+  'node-download-mirrors': Object,
   'node-experimental-package-map': Boolean,
   'node-package-map-type': ['standard', 'loose'],
   'node-linker': ['pnp', 'isolated', 'hoisted'],
@@ -156,8 +159,7 @@ export const pnpmTypes = {
   'audit-level': ['low', 'moderate', 'high', 'critical'],
 }
 
-// NOTE: There is an oversight I just now notice thanks to a test failure: pnpmTypes (which used to be the object literal inside `Object.assign`)
-//       contains some field that overlaps with that of `npmTypes.types`. The definitions of such fields are pointless as they are overwritten by
+// NOTE: pnpmTypes contains some field that overlaps with that of `npmTypes.types`. The definitions of such fields are pointless as they are overwritten by
 //       `npmTypes.types` anyway.
 // TODO: Fix this overlap later.
 // TODO: After that, move `...pnpmTypes` down, `...npmTypes.types` up.

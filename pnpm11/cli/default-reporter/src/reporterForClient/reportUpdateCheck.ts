@@ -7,6 +7,7 @@ import { filter, map, take } from 'rxjs/operators'
 import semver from 'semver'
 
 export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
+  appendOnly?: boolean
   env: NodeJS.ProcessEnv
   process: NodeJS.Process
 }): Rx.Observable<Rx.Observable<{ msg: string }>> {
@@ -18,19 +19,20 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
         env: opts.env,
         platform: opts.process.platform,
       })
-      return Rx.of({
-        msg: boxen(`\
+      const text = `\
 Update available! ${chalk.red(log.currentVersion)} → ${chalk.green(log.latestVersion)}.
 ${chalk.magenta('Changelog:')} https://pnpm.io/v/${log.latestVersion}
-${updateMessage}`,
-        {
-          padding: 1,
-          margin: 1,
-          align: 'center',
-          borderColor: 'yellow',
-          borderStyle: 'round',
-        }
-        ),
+${updateMessage}`
+      return Rx.of({
+        msg: opts.appendOnly
+          ? text
+          : boxen(text, {
+            padding: 1,
+            margin: 1,
+            align: 'center',
+            borderColor: 'yellow',
+            borderStyle: 'round',
+          }),
       })
     })
   )

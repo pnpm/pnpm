@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.git-fetcher",
-  "version": "1102.0.16",
+  "version": "1102.0.31",
   "description": "A fetcher for git-hosted packages",
   "keywords": [
     "pnpm",
@@ -27,8 +27,8 @@
   "scripts": {
     "test": "pn compile && pn .test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
@@ -36,6 +36,7 @@
     "@pnpm/exec.prepare-package": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
+    "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/resolving.git-resolver": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@zkochan/rimraf": "catalog:",

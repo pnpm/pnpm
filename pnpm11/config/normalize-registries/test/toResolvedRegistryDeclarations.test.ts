@@ -54,7 +54,7 @@ test('toResolvedRegistryDeclarations() lets a user prefix win over the built-in 
 test('toResolvedRegistryDeclarations() emits keys, fields, and scopes in canonical order', () => {
   // Both CLI implementations print this view as JSON, so its ordering is part
   // of the shared contract: registry URLs and scope lists lexicographic,
-  // fields as the setting documents them, and the alphabetically last of the
+  // fields as the setting documents them, and the alphabetically first of the
   // prefixes routed to one URL.
   const resolved = toResolvedRegistryDeclarations({
     registriesByScope: {
@@ -72,7 +72,8 @@ test('toResolvedRegistryDeclarations() emits keys, fields, and scopes in canonic
     'https://npm.pkg.github.com/',
     'https://registry.npmjs.org/',
   ])
-  expect(Object.keys(resolved['https://npm.corp.example/'])).toStrictEqual(['serverType', 'supportsTimeField', 'scopes', 'prefix'])
+  expect(Object.keys(resolved['https://npm.corp.example/'])).toStrictEqual(['serverType', 'supportsTimeField', 'scopes', 'prefix', 'aliases'])
   expect(resolved['https://npm.corp.example/'].scopes).toStrictEqual(['@', '@acme'])
-  expect(resolved['https://npm.corp.example/'].prefix).toBe('work')
+  expect(resolved['https://npm.corp.example/'].prefix).toBe('corp')
+  expect(resolved['https://npm.corp.example/'].aliases).toStrictEqual(['work'])
 })

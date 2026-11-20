@@ -9,6 +9,29 @@ export function createProjectConfigRecord (opts: CreateProjectConfigRecordOption
   return createProjectConfigRecordFromConfigSet(opts.packageConfigs)
 }
 
+export type ProjectModulesDirOptions = Pick<Config, 'packageConfigs' | 'lockfileDir' | 'modulesDir'>
+
+/**
+ * Resolve per-project modules directories after validating packageConfigs once.
+ * Shared-lockfile workspaces ignore packageConfigs, as their install does.
+ */
+export function createProjectModulesDirResolver (opts: ProjectModulesDirOptions): (projectName: string | undefined) => string | undefined {
+  const projectConfigs = opts.lockfileDir == null ? createProjectConfigRecord(opts) : undefined
+  return (projectName) => (projectName == null ? undefined : projectConfigs?.[projectName]?.modulesDir) ?? opts.modulesDir
+}
+
+/**
+ * The modules directories that packageConfigs sets, keyed by project name.
+ * Empty in shared-lockfile workspaces, which ignore packageConfigs.
+ */
+export function getModulesDirsByProjectName (opts: ProjectModulesDirOptions): Record<string, string> {
+  if (opts.lockfileDir != null) return {}
+  return Object.fromEntries(
+    Object.entries(createProjectConfigRecord(opts) ?? {})
+      .flatMap(([projectName, { modulesDir }]) => modulesDir == null ? [] : [[projectName, modulesDir]])
+  )
+}
+
 export class ProjectConfigIsNotAnObjectError extends PnpmError {
   readonly actualRawConfig: unknown
   constructor (actualRawConfig: unknown) {
@@ -43,37 +66,49 @@ function createProjectConfigFromRaw (config: unknown): ProjectConfig {
     throw new ProjectConfigIsNotAnObjectError(config)
   }
 
-  if ('hoist' in config && config.hoist !== undefined && typeof config.hoist !== 'boolean') {
-    throw new ProjectConfigInvalidValueTypeError('boolean', config.hoist)
-  }
-
-  if ('modulesDir' in config && config.modulesDir !== undefined && typeof config.modulesDir !== 'string') {
-    throw new ProjectConfigInvalidValueTypeError('string', config.modulesDir)
-  }
-
-  if ('saveExact' in config && config.saveExact !== undefined && typeof config.saveExact !== 'boolean') {
-    throw new ProjectConfigInvalidValueTypeError('boolean', config.saveExact)
-  }
-
-  if ('savePrefix' in config && config.savePrefix !== undefined && typeof config.savePrefix !== 'string') {
-    throw new ProjectConfigInvalidValueTypeError('string', config.savePrefix)
-  }
-
-  if ('overrides' in config && config.overrides !== undefined && (typeof config.overrides !== 'object' || config.overrides === null || Array.isArray(config.overrides))) {
-    throw new ProjectConfigInvalidValueTypeError('object', config.overrides)
-  }
-
-  for (const key in config) {
-    if ((config as Record<string, unknown>)[key] !== undefined && !(PROJECT_CONFIG_FIELDS as string[]).includes(key)) {
-      throw new ProjectConfigUnsupportedFieldError(key)
-    }
-  }
+  assertProjectConfigValueTypes(config)
+  assertOnlySupportedProjectConfigFields(config)
 
   const result: ProjectConfig = config
   if (result.hoist === false) {
     return { ...result, hoistPattern: undefined }
   }
   return result
+}
+
+type ProjectConfigValueType = 'boolean' | 'string' | 'object'
+
+const PROJECT_CONFIG_VALUE_TYPES: Array<[field: string, expectedType: ProjectConfigValueType]> = [
+  ['hoist', 'boolean'],
+  ['modulesDir', 'string'],
+  ['saveExact', 'boolean'],
+  ['savePrefix', 'string'],
+  ['overrides', 'object'],
+]
+
+function assertProjectConfigValueTypes (config: object): void {
+  for (const [field, expectedType] of PROJECT_CONFIG_VALUE_TYPES) {
+    if (!(field in config)) continue
+    const value = (config as Record<string, unknown>)[field]
+    if (value !== undefined && !isProjectConfigValueOfType(value, expectedType)) {
+      throw new ProjectConfigInvalidValueTypeError(expectedType, value)
+    }
+  }
+}
+
+function isProjectConfigValueOfType (value: unknown, expectedType: ProjectConfigValueType): boolean {
+  if (expectedType === 'object') {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+  }
+  return typeof value === expectedType
+}
+
+function assertOnlySupportedProjectConfigFields (config: object): void {
+  for (const key in config) {
+    if ((config as Record<string, unknown>)[key] !== undefined && !(PROJECT_CONFIG_FIELDS as string[]).includes(key)) {
+      throw new ProjectConfigUnsupportedFieldError(key)
+    }
+  }
 }
 
 export class ProjectConfigsIsNeitherObjectNorArrayError extends PnpmError {
@@ -120,32 +155,27 @@ function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectCon
   if (configSet == null) return undefined
   if (typeof configSet !== 'object') throw new ProjectConfigsIsNeitherObjectNorArrayError(configSet)
 
-  const result: ProjectConfigRecord = {}
-
   if (!Array.isArray(configSet)) {
-    for (const projectName in configSet) {
-      const projectConfig = (configSet as Record<string, unknown>)[projectName]
-      result[projectName] = createProjectConfigFromRaw(projectConfig)
-    }
-    return result
+    return createProjectConfigRecordFromObject(configSet as Record<string, unknown>)
   }
+  return createProjectConfigRecordFromArray(configSet as unknown[])
+}
 
-  for (const item of configSet as unknown[]) {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) {
-      throw new ProjectConfigsArrayItemIsNotAnObjectError(item)
-    }
+function createProjectConfigRecordFromObject (configSet: Record<string, unknown>): ProjectConfigRecord {
+  const result: ProjectConfigRecord = {}
+  for (const projectName in configSet) {
+    result[projectName] = createProjectConfigFromRaw(configSet[projectName])
+  }
+  return result
+}
 
-    if (!('match' in item)) {
-      throw new ProjectConfigsArrayItemMatchIsNotDefinedError()
-    }
-
-    if (typeof item.match !== 'object' || !Array.isArray(item.match)) {
-      throw new ProjectConfigsArrayItemMatchIsNotAnArrayError(item.match)
-    }
-
+function createProjectConfigRecordFromArray (configSet: unknown[]): ProjectConfigRecord {
+  const result: ProjectConfigRecord = {}
+  for (const item of configSet) {
+    assertValidProjectConfigsArrayItem(item)
     const projectConfig = createProjectConfigFromRaw(withoutMatch(item))
 
-    for (const projectName of item.match as unknown[]) {
+    for (const projectName of item.match) {
       if (typeof projectName !== 'string') {
         throw new ProjectConfigsMatchItemIsNotAStringError(projectName)
       }
@@ -153,6 +183,19 @@ function createProjectConfigRecordFromConfigSet (configSet: unknown): ProjectCon
       result[projectName] = projectConfig
     }
   }
-
   return result
+}
+
+function assertValidProjectConfigsArrayItem (item: unknown): asserts item is { match: unknown[] } {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) {
+    throw new ProjectConfigsArrayItemIsNotAnObjectError(item)
+  }
+
+  if (!('match' in item)) {
+    throw new ProjectConfigsArrayItemMatchIsNotDefinedError()
+  }
+
+  if (typeof item.match !== 'object' || !Array.isArray(item.match)) {
+    throw new ProjectConfigsArrayItemMatchIsNotAnArrayError(item.match)
+  }
 }

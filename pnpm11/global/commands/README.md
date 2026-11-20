@@ -66,6 +66,7 @@ Handled by `handleGlobalUpdate()`:
 1. Scan all existing global packages.
 2. Filter to groups containing the requested packages (or all groups if no args).
 3. For each group:
+   - Skip it with a warning if a `file:` dependency's source no longer exists.
    - Create a new install directory.
    - Re-install the same packages (at `--latest` versions if the `--latest` flag is set, or within existing ranges otherwise).
    - Check for bin conflicts, remove old bins, swap the hash symlink to point to the new directory, clean up the old directory, and link new bins.

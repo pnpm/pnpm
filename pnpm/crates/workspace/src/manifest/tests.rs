@@ -1,8 +1,15 @@
 use super::{
-    InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceManifest, read_workspace_manifest, workspace_package_patterns,
+    InvalidWorkspaceManifestError,
+    ReadWorkspaceManifestError,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceManifest,
+    read_workspace_manifest,
+    workspace_package_patterns,
 };
-use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::TempDir;
@@ -18,6 +25,14 @@ fn missing_file_returns_none() {
 fn empty_file_returns_default() {
     let tmp = TempDir::new().unwrap();
     fs::write(tmp.path().join(WORKSPACE_MANIFEST_FILENAME), "").unwrap();
+    let manifest = read_workspace_manifest(tmp.path()).unwrap();
+    assert_eq!(manifest, Some(WorkspaceManifest::default()));
+}
+
+#[test]
+fn comment_only_file_returns_default() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(tmp.path().join(WORKSPACE_MANIFEST_FILENAME), "# workspace settings\n").unwrap();
     let manifest = read_workspace_manifest(tmp.path()).unwrap();
     assert_eq!(manifest, Some(WorkspaceManifest::default()));
 }
@@ -92,10 +107,14 @@ fn parses_named_catalogs_field() {
     .unwrap();
     let manifest = read_workspace_manifest(tmp.path()).unwrap().unwrap();
     let mut expected = Catalogs::new();
-    expected
-        .insert("default".to_string(), Catalog::from([("foo".to_string(), "^1.0.0".to_string())]));
-    expected
-        .insert("legacy".to_string(), Catalog::from([("bar".to_string(), "^2.0.0".to_string())]));
+    expected.insert(
+        "default".to_string(),
+        Catalog::from([("foo".to_string(), "^1.0.0".to_string())]),
+    );
+    expected.insert(
+        "legacy".to_string(),
+        Catalog::from([("bar".to_string(), "^2.0.0".to_string())]),
+    );
     assert_eq!(manifest.catalog, None);
     assert_eq!(manifest.catalogs, Some(expected));
 }
@@ -113,4 +132,17 @@ fn empty_package_entry_rejected() {
         ),
         "unexpected error: {err}",
     );
+}
+
+#[test]
+fn flow_manifest_with_placeholders_preserves_packages_and_catalogs() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(
+        tmp.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "{packages: [packages/${SUB}/*], catalog: {foo: ^1.0.0}, userAgent: agent/${MISSING}}\n",
+    )
+    .unwrap();
+    let manifest = read_workspace_manifest(tmp.path()).unwrap().unwrap();
+    assert_eq!(manifest.packages, Some(vec!["packages/${SUB}/*".to_string()]));
+    assert_eq!(manifest.catalog, Some(Catalog::from([("foo".to_string(), "^1.0.0".to_string())])));
 }

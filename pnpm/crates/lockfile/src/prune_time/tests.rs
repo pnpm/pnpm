@@ -1,6 +1,9 @@
 use super::prune_time;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 fn pruned(document: Value) -> Value {
     let mut document = document;
@@ -86,6 +89,27 @@ fn an_aliased_dependency_matches_its_target_key() {
         },
     }));
     assert_eq!(document["time"], json!({ "is-positive@1.0.0": "2016-02-02T00:00:00.000Z" }));
+}
+
+/// In the next format a dependency that names its snapshot can be written
+/// without `version`; the package it names keeps its date.
+#[test]
+fn a_dependency_without_a_version_matches_the_key_its_specifier_implies() {
+    let document = pruned(json!({
+        "lockfileVersion": "13.0",
+        "projects": {
+            ".": {
+                "dependencies": {
+                    "react-dom": { "specifier": "17.0.2", "with": { "react": "17.0.2" } },
+                },
+            },
+        },
+        "time": {
+            "react-dom@17.0.2": "2021-03-22T15:00:00.000Z",
+            "react@17.0.2": "2020-10-20T15:00:00.000Z",
+        },
+    }));
+    assert_eq!(document["time"], json!({ "react-dom@17.0.2": "2021-03-22T15:00:00.000Z" }));
 }
 
 #[test]

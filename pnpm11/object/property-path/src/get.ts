@@ -21,9 +21,7 @@ export function getObjectValueByPropertyPath (object: unknown, propertyPath: Ite
 }
 
 /**
- * Get the value of a property path in a nested object.
- *
- * This function returns `undefined` if it meets non-object at some point.
+ * {@link getObjectValueByPropertyPath} for a property path given as a string.
  */
 export const getObjectValueByPropertyPathString =
   (object: unknown, propertyPath: string): unknown => getObjectValueByPropertyPath(object, parsePropertyPath(propertyPath))

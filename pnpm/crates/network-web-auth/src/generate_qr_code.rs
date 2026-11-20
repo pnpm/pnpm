@@ -1,14 +1,20 @@
-use qrcode::{EcLevel, QrCode, Version, bits::Bits, types::Color};
+use qrcode::{
+    EcLevel,
+    QrCode,
+    Version,
+    bits::Bits,
+    types::Color,
+};
 
 /// Render `text` as a compact half-block Unicode QR code for a terminal,
 /// matching the output of pnpm's `qrcode-terminal` small mode.
 ///
 /// The code is encoded at error-correction level `L` in a single byte segment
-/// (so its version — and therefore its on-screen size — matches pnpm's) and
+/// (so its version (and therefore its on-screen size) matches pnpm's) and
 /// framed by a one-module light border rather than the four-module quiet zone
 /// the crate's own renderer draws, keeping the margin thin. Dark modules are
 /// blank and light modules are block glyphs, so on the usual light-on-dark
-/// terminal the code shows as dark modules inside a light frame — the
+/// terminal the code shows as dark modules inside a light frame, the
 /// orientation a QR scanner expects.
 ///
 /// Returns an error only when `text` exceeds the maximum QR data capacity.
@@ -38,7 +44,7 @@ fn byte_mode_code(data: &[u8], ec_level: EcLevel) -> Result<QrCode, GenerateQrCo
 /// Render `code` in `qrcode-terminal`'s small (half-block) style: a one-row
 /// top border, each module row framed by a light column, and each character
 /// stacking two vertical modules. A real QR always has an odd module count, so
-/// the bottom edge is the last row's light lower half — no separate bottom
+/// the bottom edge is the last row's light lower half, no separate bottom
 /// border row.
 ///
 /// Every line (including the last) is terminated by a newline, as
@@ -52,20 +58,20 @@ fn render_small(code: &QrCode) -> String {
     let is_dark = |row: usize, col: usize| row < width && colors[row * width + col] == Color::Dark;
 
     let mut out = String::with_capacity((width / 2 + 2) * (width + 3) * 3);
-    out.push_str(&"\u{2584}".repeat(width + 2));
+    out.push_str(&"▄".repeat(width + 2));
     out.push('\n');
     let mut row = 0;
     while row < width {
-        out.push('\u{2588}');
+        out.push('█');
         for col in 0..width {
             out.push(match (is_dark(row, col), is_dark(row + 1, col)) {
-                (false, false) => '\u{2588}', // both light  -> full block
-                (false, true) => '\u{2580}',  // light / dark -> upper half
-                (true, false) => '\u{2584}',  // dark / light -> lower half
-                (true, true) => ' ',          // both dark   -> blank
+                (false, false) => '█', // both light  -> full block
+                (false, true) => '▀',  // light / dark -> upper half
+                (true, false) => '▄',  // dark / light -> lower half
+                (true, true) => ' ',   // both dark   -> blank
             });
         }
-        out.push('\u{2588}');
+        out.push('█');
         out.push('\n');
         row += 2;
     }

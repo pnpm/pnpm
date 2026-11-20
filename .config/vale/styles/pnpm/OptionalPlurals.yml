@@ -1,0 +1,7 @@
+extends: existence
+message: "Use the plural or the singular, not '%s'."
+link: https://developers.google.com/style/plurals-parentheses
+level: error
+nonword: true
+tokens:
+  - '(?<![`.\w])[a-z]\w*\(s\)(?=[\s,.;]|$)'

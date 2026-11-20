@@ -30,24 +30,28 @@ export function reportScope (
       if (log.selected === 1) {
         return Rx.NEVER
       }
-      let msg = 'Scope: '
-
-      if (log.selected === log.total) {
-        msg += `all ${log.total}`
-      } else {
-        msg += `${log.selected}`
-        if (log.total) {
-          msg += ` of ${log.total}`
-        }
-      }
-
-      if (log.workspacePrefix) {
-        msg += ' workspace projects'
-      } else {
-        msg += ' projects'
-      }
-
-      return Rx.of({ msg })
+      return Rx.of({ msg: formatScope(log) })
     })
   )
+}
+
+function formatScope (log: ScopeLog): string {
+  let msg = 'Scope: '
+
+  if (log.selected === log.total) {
+    msg += `all ${log.total}`
+  } else {
+    msg += `${log.selected}`
+    if (log.total) {
+      msg += ` of ${log.total}`
+    }
+  }
+
+  if (log.workspacePrefix) {
+    msg += ' workspace projects'
+  } else {
+    msg += ' projects'
+  }
+
+  return msg
 }

@@ -34,6 +34,9 @@
       "path": "../../pnpm11/network/auth-header"
     },
     {
+      "path": "../../pnpm11/store/cafs"
+    },
+    {
       "path": "../../pnpm11/store/controller-types"
     }
   ]

@@ -1,10 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import type { PackageManifest } from '@pnpm/types'
+import { type Command, getBinsFromPackageManifest } from '@pnpm/bins.resolver'
+import { isError } from '@pnpm/error'
+import { readPackageJsonFromDir, readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { type EngineDependency, isPlainObject, type PackageManifest, RUNTIME_NAMES } from '@pnpm/types'
 
 const RESERVED_ALIASES = new Set(['node_modules', 'favicon.ico'])
 
@@ -48,6 +48,11 @@ export interface GlobalPackageInfo {
   dependencies: Record<string, string>
 }
 
+export interface GlobalPackageBinSnapshot {
+  info: GlobalPackageInfo
+  binNames: string[]
+}
+
 export interface InstalledGlobalPackage {
   alias: string
   version: string
@@ -59,38 +64,67 @@ export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
   try {
     entries = fs.readdirSync(globalDir, { withFileTypes: true })
   } catch (err) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return []
-    }
+    if (isNotFound(err)) return []
     throw err
   }
   const result: GlobalPackageInfo[] = []
   for (const entry of entries) {
-    // Hash entries are symlinks pointing to install dirs
     if (!entry.isSymbolicLink()) continue
-    const linkPath = path.join(globalDir, entry.name)
-    let installDir: string
-    try {
-      installDir = fs.realpathSync(linkPath)
-    } catch {
-      continue
-    }
-    let pkgJson: PackageManifest
-    try {
-      pkgJson = readPackageJsonFromDirRawSync(installDir)
-    } catch {
-      continue
-    }
-    if (!pkgJson.dependencies) continue
-    const dependencies = pickValidDependencies(pkgJson.dependencies)
-    if (Object.keys(dependencies).length === 0) continue
-    result.push({
-      hash: entry.name,
-      installDir,
-      dependencies,
-    })
+    const info = scanSymlinkEntry(globalDir, entry.name)
+    if (info) result.push(info)
   }
   return result
+}
+
+export function readGlobalGroupDependencies (installDir: string): Record<string, string> {
+  const pkgJson = readPackageJsonFromDirRawSync(installDir)
+  const rawDeps: Record<string, string> = isPlainObject(pkgJson.dependencies)
+    ? { ...pkgJson.dependencies }
+    : {}
+  appendDownloadedRuntimes(rawDeps, pkgJson.engines?.runtime)
+  return pickValidDependencies(rawDeps)
+}
+
+function appendDownloadedRuntimes (
+  deps: Record<string, string>,
+  runtimeField: EngineDependency | EngineDependency[] | undefined
+): void {
+  if (runtimeField == null) return
+  const runtimes = Array.isArray(runtimeField) ? runtimeField : [runtimeField]
+  for (const runtimeName of RUNTIME_NAMES) {
+    const spec = downloadedRuntimeSpec(runtimes, runtimeName)
+    if (spec != null && !deps[runtimeName]) {
+      Object.defineProperty(deps, runtimeName, {
+        value: spec,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      })
+    }
+  }
+}
+
+function downloadedRuntimeSpec (runtimes: EngineDependency[], runtimeName: string): string | undefined {
+  const runtime = runtimes.find((entry) => entry?.name === runtimeName)
+  if (runtime?.onFail !== 'download' || typeof runtime.version !== 'string') return undefined
+  const trimmed = runtime.version.trim()
+  return trimmed ? `runtime:${trimmed}` : undefined
+}
+
+function scanSymlinkEntry (globalDir: string, entryName: string): GlobalPackageInfo | undefined {
+  const linkPath = path.join(globalDir, entryName)
+  try {
+    const installDir = fs.realpathSync(linkPath)
+    const dependencies = readGlobalGroupDependencies(installDir)
+    if (Object.keys(dependencies).length === 0) return undefined
+    return {
+      hash: entryName,
+      installDir,
+      dependencies,
+    }
+  } catch {
+    return undefined
+  }
 }
 
 export function findGlobalPackage (globalDir: string, alias: string): GlobalPackageInfo | null {
@@ -111,15 +145,25 @@ export async function getGlobalPackageDetails (info: GlobalPackageInfo): Promise
 }
 
 export function cleanOrphanedInstallDirs (globalDir: string): void {
-  globalDir = path.resolve(globalDir)
+  const resolvedDir = path.resolve(globalDir)
   let entries: fs.Dirent[]
   try {
-    entries = fs.readdirSync(globalDir, { withFileTypes: true })
+    entries = fs.readdirSync(resolvedDir, { withFileTypes: true })
   } catch {
     return
   }
 
-  // Collect real paths of all symlink targets
+  const referenced = collectReferencedDirs(resolvedDir, entries)
+  const now = Date.now()
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const dirPath = path.join(resolvedDir, entry.name)
+    if (referenced.has(dirPath) || shouldPreserveOrphan(dirPath, now)) continue
+    fs.rmSync(dirPath, { recursive: true, force: true })
+  }
+}
+
+function collectReferencedDirs (globalDir: string, entries: fs.Dirent[]): Set<string> {
   const referenced = new Set<string>()
   for (const entry of entries) {
     if (!entry.isSymbolicLink()) continue
@@ -127,40 +171,74 @@ export function cleanOrphanedInstallDirs (globalDir: string): void {
       referenced.add(fs.realpathSync(path.join(globalDir, entry.name)))
     } catch {}
   }
+  return referenced
+}
 
-  // Remove directories that no symlink points to.
-  // Skip recently-created dirs to avoid racing with a concurrent install
-  // that hasn't created its hash symlink yet.
-  const now = Date.now()
-  const SAFETY_WINDOW_MS = 5 * 60 * 1000
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    const dirPath = path.join(globalDir, entry.name)
-    if (referenced.has(dirPath)) continue
-    try {
-      const stat = fs.statSync(dirPath)
-      if (now - Math.max(stat.birthtimeMs, stat.ctimeMs) < SAFETY_WINDOW_MS) continue
-    } catch {
-      continue
-    }
-    fs.rmSync(dirPath, { recursive: true, force: true })
+const SAFETY_WINDOW_MS = 5 * 60 * 1000
+
+function shouldPreserveOrphan (dirPath: string, now: number): boolean {
+  try {
+    const stat = fs.statSync(dirPath)
+    return now - Math.max(stat.birthtimeMs, stat.ctimeMs) < SAFETY_WINDOW_MS
+  } catch {
+    return true
   }
 }
 
+/** The bin names installed by a group (deduplicated). See getInstalledBins. */
 export async function getInstalledBinNames (info: GlobalPackageInfo): Promise<string[]> {
-  const bins = new Set<string>()
+  return [...new Set((await getInstalledBins(info)).map((bin) => bin.name))]
+}
+
+/**
+ * The bins installed by a group, including their executable paths.
+ *
+ * A group whose `node_modules` is wholly absent owns no bins, and neither
+ * does a declared dependency whose directory under `node_modules` is absent,
+ * a link left dangling by a pruned store included: no bin can resolve
+ * through a directory that is not there. Every dependency directory that
+ * does exist must hold a readable, valid manifest: returning a partial set
+ * would make destructive callers mistake unknown ownership for an unowned
+ * bin.
+ */
+export async function getInstalledBins (info: GlobalPackageInfo): Promise<Command[]> {
+  const bins: Command[] = []
   const aliases = Object.keys(info.dependencies)
   const modulesDir = path.join(info.installDir, 'node_modules')
+  if (!await dirExists(modulesDir)) return []
   await Promise.all(
     aliases.map(async (alias) => {
       const depDir = path.join(modulesDir, alias)
-      const manifest = await safeReadPackageJsonFromDir(depDir)
-      if (!manifest) return
-      const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
-      for (const bin of binsOfPkg) {
-        bins.add(bin.name)
+      let manifest: PackageManifest
+      try {
+        manifest = await readPackageJsonFromDir(depDir)
+      } catch (err) {
+        // Probing after the read rather than before also covers a link
+        // pruned while the scan runs.
+        if (isNotFound(err) && !await dirExists(depDir)) return
+        throw err
       }
+      const binsOfPkg = await getBinsFromPackageManifest(manifest, depDir)
+      for (const bin of binsOfPkg) bins.push(bin)
     })
   )
-  return [...bins]
+  return bins
+}
+
+/**
+ * Only ENOENT reads as absent; every other error surfaces, so unreadable
+ * ownership is never mistaken for unowned.
+ */
+async function dirExists (dir: string): Promise<boolean> {
+  try {
+    await fs.promises.stat(dir)
+    return true
+  } catch (err) {
+    if (isNotFound(err)) return false
+    throw err
+  }
+}
+
+function isNotFound (err: unknown): boolean {
+  return isError(err) && 'code' in err && err.code === 'ENOENT'
 }

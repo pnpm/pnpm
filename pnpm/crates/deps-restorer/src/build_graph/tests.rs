@@ -1,9 +1,16 @@
 use super::build_graph;
 use crate::SkippedSnapshots;
 use pnpm_lockfile::{
-    PackageKey, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    PackageKey,
+    PkgName,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::ExtendedPatchInfo;
 use pnpm_workspace_task_scheduler::graph_sequencer;
 use pretty_assertions::assert_eq;
@@ -29,9 +36,12 @@ fn requires<const LEN: usize>(entries: [(PackageKey, bool); LEN]) -> HashMap<Pac
 }
 
 fn snap(deps: &[(&str, &str)]) -> SnapshotEntry {
-    let map: HashMap<PkgName, SnapshotDepRef> =
-        deps.iter().map(|(n, v)| (name(n), SnapshotDepRef::Plain(ver(v)))).collect();
+    let map: HashMap<PkgName, SnapshotDepRef> = deps
+        .iter()
+        .map(|(n, v)| (name(n), SnapshotDepRef::Plain(ver(v))))
+        .collect();
     SnapshotEntry {
+        recorded_peer_bindings: None,
         id: None,
         dependencies: (!map.is_empty()).then_some(map),
         optional_dependencies: None,
@@ -58,6 +68,7 @@ fn importer(deps: &[(&str, &str)]) -> ProjectSnapshot {
         dev_dependencies: None,
         dependencies_meta: None,
         publish_directory: None,
+        link_directory: None,
     }
 }
 
@@ -66,9 +77,18 @@ fn root_importers(deps: &[(&str, &str)]) -> HashMap<String, ProjectSnapshot> {
 }
 
 fn order(graph: &indexmap::IndexMap<PackageKey, Vec<PackageKey>>) -> Vec<PackageKey> {
-    let edges: HashMap<PackageKey, Vec<PackageKey>> =
-        graph.iter().map(|(key, dependencies)| (key.clone(), dependencies.clone())).collect();
-    graph_sequencer(&edges, &graph.keys().cloned().collect::<Vec<_>>()).order
+    let edges: HashMap<PackageKey, Vec<PackageKey>> = graph
+        .iter()
+        .map(|(key, dependencies)| (key.clone(), dependencies.clone()))
+        .collect();
+    graph_sequencer(
+        &edges,
+        &graph
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )
+    .order
 }
 
 #[test]
@@ -78,6 +98,7 @@ fn empty_inputs() {
         None,
         &HashMap::new(),
         &HashMap::new(),
+        None,
         &SkippedSnapshots::default(),
     );
     dbg!(&graph);
@@ -93,8 +114,14 @@ fn no_requires_build_yields_empty() {
     let requires_build = requires([(key("a", "1.0.0"), false), (key("b", "1.0.0"), false)]);
     let importers = root_importers(&[("a", "1.0.0")]);
 
-    let graph =
-        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
     dbg!(&graph);
     assert!(graph.is_empty(), "no requires_build ⇒ empty graph: {graph:?}");
 }
@@ -108,8 +135,14 @@ fn leaf_with_requires_build_runs_first() {
     let requires_build = requires([(key("a", "1.0.0"), false), (key("b", "1.0.0"), true)]);
     let importers = root_importers(&[("a", "1.0.0")]);
 
-    let graph =
-        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
     assert_eq!(order(&graph), vec![key("b", "1.0.0"), key("a", "1.0.0")]);
 }
 
@@ -127,8 +160,14 @@ fn deep_chain_orders_leaf_first() {
     ]);
     let importers = root_importers(&[("a", "1.0.0")]);
 
-    let graph =
-        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
     assert_eq!(order(&graph), vec![key("c", "1.0.0"), key("b", "1.0.0"), key("a", "1.0.0")]);
 }
 
@@ -148,8 +187,14 @@ fn unrelated_subgraph_excluded() {
     ]);
     let importers = root_importers(&[("a", "1.0.0")]);
 
-    let graph =
-        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
     dbg!(&graph);
     assert!(
         graph.contains_key(&key("a", "1.0.0")),
@@ -180,8 +225,14 @@ fn parallel_build_leaves_precede_their_root() {
     ]);
     let importers = root_importers(&[("root", "1.0.0")]);
 
-    let graph =
-        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
     let order = order(&graph);
     let mut leaves = order[..2].to_vec();
     leaves.sort_by_key(std::string::ToString::to_string);
@@ -210,8 +261,14 @@ fn non_builder_importer_with_shared_builder_child_is_trimmed() {
     ]);
     let importers = root_importers(&[("a", "1.0.0"), ("b", "1.0.0")]);
 
-    let graph =
-        build_graph(&requires_build, None, &snapshots, &importers, &SkippedSnapshots::default());
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
     assert_eq!(order(&graph), vec![key("c", "1.0.0"), key("a", "1.0.0")]);
 }
 
@@ -219,13 +276,15 @@ fn non_builder_importer_with_shared_builder_child_is_trimmed() {
 /// even if it carries a configured patch. Skipped nodes are excluded
 /// from the build graph entirely, so the patch lookup never finds
 /// them. Without this gate, `build_one_snapshot`'s `pkg_dir.exists()`
-/// defensive return would still suppress the actual build attempt —
+/// defensive return would still suppress the actual build attempt,
 /// but the snapshot would have been queued and the graph walked
 /// through it. The gate makes the exclusion correct-by-construction.
 #[test]
 fn skipped_patched_snapshot_does_not_enter_build_queue() {
-    use std::collections::HashSet;
-    use std::path::PathBuf;
+    use std::{
+        collections::HashSet,
+        path::PathBuf,
+    };
 
     let a_key = key("a", "1.0.0");
     let snapshots = HashMap::from([(a_key.clone(), snap(&[]))]);
@@ -245,7 +304,8 @@ fn skipped_patched_snapshot_does_not_enter_build_queue() {
 
     let skipped = SkippedSnapshots::from_set(HashSet::from([a_key]));
 
-    let graph = build_graph(&requires_build, Some(&patches), &snapshots, &importers, &skipped);
+    let graph =
+        build_graph(&requires_build, Some(&patches), &snapshots, &importers, None, &skipped);
 
     assert!(
         graph.is_empty(),
@@ -275,7 +335,7 @@ fn skipped_parent_does_not_drag_descendants_into_build_queue() {
 
     let skipped = SkippedSnapshots::from_set(HashSet::from([s_key]));
 
-    let graph = build_graph(&requires_build, None, &snapshots, &importers, &skipped);
+    let graph = build_graph(&requires_build, None, &snapshots, &importers, None, &skipped);
 
     assert!(
         graph.is_empty(),
@@ -284,7 +344,7 @@ fn skipped_parent_does_not_drag_descendants_into_build_queue() {
 }
 
 /// A snapshot reachable via BOTH a skipped parent and a non-skipped
-/// parent must still enter the build queue if it requires building —
+/// parent must still enter the build queue if it requires building,
 /// pnpm doesn't propagate "skipped" status to descendants reached by
 /// any other (non-skipped) path. This pins that the
 /// skip-before-recurse gate doesn't accidentally poison `walked` for
@@ -313,12 +373,67 @@ fn descendant_with_non_skipped_parent_still_builds() {
 
     let skipped = SkippedSnapshots::from_set(HashSet::from([s_key]));
 
-    let graph = build_graph(&requires_build, None, &snapshots, &importers, &skipped);
+    let graph = build_graph(&requires_build, None, &snapshots, &importers, None, &skipped);
 
     assert!(graph.contains_key(&c_key), "C reached via non-skipped B must build, got {graph:?}");
     assert!(graph.contains_key(&b_key), "B (ancestor of buildable C) must appear, got {graph:?}");
     assert!(
         graph.contains_key(&root_key),
         "root (ancestor of buildable subtree) must appear, got {graph:?}",
+    );
+}
+
+#[test]
+fn dev_dependency_subtree_is_excluded_when_only_prod_is_included() {
+    let prod_key = key("prod-pkg", "1.0.0");
+    let dev_key = key("dev-pkg", "1.0.0");
+    let dev_child_key = key("dev-child", "1.0.0");
+    let snapshots = HashMap::from([
+        (prod_key.clone(), snap(&[])),
+        (dev_key.clone(), snap(&[("dev-child", "1.0.0")])),
+        (dev_child_key.clone(), snap(&[])),
+    ]);
+    let requires_build = requires([
+        (prod_key.clone(), true),
+        (dev_key.clone(), false),
+        (dev_child_key.clone(), true),
+    ]);
+
+    let mut project_snapshot = importer(&[("prod-pkg", "1.0.0")]);
+    let dev_map: ResolvedDependencyMap = HashMap::from([(
+        name("dev-pkg"),
+        ResolvedDependencySpec { specifier: "1.0.0".to_string(), version: ver("1.0.0").into() },
+    )]);
+    project_snapshot.dev_dependencies = Some(dev_map);
+    let importers = HashMap::from([(".".to_string(), project_snapshot)]);
+
+    let graph = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        Some(&[DependencyGroup::Prod]),
+        &SkippedSnapshots::default(),
+    );
+    dbg!(&graph);
+    assert!(graph.contains_key(&prod_key), "the prod dependency must build, got {graph:?}");
+    assert!(!graph.contains_key(&dev_key), "a dev dependency must not build, got {graph:?}");
+    assert!(
+        !graph.contains_key(&dev_child_key),
+        "a package reached only through a dev dependency must not build, got {graph:?}",
+    );
+
+    let unfiltered = build_graph(
+        &requires_build,
+        None,
+        &snapshots,
+        &importers,
+        None,
+        &SkippedSnapshots::default(),
+    );
+    dbg!(&unfiltered);
+    assert!(
+        unfiltered.contains_key(&dev_child_key),
+        "an unfiltered graph still walks dev dependencies, got {unfiltered:?}",
     );
 }

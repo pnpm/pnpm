@@ -1,0 +1,16 @@
+# Test registry-mock configuration for pnpm and pnpr test suites.
+storage:
+  path: ./storage
+  # The benchmark uses this key to select the revision's database configuration format.
+  database: {}
+secret: pnpm-registry-mock-secret-key-32
+
+auth:
+  users:
+    # Maximum amount of users allowed to register. Set to -1 by default;
+    # test harnesses patch this to allow test user registration.
+    maxUsers: -1
+
+log:
+  format: pretty
+  level: error

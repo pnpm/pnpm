@@ -1,4 +1,9 @@
-use crate::{Lockfile, PackageKey, PkgName, merge_lockfile_changes};
+use crate::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+    merge_lockfile_changes,
+};
 use std::path::Path;
 
 fn parse(yaml: &str) -> Lockfile {
@@ -81,7 +86,10 @@ fn entries_only_one_side_records_all_survive() {
     assert!(merged.importers.contains_key("packages/theirs"));
 
     let packages = merged.packages.as_ref().unwrap();
-    let mut names: Vec<String> = packages.keys().map(ToString::to_string).collect();
+    let mut names: Vec<String> = packages
+        .keys()
+        .map(ToString::to_string)
+        .collect();
     names.sort();
     assert_eq!(
         names,
@@ -91,7 +99,7 @@ fn entries_only_one_side_records_all_survive() {
 }
 
 /// An entry both sides record merges field by field, the way pnpm's
-/// object spread does — a field only ours carries is not dropped because
+/// object spread does, a field only ours carries is not dropped because
 /// theirs omits it.
 #[test]
 fn a_shared_entry_keeps_the_fields_only_one_side_records() {
@@ -132,34 +140,142 @@ snapshots:
 
 /// The merged lockfile is what the install then resolves against, so the
 /// recorded-config fields are deliberately dropped rather than picked
-/// from one side — the install writes its own back.
+/// from one side, the install writes its own back.
 #[test]
-fn the_recorded_configuration_is_dropped() {
+fn the_recorded_configuration_is_preserved_and_merged() {
     let ours = "\
 lockfileVersion: '9.0'
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
+  dedupePeers: true
 overrides:
   foo: 1.0.0
+  bar: 2.0.0
+neverBuiltDependencies:
+  - fsevents
+onlyBuiltDependencies:
+  - esbuild
+packageExtensionsChecksum: checksum-ours
+pnpmfileChecksum: checksum-pnpmfile-ours
 ignoredOptionalDependencies:
   - fsevents
-pnpmfileChecksum: ours
+patchedDependencies:
+  foo@1.0.0: hash-ours
+  baz@3.0.0: hash-baz
+catalogs:
+  default:
+    react:
+      specifier: ^18.0.0
+      version: 18.2.0
+    lodash:
+      specifier: ^4.17.20
+      version: 4.17.21
+time:
+  foo: '2024-01-01T00:00:00.000Z'
 ";
     let theirs = "\
 lockfileVersion: '9.0'
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: true
+  peersSuffixMaxLength: 500
+overrides:
+  foo: 1.1.0
+  qar: 3.0.0
+neverBuiltDependencies:
+  - node-gyp
+onlyBuiltDependencies:
+  - sqlite3
+packageExtensionsChecksum: checksum-theirs
+pnpmfileChecksum: checksum-pnpmfile-theirs
 ignoredOptionalDependencies:
   - node-gyp
-pnpmfileChecksum: theirs
+patchedDependencies:
+  foo@1.0.0: hash-theirs
+  qar@2.0.0: hash-qar
+catalogs:
+  default:
+    react:
+      specifier: ^18.3.0
+      version: 18.3.1
+    axios:
+      specifier: ^1.0.0
+      version: 1.6.0
+  other:
+    vue:
+      specifier: ^3.0.0
+      version: 3.4.0
+time:
+  bar: '2024-02-01T00:00:00.000Z'
 ";
     let merged = merged(ours, theirs);
-    assert!(merged.settings.is_none());
-    assert!(merged.overrides.is_none());
-    assert_eq!(merged.pnpmfile_checksum.as_deref(), Some("ours"));
+    let settings = merged.settings.expect("settings preserved");
+    assert!(settings.auto_install_peers);
+    assert!(settings.exclude_links_from_lockfile);
+    assert_eq!(settings.dedupe_peers, Some(true));
+    assert_eq!(settings.peers_suffix_max_length, Some(500));
+
+    let overrides = merged.overrides.expect("overrides preserved");
+    assert_eq!(overrides.get("foo").map(String::as_str), Some("1.1.0"));
+    assert_eq!(overrides.get("bar").map(String::as_str), Some("2.0.0"));
+    assert_eq!(overrides.get("qar").map(String::as_str), Some("3.0.0"));
+
+    assert_eq!(
+        merged.extra.get("neverBuiltDependencies"),
+        Some(&serde_json::json!(["fsevents", "node-gyp"])),
+    );
+    assert_eq!(
+        merged.extra.get("onlyBuiltDependencies"),
+        Some(&serde_json::json!(["esbuild", "sqlite3"])),
+    );
+
+    assert_eq!(merged.package_extensions_checksum.as_deref(), Some("checksum-ours"));
+    assert_eq!(merged.pnpmfile_checksum.as_deref(), Some("checksum-pnpmfile-ours"));
     assert_eq!(
         merged.ignored_optional_dependencies.as_deref(),
         Some(["fsevents".to_string(), "node-gyp".to_string()].as_slice()),
     );
+
+    let patched = merged.patched_dependencies.expect("patched_dependencies preserved");
+    assert_eq!(patched.get("foo@1.0.0").map(String::as_str), Some("hash-theirs"));
+    assert_eq!(patched.get("baz@3.0.0").map(String::as_str), Some("hash-baz"));
+    assert_eq!(patched.get("qar@2.0.0").map(String::as_str), Some("hash-qar"));
+
+    let catalogs = merged.catalogs.expect("catalogs preserved");
+    let default_cat = &catalogs["default"];
+    assert_eq!(default_cat["react"].specifier, "^18.3.0");
+    assert_eq!(default_cat["react"].version, "18.3.1");
+    assert_eq!(default_cat["lodash"].specifier, "^4.17.20");
+    assert_eq!(default_cat["lodash"].version, "4.17.21");
+    assert_eq!(default_cat["axios"].specifier, "^1.0.0");
+    assert_eq!(default_cat["axios"].version, "1.6.0");
+
+    let other_cat = &catalogs["other"];
+    assert_eq!(other_cat["vue"].specifier, "^3.0.0");
+    assert_eq!(other_cat["vue"].version, "3.4.0");
+
+    let time = merged.time.expect("time preserved");
+    assert_eq!(time.get("foo").map(String::as_str), Some("2024-01-01T00:00:00.000Z"));
+    assert_eq!(time.get("bar").map(String::as_str), Some("2024-02-01T00:00:00.000Z"));
+}
+
+#[test]
+fn merging_preserves_matching_untracked_hook_state() {
+    let merged = merged(
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: false\n",
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: false\n",
+    );
+    assert_eq!(merged.untracked_pnpmfile_read_package_hook(), Some(false));
+}
+
+#[test]
+fn merging_marks_conflicting_untracked_hook_state_for_resolution() {
+    let merged = merged(
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: false\n",
+        "lockfileVersion: '9.0'\nuntrackedPnpmfileReadPackageHook: true\n",
+    );
+    assert_eq!(merged.untracked_pnpmfile_read_package_hook(), Some(true));
 }
 
 /// A tool driving pnpm records its own state in a top-level block beside
@@ -177,4 +293,166 @@ fn merging_unions_the_foreign_top_level_keys() {
 
     assert_eq!(merged.extra["bit"], serde_json::json!({ "depsRequiringBuild": ["ours"] }));
     assert_eq!(merged.extra["other-tool"], serde_json::json!(true));
+}
+
+#[test]
+fn a_merged_lockfile_records_no_resolution_settings() {
+    let recorded = OURS.replacen(
+        "importers:",
+        "settings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n  autoDedupe: true\nimporters:",
+        1,
+    );
+    for (ours, theirs) in [(recorded.as_str(), recorded.as_str()), (recorded.as_str(), THEIRS)] {
+        let settings = merged(ours, theirs).settings.unwrap();
+        assert_eq!(settings.resolution, crate::ResolutionSettings::default());
+    }
+}
+
+/// Entries pinning another hash cannot share a lockfile with ours, so the
+/// resolution after the merge resolves them again.
+#[test]
+fn a_side_pinning_another_integrity_target_lends_no_entries() {
+    let theirs = THEIRS.replacen(
+        "lockfileVersion: '9.0'\n",
+        "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n  integrityTarget: tar\n",
+        1,
+    );
+    let merged = merged(OURS, &theirs);
+    assert_eq!(merged.integrity_target(), crate::IntegrityTarget::Resource);
+    let packages = merged.packages.as_ref().unwrap();
+    assert!(packages.contains_key(&"is-positive@3.0.0".parse::<PackageKey>().unwrap()));
+    assert!(!packages.contains_key(&"only-theirs@2.0.0".parse::<PackageKey>().unwrap()));
+    let snapshots = merged.snapshots.as_ref().unwrap();
+    assert!(!snapshots.contains_key(&"only-theirs@2.0.0".parse::<PackageKey>().unwrap()));
+}
+
+#[test]
+fn merging_preserves_and_merges_importer_metadata() {
+    let ours = "\
+lockfileVersion: '9.0'
+importers:
+  .:
+    publishDirectory: dist
+    linkDirectory: false
+    dependenciesMeta:
+      only-ours:
+        injected: true
+      shared:
+        injected: true
+        patch: patches/old.patch
+  packages/ours-only:
+    publishDirectory: build
+    linkDirectory: false
+    dependenciesMeta:
+      ours-dep:
+        injected: true
+";
+    let theirs = "\
+lockfileVersion: '9.0'
+importers:
+  .:
+    publishDirectory: out
+    dependenciesMeta:
+      only-theirs:
+        injected: true
+      shared:
+        patch: patches/new.patch
+  packages/theirs-only:
+    publishDirectory: lib
+    linkDirectory: false
+    dependenciesMeta:
+      theirs-dep:
+        injected: true
+  packages/empty-meta:
+    dependenciesMeta: {}
+";
+    let merged = merged(ours, theirs);
+
+    let root = &merged.importers["."];
+    assert_eq!(root.publish_directory.as_deref(), Some("out"));
+    assert_eq!(root.link_directory, Some(false));
+    assert_eq!(
+        root.dependencies_meta,
+        Some(serde_json::json!({
+            "only-ours": { "injected": true },
+            "only-theirs": { "injected": true },
+            "shared": { "injected": true, "patch": "patches/new.patch" },
+        })),
+    );
+
+    let ours_only = &merged.importers["packages/ours-only"];
+    assert_eq!(ours_only.publish_directory.as_deref(), Some("build"));
+    assert_eq!(ours_only.link_directory, Some(false));
+    assert_eq!(
+        ours_only.dependencies_meta,
+        Some(serde_json::json!({ "ours-dep": { "injected": true } })),
+    );
+
+    let theirs_only = &merged.importers["packages/theirs-only"];
+    assert_eq!(theirs_only.publish_directory.as_deref(), Some("lib"));
+    assert_eq!(theirs_only.link_directory, Some(false));
+    assert_eq!(
+        theirs_only.dependencies_meta,
+        Some(serde_json::json!({ "theirs-dep": { "injected": true } })),
+    );
+
+    assert_eq!(merged.importers["packages/empty-meta"].dependencies_meta, None);
+}
+
+#[test]
+fn merging_normalizes_link_directory_true_and_orphan_link_directory() {
+    let ours = "\
+lockfileVersion: '9.0'
+importers:
+  packages/true-wins:
+    publishDirectory: dist
+    linkDirectory: false
+  packages/true-ours:
+    publishDirectory: dist
+    linkDirectory: true
+  packages/orphan-link:
+    linkDirectory: false
+  packages/scalar-meta:
+    dependenciesMeta:
+      dep: 'ours'
+";
+    let theirs = "\
+lockfileVersion: '9.0'
+importers:
+  packages/true-wins:
+    publishDirectory: dist
+    linkDirectory: true
+  packages/true-ours:
+    publishDirectory: dist
+  packages/orphan-link: {}
+  packages/scalar-meta:
+    dependenciesMeta:
+      dep: 'theirs'
+";
+    let merged = merged(ours, theirs);
+    assert_eq!(merged.importers["packages/true-wins"].link_directory, None);
+    assert_eq!(merged.importers["packages/true-ours"].link_directory, None);
+    assert_eq!(merged.importers["packages/orphan-link"].link_directory, None);
+    assert_eq!(
+        merged.importers["packages/scalar-meta"].dependencies_meta,
+        Some(serde_json::json!({ "dep": "theirs" })),
+    );
+}
+
+#[test]
+fn merging_preserves_in_memory_importer_specifiers() {
+    let mut ours = parse(OURS);
+    ours.importers.get_mut(".").unwrap().specifiers = Some(std::collections::HashMap::from([
+        ("is-positive".to_string(), "^3.0.0".to_string()),
+        ("only-ours".to_string(), "^1.0.0".to_string()),
+    ]));
+    let mut theirs = parse(THEIRS);
+    theirs.importers.get_mut(".").unwrap().specifiers =
+        Some(std::collections::HashMap::from([("is-positive".to_string(), "^3.1.0".to_string())]));
+
+    let merged = merge_lockfile_changes(&ours, &theirs);
+    let specifiers =
+        merged.importers["."].specifiers.as_ref().expect("in-memory specifiers survive");
+    assert_eq!(specifiers.get("is-positive").map(String::as_str), Some("^3.1.0"));
+    assert_eq!(specifiers.get("only-ours").map(String::as_str), Some("^1.0.0"));
 }

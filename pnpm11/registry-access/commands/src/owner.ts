@@ -19,43 +19,45 @@ export function cliOptionsTypes (): Record<string, unknown> {
 
 export const commandNames = ['owner', 'owners']
 
+const HELP_DESCRIPTION_LISTS = [
+  {
+    title: 'Commands',
+
+    list: [
+      {
+        description: 'List all owners of a package. Default if no subcommand is given.',
+        name: 'ls',
+      },
+      {
+        description: 'Add an owner to a package.',
+        name: 'add',
+      },
+      {
+        description: 'Remove an owner from a package.',
+        name: 'rm',
+      },
+    ],
+  },
+  {
+    title: 'Options',
+
+    list: [
+      {
+        description: 'The base URL of the npm registry.',
+        name: '--registry <url>',
+      },
+      {
+        description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password.',
+        name: '--otp',
+      },
+    ],
+  },
+]
+
 export function help (): string {
   return renderHelp({
     description: 'Manages package owners on the registry.',
-    descriptionLists: [
-      {
-        title: 'Commands',
-
-        list: [
-          {
-            description: 'List all owners of a package. Default if no subcommand is given.',
-            name: 'ls',
-          },
-          {
-            description: 'Add an owner to a package.',
-            name: 'add',
-          },
-          {
-            description: 'Remove an owner from a package.',
-            name: 'rm',
-          },
-        ],
-      },
-      {
-        title: 'Options',
-
-        list: [
-          {
-            description: 'The base URL of the npm registry.',
-            name: '--registry <url>',
-          },
-          {
-            description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password.',
-            name: '--otp',
-          },
-        ],
-      },
-    ],
+    descriptionLists: HELP_DESCRIPTION_LISTS,
     url: docsUrl('owner'),
     usages: [
       'pnpm owner ls <package>',
@@ -107,7 +109,7 @@ async function ownerLs (
 
   const lines: string[] = []
   for (const owner of owners) {
-    lines.push(`${owner.username} <${owner.email}>`)
+    lines.push(owner.email ? `${owner.name} <${owner.email}>` : owner.name)
   }
   return lines.join('\n')
 }
@@ -134,6 +136,7 @@ async function ownerAdd (
     method: 'PUT',
     headers: {
       'content-type': 'application/json',
+      'npm-command': 'owner',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
     body: JSON.stringify({ user: owner }),
@@ -167,6 +170,7 @@ async function ownerRm (
     authHeaderValue: authHeader,
     method: 'DELETE',
     headers: {
+      'npm-command': 'owner',
       ...(otp ? { 'npm-otp': otp } : {}),
     },
   })
@@ -196,8 +200,8 @@ function getOwnerUrl (escapedName: string, registryUrl: string, owner?: string):
 }
 
 interface Owner {
-  username: string
-  email: string
+  name: string
+  email?: string
 }
 
 async function fetchOwners (
@@ -207,9 +211,10 @@ async function fetchOwners (
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
 ): Promise<Owner[]> {
-  const ownersUrl = new URL(`-/package/${escapedName}/owners`, registryUrl).href
-  const response = await fetchFromRegistry(ownersUrl, {
+  const packageUrl = new URL(escapedName, registryUrl).href
+  const response = await fetchFromRegistry(packageUrl, {
     authHeaderValue: authHeader,
+    fullMetadata: true,
   })
 
   if (!response.ok) {
@@ -219,7 +224,8 @@ async function fetchOwners (
     await throwRegistryError(response, 'fetch owners of')
   }
 
-  return await response.json() as Owner[]
+  const metadata = await response.json() as { maintainers?: Owner[] }
+  return metadata.maintainers ?? []
 }
 
 async function throwRegistryError (response: Response, action: string): Promise<never> {

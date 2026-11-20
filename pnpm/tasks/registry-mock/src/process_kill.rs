@@ -1,5 +1,11 @@
 use pipe_trait::Pipe;
-use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System};
+use sysinfo::{
+    Pid,
+    ProcessRefreshKind,
+    RefreshKind,
+    Signal,
+    System,
+};
 
 /// Send `signal` to the process at `pid`. Returns `true` if the
 /// process existed and the signal was delivered, `false` if the
@@ -9,9 +15,12 @@ use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System};
 /// so we send the signal directly to the recorded PID instead of
 /// walking the process tree.
 pub fn kill_process_by_pid(pid: Pid, signal: Signal) -> bool {
-    let system = RefreshKind::nothing()
+    let Ok(system) = RefreshKind::nothing()
         .with_processes(ProcessRefreshKind::nothing())
-        .pipe(System::new_with_specifics);
+        .pipe(System::new_with_specifics)
+    else {
+        return false;
+    };
     system
         .processes()
         .get(&pid)

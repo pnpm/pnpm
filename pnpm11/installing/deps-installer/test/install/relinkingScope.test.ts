@@ -144,3 +144,29 @@ test('removes obsolete child links for existing packages after dependency update
 
   expect(fs.existsSync(obsoleteChildPath)).toBe(false)
 })
+
+test.each([false, true])('forced install removes obsolete extension child links (frozen=%s)', async (frozen) => {
+  const manifest: ProjectManifest = { dependencies: { '@pnpm.e2e/foobar': '100.0.0' } }
+  prepare(manifest)
+  const initialOpts = testDefaults({
+    packageExtensions: {
+      '@pnpm.e2e/foobar': {
+        dependencies: { 'is-positive': '1.0.0' },
+        optionalDependencies: { '@pnpm.e2e/removed-child': 'npm:is-positive@1.0.0' },
+      },
+    },
+  })
+  const project = { manifest, mutation: 'install' as const, rootDir: process.cwd() as ProjectRootDir }
+  await mutateModulesInSingleProject(project, initialOpts)
+  const modules = path.resolve('node_modules/.pnpm/@pnpm.e2e+foobar@100.0.0/node_modules')
+  const obsolete = ['is-positive', '@pnpm.e2e/removed-child'].map((alias) => path.join(modules, alias))
+  for (const child of obsolete) expect(fs.lstatSync(child).isSymbolicLink()).toBe(true)
+  const options = testDefaults({ storeDir: initialOpts.storeDir })
+  if (frozen) {
+    await mutateModulesInSingleProject(project, { ...options, lockfileOnly: true })
+  }
+  await mutateModulesInSingleProject(project, { ...options, force: true, frozenLockfile: frozen })
+  for (const child of obsolete) expect(fs.lstatSync(child, { throwIfNoEntry: false })).toBeUndefined()
+  expect(fs.existsSync(path.join(modules, '@pnpm.e2e/foobar/package.json'))).toBe(true)
+  expect(fs.existsSync(path.join(modules, '@pnpm.e2e/foo/package.json'))).toBe(true)
+})

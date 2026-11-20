@@ -1,10 +1,23 @@
 use super::{
-    extract_attachments, merge_manifest, now_iso, sha1_hex_from_integrity_opts,
+    extract_attachments,
+    merge_manifest,
+    now_iso,
+    sha1_hex_from_integrity_opts,
     stream_decode_verify_and_write,
+    verify_and_write,
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde_json::{Value, json};
-use ssri::{Algorithm, IntegrityOpts};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -63,7 +76,12 @@ fn stream_rejects_missing_integrity() {
 #[test]
 fn stream_rejects_missing_dist_entry() {
     let (result, _dest, _tmp) = run_stream(b"bytes", None, None);
-    assert!(result.unwrap_err().to_string().contains("EINTEGRITY"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("EINTEGRITY"),
+    );
 }
 
 #[test]
@@ -124,7 +142,7 @@ fn stream_rejects_invalid_base64() {
     let tmp = TempDir::new().unwrap();
     let dest = tmp.path().join("out.tgz");
     // Pick an SRI for some real bytes so the integrity branch
-    // parses cleanly — we want the failure to surface from the
+    // parses cleanly; we want the failure to surface from the
     // base64 decoder, not the integrity parser.
     let dist = json!({ "integrity": sri_sha512(b"anything") });
     let result = stream_decode_verify_and_write(
@@ -142,7 +160,7 @@ fn stream_rejects_invalid_base64() {
 /// Push the streaming loop past its 64 KiB chunk buffer. A
 /// regression where the loop accidentally returned after the
 /// first `read` (or where the hasher only saw the first chunk)
-/// would still pass every smaller-payload test in this module —
+/// would still pass every smaller-payload test in this module;
 /// this is the one that catches it.
 #[test]
 fn stream_handles_payload_larger_than_chunk_buffer() {
@@ -169,9 +187,69 @@ fn extracts_and_strips_attachments() {
     let attachments = extract_attachments(&mut body).unwrap();
     assert_eq!(attachments.len(), 1);
     assert_eq!(attachments[0].filename, "foo-1.0.0.tgz");
-    assert_eq!(attachments[0].data, "aGVsbG8=");
+    assert_eq!(attachments[0].inline_data(), Some("aGVsbG8="));
     assert_eq!(attachments[0].declared_length, Some(5));
     assert!(body.get("_attachments").is_none(), "_attachments should be stripped");
+}
+
+#[test]
+fn an_attachment_references_a_staged_archive_by_integrity() {
+    let mut body = json!({
+        "_attachments": {
+            "foo-1.0.0.tgz": { "integrity": "sha512-AAAA", "length": 5 },
+        },
+    });
+    let attachments = extract_attachments(&mut body).unwrap();
+    assert_eq!(attachments[0].staged_integrity(), Some("sha512-AAAA"));
+    assert_eq!(attachments[0].inline_data(), None);
+    assert_eq!(attachments[0].declared_length, Some(5));
+}
+
+#[test]
+fn inline_bytes_may_declare_their_integrity() {
+    let mut body = json!({
+        "_attachments": {
+            "foo-1.0.0.tgz": { "data": "aGVsbG8=", "integrity": "sha512-AAAA" },
+        },
+    });
+    let attachments = extract_attachments(&mut body).unwrap();
+    assert_eq!(attachments[0].inline_data(), Some("aGVsbG8="));
+    assert_eq!(attachments[0].staged_integrity(), None);
+    assert_eq!(attachments[0].declared_integrity.as_deref(), Some("sha512-AAAA"));
+}
+
+#[test]
+fn an_attachment_carries_its_bytes_or_names_a_staged_archive() {
+    for attachment in [
+        json!({ "data": 5, "integrity": "sha512-AAAA" }),
+        json!({ "length": 5 }),
+        json!({ "integrity": 5 }),
+    ] {
+        let mut body = json!({ "_attachments": { "foo-1.0.0.tgz": attachment } });
+        assert!(extract_attachments(&mut body).is_err(), "{attachment}");
+    }
+}
+
+#[test]
+fn verify_and_write_checks_raw_bytes_against_the_dist() {
+    let dir = tempfile::tempdir().unwrap();
+    let dest = dir.path().join("foo-1.0.0.tgz");
+    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    opts.input(b"hello");
+    let dist = json!({ "integrity": opts.result().to_string() });
+    let written =
+        verify_and_write("foo-1.0.0.tgz", b"hello".as_slice(), Some(5), Some(&dist), &dest);
+    assert_eq!(written.unwrap(), 5);
+    assert_eq!(std::fs::read(&dest).unwrap(), b"hello");
+
+    let refused = verify_and_write("foo-1.0.0.tgz", b"other".as_slice(), None, Some(&dist), &dest);
+    assert!(
+        refused
+            .unwrap_err()
+            .to_string()
+            .contains("EINTEGRITY"),
+    );
+    assert!(!dest.exists(), "a refused archive leaves nothing behind");
 }
 
 #[test]
@@ -343,4 +421,16 @@ fn merge_drops_attachments_if_present() {
     });
     let merged: Value = merge_manifest(None, &incoming, None, "now");
     assert!(merged.get("_attachments").is_none());
+}
+
+#[test]
+fn merge_manifest_stamps_format_version() {
+    let incoming = json!({
+        "name": "pkg",
+        "versions": {
+            "1.0.0": { "version": "1.0.0" }
+        }
+    });
+    let merged = merge_manifest(None, &incoming, None, "2026-01-01T00:00:00.000Z");
+    assert_eq!(merged["formatVersion"], super::PACKUMENT_FORMAT_VERSION);
 }

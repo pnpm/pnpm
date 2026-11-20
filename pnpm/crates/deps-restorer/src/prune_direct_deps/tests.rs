@@ -1,13 +1,20 @@
 use super::prune_direct_deps_excluded_by_groups;
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    ComVer, Lockfile, LockfileVersion, ProjectSnapshot, ResolvedDependencyMap,
+    ComVer,
+    Lockfile,
+    LockfileVersion,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
     path::Path,
 };
@@ -51,7 +58,10 @@ fn dep_map(entries: &[(&str, &str)]) -> ResolvedDependencyMap {
             name.parse().expect("parse pkg name"),
             ResolvedDependencySpec {
                 specifier: format!("^{version}"),
-                version: version.parse::<pnpm_lockfile::PkgVerPeer>().unwrap().into(),
+                version: version
+                    .parse::<pnpm_lockfile::PkgVerPeer>()
+                    .unwrap()
+                    .into(),
             },
         );
     }
@@ -63,8 +73,11 @@ fn dep_map(entries: &[(&str, &str)]) -> ResolvedDependencyMap {
 /// declaring `bin` when given) and a `node_modules/<name>` symlink
 /// pointing at it. The target must exist for Windows junctions.
 fn link_dep(modules_dir: &Path, name: &str, bin: Option<&str>) {
-    let target =
-        modules_dir.join(".pacquet").join(name.replace('/', "+")).join("node_modules").join(name);
+    let target = modules_dir
+        .join(".pacquet")
+        .join(name.replace('/', "+"))
+        .join("node_modules")
+        .join(name);
     fs::create_dir_all(&target).expect("create symlink target");
     let manifest = match bin {
         Some(bin_name) => {
@@ -92,7 +105,7 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     link_dep(&modules_dir, "keep-me", None);
@@ -126,7 +139,12 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
     )
     .expect("prune should succeed");
 
-    assert!(modules_dir.join("@scope/dev-dep").symlink_metadata().is_err());
+    assert!(
+        modules_dir
+            .join("@scope/dev-dep")
+            .symlink_metadata()
+            .is_err(),
+    );
     assert!(!bins_dir.join("devtool").exists());
     assert!(is_symlink_or_junction(&modules_dir.join("keep-me")).unwrap());
     assert!(bins_dir.join("unrelated-tool").exists());
@@ -136,7 +154,7 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
 
 /// A `node_modules` that is itself a symlink resolving outside the
 /// workspace root fails the containment check, so nothing behind it is
-/// touched — the same refusal the purge applies.
+/// touched, the same refusal the purge applies.
 #[test]
 fn refuses_to_prune_through_a_modules_dir_escaping_the_workspace() {
     let dir = tempdir().unwrap();
@@ -156,7 +174,7 @@ fn refuses_to_prune_through_a_modules_dir_escaping_the_workspace() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     let current_lockfile = lockfile_with_root_importer(ProjectSnapshot {
@@ -190,7 +208,7 @@ fn skips_shim_removal_through_a_symlinked_bin_dir() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     link_dep(&modules_dir, "dev-dep", Some("devtool"));
@@ -214,7 +232,12 @@ fn skips_shim_removal_through_a_symlinked_bin_dir() {
     .expect("prune should succeed");
 
     assert!(outside_bins.join("devtool").exists());
-    assert!(modules_dir.join("dev-dep").symlink_metadata().is_err());
+    assert!(
+        modules_dir
+            .join("dev-dep")
+            .symlink_metadata()
+            .is_err(),
+    );
 }
 
 /// A scoped alias whose `@scope/` component is a symlink must not be
@@ -229,7 +252,7 @@ fn refuses_to_unlink_through_a_symlinked_scope_dir() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     fs::create_dir_all(&modules_dir).unwrap();
@@ -268,7 +291,7 @@ fn widening_the_selection_removes_nothing() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = modules_dir.clone();
-    config.virtual_store_dir = modules_dir.join(".pacquet");
+    config.install_state_dir = modules_dir.join(".pacquet");
     let config = config.leak();
 
     link_dep(&modules_dir, "keep-me", None);
@@ -301,7 +324,7 @@ fn prune_direct_deps_respects_trusted_importer_allow_set() {
     let mut config = Config::new();
     config.store_dir = dir.path().join("pacquet-store").into();
     config.modules_dir = workspace_root.join("node_modules");
-    config.virtual_store_dir = config.modules_dir.join(".pacquet");
+    config.install_state_dir = config.modules_dir.join(".pacquet");
     let config = config.leak();
 
     link_dep(&selected_modules, "selected-dev", None);
@@ -335,6 +358,11 @@ fn prune_direct_deps_respects_trusted_importer_allow_set() {
     )
     .expect("prune should succeed");
 
-    assert!(selected_modules.join("selected-dev").symlink_metadata().is_err());
+    assert!(
+        selected_modules
+            .join("selected-dev")
+            .symlink_metadata()
+            .is_err(),
+    );
     assert!(is_symlink_or_junction(&unselected_modules.join("unselected-dev")).unwrap());
 }

@@ -5,7 +5,12 @@ import { renderHelp } from 'render-help'
 
 import type { PnpmOptions } from '../types.js'
 
-export const cliOptionsTypes = install.cliOptionsTypes
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...install.cliOptionsTypes(),
+    bail: Boolean,
+  }
+}
 
 export const rcOptionsTypes = install.rcOptionsTypes
 
@@ -14,7 +19,7 @@ export const commandNames = ['install-test', 'it']
 export function help (): string {
   return renderHelp({
     aliases: ['it'],
-    description: 'Runs a `pnpm install` followed immediately by a `pnpm test`. It takes exactly the same arguments as `pnpm install`.',
+    description: 'Runs a `pnpm install` followed immediately by a `pnpm test`. Accepts the same arguments as `pnpm install`, plus `--no-bail` to continue running workspace tests after a failure.',
     url: docsUrl('install-test'),
     usages: ['pnpm install-test'],
   })

@@ -1,10 +1,6 @@
 /* eslint-disable */
-// GENERATED — npm's public registry signing keys, mirrored from
-// https://registry.npmjs.org/-/npm/v1/keys
-//
-// Refresh with: node deps/security/signatures/scripts/update-npm-signing-keys.mjs --update
-// The create-release-pr workflow refreshes these automatically, so a rotated
-// key cannot silently break (or weaken) signature verification.
+// GENERATED from .config/npm-signing-keys.json by the meta-updater. Refresh the
+// keys with `pnpm update:npm-signing-keys`, then `pnpm update-manifests`.
 export const NPM_SIGNING_KEYS = [
   {
     "expires": null,

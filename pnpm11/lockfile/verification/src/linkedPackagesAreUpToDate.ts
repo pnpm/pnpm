@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { refToRelative } from '@pnpm/deps.path'
+import { refToRelative, removeSuffix } from '@pnpm/deps.path'
 import type {
   PackageSnapshot,
   PackageSnapshots,
@@ -8,137 +8,332 @@ import type {
 } from '@pnpm/lockfile.types'
 import { refIsLocalDirectory } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { isLocalFilesystemSpecifier, localSpecPath, recordedLocalPath } from '@pnpm/resolving.local-resolver'
 import type { DirectoryResolution, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
-  DEPENDENCIES_OR_PEER_FIELDS,
   type DependencyManifest,
+  type DepPath,
+  type IncludedDependencies,
   type ProjectManifest,
 } from '@pnpm/types'
-import pEvery from 'p-every'
-import semver from 'semver'
 import getVersionSelectorType from 'version-selector-type'
 
-export async function linkedPackagesAreUpToDate (
-  {
-    linkWorkspacePackages,
-    manifestsByDir,
-    workspacePackages,
-    lockfilePackages,
-    lockfileDir,
-  }: {
-    linkWorkspacePackages: boolean
-    manifestsByDir: Record<string, DependencyManifest>
-    workspacePackages?: WorkspacePackages
-    lockfilePackages?: PackageSnapshots
-    lockfileDir: string
-  },
-  project: {
-    dir: string
-    manifest: ProjectManifest
-    snapshot: ProjectSnapshot
+import {
+  getTargetPkgName,
+  getVersionRange,
+  isSubdirectory,
+  isWorkspacePath,
+  isWorkspaceRangeSpec,
+  versionSatisfies,
+} from './dependencySpec.js'
+import {
+  createLocalDirectoryDepUpToDateChecker,
+  type LocalDirectoryResolution,
+} from './localDirectoryDepIsUpToDate.js'
+import { findNestedDirectoryPackages } from './nestedDirectoryPackages.js'
+
+export interface CheckLinkedPackagesResult {
+  upToDate: boolean
+  detailedReason?: string
+}
+
+export interface LinkedPackagesContext {
+  linkWorkspacePackages: boolean
+  manifestsByDir: Record<string, DependencyManifest>
+  workspacePackages?: WorkspacePackages
+  lockfilePackages?: PackageSnapshots
+  lockfileDir: string
+  workspaceDir?: string
+  injectWorkspacePackages?: boolean
+  /**
+   * Skips comparing the dependencies of local directory dependencies with
+   * their lockfile snapshots, for a lockfile whose snapshots already carry
+   * the effects of hooks, overrides, and peer binding, such as the one
+   * `pnpm deploy` writes.
+   */
+  skipLocalDirectoryDependencies?: boolean
+  /** The dependency groups the install includes. Every group when unset. */
+  includedDependencies?: IncludedDependencies
+  /** The settings and hooks the lockfile was resolved with. */
+  resolution?: LocalDirectoryResolution
+  /** See `LocalDirectoryDepContext.hookedManifests`. */
+  hookedManifests?: Map<string, Promise<DependencyManifest | undefined>>
+}
+
+interface ProjectToCheck {
+  dir: string
+  manifest: ProjectManifest
+  snapshot: ProjectSnapshot
+}
+
+interface DependencyToCheck {
+  depName: string
+  currentSpec: string
+  lockfileRef: string
+}
+
+interface DependencyCheckContext {
+  project: ProjectToCheck
+  dep: DependencyToCheck
+  localDirectoryDepIsUpToDate: ReturnType<typeof createLocalDirectoryDepUpToDateChecker>
+}
+
+const UP_TO_DATE: CheckLinkedPackagesResult = { upToDate: true }
+
+export async function linkedPackagesAreUpToDate (ctx: LinkedPackagesContext, project: ProjectToCheck): Promise<boolean> {
+  const result = await checkLinkedPackagesAreUpToDate(ctx, project)
+  return result.upToDate
+}
+
+export async function checkLinkedPackagesAreUpToDate (ctx: LinkedPackagesContext, project: ProjectToCheck): Promise<CheckLinkedPackagesResult> {
+  const localDirectoryDepIsUpToDate = createLocalDirectoryDepUpToDateChecker(ctx)
+  const results = await Promise.all(DEPENDENCIES_FIELDS.flatMap((depField) => {
+    const lockfileDeps = project.snapshot[depField]
+    const manifestDeps = project.manifest[depField]
+    if ((lockfileDeps == null) || (manifestDeps == null)) return []
+    return Object.entries(lockfileDeps)
+      .filter(([depName]) => manifestDeps[depName])
+      .map(async ([depName, lockfileRef]) => checkDependency(ctx, {
+        project,
+        dep: { depName, currentSpec: manifestDeps[depName], lockfileRef },
+        localDirectoryDepIsUpToDate,
+      }))
+  }))
+  return results.find((result) => !result.upToDate) ??
+    checkNestedDirectoryPackages(ctx, project, localDirectoryDepIsUpToDate)
+}
+
+async function checkNestedDirectoryPackages (
+  ctx: LinkedPackagesContext,
+  project: ProjectToCheck,
+  localDirectoryDepIsUpToDate: DependencyCheckContext['localDirectoryDepIsUpToDate']
+): Promise<CheckLinkedPackagesResult> {
+  if (ctx.skipLocalDirectoryDependencies || ctx.lockfilePackages == null) return UP_TO_DATE
+  const includesOptional = ctx.includedDependencies?.optionalDependencies !== false
+  const reached = directDepPaths(project.snapshot, includesOptional)
+  const projectAliases = dependencyAliases(project.manifest)
+  const results = await Promise.all(findNestedDirectoryPackages(ctx.lockfilePackages, { includesOptional })
+    .filter(({ depPath, ref, snapshot, ancestors }) =>
+      !isDeployDirectoryRef(ref, snapshot) &&
+      reached.some((direct) => direct === depPath || ancestors.has(direct))
+    )
+    .map(async ({ depPath, snapshot, ancestorAliases }) => {
+      const parentPkgAliases = { ...ancestorAliases, ...projectAliases }
+      return await localDirectoryDepIsUpToDate(snapshot, parentPkgAliases, { declaredByPath: false, declarationAssumed: true }) &&
+        await localDirectoryDepIsUpToDate(snapshot, parentPkgAliases, { declaredByPath: true, declarationAssumed: true })
+        ? UP_TO_DATE
+        : outdated(`The dependencies of local directory dependency "${depPath}" do not match the lockfile`)
+    }))
+  return results.find((result) => !result.upToDate) ?? UP_TO_DATE
+}
+
+/** The dependency paths a project depends on directly, in the groups the install includes. */
+function directDepPaths (snapshot: ProjectSnapshot, includesOptional: boolean): DepPath[] {
+  return Array.from(new Set<DepPath>(DEPENDENCIES_FIELDS
+    .filter((depField) => includesOptional || depField !== 'optionalDependencies')
+    .flatMap((depField) =>
+      Object.entries(snapshot[depField] ?? {}).flatMap(([alias, ref]) => refToRelative(ref, alias) ?? [])
+    )))
+}
+
+async function checkDependency (
+  ctx: LinkedPackagesContext,
+  { project, dep, localDirectoryDepIsUpToDate }: DependencyCheckContext
+): Promise<CheckLinkedPackagesResult> {
+  if (refIsLocalDirectory(project.snapshot.specifiers[dep.depName]) || isLocalDirectoryRef(dep.lockfileRef)) {
+    return checkLocalDirectoryDependency(ctx, { project, dep, localDirectoryDepIsUpToDate })
   }
-): Promise<boolean> {
-  return pEvery.default(
-    DEPENDENCIES_FIELDS,
-    (depField) => {
-      const lockfileDeps = project.snapshot[depField]
-      const manifestDeps = project.manifest[depField]
-      if ((lockfileDeps == null) || (manifestDeps == null)) return true
-      const depNames = Object.keys(lockfileDeps)
-      return pEvery.default(
-        depNames,
-        async (depName) => {
-          const currentSpec = manifestDeps[depName]
-          if (!currentSpec) return true
-          const lockfileRef = lockfileDeps[depName]
-          if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
-            // When a file: specifier resolves to link: in the lockfile
-            // (e.g. injected self-references), it's a local link with no
-            // entry in the packages section. Treat it as up-to-date.
-            if (lockfileRef.startsWith('link:')) return true
-            const depPath = refToRelative(lockfileRef, depName)
-            return depPath != null && isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[depPath])
-          }
-          const isLinked = lockfileRef.startsWith('link:')
-          if (
-            isLinked &&
-            (
-              currentSpec.startsWith('link:') ||
-              currentSpec.startsWith('file:') ||
-              currentSpec.startsWith('workspace:.')
-            )
-          ) {
-            return true
-          }
-          // https://github.com/pnpm/pnpm/issues/6592
-          // if the dependency is linked and the specified version type is tag, we consider it to be up-to-date to skip full resolution.
-          if (isLinked && getVersionSelectorType(currentSpec)?.type === 'tag') {
-            return true
-          }
-          const linkedDir = isLinked
-            ? path.join(project.dir, lockfileRef.slice(5))
-            : workspacePackages?.get(depName)?.get(lockfileRef)?.rootDir
-          if (!linkedDir) return true
-          if (!linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
-            // we found a linked dir, but we don't want to use it, because it's not specified as a
-            // workspace:x.x.x dependency
-            return true
-          }
-          const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
-          const availableRange = getVersionRange(currentSpec)
-          // This should pass the same options to semver as @pnpm/resolving.npm-resolver
-          const localPackageSatisfiesRange = availableRange === '*' || availableRange === '^' || availableRange === '~' ||
-            linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
-          if (isLinked !== localPackageSatisfiesRange) return false
-          return true
-        }
-      )
-    }
+  if (dep.lockfileRef.startsWith('link:') && namesLocalPath(dep.currentSpec)) {
+    return checkLinkTarget(project.dir, dep)
+  }
+  return checkWorkspaceLink(ctx, project, dep)
+}
+
+async function checkLocalDirectoryDependency (
+  ctx: LinkedPackagesContext,
+  { project, dep: { depName, currentSpec, lockfileRef }, localDirectoryDepIsUpToDate }: DependencyCheckContext
+): Promise<CheckLinkedPackagesResult> {
+  // When a file: specifier resolves to link: in the lockfile
+  // (e.g. injected self-references), it's a local link with no
+  // entry in the packages section. Treat it as up-to-date.
+  if (lockfileRef.startsWith('link:')) return UP_TO_DATE
+  const isWorkspaceRange = isWorkspaceRangeSpec(currentSpec)
+  if (isWorkspaceRange && !isInjected(ctx, project, depName)) {
+    return outdated(`Workspace dependency "${depName}" is not injected, but the lockfile resolves it to "${lockfileRef}"`)
+  }
+  const depPath = refToRelative(lockfileRef, depName)
+  const pkgSnapshot = depPath == null ? undefined : ctx.lockfilePackages?.[depPath]
+  if (pkgSnapshot == null) {
+    return outdated(`The lockfile has no package entry for local directory dependency "${depName}" (${lockfileRef})`)
+  }
+  if (
+    !ctx.skipLocalDirectoryDependencies &&
+    !isDeployDirectoryRef(lockfileRef, pkgSnapshot) &&
+    !await localDirectoryDepIsUpToDate(pkgSnapshot, dependencyAliases(project.manifest), { declaredByPath: isLocalFilesystemSpecifier(currentSpec) })
+  ) {
+    return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
+  }
+  return isWorkspaceRange
+    ? checkInjectedWorkspacePackage(ctx, { depName, currentSpec, pkgSnapshot })
+    : UP_TO_DATE
+}
+
+/**
+ * Whether the specifier is a `link:`, `file:`, or `workspace:<path>` one.
+ */
+function namesLocalPath (currentSpec: string): boolean {
+  if (currentSpec.startsWith('link:') || currentSpec.startsWith('file:')) return true
+  return currentSpec.startsWith('workspace:') && isWorkspacePath(currentSpec.slice(10))
+}
+
+function checkLinkTarget (
+  projectDir: string,
+  { depName, currentSpec, lockfileRef }: DependencyToCheck
+): CheckLinkedPackagesResult {
+  return localSpecPath(currentSpec, projectDir) === recordedLocalPath(lockfileRef.slice(5), projectDir)
+    ? UP_TO_DATE
+    : outdated(`Dependency "${depName}" is linked to "${lockfileRef}", which does not match "${currentSpec}"`)
+}
+
+async function checkWorkspaceLink (
+  ctx: LinkedPackagesContext,
+  project: ProjectToCheck,
+  dep: DependencyToCheck
+): Promise<CheckLinkedPackagesResult> {
+  const { depName, currentSpec, lockfileRef } = dep
+  const isLinked = lockfileRef.startsWith('link:')
+  const pkgName = getTargetPkgName(currentSpec, depName)
+  const availableRange = getVersionRange(currentSpec)
+  // https://github.com/pnpm/pnpm/issues/6592
+  // if the dependency is linked and the specified version type is tag, we consider it to be up-to-date to skip full resolution.
+  if (isLinked && getVersionSelectorType(availableRange)?.type === 'tag') {
+    return UP_TO_DATE
+  }
+  const workspacePackagesWithName = ctx.workspacePackages?.get(pkgName)
+  const linkedDir = isLinked
+    ? path.join(project.dir, lockfileRef.slice(5))
+    : workspacePackagesWithName?.get(removeSuffix(lockfileRef))?.rootDir
+  if (!linkedDir) {
+    return checkWorkspaceRangeIsNotLinked(dep, { pkgName, availableRange, workspacePackagesWithName })
+  }
+  if (!ctx.linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
+    // we found a linked dir, but we don't want to use it, because it's not specified as a
+    // workspace:x.x.x dependency
+    return UP_TO_DATE
+  }
+  if (
+    isLinked &&
+    isWorkspaceRangeSpec(currentSpec) &&
+    workspacePackagesWithName != null &&
+    // The link may point to the package's publishConfig.directory.
+    !isInsideAnyWorkspacePackage(workspacePackagesWithName, linkedDir)
+  ) {
+    return outdated(`Workspace dependency "${depName}" is linked to "${linkedDir}", which is not inside a workspace package named "${pkgName}"`)
+  }
+  return checkLinkedPackageVersion(ctx, dep, { isLinked, linkedDir, availableRange })
+}
+
+type WorkspacePackagesWithName = ReturnType<WorkspacePackages['get']>
+
+function checkWorkspaceRangeIsNotLinked (
+  { currentSpec }: DependencyToCheck,
+  { pkgName, availableRange, workspacePackagesWithName }: {
+    pkgName: string
+    availableRange: string
+    workspacePackagesWithName: WorkspacePackagesWithName
+  }
+): CheckLinkedPackagesResult {
+  const satisfyingWorkspacePackage = isWorkspaceRangeSpec(currentSpec) && workspacePackagesWithName
+    ? Array.from(workspacePackagesWithName.values()).find(({ manifest }) => versionSatisfies(manifest.version, availableRange))
+    : undefined
+  if (satisfyingWorkspacePackage != null) {
+    return outdated(`Workspace package "${pkgName}" (${satisfyingWorkspacePackage.manifest.version}) satisfies range "${currentSpec}" but is not linked in the lockfile`)
+  }
+  return UP_TO_DATE
+}
+
+function isInsideAnyWorkspacePackage (workspacePackagesWithName: NonNullable<WorkspacePackagesWithName>, linkedDir: string): boolean {
+  return Array.from(workspacePackagesWithName.values()).some(({ rootDir }) => isSubdirectory(path.resolve(rootDir), path.resolve(linkedDir)))
+}
+
+async function checkLinkedPackageVersion (
+  ctx: LinkedPackagesContext,
+  { depName, currentSpec }: DependencyToCheck,
+  { isLinked, linkedDir, availableRange }: { isLinked: boolean, linkedDir: string, availableRange: string }
+): Promise<CheckLinkedPackagesResult> {
+  const linkedPkg = ctx.manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
+  const localPackageSatisfiesRange = linkedPkg != null && versionSatisfies(linkedPkg.version, availableRange)
+  if (isLinked === localPackageSatisfiesRange) return UP_TO_DATE
+  return outdated(isLinked
+    ? `Linked workspace package "${depName}" (${linkedPkg?.version ?? 'unknown'}) does not satisfy range "${currentSpec}"`
+    : `Workspace package "${depName}" (${linkedPkg?.version ?? 'unknown'}) satisfies range "${currentSpec}" but is not linked in the lockfile`)
+}
+
+async function checkInjectedWorkspacePackage (
+  ctx: LinkedPackagesContext,
+  { depName, currentSpec, pkgSnapshot }: { depName: string, currentSpec: string, pkgSnapshot: PackageSnapshot }
+): Promise<CheckLinkedPackagesResult> {
+  const range = getVersionRange(currentSpec)
+  if (!('directory' in (pkgSnapshot.resolution ?? {})) || getVersionSelectorType(range)?.type === 'tag') {
+    return UP_TO_DATE
+  }
+  const injectedDir = path.join(ctx.lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
+  const injectedPkg = ctx.manifestsByDir[injectedDir] ?? await safeReadPackageJsonFromDir(injectedDir)
+  const expectedName = getTargetPkgName(currentSpec, depName)
+  if (injectedPkg?.name !== expectedName) {
+    return outdated(`Injected workspace dependency "${depName}" resolves to "${injectedDir}", which is not the package "${expectedName}"`)
+  }
+  if (!versionSatisfies(injectedPkg.version, range)) {
+    return outdated(`Injected workspace package "${depName}" (${injectedPkg.version}) does not satisfy range "${currentSpec}"`)
+  }
+  return UP_TO_DATE
+}
+
+function isInjected (ctx: LinkedPackagesContext, project: ProjectToCheck, depName: string): boolean {
+  return Boolean(
+    ctx.injectWorkspacePackages ||
+    project.manifest.dependenciesMeta?.[depName]?.injected ||
+    project.snapshot.dependenciesMeta?.[depName]?.injected
   )
 }
 
-async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageSnapshot | undefined): Promise<boolean> {
-  if (!pkgSnapshot) return false
-  const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
-  const manifest = await safeReadPackageJsonFromDir(localDepDir)
-  if (!manifest) return false
-  for (const depField of DEPENDENCIES_OR_PEER_FIELDS) {
-    if (depField === 'devDependencies') continue
-    const manifestDeps = manifest[depField] ?? {}
-    const lockfileDeps = pkgSnapshot[depField] ?? {}
-
-    // Lock file has more dependencies than the current manifest, e.g. some dependencies are removed.
-    if (Object.keys(lockfileDeps).some(depName => !manifestDeps[depName])) {
-      return false
-    }
-
-    for (const depName of Object.keys(manifestDeps)) {
-      // If a dependency does not exist in the lock file, e.g. a new dependency is added to the current manifest.
-      // We need to do full resolution again.
-      if (!lockfileDeps[depName]) {
-        return false
-      }
-      const currentSpec = manifestDeps[depName]
-      // We do not care about the link dependencies of local dependency.
-      if (currentSpec.startsWith('file:') || currentSpec.startsWith('link:') || currentSpec.startsWith('workspace:')) continue
-      if (semver.satisfies(lockfileDeps[depName], getVersionRange(currentSpec), { loose: true })) {
-        continue
-      } else {
-        return false
-      }
-    }
-  }
-  return true
+/**
+ * Also matches aliased refs such as `foo@file:packages/foo`, which injected
+ * workspace dependencies installed under another name have.
+ */
+function isLocalDirectoryRef (ref: string): boolean {
+  if (refIsLocalDirectory(ref)) return true
+  const refWithoutSuffix = removeSuffix(ref)
+  const aliasEnd = refWithoutSuffix.indexOf('@file:', 1)
+  return aliasEnd !== -1 && refIsLocalDirectory(refWithoutSuffix.slice(aliasEnd + 1))
 }
 
-function getVersionRange (spec: string): string {
-  if (spec.startsWith('workspace:')) return spec.slice(10)
-  if (spec.startsWith('npm:')) {
-    spec = spec.slice(4)
-    const index = spec.indexOf('@', 1)
-    if (index === -1) return '*'
-    return spec.slice(index + 1) || '*'
-  }
-  return spec
+/**
+ * `pnpm deploy` rewrites workspace/link/file directory dependencies to
+ * `<name>@file://...` snapshots whose transitive dependencies have already
+ * been converted from the source workspace lockfile (catalogs, overrides,
+ * packageExtensions, readPackage hooks, and singleton peer bindings).
+ * Comparing those snapshots against the raw on-disk `package.json` in a
+ * post-deploy install or `verifyDepsBeforeRun` check would false-positive
+ * because the deployed directory intentionally drops those source-workspace
+ * settings.
+ */
+function isDeployDirectoryRef (ref: string, pkgSnapshot: PackageSnapshot): boolean {
+  const refWithoutSuffix = removeSuffix(ref)
+  const aliasEnd = refWithoutSuffix.indexOf('@file://', 1)
+  if (aliasEnd === -1) return false
+  const filePath = refWithoutSuffix.slice(aliasEnd + '@file:'.length)
+  if (!refIsLocalDirectory(`file:${filePath}`)) return false
+  const directory = (pkgSnapshot.resolution as DirectoryResolution | undefined)?.directory
+  return filePath.startsWith('///') || filePath !== directory
+}
+
+function outdated (detailedReason: string): CheckLinkedPackagesResult {
+  return { upToDate: false, detailedReason }
+}
+
+/** The aliases a project depends on, which supply the peers of its dependencies. */
+function dependencyAliases (manifest: ProjectManifest): Record<string, true> {
+  return Object.fromEntries(DEPENDENCIES_FIELDS.flatMap((depField) => Object.keys(manifest[depField] ?? {}).map((alias) => [alias, true as const])))
 }

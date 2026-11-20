@@ -4,7 +4,7 @@
  * `https://registry.npmjs.org/some-pkg` maps to `//registry.npmjs.org/`.
  *
  * npm calls this key a "nerf dart" and derives it the same way:
- * https://github.com/npm/cli/blob/latest/workspaces/config/lib/nerf-dart.js
+ * https://github.com/npm/cli/blob/0c3b82a9a6/workspaces/config/lib/nerf-dart.js
  */
 export function nerfDart (url: string): string {
   const parsed = new URL(url)

@@ -1,8 +1,7 @@
-//! `pacquet docs` / `pacquet home` — open the documentation of a package
+//! `pacquet docs` / `pacquet home`: open the documentation of a package
 //! in the browser.
 //!
-//! Covers the missing-package-name error and the command structure
-//! checks. The browser-opening success path is covered by the unit tests
+//! The browser-opening success path is covered by the unit tests
 //! on `is_http_url`; the full integration path (mock registry + URL open)
 //! follows the `whoami` pattern but is deferred because it requires a
 //! platform-specific browser launcher.
@@ -19,7 +18,10 @@ fn pacquet(workspace: &std::path::Path) -> Command {
 #[test]
 fn docs_fails_without_package_name() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let output = pacquet(&workspace).with_arg("docs").output().expect("run pacquet docs");
+    let output = pacquet(&workspace)
+        .with_arg("docs")
+        .output()
+        .expect("run pacquet docs");
 
     assert!(!output.status.success(), "docs without args should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -33,7 +35,10 @@ fn docs_fails_without_package_name() {
 #[test]
 fn home_alias_fails_without_package_name() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let output = pacquet(&workspace).with_arg("home").output().expect("run pacquet home");
+    let output = pacquet(&workspace)
+        .with_arg("home")
+        .output()
+        .expect("run pacquet home");
 
     assert!(!output.status.success(), "home without args should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);

@@ -1,0 +1,9 @@
+extends: existence
+message: "Remove the bold or italic emphasis. A release note uses plain text."
+link: https://github.com/pnpm/pnpm/blob/main/AGENTS.md#changeset-style
+level: error
+scope: raw
+nonword: true
+tokens:
+  - '(?<![*\w])\*\*[^*\n]+\*\*'
+  - '(?<![_\w`])_[A-Za-z][^_\n`]*_(?![\w`])'

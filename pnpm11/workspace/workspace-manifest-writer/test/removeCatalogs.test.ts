@@ -510,3 +510,101 @@ test('remove catalogs unused by dependencies and workspace overrides', async () 
     },
   })
 })
+
+test('catalog prune handles catalog entries named like Object.prototype members', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  prepare({
+    dependencies: {
+      constructor: 'catalog:',
+    },
+  }, { tempDir: dir })
+  writeYamlFileSync(filePath, {
+    catalog: {
+      constructor: '^1.0.0',
+      toString: '^1.0.0',
+    },
+  })
+  const allProjects = await findPackages(dir)
+  await updateWorkspaceManifest(dir, {
+    catalogPrune: true,
+    allProjects,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    catalog: {
+      constructor: '^1.0.0',
+    },
+  })
+})
+
+test('catalog prune keeps entries recorded in keptCatalogs', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  prepare({
+    dependencies: {
+      foo: '^1.0.0',
+    },
+  }, { tempDir: dir })
+  writeYamlFileSync(filePath, {
+    catalog: {
+      bar: '^2.0.0',
+      baz: '^3.0.0',
+    },
+    catalogs: {
+      named: {
+        qux: '^4.0.0',
+        quux: '^5.0.0',
+      },
+    },
+  })
+  const allProjects = await findPackages(dir)
+  await updateWorkspaceManifest(dir, {
+    catalogPrune: true,
+    allProjects,
+    keptCatalogs: {
+      default: {
+        bar: { specifier: '^2.0.0', version: '2.0.0' },
+      },
+      named: {
+        qux: { specifier: '^4.0.0', version: '4.0.0' },
+      },
+    },
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    catalog: {
+      bar: '^2.0.0',
+    },
+    catalogs: {
+      named: {
+        qux: '^4.0.0',
+      },
+    },
+  })
+})
+
+test('keptCatalogs does nothing without catalogPrune', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  prepare({
+    dependencies: {
+      foo: '^1.0.0',
+    },
+  }, { tempDir: dir })
+  const manifest = {
+    catalog: {
+      bar: '^2.0.0',
+      baz: '^3.0.0',
+    },
+  }
+  writeYamlFileSync(filePath, manifest)
+  const allProjects = await findPackages(dir)
+  await updateWorkspaceManifest(dir, {
+    allProjects,
+    keptCatalogs: {
+      default: {
+        bar: { specifier: '^2.0.0', version: '2.0.0' },
+      },
+    },
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual(manifest)
+})

@@ -17,3 +17,10 @@ test('sanitizeInline strips line breaks and tabs', () => {
 test('sanitizeInline leaves text without control characters untouched', () => {
   expect(sanitizeInline('@scope/foo@1.0.0')).toBe('@scope/foo@1.0.0')
 })
+
+test('sanitizeInline() strips Unicode line and paragraph separators', () => {
+  // U+2028 and U+2029 end a line for a JSON or JavaScript consumer without
+  // being control characters, so a name carrying one could split a rendered
+  // warning into a second line.
+  expect(sanitizeInline('foo-\u2028\u2029-bar')).toBe('foo--bar')
+})

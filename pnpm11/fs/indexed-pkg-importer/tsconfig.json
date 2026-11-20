@@ -16,10 +16,16 @@
       "path": "../../core/core-loggers"
     },
     {
+      "path": "../../core/error"
+    },
+    {
       "path": "../../core/logger"
     },
     {
       "path": "../../store/controller-types"
+    },
+    {
+      "path": "../../text/sanitize"
     },
     {
       "path": "../graceful-fs"

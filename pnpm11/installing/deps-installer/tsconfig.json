@@ -61,6 +61,9 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../config/package-is-installable"
+    },
+    {
       "path": "../../config/parse-overrides"
     },
     {
@@ -98,6 +101,9 @@
     },
     {
       "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../fs/is-empty-dir-or-nothing"
     },
     {
       "path": "../../fs/read-modules-dir"
@@ -161,6 +167,9 @@
     },
     {
       "path": "../../resolving/local-resolver"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"

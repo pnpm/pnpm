@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/releasing.commands",
-  "version": "1101.1.0",
+  "version": "1101.2.15",
   "description": "Commands for deploy, pack, and publish",
   "keywords": [
     "pnpm",
@@ -24,16 +24,17 @@
     "!*.map"
   ],
   "scripts": {
-    "start": "tsgo --watch",
+    "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pn compile && pn --filter=pnpm compile && pn .test",
-    "prepublishOnly": "tsgo --build",
-    "compile": "tsgo --build && pn lint --fix",
+    "prepublishOnly": "tsc --build",
+    "compile": "tsc --build && pn lint --fix",
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
     "@inquirer/prompts": "catalog:",
     "@pnpm/bins.resolver": "workspace:*",
+    "@pnpm/building.policy": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.common-cli-options-help": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
@@ -54,7 +55,9 @@
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
+    "@pnpm/installing.deps-resolver": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
@@ -70,7 +73,6 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@pnpm/workspace.projects-graph": "workspace:*",
-    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "@pnpm/workspace.task-scheduler": "workspace:*",
     "@pnpm/workspace.workspace-manifest-writer": "workspace:*",
@@ -91,6 +93,7 @@
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:",
+    "strip-bom": "catalog:",
     "tar-stream": "catalog:",
     "tempy": "catalog:",
     "tinyglobby": "catalog:",

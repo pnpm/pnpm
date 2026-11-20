@@ -1,11 +1,11 @@
 //! Class-aware permit dispenser backing
 //! [`ThrottledClient`](crate::ThrottledClient).
 //!
-//! Three request classes share the pool:
+//! The request classes share the pool:
 //!
-//! * **Latency** ([`crate::UNPRIORITIZED`]) — packument and other
+//! * **Latency** ([`crate::UNPRIORITIZED`]), packument and other
 //!   metadata fetches that gate resolution progress. Served FIFO.
-//! * **Background** ([`crate::BACKGROUND`]) — metadata fetches whose
+//! * **Background** ([`crate::BACKGROUND`]), metadata fetches whose
 //!   deadline is the end of the install rather than the next
 //!   resolution step (the lockfile-verification fan-out). Served FIFO,
 //!   but only when no latency-class request is queued, so a bulk
@@ -13,7 +13,7 @@
 //!   fetches. It cannot be starved: the latency queue drains when
 //!   resolution finishes, and the throughput class only outranks it
 //!   inside its reserve.
-//! * **Throughput** (any other priority) — tarball downloads, ranked
+//! * **Throughput** (any other priority), tarball downloads, ranked
 //!   by their estimated pipeline work so the most expensive archives
 //!   claim freed slots first (the longest-processing-time-first
 //!   scheduling argument; see
@@ -21,25 +21,34 @@
 //!   the per-connection bandwidth measurements behind it).
 //!
 //! Neither class may starve the other. Strictly preferring latency
-//! work was measured to *serialize* a cold fresh install — during the
+//! work was measured to *serialize* a cold fresh install, during the
 //! resolution burst no tarball ever got a slot, so the download
 //! pipeline started only after resolution finished, costing the whole
 //! resolve/fetch overlap. Instead the throughput class is guaranteed a
-//! reserved share of the pool (half, rounded up — but never all of
+//! reserved share of the pool (half, rounded up, but never all of
 //! it): when downloads hold
 //! fewer than the reserve, a freed slot goes to the largest pending
 //! download even while metadata is queued; beyond the reserve, queued
-//! metadata wins. Both directions are work-conserving — either class
+//! metadata wins. Both directions are work-conserving; either class
 //! may use the whole pool while the other has nothing pending.
 
 use std::{
     cmp::Ordering,
-    collections::{BinaryHeap, VecDeque},
-    sync::{Arc, Mutex},
+    collections::{
+        BinaryHeap,
+        VecDeque,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tokio::sync::oneshot;
 
-use crate::{BACKGROUND, UNPRIORITIZED};
+use crate::{
+    BACKGROUND,
+    UNPRIORITIZED,
+};
 
 /// Counting semaphore with the class-aware grant policy described in
 /// the module docs. Cancel-safe: dropping a waiting [`acquire`] future
@@ -71,9 +80,7 @@ impl Class {
 
 struct SemState {
     free: usize,
-    latency_in_flight: usize,
-    background_in_flight: usize,
-    throughput_in_flight: usize,
+    in_flight: InFlight,
     /// Minimum number of slots queued throughput work can always
     /// grow into, even while latency work is queued.
     throughput_reserve: usize,
@@ -82,6 +89,13 @@ struct SemState {
     latency_waiters: VecDeque<Waiter>,
     background_waiters: VecDeque<Waiter>,
     throughput_waiters: BinaryHeap<Waiter>,
+}
+
+#[derive(Default)]
+struct InFlight {
+    latency: usize,
+    background: usize,
+    throughput: usize,
 }
 
 struct Waiter {
@@ -94,7 +108,9 @@ struct Waiter {
 /// priority, then by *earlier* registration among equals.
 impl Ord for Waiter {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.priority.cmp(&other.priority).then_with(|| other.seq.cmp(&self.seq))
+        self.priority
+            .cmp(&other.priority)
+            .then_with(|| other.seq.cmp(&self.seq))
     }
 }
 
@@ -132,15 +148,24 @@ impl Drop for Permit {
     }
 }
 
+impl std::fmt::Debug for Permit {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Permit")
+            .field("armed", &self.armed)
+            .finish_non_exhaustive()
+    }
+}
+
 impl PrioritySemaphore {
     pub(crate) fn new(permits: usize) -> Self {
         PrioritySemaphore {
             state: Arc::new(Mutex::new(SemState {
                 free: permits,
-                latency_in_flight: 0,
-                background_in_flight: 0,
-                throughput_in_flight: 0,
-                throughput_reserve: permits.div_ceil(2).min(permits.saturating_sub(1)),
+                in_flight: InFlight::default(),
+                throughput_reserve: permits
+                    .div_ceil(2)
+                    .min(permits.saturating_sub(1)),
                 next_seq: 0,
                 latency_waiters: VecDeque::new(),
                 background_waiters: VecDeque::new(),
@@ -158,7 +183,7 @@ impl PrioritySemaphore {
             let mut state = self.state.lock().expect("priority semaphore lock poisoned");
             if state.free > 0 {
                 state.free -= 1;
-                *state.count_mut(class) += 1;
+                *state.in_flight.count_mut(class) += 1;
                 return Permit { state: Arc::clone(&self.state), class, armed: true };
             }
             let (tx, rx) = oneshot::channel();
@@ -189,19 +214,21 @@ impl PrioritySemaphore {
     }
 }
 
-impl SemState {
+impl InFlight {
     fn count_mut(&mut self, class: Class) -> &mut usize {
         match class {
-            Class::Latency => &mut self.latency_in_flight,
-            Class::Background => &mut self.background_in_flight,
-            Class::Throughput => &mut self.throughput_in_flight,
+            Class::Latency => &mut self.latency,
+            Class::Background => &mut self.background,
+            Class::Throughput => &mut self.throughput,
         }
     }
+}
 
+impl SemState {
     /// Pop the waiter the grant policy picks next, or `None` when every
     /// queue is empty.
     fn next_waiter(&mut self) -> Option<(Waiter, Class)> {
-        if self.throughput_in_flight < self.throughput_reserve
+        if self.in_flight.throughput < self.throughput_reserve
             && let Some(waiter) = self.throughput_waiters.pop()
         {
             return Some((waiter, Class::Throughput));
@@ -212,7 +239,9 @@ impl SemState {
         if let Some(waiter) = self.background_waiters.pop_front() {
             return Some((waiter, Class::Background));
         }
-        self.throughput_waiters.pop().map(|waiter| (waiter, Class::Throughput))
+        self.throughput_waiters
+            .pop()
+            .map(|waiter| (waiter, Class::Throughput))
     }
 }
 
@@ -221,9 +250,9 @@ impl std::fmt::Debug for PrioritySemaphore {
         let state = self.state.lock().expect("priority semaphore lock poisoned");
         f.debug_struct("PrioritySemaphore")
             .field("free", &state.free)
-            .field("latency_in_flight", &state.latency_in_flight)
-            .field("background_in_flight", &state.background_in_flight)
-            .field("throughput_in_flight", &state.throughput_in_flight)
+            .field("latency", &state.in_flight.latency)
+            .field("background", &state.in_flight.background)
+            .field("throughput", &state.in_flight.throughput)
             .field("latency_waiters", &state.latency_waiters.len())
             .field("background_waiters", &state.background_waiters.len())
             .field("throughput_waiters", &state.throughput_waiters.len())
@@ -236,7 +265,7 @@ impl std::fmt::Debug for PrioritySemaphore {
 /// live waiter the slot returns to the free-permit count.
 fn release(state_arc: &Arc<Mutex<SemState>>, released: Class) {
     let mut state = state_arc.lock().expect("priority semaphore lock poisoned");
-    *state.count_mut(released) -= 1;
+    *state.in_flight.count_mut(released) -= 1;
     loop {
         let Some((waiter, class)) = state.next_waiter() else {
             state.free += 1;
@@ -245,12 +274,12 @@ fn release(state_arc: &Arc<Mutex<SemState>>, released: Class) {
         let permit = Permit { state: Arc::clone(state_arc), class, armed: true };
         match waiter.tx.send(permit) {
             Ok(()) => {
-                *state.count_mut(class) += 1;
+                *state.in_flight.count_mut(class) += 1;
                 return;
             }
             Err(mut returned) => {
                 // The receiver was dropped before the send, so this
-                // permit was never observed — disarm it and offer the
+                // permit was never observed, disarm it and offer the
                 // slot to the next waiter. (Dropping it armed would
                 // re-enter `release` and deadlock on `state_arc`.)
                 returned.armed = false;

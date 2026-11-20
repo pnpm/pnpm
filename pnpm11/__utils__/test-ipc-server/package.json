@@ -5,6 +5,9 @@
   "main": "lib/index.js",
   "type": "module",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "bin": {
     "test-ipc-server-client": "./bin/test-ipc-server-client.js"
   },

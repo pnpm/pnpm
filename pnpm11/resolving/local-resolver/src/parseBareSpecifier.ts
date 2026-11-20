@@ -5,11 +5,12 @@ import { PnpmError } from '@pnpm/error'
 import type { PkgResolutionId } from '@pnpm/resolving.resolver-base'
 import normalize from 'normalize-path'
 
-// @ts-expect-error
+// @ts-expect-error -- FAKE_WINDOWS is a test-only global that is not declared on globalThis
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
-const isFilespec = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
-const isFilename = /\.(?:tgz|tar.gz|tar)$/i
+const filespecPattern = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
+const tarballFilenamePattern = /\.(?:tgz|tar\.gz|tar|tar\.bz2|tbz2|tbz)$/i
 const isAbsolutePath = /^\/|^[A-Z]:/i
+const driveLetterPrefixPattern = /^[a-z]:/i
 
 export interface LocalPackageSpec {
   dependencyPath: string
@@ -17,7 +18,18 @@ export interface LocalPackageSpec {
   id: PkgResolutionId
   type: 'directory' | 'file'
   normalizedBareSpecifier: string
+  resolvedVia: LocalResolvedVia
 }
+
+/**
+ * The `resolvedVia` tag: `workspace` for a `workspace:` specifier,
+ * `local-filesystem` for every other shape. A `workspace:` specifier gets the
+ * tag the name and range form gets in the npm resolver, so the dependencies
+ * resolver treats the directory as a workspace project whichever of the two
+ * claimed it: its `catalog:` dependencies resolve through the catalogs, and
+ * `blockExoticSubdeps` leaves its dependencies alone.
+ */
+export type LocalResolvedVia = 'local-filesystem' | 'workspace'
 
 export interface WantedLocalDependency {
   bareSpecifier: string
@@ -50,7 +62,7 @@ class PathIsUnsupportedProtocolError extends PnpmError {
  */
 export function isLocalFilesystemSpecifier (bareSpecifier: string): boolean {
   if (bareSpecifier.startsWith('link:') || bareSpecifier.startsWith('file:')) return true
-  if (isFilespec.test(bareSpecifier)) return true
+  if (isFilespec(bareSpecifier)) return true
   // Any other protocol — a `git+ssh:` / `https:` URL, an `npm:` alias, a
   // named-registry prefix — belongs to its own resolver, tarball-shaped path
   // or not.
@@ -59,20 +71,68 @@ export function isLocalFilesystemSpecifier (bareSpecifier: string): boolean {
   // (`user/repo#release.tgz`), not a local tarball: the protocol and
   // path-prefixed forms already returned above.
   if (bareSpecifier.includes('#')) return false
-  return isFilename.test(bareSpecifier)
+  return isTarballFilename(bareSpecifier)
+}
+
+/**
+ * Whether a bare specifier's shape can only be a local path, so re-anchoring
+ * it cannot change which resolver claims it.
+ *
+ * Stricter than {@link isLocalFilesystemSpecifier}, which answers a different
+ * question: what a specifier *could* name, rather than which resolver reaches
+ * it first. The chain runs the local path resolver last, so every shape that
+ * is merely path-*like* has already been claimed by then — a slash-free
+ * `repo.tgz` resolves as a dist-tag, and `user/repo.tgz` as a hosted-git
+ * shorthand. Only a path-prefixed specifier lands on the local resolver, and
+ * only those move.
+ *
+ * A `<letter>:` prefix is declined with them: a single-letter named registry
+ * is well-formed, so `c:pkg@1` is a registry specifier as much as a drive
+ * path. Nothing is lost by that — a drive path names the same place from
+ * every directory, and a drive-relative one is measured from process state no
+ * caller here can see.
+ */
+export function barePathIsUnambiguous (bareSpecifier: string): boolean {
+  return !isDriveLetterPrefix(bareSpecifier) && isFilespec(bareSpecifier)
+}
+
+/**
+ * Whether the spec opens with `<letter>:`, which reads as a Windows drive
+ * path and as a single-letter named-registry alias alike.
+ */
+export function isDriveLetterPrefix (bareSpecifier: string): boolean {
+  return driveLetterPrefixPattern.test(bareSpecifier)
+}
+
+/**
+ * Whether a local specifier names a package tarball rather than a directory.
+ * A `file:` specifier resolves to one or the other, and only the directory
+ * form becomes a `link:` entry in the lockfile.
+ */
+export function isTarballFilename (bareSpecifier: string): boolean {
+  return tarballFilenamePattern.test(bareSpecifier)
+}
+
+/**
+ * Whether the spec is path-shaped.
+ *
+ * A path lacking that shape reads as a hosted-git shorthand instead.
+ */
+export function isFilespec (bareSpecifier: string): boolean {
+  return filespecPattern.test(bareSpecifier)
 }
 
 export function parseLocalScheme (
   wd: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string,
-  opts: { preserveAbsolutePaths: boolean }
+  opts: { preserveAbsolutePaths: boolean, injectWorkspacePackages?: boolean }
 ): LocalPackageSpec | null {
   if (wd.bareSpecifier.startsWith('link:') || wd.bareSpecifier.startsWith('workspace:')) {
     return fromLocal(wd, projectDir, lockfileDir, 'directory', opts)
   }
   if (wd.bareSpecifier.startsWith('file:')) {
-    const type = isFilename.test(wd.bareSpecifier) ? 'file' : 'directory'
+    const type = isTarballFilename(wd.bareSpecifier) ? 'file' : 'directory'
     return fromLocal(wd, projectDir, lockfileDir, type, opts)
   }
   if (wd.bareSpecifier.startsWith('path:')) {
@@ -81,19 +141,40 @@ export function parseLocalScheme (
   return null
 }
 
+/**
+ * The path a `file:` specifier resolves to: the package directory, or the
+ * tarball file. `undefined` for any other specifier.
+ */
+export function localFilePath (bareSpecifier: string, projectDir: string): string | undefined {
+  if (!bareSpecifier.startsWith('file:')) return undefined
+  return parseLocalScheme({ bareSpecifier }, projectDir, projectDir, { preserveAbsolutePaths: false })?.fetchSpec
+}
+
+/**
+ * The directory a local specifier links to, when it is saved as `link:`.
+ * `undefined` for a `file:` directory, a tarball, or a specifier that is not
+ * a local path.
+ */
+export function linkedDirectoryPath (bareSpecifier: string, projectDir: string): string | undefined {
+  if (!isLocalFilesystemSpecifier(bareSpecifier)) return undefined
+  const wd = { bareSpecifier }
+  const opts = { preserveAbsolutePaths: false }
+  const spec = parseLocalScheme(wd, projectDir, projectDir, opts) ?? parseLocalPath(wd, projectDir, projectDir, opts)
+  return spec?.normalizedBareSpecifier.startsWith('link:') ? spec.fetchSpec : undefined
+}
+
 export function parseLocalPath (
   wd: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string,
   opts: { preserveAbsolutePaths: boolean }
 ): LocalPackageSpec | null {
-  if (wd.bareSpecifier.endsWith('.tgz') ||
-    wd.bareSpecifier.endsWith('.tar.gz') ||
-    wd.bareSpecifier.endsWith('.tar') ||
+  if (isTarballFilename(wd.bareSpecifier) ||
     wd.bareSpecifier.includes(path.sep) ||
-    isFilespec.test(wd.bareSpecifier)
+    (path.sep === '\\' && wd.bareSpecifier.includes('/')) ||
+    isFilespec(wd.bareSpecifier)
   ) {
-    const type = isFilename.test(wd.bareSpecifier) ? 'file' : 'directory'
+    const type = isTarballFilename(wd.bareSpecifier) ? 'file' : 'directory'
     return fromLocal(wd, projectDir, lockfileDir, type, opts)
   }
   return null
@@ -104,51 +185,30 @@ function fromLocal (
   projectDir: string,
   lockfileDir: string,
   type: 'file' | 'directory',
-  opts: { preserveAbsolutePaths: boolean }
+  opts: { preserveAbsolutePaths: boolean, injectWorkspacePackages?: boolean }
 ): LocalPackageSpec {
-  const spec = bareSpecifier.replace(/\\/g, '/')
-    .replace(/^(?:file|link|workspace):\/*([A-Z]:)/i, '$1') // drive name paths on windows
-    .replace(/^(?:file|link|workspace):(?:\/*([~./]))?/, '$1')
-
-  let protocol!: string
-  if (bareSpecifier.startsWith('file:')) {
-    protocol = 'file:'
-  } else if (bareSpecifier.startsWith('link:')) {
-    protocol = 'link:'
-  } else {
-    protocol = type === 'directory' && !injected ? 'link:' : 'file:'
-  }
-  let fetchSpec!: string
-  let normalizedBareSpecifier!: string
-  if (/^~\//.test(spec)) {
-    // this is needed for windows and for file:~/foo/bar
-    fetchSpec = resolvePath(os.homedir(), spec.slice(2))
-    normalizedBareSpecifier = `${protocol}${spec}`
-  } else {
-    fetchSpec = resolvePath(projectDir, spec)
-    if (isAbsolute(spec)) {
-      normalizedBareSpecifier = `${protocol}${spec}`
-    } else {
-      normalizedBareSpecifier = `${protocol}${path.relative(projectDir, fetchSpec)}`
-    }
-  }
+  const spec = normalizeBareSpec(bareSpecifier)
+  const protocol = resolveLocalProtocol(bareSpecifier, type, injected, opts.injectWorkspacePackages)
+  const { fetchSpec, normalizedBareSpecifier } = resolveLocalFetchSpec(spec, protocol, projectDir)
 
   function normalizeRelativeOrAbsolute (relativeTo: string, fromPath: string) {
     let specPath
-    if (opts.preserveAbsolutePaths && isAbsolute(spec)) {
+    if (isDifferentUncRoot(relativeTo, fromPath)) {
+      specPath = fromPath
+    } else if (opts.preserveAbsolutePaths && isAbsolute(spec)) {
       specPath = path.resolve(fromPath)
     } else {
       specPath = path.relative(relativeTo, fromPath)
     }
-    return normalize(specPath)
+    return normalizePathPreservingUnc(specPath)
   }
 
-  injected = protocol === 'file:'
-  const dependencyPath = injected
+  const isFileProtocol = protocol === 'file:'
+  const dependencyPath = isFileProtocol
     ? normalizeRelativeOrAbsolute(lockfileDir, fetchSpec)
-    : normalize(path.resolve(fetchSpec))
+    : normalizePathPreservingUnc(path.resolve(fetchSpec))
   const id = (
-    !injected && (type === 'directory' || projectDir === lockfileDir)
+    !isFileProtocol && (type === 'directory' || projectDir === lockfileDir)
       ? `${protocol}${normalizeRelativeOrAbsolute(projectDir, fetchSpec)}`
       : `${protocol}${normalizeRelativeOrAbsolute(lockfileDir, fetchSpec)}`
   ) as PkgResolutionId
@@ -158,12 +218,71 @@ function fromLocal (
     fetchSpec,
     id,
     normalizedBareSpecifier,
+    resolvedVia: bareSpecifier.startsWith('workspace:') ? 'workspace' : 'local-filesystem',
     type,
   }
 }
 
+function normalizeBareSpec (bareSpecifier: string): string {
+  return bareSpecifier.replace(/\\/g, '/')
+    .replace(/^(?:file|link|workspace):\/*([A-Z]:)/i, '$1') // drive name paths on windows
+    .replace(/^(?:file|link|workspace):(?:\/*([~./]))?/, '$1')
+}
+
+function resolveLocalProtocol (
+  bareSpecifier: string,
+  type: 'file' | 'directory',
+  injected?: boolean,
+  injectWorkspacePackages?: boolean
+): string {
+  if (bareSpecifier.startsWith('file:')) return 'file:'
+  if (bareSpecifier.startsWith('link:')) return 'link:'
+  const isInjected = injected || (bareSpecifier.startsWith('workspace:') && injectWorkspacePackages === true)
+  return type === 'directory' && !isInjected ? 'link:' : 'file:'
+}
+
+function resolveLocalFetchSpec (
+  spec: string,
+  protocol: string,
+  projectDir: string
+): { fetchSpec: string, normalizedBareSpecifier: string } {
+  const fetchSpec = resolveNormalizedSpec(spec, projectDir)
+  const normalizedBareSpecifier = spec.startsWith('~/') || isAbsolute(spec)
+    ? `${protocol}${spec}`
+    : `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
+  return { fetchSpec, normalizedBareSpecifier }
+}
+
+/**
+ * The path a local specifier names when the project in `projectDir` declares
+ * it: the directory or tarball the resolver reads. A `link:`, `file:`, or
+ * `workspace:` protocol is optional. A rooted path without a drive, such as
+ * `/vendor` on Windows, takes the drive of `projectDir`, so the result
+ * compares equal to {@link recordedLocalPath}.
+ */
+export function localSpecPath (bareSpecifier: string, projectDir: string): string {
+  return path.resolve(projectDir, resolveNormalizedSpec(normalizeBareSpec(bareSpecifier), projectDir))
+}
+
+/**
+ * The path a lockfile records for a local dependency, resolved against
+ * `baseDir` by the host's path rules. Unlike {@link localSpecPath}, it reads
+ * no protocol or drive prefix: on Unix, `file:x` and `a:x` are directories
+ * with those names.
+ */
+export function recordedLocalPath (recorded: string, baseDir: string): string {
+  return path.resolve(baseDir, recorded)
+}
+
+function resolveNormalizedSpec (spec: string, projectDir: string): string {
+  return spec.startsWith('~/')
+    ? resolvePath(os.homedir(), spec.slice(2))
+    : resolvePath(projectDir, spec)
+}
+
+
 function resolvePath (where: string, spec: string): string {
-  if (isAbsolutePath.test(spec)) return spec
+  if (isAbsolutePath.test(spec)) return path.normalize(spec)
   return path.resolve(where, spec)
 }
 
@@ -171,4 +290,27 @@ function isAbsolute (dir: string): boolean {
   if (dir[0] === '/') return true
   if (/^[A-Z]:/i.test(dir)) return true
   return false
+}
+
+function isUncPath (dir: string): boolean {
+  return isWindows && (dir.startsWith('//') || dir.startsWith('\\\\'))
+}
+
+function normalizePathPreservingUnc (path: string): string {
+  const normalizedPath = normalize(path)
+  return isUncPath(path) && !normalizedPath.startsWith('//')
+    ? `/${normalizedPath}`
+    : normalizedPath
+}
+
+function isDifferentUncRoot (relativeTo: string, fromPath: string): boolean {
+  const relativeToRoot = path.win32.parse(relativeTo).root
+  const fromRoot = path.win32.parse(fromPath).root
+  if (!isUncPath(relativeToRoot) || !isUncPath(fromRoot)) return false
+  return normalizeUncRoot(relativeToRoot) !== normalizeUncRoot(fromRoot)
+}
+
+function normalizeUncRoot (root: string): string {
+  const slashRoot = root.replace(/\\/g, '/')
+  return (slashRoot.endsWith('/') ? slashRoot.slice(0, -1) : slashRoot).toLowerCase()
 }

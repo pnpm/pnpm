@@ -1,4 +1,16 @@
-This is a placeholder. pnpr's native binary replaces this file during
-installation (see ../install.js). If you are reading this, the install/build
-script did not run — reinstall with build scripts enabled (e.g. allow-list
-@pnpm/pnpr's build under pnpm or Bun, or drop --ignore-scripts).
+#!/bin/sh
+if ! command -v node > /dev/null 2>&1; then
+  echo "pnpr's native binary was not installed, and Node.js is not on PATH." >&2
+  exit 1
+fi
+
+self="$0"
+while [ -L "$self" ]; do
+  link="$(readlink "$self")"
+  case "$link" in
+    /*) self="$link" ;;
+    *) self="$(dirname "$self")/$link" ;;
+  esac
+done
+
+exec node "$(dirname "$self")/pnpr.mjs" "$@"

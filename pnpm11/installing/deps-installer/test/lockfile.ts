@@ -27,7 +27,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -166,7 +166,7 @@ test('a lockfile created even when there are no deps in package.json', async () 
   await install({}, testDefaults())
 
   expect(project.readLockfile()).toBeTruthy()
-  expect(fs.readdirSync('node_modules')).toStrictEqual(['.package-map.json'])
+  expect(fs.existsSync('node_modules')).toBe(false)
 })
 
 test('current lockfile removed when no deps in package.json', async () => {
@@ -183,7 +183,7 @@ test('current lockfile removed when no deps in package.json', async () => {
     packages: {
       'is-negative@2.1.0': {
         resolution: {
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
     },
@@ -192,7 +192,7 @@ test('current lockfile removed when no deps in package.json', async () => {
   await install({}, testDefaults())
 
   expect(project.readLockfile()).toBeTruthy()
-  expect(fs.readdirSync('node_modules')).toStrictEqual(['.package-map.json'])
+  expect(fs.existsSync('node_modules')).toBe(false)
 })
 
 test('lockfile is fixed when it does not match package.json', async () => {
@@ -222,7 +222,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
       },
       'is-negative@2.1.0': {
         resolution: {
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
       'is-positive@3.1.0': {
@@ -285,7 +285,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
       },
       'is-negative@2.1.0': {
         resolution: {
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
       'is-positive@3.1.0': {
@@ -315,19 +315,11 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
 test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()
-  // const fooProgress = {
-  //   name: 'pnpm:progress',
-  //   status: 'resolving',
-  //   manifest: {
-  //     name: 'foo',
-  //   },
-  // }
 
   const pkgs = ['@pnpm.e2e/foo', '@pnpm.e2e/bar', '@pnpm.e2e/qar']
   await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.0.0', distTag: 'latest' })))
 
   let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], testDefaults({ save: true, reporter }))
-  // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/bar'], testDefaults({ targetDependenciesField: 'optionalDependencies' }))).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/qar'], testDefaults({ addDependenciesToPackage: 'devDependencies' }))).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/foobar'], testDefaults({ save: true }))).updatedManifest
@@ -463,8 +455,8 @@ test('scoped module from different registry', async () => {
 
   const registries = {
     default: 'https://registry.npmjs.org/',
-    '@zkochan': `http://localhost:${REGISTRY_MOCK_PORT}`,
-    '@foo': `http://localhost:${REGISTRY_MOCK_PORT}`,
+    '@zkochan': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
+    '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
   }
   await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], testDefaults({ registriesByScope: registries }, { registriesByScope: registries }))
 
@@ -707,7 +699,7 @@ test('lockfile is ignored when lockfile = false', async () => {
       'is-negative@2.1.0': {
         resolution: {
           integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp10=', // Invalid integrity
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
     },
@@ -782,18 +774,19 @@ test("don't remove packages during named install when useLockfile: false", async
 test('save tarball URL when it is non-standard', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false }))
+  // Undeclared, the mock registry's `<name>@<version>` URLs are not reconstructible.
+  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, registryOptionsByUrl: {} }))
 
   const lockfile = project.readLockfile()
 
-  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
+  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/esprima-fb@3001.1.0-dev-harmony-fb`)
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async () => {
   const project = prepareEmpty()
 
   await addDependenciesToPackage({}, [
-    `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
+    `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
     'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   ], testDefaults())
 
@@ -812,7 +805,7 @@ test('packages installed via tarball URL from the default registry are normalize
             version: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           },
           '@pnpm.e2e/pkg-with-tarball-dep-from-registry': {
-            specifier: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
+            specifier: `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
             version: '1.0.0',
           },
         },
@@ -879,7 +872,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   process.chdir('..')
 
-  const modules = readYamlFileSync<any>(path.resolve('node_modules', '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const modules = readYamlFileSync<any>(path.resolve('node_modules', '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw modules manifest fields
   expect(modules).toBeTruthy()
   expect(modules.pendingBuilds).toHaveLength(0)
 
@@ -983,7 +976,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     packages: {
       'is-negative@2.1.0': {
         resolution: {
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
       'is-positive@3.1.0': {
@@ -1116,10 +1109,10 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
 
 const REGISTRY_MIRROR_DIR = path.join(import.meta.dirname, './registry-mirror')
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any -- the metadata is replayed to the mock registry as is */
 const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
-const tarballPath = f.find('is-positive-3.1.0.tgz')
+const tarballPath = testFixtures.find('is-positive-3.1.0.tgz')
 
 test('tarball domain differs from registry domain', async () => {
   await setupMockAgent()
@@ -1488,7 +1481,7 @@ test('include tarball URL', async () => {
 
   const lockfile = project.readLockfile()
   expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
-    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pkg-with-1-dep@100.0.0`)
 })
 
 test('exclude tarball URL when lockfileIncludeTarballUrl is false', async () => {
@@ -1509,12 +1502,13 @@ test('keep non-standard tarball URL when lockfileIncludeTarballUrl is false', as
   // See https://github.com/pnpm/pnpm/issues/11276.
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false }))
+  // Undeclared, the mock registry's `<name>@<version>` URLs are not reconstructible.
+  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false, registryOptionsByUrl: {} }))
 
   const lockfile = project.readLockfile()
 
   expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball)
-    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/esprima-fb@3001.1.0-dev-harmony-fb`)
 })
 
 test('lockfile v6', async () => {
@@ -1523,7 +1517,7 @@ test('lockfile v6', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ useLockfileV6: true }))
 
   {
-    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
   }
@@ -1531,7 +1525,7 @@ test('lockfile v6', async () => {
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/foo@100.0.0'], testDefaults())
 
   {
-    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
     expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.0.0'])
@@ -1540,12 +1534,12 @@ test('lockfile v6', async () => {
 
 test('lockfile v5 is converted to lockfile v6', async () => {
   const tmp = tempDir()
-  f.copy('lockfile-v5', tmp)
+  testFixtures.copy('lockfile-v5', tmp)
   prepareEmpty()
 
   await install({ dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }, testDefaults())
 
-  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const lockfile = readYamlFileSync<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test asserts on raw lockfile fields
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
 })

@@ -1,6 +1,16 @@
 use crate::ComVer;
-use derive_more::{AsRef, Deref, Display, Error, Into};
-use serde::{Deserialize, Serialize};
+use derive_more::{
+    AsRef,
+    Deref,
+    Display,
+    Error,
+    Into,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::fmt;
 
 /// Wrapper that checks compatibility with the lockfile versions this client supports.
 #[derive(
@@ -13,15 +23,26 @@ impl<const MAJOR: u16> LockfileVersion<MAJOR> {
     /// Check if `comver` is compatible with `MAJOR`.
     #[must_use]
     pub const fn is_compatible(comver: ComVer) -> bool {
-        comver.major == MAJOR || MAJOR == 9 && comver.major == 12
+        comver.major == MAJOR || MAJOR == 9 && matches!(comver.major, 12 | 13)
     }
 }
 
 /// Error when [`ComVer`] fails compatibility check.
-#[derive(Debug, Display, Error)]
+#[derive(Debug, Error)]
 pub enum LockfileVersionError<const MAJOR: u16> {
-    #[display("The lockfileVersion of {_0} is incompatible with the supported formats")]
     IncompatibleMajor(#[error(not(source))] ComVer),
+}
+
+impl<const MAJOR: u16> fmt::Display for LockfileVersionError<MAJOR> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::IncompatibleMajor(comver) => write!(
+                f,
+                "The lockfileVersion of {comver} is incompatible with this version of pnpm, \
+                 which supports lockfileVersion {MAJOR}.x",
+            ),
+        }
+    }
 }
 
 impl<const MAJOR: u16> TryFrom<ComVer> for LockfileVersion<MAJOR> {

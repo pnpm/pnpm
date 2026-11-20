@@ -1,27 +1,30 @@
 //! Recognise and normalise a git-shaped `bareSpecifier`.
 //!
 //! Parsing is pure: no network, no probing. A hosted spec (`github:`,
-//! `gitlab:`, `bitbucket:`, `owner/repo`, or any URL of a known host —
+//! `gitlab:`, `bitbucket:`, `owner/repo`, or any URL of a known host,
 //! HTTPS *and* SSH alike) is treated as an *identity*, not a transport
 //! choice, and always finalises to the host's canonical HTTPS URL.
 //! Which transport a given machine actually uses to reach the host is
 //! that machine's git configuration (credential helpers,
-//! `url.<base>.insteadOf` rewrites) — never something recorded in the
+//! `url.<base>.insteadOf` rewrites), never something recorded in the
 //! manifest or lockfile, because it would be wrong on the next machine.
 //!
 //! * [`parse_bare_specifier`] returns `None` when the input isn't a
 //!   git-shaped specifier (so the resolver chain falls through to the
 //!   next resolver).
 //! * [`PartialSpec::finalize`] completes the hosted branch. URLs of
-//!   unknown hosts pass through verbatim — for them the URL *is* the
+//!   unknown hosts pass through verbatim, for them the URL *is* the
 //!   identity, transport included.
 
-use crate::hosted_git::{HostedGit, HostedOpts};
+use crate::hosted_git::{
+    HostedGit,
+    HostedOpts,
+};
 
 /// Fully resolved spec consumed by [`crate::git_resolver::GitResolver`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostedPackageSpec {
-    /// URL passed to `git ls-remote`. Always carries no committish —
+    /// URL passed to `git ls-remote`. Always carries no committish,
     /// the committish lives in [`Self::git_committish`] /
     /// [`Self::git_range`]. For hosted inputs this is the canonical
     /// HTTPS URL regardless of the representation the user wrote.
@@ -63,7 +66,7 @@ const GIT_PROTOCOLS: &[&str] =
     &["git", "git+http", "git+https", "git+rsync", "git+ftp", "git+file", "git+ssh", "ssh"];
 
 /// Sync prefilter. Returns `None` when the input isn't a git-shaped
-/// specifier — the resolver chain treats this as "no claim" and falls
+/// specifier, the resolver chain treats this as "no claim" and falls
 /// through.
 pub fn parse_bare_specifier(bare: &str) -> Option<PartialSpec> {
     if let Some(hosted) = HostedGit::from_url(bare) {
@@ -79,7 +82,10 @@ pub fn parse_bare_specifier(bare: &str) -> Option<PartialSpec> {
     }
     let corrected = correct_url(bare);
     let parsed = reqwest::Url::parse(&corrected).ok()?;
-    let hash = parsed.fragment().filter(|f| !f.is_empty()).map(percent_decode_str);
+    let hash = parsed
+        .fragment()
+        .filter(|f| !f.is_empty())
+        .map(percent_decode_str);
     let params = parse_git_params(hash.as_deref());
     Some(PartialSpec::Direct(HostedPackageSpec {
         fetch_spec: url_to_fetch_spec(&parsed),
@@ -89,6 +95,21 @@ pub fn parse_bare_specifier(bare: &str) -> Option<PartialSpec> {
         git_range: params.git_range,
         path: params.path,
     }))
+}
+
+/// The committish and subdirectory a git spec asks for, or `None` when
+/// `bare` is not a git spec. The committish is `None` when the spec asks
+/// for none or only a semver range.
+#[must_use]
+pub fn git_spec_committish_and_path(bare: &str) -> Option<(Option<String>, Option<String>)> {
+    let (git_committish, path) = match parse_bare_specifier(bare)? {
+        PartialSpec::Hosted(hosted) => {
+            let params = parse_git_params(hosted.committish.as_deref());
+            (params.git_committish, params.path)
+        }
+        PartialSpec::Direct(spec) => (spec.git_committish, spec.path),
+    };
+    Some((git_committish, path))
 }
 
 /// Check whether the input contains `.git` as a path suffix (`.git#` or
@@ -107,69 +128,61 @@ fn url_to_fetch_spec(parsed: &reqwest::Url) -> String {
     let mut clone = parsed.clone();
     clone.set_fragment(None);
     let formatted = clone.to_string();
-    formatted.strip_prefix("git+").map(str::to_string).unwrap_or(formatted)
+    formatted
+        .strip_prefix("git+")
+        .map(str::to_string)
+        .unwrap_or(formatted)
 }
 
 /// Normalise the input URL: strips a leading `git+` and rewrites the
 /// SCP-style `ssh://user@host:path` shape into a standard
 /// `ssh://user@host/path` so `Url::parse` will accept it.
 fn correct_url(input: &str) -> String {
-    let mut url = input.strip_prefix("git+").map_or_else(|| input.to_string(), str::to_string);
-    if !url.starts_with("ssh://") {
-        let mut out = String::with_capacity(url.len() + 4);
-        if input.starts_with("git+") {
-            out.push_str("git+");
-        }
-        out.push_str(&url);
-        return out;
-    }
+    let prefix = if input.starts_with("git+") { "git+" } else { "" };
+    let url = input.strip_prefix("git+").unwrap_or(input);
+    let Some(body) = url.strip_prefix("ssh://") else {
+        return format!("{prefix}{url}");
+    };
 
     // ssh://... case: pull off `#hash` first, split path, look for SCP-style
     // colon in the authority, and convert it to a slash.
-    let (head, hash) = match url.find('#') {
-        Some(idx) => (url[..idx].to_string(), url[idx..].to_string()),
-        None => (url, String::new()),
+    let (body, hash) = match body.find('#') {
+        Some(idx) => (&body[..idx], &body[idx..]),
+        None => (body, ""),
     };
-    url = head;
+    let (auth, path) = match body.split_once('/') {
+        Some((auth, path)) => (auth, Some(path)),
+        None => (body, None),
+    };
 
-    let body = &url[6..]; // strip leading "ssh://"
-    let (auth, path_parts): (&str, Vec<&str>) = match body.find('/') {
-        Some(idx) => (&body[..idx], body[idx + 1..].split('/').collect()),
-        None => (body, Vec::new()),
+    if !has_scp_colon(auth) {
+        return format!("{prefix}ssh://{body}{hash}");
+    }
+    let auth = match auth.rsplit_once(':') {
+        Some((head, tail)) => format!("{head}/{tail}"),
+        None => auth.to_string(),
     };
-    // After the `@`, the host portion may carry an SCP-style colon
-    // that the URL parser cannot consume. Convert the last colon in
-    // the host into a `/`, unless it's followed by a numeric port.
+    let path = path.map_or_else(String::new, |path| format!("/{path}"));
+    format!("{prefix}ssh://{auth}{path}{hash}")
+}
+
+/// Whether the authority carries an SCP-style colon that the URL parser
+/// cannot consume: after the `@`, the host portion may carry a colon that is
+/// not the separator of a numeric port.
+fn has_scp_colon(auth: &str) -> bool {
     let host = auth.rsplit_once('@').map_or(auth, |(_, host)| host);
     // The colons of a bracketed IPv6 literal belong to the address.
     let after_host = if host.starts_with('[') {
-        host.find(']').map_or(host, |idx| &host[idx + 1..])
+        host.find(']')
+            .map_or(host, |idx| &host[idx + 1..])
     } else {
         host
     };
-    let port_pattern_present = after_host.rfind(':').is_some_and(|idx| {
-        after_host[idx + 1..].chars().all(|byte| byte.is_ascii_digit())
-            && !after_host[idx + 1..].is_empty()
-    });
-    let host_has_colon = after_host.contains(':');
-    if host_has_colon && !port_pattern_present {
-        let protocol = "ssh";
-        let new_auth = if let Some(separator) = auth.rfind(':') {
-            format!("{}/{}", &auth[..separator], &auth[separator + 1..])
-        } else {
-            auth.to_string()
-        };
-        let path_tail = if path_parts.is_empty() {
-            String::new()
-        } else {
-            format!("/{}", path_parts.join("/"))
-        };
-        let prefix = if input.starts_with("git+") { "git+" } else { "" };
-        return format!("{prefix}{protocol}://{new_auth}{path_tail}{hash}");
-    }
-
-    let prefix = if input.starts_with("git+") { "git+" } else { "" };
-    format!("{prefix}{url}{hash}")
+    let Some(colon) = after_host.rfind(':') else {
+        return false;
+    };
+    let port = &after_host[colon + 1..];
+    port.is_empty() || !port.chars().all(|ch| ch.is_ascii_digit())
 }
 
 #[derive(Debug, Default)]
@@ -179,15 +192,20 @@ struct GitParsedParams {
     path: Option<String>,
 }
 
-/// Parse the `&`-separated committish parameters (`semver:`, `path:`,
-/// or a bare committish) carried in a git specifier's fragment.
+/// Parse the committish parameters (`semver:`, `path:`, or a bare
+/// committish) carried in a git specifier's fragment. They are separated
+/// by `&` or, as npm writes them, by `::`.
 fn parse_git_params(committish: Option<&str>) -> GitParsedParams {
     let mut out = GitParsedParams::default();
     let Some(committish) = committish else { return out };
     if committish.is_empty() {
         return out;
     }
-    for param in committish.split('&') {
+    for param in committish
+        .split('&')
+        .flat_map(|part| part.split("::"))
+        .filter(|param| !param.is_empty())
+    {
         if let Some(range) = param.strip_prefix("semver:") {
             out.git_range = Some(range.to_string());
         } else if let Some(path) = param.strip_prefix("path:") {
@@ -206,7 +224,7 @@ fn from_hosted_git(hosted: HostedGit) -> HostedPackageSpec {
     let params = parse_git_params(hosted.committish.as_deref());
     let https_url = hosted.https(HostedGit::no_committish_no_git_plus());
     // URL-embedded credentials are explicit user content, not
-    // transport — and the host's archive endpoint would not carry
+    // transport, and the host's archive endpoint would not carry
     // them, so the spec stays archive-ineligible. `https_url` is the
     // `ls-remote` target, so it carries no committish.
     if hosted.auth.is_some()

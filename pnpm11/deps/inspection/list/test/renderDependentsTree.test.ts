@@ -339,8 +339,8 @@ describe('renderDependentsParseable', () => {
     // 1. mid-a > target (mid-a treated as leaf since depth prevents expanding its children)
     // 2. root-project > target (direct dependent)
     expect(lines).toHaveLength(2)
-    expect(lines.some(l => l === 'mid-a@2.0.0 > target@1.0.0')).toBe(true)
-    expect(lines.some(l => l === 'root-project@0.0.0 > target@1.0.0')).toBe(true)
+    expect(lines.some(line => line === 'mid-a@2.0.0 > target@1.0.0')).toBe(true)
+    expect(lines.some(line => line === 'root-project@0.0.0 > target@1.0.0')).toBe(true)
   })
 
   test('no depth option renders full paths in parseable output', () => {
@@ -348,8 +348,8 @@ describe('renderDependentsParseable', () => {
     const lines = output.split('\n')
     // Without depth limit, mid-a is expanded to root-project
     expect(lines).toHaveLength(2)
-    expect(lines.some(l => l === 'root-project@0.0.0 > mid-a@2.0.0 > target@1.0.0')).toBe(true)
-    expect(lines.some(l => l === 'root-project@0.0.0 > target@1.0.0')).toBe(true)
+    expect(lines.some(line => line === 'root-project@0.0.0 > mid-a@2.0.0 > target@1.0.0')).toBe(true)
+    expect(lines.some(line => line === 'root-project@0.0.0 > target@1.0.0')).toBe(true)
   })
 
   test('uses displayName in parseable output', () => {

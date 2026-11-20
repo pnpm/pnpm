@@ -1,8 +1,16 @@
 //! Version extraction from npm's lockfile formats.
 
-use serde_json::{Map, Value};
+use pnpm_resolving_resolver_base::is_valid_semver_range;
+use serde_json::{
+    Map,
+    Value,
+};
 
-use crate::{VersionsByPackageName, add_version};
+use crate::{
+    VersionsByPackageName,
+    add_version,
+    split_descriptor,
+};
 
 const NODE_MODULES_PREFIX: &str = "node_modules/";
 
@@ -45,7 +53,7 @@ fn collect_from_dependency_tree(root: &Value, versions: &mut VersionsByPackageNa
         };
         for (name, entry) in dependencies {
             if let Some(version) = entry.get("version").and_then(Value::as_str) {
-                add_version(versions, name, version);
+                add_resolved_npm_version(versions, name, version);
             }
             pending.push(entry);
         }
@@ -56,20 +64,56 @@ fn collect_from_flat_packages(packages: &Map<String, Value>, versions: &mut Vers
     let mut pending = vec![packages];
     while let Some(packages) = pending.pop() {
         for (key, entry) in packages {
-            if let Some(version) = entry.get("version").and_then(Value::as_str) {
-                add_version(versions, package_name_from_key(key), version);
-            }
-            if let Some(nested) = entry.get("packages").and_then(Value::as_object) {
-                pending.push(nested);
-            }
-            if let Some(dependencies) = entry.get("dependencies").and_then(Value::as_object) {
-                for (name, range) in dependencies {
-                    if let Some(range) = range.as_str() {
-                        add_version(versions, name, range);
-                    }
-                }
-            }
+            collect_from_flat_entry(key, entry, versions, &mut pending);
         }
+    }
+}
+
+/// Record one flat-format entry's own version and the ranges it declares, and
+/// queue the packages nested under it.
+fn collect_from_flat_entry<'a>(
+    key: &str,
+    entry: &'a Value,
+    versions: &mut VersionsByPackageName,
+    pending: &mut Vec<&'a Map<String, Value>>,
+) {
+    let key_name = package_name_from_key(key);
+    if !key_name.is_empty()
+        && let Some(version) = entry.get("version").and_then(Value::as_str)
+    {
+        let entry_name = entry
+            .get("name")
+            .and_then(Value::as_str)
+            .filter(|name| !name.is_empty())
+            .unwrap_or(key_name);
+        add_resolved_npm_version(versions, entry_name, version);
+    }
+    if let Some(nested) = entry.get("packages").and_then(Value::as_object) {
+        pending.push(nested);
+    }
+    let Some(dependencies) = entry.get("dependencies").and_then(Value::as_object) else {
+        return;
+    };
+    for (name, range) in dependencies {
+        if let Some(range) = range.as_str() {
+            add_resolved_npm_version(versions, name, range);
+        }
+    }
+}
+
+/// Unwrap an `npm:<target>@<version>` alias value into the target package name
+/// and version.
+fn add_resolved_npm_version(versions: &mut VersionsByPackageName, name: &str, spec: &str) {
+    let Some(npm_spec) = spec.strip_prefix("npm:") else {
+        add_version(versions, name, spec);
+        return;
+    };
+    if !name.is_empty() && is_valid_semver_range(npm_spec) {
+        add_version(versions, name, npm_spec);
+        return;
+    }
+    if let Some((target, target_spec)) = split_descriptor(npm_spec) {
+        add_version(versions, target, target_spec);
     }
 }
 

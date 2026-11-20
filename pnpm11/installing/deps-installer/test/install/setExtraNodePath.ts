@@ -13,7 +13,7 @@ import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('jest CLI should print the right version when multiple instances of jest are used in a workspace', async () => {
   preparePackages([
@@ -87,7 +87,7 @@ test('jest CLI should print the right version when multiple instances of jest ar
 
 test('drupal-js-build should find plugins inside the hidden node_modules directory', async () => {
   const tmp = tempDir()
-  f.copy('tooling-that-needs-node-path', tmp)
+  testFixtures.copy('tooling-that-needs-node-path', tmp)
   await install({
     dependencies: {
       'drupal-js-build': 'github:pnpm-e2e/drupal-js-build#f766801580f10543c24ba8bfa59046a776848097',

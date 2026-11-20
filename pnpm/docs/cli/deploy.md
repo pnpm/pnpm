@@ -1,0 +1,149 @@
+---
+id: deploy
+title: "pnpm deploy"
+---
+
+Deploy a package from a workspace. During deployment, the files of the deployed package are copied to the target directory. All dependencies of the deployed package, including dependencies from the workspace, are installed inside an isolated `node_modules` directory at the target directory. The target directory will contain a portable package that can be copied to a server and executed without additional steps.
+
+:::note
+
+Since v12.2.0, `pnpm deploy` no longer requires [`injectWorkspacePackages`](../workspaces.md#injectworkspacepackages). A linked workspace dependency is rewritten to a `file:` dependency in the dedicated deploy lockfile. The peer dependencies it declares are bound the way an injected install binds them: to the version its parent provides. If the parent does not depend on the peer, pnpm looks further up, to the deployed project. A peer that no ancestor provides is bound to the deployed graph's own resolution. This includes optional peers declared only in [`peerDependenciesMeta`](../package_json.md#peerdependenciesmeta).
+
+The binding is ambiguous when the ancestors provide more than one package or version, or when no ancestor provides the peer and the deployed graph holds more than one version. The deploy then fails with `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER`, naming the package, the peer, and the competing resolutions. Pin the peer to one version with an [`overrides`](../settings/dependency-resolution.md#overrides) entry, or turn `injectWorkspacePackages` on, which is the setting that decides between the candidates.
+
+Before v12.2.0, the command refused every non-injected workspace up front. `--legacy`, or `forceLegacyDeploy: true`, still selects the older implementation.
+
+:::
+
+:::note
+
+When the [`enableGlobalVirtualStore`](../settings/node-modules.md#enableglobalvirtualstore) option is set, `pnpm deploy` ignores it and always creates a localized virtual store within the deploy directory. This keeps the deploy directory self-contained and portable.
+
+:::
+
+Usage:
+
+```sh
+pnpm --filter=<deployed project name> deploy <target directory>
+```
+
+The filter must select exactly one project. Selecting none fails with `ERR_PNPM_NOTHING_TO_DEPLOY`, and selecting several fails with `ERR_PNPM_CANNOT_DEPLOY_MANY`. A target directory that is unsafe to write, such as the workspace root, fails with `ERR_PNPM_INVALID_DEPLOY_TARGET`.
+
+Relative `file:` paths in root `overrides` are resolved from the source workspace. Their dependencies are included in the deployed package.
+
+In case you build your project before deployment, also use the `--prod` option to skip `devDependencies` installation.
+
+```sh
+pnpm --filter=<deployed project name> --prod deploy <target directory>
+```
+
+Usage in a docker image. After building everything in your monorepo, do this in a second image that uses your monorepo base image as a build context or in an additional build stage:
+
+```dockerfile title="Dockerfile"
+# syntax=docker/dockerfile:1.4
+
+# The workspace image must use WORKDIR /app
+FROM workspace as pruned
+RUN pnpm --filter <your package name> --prod deploy pruned
+
+FROM node:22-alpine
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY --from=pruned /app/pruned .
+
+ENTRYPOINT ["node", "index.js"]
+```
+
+A deployed symlink to a directory inside the project is kept even if the directory is not deployed. So is a symlink to a missing path inside the project, such as a link into a removed `node_modules`. A link into `node_modules` resolves to the dependency installed in the output directory. A symlink to a file that is not deployed is replaced by a copy of the file.
+
+To deploy without registry metadata, keep the source lockfile and populate the
+store with `pnpm install` or `pnpm fetch` before running `pnpm deploy --offline`.
+This also works with per-project lockfiles and `--legacy`. Use `--trust-lockfile`
+if deployment should skip supply-chain policy checks on the locked dependencies.
+New or changed dependencies may still require registry metadata.
+
+Deployment preserves the recorded peer bindings of injected workspace packages,
+including when using [`lockfile.format: v13`](../settings/store.md#lockfileformat).
+
+## Options
+
+`pnpm deploy` accepts the options of [`pnpm install`](./install.md) for the install it runs into the target directory.
+
+### --force
+
+Allow deployment to a non-empty target directory. Without this flag, pnpm fails
+with `ERR_PNPM_DEPLOY_DIR_NOT_EMPTY` if the target directory is not empty.
+
+### --ignore-scripts
+
+Skip lifecycle scripts during deployment, including dependency build scripts.
+See [`pnpm install --ignore-scripts`](./install.md#--ignore-scripts).
+
+### --dev, -D
+
+Only `devDependencies` are installed.
+
+### --no-optional
+
+`optionalDependencies` are not installed.
+
+### --prod, -P
+
+Packages in `devDependencies` won't be installed.
+
+### --filter &lt;package_selector\>
+
+[Read more about filtering.](../filtering.md)
+
+### --legacy
+
+Force legacy deploy implementation.
+
+By default, `pnpm deploy` will try creating a dedicated lockfile from a shared lockfile for deployment. The `--legacy` flag disables this behavior.
+
+Since v12.4.1, the legacy implementation prefers the versions the source workspace lockfile pins, wherever they still satisfy the deployed project's ranges.
+
+Since v12.16.0, it checks the source workspace lockfile against [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) and the other resolution policies first, as `pnpm install` does, and fails if one of them rejects a locked version. [`trustLockfile`](../settings/dependency-resolution.md#trustlockfile) or `--trust-lockfile` skips that check.
+
+## What the deployed project gets
+
+* The `packageManager` and `devEngines.packageManager` fields of the workspace
+  root `package.json` are not copied into the deployed `package.json`.
+* The virtual store is placed at [`virtualStoreDir`](../settings/node-modules.md#virtualstoredir),
+  resolved against the deploy directory. With the global virtual store enabled
+  or an absolute `virtualStoreDir`, it stays at `node_modules/.pnpm`.
+* The `prepare` script of the deployed project is not run.
+* A workspace project that the deploy installs as a `file:` dependency runs
+  its build scripts. pnpm approves it by its dependency path in the
+  [`allowBuilds`](../settings/build.md#allowbuilds) setting. An `allowBuilds`
+  entry that denies the project still applies.
+* A workspace project with [`publishConfig.directory`](../package_json.md#publishconfigdirectory)
+  is installed from that directory. Its build scripts run only if the
+  directory is inside the project and not inside `node_modules`.
+
+## Reproducible output
+
+Since v12.15.0, when the [`SOURCE_DATE_EPOCH`](https://reproducible-builds.org/docs/source-date-epoch/) environment variable is set, `pnpm deploy` and `pnpm install` use it as an upper bound for the timestamps in `node_modules/.modules.yaml` and `node_modules/.pnpm-workspace-state-v1.json`. With an equivalently prepared deploy target and an epoch no later than the timestamps that would otherwise be recorded, deploying the same project with the same lockfile produces identical files, so a Docker layer built from the deploy directory stays cached.
+
+The next `pnpm install` or `pnpm run` in that directory checks the installed dependencies against the lockfile instead of trusting file modification times.
+
+## Files included in the deployed project
+
+By default, pnpm copies the files that `pnpm pack` would include. They are selected in _one_ of the following ways, resolved in order:
+
+1. The project's `package.json` may contain a "files" field to list the files and directories that should be copied.
+2. If there is an `.npmignore` file in the application directory then any files listed here are ignored.
+3. If there is a `.gitignore` file in the application directory then any files listed here are ignored.
+
+To copy every file of the project, set [`deployAllFiles`](../settings/other.md#deployallfiles) to `true`.
+
+## Configuration
+
+### forceLegacyDeploy
+
+* Default: **false**
+* Type: **Boolean**
+
+By default, `pnpm deploy` will try creating a dedicated lockfile from a shared lockfile for deployment. If this setting is set to `true`, the legacy `deploy` behavior will be used.

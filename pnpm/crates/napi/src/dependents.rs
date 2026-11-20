@@ -1,4 +1,4 @@
-//! `getDependents` / `renderDependents` — the engine side of `pnpm why`.
+//! `getDependents` / `renderDependents`: the engine side of `pnpm why`.
 //!
 //! Wraps [`pnpm_deps_inspection`], the crate `pnpm why` itself is built on,
 //! so an embedder needs neither `@pnpm/deps.inspection.tree-builder` nor
@@ -10,36 +10,73 @@
 //! [`get_dependents`] reads the lockfile and returns the reverse trees as
 //! plain JSON, and [`render_dependents`] turns those trees into terminal,
 //! parseable, or JSON output. Splitting them is what makes the TypeScript
-//! `nameFormatter` callback unnecessary — the tree walk is synchronous Rust
+//! `nameFormatter` callback unnecessary, the tree walk is synchronous Rust
 //! and cannot call back into JS, so an embedder that renames nodes asks for
 //! the manifest fields it renames by (`manifestFields`), rewrites
 //! `displayName` on the returned JSON, and hands the trees back to be
 //! rendered.
 
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use napi_derive::napi;
-use pnpm_config::matcher::create_matcher;
 use pnpm_deps_inspection::{
     MAX_WALK_DEPTH,
-    build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
-    dependents::{BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree},
+    build::{
+        LoadedState,
+        importer_root_ids,
+        read_project_manifest,
+        safe_importer_dir,
+    },
+    dependents::{
+        BuildDependentsOptions,
+        DependencySpecifiers,
+        DependentNode,
+        DependentsTree,
+        ImporterInfo,
+        build_dependents_tree,
+    },
     dependents_render::{
-        RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
+        RenderDependentsOptions,
+        render_dependents_json,
+        render_dependents_parseable,
         render_dependents_tree,
     },
-    graph::{BuildGraphOptions, build_dependency_graph},
+    graph::{
+        BuildGraphOptions,
+        build_dependency_graph,
+    },
     search::Searcher,
 };
-use pnpm_modules_yaml::{DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, IncludedDependencies};
+use pnpm_lockfile::{
+    Lockfile,
+    PeerEdgeOptions,
+};
+use pnpm_matcher::create_matcher;
+use pnpm_modules_yaml::{
+    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    IncludedDependencies,
+};
 
 use crate::error::report_to_napi_error;
 
-/// Inputs for [`get_dependents`]. Mirrors [`DependentsOptions`] in `index.d.ts`.
+/// Inputs for [`get_dependents`].
 #[napi(object)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct DependentsOptions {
     /// Lockfile / workspace root directory.
     pub dir: String,
@@ -50,8 +87,8 @@ pub struct DependentsOptions {
     pub project_dirs: Option<Vec<String>>,
     /// Importer-id patterns to skip when `project_dirs` is omitted, in
     /// pnpm's `hoistPattern` glob syntax (`*` is the only wildcard). Lets a
-    /// host keep its own generated importers — Bit's `.bit_roots` projects
-    /// — out of the answer without reading the lockfile itself to
+    /// host keep its own generated importers (Bit's `.bit_roots` projects)
+    /// out of the answer without reading the lockfile itself to
     /// enumerate the rest.
     pub exclude_project_patterns: Option<Vec<String>>,
     /// `node_modules` directory. Defaults to `<dir>/node_modules`.
@@ -71,10 +108,16 @@ pub struct DependentsOptions {
     /// tree, as `manifest`. Nodes whose manifest is missing (and every
     /// workspace-project node) carry none.
     pub manifest_fields: Option<Vec<String>>,
+    /// Whether to fill each dependent's `requires`. Defaults to `false`,
+    /// which reads no dependency manifest for it.
+    pub include_requires: Option<bool>,
+    /// Whether a `devDependencies` entry of the root importer provides a peer to
+    /// every importer when a walk that leaves out a group decides which
+    /// optional-peer edges to skip. Defaults to `false`.
+    pub resolve_peers_from_workspace_root: Option<bool>,
 }
 
-/// Inputs for [`render_dependents`]. Mirrors [`RenderDependentsOptions`]
-/// in `index.d.ts`.
+/// Inputs for [`render_dependents`].
 #[napi(object)]
 pub struct RenderDependentsInput {
     /// `"tree"` (the default), `"parseable"`, or `"json"`.
@@ -87,26 +130,27 @@ pub struct RenderDependentsInput {
 
 /// Every package matching `packages`, each with the reverse tree of what
 /// depends on it. Returns an empty array when the directory has no
-/// lockfile — an un-installed workspace has no dependents to report,
+/// lockfile, an un-installed workspace has no dependents to report,
 /// which is an answer, not an error.
 #[napi]
 pub async fn get_dependents(options: DependentsOptions) -> napi::Result<serde_json::Value> {
-    tokio::task::spawn_blocking(move || build_trees(&options))
-        .await
+    pnpm_package_manager::configure_rayon_pool();
+    tokio::task::spawn_blocking(move || build_trees(&options)).await
         .map_err(|join_error| {
             napi::Error::from_reason(format!(
                 "getDependents task panicked or was cancelled: {join_error}",
             ))
         })?
         .and_then(|trees| {
-            serde_json::to_value(trees).map_err(|err| {
-                napi::Error::from_reason(format!("serializing the dependents trees: {err}"))
-            })
+            serde_json::to_value(trees)
+                .map_err(|err| {
+                    napi::Error::from_reason(format!("serializing the dependents trees: {err}"))
+                })
         })
 }
 
-/// Render trees produced by [`get_dependents`] — after any `displayName`
-/// rewriting the caller applied — as terminal, parseable, or JSON output.
+/// Render trees produced by [`get_dependents`] (after any `displayName`
+/// rewriting the caller applied) as terminal, parseable, or JSON output.
 /// Synchronous: rendering is pure string work over data the caller already
 /// holds, apart from the `package.json` reads `long` asks for.
 #[napi]
@@ -115,9 +159,10 @@ pub fn render_dependents(
     options: Option<RenderDependentsInput>,
 ) -> napi::Result<String> {
     reject_over_deep_trees(&trees)?;
-    let trees: Vec<DependentsTree> = serde_json::from_value(trees).map_err(|err| {
-        napi::Error::from_reason(format!("the trees argument is not a dependents tree: {err}"))
-    })?;
+    let trees: Vec<DependentsTree> = deserialize_trees(trees)
+        .map_err(|err| {
+            napi::Error::from_reason(format!("the trees argument is not a dependents tree: {err}"))
+        })?;
     let options =
         options.unwrap_or(RenderDependentsInput { format: None, depth: None, long: None });
     let render_opts = RenderDependentsOptions {
@@ -138,8 +183,8 @@ pub fn render_dependents(
 
 /// Refuse a caller-supplied tree nested deeper than the walk that produced
 /// it could ever go. Deserialization and all three renderers recurse over
-/// `dependents`, so an arbitrarily deep argument — a hand-built one, or a
-/// tree from another tool — would otherwise exhaust the stack and take the
+/// `dependents`, so an arbitrarily deep argument (a hand-built one, or a
+/// tree from another tool) would otherwise exhaust the stack and take the
 /// host process down with it.
 ///
 /// The check itself is iterative for the same reason.
@@ -166,81 +211,174 @@ fn reject_over_deep_trees(trees: &serde_json::Value) -> napi::Result<()> {
     Ok(())
 }
 
+/// Deserialize each node's flat fields before recursing into its
+/// `dependents` array so the generated `serde::Deserialize` visitor frame
+/// does not remain on the stack across `MAX_WALK_DEPTH` levels.
+fn deserialize_trees(trees: serde_json::Value) -> Result<Vec<DependentsTree>, serde_json::Error> {
+    let serde_json::Value::Array(items) = trees else {
+        return serde_json::from_value(trees);
+    };
+    let mut out = Vec::with_capacity(items.len());
+    for mut item in items {
+        let dependents = item
+            .as_object_mut()
+            .and_then(|obj| match obj.get("dependents") {
+                Some(serde_json::Value::Array(_)) => obj.remove("dependents"),
+                _ => None,
+            });
+        let mut tree: DependentsTree = serde_json::from_value(item)?;
+        if let Some(serde_json::Value::Array(children)) = dependents {
+            tree.dependents = deserialize_nodes(children)?;
+        }
+        out.push(tree);
+    }
+    Ok(out)
+}
+
+fn deserialize_nodes(
+    children: Vec<serde_json::Value>,
+) -> Result<Vec<DependentNode>, serde_json::Error> {
+    let mut out = Vec::with_capacity(children.len());
+    for mut value in children {
+        let dependents = value
+            .as_object_mut()
+            .and_then(|obj| match obj.get("dependents") {
+                Some(serde_json::Value::Array(_)) => obj.remove("dependents"),
+                _ => None,
+            });
+        let mut node: DependentNode = serde_json::from_value(value)?;
+        if let Some(serde_json::Value::Array(nested)) = dependents {
+            node.dependents = Some(deserialize_nodes(nested)?);
+        }
+        out.push(node);
+    }
+    Ok(out)
+}
+
 fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>> {
     let lockfile_dir = PathBuf::from(&options.dir);
-    let modules_dir = options.modules_dir.as_ref().map(PathBuf::from);
-    let loaded = LoadedState::load(&lockfile_dir, modules_dir.as_deref(), false)
-        .map_err(|report| report_to_napi_error(&report))?;
-
-    let registries: BTreeMap<String, String> = match &options.registries {
-        Some(registries) if !registries.is_empty() => {
-            registries.iter().map(|(scope, url)| (scope.clone(), url.clone())).collect()
-        }
-        _ => BTreeMap::from([("default".to_string(), pnpm_config::default_registry())]),
-    };
-    let virtual_store_dir_max_length = options
-        .virtual_store_dir_max_length
-        .map_or(DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize, |value| value as usize);
+    let loaded =
+        LoadedState::load(&lockfile_dir, options.modules_dir.as_deref().map(Path::new), false)
+            .map_err(|report| report_to_napi_error(&report))?;
+    let registries = registry_routes(options);
 
     // No lockfile: nothing is installed, so nothing depends on anything.
-    let Some(env) =
-        loaded.env(&lockfile_dir, virtual_store_dir_max_length, &registries, BTreeMap::new())
-    else {
+    let Some(env) = loaded.env(
+        &lockfile_dir,
+        virtual_store_dir_max_length(options),
+        &registries,
+        BTreeMap::new(),
+        peer_edge_options(options),
+    ) else {
         return Ok(Vec::new());
     };
     let lockfile = env.current_lockfile;
-
-    let project_dirs: Vec<PathBuf> = if let Some(dirs) = &options.project_dirs {
-        dirs.iter().map(|dir| resolve_project_dir(&lockfile_dir, dir)).collect()
-    } else {
-        let excluded =
-            create_matcher(options.exclude_project_patterns.as_deref().unwrap_or_default());
-        lockfile
-            .importers
-            .keys()
-            .filter(|importer_id| !excluded.matches(importer_id))
-            .filter_map(|importer_id| safe_importer_dir(&lockfile_dir, importer_id))
-            .collect()
-    };
-
-    let mut importer_info: HashMap<String, ImporterInfo> = HashMap::new();
-    for importer_id in lockfile.importers.keys() {
-        // A key that cannot be safely joined (a malformed or hostile
-        // lockfile) is never dereferenced; the raw key still names the
-        // importer in the output.
-        let manifest = safe_importer_dir(&lockfile_dir, importer_id)
-            .map(|importer_dir| read_project_manifest(&importer_dir))
-            .unwrap_or_default();
-        let name = manifest.name.unwrap_or_else(|| {
-            if importer_id == "." { "the root project".to_string() } else { importer_id.clone() }
-        });
-        importer_info.insert(
-            importer_id.clone(),
-            ImporterInfo { name, version: manifest.version.unwrap_or_default() },
-        );
-    }
-
-    let include = IncludedDependencies {
-        dependencies: options.include_dependencies.unwrap_or(true),
-        dev_dependencies: options.include_dev_dependencies.unwrap_or(true),
-        optional_dependencies: options.include_optional_dependencies.unwrap_or(true),
-    };
+    let project_dirs = importer_dirs(options, lockfile, &lockfile_dir);
+    let importer_info = read_importer_info(lockfile, &lockfile_dir);
     let root_ids = importer_root_ids(lockfile, &lockfile_dir, &project_dirs);
     let graph = build_dependency_graph(
         &root_ids,
-        &BuildGraphOptions { lockfile, include, only_projects: false },
+        &BuildGraphOptions {
+            lockfile,
+            include: included_dependencies(options),
+            only_projects: false,
+            peer_edges: peer_edge_options(options),
+        },
     );
-    let searcher = Searcher::from_queries(&options.packages)
-        .map_err(|report| report_to_napi_error(&report))?;
-    let manifest_fields = options.manifest_fields.clone().unwrap_or_default();
+    let searcher =
+        Searcher::from_queries(&options.packages).map_err(|report| report_to_napi_error(&report))?;
 
     Ok(build_dependents_tree(&BuildDependentsOptions {
         env: &env,
         graph: &graph,
         search: &searcher,
         importer_info: &importer_info,
-        manifest_fields: &manifest_fields,
+        manifest_fields: options.manifest_fields.as_deref().unwrap_or_default(),
+        dependency_specifiers: dependency_specifiers(options),
     }))
+}
+
+fn dependency_specifiers(options: &DependentsOptions) -> DependencySpecifiers {
+    if options.include_requires.unwrap_or(false) {
+        DependencySpecifiers::All
+    } else {
+        DependencySpecifiers::Omit
+    }
+}
+
+fn registry_routes(options: &DependentsOptions) -> BTreeMap<String, String> {
+    match &options.registries {
+        Some(registries) if !registries.is_empty() => registries
+            .iter()
+            .map(|(scope, url)| (scope.clone(), url.clone()))
+            .collect(),
+        _ => BTreeMap::from([("default".to_string(), pnpm_config::default_registry())]),
+    }
+}
+
+fn virtual_store_dir_max_length(options: &DependentsOptions) -> usize {
+    options.virtual_store_dir_max_length
+        .map(|value| value as usize)
+        .unwrap_or(DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize)
+}
+
+fn importer_dirs(
+    options: &DependentsOptions,
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+) -> Vec<PathBuf> {
+    if let Some(dirs) = &options.project_dirs {
+        return dirs
+            .iter()
+            .map(|dir| resolve_project_dir(lockfile_dir, dir))
+            .collect();
+    }
+    let excluded = create_matcher(options.exclude_project_patterns.as_deref().unwrap_or_default());
+    lockfile.importers
+        .keys()
+        .filter(|importer_id| !excluded.matches(importer_id))
+        .filter_map(|importer_id| safe_importer_dir(lockfile_dir, importer_id))
+        .collect()
+}
+
+/// A key that cannot be safely joined (a malformed or hostile lockfile) is
+/// never dereferenced; the raw key still names the importer in the output.
+fn read_importer_info(lockfile: &Lockfile, lockfile_dir: &Path) -> HashMap<String, ImporterInfo> {
+    lockfile.importers
+        .keys()
+        .map(|importer_id| {
+            let manifest = safe_importer_dir(lockfile_dir, importer_id)
+                .map(|importer_dir| read_project_manifest(&importer_dir))
+                .unwrap_or_default();
+            let name = manifest.name.unwrap_or_else(|| {
+                if importer_id == "." {
+                    "the root project".to_string()
+                } else {
+                    importer_id.clone()
+                }
+            });
+            (
+                importer_id.clone(),
+                ImporterInfo { name, version: manifest.version.unwrap_or_default() },
+            )
+        })
+        .collect()
+}
+
+fn included_dependencies(options: &DependentsOptions) -> IncludedDependencies {
+    IncludedDependencies {
+        dependencies: options.include_dependencies.unwrap_or(true),
+        dev_dependencies: options.include_dev_dependencies.unwrap_or(true),
+        optional_dependencies: options.include_optional_dependencies.unwrap_or(true),
+    }
+}
+
+fn peer_edge_options(options: &DependentsOptions) -> PeerEdgeOptions {
+    PeerEdgeOptions {
+        resolve_peers_from_workspace_root: options
+            .resolve_peers_from_workspace_root
+            .unwrap_or(false),
+    }
 }
 
 fn resolve_project_dir(lockfile_dir: &Path, dir: &str) -> PathBuf {

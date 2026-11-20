@@ -1,4 +1,4 @@
-import type { EnvLockfile, LockfileFile } from '@pnpm/lockfile.types'
+import type { CatalogSnapshots, EnvLockfile, LockfileFile } from '@pnpm/lockfile.types'
 import { sortDeepKeys, sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 
 const ORDERED_KEYS = {
@@ -38,6 +38,7 @@ const ROOT_KEYS: readonly RootKey[] = [
   'overrides',
   'packageExtensionsChecksum',
   'pnpmfileChecksum',
+  'untrackedPnpmfileReadPackageHook',
   'patchedDependencies',
   'importers',
   'packages',
@@ -48,37 +49,16 @@ export function sortLockfileKeys (lockfile: LockfileFile): LockfileFile
 export function sortLockfileKeys (lockfile: EnvLockfile): EnvLockfile
 export function sortLockfileKeys (lockfile: LockfileFile | EnvLockfile): LockfileFile | EnvLockfile {
   if (lockfile.importers != null) {
-    lockfile.importers = sortDirectKeys(lockfile.importers)
-    for (const [importerId, importer] of Object.entries(lockfile.importers)) {
-      lockfile.importers[importerId] = sortKeysByPriority({
-        priority: ROOT_KEYS_ORDER,
-        deep: true,
-      }, importer)
-    }
+    lockfile.importers = sortEntriesByPriority(lockfile.importers, ROOT_KEYS_ORDER)
   }
   if (lockfile.packages != null) {
-    lockfile.packages = sortDirectKeys(lockfile.packages)
-    for (const [pkgId, pkg] of Object.entries(lockfile.packages)) {
-      lockfile.packages[pkgId] = sortKeysByPriority({
-        priority: ORDERED_KEYS,
-        deep: true,
-      }, pkg)
-    }
+    lockfile.packages = sortEntriesByPriority(lockfile.packages, ORDERED_KEYS)
   }
   if (lockfile.snapshots != null) {
-    lockfile.snapshots = sortDirectKeys(lockfile.snapshots)
-    for (const [pkgId, pkg] of Object.entries(lockfile.snapshots)) {
-      lockfile.snapshots[pkgId] = sortKeysByPriority({
-        priority: ORDERED_KEYS,
-        deep: true,
-      }, pkg)
-    }
+    lockfile.snapshots = sortEntriesByPriority(lockfile.snapshots, ORDERED_KEYS)
   }
   if ('catalogs' in lockfile && lockfile.catalogs != null) {
-    lockfile.catalogs = sortDirectKeys(lockfile.catalogs)
-    for (const [catalogName, catalog] of Object.entries(lockfile.catalogs)) {
-      lockfile.catalogs[catalogName] = sortDeepKeys(catalog)
-    }
+    lockfile.catalogs = sortCatalogs(lockfile.catalogs)
   }
   if ('time' in lockfile && lockfile.time != null) {
     lockfile.time = sortDirectKeys(lockfile.time)
@@ -87,4 +67,23 @@ export function sortLockfileKeys (lockfile: LockfileFile | EnvLockfile): Lockfil
     lockfile.patchedDependencies = sortDirectKeys(lockfile.patchedDependencies)
   }
   return sortKeysByPriority({ priority: ROOT_KEYS_ORDER }, lockfile)
+}
+
+function sortEntriesByPriority<Entries extends Record<string, object>> (
+  entries: Entries,
+  priority: Record<string, number>
+): Entries {
+  const sorted = sortDirectKeys(entries)
+  for (const [key, entry] of Object.entries(sorted)) {
+    sorted[key as keyof Entries] = sortKeysByPriority({ priority, deep: true }, entry) as Entries[keyof Entries]
+  }
+  return sorted
+}
+
+function sortCatalogs (catalogs: CatalogSnapshots): CatalogSnapshots {
+  const sorted = sortDirectKeys(catalogs)
+  for (const [catalogName, catalog] of Object.entries(sorted)) {
+    sorted[catalogName] = sortDeepKeys(catalog)
+  }
+  return sorted
 }

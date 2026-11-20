@@ -11,6 +11,19 @@ export interface PackageMeta {
   time?: PackageMetaTime
   modified?: string
   etag?: string
+  /**
+   * The ETag of a full document stored in the abbreviated metadata mirror by
+   * a `minimumReleaseAge` upgrade. Not part of the registry document. The
+   * metadata mirror stores it on the cache-headers line and reattaches it on
+   * read.
+   */
+  fullEtag?: string
+  /**
+   * Set when the registry response forbade caching this document.
+   * Not part of the registry document. The metadata mirror stores it
+   * on the cache-headers line and reattaches it on read.
+   */
+  uncacheable?: boolean
 }
 
 export interface PackageMetaWithTime extends PackageMeta {
@@ -50,8 +63,9 @@ export interface PackageInRegistry extends PackageManifest {
   }>
   dist: {
     integrity?: string
-    revision?: number
-    revisions?: PackageRevision[]
+    /** Registry revision metadata, which this pnpm rejects. */
+    revision?: unknown
+    revisions?: unknown
     shasum: string
     tarball: string
     unpackedSize?: number
@@ -61,27 +75,4 @@ export interface PackageInRegistry extends PackageManifest {
       }
     }
   }
-}
-
-export interface PackageRevision {
-  revision: number
-  integrity: string
-  tarball: string
-  manifest: PackageRevisionManifest
-}
-
-export type PackageRevisionManifest = Pick<PackageManifest,
-| 'bin'
-| 'bundleDependencies'
-| 'bundledDependencies'
-| 'cpu'
-| 'dependencies'
-| 'engines'
-| 'libc'
-| 'optionalDependencies'
-| 'os'
-| 'peerDependencies'
-| 'peerDependenciesMeta'
-> & {
-  hasInstallScript?: boolean
 }

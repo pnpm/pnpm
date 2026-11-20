@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/matcher"
     },
     {
@@ -23,6 +29,9 @@
     },
     {
       "path": "../../deps/peer-range"
+    },
+    {
+      "path": "../../resolving/local-resolver"
     },
     {
       "path": "../../resolving/parse-wanted-dependency"

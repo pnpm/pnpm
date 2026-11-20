@@ -1,12 +1,71 @@
 use super::{
-    BelongsTo, Config, Include, LicenseInfo, LicensesArgs, LicensesDependencyOptions,
-    collect_dependencies, compare_package_names, extract_license_author, extract_license_homepage,
-    render_package_name, select_newer_version,
+    BelongsTo,
+    Config,
+    Include,
+    LicenseInfo,
+    LicensedDependency,
+    LicensesArgs,
+    LicensesDependencyOptions,
+    collect_dependencies,
+    compare_package_names,
+    extract_license_author,
+    extract_license_homepage,
+    record_license,
+    render_package_name,
+    select_newer_version,
 };
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{
+    Lockfile,
+    PeerEdgeOptions,
+};
 use pnpm_package_is_installable::InstallabilityOptions;
 use serde_json::json;
 use tempfile::TempDir;
+
+#[test]
+fn license_store_slot_follows_the_lockfile_runtime_pin() {
+    let dir = TempDir::new().unwrap();
+    let lockfile = |importers: &str| -> Lockfile {
+        serde_saphyr::from_str(&format!(
+            "lockfileVersion: '9.0'\nimporters: {importers}\nsnapshots:\n  native@1.0.0: {{}}\n",
+        ))
+        .unwrap()
+    };
+    let unpinned = lockfile("{}");
+    let pinned = lockfile(
+        "\n  .:\n    devDependencies:\n      node:\n        specifier: runtime:18.0.0\n        version: runtime:18.0.0",
+    );
+    let key = "native@1.0.0".parse().unwrap();
+    let mut config = Config {
+        enable_global_virtual_store: true,
+        global_virtual_store_dir: dir.path().join("store/links"),
+        ..Config::default()
+    };
+    config.allow_builds.insert("native".to_owned(), true);
+    let slot_dir = |config: &Config, lockfile: &Lockfile| {
+        super::lockfiles::lockfile_layout(config, dir.path(), lockfile).unwrap().slot_dir(&key)
+    };
+    let pinned_18 = pnpm_deps_restorer::VirtualStoreLayout::new(
+        &config,
+        Some(&pnpm_graph_hasher::engine_name(18, None, None)),
+        pinned.snapshots.as_ref(),
+        pinned.packages.as_ref(),
+        Some(&pnpm_deps_restorer::AllowBuildPolicy::from_config(&config).unwrap()),
+        Some(dir.path()),
+    )
+    .slot_dir(&key);
+    assert_eq!(slot_dir(&config, &pinned), pinned_18);
+    let host = slot_dir(&config, &unpinned);
+    config.node_version = Some("20.0.0".to_owned());
+    assert_eq!(slot_dir(&config, &unpinned), host, "nodeVersion does not move the store slot");
+    assert_eq!(slot_dir(&config, &pinned), pinned_18);
+    std::fs::write(
+        dir.path().join("package.json"),
+        r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0","onFail":"warn"}}}"#,
+    )
+    .unwrap();
+    assert_eq!(slot_dir(&config, &unpinned), host, "an undownloaded runtime does not either");
+}
 
 #[test]
 fn test_include_logic() {
@@ -22,7 +81,7 @@ fn test_include_logic() {
     let include_prod = opts_prod.include(true);
     assert!(include_prod.dependencies);
     assert!(!include_prod.dev_dependencies);
-    assert!(!include_prod.optional_dependencies);
+    assert!(include_prod.optional_dependencies);
 
     let opts_no_optional =
         LicensesDependencyOptions { prod: false, dev: false, no_optional: true, optional: false };
@@ -33,7 +92,7 @@ fn test_include_logic() {
 }
 
 #[tokio::test]
-async fn test_empty_lockfile() {
+async fn requires_a_lockfile() {
     let dir = TempDir::new().unwrap();
     let config = Config::default();
     let args = LicensesArgs {
@@ -48,9 +107,14 @@ async fn test_empty_lockfile() {
         params: vec!["list".to_string()],
     };
 
-    // An empty directory has no lockfile, so it should just print "{}" and exit ok
     let res = args.run(&config, dir.path(), false).await;
-    assert!(res.is_ok());
+    assert_eq!(
+        res.unwrap_err()
+            .code()
+            .unwrap()
+            .to_string(),
+        "ERR_PNPM_LICENSES_NO_LOCKFILE",
+    );
 }
 
 #[tokio::test]
@@ -159,6 +223,7 @@ snapshots:
             current_libc: "glibc",
             ..Default::default()
         },
+        PeerEdgeOptions::default(),
     );
 
     assert_eq!(dependencies.len(), 6);
@@ -179,6 +244,7 @@ fn renders_dev_classification() {
         versions: vec!["1.0.0".to_string()],
         paths: Vec::new(),
         license: "MIT".to_string(),
+        registry_name: None,
         belongs_to: BelongsTo::Dev,
         selected_version: "1.0.0".to_string(),
         author: None,
@@ -192,12 +258,35 @@ fn renders_dev_classification() {
 }
 
 #[test]
+fn renders_named_registry_alias_and_dev_classification() {
+    let prod = LicenseInfo {
+        name: "pkg-a".to_string(),
+        versions: vec!["1.0.0".to_string()],
+        paths: Vec::new(),
+        license: "MIT".to_string(),
+        registry_name: Some("work".to_string()),
+        belongs_to: BelongsTo::Prod,
+        selected_version: "1.0.0".to_string(),
+        author: None,
+        homepage: None,
+        description: None,
+    };
+    let rendered_prod = console::strip_ansi_codes(&render_package_name(&prod)).into_owned();
+    assert_eq!(rendered_prod, "pkg-a (work)");
+
+    let dev = LicenseInfo { belongs_to: BelongsTo::Dev, ..prod };
+    let rendered_dev = console::strip_ansi_codes(&render_package_name(&dev)).into_owned();
+    assert_eq!(rendered_dev, "pkg-a (work) (dev)");
+}
+
+#[test]
 fn selects_latest_version_classification_with_semver_precedence() {
     let mut info = LicenseInfo {
         name: "multiple-versions".to_string(),
         versions: vec!["2.0.0".to_string()],
         paths: Vec::new(),
         license: "MIT".to_string(),
+        registry_name: None,
         belongs_to: BelongsTo::Prod,
         selected_version: "2.0.0".to_string(),
         author: None,
@@ -273,4 +362,165 @@ fn normalizes_homepage_for_license_reports() {
         })),
         Some("https://github.com/babel/babel#readme".to_string()),
     );
+}
+
+const OPTIONAL_PEER_LOCKFILE: &str = "lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      abc:
+        specifier: 1.0.0
+        version: 1.0.0(peer-a@1.0.0)(peer-c@1.0.0)
+    devDependencies:
+      peer-a:
+        specifier: 1.0.0
+        version: 1.0.0
+      peer-c:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  abc@1.0.0:
+    resolution: {integrity: sha512-abc}
+    peerDependencies:
+      peer-a: ^1.0.0
+      peer-c: ^1.0.0
+    peerDependenciesMeta:
+      peer-c:
+        optional: true
+  peer-a@1.0.0:
+    resolution: {integrity: sha512-a}
+  peer-c@1.0.0:
+    resolution: {integrity: sha512-c}
+snapshots:
+  abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0):
+    dependencies:
+      peer-a: 1.0.0
+    optionalDependencies:
+      peer-c: 1.0.0
+  peer-a@1.0.0: {}
+  peer-c@1.0.0: {}
+";
+
+fn optional_peer_dependencies(include: Include) -> Vec<(String, BelongsTo)> {
+    let lockfile: Lockfile = serde_saphyr::from_str(OPTIONAL_PEER_LOCKFILE).unwrap();
+    let mut dependencies = collect_dependencies(
+        &lockfile,
+        lockfile.importers.keys(),
+        include,
+        &InstallabilityOptions::default(),
+        PeerEdgeOptions::default(),
+    )
+    .into_iter()
+    .map(|(key, belongs_to)| (key.to_string(), belongs_to))
+    .collect::<Vec<_>>();
+    dependencies.sort_by(|left, right| left.0.cmp(&right.0));
+    dependencies
+}
+
+#[test]
+fn a_prod_listing_leaves_out_an_optional_peer_only_a_dev_dependency_provides() {
+    let dependencies = optional_peer_dependencies(Include {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    });
+    assert_eq!(
+        dependencies,
+        [
+            ("abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)".to_string(), BelongsTo::Prod),
+            ("peer-a@1.0.0".to_string(), BelongsTo::Prod),
+        ],
+    );
+}
+
+#[test]
+fn a_dev_dependency_that_satisfies_an_optional_peer_stays_dev() {
+    let dependencies = optional_peer_dependencies(Include {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: true,
+    });
+    assert_eq!(
+        dependencies,
+        [
+            ("abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)".to_string(), BelongsTo::Prod),
+            ("peer-a@1.0.0".to_string(), BelongsTo::Prod),
+            ("peer-c@1.0.0".to_string(), BelongsTo::Dev),
+        ],
+    );
+}
+
+#[tokio::test]
+async fn license_report_keeps_newest_metadata_and_every_installed_version() {
+    let workspace = TempDir::new().unwrap();
+    let mut groups = indexmap::IndexMap::new();
+    for version in ["1.0.0", "3.0.0", "2.0.0"] {
+        let dir = workspace.path().join(version);
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::write(
+            dir.join("package.json"),
+            json!({
+                "name": "alpha",
+                "version": version,
+                "license": "MIT",
+                "author": version,
+                "homepage": format!("https://example.com/{version}"),
+                "description": version,
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let dependency = LicensedDependency {
+            key: format!("alpha@{version}").parse().unwrap(),
+            belongs_to: BelongsTo::Prod,
+            name: "alpha".to_string(),
+            version: version.to_string(),
+            registry_name: None,
+        };
+        record_license(&mut groups, &dependency, &dir).await;
+    }
+    let info = &groups["MIT"][&("alpha".to_string(), None)];
+    assert_eq!(info.author.as_deref(), Some("3.0.0"));
+    assert_eq!(info.homepage.as_deref(), Some("https://example.com/3.0.0"));
+    assert_eq!(info.description.as_deref(), Some("3.0.0"));
+    assert_eq!(info.versions, ["1.0.0", "3.0.0", "2.0.0"]);
+    assert_eq!(info.paths.len(), 3);
+}
+
+#[tokio::test]
+async fn license_report_separates_default_and_named_registry_packages() {
+    let workspace = TempDir::new().unwrap();
+    let mut groups = indexmap::IndexMap::new();
+
+    for (subdir, key_str, version, registry_name) in [
+        ("default", "alpha@1.0.0", "1.0.0", None),
+        ("work-1", "alpha@work:1.0.0", "1.0.0", Some("work".to_string())),
+        ("work-2", "alpha@work:2.0.0", "2.0.0", Some("work".to_string())),
+    ] {
+        let dir = workspace.path().join(subdir);
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::write(
+            dir.join("package.json"),
+            json!({ "name": "alpha", "version": version, "license": "MIT" }).to_string(),
+        )
+        .unwrap();
+        let dependency = LicensedDependency {
+            key: key_str.parse().unwrap(),
+            belongs_to: BelongsTo::Prod,
+            name: "alpha".to_string(),
+            version: version.to_string(),
+            registry_name,
+        };
+        record_license(&mut groups, &dependency, &dir).await;
+    }
+
+    let mit = &groups["MIT"];
+    assert_eq!(mit.len(), 2);
+    let default_entry = &mit[&("alpha".to_string(), None)];
+    assert_eq!(default_entry.versions, ["1.0.0"]);
+    assert_eq!(default_entry.registry_name, None);
+
+    let work_entry = &mit[&("alpha".to_string(), Some("work".to_string()))];
+    assert_eq!(work_entry.versions, ["1.0.0", "2.0.0"]);
+    assert_eq!(work_entry.registry_name.as_deref(), Some("work"));
 }

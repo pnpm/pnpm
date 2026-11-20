@@ -1,10 +1,10 @@
 import { promises as fs } from 'node:fs'
-import util from 'node:util'
 
 import {
   type DependencyType,
   rootLogger,
 } from '@pnpm/core-loggers'
+import { isError } from '@pnpm/error'
 import type { DependenciesField } from '@pnpm/types'
 import { symlinkDir } from 'symlink-dir'
 
@@ -38,7 +38,7 @@ export async function symlinkDirectRootDependency (
   try {
     destModulesDirReal = await fs.realpath(destModulesDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
       await fs.mkdir(destModulesDir, { recursive: true })
       destModulesDirReal = await fs.realpath(destModulesDir)
     } else {

@@ -3,16 +3,52 @@
 //! resolution + subtree instead of re-resolving from the registry.
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
-use node_semver::{Range, Version};
+pub use registry_range::locked_child_admits;
+pub(crate) use registry_range::{
+    any_locked_key_admits,
+    locked_key_is_current,
+};
+
+mod locked_version;
+mod registry_range;
+
+use locked_version::{
+    admits_locked_version,
+    runtime_child_admits,
+};
 use pnpm_lockfile::{
-    BundledDependencies, Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer,
-    ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry, StringOrList,
-    TarballResolution, TarballUrlOptions, integrity_addressed_registry_tarball_url,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    BundledDependencies,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    RegistryContext,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
+    StringOrList,
+    TarballResolution,
+    TarballUrlOptions,
+    VersionPart,
+    npm_tarball_url,
+    pick_registry_for_package,
+    registry_server_type,
+    revision_registry_tarball_url,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
-use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
-use serde_json::{Map, Value};
+use pnpm_resolving_resolver_base::{
+    CurrentPkg,
+    PkgResolutionId,
+    ResolveResult,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::sync::Arc;
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
 /// lockfile entry shaped into what the resolver expects.
@@ -25,118 +61,70 @@ pub(crate) fn current_pkg_from_lockfile(
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
     let name = metadata_key.name.to_string();
     let registry_qualified = metadata_key.suffix.registry_qualified();
-    let version = metadata
-        .version
+    let version = metadata.version
         .clone()
         .or_else(|| metadata_key.suffix.version_semver().map(ToString::to_string))
         .or_else(|| registry_qualified.map(|(_, version)| version.to_string()));
-    let resolution = match &metadata.resolution {
-        LockfileResolution::Registry(registry_resolution) => {
-            // A registry-qualified key reconstructs its tarball from its
-            // named registry; everything else routes by scope. An
-            // unknown alias (or an unthreaded registry map) withholds
-            // `currentPkg` so the dep re-resolves normally.
-            let (registry, tarball_version) = match registry_qualified {
-                Some((registry_name, version)) => (
-                    registry_context.registries_by_prefix.get(registry_name)?.clone(),
-                    version.to_string(),
-                ),
-                None => (
-                    pick_registry_for_package(&registry_context.registries, &name, None),
-                    metadata_key.suffix.version().to_string(),
-                ),
-            };
-            if registry.is_empty() {
-                return None;
-            }
-            let tarball = match registry_resolution.revision {
-                Some(_) => integrity_addressed_registry_tarball_url(
-                    &registry_resolution.integrity,
-                    &registry,
-                )?,
-                None => npm_tarball_url(
-                    &name,
-                    &tarball_version,
-                    TarballUrlOptions {
-                        registry: &registry,
-                        server_type: registry_server_type(
-                            &registry_context.registry_options_by_url,
-                            &registry,
-                        ),
-                    },
-                ),
-            };
-            LockfileResolution::Tarball(TarballResolution {
-                tarball,
-                integrity: Some(registry_resolution.integrity.clone()),
-                revision: registry_resolution.revision,
-                git_hosted: None,
-                path: None,
-            })
-        }
-        recorded => recorded.clone(),
-    };
+    let resolution = current_resolution(metadata, &metadata_key, registry_context)?;
+    let mut manifest_val = synthesize_manifest(&metadata_key.name, version.as_deref(), metadata);
+    let snapshot = lockfile.snapshots
+        .as_ref()
+        .and_then(|snaps| snaps.get(key));
+    attach_snapshot_dependencies(&mut manifest_val, snapshot);
+    let published_at = lockfile.time
+        .as_ref()
+        .and_then(|time| time.get(&metadata_key.to_string()))
+        .cloned();
     Some(CurrentPkg {
         id: PkgResolutionId::from(metadata_key.to_string()),
         name: Some(name),
         version,
         resolution,
-        published_at: None,
+        published_at,
+        manifest: Some(Arc::new(manifest_val)),
     })
 }
 
 /// The prior snapshot key recorded for child edge `alias` under
 /// `snapshot`'s dependency maps, when the recorded version still
-/// satisfies `bare_specifier`.
+/// satisfies `bare_specifier` or the specifier names the exact locked Git
+/// revision. A bare range names the package `alias` itself, so a ref recorded
+/// as an `npm:` alias of another package never satisfies it.
+/// [`locked_key_is_current`] checks whether the configuration still writes
+/// this key before reusing a subtree.
 pub(crate) fn prior_child_key(
+    lockfile: Option<&Lockfile>,
     snapshot: &SnapshotEntry,
     alias: &str,
     bare_specifier: &str,
+    registries: &RegistryContext,
 ) -> Option<PkgNameVerPeer> {
     let name: PkgName = alias.parse().ok()?;
-    let dep_ref = snapshot
-        .dependencies
+    let dep_ref = snapshot.dependencies
         .as_ref()
         .and_then(|deps| deps.get(&name))
-        .or_else(|| snapshot.optional_dependencies.as_ref().and_then(|deps| deps.get(&name)))?;
+        .or_else(|| {
+            snapshot.optional_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(&name))
+        })?;
     let key = dep_ref.resolve(&name)?;
-    let satisfied = if let Some((registry_name, version)) = key.suffix.registry_qualified() {
-        let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
-            .parse::<Range>()
-            .ok()?;
-        satisfies_with_prereleases(&range, version)
-    } else {
-        let range = bare_specifier.parse::<Range>().ok()?;
-        satisfies_with_prereleases(&range, key.suffix.version_semver()?)
-    };
-    satisfied.then_some(key)
-}
-
-/// Reduce a named-registry specifier (`<registryName>:[<name>@]<range>`) to
-/// the range to semver-check against a registry-qualified lockfile key.
-///
-/// `None` whenever the specifier cannot describe `key_name` from
-/// `registry_name`, so the caller falls through to a fresh resolve:
-///
-/// * a different registry — a qualified entry must never satisfy a spec
-///   aimed at another registry;
-/// * a different package — the aliased shape `<registry>:<name>@<range>`
-///   names its package explicitly, and an entry recorded for some other
-///   name is a different dependency even though the manifest alias is
-///   unchanged.
-fn reduce_named_registry_spec<'a>(
-    registry_name: &str,
-    key_name: &PkgName,
-    bare_specifier: &'a str,
-) -> Option<&'a str> {
-    let body = bare_specifier.strip_prefix(registry_name)?.strip_prefix(':')?;
-    // `@scope/name@range` splits at the last `@`; a bare `range` has none
-    // (or only the leading one of a scope, which never delimits a version).
-    let Some(index) = body.rfind('@').filter(|index| *index > 0) else {
-        return Some(body);
-    };
-    let (spec_name, range) = (&body[..index], &body[index + 1..]);
-    (spec_name == key_name.to_string()).then_some(range)
+    if matches!(key.suffix.version(), VersionPart::NonSemver(locator) if locator == bare_specifier)
+        && lockfile
+            .and_then(|lockfile| {
+                lockfile.packages
+                    .as_ref()?
+                    .get(&key.without_peer())
+            })
+            .is_some_and(|metadata| {
+                matches!(reusable_resolution(&metadata.resolution), Some(ReusableResolution::Git))
+            })
+    {
+        return Some(key);
+    }
+    runtime_child_admits(&key, bare_specifier)
+        .or_else(|| locked_child_admits(&name, &key, bare_specifier, registries))?
+        .then_some(key)
 }
 
 /// The snapshot key (`snapshots:` / `packages:` map key) the prior
@@ -145,43 +133,36 @@ fn reduce_named_registry_spec<'a>(
 ///
 /// Registry entries use semver satisfaction. Git entries require the same
 /// selector (allowing equivalent hosted-repository spellings) so moving refs
-/// keep their locked commit during unrelated dependency changes. Other
-/// resolution shapes fall through to a normal resolve.
+/// keep their locked commit during unrelated dependency changes. Local
+/// directories and tarballs require an unchanged specifier.
 pub(crate) fn reusable_importer_dep(
     lockfile: &Lockfile,
     importer_id: &str,
     alias: &str,
     bare_specifier: &str,
+    registries: &RegistryContext,
 ) -> Option<PkgNameVerPeer> {
     let name: PkgName = alias.parse().ok()?;
     let spec = importer_dep(lockfile.importers.get(importer_id)?, &name)?;
     let key = spec.version.resolved_key(&name)?;
-    let metadata = lockfile.packages.as_ref()?.get(&key.without_peer())?;
-    let is_git = matches!(metadata.resolution, LockfileResolution::Git(_))
-        || matches!(
-            metadata.resolution,
-            LockfileResolution::Tarball(ref tarball) if tarball.git_hosted == Some(true),
-        );
-    if is_git
+    let metadata = lockfile.packages
+        .as_ref()?
+        .get(&key.without_peer())?;
+    if matches!(reusable_resolution(&metadata.resolution), Some(ReusableResolution::Git))
         && (spec.specifier == bare_specifier
             || git_specifiers_are_equivalent(&spec.specifier, bare_specifier))
     {
         return Some(key);
     }
-    let ver_peer = spec.version.ver_peer()?;
-    let satisfied = if let Some((registry_name, version)) = ver_peer.registry_qualified() {
-        let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
-            .parse::<Range>()
-            .ok()?;
-        satisfies_with_prereleases(&range, version)
-    } else {
-        let range = bare_specifier.parse::<Range>().ok()?;
-        satisfies_with_prereleases(&range, ver_peer.version_semver()?)
-    };
-    if !satisfied {
-        return None;
+    if (matches!(spec.version, ImporterDepVersion::File(_))
+        || matches!(metadata.resolution, LockfileResolution::Directory(_)))
+        && (spec.specifier == bare_specifier
+            || pnpm_local_spec::normalize_specifier(&spec.specifier)
+                == pnpm_local_spec::normalize_specifier(bare_specifier))
+    {
+        return Some(key);
     }
-    Some(key)
+    admits_locked_version(spec, (&name, &key), bare_specifier, registries)?.then_some(key)
 }
 
 /// The recorded resolution for `name` across the importer's prod /
@@ -190,34 +171,19 @@ fn importer_dep<'a>(
     importer: &'a ProjectSnapshot,
     name: &PkgName,
 ) -> Option<&'a ResolvedDependencySpec> {
-    importer
-        .dependencies
+    importer.dependencies
         .as_ref()
         .and_then(|deps| deps.get(name))
-        .or_else(|| importer.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
-        .or_else(|| importer.dev_dependencies.as_ref().and_then(|deps| deps.get(name)))
-}
-
-/// Whether `version` satisfies `range`, keeping a prerelease eligible
-/// for a range that carries none of its own by retrying with the
-/// prerelease tag stripped — the same rule peer binding applies
-/// elsewhere in this crate, and looser than the range semantics the
-/// required-peer picker needs.
-fn satisfies_with_prereleases(range: &Range, version: &Version) -> bool {
-    if range.satisfies(version) {
-        return true;
-    }
-    if !version.is_prerelease() {
-        return false;
-    }
-    let release = Version {
-        major: version.major,
-        minor: version.minor,
-        patch: version.patch,
-        pre_release: Vec::new(),
-        build: Vec::new(),
-    };
-    range.satisfies(&release)
+        .or_else(|| {
+            importer.optional_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(name))
+        })
+        .or_else(|| {
+            importer.dev_dependencies
+                .as_ref()
+                .and_then(|deps| deps.get(name))
+        })
 }
 
 /// Synthesize the [`ResolveResult`] a fresh resolve of `key` would have
@@ -241,7 +207,7 @@ fn satisfies_with_prereleases(range: &Range, version: &Version) -> bool {
 ///   `peerDependencies` / `peerDependenciesMeta` / `engines` / `cpu` /
 ///   `os` / `libc` / `hasBin` so `extract_peer_dependencies`
 ///   and the leaf classifier behave identically to a fresh resolve.
-///   `dependencies` are deliberately omitted — the children come from
+///   `dependencies` are deliberately omitted, the children come from
 ///   the snapshot graph, not this manifest.
 pub(crate) fn synthesize_reused_result(
     lockfile: &Lockfile,
@@ -251,48 +217,28 @@ pub(crate) fn synthesize_reused_result(
     let metadata_key = key.without_peer();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
     let registry_version = metadata_key.suffix.version_semver().cloned();
-    let git_resolution = match &metadata.resolution {
-        LockfileResolution::Registry(_) => false,
-        LockfileResolution::Tarball(tarball)
-            if tarball.integrity.is_some() && tarball.git_hosted != Some(true) =>
-        {
-            false
-        }
-        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => true,
-        LockfileResolution::Git(_) => true,
-        // Custom resolutions fall through with the rest: reuse would
-        // bypass the pnpmfile custom resolver that owns them.
-        LockfileResolution::Tarball(_)
-        | LockfileResolution::Directory(_)
-        | LockfileResolution::Binary(_)
-        | LockfileResolution::Variations(_)
-        | LockfileResolution::Custom(_) => return None,
+    let (id, name_ver, resolved_via) = match reusable_resolution(&metadata.resolution)? {
+        ReusableResolution::Git => (metadata_key.to_string(), None, "git-repository"),
+        ReusableResolution::Registry => reused_registry_identity(&metadata_key, registry_version)?,
     };
-    let (id, name_ver, resolved_via) = if git_resolution {
-        (metadata_key.to_string(), None, "git-repository")
-    } else if let Some((_, version)) = metadata_key.suffix.registry_qualified() {
-        // A reused registry-qualified entry keeps its qualified id so the
-        // rebuilt graph re-emits the same lockfile key.
-        let name_ver = PkgNameVer::new(metadata_key.name.clone(), version.clone());
-        (metadata_key.to_string(), Some(name_ver), "named-registry")
-    } else {
-        let name_ver = PkgNameVer::new(metadata_key.name.clone(), registry_version?);
-        (name_ver.to_string(), Some(name_ver), "npm-registry")
-    };
-    let manifest_version =
-        metadata.version.clone().or_else(|| name_ver.as_ref().map(|nv| nv.suffix.to_string()));
+    let manifest_version = metadata.version
+        .clone()
+        .or_else(|| name_ver.as_ref().map(|nv| nv.suffix.to_string()));
     let manifest = synthesize_manifest(&metadata_key.name, manifest_version.as_deref(), metadata);
     Some(ResolveResult {
         id: PkgResolutionId::from(id),
-        name_ver,
-        latest: None,
-        published_at: None,
-        manifest: Some(std::sync::Arc::new(manifest)),
         resolution: metadata.resolution.clone(),
         resolved_via: resolved_via.to_string(),
         normalized_bare_specifier: None,
         alias: Some(alias.to_string()),
         policy_violation: None,
+        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+            name_ver,
+            latest: None,
+            published_at: None,
+            manifest: Some(std::sync::Arc::new(manifest)),
+            non_deprecated_alternative: None,
+        },
     })
 }
 
@@ -312,7 +258,64 @@ fn synthesize_manifest(
     if let Some(version) = version {
         manifest.insert("version".to_string(), Value::String(version.to_string()));
     }
+    insert_peer_fields(&mut manifest, metadata);
+    insert_platform_fields(&mut manifest, metadata);
+    // `has_bin: Some(true)` round-trips as a truthy `bin` so the
+    // bundled-manifest bin linker sees a non-empty bin set; the exact
+    // bin paths live in the store-index bundled manifest the install
+    // pass reads, not here.
+    if metadata.has_bin.unwrap_or(false) {
+        manifest.insert("bin".to_string(), Value::String(name.to_string()));
+    }
 
+    Value::Object(manifest)
+}
+
+fn snapshot_dep_to_manifest_specifier(dep_ref: &SnapshotDepRef) -> String {
+    match dep_ref {
+        SnapshotDepRef::Plain(ver_peer) => ver_peer.without_peer().to_string(),
+        SnapshotDepRef::Alias(key) => match key.suffix.version() {
+            // A git, tarball, or `file:` child is named by its URL or path,
+            // which the alias keeps without `npm:`.
+            VersionPart::NonSemver(_) | VersionPart::File(_) => {
+                key.suffix.without_peer().to_string()
+            }
+            VersionPart::Semver(_) | VersionPart::RegistryQualified { .. } => {
+                format!("npm:{}@{}", key.name, key.suffix.without_peer())
+            }
+        },
+        SnapshotDepRef::Link(target) => format!("link:{target}"),
+    }
+}
+
+fn attach_snapshot_dependencies(manifest: &mut Value, snapshot: Option<&SnapshotEntry>) {
+    let (Value::Object(map), Some(snapshot)) = (manifest, snapshot) else {
+        return;
+    };
+    if let Some(deps) = &snapshot.dependencies {
+        let dep_map: Map<String, Value> = deps
+            .iter()
+            .map(|(dep_name, dep_ref)| {
+                (dep_name.to_string(), Value::String(snapshot_dep_to_manifest_specifier(dep_ref)))
+            })
+            .collect();
+        map.insert("dependencies".to_string(), Value::Object(dep_map));
+    }
+    if let Some(deps) = &snapshot.optional_dependencies {
+        let dep_map: Map<String, Value> = deps
+            .iter()
+            .map(|(dep_name, dep_ref)| {
+                (dep_name.to_string(), Value::String(snapshot_dep_to_manifest_specifier(dep_ref)))
+            })
+            .collect();
+        map.insert("optionalDependencies".to_string(), Value::Object(dep_map));
+    }
+}
+
+fn insert_peer_fields(
+    manifest: &mut Map<String, Value>,
+    metadata: &pnpm_lockfile::PackageMetadata,
+) {
     if let Some(peers) = metadata.peer_dependencies.as_ref() {
         let map: Map<String, Value> = peers
             .iter()
@@ -338,6 +341,12 @@ fn synthesize_manifest(
             .collect();
         manifest.insert("engines".to_string(), Value::Object(map));
     }
+}
+
+fn insert_platform_fields(
+    manifest: &mut Map<String, Value>,
+    metadata: &pnpm_lockfile::PackageMetadata,
+) {
     if let Some(cpu) = metadata.cpu.as_ref() {
         manifest.insert("cpu".to_string(), string_array(cpu));
     }
@@ -361,20 +370,131 @@ fn synthesize_manifest(
         };
         manifest.insert("bundledDependencies".to_string(), value);
     }
-    // `has_bin: Some(true)` round-trips as a truthy `bin` so the
-    // bundled-manifest bin linker sees a non-empty bin set; the exact
-    // bin paths live in the store-index bundled manifest the install
-    // pass reads, not here.
-    if metadata.has_bin == Some(true) {
-        manifest.insert("bin".to_string(), Value::String(name.to_string()));
-    }
-
-    Value::Object(manifest)
 }
 
 fn string_array(items: &[String]) -> Value {
-    Value::Array(items.iter().map(|item| Value::String(item.clone())).collect())
+    Value::Array(
+        items
+            .iter()
+            .cloned()
+            .map(Value::String)
+            .collect(),
+    )
 }
 
 #[cfg(test)]
 mod tests;
+
+/// Reconstruct registry-qualified tarballs from their named registry. Missing
+/// aliases withhold the current package so normal resolution can run.
+fn current_resolution(
+    metadata: &pnpm_lockfile::PackageMetadata,
+    metadata_key: &PkgNameVerPeer,
+    registry_context: &RegistryContext,
+) -> Option<LockfileResolution> {
+    let name = metadata_key.name.to_string();
+    let resolution = match &metadata.resolution {
+        LockfileResolution::Registry(registry_resolution) => {
+            // A registry-qualified key reconstructs its tarball from its
+            // named registry; everything else routes by scope. An
+            // unknown alias (or an unthreaded registry map) withholds
+            // `currentPkg` so the dep re-resolves normally.
+            let (registry, tarball_version) =
+                current_registry_version(metadata_key, registry_context)?;
+            let tarball = match registry_resolution.revision {
+                Some(revision) => {
+                    revision_registry_tarball_url(&name, &tarball_version, revision, &registry)?
+                }
+                None => npm_tarball_url(
+                    &name,
+                    &tarball_version,
+                    TarballUrlOptions {
+                        registry: &registry,
+                        server_type: registry_server_type(
+                            &registry_context.registry_options_by_url,
+                            &registry,
+                        ),
+                    },
+                ),
+            };
+            LockfileResolution::Tarball(TarballResolution {
+                tarball,
+                integrity: Some(registry_resolution.integrity.clone()),
+                revision: registry_resolution.revision,
+                git_hosted: None,
+                path: None,
+            })
+        }
+        recorded => recorded.clone(),
+    };
+    Some(resolution)
+}
+
+/// The id, name and version, and [`ResolveResult::resolved_via`] of a
+/// reused registry entry. A registry-qualified entry keeps its qualified id so the rebuilt
+/// graph re-emits the same lockfile key.
+fn reused_registry_identity(
+    metadata_key: &PkgNameVerPeer,
+    registry_version: Option<node_semver::Version>,
+) -> Option<(String, Option<PkgNameVer>, &'static str)> {
+    if let Some((_, version)) = metadata_key.suffix.registry_qualified() {
+        let name_ver = PkgNameVer::new(metadata_key.name.clone(), version.clone());
+        return Some((metadata_key.to_string(), Some(name_ver), "named-registry"));
+    }
+    let name_ver = PkgNameVer::new(metadata_key.name.clone(), registry_version?);
+    Some((name_ver.to_string(), Some(name_ver), "npm-registry"))
+}
+
+/// The lockfile resolutions the walk reuses without the resolver that
+/// produced them.
+#[derive(Debug, Clone, Copy)]
+enum ReusableResolution {
+    Registry,
+    Git,
+}
+
+/// Reuse only resolutions whose normal resolver can be skipped. Custom and
+/// incomplete resolutions must pass through their owning resolver.
+fn reusable_resolution(resolution: &LockfileResolution) -> Option<ReusableResolution> {
+    let reusable = match resolution {
+        LockfileResolution::Registry(_) => ReusableResolution::Registry,
+        LockfileResolution::Tarball(tarball)
+            if tarball.integrity.is_some() && !tarball.git_hosted.unwrap_or(false) =>
+        {
+            ReusableResolution::Registry
+        }
+        LockfileResolution::Tarball(tarball) if tarball.git_hosted.unwrap_or(false) => {
+            ReusableResolution::Git
+        }
+        LockfileResolution::Git(_) => ReusableResolution::Git,
+        // Custom resolutions fall through with the rest: reuse would
+        // bypass the pnpmfile custom resolver that owns them.
+        LockfileResolution::Tarball(_)
+        | LockfileResolution::Directory(_)
+        | LockfileResolution::Binary(_)
+        | LockfileResolution::Variations(_)
+        | LockfileResolution::Custom(_) => return None,
+    };
+    Some(reusable)
+}
+
+fn current_registry_version(
+    metadata_key: &PkgNameVerPeer,
+    registry_context: &RegistryContext,
+) -> Option<(String, String)> {
+    let name = metadata_key.name.to_string();
+    let registry_qualified = metadata_key.suffix.registry_qualified();
+    let (registry, tarball_version) = match registry_qualified {
+        Some((registry_name, version)) => {
+            (registry_context.registries_by_prefix.get(registry_name)?.clone(), version.to_string())
+        }
+        None => (
+            pick_registry_for_package(&registry_context.registries, &name, None),
+            metadata_key.suffix.version().to_string(),
+        ),
+    };
+    if registry.is_empty() {
+        return None;
+    }
+    Some((registry, tarball_version))
+}

@@ -307,3 +307,25 @@ test(
     }))
   }
 )
+
+test('--fixLockfile should preserve deprecated and hasBin fields', async () => {
+  prepareEmpty()
+
+  const packages = {
+    dependencies: {
+      express: '0.14.1',
+      '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+    },
+  }
+  await install(packages, testDefaults())
+
+  let lockfile: LockfileFile = readYamlFileSync(WANTED_LOCKFILE)
+  expect(lockfile.packages?.['express@0.14.1']?.deprecated).toBe('express 0.x series is deprecated')
+  expect(lockfile.packages?.['@pnpm.e2e/hello-world-js-bin@1.0.0']?.hasBin).toBe(true)
+
+  await install(packages, testDefaults({ fixLockfile: true }))
+
+  lockfile = readYamlFileSync(WANTED_LOCKFILE)
+  expect(lockfile.packages?.['express@0.14.1']?.deprecated).toBe('express 0.x series is deprecated')
+  expect(lockfile.packages?.['@pnpm.e2e/hello-world-js-bin@1.0.0']?.hasBin).toBe(true)
+})

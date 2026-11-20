@@ -11,10 +11,18 @@
 //! real filesystem can't reach portably (e.g. permission denied,
 //! ENOSPC).
 
+#[cfg(any(unix, target_os = "wasi"))]
+mod executable;
+#[cfg(all(test, unix))]
+mod tests;
+
 use pipe_trait::Pipe;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Read up to `buf.len()` bytes of `path` starting at byte `offset`.
@@ -25,29 +33,17 @@ use std::{
 /// available, so callers that need a fully-filled buffer must loop.
 /// [`crate::read_head_filled`] supplies that loop while staying
 /// generic over this trait, so test fakes do not have to grow.
-///
-/// The trait makes no claim about how many syscalls a particular
-/// impl will use — the production `Host` impl opens the file,
-/// seeks to `offset` (if non-zero), and reads, which is more than
-/// one. What it does promise is the semantic contract: read up to
-/// `buf.len()` bytes starting at `offset` into `buf`.
-///
-/// Used by [`crate::search_script_runtime`] (via [`crate::read_head_filled`])
-/// to detect the script runtime via the shebang at the head of a bin
-/// file.
 pub trait FsReadHead {
     fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize>;
 }
 
-/// Read the entire contents of a file into a `Vec<u8>`. Used to read
+/// Read the entire contents of a file into a `Vec<u8>`. Reads
 /// `package.json` files when collecting bin sources.
 pub trait FsReadFile {
     fn read_file(path: &Path) -> io::Result<Vec<u8>>;
 }
 
-/// Read the entire contents of a file into a `String`. Used by
-/// [`crate::link_bins_of_packages`] to short-circuit on warm reinstalls
-/// where the existing shim already targets the same bin file.
+/// Read the entire contents of a file into a `String`.
 pub trait FsReadToString {
     fn read_to_string(path: &Path) -> io::Result<String>;
 }
@@ -71,19 +67,11 @@ pub trait FsReadDir {
 }
 
 /// Recursively walk `path` and yield every regular file found beneath
-/// it (depth-first, no symlink follow). Used by
-/// [`crate::get_bins_from_package_manifest`] to enumerate
-/// `directories.bin` entries.
+/// it (depth-first, no symlink follow).
 ///
 /// Returns an `impl Iterator<Item = PathBuf>` rather than a
 /// `Vec<PathBuf>`, so the production walker streams entries straight
 /// out of `walkdir` instead of materialising the whole list up front.
-/// `directories.bin` trees are usually tiny in practice, but the
-/// abstraction should not bake in an allocation the real
-/// implementation does not need. Fakes return whatever concrete
-/// iterator they want. [`std::iter::empty`] fits the unreachable-walk
-/// case, and [`Vec::into_iter`] fits the case that feeds a fixed list
-/// of paths.
 ///
 /// `walkdir`'s builder exposes many knobs (`follow_links`, `min_depth`,
 /// `max_depth`, `sort_by`, and so on); pacquet uses just one
@@ -96,51 +84,109 @@ pub trait FsWalkFiles {
     fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>>;
 }
 
+/// Whether a directory was created by the call that reports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirCreation {
+    /// The call created it rather than finding it.
+    Created,
+    /// It was already there, or the provider does not tell the two
+    /// apart.
+    Unknown,
+}
+
 /// Create a directory and any missing ancestors. Used to prepare
 /// `<modules_dir>/.bin` and per-slot `node_modules/.bin` directories.
 pub trait FsCreateDirAll {
     fn create_dir_all(path: &Path) -> io::Result<()>;
+
+    /// [`create_dir_all`](Self::create_dir_all), reporting whether the
+    /// directory is one this call created. The shim writer uses
+    /// [`DirCreation::Created`] to write each shim straight out instead
+    /// of first reading a path that almost certainly holds nothing.
+    ///
+    /// Almost, because the answer is a hint about which order is
+    /// cheaper and never a guarantee that the directory is still empty:
+    /// a concurrent installer can populate one this call created, and
+    /// can create one it reports as `Unknown`. Either way the exclusive
+    /// create the shim writer attempts refuses whatever turned up, so
+    /// a wrong guess costs an ordering and nothing else.
+    ///
+    /// The default reports [`DirCreation::Unknown`], so a fake need not
+    /// model the distinction.
+    fn create_dir_all_reporting(path: &Path) -> io::Result<DirCreation> {
+        Self::create_dir_all(path).map(|()| DirCreation::Unknown)
+    }
 }
 
 /// Write `bytes` to `path`, replacing the file's contents if it
-/// exists. Used to write the three shim flavors (`.sh`, `.cmd`,
-/// `.ps1`).
+/// exists.
 ///
 /// **Not atomic.** This trait is the moral equivalent of
 /// `std::fs::write`: it opens (or creates and truncates) the file,
 /// writes `bytes`, and closes. No tempfile + rename guard, no
 /// `fsync`. A SIGINT or crash mid-write can leave a truncated file
-/// on disk. Number of syscalls is up to the impl — `std::fs::write`
-/// itself is open/(truncate)/write/close, and a fake might loop.
-/// If a future caller needs atomic write semantics, build it on top
-/// of this trait by writing to a sibling tempfile and then
-/// renaming. Hiding that algorithm inside the capability would
-/// obscure what each callsite inherits; keeping the trait minimal
-/// lets every callsite see exactly what guarantees it gets.
+/// on disk.
 pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
+
+    /// Create `path` as a brand-new file holding `bytes`, failing with
+    /// [`io::ErrorKind::AlreadyExists`] when any dirent (a dangling
+    /// symlink included) already occupies the path (`O_CREAT | O_EXCL`
+    /// semantics, which never follow a symlink). The shim writer uses
+    /// this to skip its stale-entry probes on a freshly created `.bin`
+    /// dir; on *any* error it falls back to the remove-then-[`write`]
+    /// path, so the default impl opts a fake out of the fast path
+    /// rather than forcing it to model exclusive creation.
+    ///
+    /// [`write`]: FsWrite::write
+    fn write_new(_path: &Path, _bytes: &[u8]) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::Unsupported))
+    }
+
+    /// Atomically replace whatever occupies `path` with a regular file
+    /// holding `bytes`: written to a sibling temp file and renamed into
+    /// place with executable permissions. No reader observes a torn file;
+    /// concurrent equivalent writers converge on last-writer-wins, and a symlink at `path` is
+    /// replaced as a dirent rather than followed. The default impl opts
+    /// a fake out (the shim writer then falls back to
+    /// remove-then-[`write`]) rather than forcing fakes to model the
+    /// rename.
+    ///
+    /// [`write`]: FsWrite::write
+    fn write_replace(_path: &Path, _bytes: &[u8]) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::Unsupported))
+    }
 }
 
-/// Replace the permission bits at `path` with `0o755`. Used to chmod
-/// the freshly written shim file so it is executable.
+/// Make a shim file executable.
 ///
-/// The method is always present so callers don't have to
-/// `#[cfg(unix)]` every chmod call site. On Windows the production
+/// The methods are always present so callers don't have to
+/// `#[cfg(any(unix, target_os = "wasi"))]` every chmod call site. On Windows the production
 /// impl is a no-op (Windows has no equivalent permission concept).
 pub trait FsSetExecutable {
+    /// Replace the permission bits at `path` with `0o755`. For a shim this
+    /// run created, which it therefore owns.
     fn set_executable(path: &Path) -> io::Result<()>;
+
+    /// [`set_executable`](Self::set_executable), skipped when every execute
+    /// bit is already set and the file is not world-writable. For a shim that
+    /// may already exist: only its owner may chmod it, even to its current
+    /// mode, and a world-writable shim must not stay that way.
+    fn ensure_executable(path: &Path) -> io::Result<()> {
+        Self::set_executable(path)
+    }
 }
 
-/// Read the existing permission bits at `path`, OR in `0o111`, and
-/// write them back. Used to add the executable bits to the underlying
-/// target binary (mirrors pnpm's `fixBin`) without clobbering the
-/// existing read/write bits the way [`FsSetExecutable`] would.
+/// Add missing executable bits to bin targets whose real path is inside
+/// `node_modules` or inside `installed_modules_dir`, preserving existing
+/// read/write bits. Already executable files and targets elsewhere are left
+/// unchanged.
 ///
 /// The method is always present for the same reason as
 /// [`FsSetExecutable::set_executable`]; the production impl is a
 /// no-op on Windows.
 pub trait FsEnsureExecutableBits {
-    fn ensure_executable_bits(path: &Path) -> io::Result<()>;
+    fn ensure_executable_bits(path: &Path, installed_modules_dir: Option<&Path>) -> io::Result<()>;
 }
 
 /// The production filesystem provider. Every method delegates straight
@@ -149,7 +195,11 @@ pub struct Host;
 
 impl FsReadHead for Host {
     fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
-        use std::io::{Read, Seek, SeekFrom};
+        use std::io::{
+            Read,
+            Seek,
+            SeekFrom,
+        };
         let mut file = std::fs::File::open(path)?;
         if offset > 0 {
             file.seek(SeekFrom::Start(offset))?;
@@ -175,7 +225,10 @@ impl FsReadDir for Host {
         // `flatten()` silently drops per-entry errors, matching the
         // `tinyglobby`-style ENOENT-on-subtree behaviour pacquet's
         // callers expect.
-        std::fs::read_dir(path)?.flatten().map(|entry| entry.path()).pipe(Ok)
+        std::fs::read_dir(path)?
+            .flatten()
+            .map(|entry| entry.path())
+            .pipe(Ok)
     }
 }
 
@@ -200,42 +253,116 @@ impl FsCreateDirAll for Host {
     fn create_dir_all(path: &Path) -> io::Result<()> {
         std::fs::create_dir_all(path)
     }
+
+    fn create_dir_all_reporting(path: &Path) -> io::Result<DirCreation> {
+        // One `mkdir` answers both questions when the parent is already
+        // there, which is the common case: the bin dir's parent is the
+        // `node_modules` the install just populated.
+        match std::fs::create_dir(path) {
+            Ok(()) => Ok(DirCreation::Created),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                std::fs::create_dir_all(path).map(|()| DirCreation::Created)
+            }
+            // Already there, or occupied by something that is not a
+            // directory. `create_dir_all` owns the rule for telling
+            // those apart.
+            Err(_) => Self::create_dir_all(path).map(|()| DirCreation::Unknown),
+        }
+    }
 }
 
 impl FsWrite for Host {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         std::fs::write(path, bytes)
     }
-}
 
-#[cfg(unix)]
-impl FsSetExecutable for Host {
-    fn set_executable(path: &Path) -> io::Result<()> {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+    fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+        use std::io::Write;
+        std::fs::File::options()
+            .write(true)
+            .create_new(true)
+            .open(path)?
+            .write_all(bytes)
+    }
+
+    fn write_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
+        use std::io::Write;
+        let parent = path.parent().ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let file_name = path
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let pid = pnpm_fs::process_id();
+        // The attempt counter only steps past temp names a crashed run
+        // with this pid left behind, so the bound is never reached in
+        // practice; it exists so a pathological directory cannot spin
+        // this loop forever.
+        for attempt in 0u32..1024 {
+            let tmp_path = parent.join(format!(".{file_name}.{pid}.{attempt}.tmp"));
+            let mut tmp = match std::fs::File::options()
+                .write(true)
+                .create_new(true)
+                .open(&tmp_path)
+            {
+                Ok(tmp) => tmp,
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            };
+            let written = tmp.write_all(bytes).and_then(|()| set_file_executable(&tmp));
+            drop(tmp);
+            let result = written.and_then(|()| pnpm_fs::rename_with_retry(&tmp_path, path));
+            if result.is_err() {
+                let _ = std::fs::remove_file(&tmp_path);
+            }
+            return result;
+        }
+        Err(io::Error::from(io::ErrorKind::AlreadyExists))
     }
 }
 
-#[cfg(not(unix))]
+fn set_file_executable(file: &std::fs::File) -> io::Result<()> {
+    #[cfg(any(unix, target_os = "wasi"))]
+    {
+        pnpm_fs::CopyPermissions::from_mode(0o755).apply_to_file(file)
+    }
+    #[cfg(not(any(unix, target_os = "wasi")))]
+    {
+        let _ = file;
+        Ok(())
+    }
+}
+
+#[cfg(any(unix, target_os = "wasi"))]
+impl FsSetExecutable for Host {
+    fn set_executable(path: &Path) -> io::Result<()> {
+        executable::set_executable::<Host>(path)
+    }
+
+    fn ensure_executable(path: &Path) -> io::Result<()> {
+        executable::ensure_executable::<Host>(path)
+    }
+}
+
+#[cfg(not(any(unix, target_os = "wasi")))]
 impl FsSetExecutable for Host {
     fn set_executable(_path: &Path) -> io::Result<()> {
         Ok(())
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 impl FsEnsureExecutableBits for Host {
-    fn ensure_executable_bits(path: &Path) -> io::Result<()> {
-        use std::os::unix::fs::PermissionsExt;
-        let metadata = std::fs::metadata(path)?;
-        let mode = metadata.permissions().mode() | 0o111;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+    fn ensure_executable_bits(path: &Path, installed_modules_dir: Option<&Path>) -> io::Result<()> {
+        executable::ensure_executable_bits::<Host>(path, installed_modules_dir)
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "wasi")))]
 impl FsEnsureExecutableBits for Host {
-    fn ensure_executable_bits(_path: &Path) -> io::Result<()> {
+    fn ensure_executable_bits(
+        _path: &Path,
+        _installed_modules_dir: Option<&Path>,
+    ) -> io::Result<()> {
         Ok(())
     }
 }

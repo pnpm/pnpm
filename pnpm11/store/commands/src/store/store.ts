@@ -75,7 +75,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registriesByScope' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & Partial<Pick<Config, 'globalPkgDir'>> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'lockfileDir' | 'registriesByScope' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & Partial<Pick<Config, 'globalDir' | 'stateDir' | 'globalPkgDir' | 'globalBinDir'>> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 
@@ -91,7 +91,9 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
         pnpmHomeDir: opts.pnpmHomeDir,
       })
     case 'prune': {
-      store = await createStoreController(opts)
+      const pruneProtectedDirs = [opts.globalDir, opts.globalPkgDir, opts.globalBinDir, opts.pnpmHomeDir, opts.stateDir]
+        .filter((dir): dir is string => dir != null)
+      store = await createStoreController({ ...opts, pruneProtectedDirs })
       const storePruneOptions = Object.assign(opts, {
         storeController: store.ctrl,
         storeDir: store.dir,
@@ -102,6 +104,11 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
       return storePrune(storePruneOptions) as Promise<undefined>
     }
     case 'add':
+      if (opts.frozenStore) {
+        throw new PnpmError('FROZEN_STORE_WRITE', 'Cannot add packages to the store because frozenStore is enabled (the store is opened read-only)', {
+          hint: 'Turn off frozenStore to add packages to the store.',
+        })
+      }
       store = await createStoreController(opts)
       return storeAdd(params.slice(1), {
         prefix: opts.dir,

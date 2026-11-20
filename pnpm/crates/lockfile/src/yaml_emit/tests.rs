@@ -1,4 +1,12 @@
-use super::{resolves_float, to_string};
+use super::{
+    implicit::resolves_float,
+    scalars::is_plain_safe,
+    style::CollectionStyle::{
+        Block,
+        Flow,
+    },
+    to_string,
+};
 use serde_json::json;
 
 #[test]
@@ -97,7 +105,7 @@ fn key_at_simple_key_limit_renders_inline() {
 // astral characters are 513 Rust chars but 1026 code units.
 #[test]
 fn key_length_is_measured_in_utf16_code_units() {
-    let key = "\u{1F600}".repeat(513);
+    let key = "😀".repeat(513);
     let yaml = to_string(json!({ &key: { "b": "c" } }));
     assert_eq!(yaml, format!("? {key}\n: b: c\n"));
 }
@@ -113,8 +121,10 @@ fn a_large_section_renders_identically_through_the_parallel_path() {
     // Reverse insertion order, so unsorted input is visible if either
     // parallel stage loses the ordering.
     for index in (0..count).rev() {
-        packages
-            .insert(format!("pkg-{index:03}@1.0.0"), json!({ "version": "1.0.0", "dev": false }));
+        packages.insert(
+            format!("pkg-{index:03}@1.0.0"),
+            json!({ "version": "1.0.0", "dev": false }),
+        );
     }
     let yaml = to_string(serde_json::Value::Object(
         [
@@ -128,8 +138,63 @@ fn a_large_section_renders_identically_through_the_parallel_path() {
     use std::fmt::Write;
     let mut expected = String::from("lockfileVersion: '9.0'\n\npackages:\n");
     for index in 0..count {
-        write!(expected, "\n  pkg-{index:03}@1.0.0:\n    version: 1.0.0\n    dev: false\n")
-            .expect("write to a String is infallible");
+        write!(expected, "\n  pkg-{index:03}@1.0.0:\n    version: 1.0.0\n    dev: false\n").expect(
+            "write to a String is infallible",
+        );
     }
     assert_eq!(yaml, expected);
+}
+
+#[test]
+fn a_line_feed_in_a_key_forces_double_quotes() {
+    let yaml = to_string(json!({ "a\nb": "c" }));
+    assert_eq!(yaml, "\"a\\nb\": c\n");
+}
+
+/// Every rule `is_plain_safe` decides: a `#` is plain only after a non-space,
+/// a `:` is plain only before one, and a flow collection rules out its own
+/// indicators. The `:` rule outranks the flow one, as it does in the fork.
+#[test]
+fn plain_safety_depends_on_the_neighbour_and_the_collection() {
+    let cases = [
+        ('#', Some('a'), Block, true),
+        ('#', Some(':'), Block, true),
+        ('#', Some(' '), Block, false),
+        ('#', Some('\n'), Block, false),
+        ('#', None, Block, false),
+        ('#', Some('a'), Flow, true),
+        ('b', Some(':'), Block, true),
+        (',', Some(':'), Flow, true),
+        (' ', Some(':'), Block, false),
+        ('\t', Some(':'), Block, false),
+        ('\n', Some(':'), Block, false),
+        (' ', Some('a'), Block, true),
+        (',', Some('a'), Block, true),
+        (',', Some('a'), Flow, false),
+        ('[', Some('a'), Flow, false),
+        (']', Some('a'), Flow, false),
+        ('{', Some('a'), Flow, false),
+        ('}', Some('a'), Flow, false),
+        ('a', None, Flow, true),
+        ('\n', Some('a'), Block, false),
+        ('\r', Some('a'), Block, false),
+        ('\u{FEFF}', Some('a'), Block, false),
+        ('\u{2028}', Some('a'), Block, false),
+    ];
+    for (code, prev, style, expected) in cases {
+        let actual = is_plain_safe(u32::from(code), prev.map(u32::from), style);
+        assert_eq!(actual, expected, "{code:?} after {prev:?} in {style:?}");
+    }
+}
+
+#[test]
+fn a_comment_marker_after_a_space_forces_quotes() {
+    let yaml = to_string(json!({ "a": "x#y", "b": "x #y", "c": "x:y", "d": "x: y" }));
+    assert_eq!(yaml, "a: x#y\n\nb: 'x #y'\n\nc: x:y\n\nd: 'x: y'\n");
+}
+
+#[test]
+fn a_flow_indicator_is_quoted_only_inside_a_flow_collection() {
+    let yaml = to_string(json!({ "os": ["a,b"], "sep": "a,b" }));
+    assert_eq!(yaml, "os: ['a,b']\n\nsep: a,b\n");
 }

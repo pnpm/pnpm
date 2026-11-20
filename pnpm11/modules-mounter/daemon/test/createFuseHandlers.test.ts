@@ -100,17 +100,17 @@ describe('FUSE handlers', () => {
     })
   })
   it('open and read', (done) => {
-    const p = '/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/index.js'
-    handlers.open(p, 0, (exitCode, fd) => {
+    const filePath = '/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/index.js'
+    handlers.open(filePath, 0, (exitCode, fd) => {
       expect(exitCode).toBe(0)
       expect(fd && fd > 0).toBeTruthy()
       const buffer = Buffer.alloc(10)
 
-      handlers.read(p, fd!, buffer, 10, 0, (readBytes) => {
+      handlers.read(filePath, fd!, buffer, 10, 0, (readBytes) => {
         expect(readBytes).toBe(10)
         expect(buffer.toString()).toBe('var ini = ')
 
-        handlers.release(p, fd!, (exitCode) => {
+        handlers.release(filePath, fd!, (exitCode) => {
           expect(exitCode).toBe(0)
           done()
         })

@@ -13,10 +13,17 @@ export interface InitStoreMessage {
 
 export interface TarballExtractMessage {
   type: 'extract'
-  buffer: Buffer
+  buffer?: Buffer
+  tarballFile?: string
   storeDir: string
   integrity?: string
   filesIndexFile: string
+  /**
+   * When `integrity` is not provided, the row is also written under
+   * `storeIndexKey(computedIntegrity, pkgId)`. That is the key a later lookup
+   * uses once the computed integrity is recorded in the lockfile.
+   */
+  pkgId?: string
   readManifest?: boolean
   pkg?: PkgNameVersion
   appendManifest?: DependencyManifest
@@ -26,6 +33,8 @@ export interface TarballExtractMessage {
    * segment — i.e. against the same path form that is written to `filesIndex`.
    */
   ignoreFilePattern?: string
+  /** Largest sum of the declared sizes of the archive's regular files, in bytes. */
+  maxTarballUnpackedSize: number
 }
 
 export interface LinkPkgMessage {

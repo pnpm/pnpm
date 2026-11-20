@@ -1,10 +1,28 @@
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, RegistryResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    RegistryResolution,
+};
 use ssri::Integrity;
 
 use crate::{
-    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, LatestInfo, LatestQuery,
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, VerifyCtx, WantedDependency,
+    DIRECT_DEP_SELECTOR_WEIGHT,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    LatestInfo,
+    LatestQuery,
+    REQUESTED_VERSION_SELECTOR_WEIGHT,
+    RESOLVED_VERSION_SELECTOR_WEIGHT,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    VerifyCtx,
+    WantedDependency,
+    pinned_by_lockfile,
 };
 
 fn fake_resolution() -> LockfileResolution {
@@ -18,8 +36,7 @@ fn fake_resolution() -> LockfileResolution {
 
 /// [`ResolutionVerification::Err`] carries the verifier-supplied code
 /// and reason verbatim; the runner pulls these out to compose the
-/// install-level error breakdown. `code` is a `&'static str` so the
-/// per-policy constants can flow through without allocation.
+/// install-level error breakdown.
 #[test]
 fn resolution_verification_err_round_trip() {
     let verification = ResolutionVerification::Err {
@@ -80,7 +97,10 @@ impl ResolutionVerifier for StubVerifier {
         &self,
         cached_policy: &serde_json::Map<String, serde_json::Value>,
     ) -> bool {
-        cached_policy.get("stub").and_then(serde_json::Value::as_bool).unwrap_or(false)
+        cached_policy
+            .get("stub")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false)
     }
 }
 
@@ -94,9 +114,11 @@ async fn resolution_verifier_dispatches_through_dyn() {
 
     let name: PkgName = "lodash".parse().unwrap();
     let resolution = fake_resolution();
-    let outcome = verifier
-        .verify(&resolution, VerifyCtx { name: &name, version: "4.17.21", registry_name: None })
-        .await;
+    let outcome = verifier.verify(
+        &resolution,
+        VerifyCtx { name: &name, version: "4.17.21", registry_name: None },
+    )
+    .await;
     assert_eq!(
         outcome,
         ResolutionVerification::Err { code: "STUB", reason: "stub fails by design".to_string() },
@@ -110,10 +132,19 @@ async fn resolution_verifier_dispatches_through_dyn() {
     assert!(!verifier.can_trust_past_check(&cached));
 }
 
-/// Selector weight ordering is part of the public contract: existing
-/// pins must always outrank direct-dep matches so that adding a fresh
-/// range doesn't churn the lockfile.
-const _: () = assert!(EXISTING_VERSION_SELECTOR_WEIGHT > DIRECT_DEP_SELECTOR_WEIGHT);
+/// Selector weight ordering is part of the public contract; see
+/// [`EXISTING_VERSION_SELECTOR_WEIGHT`].
+const _: () = assert!(REQUESTED_VERSION_SELECTOR_WEIGHT > DIRECT_DEP_SELECTOR_WEIGHT);
+const _: () = assert!(DIRECT_DEP_SELECTOR_WEIGHT > RESOLVED_VERSION_SELECTOR_WEIGHT);
+const _: () = assert!(RESOLVED_VERSION_SELECTOR_WEIGHT > EXISTING_VERSION_SELECTOR_WEIGHT);
+
+#[test]
+fn pinned_by_lockfile_reads_the_lockfile_digit() {
+    assert!(pinned_by_lockfile(EXISTING_VERSION_SELECTOR_WEIGHT));
+    assert!(pinned_by_lockfile(DIRECT_DEP_SELECTOR_WEIGHT + EXISTING_VERSION_SELECTOR_WEIGHT));
+    assert!(!pinned_by_lockfile(RESOLVED_VERSION_SELECTOR_WEIGHT));
+    assert!(!pinned_by_lockfile(REQUESTED_VERSION_SELECTOR_WEIGHT + DIRECT_DEP_SELECTOR_WEIGHT));
+}
 
 #[test]
 fn update_behavior_defaults_off() {
@@ -140,15 +171,18 @@ impl Resolver for StubResolver {
             let name_ver: PkgNameVer = "lodash@4.17.21".parse().expect("parse fake PkgNameVer");
             Ok(Some(ResolveResult {
                 id: (&name_ver).into(),
-                name_ver: Some(name_ver),
-                latest: None,
-                published_at: None,
-                manifest: None,
                 resolution: fake_resolution(),
                 resolved_via: "stub".to_string(),
                 normalized_bare_specifier: None,
                 alias: wanted_dependency.alias.clone(),
                 policy_violation: None,
+                package: crate::ResolvedPackageInfo {
+                    name_ver: Some(name_ver),
+                    latest: None,
+                    published_at: None,
+                    manifest: None,
+                    non_deprecated_alternative: None,
+                },
             }))
         })
     }

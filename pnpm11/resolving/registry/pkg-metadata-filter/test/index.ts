@@ -105,6 +105,73 @@ test('latest fallback does not exceed the original dist-tag target', () => {
   expect(withoutSafeFallback['dist-tags'].latest).toBeUndefined()
 })
 
+test('latest fallback prefers a prerelease of the new major over a lower major', () => {
+  const cutoff = new Date('2026-04-19T00:00:00.000Z')
+  const name = 'major-prerelease-fallback'
+  const packageVersion = (version: string, deprecated?: string) => ({
+    name,
+    version,
+    deprecated,
+    dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`, shasum: '' },
+  })
+  const time = {
+    '0.0.1': '2026-01-01T00:00:00.000Z',
+    '1.0.0-beta.3': '2026-03-01T00:00:00.000Z',
+    '1.0.0-beta.4': '2026-04-01T00:00:00.000Z',
+    '1.0.0': '2026-04-20T00:00:00.000Z',
+  }
+
+  expect(filterPkgMetadataByPublishDate({
+    name,
+    versions: {
+      '0.0.1': packageVersion('0.0.1'),
+      '1.0.0-beta.3': packageVersion('1.0.0-beta.3'),
+      '1.0.0-beta.4': packageVersion('1.0.0-beta.4'),
+      '1.0.0': packageVersion('1.0.0'),
+    },
+    'dist-tags': { latest: '1.0.0' },
+    time,
+  }, cutoff)['dist-tags'].latest).toBe('1.0.0-beta.4')
+
+  expect(filterPkgMetadataByPublishDate({
+    name,
+    versions: {
+      '0.0.1': packageVersion('0.0.1'),
+      '1.0.0-beta.3': packageVersion('1.0.0-beta.3', 'broken'),
+      '1.0.0': packageVersion('1.0.0'),
+    },
+    'dist-tags': { latest: '1.0.0' },
+    time,
+  }, cutoff)['dist-tags'].latest).toBe('0.0.1')
+})
+
+test('latest fallback prefers a stable version of the same major over a prerelease', () => {
+  const cutoff = new Date('2026-04-19T00:00:00.000Z')
+  const name = 'same-major-fallback'
+  const packageVersion = (version: string) => ({
+    name,
+    version,
+    dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`, shasum: '' },
+  })
+
+  const filtered = filterPkgMetadataByPublishDate({
+    name,
+    versions: {
+      '1.4.0': packageVersion('1.4.0'),
+      '1.5.0-rc.1': packageVersion('1.5.0-rc.1'),
+      '1.5.0': packageVersion('1.5.0'),
+    },
+    'dist-tags': { latest: '1.5.0' },
+    time: {
+      '1.4.0': '2026-01-01T00:00:00.000Z',
+      '1.5.0-rc.1': '2026-03-01T00:00:00.000Z',
+      '1.5.0': '2026-04-20T00:00:00.000Z',
+    },
+  }, cutoff)
+
+  expect(filtered['dist-tags'].latest).toBe('1.4.0')
+})
+
 test('custom dist-tag fallback does not exceed the original target', () => {
   const cutoff = new Date('2026-07-25T00:00:00.000Z')
   const name = 'nightly-fallback'
@@ -163,8 +230,8 @@ test('filtering is memoized per packument and the per-packument policy cache sta
 
   // Exceeding the per-packument cap with distinct cutoffs evicts the oldest
   // entry instead of growing forever: the original cutoff is recomputed.
-  for (let i = 1; i <= 4; i++) {
-    filterPkgMetadataByPublishDate(doc, new Date(cutoff.getTime() + i * 60_000))
+  for (let minutes = 1; minutes <= 4; minutes++) {
+    filterPkgMetadataByPublishDate(doc, new Date(cutoff.getTime() + minutes * 60_000))
   }
   expect(filterPkgMetadataByPublishDate(doc, cutoff)).not.toBe(first)
 })

@@ -7,11 +7,11 @@ import { fetch, install } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 import { closeAllStoreIndexes } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
-import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
-import { finishWorkers } from '@pnpm/worker'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { restartWorkerPool } from '@pnpm/worker'
 import { rimrafSync } from '@zkochan/rimraf'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 const DEFAULT_OPTIONS = {
   argv: {
@@ -107,6 +107,37 @@ test('fetch production dependencies', async () => {
   project.storeHas('is-positive')
 })
 
+test('fetch production dependencies leaves out a devDependency that only satisfies an optional peer', async () => {
+  const project = prepare({
+    dependencies: { '@pnpm.e2e/abc-optional-peers': '1.0.0' },
+    devDependencies: { '@pnpm.e2e/peer-a': '1.0.0', '@pnpm.e2e/peer-c': '1.0.0' },
+  })
+  const storeDir = path.resolve('store')
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    storeDir,
+  })
+
+  rimrafSync(path.resolve(project.dir(), 'node_modules'))
+  rimrafSync(path.resolve(project.dir(), './package.json'))
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dev: false,
+    dir: process.cwd(),
+    production: true,
+    storeDir,
+  })
+
+  const virtualStore = fs.readdirSync('node_modules/.pnpm')
+  expect(virtualStore.filter((dir) => dir.startsWith('@pnpm.e2e+peer-c@'))).toHaveLength(0)
+  expect(virtualStore.filter((dir) => dir.startsWith('@pnpm.e2e+peer-a@'))).toHaveLength(1)
+})
+
 test('fetch only dev dependencies', async () => {
   const project = prepare({
     dependencies: { 'is-positive': '1.0.0' },
@@ -137,6 +168,45 @@ test('fetch only dev dependencies', async () => {
 
   project.storeHas('is-negative')
   project.storeHasNot('is-positive')
+})
+
+// https://github.com/pnpm/pnpm/issues/9678
+test.each([
+  [true, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0', 'is-positive@1.0.0']],
+  [false, ['@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0', '@pnpm.e2e+pkg-with-good-optional@1.0.0']],
+])('fetch only dev dependencies with optional = %s', async (optional, expectedVirtualStoreEntries) => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+  const project = prepare({
+    dependencies: { 'is-negative': '1.0.0' },
+    devDependencies: { '@pnpm.e2e/pkg-with-good-optional': '1.0.0' },
+    optionalDependencies: { '@pnpm.e2e/bravo': '1.0.0' },
+  })
+  const storeDir = path.resolve('store')
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileOnly: true,
+    storeDir,
+  })
+
+  rimrafSync(path.resolve(project.dir(), './package.json'))
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dev: true,
+    dir: process.cwd(),
+    optional,
+    production: false,
+    storeDir,
+  })
+
+  const virtualStoreEntries = fs.readdirSync('node_modules/.pnpm', { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== 'node_modules')
+    .map(({ name }) => name)
+  expect(virtualStoreEntries.sort()).toStrictEqual(expectedVirtualStoreEntries)
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/10460
@@ -209,7 +279,7 @@ test('fetch populates global virtual store links/', async () => {
   })
 
   // Drain workers and close SQLite connections before removing the store (required on Windows)
-  await finishWorkers()
+  await restartWorkerPool()
   closeAllStoreIndexes()
 
   // Remove the store — simulate a cold start with only the lockfile
@@ -293,12 +363,12 @@ test('install after fetch completes linking without recreating node_modules', as
 })
 
 test('fetch applies patches to dependencies when patchedDependencies key is bare package name', async () => {
-  const f = fixtures(import.meta.dirname)
+  const testFixtures = fixtures(import.meta.dirname)
   const project = prepare({
     dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
   })
   fs.mkdirSync('patches', { recursive: true })
-  fs.copyFileSync(f.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+  fs.copyFileSync(testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
 
   const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
   const cacheDir = path.resolve(project.dir(), 'cache')
@@ -328,6 +398,254 @@ test('fetch applies patches to dependencies when patchedDependencies key is bare
 
   const patchedIndexJsAfterFetch = fs.readFileSync(path.join(virtualStoreDir, consoleLogDirs[0], 'node_modules/@pnpm.e2e/console-log/index.js'), 'utf8')
   expect(patchedIndexJsAfterFetch).toContain('FIRST LINE')
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/11034
+test('fetch applies patches to dependencies that are only reachable through a skipped file: dependency', async () => {
+  const testFixtures = fixtures(import.meta.dirname)
+  const project = prepare({
+    dependencies: { 'local-pkg': 'file:./local-pkg' },
+  })
+  fs.mkdirSync('local-pkg')
+  fs.writeFileSync('local-pkg/package.json', JSON.stringify({
+    name: 'local-pkg',
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
+  }))
+  fs.mkdirSync('patches')
+  fs.copyFileSync(testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+
+  const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
+  const cacheDir = path.resolve(project.dir(), 'cache')
+  const storeDir = path.resolve(project.dir(), 'store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    linkWorkspacePackages: false,
+    lockfileOnly: true,
+    storeDir,
+    patchedDependencies,
+  })
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    storeDir,
+    patchedDependencies,
+  })
+
+  const virtualStoreDir = path.resolve(project.dir(), 'node_modules', '.pnpm')
+  const consoleLogDirs = fs.readdirSync(virtualStoreDir).filter(d => d.startsWith('@pnpm.e2e+console-log@'))
+  expect(consoleLogDirs).toHaveLength(1)
+
+  const patchedIndexJs = fs.readFileSync(path.join(virtualStoreDir, consoleLogDirs[0], 'node_modules/@pnpm.e2e/console-log/index.js'), 'utf8')
+  expect(patchedIndexJs).toContain('FIRST LINE')
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/5268
+test.each(['isolated', 'hoisted'] as const)('fetch with nodeLinker=%s fails with ERR_PNPM_PATCH_NOT_FOUND when a patch file is missing', async (nodeLinker) => {
+  const testFixtures = fixtures(import.meta.dirname)
+  const project = prepare({
+    dependencies: { '@pnpm.e2e/console-log': '1.0.0' },
+  })
+  fs.mkdirSync('patches', { recursive: true })
+  fs.copyFileSync(testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+
+  const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
+  const cacheDir = path.resolve(project.dir(), 'cache')
+  const storeDir = path.resolve(project.dir(), 'store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    linkWorkspacePackages: false,
+    lockfileOnly: true,
+    nodeLinker,
+    storeDir,
+    patchedDependencies,
+  })
+  rimrafSync('patches')
+
+  await expect(fetch.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir,
+    dir: project.dir(),
+    nodeLinker,
+    storeDir,
+    patchedDependencies,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_PATCH_NOT_FOUND',
+    message: `Patch file not found: ${path.resolve(project.dir(), 'patches/console-log.patch')}`,
+  })
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/18037
+// `nodeLinker: hoisted` has no virtual store, so `fetch` populates only the
+// CAS store and defers patching and dependency build scripts to the install
+// that materializes the hoisted tree.
+test('fetch with nodeLinker=hoisted defers patches and builds until offline install', async () => {
+  const testFixtures = fixtures(import.meta.dirname)
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/console-log': '1.0.0',
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }
+  const project = prepare(manifest)
+  fs.mkdirSync('patches', { recursive: true })
+  fs.copyFileSync(testFixtures.find('patchedDependencies/console-log-replace-1st-line.patch'), 'patches/console-log.patch')
+
+  const allowBuilds = { '@pnpm.e2e/pre-and-postinstall-scripts-example': true }
+  const patchedDependencies = { '@pnpm.e2e/console-log': 'patches/console-log.patch' }
+  const cacheDir = path.resolve(project.dir(), 'cache')
+  const storeDir = path.resolve(project.dir(), 'store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds,
+    cacheDir,
+    dir: project.dir(),
+    linkWorkspacePackages: false,
+    lockfileOnly: true,
+    nodeLinker: 'hoisted',
+    patchedDependencies,
+    storeDir,
+  })
+
+  rimrafSync(path.resolve(project.dir(), 'package.json'))
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds,
+    cacheDir,
+    dir: project.dir(),
+    nodeLinker: 'hoisted',
+    patchedDependencies,
+    storeDir,
+  })
+
+  project.storeHas('@pnpm.e2e/console-log')
+  project.storeHas('@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/console-log'))).toBe(false)
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'))).toBe(false)
+  const modulesAfterFetch = project.readModulesManifest()
+  expect(modulesAfterFetch?.virtualStoreOnly).toBe(true)
+  expect(modulesAfterFetch?.hoistedLocations).toBeUndefined()
+
+  fs.writeFileSync(path.resolve(project.dir(), 'package.json'), JSON.stringify(manifest), 'utf8')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds,
+    cacheDir,
+    dir: project.dir(),
+    frozenLockfile: true,
+    linkWorkspacePackages: false,
+    nodeLinker: 'hoisted',
+    offline: true,
+    patchedDependencies,
+    storeDir,
+  })
+
+  const patchedIndexJs = fs.readFileSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/console-log/index.js'), 'utf8')
+  expect(patchedIndexJs).toContain('FIRST LINE')
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBe(true)
+  const modulesAfterInstall = project.readModulesManifest()
+  expect(modulesAfterInstall?.virtualStoreOnly).toBeUndefined()
+  expect(modulesAfterInstall?.hoistedLocations).toBeDefined()
+})
+
+test('fetch with nodeLinker=hoisted preserves existing hoistedLocations and ignoredBuilds', async () => {
+  const initialManifest = {
+    dependencies: {
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }
+  const project = prepare(initialManifest)
+  const cacheDir = path.resolve(project.dir(), 'cache')
+  const storeDir = path.resolve(project.dir(), 'store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds: {},
+    cacheDir,
+    dir: project.dir(),
+    hoistPattern: ['*'],
+    linkWorkspacePackages: false,
+    nodeLinker: 'hoisted',
+    storeDir,
+    strictDepBuilds: false,
+  })
+
+  const modulesBeforeFetch = project.readModulesManifest()
+  expect(modulesBeforeFetch?.hoistedLocations?.['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0']).toBeDefined()
+  expect(modulesBeforeFetch?.hoistedLocations?.['is-positive@1.0.0']).toBeUndefined()
+  expect(Array.from(modulesBeforeFetch?.ignoredBuilds ?? [])).toStrictEqual([
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+  ])
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBe(false)
+
+  const updatedManifest = {
+    dependencies: {
+      ...initialManifest.dependencies,
+      'is-positive': '1.0.0',
+    },
+  }
+  fs.writeFileSync(path.resolve(project.dir(), 'package.json'), JSON.stringify(updatedManifest), 'utf8')
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds: {},
+    cacheDir,
+    dir: project.dir(),
+    linkWorkspacePackages: false,
+    lockfileOnly: true,
+    nodeLinker: 'hoisted',
+    storeDir,
+    strictDepBuilds: false,
+  })
+
+  const allowBuilds = { '@pnpm.e2e/pre-and-postinstall-scripts-example': true }
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds,
+    cacheDir,
+    dir: project.dir(),
+    nodeLinker: 'hoisted',
+    storeDir,
+  })
+
+  project.storeHas('is-positive')
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/is-positive'))).toBe(false)
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBe(false)
+  const modulesAfterFetch = project.readModulesManifest()
+  expect(modulesAfterFetch?.hoistedLocations).toStrictEqual(modulesBeforeFetch?.hoistedLocations)
+  expect(Array.from(modulesAfterFetch?.ignoredBuilds ?? [])).toStrictEqual([
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+  ])
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds,
+    cacheDir,
+    dir: project.dir(),
+    frozenLockfile: true,
+    hoistPattern: ['*'],
+    linkWorkspacePackages: false,
+    nodeLinker: 'hoisted',
+    offline: true,
+    storeDir,
+  })
+
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/is-positive'))).toBe(true)
+  expect(fs.existsSync(path.resolve(project.dir(), 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBe(true)
+  const modulesAfterInstall = project.readModulesManifest()
+  expect(modulesAfterInstall?.hoistedLocations?.['is-positive@1.0.0']).toBeDefined()
+  expect(Array.from(modulesAfterInstall?.ignoredBuilds ?? [])).toStrictEqual([])
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/14174

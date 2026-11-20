@@ -1,7 +1,20 @@
-use derive_more::{Display, Error};
-use node_semver::{SemverError, Version};
-use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt, str::FromStr};
+use derive_more::{
+    Display,
+    Error,
+};
+use node_semver::{
+    SemverError,
+    Version,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    borrow::Cow,
+    fmt,
+    str::FromStr,
+};
 
 /// Version slot of a [`PkgVerPeer`]: a semver, the raw path of an
 /// injected workspace `file:<path>` dep, or an opaque non-semver
@@ -11,7 +24,7 @@ pub enum VersionPart {
     Semver(Version),
     /// Path portion of a `file:<path>` dep, scheme stripped.
     File(String),
-    /// `<registryName>:<version>` — a package resolved from a named
+    /// `<registryName>:<version>`: a package resolved from a named
     /// registry, keyed registry-qualified so the same name@version from
     /// different registries stays distinct (lockfile format 12.0).
     RegistryQualified {
@@ -48,9 +61,7 @@ impl fmt::Display for VersionPart {
 ///
 /// Runtime entries (pnpm v11's `node@runtime:` /  `deno@runtime:` /
 /// `bun@runtime:` deps) carry a `runtime:` prefix in front of the
-/// version part (e.g. `runtime:22.0.0`). Pacquet preserves that
-/// prefix through [`Prefix`] so a round-trip stays byte-stable
-/// against the `pnpm-lock.yaml` output.
+/// version part (e.g. `runtime:22.0.0`).
 ///
 /// **NOTE:** The peer part isn't guaranteed to be correct. It is only assumed to be.
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -58,8 +69,7 @@ impl fmt::Display for VersionPart {
 #[serde(try_from = "Cow<'de, str>", into = "String")]
 pub struct PkgVerPeer {
     /// Scheme prefix (e.g. `runtime:`) preserved verbatim through
-    /// the round-trip. [`Prefix::None`] for plain semver — the only
-    /// shape pacquet recognises before pnpm v11.
+    /// the round-trip.
     prefix: Prefix,
     version: VersionPart,
     peer: String,
@@ -70,8 +80,7 @@ pub struct PkgVerPeer {
 /// Pnpm v11 introduces `runtime:` for runtime dependencies; pacquet
 /// preserves the substring so the resulting depPath
 /// (e.g. `node@runtime:22.0.0`) round-trips correctly and downstream
-/// consumers (the `--no-runtime` filter, the install dispatcher)
-/// can discriminate runtime entries by their prefix instead of
+/// consumers can discriminate runtime entries by their prefix instead of
 /// substring-searching the depPath.
 ///
 /// The enum is closed because pnpm only defines this one scheme so
@@ -79,9 +88,9 @@ pub struct PkgVerPeer {
 /// rather than turning the prefix into an unbounded string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Prefix {
-    /// No prefix — plain semver, the default before pnpm v11.
+    /// No prefix, plain semver.
     None,
-    /// `runtime:` — runtime dependency specifier (`node@runtime:`,
+    /// `runtime:`: runtime dependency specifier (`node@runtime:`,
     /// `deno@runtime:`, `bun@runtime:`).
     Runtime,
 }
@@ -106,7 +115,7 @@ impl fmt::Display for Prefix {
 
 impl PkgVerPeer {
     /// Get the version part. The `runtime:` prefix (if any) is
-    /// stripped — callers that need to discriminate runtime
+    /// stripped, callers that need to discriminate runtime
     /// entries should consult [`PkgVerPeer::prefix`] instead.
     #[must_use]
     pub fn version(&self) -> &'_ VersionPart {
@@ -115,7 +124,7 @@ impl PkgVerPeer {
 
     /// Semver `Version` if this is a [`VersionPart::Semver`], else
     /// `None`. Use from call sites that need `major` / `minor` /
-    /// `patch` — Display via [`PkgVerPeer::version`] covers the rest.
+    /// `patch`. Display via [`PkgVerPeer::version`] covers the rest.
     #[must_use]
     pub fn version_semver(&self) -> Option<&'_ Version> {
         match &self.version {
@@ -128,6 +137,19 @@ impl PkgVerPeer {
             VersionPart::File(_)
             | VersionPart::NonSemver(_)
             | VersionPart::RegistryQualified { .. } => None,
+        }
+    }
+
+    /// The semver of a registry package, whether or not its key names the
+    /// registry. For a caller that has already settled which registry the
+    /// key belongs to.
+    #[must_use]
+    pub fn registry_version(&self) -> Option<&'_ Version> {
+        match &self.version {
+            VersionPart::Semver(version) | VersionPart::RegistryQualified { version, .. } => {
+                Some(version)
+            }
+            VersionPart::File(_) | VersionPart::NonSemver(_) => None,
         }
     }
 
@@ -156,8 +178,7 @@ impl PkgVerPeer {
     }
 
     /// Destructure the struct into a tuple of version and peer.
-    /// The prefix (if any) is dropped — keep the call shape
-    /// backward-compatible with pre-runtime consumers. New callers
+    /// The prefix (if any) is dropped. Callers
     /// that need the prefix should access it via
     /// [`PkgVerPeer::prefix`] before destructuring.
     #[must_use]
@@ -171,7 +192,7 @@ impl PkgVerPeer {
     /// The result preserves the original `prefix` and `version` slots
     /// byte-for-byte, so no parse-and-render round-trip runs. Callers
     /// that need the metadata-map key for a peer-variant snapshot key
-    /// should reach for this instead of stringifying and re-parsing —
+    /// should reach for this instead of stringifying and re-parsing,
     /// some legitimately-resolved snapshot keys carry a `version` slot
     /// (e.g. a workspace `link:<rel-path>(peer@x)` shape under
     /// `linkWorkspacePackages: true`) whose `Display` form would not
@@ -179,6 +200,30 @@ impl PkgVerPeer {
     #[must_use]
     pub fn without_peer(&self) -> PkgVerPeer {
         PkgVerPeer { prefix: self.prefix, version: self.version.clone(), peer: String::new() }
+    }
+
+    /// The `(patch_hash=…)` group the peer part begins with, or `""`. The
+    /// writer puts the patch group before every peer group.
+    #[must_use]
+    pub fn patch_group(&self) -> &'_ str {
+        if !self.peer.starts_with("(patch_hash=") {
+            return "";
+        }
+        self.peer
+            .find(')')
+            .map_or("", |close| &self.peer[..=close])
+    }
+
+    /// This value with the peer groups dropped and the patch group kept.
+    #[must_use]
+    pub fn without_peer_bindings(&self) -> PkgVerPeer {
+        self.with_peer(self.patch_group().to_string())
+    }
+
+    /// This value with its peer part, patch group included, replaced by `peer`.
+    #[must_use]
+    pub fn with_peer(&self, peer: String) -> PkgVerPeer {
+        PkgVerPeer { prefix: self.prefix, version: self.version.clone(), peer }
     }
 }
 
@@ -205,7 +250,7 @@ fn parse_version_part(input: &str) -> Result<VersionPart, ParsePkgVerPeerError> 
     // Upstream's `parse` in `deps/path/src/index.ts` (pnpm@1819226b51)
     // falls back to `nonSemverVersion` whenever `semver.valid` rejects
     // the version, so tarball / git URLs and other custom resolution
-    // ids in the version slot still parse. Mirror that here — only an
+    // ids in the version slot still parse. Mirror that here, only an
     // empty body is a hard error.
     if let Some((registry_name, version)) = pnpm_deps_path::parse_registry_qualified_version(input)
     {
@@ -227,7 +272,7 @@ impl FromStr for PkgVerPeer {
         // Strip a leading `runtime:` (or future scheme) before
         // anything else. Pnpm v11 writes the depPath with the
         // scheme prefix flush against the semver, e.g.
-        // `runtime:22.0.0` — splitting it off here keeps the
+        // `runtime:22.0.0`, splitting it off here keeps the
         // parenthesis-based peer-suffix detection below unchanged.
         let (prefix, body) = if let Some(rest) = value.strip_prefix(Prefix::Runtime.as_str()) {
             (Prefix::Runtime, rest)

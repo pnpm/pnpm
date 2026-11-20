@@ -12,3 +12,15 @@ fn redact_and_sanitize_strips_credentials_and_control_chars() {
     assert!(!clean.contains('\n'), "newlines must be stripped: {clean:?}");
     assert!(clean.contains("https://host/-/ping"), "non-sensitive text is kept: {clean:?}");
 }
+
+#[test]
+fn ping_endpoint_preserves_path_prefix() {
+    assert_eq!(
+        super::ping_endpoint_url("https://registry.example/npm/"),
+        "https://registry.example/npm/-/ping?write=true",
+    );
+    assert_eq!(
+        super::ping_endpoint_url("https://registry.example/"),
+        "https://registry.example/-/ping?write=true",
+    );
+}

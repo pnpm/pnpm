@@ -4,12 +4,24 @@
 //! Mirrors `isRefusedByAProjectManifest` / `whereRefusedKeyBelongs` in
 //! pnpm's `config.reader`, so that the two stacks cannot disagree on what
 //! was dropped from a config file or on the route a warning offers for it.
+//! The keys of [`MachineSettings`] are refused too, since a project file
+//! parses into a type without them.
 
 use crate::{
-    config_types::{is_config_file_key, is_never_a_file_setting},
-    naming_cases::{to_camel_case, to_kebab_case},
+    MachineSettings,
+    config_types::{
+        is_config_file_key,
+        is_never_a_file_setting,
+    },
+    naming_cases::{
+        to_camel_case,
+        to_kebab_case,
+    },
 };
-use std::{collections::HashSet, sync::OnceLock};
+use std::{
+    collections::HashSet,
+    sync::OnceLock,
+};
 
 /// The camelCase keys a project's `pnpm-workspace.yaml` does not contribute,
 /// named as in pnpm's `config.reader`: where the machine keeps what it holds
@@ -21,6 +33,7 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: &[&str] = &[
     "globalBinDir",
     "globalDir",
     "globalPkgDir",
+    "macosBackup",
     "npmrcAuthFile",
     "pnpmHomeDir",
     "stateDir",
@@ -58,7 +71,11 @@ const CONFIG_CONTEXT_KEYS: &[&str] = &[
 fn refused_keys() -> &'static HashSet<&'static str> {
     static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
     SET.get_or_init(|| {
-        PROJECT_MANIFEST_SKIPPED_KEYS.iter().chain(CONFIG_CONTEXT_KEYS).copied().collect()
+        PROJECT_MANIFEST_SKIPPED_KEYS
+            .iter()
+            .chain(CONFIG_CONTEXT_KEYS)
+            .copied()
+            .collect()
     })
 }
 
@@ -67,7 +84,9 @@ fn refused_keys() -> &'static HashSet<&'static str> {
 /// or as the reader's own bookkeeping.
 #[must_use]
 pub fn is_refused_by_a_project_manifest(key: &str) -> bool {
-    refused_keys().contains(to_camel_case(key).as_str())
+    let camel_key = to_camel_case(key);
+    refused_keys().contains(camel_key.as_str())
+        || MachineSettings::keys().contains(&camel_key)
         || is_never_a_file_setting(&to_kebab_case(key))
 }
 
@@ -94,6 +113,10 @@ pub fn where_refused_key_belongs(camel_key: &str) -> String {
     if camel_key == "dir" {
         return "Pass --dir on the command line instead".to_string();
     }
+    if camel_key == "macosBackup" {
+        return "Set macosBackup.excludeModulesDir or macosBackup.excludeStoreDir in the global config.yaml instead"
+            .to_string();
+    }
     if is_never_a_file_setting(&to_kebab_case(camel_key)) {
         let kebab_key = to_kebab_case(camel_key);
         let env_key = kebab_key.to_uppercase().replace('-', "_");
@@ -101,8 +124,9 @@ pub fn where_refused_key_belongs(camel_key: &str) -> String {
             "Pass it per run instead: --{kebab_key} on the command line, or PNPM_CONFIG_{env_key}",
         );
     }
-    let kebab_key =
-        global_equivalent_key(camel_key).map_or_else(|| to_kebab_case(camel_key), str::to_string);
+    let kebab_key = global_equivalent_key(camel_key)
+        .map(str::to_string)
+        .unwrap_or_else(|| to_kebab_case(camel_key));
     if is_config_file_key(&kebab_key) {
         format!("Set it for the machine instead: pnpm config set --global {kebab_key}")
     } else {

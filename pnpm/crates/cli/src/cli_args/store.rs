@@ -1,4 +1,4 @@
-//! `pacquet store` — read and act on the content-addressable store.
+//! `pacquet store`: read and act on the content-addressable store.
 //!
 //! `status` and `add` are the two subcommands that reach past the store
 //! directory's own bookkeeping: `status` re-hashes what the store expanded
@@ -7,13 +7,31 @@
 //! any project.
 
 mod add;
+mod in_use_files;
 mod status;
 
-use clap::{Args, Subcommand};
-use miette::Context;
-use pnpm_config::Config;
+use crate::{
+    cli_args::dlx::clean_expired_dlx_cache,
+    engine_pm::install::remove_orphaned_private_engine_installs,
+};
+use clap::{
+    Args,
+    Subcommand,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    Host,
+    default_pnpm_home_dir,
+};
 use pnpm_reporter::Reporter;
-use std::path::Path;
+use std::{
+    path::Path,
+    time::SystemTime,
+};
 
 #[derive(Debug, Subcommand)]
 pub enum StoreCommand {
@@ -35,7 +53,9 @@ pub enum StoreCommand {
 
 #[derive(Debug, Args)]
 pub struct StoreAddArgs {
-    /// The packages to fetch into the store, e.g. `express@4`.
+    /// The packages to fetch into the store, e.g. `express@4`, or package
+    /// tarballs or directories of tarballs on disk, e.g. `./express-4.22.1.tgz`
+    /// or `./tarballs`.
     pub packages: Vec<String>,
 }
 
@@ -49,14 +69,38 @@ impl StoreCommand {
         match self {
             StoreCommand::Status => status::run::<Reporter>(config, dir).await,
             StoreCommand::Add(args) => add::run::<Reporter>(config, dir, &args.packages).await,
-            StoreCommand::Prune => {
-                config.store_dir.prune().wrap_err("pruning store")?;
-                Ok(())
-            }
+            StoreCommand::Prune => prune(config),
             StoreCommand::Path => {
-                println!("{}", config.store_dir.display());
+                pnpm_diagnostics::println!("{}", config.store_dir.display());
                 Ok(())
             }
         }
     }
+}
+
+fn prune(config: &Config) -> miette::Result<()> {
+    // The dlx cache holds hard links into the store, so it is
+    // cleaned first to let this prune reclaim what the expired
+    // entries used.
+    clean_expired_dlx_cache(&config.cache_dir, config.dlx_cache_max_age, SystemTime::now())
+        .into_diagnostic()
+        .wrap_err("cleaning the expired dlx cache")?;
+    let pnpm_home_dir = default_pnpm_home_dir::<Host>();
+    let protected_dirs: Vec<&Path> = [
+        config.global_dir.as_deref(),
+        config.global_pkg_dir.as_deref(),
+        config.global_bin.as_deref(),
+        pnpm_home_dir.as_deref(),
+        Some(config.state_dir.as_path()),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    config.store_dir
+        .prune_keeping(&config.cache_dir, &protected_dirs, || {
+            in_use_files::in_use(&config.store_dir)
+        })
+        .wrap_err("pruning store")?;
+    remove_orphaned_private_engine_installs(config)?;
+    Ok(())
 }

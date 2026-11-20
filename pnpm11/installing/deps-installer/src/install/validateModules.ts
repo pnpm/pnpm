@@ -1,9 +1,8 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
 import { confirm } from '@inquirer/prompts'
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 import type {
   IncludedDependencies,
   Modules,
@@ -23,109 +22,71 @@ import { checkCompatibility } from './checkCompatibility/index.js'
 
 interface ImporterToPurge {
   modulesDir: string
+  reason: string
   rootDir: ProjectRootDir
   rootDirRealPath?: string
 }
 
 interface SafeImporterToPurge extends ImporterToPurge {
   purgeDir: string
+  projectRealDir: string
+}
+
+interface ValidateModulesOptions {
+  currentHoistPattern?: string[]
+  currentPublicHoistPattern?: string[]
+  forceNewModules: boolean
+  include?: IncludedDependencies
+  lockfileDir: string
+  modulesDir: string
+  nodeLinker: 'hoisted' | 'isolated' | 'pnp'
+  mutatedProjectDirs: ReadonlySet<string>
+  registriesByScope: RegistriesByScope
+  storeDir: string
+  virtualStoreDir: string
+  virtualStoreDirMaxLength: number
+  confirmModulesPurge?: boolean
+
+  hoistPattern?: string[] | undefined
+
+  publicHoistPattern?: string[] | undefined
+  virtualStoreOnly?: boolean
+  global?: boolean
+}
+
+interface ProjectToValidate {
+  modulesDir: string
+  id: string
+  rootDir: ProjectRootDir
 }
 
 export async function validateModules (
   modules: Modules,
-  projects: Array<{
-    modulesDir: string
-    id: string
-    rootDir: ProjectRootDir
-  }>,
-  opts: {
-    currentHoistPattern?: string[]
-    currentPublicHoistPattern?: string[]
-    forceNewModules: boolean
-    include?: IncludedDependencies
-    lockfileDir: string
-    modulesDir: string
-    registriesByScope: RegistriesByScope
-    storeDir: string
-    virtualStoreDir: string
-    virtualStoreDirMaxLength: number
-    confirmModulesPurge?: boolean
-
-    hoistPattern?: string[] | undefined
-
-    publicHoistPattern?: string[] | undefined
-    global?: boolean
-  }
+  projects: ProjectToValidate[],
+  opts: ValidateModulesOptions
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
-  if (opts.virtualStoreDirMaxLength !== modules.virtualStoreDirMaxLength) {
-    if (opts.forceNewModules && (rootProject != null)) {
-      return { purged: await purgeModulesDirsOfImporter(opts, rootProject) }
+  // A project the install skips is not relinked. Its dependencies live in
+  // the root modules directory or link into the virtual store, so only an
+  // install of every project may recreate them.
+  const canRecreateModulesDirs = opts.forceNewModules && projects.every(({ rootDir }) => opts.mutatedProjectDirs.has(rootDir))
+  const layoutMismatch = findLayoutSettingMismatch(modules, opts)
+  if (layoutMismatch != null) {
+    if (canRecreateModulesDirs && rootProject != null) {
+      return { purged: await purgeModulesDirsOfImporter(opts, { ...rootProject, reason: toPurgeReason(layoutMismatch) }) }
     }
-    throw new PnpmError(
-      'VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF',
-      'This modules directory was created using a different virtual-store-dir-max-length value.' +
-      ' Run "pnpm install" to recreate the modules directory.'
-    )
-  }
-  // virtualStoreOnly installs (e.g. `pnpm fetch`) force empty hoist patterns
-  // into .modules.yaml; the follow-up install must complete linking, not purge.
-  if (
-    !modules.virtualStoreOnly &&
-    !equals(modules.publicHoistPattern ?? [], opts.publicHoistPattern ?? [])
-  ) {
-    if (opts.forceNewModules && (rootProject != null)) {
-      return { purged: await purgeModulesDirsOfImporter(opts, rootProject) }
-    }
-    throw new PnpmError(
-      'PUBLIC_HOIST_PATTERN_DIFF',
-      'This modules directory was created using a different public-hoist-pattern value.' +
-      ' Run "pnpm install" to recreate the modules directory.'
-    )
+    throw layoutMismatch
   }
 
-  const importersToPurge: ImporterToPurge[] = []
-
-  if (!modules.virtualStoreOnly && rootProject != null) {
-    try {
-      if (!equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) {
-        throw new PnpmError(
-          'HOIST_PATTERN_DIFF',
-          'This modules directory was created using a different hoist-pattern value.' +
-          ' Run "pnpm install" to recreate the modules directory.'
-        )
-      }
-    } catch (err: any) { // eslint-disable-line
-      if (!opts.forceNewModules) throw err
-      importersToPurge.push(rootProject)
-    }
-  }
-  for (const project of projects) {
-    try {
-      checkCompatibility(modules, {
-        modulesDir: project.modulesDir,
-        storeDir: opts.storeDir,
-        virtualStoreDir: opts.virtualStoreDir,
-      })
-      if (opts.lockfileDir !== project.rootDir && (opts.include != null) && modules.included) {
-        for (const depsField of DEPENDENCIES_FIELDS) {
-          if (opts.include[depsField] !== modules.included[depsField]) {
-            throw new PnpmError('INCLUDED_DEPS_CONFLICT',
-              `modules directory (at "${opts.lockfileDir}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
-              `Current install wants ${stringifyIncludedDeps(opts.include)}.`
-            )
-          }
-        }
-      }
-    } catch (err: any) { // eslint-disable-line
-      if (!opts.forceNewModules) throw err
-      importersToPurge.push(project)
-    }
-  }
-  if (importersToPurge.length > 0 && (rootProject == null)) {
+  const importersToPurge = collectImportersToPurge(modules, projects, { rootProject, canRecreateModulesDirs, opts })
+  // Without a root project, the lockfile directory's modules directory holds
+  // the virtual store that skipped projects link into, so only an install of
+  // every project may purge it, as with a root project's modules directory.
+  if (importersToPurge.length > 0 && rootProject == null && canRecreateModulesDirs) {
     importersToPurge.push({
       modulesDir: pathAbsolute(opts.modulesDir, opts.lockfileDir),
       rootDir: opts.lockfileDir as ProjectRootDir,
+      reason: 'It holds the virtual store of the workspace projects whose modules directories are recreated.',
     })
   }
 
@@ -135,66 +96,223 @@ export async function validateModules (
   return { purged }
 }
 
+/**
+ * The error for a setting that shapes the whole modules directory and
+ * differs from the one it was created with, if any.
+ */
+function findLayoutSettingMismatch (modules: Modules, opts: ValidateModulesOptions): PnpmError | undefined {
+  if (opts.virtualStoreDirMaxLength !== modules.virtualStoreDirMaxLength) {
+    return new PnpmError(
+      'VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF',
+      'This modules directory was created using a different virtual-store-dir-max-length value.' +
+      ' Run "pnpm install" to recreate the modules directory.'
+    )
+  }
+  // virtualStoreOnly installs (e.g. `pnpm fetch`) force empty hoist patterns.
+  // Neither the follow-up install nor a hoisted `fetch` (which leaves
+  // `node_modules` untouched) must purge over that forced difference.
+  if (
+    !modules.virtualStoreOnly &&
+    !skipsHoistedTree(opts) &&
+    !equals(modules.publicHoistPattern ?? [], opts.publicHoistPattern ?? [])
+  ) {
+    return new PnpmError(
+      'PUBLIC_HOIST_PATTERN_DIFF',
+      'This modules directory was created using a different public-hoist-pattern value.' +
+      ' Run "pnpm install" to recreate the modules directory.'
+    )
+  }
+  if ((modules.nodeLinker ?? 'isolated') !== opts.nodeLinker) {
+    return new PnpmError(
+      'NODE_LINKER_DIFF',
+      'This modules directory was created using a different node-linker value.' +
+      ' Run "pnpm install" to recreate the modules directory.'
+    )
+  }
+  return undefined
+}
+
+/**
+ * The importers whose modules directories are incompatible with this install.
+ * Throws the incompatibility instead unless the install may recreate them:
+ * `canRecreateModulesDirs` for a hoist pattern, layout, or store mismatch,
+ * `forceNewModules` for a project installed with other dependency groups.
+ * A project the install skips keeps its modules directory when only its
+ * dependency groups differ, because nothing would reinstall it.
+ */
+function collectImportersToPurge (
+  modules: Modules,
+  projects: ProjectToValidate[],
+  { rootProject, canRecreateModulesDirs, opts }: {
+    rootProject: ProjectToValidate | undefined
+    canRecreateModulesDirs: boolean
+    opts: ValidateModulesOptions
+  }
+): ImporterToPurge[] {
+  const importersToPurge: ImporterToPurge[] = []
+  const rootHoistPatternReason = rootProject != null
+    ? findPurgeReason(() => checkHoistPattern(modules, opts), canRecreateModulesDirs)
+    : undefined
+  for (const project of projects) {
+    const compatibilityOpts = {
+      modulesDir: project.modulesDir,
+      storeDir: opts.storeDir,
+      virtualStoreDir: opts.virtualStoreDir,
+    }
+    const isSkipped = opts.forceNewModules && !opts.mutatedProjectDirs.has(project.rootDir)
+    const reasons = [
+      project === rootProject ? rootHoistPatternReason : undefined,
+      findPurgeReason(() => checkCompatibility(modules, compatibilityOpts), canRecreateModulesDirs),
+      isSkipped ? undefined : findPurgeReason(() => checkIncludedDeps(modules, project, opts), opts.forceNewModules),
+    ].filter((reason): reason is string => reason != null)
+    if (reasons.length > 0) {
+      importersToPurge.push({ ...project, reason: reasons.join(' ') })
+    }
+  }
+  return importersToPurge
+}
+
+/**
+ * Why `check` fails, if it does. The failure is thrown instead unless `canPurge`.
+ */
+function findPurgeReason (check: () => void, canPurge: boolean): string | undefined {
+  try {
+    check()
+    return undefined
+  } catch (err: unknown) {
+    if (!canPurge) throw err
+    return toPurgeReason(err)
+  }
+}
+
+/**
+ * The message of an incompatibility error without its advice to recreate the
+ * modules directory, as the purge about to happen does exactly that.
+ */
+function toPurgeReason (err: unknown): string {
+  const message = isError(err) ? err.message : String(err)
+  return message.replace(/\s*Run "pnpm install[^"]*" to recreate (?:the modules directory|node_modules)\.$/, '')
+}
+
+function skipsHoistedTree (opts: ValidateModulesOptions): boolean {
+  return Boolean(opts.virtualStoreOnly && opts.nodeLinker === 'hoisted')
+}
+
+function checkHoistPattern (modules: Modules, opts: ValidateModulesOptions): void {
+  if (modules.virtualStoreOnly || skipsHoistedTree(opts) || equals(opts.currentHoistPattern ?? [], opts.hoistPattern ?? [])) return
+  throw new PnpmError(
+    'HOIST_PATTERN_DIFF',
+    'This modules directory was created using a different hoist-pattern value.' +
+    ' Run "pnpm install" to recreate the modules directory.'
+  )
+}
+
+function checkIncludedDeps (modules: Modules, project: ProjectToValidate, opts: ValidateModulesOptions): void {
+  if (opts.lockfileDir === project.rootDir || (opts.include == null) || !modules.included) return
+  const included = modules.included
+  if (DEPENDENCIES_FIELDS.some((depsField) => opts.include![depsField] !== included[depsField])) {
+    throw new PnpmError('INCLUDED_DEPS_CONFLICT',
+      `modules directory (at "${opts.lockfileDir}") was installed with ${stringifyIncludedDeps(included)}. ` +
+      `Current install wants ${stringifyIncludedDeps(opts.include)}.`
+    )
+  }
+}
+
+interface PurgeOptions {
+  confirmModulesPurge?: boolean
+  virtualStoreDir: string
+}
+
 async function purgeModulesDirsOfImporter (
-  opts: {
-    confirmModulesPurge?: boolean
-    virtualStoreDir: string
-  },
+  opts: PurgeOptions,
   importer: ImporterToPurge
 ): Promise<boolean> {
   return purgeModulesDirsOfImporters(opts, [importer])
 }
 
 async function purgeModulesDirsOfImporters (
-  opts: {
-    confirmModulesPurge?: boolean
-    virtualStoreDir: string
-  },
+  opts: PurgeOptions,
   importers: ImporterToPurge[]
 ): Promise<boolean> {
   const safeImporters = (await Promise.all(importers.map(resolveSafePurgeTarget)))
     .filter((importer): importer is SafeImporterToPurge => importer != null)
   if (safeImporters.length === 0) return true
 
-  if (opts.confirmModulesPurge ?? true) {
-    if (!process.stdin.isTTY) {
-      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_NO_TTY', 'Aborted removal of modules directory due to no TTY', {
-        hint: 'If you are running pnpm in CI, set the CI environment variable to "true", or set "confirmModulesPurge" to "false".',
-      })
-    }
-    let confirmed: boolean
-    try {
-      confirmed = await confirm({
-        message: safeImporters.length === 1
-          ? `The modules directory at "${safeImporters[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
-          : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
-        default: true,
-      })
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'ExitPromptError') {
-        throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
-      }
-      throw err
-    }
-    if (!confirmed) {
-      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
-    }
+  const confirmModulesPurge = opts.confirmModulesPurge ?? true
+  if (confirmModulesPurge && !process.stdin.isTTY) {
+    assertSafeNonInteractivePurge(safeImporters)
   }
-  await Promise.all(safeImporters.map(async (importer) => {
-    logger.info({
-      message: `Recreating ${importer.modulesDir}`,
+  for (const importer of safeImporters) {
+    logger.warn({
+      message: `The modules directory at "${importer.modulesDir}" has to be recreated. ${importer.reason}`,
       prefix: importer.rootDir,
     })
-    try {
-      // We don't remove the actual modules directory, just the contents of it.
-      // 1. we will need the directory anyway.
-      // 2. in some setups, pnpm won't even have permission to remove the modules directory.
-      await removeContentsOfDir(importer.purgeDir, opts.virtualStoreDir)
-    } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') throw err
-    }
-  }))
+  }
+  if (confirmModulesPurge) {
+    await confirmPurge(safeImporters)
+  }
+  await Promise.all(safeImporters.map(async (importer) => purgeModulesDir(importer, opts.virtualStoreDir)))
   return true
+}
+
+async function confirmPurge (safeImporters: SafeImporterToPurge[]): Promise<void> {
+  if (!process.stdin.isTTY) {
+    for (const importer of safeImporters) {
+      logger.info({
+        message: `Non-interactive terminal detected. Automatically proceeding with modules directory purge for "${importer.modulesDir}".`,
+        prefix: importer.rootDir,
+      })
+    }
+    return
+  }
+  let confirmed: boolean
+  try {
+    confirmed = await confirm({
+      message: safeImporters.length === 1
+        ? `The modules directory at "${safeImporters[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
+        : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
+      default: true,
+    })
+  } catch (err: unknown) {
+    if (isError(err) && err.name === 'ExitPromptError') {
+      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+    }
+    throw err
+  }
+  if (!confirmed) {
+    throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+  }
+}
+
+/**
+ * Without a TTY there is nobody to answer the prompt, so the purge proceeds
+ * only for targets a user would not be surprised to see recreated: a real
+ * `node_modules` directory directly inside the project.
+ */
+function assertSafeNonInteractivePurge (safeImporters: SafeImporterToPurge[]): void {
+  const unsafeModulesDirs = safeImporters
+    .filter((importer) => !isSafeAutoPurgeTarget(importer))
+    .map(({ modulesDir }) => modulesDir)
+  if (unsafeModulesDirs.length > 0) {
+    throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_UNSAFE', `Aborted removal of a custom or symlinked modules directory without a TTY: ${unsafeModulesDirs.map((dir) => `"${dir}"`).join(', ')}`, {
+      hint: 'Use a direct, non-symlinked "node_modules" directory, or set "confirmModulesPurge" to "false".',
+    })
+  }
+}
+
+async function purgeModulesDir (importer: SafeImporterToPurge, virtualStoreDir: string): Promise<void> {
+  logger.info({
+    message: `Recreating ${importer.modulesDir}`,
+    prefix: importer.rootDir,
+  })
+  try {
+    // We don't remove the actual modules directory, just the contents of it.
+    // 1. we will need the directory anyway.
+    // 2. in some setups, pnpm won't even have permission to remove the modules directory.
+    await removeContentsOfDir(importer.purgeDir, virtualStoreDir)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT') throw err
+  }
 }
 
 async function resolveSafePurgeTarget (
@@ -205,7 +323,7 @@ async function resolveSafePurgeTarget (
   try {
     purgeDir = await fs.realpath(importer.modulesDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
   if (dirsAreEqual(projectRootDir, purgeDir) || !isSubdir(projectRootDir, purgeDir)) {
@@ -214,7 +332,17 @@ async function resolveSafePurgeTarget (
       `Refusing to remove the modules directory at "${importer.modulesDir}" because its resolved target is not a strict subdirectory of the project root at "${importer.rootDir}".`
     )
   }
-  return { ...importer, purgeDir }
+  return { ...importer, purgeDir, projectRealDir: projectRootDir }
+}
+
+/**
+ * Checks the resolved `purgeDir`, which is the directory the purge empties,
+ * so a symlinked `node_modules` is rejected wherever it points.
+ */
+function isSafeAutoPurgeTarget (importer: SafeImporterToPurge): boolean {
+  const isDirectNodeModules = dirsAreEqual(path.join(importer.rootDir, 'node_modules'), importer.modulesDir) ||
+    (importer.rootDirRealPath != null && dirsAreEqual(path.join(importer.rootDirRealPath, 'node_modules'), importer.modulesDir))
+  return isDirectNodeModules && dirsAreEqual(path.join(importer.projectRealDir, 'node_modules'), importer.purgeDir)
 }
 
 async function removeContentsOfDir (dir: string, virtualStoreDir: string): Promise<void> {

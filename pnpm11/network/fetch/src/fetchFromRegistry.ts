@@ -1,11 +1,12 @@
 import { URL } from 'node:url'
 
-import { redactUrlCredentials } from '@pnpm/error'
+import { PnpmError, redactUrlCredentials } from '@pnpm/error'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 import type { RegistryConfig } from '@pnpm/types'
 
-import { type ClientCertificates, type DispatcherOptions, getDispatcher } from './dispatcher.js'
+import { type ClientCertificates, DEFAULT_FETCH_TIMEOUT, type DispatcherOptions, getConnectionOrigin, getDispatcher } from './dispatcher.js'
 import { fetch, isRedirect, type RequestInit } from './fetch.js'
+import { createOriginConcurrencyGates, type GetOriginConcurrencyGate } from './networkConcurrencyGate.js'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -25,6 +26,7 @@ export function fetchWithDispatcher (url: string | URL, opts: FetchWithDispatche
   const dispatcher = getDispatcher(url.toString(), {
     ...opts.dispatcherOptions,
     strictSsl: opts.dispatcherOptions.strictSsl ?? true,
+    timeout: opts.timeout ?? opts.dispatcherOptions.timeout,
   })
   return fetch(url, {
     ...opts,
@@ -61,76 +63,113 @@ export interface CreateFetchFromRegistryOptions extends DispatcherOptions {
   configByUri?: Record<string, RegistryConfig>
 }
 
+type FetchFromRegistryRequestOptions = Parameters<FetchFromRegistry>[1]
+
 export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
   const clientCertificates = extractTlsConfigs(defaultOpts.configByUri)
-  return async (url, opts): Promise<Response> => {
-    const headers: Record<string, string> = {
-      'user-agent': USER_AGENT,
-      ...getHeaders({
-        auth: opts?.authHeaderValue,
-        fullMetadata: opts?.fullMetadata,
-        method: opts?.method,
-        userAgent: defaultOpts.userAgent,
-      }),
-    }
-    if (opts?.ifNoneMatch) {
-      headers['if-none-match'] = opts.ifNoneMatch
-    }
-    if (opts?.ifModifiedSince) {
-      headers['if-modified-since'] = opts.ifModifiedSince
-    }
-    // Merge caller-provided headers (e.g. content-type, npm-otp) on top
-    if (opts?.headers) {
-      const optsHeaders = opts.headers instanceof Headers
-        ? Object.fromEntries(opts.headers.entries())
-        : Array.isArray(opts.headers)
-          ? Object.fromEntries(opts.headers)
-          : opts.headers
-      Object.assign(headers, optsHeaders)
-    }
+  const concurrencyGateFor = createOriginConcurrencyGates()
+  return async (url, opts): Promise<Response> => fetchFollowingRedirects({
+    url,
+    opts,
+    headers: createRequestHeaders(defaultOpts.userAgent, opts),
+    defaultOpts,
+    clientCertificates,
+    concurrencyGateFor,
+  })
+}
 
-    let redirects = 0
-    let urlObject = new URL(url)
-    const originalOrigin = urlObject.origin
-    /* eslint-disable no-await-in-loop */
-    while (true) {
-      const dispatcherOptions: DispatcherOptions = {
-        ...defaultOpts,
-        ...opts,
-        strictSsl: defaultOpts.strictSsl ?? true,
-        clientCertificates,
-      }
-
-      const response = await fetchWithDispatcher(urlObject, {
-        dispatcherOptions,
-        body: opts?.body,
-        // if verifying integrity, native fetch must not decompress
-        headers,
-        method: opts?.method,
-        redirect: 'manual',
-        retry: opts?.retry,
-        timeout: opts?.timeout ?? 60000,
-      })
-      if (
-        opts?.redirect === 'manual' ||
-        !isRedirect(response.status) ||
-        redirects >= MAX_FOLLOWED_REDIRECTS
-      ) {
-        return response
-      }
-
-      redirects++
-      // This is a workaround to remove authorization headers on redirect.
-      // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
-      urlObject = resolveRedirectUrl(response, urlObject)
-      if (originalOrigin === urlObject.origin) continue
-      if (headers['authorization']) {
-        delete headers.authorization
-      }
-      delete headers['npm-otp']
-    }
-    /* eslint-enable no-await-in-loop */
+function createRequestHeaders (userAgent: string | undefined, opts: FetchFromRegistryRequestOptions): Record<string, string> {
+  const headers: Record<string, string> = {
+    'user-agent': USER_AGENT,
+    ...getHeaders({
+      auth: opts?.authHeaderValue,
+      fullMetadata: opts?.fullMetadata,
+      method: opts?.method,
+      userAgent,
+    }),
   }
+  if (opts?.ifNoneMatch) {
+    headers['if-none-match'] = opts.ifNoneMatch
+  }
+  if (opts?.ifModifiedSince) {
+    headers['if-modified-since'] = opts.ifModifiedSince
+  }
+  // Merge caller-provided headers (e.g. content-type, npm-otp) on top
+  if (opts?.headers) {
+    Object.assign(headers, toHeaderRecord(opts.headers))
+  }
+  return headers
+}
+
+function toHeaderRecord (headers: NonNullable<RequestInit['headers']>): object {
+  if (headers instanceof Headers) return Object.fromEntries(headers.entries())
+  if (Array.isArray(headers)) return Object.fromEntries(headers)
+  return headers
+}
+
+interface RedirectFollowingRequest {
+  url: string
+  opts: FetchFromRegistryRequestOptions
+  headers: Record<string, string>
+  defaultOpts: CreateFetchFromRegistryOptions
+  clientCertificates: ClientCertificates | undefined
+  concurrencyGateFor: GetOriginConcurrencyGate
+}
+
+async function fetchFollowingRedirects ({ url, opts, headers, defaultOpts, clientCertificates, concurrencyGateFor }: RedirectFollowingRequest): Promise<Response> {
+  let redirects = 0
+  let urlObject = new URL(url)
+  const originalOrigin = urlObject.origin
+  /* eslint-disable no-await-in-loop -- each redirect hop needs the previous response */
+  while (true) {
+    const dispatcherOptions: DispatcherOptions = {
+      ...defaultOpts,
+      ...opts,
+      strictSsl: defaultOpts.strictSsl ?? true,
+      clientCertificates,
+    }
+
+    const response = await fetchWithDispatcher(urlObject, {
+      dispatcherOptions,
+      body: opts?.body,
+      // if verifying integrity, native fetch must not decompress
+      headers,
+      method: opts?.method,
+      redirect: 'manual',
+      retry: opts?.retry,
+      timeout: opts?.timeout ?? defaultOpts.timeout ?? DEFAULT_FETCH_TIMEOUT,
+      concurrencyGate: concurrencyGateFor(getConnectionOrigin(urlObject, dispatcherOptions)),
+    })
+    if (
+      opts?.redirect === 'manual' ||
+      !isRedirect(response.status) ||
+      redirects >= MAX_FOLLOWED_REDIRECTS
+    ) {
+      return response
+    }
+
+    redirects++
+    // This is a workaround to remove authorization headers on redirect.
+    // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
+    urlObject = resolveRedirectUrl(response, urlObject)
+    // The permit stays with the body. Drop it before the next hop so a
+    // redirect chain cannot pin a connection slot.
+    await response.body?.cancel()
+    if (originalOrigin !== urlObject.origin) {
+      if (opts?.body != null) {
+        throw new PnpmError('REDIRECT_BODY_CROSS_ORIGIN', `Cannot replay request body across origins: ${redactUrlCredentials(urlObject.toString())}`)
+      }
+      removeCredentialHeaders(headers)
+    }
+  }
+  /* eslint-enable no-await-in-loop */
+}
+
+function removeCredentialHeaders (headers: Record<string, string>): void {
+  if (headers['authorization']) {
+    delete headers.authorization
+  }
+  delete headers['npm-otp']
 }
 
 interface Headers {

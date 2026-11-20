@@ -1,10 +1,14 @@
-//! The `$dep-name` self-reference syntax in `overrides` — a value that
-//! copies the specifier the root manifest declares for that dependency —
+//! The `$dep-name` self-reference syntax in `overrides` (a value that
+//! copies the specifier the root manifest declares for that dependency)
 //! is deprecated in favor of catalogs. pnpm still honors it, and warns
 //! once per command about every selector still using it.
 
 use pnpm_config::Config;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+};
 use serde_json::Value;
 
 /// Warn about the `overrides` selectors whose configured value is a
@@ -20,7 +24,10 @@ pub(crate) fn warn_deprecated_override_version_references(config: &Config, emit:
     };
     let selectors = overrides
         .iter()
-        .filter(|(_, spec)| spec.as_str().is_some_and(|spec| spec.starts_with('$')))
+        .filter(|(_, spec)| {
+            spec.as_str()
+                .is_some_and(|spec| spec.starts_with('$'))
+        })
         .map(|(selector, _)| selector.as_str())
         .collect::<Vec<_>>();
     if selectors.is_empty() {

@@ -41,22 +41,43 @@ export function parseBareSpecifier (bareSpecifier: string, opts: DispatcherOptio
   if (colonsPos === -1) return null
   const protocol = bareSpecifier.slice(0, colonsPos)
 
-  // Also detect http/https URLs ending in .git as git repositories
-  const isGitUrl = gitProtocols.has(protocol.toLocaleLowerCase()) ||
-    ((protocol === 'http' || protocol === 'https') && /\.git(?:#|$)/.test(bareSpecifier))
-  if (protocol && isGitUrl) {
-    const correctBareSpecifier = correctUrl(bareSpecifier)
-    const url = new URL(correctBareSpecifier)
-    if (!url?.protocol) return null
-
-    const hash = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
-    return async () => ({
-      fetchSpec: urlToFetchSpec(url),
-      normalizedBareSpecifier: bareSpecifier,
-      ...parseGitParams(hash),
-    })
+  if (!isSupportedGitProtocol(protocol, bareSpecifier)) {
+    return null
   }
-  return null
+
+  const correctBareSpecifier = correctUrl(bareSpecifier)
+  const url = new URL(correctBareSpecifier)
+  if (!url?.protocol) return null
+
+  const hash = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
+  return async () => ({
+    fetchSpec: urlToFetchSpec(url),
+    normalizedBareSpecifier: bareSpecifier,
+    ...parseGitParams(hash),
+  })
+}
+
+/**
+ * The committish and subdirectory a git spec asks for, read without any
+ * network request. `undefined` when the spec is not a git spec. The
+ * committish is `null` when the spec asks for none or only a semver range.
+ */
+export function parseGitSpecCommittishAndPath (bareSpecifier: string): Pick<GitParsedParams, 'gitCommittish' | 'path'> | undefined {
+  const hosted = HostedGit.fromUrl(bareSpecifier)
+  if (hosted != null) return parseGitParams(hosted.committish ?? null)
+  const colonsPos = bareSpecifier.indexOf(':')
+  if (colonsPos === -1 || !isSupportedGitProtocol(bareSpecifier.slice(0, colonsPos), bareSpecifier)) return undefined
+  const url = correctUrl(bareSpecifier)
+  if (!URL.canParse(url)) return { gitCommittish: null }
+  const { hash } = new URL(url)
+  return parseGitParams(hash.length > 1 ? decodeURIComponent(hash.slice(1)) : null)
+}
+
+function isSupportedGitProtocol (protocol: string, bareSpecifier: string): boolean {
+  if (gitProtocols.has(protocol.toLocaleLowerCase())) {
+    return true
+  }
+  return (protocol === 'http' || protocol === 'https') && /\.git(?:#|$)/.test(bareSpecifier)
 }
 
 function urlToFetchSpec (url: URL): string {
@@ -182,7 +203,8 @@ function parseGitParams (committish: string | null): GitParsedParams {
     return result
   }
 
-  const params = committish.split('&')
+  // `&` separates the parameters in pnpm's syntax, `::` in npm's.
+  const params = committish.split('&').flatMap((part) => part.split('::')).filter((param) => param !== '')
   for (const param of params) {
     if (param.length >= 7 && param.slice(0, 7) === 'semver:') {
       result.gitRange = param.slice(7)
@@ -198,25 +220,38 @@ function parseGitParams (committish: string | null): GitParsedParams {
 // handle SCP-like URLs
 // see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
 function correctUrl (gitUrl: string): string {
-  let _gitUrl = gitUrl.replace(/^git\+/, '')
-  if (_gitUrl.startsWith('ssh://')) {
-    const hashIndex = _gitUrl.indexOf('#')
-    let hash = ''
-    if (hashIndex !== -1) {
-      hash = _gitUrl.slice(hashIndex)
-      _gitUrl = _gitUrl.slice(0, hashIndex)
-    }
-    const [auth, ...pathname] = _gitUrl.slice(6).split('/')
-    const userInfoEnd = auth.lastIndexOf('@')
-    const host = userInfoEnd === -1 ? auth : auth.slice(userInfoEnd + 1)
-    // The colons of a bracketed IPv6 literal belong to the address.
-    const bracketEnd = host.startsWith('[') ? host.indexOf(']') : -1
-    const afterHost = bracketEnd === -1 ? host : host.slice(bracketEnd + 1)
-    if (afterHost.includes(':') && !/:\d+$/.test(afterHost)) {
-      const authArr = auth.split(':')
-      const protocol = gitUrl.split('://')[0]
-      gitUrl = `${protocol}://${authArr.slice(0, -1).join(':') + '/' + authArr[authArr.length - 1]}${pathname.length ? '/' + pathname.join('/') : ''}${hash}`
-    }
+  const unwrappedGitUrl = gitUrl.replace(/^git\+/, '')
+  if (!unwrappedGitUrl.startsWith('ssh://')) {
+    return gitUrl
+  }
+  return correctSshScpUrl(gitUrl, unwrappedGitUrl)
+}
+
+function correctSshScpUrl (gitUrl: string, unwrappedGitUrl: string): string {
+  const hashIndex = unwrappedGitUrl.indexOf('#')
+  const hash = hashIndex !== -1 ? unwrappedGitUrl.slice(hashIndex) : ''
+  const cleanUrl = hashIndex !== -1 ? unwrappedGitUrl.slice(0, hashIndex) : unwrappedGitUrl
+
+  const [auth, ...pathname] = cleanUrl.slice(6).split('/')
+  const host = extractHostFromAuth(auth)
+  const afterHost = stripBracketedHost(host)
+
+  if (afterHost.includes(':') && !/:\d+$/.test(afterHost)) {
+    const authArr = auth.split(':')
+    const protocol = gitUrl.split('://')[0]
+    const userAndHost = authArr.slice(0, -1).join(':') + '/' + authArr[authArr.length - 1]
+    const pathPart = pathname.length ? '/' + pathname.join('/') : ''
+    return `${protocol}://${userAndHost}${pathPart}${hash}`
   }
   return gitUrl
+}
+
+function extractHostFromAuth (auth: string): string {
+  const userInfoEnd = auth.lastIndexOf('@')
+  return userInfoEnd === -1 ? auth : auth.slice(userInfoEnd + 1)
+}
+
+function stripBracketedHost (host: string): string {
+  const bracketEnd = host.startsWith('[') ? host.indexOf(']') : -1
+  return bracketEnd === -1 ? host : host.slice(bracketEnd + 1)
 }

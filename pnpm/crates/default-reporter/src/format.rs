@@ -2,11 +2,13 @@
 //! relies on (`pretty-bytes`, `pretty-ms`, `cli-truncate`, `normalize-path`)
 //! and from `utils/formatPrefix.ts` / `utils/zooming.ts`.
 
+use std::borrow::Cow;
+
 /// `outputConstants.ts` [`PREFIX_MAX_LENGTH`].
 pub const PREFIX_MAX_LENGTH: usize = 40;
 
 /// Port of `pretty-bytes` with `{ minimumFractionDigits: 2,
-/// maximumFractionDigits: 2 }` — base-1000 units, always two decimals, a
+/// maximumFractionDigits: 2 }`, base-1000 units, always two decimals, a
 /// space before the unit. pnpm's pinned version truncates at two fractional
 /// digits for these progress values.
 #[must_use]
@@ -35,11 +37,11 @@ pub fn pretty_ms(ms: u128) -> String {
     }
     let mut secs = ms as f64 / 1000.0;
     let days = (secs / 86_400.0).floor();
-    secs -= days * 86_400.0;
+    secs = days.mul_add(-86_400.0, secs);
     let hours = (secs / 3_600.0).floor();
-    secs -= hours * 3_600.0;
+    secs = hours.mul_add(-3_600.0, secs);
     let mins = (secs / 60.0).floor();
-    secs -= mins * 60.0;
+    secs = mins.mul_add(-60.0, secs);
 
     let mut parts = Vec::new();
     if days > 0.0 {
@@ -89,12 +91,7 @@ pub fn visible_width(text: &str) -> usize {
     let mut chars = text.chars();
     while let Some(ch) = chars.next() {
         if ch == '\u{1b}' {
-            // Skip until the terminating letter of the CSI sequence.
-            for esc in chars.by_ref() {
-                if esc.is_ascii_alphabetic() {
-                    break;
-                }
-            }
+            skip_csi(&mut chars);
         } else {
             width += 1;
         }
@@ -102,22 +99,141 @@ pub fn visible_width(text: &str) -> usize {
     width
 }
 
-/// Port of `cli-truncate(line, max)` for the plain (no embedded ANSI) script
-/// lines the lifecycle reporter cuts. Appends `...` when the line is shortened,
-/// matching cli-truncate's default end position.
+/// Advance past the rest of a CSI escape sequence, which ends at its first
+/// ASCII letter.
+fn skip_csi(chars: &mut std::str::Chars<'_>) {
+    for ch in chars {
+        if ch.is_ascii_alphabetic() {
+            break;
+        }
+    }
+}
+
+/// Port of `cli-truncate(line, max)`: cuts `line` to `max` columns, not
+/// counting ANSI escape sequences, and ends a shortened line with `…`.
 #[must_use]
 pub fn cut_line(line: &str, max: isize) -> String {
     if max <= 0 {
         return String::new();
     }
-    let max = max as usize;
-    if line.chars().count() <= max {
-        return line.to_string();
+    console::truncate_str(line, max as usize, "…").into_owned()
+}
+
+/// What a terminal shows of one line of script output: the last frame a
+/// `\r` redraw leaves. SGR (color) sequences are kept when `keep_colors`,
+/// followed by a reset so a color left open cannot reach the next line.
+/// Every other escape sequence and control character is dropped, so a
+/// child's cursor movement cannot move the reporter's cursor.
+#[must_use]
+pub fn printable_script_line(line: &str, keep_colors: bool) -> Cow<'_, str> {
+    if !line
+        .chars()
+        .filter(|ch| ch.is_control())
+        .any(|ch| ch != '\t')
+    {
+        return Cow::Borrowed(line);
     }
-    let keep = max.saturating_sub(1);
-    let mut out: String = line.chars().take(keep).collect();
-    out.push('…');
-    out
+    let frame = line
+        .rsplit('\r')
+        .map(|frame| printable_frame(frame, keep_colors))
+        .find(|frame| visible_width(frame) > 0)
+        .unwrap_or_default();
+    Cow::Owned(frame)
+}
+
+fn printable_frame(frame: &str, keep_colors: bool) -> String {
+    let mut printable = String::with_capacity(frame.len());
+    let mut colored = false;
+    let mut rest = frame;
+    while let Some(start) = rest.find(starts_escape_sequence) {
+        push_printable(&mut printable, &rest[..start]);
+        let escape_len = escape_len(&rest[start..]);
+        let escape = &rest[start..start + escape_len];
+        if keep_colors && is_sgr(escape) {
+            printable.push_str(escape);
+            colored = true;
+        }
+        rest = &rest[start + escape_len..];
+    }
+    push_printable(&mut printable, rest);
+    if colored {
+        printable.push_str(SGR_RESET);
+    }
+    printable
+}
+
+const SGR_RESET: &str = "\u{1b}[0m";
+
+fn push_printable(printable: &mut String, text: &str) {
+    printable.extend(
+        text.chars()
+            .filter(|ch| !ch.is_control() || *ch == '\t'),
+    );
+}
+
+fn starts_escape_sequence(ch: char) -> bool {
+    ch == '\u{1b}' || ch == C1_CSI || C1_STRING_INTRODUCERS.contains(&ch)
+}
+
+const C1_CSI: char = '\u{9b}';
+/// DCS, SOS, OSC, PM and APC.
+const C1_STRING_INTRODUCERS: [char; 5] = ['\u{90}', '\u{98}', '\u{9d}', '\u{9e}', '\u{9f}'];
+
+/// Byte length of the ECMA-48 escape sequence `text` starts with, in its
+/// `ESC` form or its single-character C1 form. An unterminated sequence
+/// runs to the end of `text`.
+fn escape_len(text: &str) -> usize {
+    let introducer = text.chars().next().unwrap_or_default();
+    let rest = &text[introducer.len_utf8()..];
+    let rest_len = if introducer == C1_CSI {
+        csi_len(rest)
+    } else if C1_STRING_INTRODUCERS.contains(&introducer) {
+        control_string_len(rest)
+    } else {
+        match rest.chars().next() {
+            Some('[') => 1 + csi_len(&rest[1..]),
+            Some(']' | 'P' | 'X' | '^' | '_') => 1 + control_string_len(&rest[1..]),
+            Some(ch) => ch.len_utf8(),
+            None => 0,
+        }
+    };
+    introducer.len_utf8() + rest_len
+}
+
+/// Parameter and intermediate bytes up to and including the final byte.
+fn csi_len(text: &str) -> usize {
+    let Some(end) = text.find(|ch: char| !('\u{20}'..='?').contains(&ch)) else {
+        return text.len();
+    };
+    let has_final_byte = text[end..].starts_with(|ch: char| ('@'..='~').contains(&ch));
+    end + usize::from(has_final_byte)
+}
+
+/// An OSC, DCS, SOS, PM or APC payload up to and including `BEL`,
+/// `ESC \\` or the C1 string terminator.
+fn control_string_len(text: &str) -> usize {
+    match text.find(['\u{7}', '\u{9c}', '\u{1b}']) {
+        Some(end) if text[end..].starts_with("\u{1b}\\") => end + 2,
+        Some(end) if text[end..].starts_with('\u{1b}') => end,
+        Some(end) => {
+            end + text[end..]
+                .chars()
+                .next()
+                .map_or(0, char::len_utf8)
+        }
+        None => text.len(),
+    }
+}
+
+fn is_sgr(escape: &str) -> bool {
+    escape
+        .strip_prefix("\u{1b}[")
+        .and_then(|sequence| sequence.strip_suffix('m'))
+        .is_some_and(|parameters| {
+            parameters
+                .chars()
+                .all(|ch| ch.is_ascii_digit() || ch == ';' || ch == ':')
+        })
 }
 
 /// Port of `normalize-path`: backslashes to forward slashes.
@@ -144,7 +260,9 @@ pub fn relative(base: &str, target: &str) -> String {
 }
 
 fn split_components(path: &str) -> Vec<&str> {
-    path.split(['/', '\\']).filter(|component| !component.is_empty()).collect()
+    path.split(['/', '\\'])
+        .filter(|component| !component.is_empty())
+        .collect()
 }
 
 /// `formatPrefixNoTrim`: relative path, normalized, `"."` for the cwd itself.
@@ -202,7 +320,7 @@ pub fn highlight_last_folder(path: &str, colors: &crate::colors::Colors) -> Stri
 /// Substring containment after slash-normalization, used by the lifecycle
 /// "collapsed" rule. Ports pnpm's `wd.includes(NODE_MODULES)` /
 /// `wd.includes(TMP_DIR_IN_STORE)` checks in `reportLifecycleScripts.ts`,
-/// which are plain `String.includes` calls — segment-aware matching would
+/// which are plain `String.includes` calls, segment-aware matching would
 /// diverge from pnpm. The needles pnpm passes (`/node_modules/`, `tmp/_tmp_`)
 /// already carry their own separators, so substring matching is sufficient.
 #[must_use]

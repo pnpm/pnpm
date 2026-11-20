@@ -1,12 +1,10 @@
-import { createHash } from 'node:crypto'
-import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
+import { bravoDepMatureUpTo101MinimumReleaseAge, getIntegrity } from '@pnpm/testing.registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -15,31 +13,16 @@ import {
   execPnpm,
   execPnpmSync,
 } from './utils/index.js'
+import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
-test('update --patches refreshes a registry revision without changing the version', async () => {
-  const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
-  if (storage == null) throw new Error('PNPM_REGISTRY_MOCK_STORAGE is required')
-  const firstTarball = fs.readFileSync(path.join(storage, 'ajv-keywords', 'ajv-keywords-1.5.0.tgz'))
-  const secondTarball = Buffer.from(firstTarball)
-  secondTarball[9] = firstTarball[9] === 0xff ? 0x03 : 0xff
-  const firstIntegrity = `sha512-${createHash('sha512').update(firstTarball).digest('base64')}`
-  const secondIntegrity = `sha512-${createHash('sha512').update(secondTarball).digest('base64')}`
+test('install rejects a version the registry serves as a registry revision', async () => {
+  const integrity = getIntegrity('ajv-keywords', '1.5.0')
+  const digest = Buffer.from(integrity.slice('sha512-'.length), 'base64')
 
-  let revision = 1
   let registry = ''
   const server = http.createServer((request, response) => {
-    const artifacts = [firstTarball, secondTarball].map((tarball, index) => {
-      const digest = createHash('sha512').update(tarball).digest()
-      return {
-        integrity: `sha512-${digest.toString('base64')}`,
-        manifest: {},
-        revision: index + 1,
-        tarball: `${registry}-/tarballs/sha512/${digest.toString('base64url')}`,
-        bytes: tarball,
-      }
-    })
     if (request.url === '/ajv-keywords') {
-      const current = artifacts[revision - 1]
+      const digestTarball = `${registry}-/tarballs/sha512/${digest.toString('base64url')}`
       response.writeHead(200, { 'Content-Type': 'application/json' })
       response.end(JSON.stringify({
         name: 'ajv-keywords',
@@ -49,82 +32,27 @@ test('update --patches refreshes a registry revision without changing the versio
             name: 'ajv-keywords',
             version: '1.5.0',
             dist: {
-              integrity: current.integrity,
-              revision,
-              revisions: artifacts.slice(0, revision).map((artifact) => ({
-                integrity: artifact.integrity,
-                manifest: artifact.manifest,
-                revision: artifact.revision,
-                tarball: artifact.tarball,
-              })),
-              tarball: current.tarball,
+              integrity,
+              revision: 0,
+              revisions: [{ integrity, manifest: {}, revision: 0, tarball: digestTarball }],
+              tarball: digestTarball,
             },
           },
         },
       }))
       return
     }
-    const artifact = artifacts.find(({ tarball }) => request.url === new URL(tarball).pathname)
-    if (artifact != null) {
-      response.writeHead(200, { 'Content-Type': 'application/octet-stream' })
-      response.end(artifact.bytes)
-      return
-    }
     response.writeHead(404).end()
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  await listenOnLocalhost(server)
   registry = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
 
   try {
-    const project = prepare({ dependencies: { 'ajv-keywords': '^1.5.0' } })
-    await execPnpm(['install', `--registry=${registry}`])
-    expect(project.readLockfile().packages['ajv-keywords@1.5.0'].resolution).toStrictEqual({
-      integrity: firstIntegrity,
-      revision: 1,
-    })
-    const manifest = await readPackageJsonFromDir('.')
-
-    revision = 2
-    await execPnpm(['update', '--patches', `--registry=${registry}`])
-
-    expect(await readPackageJsonFromDir('.')).toStrictEqual(manifest)
-    expect(project.readLockfile().packages['ajv-keywords@1.5.0'].resolution).toStrictEqual({
-      integrity: secondIntegrity,
-      revision: 2,
-    })
+    prepare({ dependencies: { 'ajv-keywords': '^1.5.0' } })
+    await expect(execPnpm(['install', `--registry=${registry}`])).rejects.toThrow('ERR_PNPM_REGISTRY_REVISIONS_UNSUPPORTED')
   } finally {
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => error == null ? resolve() : reject(error))
-    })
+    await closeServer(server)
   }
-})
-
-test('update --patches preserves an implicit workspace dependency', async () => {
-  preparePackages([
-    {
-      name: 'project',
-      version: '1.0.0',
-      dependencies: { 'workspace-only': '^1.0.0' },
-    },
-    {
-      name: 'workspace-only',
-      version: '1.0.0',
-    },
-  ])
-  writeYamlFileSync('pnpm-workspace.yaml', {
-    linkWorkspacePackages: true,
-    packages: ['**', '!store/**'],
-  })
-  await execPnpm(['recursive', 'install'])
-
-  process.chdir('project')
-  const manifest = await readPackageJsonFromDir('.')
-  await execPnpm(['update', '--patches'])
-
-  expect(await readPackageJsonFromDir('.')).toStrictEqual(manifest)
-  expect(fs.realpathSync('node_modules/workspace-only')).toBe(fs.realpathSync('../workspace-only'))
-  const lockfile = readYamlFileSync<any>('../pnpm-lock.yaml') // eslint-disable-line
-  expect(lockfile.importers.project.dependencies['workspace-only'].version).toBe('link:../workspace-only')
 })
 
 test('update <dep>', async () => {
@@ -253,6 +181,25 @@ test('update', async () => {
 
   const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+})
+
+test('update does not add compatibility peers to a dependency-free project', async () => {
+  const project = prepare({
+    name: 'vue-loader',
+    version: '0.0.0',
+  })
+
+  await execPnpm(['update'])
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg).toMatchObject({
+    name: 'vue-loader',
+    version: '0.0.0',
+  })
+  expect(pkg.dependencies).toBeUndefined()
+  expect(project.readLockfile().importers['.']).toStrictEqual({})
+
+  await execPnpm(['install', '--frozen-lockfile'])
 })
 
 test('recursive update --no-save', async () => {
@@ -1052,6 +999,46 @@ test('update preserves an existing prerelease range operator', async function ()
   await execPnpm(['install', '--frozen-lockfile'])
 })
 
+test('update keeps a range whose shape no save prefix describes', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '<= 1.2.5',
+    },
+  })
+
+  await execPnpm(['install'])
+  project.storeHas('@pnpm.e2e/foo', '1.2.0')
+
+  await execPnpm(['update'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('<= 1.2.5')
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '<= 1.2.5',
+    version: '1.2.0',
+  })
+  await execPnpm(['install', '--frozen-lockfile'])
+
+  await execPnpm(['update', '--latest'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+})
+
+test('update <pkg>@<tag> replaces a range whose shape no save prefix describes', async function () {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '<= 1.2.5',
+    },
+  })
+
+  await execPnpm(['install'])
+  await addDistTag('@pnpm.e2e/foo', '1.1.0', 'stable')
+
+  await execPnpm(['update', '@pnpm.e2e/foo@stable'])
+
+  expect((await readPackageJsonFromDir('.')).dependencies?.['@pnpm.e2e/foo']).toBe('^1.1.0')
+  expect(project.readLockfile().packages).toHaveProperty(['@pnpm.e2e/foo@1.1.0'])
+})
+
 test('update with tag @latest will downgrade prerelease', async function () {
   prepare()
 
@@ -1301,4 +1288,174 @@ test('update --latest respects minimumReleaseAge, picking the newest mature vers
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/bravo-dep'].version).toBe('1.0.1')
+})
+
+test('update --prod does not install devDependencies when installed with --prod', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--prod', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', 'is-positive', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+})
+
+test('update --prod does not install devDependencies in fresh project without prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['update', '--prod', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+})
+
+test('update --prod --dev installs devDependencies in prod install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--prod', '--dev', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+})
+
+test('update --dev expands layout and persists devDependencies: true in .modules.yaml', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+
+  await execPnpm(['update', '--dev', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest?.included.devDependencies).toBe(true)
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+})
+
+test('update preserves optionalDependencies: false from prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--no-optional'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--optional', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(true)
+})
+
+test('update --prod --peer preserves devDependencies: false from prior install', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+    peerDependencies: {
+      'is-odd': '^0.1.0',
+    },
+  })
+
+  await execPnpm(['install', '--prod'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.devDependencies).toBe(false)
+
+  await execPnpm(['update', '--prod', '--peer', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.devDependencies).toBe(false)
+})
+
+test('plain update honors optional=false from configuration', async () => {
+  const project = prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { optional: false })
+
+  await execPnpm(['update', '--latest'])
+
+  project.has('is-positive')
+  project.hasNot('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(false)
+
+  await execPnpm(['update', '--optional', '--latest'])
+
+  project.has('is-positive')
+  project.has('is-negative')
+  expect(project.readModulesManifest()?.included.optionalDependencies).toBe(true)
 })

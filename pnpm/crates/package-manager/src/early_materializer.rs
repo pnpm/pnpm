@@ -12,28 +12,57 @@
 //! from the lockfile, so a slot whose children were re-recorded after
 //! the announcement heals there.
 
-use pnpm_config::{Config, PackageImportMethod};
+use pnpm_config::{
+    Config,
+    PackageImportMethod,
+};
 use pnpm_deps_restorer::{
-    ImportIndexedDirOpts, SkippedSnapshots, VirtualStoreLayout, create_symlink_layout,
-    import_indexed_dir, install_package_from_registry::extract_tarball,
+    ImportIndexedDirOpts,
+    SkippedSnapshots,
+    VirtualStoreLayout,
+    create_symlink_layout,
+    import_indexed_dir,
+    install_package_from_registry::extract_tarball,
     safe_join_modules_dir::safe_join_modules_dir,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PkgName, SnapshotDepRef, is_git_hosted_tarball_url,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+    is_git_hosted_tarball_url,
 };
-use pnpm_resolving_deps_resolver::{FinalizedPackage, FinalizedPackageFn};
-use pnpm_tarball::{CacheValue, MemCache};
+use pnpm_resolving_deps_resolver::{
+    FinalizedPackage,
+    FinalizedPackageFn,
+};
+use pnpm_tarball::{
+    CacheValue,
+    CachedTarball,
+    MemCache,
+    package_mem_cache_key,
+};
 use std::{
     collections::HashMap,
     marker::PhantomData,
     path::PathBuf,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
+        Arc,
+        LazyLock,
+        Mutex,
+        atomic::{
+            AtomicBool,
+            AtomicU8,
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
-use tokio::{sync::Semaphore, task::JoinSet};
+use tokio::{
+    sync::Semaphore,
+    task::JoinSet,
+};
 
 /// How long a materialization task waits between looks at the tarball
 /// cache while the prefetch it depends on has not registered yet.
@@ -44,7 +73,7 @@ pub(crate) struct EarlyMaterializer<Reporter> {
     tasks: Mutex<JoinSet<()>>,
     /// Every slot a task was spawned for, so slots the final lockfile
     /// does not carry can be removed again.
-    slots: Mutex<Vec<(PackageKey, PathBuf)>>,
+    slots: Mutex<HashMap<PackageKey, PathBuf>>,
     _reporter: PhantomData<fn() -> Reporter>,
 }
 
@@ -67,7 +96,10 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         let permits = std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get);
         EarlyMaterializer {
             shared: Arc::new(Shared {
-                layout: VirtualStoreLayout::legacy(config.virtual_store_dir.clone(), max_length),
+                layout: VirtualStoreLayout::legacy(
+                    config.virtual_store_dir().to_path_buf(),
+                    max_length,
+                ),
                 import_method: config.package_import_method,
                 symlink: config.symlink,
                 logged_methods: AtomicU8::new(0),
@@ -77,35 +109,31 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
                 materialized: AtomicUsize::new(0),
             }),
             tasks: Mutex::new(JoinSet::new()),
-            slots: Mutex::new(Vec::new()),
+            slots: Mutex::new(HashMap::new()),
             _reporter: PhantomData,
         }
     }
 
     /// The sink to hand the resolver as
-    /// [`pnpm_resolving_deps_resolver::WorkspaceResolveOptions::finalized_package`].
+    /// [`pnpm_resolving_deps_resolver::WorkspaceResolveHooks::finalized_package`].
     pub(crate) fn hook(self: &Arc<Self>) -> FinalizedPackageFn {
         let materializer = Arc::clone(self);
         Arc::new(move |package| materializer.schedule(&package))
     }
 
     fn schedule(&self, package: &FinalizedPackage) {
-        let Some(name_ver) = package.result.name_ver.as_ref() else { return };
-        let Ok((package_url, _)) = extract_tarball(&package.result.resolution) else { return };
-        // The prefetch keys its cache by the plain URL and skips these
-        // shapes altogether; see `PrefetchingResolver::maybe_kickoff_download`.
-        let revision_addressed = matches!(
-            &package.result.resolution,
-            LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
-        );
-        if revision_addressed
-            || package_url.starts_with("file:")
-            || is_git_hosted_tarball_url(package_url)
-        {
+        let Some(name_ver) = package.result.package.name_ver.as_ref() else { return };
+        let Ok((package_url, integrity)) = extract_tarball(&package.result.resolution) else {
+            return;
+        };
+        if !can_early_materialize(&package.result.resolution, package_url, &package.pkg_id) {
             return;
         }
-        // A patched package is imported and patched by the normal path.
-        if package.pkg_id.contains("(patch_hash=") {
+        if crate::install_package_from_registry::manifest_requires_build(
+            package.result.package.manifest.as_deref(),
+        )
+        .unwrap_or(false)
+        {
             return;
         }
         let Ok(key) = package.pkg_id.parse::<PackageKey>() else { return };
@@ -116,26 +144,17 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         else {
             return;
         };
-        // Optional edges are left to the final pass, which knows which
-        // optional dependencies the installability pass skipped.
-        let dependencies: HashMap<PkgName, SnapshotDepRef> = package
-            .children
-            .iter()
-            .filter(|child| !child.optional)
-            .filter_map(|child| {
-                let alias = PkgName::parse(child.alias.as_str()).ok()?;
-                let key = child.pkg_id.parse::<PackageKey>().ok()?;
-                Some((alias, SnapshotDepRef::Alias(key)))
-            })
-            .collect();
         let job = SlotJob {
+            mem_cache_key: package_mem_cache_key(package_url, Some(&integrity), false),
             package_url: package_url.to_string(),
             self_name: name_ver.name.clone(),
             virtual_node_modules_dir,
             package_dir,
-            dependencies,
+            dependencies: required_dependencies(&package.children),
         };
-        lock(&self.slots).push((key, slot_dir));
+        if lock(&self.slots).insert(key, slot_dir).is_some() {
+            return;
+        }
         let shared = Arc::clone(&self.shared);
         lock(&self.tasks).spawn(async move { job.run::<Reporter>(&shared).await });
     }
@@ -151,8 +170,10 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         self.shared.closing.store(true, Ordering::Release);
         let mut tasks = std::mem::take(&mut *lock(&self.tasks));
         while tasks.join_next().await.is_some() {}
-        logged_methods
-            .fetch_or(self.shared.logged_methods.load(Ordering::Acquire), Ordering::AcqRel);
+        logged_methods.fetch_or(
+            self.shared.logged_methods.load(Ordering::Acquire),
+            Ordering::AcqRel,
+        );
         let orphans: Vec<PathBuf> = std::mem::take(&mut *lock(&self.slots))
             .into_iter()
             .filter(|(key, _)| !is_wanted(key))
@@ -170,7 +191,39 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
     }
 }
 
+fn can_early_materialize(resolution: &LockfileResolution, package_url: &str, pkg_id: &str) -> bool {
+    // The prefetch skips these shapes altogether; see
+    // `PrefetchingResolver::maybe_kickoff_download`. A patched package is
+    // imported and patched by the normal path.
+    let revision_addressed = matches!(
+        resolution,
+        LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
+    );
+    !revision_addressed
+        && !package_url.starts_with("file:")
+        && !is_git_hosted_tarball_url(package_url)
+        && !pkg_id.contains("(patch_hash=")
+}
+
+/// The edges the early slot links. Optional edges are left to the final
+/// pass, which knows which optional dependencies the installability pass
+/// skipped.
+fn required_dependencies(
+    children: &[pnpm_resolving_deps_resolver::FinalizedChild],
+) -> HashMap<PkgName, SnapshotDepRef> {
+    children
+        .iter()
+        .filter(|child| !child.optional)
+        .filter_map(|child| {
+            let alias = PkgName::parse(child.alias.as_str()).ok()?;
+            let key = child.pkg_id.parse::<PackageKey>().ok()?;
+            Some((alias, SnapshotDepRef::Alias(key)))
+        })
+        .collect()
+}
+
 struct SlotJob {
+    mem_cache_key: String,
     package_url: String,
     self_name: PkgName,
     virtual_node_modules_dir: PathBuf,
@@ -179,8 +232,10 @@ struct SlotJob {
 }
 
 impl SlotJob {
-    async fn run<Reporter: pnpm_reporter::Reporter>(self, shared: &Arc<Shared>) {
-        let Some(cas_paths) = wait_for_cas_paths(shared, &self.package_url).await else { return };
+    async fn run<Reporter: pnpm_reporter::Reporter>(mut self, shared: &Arc<Shared>) {
+        let Some(cached) = wait_for_cas_paths(shared, &self.mem_cache_key).await else {
+            return;
+        };
         let Ok(_permit) = shared.permits.acquire().await else { return };
         // Once the install is linking, the link phase's own parallel
         // pass takes the slot; finishing it here would only delay that.
@@ -188,62 +243,110 @@ impl SlotJob {
             return;
         }
         let shared = Arc::clone(shared);
+        let package_url = std::mem::take(&mut self.package_url);
         let outcome = tokio::task::spawn_blocking(move || {
-            std::fs::create_dir_all(&self.virtual_node_modules_dir)
-                .map_err(|error| error.to_string())?;
-            import_indexed_dir::<Reporter>(
-                &shared.logged_methods,
-                shared.import_method,
-                &self.package_dir,
-                &cas_paths,
-                ImportIndexedDirOpts::default(),
-            )
-            .map_err(|error| error.to_string())?;
-            if shared.symlink {
-                create_symlink_layout(
-                    Some(&self.dependencies),
-                    None,
-                    false,
-                    &self.self_name,
-                    &SkippedSnapshots::new(),
-                    &shared.layout,
-                    &self.virtual_node_modules_dir,
-                )
-                .map_err(|error| error.to_string())?;
+            let import = || self.import_slot::<Reporter>(&shared, &cached);
+            match early_link_pool() {
+                Some(pool) => pool.install(import),
+                None => import(),
             }
-            shared.materialized.fetch_add(1, Ordering::AcqRel);
-            Ok::<(), String>(())
         })
         .await;
         match outcome {
             Ok(Ok(())) => {}
             Ok(Err(error)) => tracing::debug!(
                 target: "pacquet::install",
-                package_url = %self.package_url,
+                package_url = %package_url,
                 %error,
                 "early materialization failed; the link phase retries the slot",
             ),
             Err(error) => tracing::debug!(
                 target: "pacquet::install",
-                package_url = %self.package_url,
+                package_url = %package_url,
                 %error,
                 "early materialization task panicked; the link phase retries the slot",
             ),
         }
     }
+    fn import_slot<Reporter: pnpm_reporter::Reporter>(
+        &self,
+        shared: &Shared,
+        cached: &CachedTarball,
+    ) -> Result<(), String> {
+        // A package with a build ahead of it must not share inodes with the
+        // store. The link phase imports it with `clone-or-copy` and marks it
+        // for the build, and a completed slot here would make it skip that.
+        if cached.requires_build() {
+            return Ok(());
+        }
+        std::fs::create_dir_all(&self.virtual_node_modules_dir).map_err(|error| error.to_string())?;
+        import_indexed_dir::<Reporter>(
+            &shared.logged_methods,
+            shared.import_method,
+            &self.package_dir,
+            &cached.files,
+            ImportIndexedDirOpts::default(),
+        )
+        .map_err(|error| error.to_string())?;
+        if shared.symlink {
+            create_symlink_layout(
+                Some(&self.dependencies),
+                None,
+                false,
+                &self.self_name,
+                &SkippedSnapshots::new(),
+                &shared.layout,
+                &self.virtual_node_modules_dir,
+            )
+            .map_err(|error| error.to_string())?;
+        }
+        shared.materialized.fetch_add(1, Ordering::AcqRel);
+        Ok::<(), String>(())
+    }
 }
 
-/// Wait for the prefetch of `package_url` to land its CAS path map in
+/// Dedicated rayon pool for the imports that run while resolution is
+/// still going, sized by [`early_link_pool_size`].
+///
+/// The global pool is sized for the link phase, at up to two threads per
+/// core. On it, these imports compete with the resolver, which is the
+/// critical path until it finishes (pnpm/tasks#52). `None` if the pool
+/// cannot be built. The caller then runs the import on its own thread,
+/// and the import's parallel iterator runs on the global pool.
+fn early_link_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
+        let parallelism =
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(early_link_pool_size(rayon::current_num_threads(), parallelism))
+            .thread_name(|index| format!("early-link-{index}"))
+            .build()
+            .map_err(|error| {
+                tracing::warn!(
+                    target: "pacquet::install",
+                    ?error,
+                    "failed to build the early-materialization pool; falling back to the global rayon pool",
+                );
+            })
+            .ok()
+    });
+    POOL.as_ref()
+}
+
+/// One thread per core, never more than the global pool has. The global
+/// pool carries the CLI's ceiling, or the caller's `RAYON_NUM_THREADS`.
+fn early_link_pool_size(global_pool_threads: usize, parallelism: usize) -> usize {
+    global_pool_threads.min(parallelism).max(1)
+}
+
+/// Wait for the prefetch of `mem_cache_key` to land its CAS path map in
 /// the tarball cache. `None` when the fetch failed or when the
 /// materializer closes first, which covers both a tarball the prefetch
 /// skipped (it never registers) and one still in flight when the
 /// install starts linking.
-async fn wait_for_cas_paths(
-    shared: &Shared,
-    package_url: &str,
-) -> Option<Arc<HashMap<String, PathBuf>>> {
+async fn wait_for_cas_paths(shared: &Shared, mem_cache_key: &str) -> Option<Arc<CachedTarball>> {
     loop {
-        let slot = shared.mem_cache.get(package_url).map(|entry| Arc::clone(entry.value()));
+        let slot = shared.mem_cache.get(mem_cache_key).map(|entry| Arc::clone(entry.value()));
         let Some(slot) = slot else {
             if shared.closing.load(Ordering::Acquire) {
                 return None;
@@ -252,8 +355,8 @@ async fn wait_for_cas_paths(
             continue;
         };
         let notify = match &*slot.read().await {
-            CacheValue::Available(cas_paths) => return Some(Arc::clone(cas_paths)),
-            CacheValue::Failed => return None,
+            CacheValue::Available(cached) => return Some(Arc::clone(cached)),
+            CacheValue::Failed(_) => return None,
             CacheValue::InProgress(notify) => Arc::clone(notify),
         };
         // A bounded wait rather than a bare `notified()`: the owner
@@ -269,3 +372,6 @@ async fn wait_for_cas_paths(
 fn lock<Inner>(mutex: &Mutex<Inner>) -> std::sync::MutexGuard<'_, Inner> {
     mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
+
+#[cfg(test)]
+mod tests;

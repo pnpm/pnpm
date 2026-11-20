@@ -2,20 +2,20 @@ import { parseRegistryQualifiedVersion, refToRelative, removeSuffix } from '@pnp
 import { PnpmError } from '@pnpm/error'
 import { convertToLockfileFile, createEnvLockfile, readEnvLockfile } from '@pnpm/lockfile.fs'
 import { pruneSharedLockfile } from '@pnpm/lockfile.pruner'
-import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
+import type { EnvLockfile, LockfileObject, LockfileResolution } from '@pnpm/lockfile.types'
 import type { StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
 import { convertToLockfileEnvObject } from './pruneEnvLockfile.js'
-import { resolveManifestDependencies } from './resolveManifestDependencies.js'
+import { type PackageTrustPolicy, resolveManifestDependencies } from './resolveManifestDependencies.js'
 import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 const PACKAGE_MANAGER_DEPS_WITH_EXE = ['pnpm', '@pnpm/exe'] as const
 const PACKAGE_MANAGER_DEPS_PNPM_ONLY = ['pnpm'] as const
 const PNPM_EXE_INTRODUCED = '6.17.1'
 
-export interface ResolvePackageManagerIntegritiesOpts {
+export interface ResolvePackageManagerIntegritiesOpts extends PackageTrustPolicy {
   envLockfile?: EnvLockfile
   registriesByScope: RegistriesByScope
   rootDir: string
@@ -51,6 +51,11 @@ export interface ResolvePackageManagerIntegritiesOpts {
  * records the pin the project asks for now: one written under a pin that has
  * since changed still has to be rewritten, even though its version stands.
  * Omit it to accept the entry on its version alone.
+ *
+ * A package this pnpm does not install the wanted version from is accepted
+ * beside the ones it does, when it pins that same version and the lockfile
+ * carries the records to install it from. See {@link pinsWantedPackageManager}
+ * for why such an entry is left alone.
  */
 export function isPackageManagerResolved (
   envLockfile: EnvLockfile | undefined,
@@ -62,10 +67,11 @@ export function isPackageManagerResolved (
   const pmDeps = envLockfile.importers['.'].packageManagerDependencies
   if (pmDeps == null) return false
   const wantedDeps = packageManagerDeps(pnpmVersion)
-  return Object.keys(pmDeps).length === wantedDeps.length &&
-    wantedDeps.every((name) =>
-      pmDeps[name]?.version === pnpmVersion &&
-      (specifier == null || pmDeps[name]?.specifier === specifier)
+  return wantedDeps.every((name) => pmDeps[name] != null) &&
+    Object.entries(pmDeps).every(([name, dep]) =>
+      dep.version === pnpmVersion &&
+      (specifier == null || dep.specifier === specifier) &&
+      isRecordedForInstall(envLockfile, name, dep.version)
     )
 }
 
@@ -73,15 +79,9 @@ export function isPackageManagerResolved (
  * Whether the env lockfile pins the package manager the manifest asks for,
  * even when it records more packages than this pnpm installs it from.
  *
- * A pnpm below 11.20.0 pins `@pnpm/exe` beside `pnpm` for a v12 version,
- * because that is the set its own major is installed from. Such an entry pins
- * the wanted version through the same integrity and cannot change which pnpm
- * runs, so a frozen lockfile accepts it instead of failing a project whose
- * lockfile a teammate's older pnpm last wrote. An entry pinning any other
- * version, or one the lockfile carries no package to install from, is a
- * lockfile that disagrees with the manifest, which is what the flag is for,
- * and a writable install still rewrites the block to the packages this pnpm
- * installs from.
+ * Every entry must pin the wanted version and have package and snapshot
+ * records. Compatible additional entries are retained to keep commands from
+ * repeatedly rewriting `pnpm-lock.yaml`.
  */
 export function pinsWantedPackageManager (
   envLockfile: EnvLockfile | undefined,
@@ -127,11 +127,7 @@ function packageManagerDeps (pnpmVersion: string): readonly string[] {
 /**
  * Resolves integrity checksums for the pnpm packages of the wanted version
  * (see {@link packageManagerDeps}) and their dependencies by calling
- * resolveManifestDependencies. When `opts.save` is true (the default) the
- * results are written to the `packageManagerDependencies` section of
- * `pnpm-lock.yaml`; when false, resolution happens purely in memory and the
- * returned `EnvLockfile` is never persisted to disk. Under
- * `opts.frozenLockfile` a write the lockfile still needs is an error instead.
+ * resolveManifestDependencies.
  */
 export async function resolvePackageManagerIntegrities (
   pnpmVersion: string,
@@ -156,33 +152,36 @@ export async function resolvePackageManagerIntegrities (
   const lockfile = await resolveWantedPnpmPackages(pnpmVersion, opts)
   stripRegistryTarballUrls(lockfile)
 
-  if (lockfile.packages) {
-    // Build packageManagerDependencies from the resolved lockfile importers
-    const importer = lockfile.importers['.' as ProjectId]
-    const packageManagerDependencies: Record<string, { specifier: string, version: string }> = {}
-    for (const [name, version] of Object.entries(importer.dependencies ?? {})) {
-      packageManagerDependencies[name] = {
-        specifier: importer.specifiers[name],
-        version,
-      }
-    }
-    envLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
-
-    // Merge new packages into the env lockfile object, then prune stale entries
-    const merged = convertToLockfileEnvObject(envLockfile)
-    for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
-      merged.packages![depPath as DepPath] = pkg
-    }
-    const pruned = pruneSharedLockfile(merged)
-    const prunedFile = convertToLockfileFile(pruned)
-    envLockfile.packages = prunedFile.packages ?? {}
-    envLockfile.snapshots = prunedFile.snapshots ?? {}
-
-    if (save) {
-      await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
-    }
+  if (!lockfile.packages) return envLockfile
+  mergeResolvedPackageManagerDeps(envLockfile, { ...lockfile, packages: lockfile.packages })
+  if (save) {
+    await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   }
   return envLockfile
+}
+
+function mergeResolvedPackageManagerDeps (
+  envLockfile: EnvLockfile,
+  lockfile: LockfileObject & Required<Pick<LockfileObject, 'packages'>>
+): void {
+  const importer = lockfile.importers['.' as ProjectId]
+  const packageManagerDependencies: Record<string, { specifier: string, version: string }> = {}
+  for (const [name, version] of Object.entries(importer.dependencies ?? {})) {
+    packageManagerDependencies[name] = {
+      specifier: importer.specifiers[name],
+      version,
+    }
+  }
+  envLockfile.importers['.'].packageManagerDependencies = packageManagerDependencies
+
+  const merged = convertToLockfileEnvObject(envLockfile)
+  for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
+    merged.packages![depPath as DepPath] = pkg
+  }
+  const pruned = pruneSharedLockfile(merged)
+  const prunedFile = convertToLockfileFile(pruned)
+  envLockfile.packages = prunedFile.packages ?? {}
+  envLockfile.snapshots = prunedFile.snapshots ?? {}
 }
 
 /**
@@ -199,18 +198,18 @@ export async function resolvePackageManagerIntegrities (
 function stripRegistryTarballUrls (lockfile: LockfileObject): void {
   for (const pkg of Object.values(lockfile.packages ?? {})) {
     const resolution = pkg.resolution
-    if (
-      resolution == null ||
-      !('integrity' in resolution) || !resolution.integrity ||
-      !('tarball' in resolution) || typeof resolution.tarball !== 'string' ||
-      resolution.tarball.startsWith('file:') ||
-      ('gitHosted' in resolution && resolution.gitHosted === true) ||
-      ('path' in resolution && resolution.path != null)
-    ) {
-      continue
-    }
+    if (resolution == null || !('integrity' in resolution) || !resolution.integrity) continue
+    if (!isRegistryTarballResolution(resolution)) continue
     pkg.resolution = { integrity: resolution.integrity }
   }
+}
+
+function isRegistryTarballResolution (resolution: LockfileResolution): boolean {
+  if (!('tarball' in resolution) || typeof resolution.tarball !== 'string') return false
+  if (resolution.tarball.startsWith('file:')) return false
+  const isGitHosted = 'gitHosted' in resolution && resolution.gitHosted === true
+  const isDirectory = 'path' in resolution && resolution.path != null
+  return !isGitHosted && !isDirectory
 }
 
 /**
@@ -228,6 +227,9 @@ async function resolveWantedPnpmPackages (
     registriesByScope: opts.registriesByScope,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
+    trustPolicy: opts.trustPolicy,
+    trustPolicyExclude: opts.trustPolicyExclude,
+    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
   }
   if (semver.valid(spec) != null) {
     return resolveManifestDependencies({ dependencies: wantedDependencies(spec, opts.specifier ?? spec) }, resolveOpts)

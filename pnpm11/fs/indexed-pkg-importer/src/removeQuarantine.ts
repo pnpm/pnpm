@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 
+import { isError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 
 const QUARANTINE_ATTR = 'com.apple.quarantine'
@@ -51,7 +52,7 @@ function removeQuarantineFromChunk (filePaths: string[]): void {
       stdio: ['ignore', 'ignore', 'pipe'],
     })
   } catch (err: unknown) {
-    // `xattr -d` exits non-zero when a file simply has no quarantine xattr to
+    // `xattr -d` exits non-zero when a file has no quarantine xattr to
     // remove ("No such xattr"), which is the common, expected case. It also
     // reports "No such file" for entries the importer legitimately dropped or
     // renamed (e.g. case-insensitive filename conflicts). Surface only errors
@@ -88,5 +89,5 @@ function getStderr (err: unknown): string {
     const stderr = (err as { stderr?: Buffer | string }).stderr
     if (stderr != null) return stderr.toString()
   }
-  return err instanceof Error ? err.message : String(err)
+  return isError(err) ? err.message : String(err)
 }

@@ -2,9 +2,15 @@
 //! the trait every resolver-side policy check implements, plus the
 //! shape used to materialize one rejection.
 
-use std::{future::Future, pin::Pin};
+use std::{
+    future::Future,
+    pin::Pin,
+};
 
-use pnpm_lockfile::{LockfileResolution, PkgName};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+};
 
 /// One verifier's decision about a single `(name, version, resolution)`
 /// entry. A discriminated union (`{ ok: true } | { ok: false, code,
@@ -21,8 +27,8 @@ pub enum ResolutionVerification {
         /// Verifier-defined error code (e.g.
         /// `MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`). The
         /// install command filters violations by code to decide
-        /// downstream UX, so the value is part of the public contract
-        /// — verifier crates pin theirs as `&'static str` consts.
+        /// downstream UX, so the value is part of the public contract,
+        /// verifier crates pin theirs as `&'static str` consts.
         code: &'static str,
         /// Human-readable explanation rendered in the install error
         /// breakdown. Allowed to allocate.
@@ -30,7 +36,7 @@ pub enum ResolutionVerification {
     },
     /// The registry couldn't be reached to verify the entry
     /// (auth/network/5xx). Unlike [`ResolutionVerification::Err`], this
-    /// is not a per-entry policy pick to collect into the batch — the
+    /// is not a per-entry policy pick to collect into the batch, the
     /// verification never completed, so the runner aborts the install
     /// with the registry's own fetch error rather than mislabeling a
     /// transport failure as lockfile tampering.
@@ -76,8 +82,7 @@ pub struct VerifyCtx<'a> {
 /// trait that returns `impl Future` is not yet ergonomic without
 /// `#[async_trait]` or a manual boxed-future. The runner stores
 /// verifiers as `&dyn ResolutionVerifier` so it can fan out across a
-/// heterogeneous list (the npm verifier today, future custom
-/// verifiers tomorrow); the boxed-future return is the minimal cost
+/// heterogeneous list; the boxed-future return is the minimal cost
 /// for keeping that flexibility while staying off `async-trait`.
 pub type VerifyFuture<'a> = Pin<Box<dyn Future<Output = ResolutionVerification> + Send + 'a>>;
 
@@ -87,7 +92,7 @@ pub type VerifyFuture<'a> = Pin<Box<dyn Future<Output = ResolutionVerification> 
 /// against the pinned hash. The third element is the entry's
 /// named-registry qualifier (`None` for the default / scope-routed
 /// registry), so `foo@1.0.0` and `foo@gh:1.0.0` never vouch for each
-/// other — their fetches hit different registries. Filled at most
+/// other; their fetches hit different registries. Filled at most
 /// once, by the materialization path right after its warm/cold
 /// partition; empty until then, and never filled by installs that
 /// materialize nothing.
@@ -95,7 +100,7 @@ pub type VerifyFuture<'a> = Pin<Box<dyn Future<Output = ResolutionVerification> 
 /// A listed entry's registry-manifest existence check may be replaced
 /// by this fetch evidence: the entry either downloads (the registry
 /// vouches for the artifact by serving it at the canonical path) or
-/// the install fails / drops it as an uninstallable optional — so no
+/// the install fails / drops it as an uninstallable optional, so no
 /// listed entry can land on disk without the registry having served
 /// it this run.
 pub type PlannedCanonicalFetches = std::sync::Arc<

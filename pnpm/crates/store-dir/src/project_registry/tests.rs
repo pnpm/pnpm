@@ -1,6 +1,17 @@
-use super::{create_short_hash, get_registered_projects, path_contains, register_project};
+use super::{
+    create_short_hash,
+    get_registered_projects,
+    path_contains,
+    register_project,
+};
 use crate::StoreDir;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 use tempfile::tempdir;
 
 /// `path_contains` must resolve `..` segments lexically when the
@@ -17,7 +28,7 @@ fn path_contains_resolves_parent_components_when_paths_do_not_exist() {
     let inner_sibling = Path::new("/tmp/nonexistent-workspace/../sibling/v11");
     assert!(
         !path_contains(outer, inner_sibling),
-        "`<workspace>/../sibling/v11` lexically resolves to `/tmp/sibling/v11` — outside the workspace",
+        "`<workspace>/../sibling/v11` lexically resolves to `/tmp/sibling/v11`, outside the workspace",
     );
 
     let inner_child = Path::new("/tmp/nonexistent-workspace/child/v11");
@@ -137,8 +148,10 @@ fn get_unlinks_stale_entry_and_skips_it() {
 
     let projects = get_registered_projects(&store_dir).expect("list");
     assert!(projects.is_empty(), "stale entry must not show up in the result");
-    let remaining: Vec<_> =
-        fs::read_dir(store_dir.projects()).unwrap().collect::<Result<_, _>>().unwrap();
+    let remaining: Vec<_> = fs::read_dir(store_dir.projects())
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
     assert!(remaining.is_empty(), "stale entry must be unlinked from disk");
 }
 
@@ -161,8 +174,10 @@ fn get_keeps_live_and_drops_stale_when_mixed() {
         dunce::canonicalize(&projects[0]).unwrap(),
         dunce::canonicalize(live.path()).unwrap(),
     );
-    let remaining: Vec<_> =
-        fs::read_dir(store_dir.projects()).unwrap().collect::<Result<_, _>>().unwrap();
+    let remaining: Vec<_> = fs::read_dir(store_dir.projects())
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
     assert_eq!(remaining.len(), 1, "exactly one registry entry left");
 }
 
@@ -176,5 +191,104 @@ fn get_skips_dotfile_entries() {
 
     let projects = get_registered_projects(&store_dir).expect("list");
     assert_eq!(projects.len(), 1, "dotfile must not register as a project");
-    assert!(store_dir.projects().join(".DS_Store").exists());
+    assert!(
+        store_dir
+            .projects()
+            .join(".DS_Store")
+            .exists(),
+    );
+}
+
+/// A store whose spelling reaches its real directory through a symlink at a
+/// different depth than the project's path, as macOS's `/var` does.
+struct SymlinkedStore {
+    root: tempfile::TempDir,
+    canonical: StoreDir,
+    through_symlink: StoreDir,
+}
+
+impl SymlinkedStore {
+    fn new() -> Self {
+        let root = tempdir().unwrap();
+        let real_store = root.path().join("deep/nested/store");
+        fs::create_dir_all(&real_store).unwrap();
+        let store_link = root.path().join("store-link");
+        pnpm_fs::symlink_dir(&real_store, &store_link).unwrap();
+        let through_symlink = StoreDir::new(&store_link);
+        fs::create_dir_all(through_symlink.root()).unwrap();
+        SymlinkedStore { root, canonical: StoreDir::new(&real_store), through_symlink }
+    }
+
+    fn project(&self, name: &str) -> PathBuf {
+        let project = self.root.path().join(name);
+        fs::create_dir_all(&project).unwrap();
+        project
+    }
+}
+
+#[test]
+fn register_through_a_symlinked_store_resolves_to_the_project() {
+    let store = SymlinkedStore::new();
+    let project = store.project("project");
+
+    register_project(&store.through_symlink, &project).expect("register");
+
+    for store_dir in [&store.canonical, &store.through_symlink] {
+        let projects = get_registered_projects(store_dir).expect("list");
+        assert_eq!(
+            projects,
+            std::slice::from_ref(&project),
+            "the registration must survive the listing",
+        );
+    }
+}
+
+/// A link an earlier version wrote relative to the symlinked spelling points
+/// at a missing directory. Registering the project again replaces it.
+#[cfg(unix)]
+#[test]
+fn register_heals_a_relative_link_that_crosses_a_symlink() {
+    let store = SymlinkedStore::new();
+    let project = store.project("project");
+    let registry_dir = store.through_symlink.projects();
+    fs::create_dir_all(&registry_dir).unwrap();
+    let link_path = registry_dir.join(create_short_hash(&project.to_string_lossy()));
+    let lexical_target = pnpm_fs::relative_path(&registry_dir, &project);
+    std::os::unix::fs::symlink(&lexical_target, &link_path).unwrap();
+    assert!(!link_path.exists(), "test setup: the relative link must be broken");
+
+    register_project(&store.through_symlink, &project).expect("register");
+
+    assert_eq!(fs::read_link(&link_path).unwrap(), project);
+}
+
+#[test]
+fn prune_keeps_the_slots_of_a_project_registered_through_a_symlinked_store() {
+    let store = SymlinkedStore::new();
+    let links = store.canonical.links();
+    let mut projects = Vec::new();
+    for (name, store_dir) in
+        [("direct", &store.canonical), ("through-symlink", &store.through_symlink)]
+    {
+        let package_dir = links
+            .join("@")
+            .join(name)
+            .join("1.0.0/hash/node_modules")
+            .join(name);
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(package_dir.join("package.json"), b"{}").unwrap();
+        let project = store.project(name);
+        fs::create_dir_all(project.join("node_modules")).unwrap();
+        pnpm_fs::symlink_dir(&package_dir, &project.join("node_modules").join(name)).unwrap();
+        register_project(store_dir, &project).expect("register");
+        projects.push(package_dir);
+    }
+
+    store.canonical
+        .prune(&store.canonical.root().join("cache"), &[])
+        .expect("prune");
+
+    for package_dir in projects {
+        assert!(package_dir.exists(), "prune must keep {package_dir:?}");
+    }
 }

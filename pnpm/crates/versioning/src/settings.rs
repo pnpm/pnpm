@@ -1,6 +1,9 @@
 use derive_more::Display;
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// A bump a release can apply. Ordered: `patch < minor < major`.
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -63,8 +66,8 @@ pub struct EpicSettings {
 }
 
 /// Settings for native workspace release management, declared under the
-/// `versioning` key of pnpm-workspace.yaml. Mirrors the TypeScript type of
-/// the same name field for field.
+/// `versioning` key of pnpm-workspace.yaml. Mirrors the TypeScript settings
+/// of the same name, and adds `includePrivatePackages`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct VersioningSettings {
@@ -78,6 +81,11 @@ pub struct VersioningSettings {
     /// propagation.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ignore: Vec<String>,
+    /// When `false`, `pnpm change` leaves private packages out and rejects
+    /// naming one. Release planning and lanes still include them. Absent or
+    /// `true` keeps private packages selectable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_private_packages: Option<bool>,
     /// Caps the bump a release from the current checkout may apply. Enforced
     /// on the final assembled release plan, after dependent propagation and
     /// fixed-group resolution.
@@ -94,7 +102,7 @@ pub struct VersioningSettings {
 }
 
 impl VersioningSettings {
-    /// Whether nothing is configured — the state in which the `versioning`
+    /// Whether nothing is configured, the state in which the `versioning`
     /// key is removed from pnpm-workspace.yaml instead of written empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {

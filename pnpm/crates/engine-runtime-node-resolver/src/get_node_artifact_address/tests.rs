@@ -1,6 +1,10 @@
 use pretty_assertions::assert_eq;
 
-use super::{GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifact_address};
+use super::{
+    GetNodeArtifactAddressOptions,
+    NodeArtifactAddress,
+    get_node_artifact_address,
+};
 
 /// Table-driven check of the archive-address composition.
 #[test]
@@ -59,6 +63,28 @@ fn matches_upstream_address_table() {
                 basename: "node-v16.0.0-darwin-arm64".to_string(),
                 dirname: "https://nodejs.org/download/release/v16.0.0".to_string(),
                 extname: ".tar.gz".to_string(),
+            },
+        ),
+        (
+            "18.20.0",
+            "https://nodejs.org/download/release/",
+            "win32",
+            "arm64",
+            NodeArtifactAddress {
+                basename: "node-v18.20.0-win-x64".to_string(),
+                dirname: "https://nodejs.org/download/release/v18.20.0".to_string(),
+                extname: ".zip".to_string(),
+            },
+        ),
+        (
+            "20.7.0",
+            "https://nodejs.org/download/release/",
+            "win32",
+            "arm64",
+            NodeArtifactAddress {
+                basename: "node-v20.7.0-win-arm64".to_string(),
+                dirname: "https://nodejs.org/download/release/v20.7.0".to_string(),
+                extname: ".zip".to_string(),
             },
         ),
     ];

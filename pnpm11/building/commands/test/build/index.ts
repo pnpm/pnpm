@@ -15,9 +15,9 @@ import { safeExeca as execa } from 'execa'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const storeIndexes: StoreIndex[] = []
 afterAll(() => {
@@ -43,10 +43,10 @@ test('rebuilds dependencies', async () => {
   ])
 
   let modules = project.readModulesManifest()
-  expect(modules!.pendingBuilds).toStrictEqual([
-    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
-    'test-git-fetch@https://codeload.github.com/pnpm/test-git-fetch/tar.gz/8b333f12d5357f4f25a654c305c826294cb073bf',
-  ])
+  expect(modules!.pendingBuilds).toHaveLength(2)
+  expect(modules!.pendingBuilds[0]).toBe('@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
+  expect(modules!.pendingBuilds[1]).toMatch(/^test-git-fetch@/)
+  expect(modules!.pendingBuilds[1]).toMatch(/8b333f12d5357f4f25a654c305c826294cb073bf$/)
   const gitDepPath = modules!.pendingBuilds[1]
 
   await rebuild.handler({
@@ -87,7 +87,7 @@ test('rebuilds dependencies', async () => {
   storeIndexes.push(storeIndex1)
   const cacheIntegrity = storeIndex1.get(cacheIntegrityPath) as PackageFilesIndex
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
+  const sideEffectsKey = `${ENGINE_NAME};format=2;deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({
@@ -116,7 +116,8 @@ test('rebuilds dependencies in the global virtual store', async () => {
 
   // Install with the build deferred (--ignore-scripts) under the global virtual
   // store. The package lives in <storeDir>/<version>/links/<hash>, NOT the classic
-  // node_modules/.pnpm layout, so the subsequent rebuild must target it.
+  // node_modules/.pnpm layout. An install that runs no builds gets the package's
+  // pristine slot, so the rebuild places the built package in another slot.
   await execa('node', [
     pnpmBin,
     'add',
@@ -145,8 +146,87 @@ test('rebuilds dependencies in the global virtual store', async () => {
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
   }, [])
 
-  // The rebuild must run the build script into the GVS projection.
+  const rebuiltPkg = fs.realpathSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(rebuiltPkg.startsWith(pkgVersionDir + path.sep)).toBe(true)
+  expect(rebuiltPkg).not.toBe(fs.realpathSync(pkgInGvs))
+  expect(fs.existsSync(path.join(rebuiltPkg, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
+})
+
+test('rebuild replaces a package placed in the global virtual store instead of building in it', async () => {
+  prepare()
+  const storeDir = path.resolve('store')
+  fs.writeFileSync('pnpm-workspace.yaml', [
+    'enableGlobalVirtualStore: true',
+    'allowBuilds:',
+    '  "@pnpm.e2e/pre-and-postinstall-scripts-example": true',
+    '',
+  ].join('\n'))
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+  ])
+  const pkgInGvs = fs.realpathSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  fs.rmSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))
+  const placedDirIno = fs.statSync(pkgInGvs).ino
+
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: false,
+    storeDir,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }, [])
+
+  expect(fs.realpathSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')).toBe(pkgInGvs)
   expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.statSync(pkgInGvs).ino).not.toBe(placedDirIno)
+  expect(fs.readdirSync(path.dirname(pkgInGvs)).filter((entry) => entry.startsWith('.'))).toStrictEqual([])
+})
+
+test('rebuild honors a custom virtual-store-dir in the global virtual store', async () => {
+  prepare()
+  const storeDir = path.resolve('store')
+  const virtualStoreDir = path.resolve('custom-links')
+
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--virtual-store-dir=${virtualStoreDir}`,
+    '--ignore-scripts',
+  ])
+
+  const pkgVersionDir = path.join(virtualStoreDir, '@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
+  const hash = fs.readdirSync(pkgVersionDir)[0]
+  const pkgInCustomGvs = path.join(pkgVersionDir, hash, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.join(pkgInCustomGvs, 'generated-by-postinstall.js'))).toBeFalsy()
+
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: false,
+    storeDir,
+    virtualStoreDir,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }, [])
+
+  // The approval changes the package's hash, so the rebuild relocates it to a
+  // new slot that must live inside the configured custom virtual store.
+  const pkgLinkAfter = fs.realpathSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(pkgLinkAfter.startsWith(virtualStoreDir + path.sep)).toBe(true)
+  expect(pkgLinkAfter).not.toBe(fs.realpathSync(pkgInCustomGvs))
+  expect(fs.existsSync(path.join(pkgLinkAfter, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(storeDir, STORE_VERSION, 'links', '@pnpm.e2e'))).toBe(false)
 })
 
 test('rebuilds a dependency shared by multiple workspace projects in the global virtual store', async () => {
@@ -172,8 +252,8 @@ test('rebuilds a dependency shared by multiple workspace projects in the global 
   const storeDir = path.resolve('store')
 
   // Per-project lockfiles make `rebuild -r` run a concurrent pass per project, and
-  // both projects share one GVS projection — so the passes select the same directory
-  // at once, exercising the per-projection build lock.
+  // both projects share one GVS projection, so the passes select the same directory
+  // at once.
   fs.writeFileSync('pnpm-workspace.yaml', [
     'packages:',
     '  - project-1',
@@ -211,8 +291,12 @@ test('rebuilds a dependency shared by multiple workspace projects in the global 
     `--store-dir=${storeDir}`,
   ])
 
-  // The shared projection must be built, with the artifact in the single directory.
-  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+  // Both projects link the single built projection, and the pristine one is not built.
+  const rebuiltPkg = fs.realpathSync('project-1/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.realpathSync('project-2/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')).toBe(rebuiltPkg)
+  expect(rebuiltPkg).not.toBe(fs.realpathSync(pkgInGvs))
+  expect(fs.existsSync(path.join(rebuiltPkg, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
 })
 
 test('skipIfHasSideEffectsCache', async () => {
@@ -236,7 +320,7 @@ test('skipIfHasSideEffectsCache', async () => {
   const storeIndex = new StoreIndex(path.join(storeDir, STORE_VERSION))
   storeIndexes.push(storeIndex)
   let cacheIntegrity = storeIndex.get(cacheIntegrityPath) as PackageFilesIndex
-  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME};format=2;deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   cacheIntegrity.sideEffects = new Map([
     [sideEffectsKey, {
       added: new Map([
@@ -278,7 +362,7 @@ test('rebuild does not fail when a linked package is present', async () => {
   prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
-  f.copy('local-pkg', path.resolve('..', 'local-pkg'))
+  testFixtures.copy('local-pkg', path.resolve('..', 'local-pkg'))
 
   await execa('node', [
     pnpmBin,
@@ -526,15 +610,88 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
   }, [])
 })
 
-test('rebuilds in the global virtual store when the approval was granted after the install', async () => {
+test('rebuild removes an optional dependency whose build failed', async () => {
+  prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/failing-postinstall': '1.0.0',
+    },
+  })
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [
+    pnpmBin,
+    'install',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
+    '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
+  ])
+  expect(fs.existsSync('node_modules/@pnpm.e2e/failing-postinstall/package.json')).toBeTruthy()
+
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    pending: true,
+    storeDir,
+    allowBuilds: { '@pnpm.e2e/failing-postinstall': true },
+  }, [])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/failing-postinstall')).toBeFalsy()
+})
+
+test('rebuild leaves the pristine global virtual store slot of an optional package whose build failed', async () => {
+  prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/failing-postinstall': '1.0.0',
+    },
+  })
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+  fs.writeFileSync('pnpm-workspace.yaml', [
+    'enableGlobalVirtualStore: true',
+    'allowBuilds:',
+    '  "@pnpm.e2e/failing-postinstall": true',
+    '',
+  ].join('\n'))
+
+  await execa('node', [
+    pnpmBin,
+    'install',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
+    '--ignore-scripts',
+  ])
+  const pkgVersionDir = path.join(storeDir, STORE_VERSION, 'links/@pnpm.e2e/failing-postinstall/1.0.0')
+  const hash = fs.readdirSync(pkgVersionDir)[0]
+  const pkgInGvs = path.join(pkgVersionDir, hash, 'node_modules/@pnpm.e2e/failing-postinstall')
+
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: true,
+    storeDir,
+    allowBuilds: { '@pnpm.e2e/failing-postinstall': true },
+  }, [])
+
+  expect(fs.existsSync(path.join(pkgInGvs, 'package.json'))).toBeTruthy()
+})
+
+test.each([
+  { params: [], pending: false },
+  { params: [], pending: true },
+  { params: ['@pnpm.e2e/pre-and-postinstall-scripts-example'], pending: false },
+  { params: ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], pending: false },
+])('rebuild relocates a global virtual store package after approval: %j', async ({ params, pending }) => {
   prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
-  // No allowBuilds at install time: the GVS projection is created under the
-  // not-built hash. The approval arrives only at rebuild time, so the rebuild
-  // recomputes a different (built) hash and must locate the existing
-  // projection through the project's node_modules link.
   fs.writeFileSync('pnpm-workspace.yaml', [
     'enableGlobalVirtualStore: true',
     '',
@@ -551,6 +708,12 @@ test('rebuilds in the global virtual store when the approval was granted after t
     `--cache-dir=${cacheDir}`,
   ])
 
+  const otherProject = path.resolve('other')
+  fs.mkdirSync(otherProject)
+  fs.copyFileSync('package.json', path.join(otherProject, 'package.json'))
+  fs.copyFileSync('pnpm-workspace.yaml', path.join(otherProject, 'pnpm-workspace.yaml'))
+  await execa('node', [pnpmBin, 'install', '--ignore-scripts', `--registry=${REGISTRY}`, `--store-dir=${storeDir}`], { cwd: otherProject })
+
   const pkgVersionDir = path.join(storeDir, STORE_VERSION, 'links/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0')
   const hash = fs.readdirSync(pkgVersionDir)[0]
   const pkgInGvs = path.join(pkgVersionDir, hash, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
@@ -561,12 +724,178 @@ test('rebuilds in the global virtual store when the approval was granted after t
     cacheDir,
     dir: process.cwd(),
     enableGlobalVirtualStore: true,
-    pending: false,
+    pending,
     storeDir,
     allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
-  }, [])
+  }, params)
 
-  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeTruthy()
+  const rebuiltPkg = fs.realpathSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(rebuiltPkg).not.toBe(fs.realpathSync(pkgInGvs))
+  expect(fs.existsSync(path.join(pkgInGvs, 'generated-by-postinstall.js'))).toBeFalsy()
+  expect(fs.existsSync(path.join(rebuiltPkg, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.realpathSync(path.join(otherProject, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'))).toBe(fs.realpathSync(pkgInGvs))
+})
+
+test('rebuild of selected packages leaves the builds of other approved packages pending', async () => {
+  prepare()
+  const storeDir = path.resolve('store')
+  const allowBuilds = {
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': true,
+    '@pnpm.e2e/failing-postinstall': true,
+  }
+  fs.writeFileSync('pnpm-workspace.yaml', [
+    'enableGlobalVirtualStore: true',
+    'allowBuilds:',
+    ...Object.keys(allowBuilds).map((name) => `  "${name}": true`),
+    '',
+  ].join('\n'))
+  await execa('node', [pnpmBin, 'add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/failing-postinstall@1.0.0',
+    `--registry=${REGISTRY}`, `--store-dir=${storeDir}`, '--ignore-scripts'])
+
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: false,
+    storeDir,
+    allowBuilds,
+  }, ['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBe(true)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/failing-postinstall/package.json')).toBe(true)
+})
+
+test('rebuild relocates transitive global store packages and their dependents', async () => {
+  prepare()
+  const storeDir = path.resolve('store')
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+  await execa('node', [pnpmBin, 'add', '@pnpm.e2e/has-generated-bins-as-dep@1.0.0',
+    `--registry=${REGISTRY}`, `--store-dir=${storeDir}`, '--ignore-scripts'])
+  const parentLink = 'node_modules/@pnpm.e2e/has-generated-bins-as-dep'
+  const parentBefore = fs.realpathSync(parentLink)
+  const childBefore = fs.realpathSync(path.join(parentBefore, '../generated-bins'))
+
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: false,
+    storeDir,
+    allowBuilds: { '@pnpm.e2e/generated-bins': true },
+  }, ['@pnpm.e2e/generated-bins'])
+
+  const parentAfter = fs.realpathSync(parentLink)
+  const childAfter = fs.realpathSync(path.join(parentAfter, '../generated-bins'))
+  expect(parentAfter).not.toBe(parentBefore)
+  expect(childAfter).not.toBe(childBefore)
+  expect(fs.existsSync(path.join(childBefore, 'bin'))).toBe(false)
+  expect(fs.existsSync(path.join(childAfter, 'bin'))).toBe(true)
+})
+
+test.each([false, true])('rebuild verifies patches before relocating global store packages (modified: %s)', async (modified) => {
+  prepare()
+  const storeDir = path.resolve('store')
+  const patchFile = path.resolve('build.patch')
+  const patch = [
+    'diff --git a/patch-marker.txt b/patch-marker.txt',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/patch-marker.txt',
+    '@@ -0,0 +1 @@',
+    '+patched',
+    '',
+  ].join('\n')
+  fs.writeFileSync(patchFile, patch)
+  const patchedDependencies = { '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0': patchFile }
+  fs.writeFileSync('pnpm-workspace.yaml', [
+    'enableGlobalVirtualStore: true',
+    'patchedDependencies:',
+    '  "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0": build.patch',
+    '',
+  ].join('\n'))
+  await execa('node', [pnpmBin, 'add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    `--registry=${REGISTRY}`, `--store-dir=${storeDir}`, '--ignore-scripts'])
+  const pkgLink = 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const before = fs.realpathSync(pkgLink)
+  expect(fs.readFileSync(path.join(before, 'patch-marker.txt'), 'utf8')).toBe('patched\n')
+  if (modified) fs.writeFileSync(patchFile, patch.replace('+patched', '+changed'))
+
+  const rebuildResult = rebuild.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: false,
+    storeDir,
+    patchedDependencies,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }, [])
+  if (modified) {
+    await expect(rebuildResult).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_CONFIG_MISMATCH' })
+    expect(fs.realpathSync(pkgLink)).toBe(before)
+  } else {
+    await rebuildResult
+    expect(fs.realpathSync(pkgLink)).not.toBe(before)
+    expect(fs.readFileSync(path.join(pkgLink, 'patch-marker.txt'), 'utf8')).toBe('patched\n')
+    expect(fs.existsSync(path.join(pkgLink, 'generated-by-postinstall.js'))).toBe(true)
+  }
+  expect(fs.existsSync(path.join(before, 'generated-by-postinstall.js'))).toBe(false)
+})
+
+test('rebuild rejects a patch added after install before relocating global store packages', async () => {
+  prepare()
+  const storeDir = path.resolve('store')
+  const patchFile = path.resolve('build.patch')
+  const patch = [
+    'diff --git a/patch-marker.txt b/patch-marker.txt',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/patch-marker.txt',
+    '@@ -0,0 +1 @@',
+    '+patched',
+    '',
+  ].join('\n')
+  fs.writeFileSync(patchFile, patch)
+  fs.writeFileSync('pnpm-workspace.yaml', 'enableGlobalVirtualStore: true\n')
+  await execa('node', [pnpmBin, 'add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    `--registry=${REGISTRY}`, `--store-dir=${storeDir}`, '--ignore-scripts'])
+  const pkgLink = 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'
+  const before = fs.realpathSync(pkgLink)
+
+  await expect(rebuild.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    enableGlobalVirtualStore: true,
+    pending: false,
+    storeDir,
+    patchedDependencies: { '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0': patchFile },
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }, [])).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_CONFIG_MISMATCH' })
+  expect(fs.realpathSync(pkgLink)).toBe(before)
+  expect(fs.existsSync(path.join(before, 'patch-marker.txt'))).toBe(false)
+})
+
+test('filtered global store rebuilds relocate each selected project', async () => {
+  preparePackages(['project-1', 'project-2'].map((name) => ({
+    name,
+    version: '1.0.0',
+    dependencies: { '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0' },
+  })))
+  const storeDir = path.resolve('store')
+  const config = 'packages: [project-1, project-2]\nenableGlobalVirtualStore: true\n'
+  fs.writeFileSync('pnpm-workspace.yaml', config)
+  await execa('node', [pnpmBin, 'install', `--registry=${REGISTRY}`, `--store-dir=${storeDir}`, '--ignore-scripts'])
+  const pkgLink = (project: string) => path.join(project, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  const original = fs.realpathSync(pkgLink('project-1'))
+  expect(fs.realpathSync(pkgLink('project-2'))).toBe(original)
+  fs.writeFileSync('pnpm-workspace.yaml', config + 'allowBuilds:\n  "@pnpm.e2e/pre-and-postinstall-scripts-example": true\n')
+
+  await execa('node', [pnpmBin, '--filter=project-1', 'rebuild', `--store-dir=${storeDir}`])
+  expect(fs.existsSync(path.join(pkgLink('project-1'), 'generated-by-postinstall.js'))).toBe(true)
+  expect(fs.realpathSync(pkgLink('project-2'))).toBe(original)
+  await execa('node', [pnpmBin, '--filter=project-2', 'rebuild', `--store-dir=${storeDir}`])
+  expect(fs.realpathSync(pkgLink('project-2'))).toBe(fs.realpathSync(pkgLink('project-1')))
+  expect(fs.existsSync(path.join(pkgLink('project-2'), 'generated-by-postinstall.js'))).toBe(true)
+  expect(fs.existsSync(path.join(original, 'generated-by-postinstall.js'))).toBe(false)
 })
 
 // GHSA-c59q-g84q-2gj5: a traversal depPath key must not point the build

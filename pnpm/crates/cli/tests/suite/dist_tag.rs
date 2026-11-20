@@ -1,10 +1,15 @@
+mod oidc;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -43,6 +48,10 @@ fn run_dist_tag_command(
         .with_arg(auth_file)
         .with_arg(command)
         .with_args(args)
+        .without_env("NPM_ID_TOKEN")
+        .without_env("GITHUB_ACTIONS")
+        .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+        .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
         .output()
         .expect("spawn pacquet dist-tag")
 }
@@ -102,8 +111,11 @@ fn lists_no_output_when_no_dist_tags_exist() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock =
-        server.mock("GET", "/-/package/pkg/dist-tags").with_status(200).with_body("{}").create();
+    let mock = server
+        .mock("GET", "/-/package/pkg/dist-tags")
+        .with_status(200)
+        .with_body("{}")
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
     let output = run_dist_tag(&workspace, &auth_file, &["ls", "pkg"]);
@@ -352,6 +364,7 @@ fn add_sets_a_dist_tag_with_otp() {
     let registry = format!("{}/", server.url());
     let mock = server
         .mock("PUT", "/-/package/pkg/dist-tags/beta")
+        .match_header("npm-command", "dist-tag")
         .match_header("authorization", "Bearer token")
         .match_header("content-type", Matcher::Regex(r"^application/json\b".to_string()))
         .match_header("npm-auth-type", "legacy")
@@ -481,7 +494,7 @@ fn add_encodes_dist_tag_path_segment() {
 }
 
 #[test]
-fn add_reports_web_otp_challenge() {
+fn add_fails_on_a_web_otp_challenge_without_a_terminal() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
@@ -498,14 +511,9 @@ fn add_reports_web_otp_challenge() {
     let output = run_dist_tag(&workspace, &auth_file, &["add", "pkg@1.0.0", "beta"]);
 
     mock.assert();
-    assert!(!output.status.success(), "web OTP challenge must fail with guidance");
+    assert!(!output.status.success(), "web OTP challenge must fail without a terminal");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED")
-            && stderr.contains("https://auth.example/login")
-            && stderr.contains("--otp"),
-        "stderr must include web OTP guidance; got:\n{stderr}",
-    );
+    assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "stderr:\n{stderr}");
     drop((root, server));
 }
 
@@ -527,12 +535,8 @@ fn add_rejects_unsafe_web_otp_challenge_urls() {
     mock.assert();
     assert!(!output.status.success(), "unsafe web OTP challenge must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "stderr:\n{stderr}");
-    assert!(
-        !stderr.contains("ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED"),
-        "unsafe challenge must not be printed as web OTP guidance:\n{stderr}",
-    );
-    assert!(!stderr.contains("Open javascript:"), "stderr:\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "stderr:\n{stderr}");
+    assert!(!stderr.contains("javascript:"), "stderr:\n{stderr}");
     drop((root, server));
 }
 
@@ -556,10 +560,13 @@ fn add_rejects_web_otp_challenge_urls_with_control_chars() {
     mock.assert();
     assert!(!output.status.success(), "unsafe web OTP challenge must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_UNAUTHORIZED"), "stderr:\n{stderr}");
+    assert!(stderr.contains("ERR_PNPM_OTP_NON_INTERACTIVE"), "stderr:\n{stderr}");
     assert!(
-        !stderr.contains("ERR_PNPM_DIST_TAG_WEB_OTP_REQUIRED"),
-        "unsafe challenge must not be printed as web OTP guidance:\n{stderr}",
+        !stderr
+            .lines()
+            .map(str::trim_start)
+            .any(|trim_start| trim_start.starts_with("spoof")),
+        "stderr:\n{stderr}",
     );
     drop((root, server));
 }
@@ -576,6 +583,7 @@ fn rm_removes_an_existing_dist_tag() {
         .create();
     let delete_mock = server
         .mock("DELETE", "/-/package/pkg/dist-tags/beta")
+        .match_header("npm-command", "dist-tag")
         .match_header("npm-auth-type", "web")
         .with_status(200)
         .create();
@@ -674,7 +682,10 @@ fn ls_fails_when_package_is_missing() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    let mock = server.mock("GET", "/-/package/missing/dist-tags").with_status(404).create();
+    let mock = server
+        .mock("GET", "/-/package/missing/dist-tags")
+        .with_status(404)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
     let output = run_dist_tag(&workspace, &auth_file, &["ls", "missing"]);
@@ -696,8 +707,11 @@ fn ls_rejects_oversized_dist_tags_response() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     let body = format!(r#"{{"latest":"{}"}}"#, "1".repeat(1024 * 1024));
-    let mock =
-        server.mock("GET", "/-/package/pkg/dist-tags").with_status(200).with_body(body).create();
+    let mock = server
+        .mock("GET", "/-/package/pkg/dist-tags")
+        .with_status(200)
+        .with_body(body)
+        .create();
     let auth_file = configure(root.path(), &workspace, &registry, "");
 
     let output = run_dist_tag(&workspace, &auth_file, &["ls", "pkg"]);

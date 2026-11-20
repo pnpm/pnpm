@@ -1,0 +1,40 @@
+{
+  "description": "The node-gyp exception does not cover another lifecycle script difference.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "scripts": {
+        "postinstall": "node setup.js"
+      }
+    },
+    "files": [
+      "package.json",
+      "setup.js"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "scripts": {
+      "install": "node-gyp rebuild",
+      "postinstall": "node other.js"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "scripts": {
+        "postinstall": "node setup.js"
+      },
+      "hasInstallScript": true,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [
+      "scripts.install",
+      "scripts.postinstall"
+    ],
+    "tolerated": []
+  }
+}

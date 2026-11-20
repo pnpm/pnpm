@@ -1,25 +1,15 @@
 import type { Dependencies, DependenciesMeta, DependencyManifest } from '@pnpm/types'
 import { pickBy } from 'ramda'
 
+import type { ManifestWantedDependency } from './getWantedDependencies.js'
 import { assertValidDependencyAliases } from './validateDependencyAlias.js'
-
-export interface WantedDependency {
-  alias: string
-  bareSpecifier: string // package reference
-  dev: boolean
-  optional: boolean
-  injected?: boolean
-  saveCatalogName?: string
-  /** Whether this dependency's spec should be (re)written to the manifest. */
-  updateSpec?: boolean
-}
 
 type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'> & {
   name?: string
   version?: string
 }
 
-export function getNonDevWantedDependencies (pkg: GetNonDevWantedDependenciesManifest): WantedDependency[] {
+export function getNonDevWantedDependencies (pkg: GetNonDevWantedDependenciesManifest): ManifestWantedDependency[] {
   const pkgDescription = pkg.name != null
     ? `Package "${pkg.name}${pkg.version != null ? `@${pkg.version}` : ''}"`
     : 'Package'
@@ -48,7 +38,7 @@ function getWantedDependenciesFromGivenSet (
     optionalDependencies: Dependencies
     dependenciesMeta: DependenciesMeta
   }
-): WantedDependency[] {
+): ManifestWantedDependency[] {
   if (!deps) return []
   return Object.entries(deps).map(([alias, bareSpecifier]) => ({
     alias,

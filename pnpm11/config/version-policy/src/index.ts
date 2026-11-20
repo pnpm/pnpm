@@ -50,10 +50,10 @@ export interface PublishedByPolicy {
  * config. Centralized so every call site computes the cutoff at the same
  * instant and surfaces invalid exclude patterns under the same error code.
  */
-export function getPublishedByPolicy (opts: PublishedByPolicyOptions): PublishedByPolicy {
+export function getPublishedByPolicy (opts: PublishedByPolicyOptions, now: number = Date.now()): PublishedByPolicy {
   return {
     publishedBy: opts.minimumReleaseAge
-      ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
+      ? new Date(now - opts.minimumReleaseAge * 60 * 1000)
       : undefined,
     publishedByExclude: opts.minimumReleaseAgeExclude
       ? createPackageVersionPolicyOrThrow(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude')
@@ -73,20 +73,23 @@ export function mergePackageVersionSpecs (specs: string[]): string[] {
   const byPackage = new Map<string, Set<string> | null>()
   for (const spec of specs) {
     const { packageName, exactVersions } = parseVersionPolicyRule(spec)
-    const existing = byPackage.get(packageName)
-    if (existing === undefined) {
-      byPackage.set(packageName, exactVersions.length === 0 ? null : new Set(exactVersions))
-    } else if (existing === null || exactVersions.length === 0) {
-      byPackage.set(packageName, null)
-    } else {
-      for (const version of exactVersions) existing.add(version)
-    }
+    byPackage.set(packageName, mergeExactVersions(byPackage.get(packageName), exactVersions))
   }
   return Array.from(byPackage.entries()).map(([packageName, versions]) =>
     versions == null
       ? packageName
       : `${packageName}@${Array.from(versions).sort(semver.compare).join(' || ')}`
   )
+}
+
+/**
+ * Returns `null` when every version of the package is covered.
+ */
+function mergeExactVersions (existing: Set<string> | null | undefined, exactVersions: string[]): Set<string> | null {
+  if (existing === null || exactVersions.length === 0) return null
+  if (existing === undefined) return new Set(exactVersions)
+  for (const version of exactVersions) existing.add(version)
+  return existing
 }
 
 export function expandPackageVersionSpecs (specs: string[]): Set<string> {
@@ -105,8 +108,7 @@ export function expandPackageVersionSpecs (specs: string[]): Set<string> {
 }
 
 function evaluateVersionPolicy (rules: VersionPolicyRule[], pkgName: string): boolean | string[] {
-  let matchedVersions: string[] | undefined
-  let seen: Set<string> | undefined
+  let matchedVersions: Set<string> | undefined
   for (const { nameMatcher, exactVersions } of rules) {
     if (!nameMatcher(pkgName)) {
       continue
@@ -114,18 +116,12 @@ function evaluateVersionPolicy (rules: VersionPolicyRule[], pkgName: string): bo
     if (exactVersions.length === 0) {
       return true
     }
-    if (matchedVersions == null) {
-      matchedVersions = []
-      seen = new Set()
-    }
+    matchedVersions ??= new Set()
     for (const version of exactVersions) {
-      if (!seen!.has(version)) {
-        seen!.add(version)
-        matchedVersions.push(version)
-      }
+      matchedVersions.add(version)
     }
   }
-  return matchedVersions ?? false
+  return matchedVersions == null ? false : Array.from(matchedVersions)
 }
 
 interface VersionPolicyRule {
@@ -149,7 +145,6 @@ export function parseVersionPolicyRule (pattern: string): ParsedVersionPolicyRul
   const packageName = pattern.slice(0, atIndex)
   const versionsPart = pattern.slice(atIndex + 1)
 
-  // Parse versions separated by ||
   const exactVersions: string[] | null = parseExactVersionsUnion(versionsPart)
   if (exactVersions == null) {
     throw new PnpmError('INVALID_VERSION_UNION',

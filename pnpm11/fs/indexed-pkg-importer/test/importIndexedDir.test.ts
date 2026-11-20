@@ -7,6 +7,44 @@ import gfs from '@pnpm/fs.graceful-fs'
 import { tempDir } from '@pnpm/prepare'
 
 import { importIndexedDir } from '../src/importIndexedDir.js'
+import { createIndexedPkgImporter } from '../src/index.js'
+import { overwriteDirSync } from '../src/overwriteDir.js'
+
+test.each(['copy', 'clone'] as const)('importIndexedDir() safeToSkip preserves a build output hardlinked into a %s-imported package', (method) => {
+  const tmp = tempDir()
+  const sourceDir = path.join(tmp, 'source')
+  const targetDir = path.join(tmp, 'target')
+  const nativeBinary = path.join(tmp, 'native-tool')
+  const targetBinary = path.join(targetDir, 'tool')
+  const placeholder = '# shell launcher\n'
+  const binaryContent = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0, 1, 2, 3])
+  fs.mkdirSync(sourceDir)
+  fs.writeFileSync(path.join(sourceDir, 'package.json'), '{"name":"example-tool"}')
+  fs.writeFileSync(path.join(sourceDir, 'tool'), placeholder)
+  fs.writeFileSync(nativeBinary, binaryContent)
+
+  const filenames = new Map([
+    ['tool', path.join(sourceDir, 'tool')],
+    ['package.json', path.join(sourceDir, 'package.json')],
+  ])
+  const importFile = method === 'copy'
+    ? fs.copyFileSync
+    : (src: string, dest: string) => fs.copyFileSync(src, dest, fs.constants.COPYFILE_FICLONE)
+  const importer = { importFile, importFileAtomic: importFile }
+  importIndexedDir(importer, targetDir, filenames, { safeToSkip: true })
+
+  for (let install = 0; install < 2; install++) {
+    fs.unlinkSync(targetBinary)
+    fs.linkSync(nativeBinary, targetBinary)
+
+    importIndexedDir(importer, targetDir, filenames, { safeToSkip: true })
+
+    expect(fs.readFileSync(nativeBinary)).toEqual(binaryContent)
+    expect(fs.readFileSync(targetBinary, 'utf8')).toBe(placeholder)
+    expect(fs.readFileSync(path.join(sourceDir, 'tool'), 'utf8')).toBe(placeholder)
+    expect(JSON.parse(fs.readFileSync(path.join(targetDir, 'package.json'), 'utf8'))).toEqual({ name: 'example-tool' })
+  }
+})
 
 test('importIndexedDir() keepModulesDir merges node_modules', async () => {
   const tmp = tempDir()
@@ -301,3 +339,467 @@ function linkAdoptingExisting (src: string, dest: string): void {
 }
 
 const linkingImporter = { importFile: linkAdoptingExisting, importFileAtomic: linkAdoptingExisting }
+
+test('importIndexedDir() recreates the internal symlinks of a local directory', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(path.join(src, 'sub'), { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(src, 'real.txt'), 'real')
+  fs.writeFileSync(path.join(src, 'sub/nested.txt'), 'nested')
+  fs.writeFileSync(path.join(tmp, 'outside.txt'), 'outside')
+  fs.symlinkSync('real.txt', path.join(src, 'file-link'), 'file')
+  fs.symlinkSync(path.join(src, 'real.txt'), path.join(src, 'absolute-link'), 'file')
+  fs.symlinkSync(path.join(src, 'sub'), path.join(src, 'dir-link'), 'junction')
+  fs.symlinkSync('../outside.txt', path.join(src, 'outside-link'), 'file')
+  fs.writeFileSync(path.join(src, 'left-out.txt'), 'left out')
+  fs.symlinkSync('left-out.txt', path.join(src, 'left-out-link'), 'file')
+  fs.mkdirSync(path.join(src, 'left-out-dir'))
+  fs.symlinkSync(path.join(src, 'left-out-dir'), path.join(src, 'left-out-dir-link'), 'junction')
+
+  const newDir = path.join(tmp, 'dest')
+  const filenames = new Map([
+    ['package.json', path.join(src, 'package.json')],
+    ['real.txt', path.join(src, 'real.txt')],
+    ['sub/nested.txt', path.join(src, 'sub/nested.txt')],
+    ['file-link', path.join(src, 'file-link')],
+    ['absolute-link', path.join(src, 'absolute-link')],
+    ['dir-link', path.join(src, 'dir-link')],
+    ['outside-link', path.join(src, 'outside-link')],
+    ['left-out-link', path.join(src, 'left-out-link')],
+    ['left-out-dir-link', path.join(src, 'left-out-dir-link')],
+  ])
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, { resolvedFrom: 'local-dir' })
+
+  expect(fs.readlinkSync(path.join(newDir, 'file-link'))).toBe('real.txt')
+  expect(fs.readlinkSync(path.join(newDir, 'absolute-link'))).toBe('real.txt')
+  expect(fs.readFileSync(path.join(newDir, 'dir-link/nested.txt'), 'utf8')).toBe('nested')
+  expect(fs.lstatSync(path.join(newDir, 'dir-link')).isSymbolicLink()).toBe(true)
+  expect(fs.lstatSync(path.join(newDir, 'outside-link')).isFile()).toBe(true)
+  expect(fs.readFileSync(path.join(newDir, 'outside-link'), 'utf8')).toBe('outside')
+  expect(fs.lstatSync(path.join(newDir, 'left-out-link')).isFile()).toBe(true)
+  expect(fs.readFileSync(path.join(newDir, 'left-out-link'), 'utf8')).toBe('left out')
+  expect(fs.existsSync(path.join(newDir, 'left-out-dir-link'))).toBe(false)
+})
+
+test('importIndexedDir() relativizes an absolute symlink that reaches the package through a linked root', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'real.txt'), 'real')
+  const rootLink = path.join(tmp, 'src-link')
+  fs.symlinkSync(src, rootLink, 'dir')
+  fs.symlinkSync(path.join(rootLink, 'real.txt'), path.join(src, 'link.txt'), 'file')
+
+  const newDir = path.join(tmp, 'dest')
+  importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([
+      ['real.txt', path.join(src, 'real.txt')],
+      ['link.txt', path.join(src, 'link.txt')],
+    ]),
+    { resolvedFrom: 'local-dir' }
+  )
+
+  expect(fs.readlinkSync(path.join(newDir, 'link.txt'))).toBe('real.txt')
+})
+
+test('importIndexedDir() imports a symlink from the store as a file', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'real.txt'), 'real')
+  fs.symlinkSync('real.txt', path.join(src, 'file-link'), 'file')
+
+  const newDir = path.join(tmp, 'dest')
+  importIndexedDir(
+    { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([['file-link', path.join(src, 'file-link')]]),
+    { resolvedFrom: 'remote' }
+  )
+
+  expect(fs.lstatSync(path.join(newDir, 'file-link')).isFile()).toBe(true)
+})
+
+test.each([
+  ['directly', { resolvedFrom: 'local-dir' as const }],
+  ['through a staging directory', { resolvedFrom: 'local-dir' as const, keepModulesDir: true }],
+])('importIndexedDir() falls back to a junction pointing into the imported directory when imported %s', async (_, opts) => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(path.join(src, '..generated'), { recursive: true })
+  fs.writeFileSync(path.join(src, '..generated/gen.txt'), 'generated content')
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.symlinkSync(path.join(src, '..generated'), path.join(src, 'gen-link'), 'junction')
+
+  const newDir = path.join(tmp, 'dest')
+  const filenames = new Map([
+    ['package.json', path.join(src, 'package.json')],
+    ['..generated/gen.txt', path.join(src, '..generated/gen.txt')],
+    ['gen-link', path.join(src, 'gen-link')],
+  ])
+
+  const originalPlatform = process.platform
+  const realSymlinkSync = fs.symlinkSync.bind(fs)
+  const symlinkSpy = jest.spyOn(fs, 'symlinkSync').mockImplementation((target, dest, type) => {
+    if (type === 'dir') {
+      const err = new Error('EPERM: operation not permitted, symlink') as NodeJS.ErrnoException
+      err.code = 'EPERM'
+      throw err
+    }
+    return realSymlinkSync(target, dest, type)
+  })
+
+  try {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, newDir, filenames, opts)
+  } finally {
+    symlinkSpy.mockRestore()
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+  }
+
+  expect(fs.readlinkSync(path.join(newDir, 'gen-link'))).toBe(path.join(newDir, '..generated'))
+  expect(fs.readFileSync(path.join(newDir, 'gen-link/gen.txt'), 'utf8')).toBe('generated content')
+})
+
+const testOnPosix = process.platform === 'win32' ? test.skip : test
+
+testOnPosix.each([
+  ['a fresh directory', {}],
+  ['a staged directory', { keepModulesDir: true }],
+  ['a shared directory', { safeToSkip: true }],
+])('importIndexedDir() creates the symlinks of a cached build in %s', async (_name, opts) => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(src, 'tool'), 'tool')
+
+  const newDir = path.join(tmp, 'dest')
+  const filenames = new Map([
+    ['package.json', path.join(src, 'package.json')],
+    ['bin/tool', path.join(src, 'tool')],
+  ])
+  const symlinks = new Map([['bin/tool-alias', 'tool'], ['links/bin', '../bin']])
+  importIndexedDir(linkingImporter, newDir, filenames, { ...opts, symlinks })
+
+  expect(fs.readlinkSync(path.join(newDir, 'bin/tool-alias'))).toBe('tool')
+  expect(fs.readFileSync(path.join(newDir, 'links/bin/tool'), 'utf8')).toBe('tool')
+})
+
+testOnPosix('importIndexedDir() safeToSkip repairs a symlink of a cached build', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(src, 'tool'), 'tool')
+
+  const newDir = path.join(tmp, 'dest')
+  const filenames = new Map([
+    ['package.json', path.join(src, 'package.json')],
+    ['tool', path.join(src, 'tool')],
+  ])
+  importIndexedDir(linkingImporter, newDir, filenames, { safeToSkip: true })
+  // The directory is complete but was imported without the build's links, or
+  // with a link that was later replaced.
+  fs.writeFileSync(path.join(newDir, 'tool-alias'), 'a copy of tool')
+
+  importIndexedDir(linkingImporter, newDir, filenames, { safeToSkip: true, symlinks: new Map([['tool-alias', 'tool'], ['tool-link', 'tool']]) })
+
+  expect(fs.readlinkSync(path.join(newDir, 'tool-alias'))).toBe('tool')
+  expect(fs.readlinkSync(path.join(newDir, 'tool-link'))).toBe('tool')
+})
+
+testOnPosix('importIndexedDir() safeToSkip does not follow a stale symlink on the path to a cached build link', async () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  const outside = path.join(tmp, 'outside')
+  fs.mkdirSync(outside)
+
+  const newDir = path.join(tmp, 'dest')
+  const filenames = new Map([['package.json', path.join(src, 'package.json')]])
+  importIndexedDir(linkingImporter, newDir, filenames, { safeToSkip: true })
+  fs.symlinkSync(outside, path.join(newDir, 'bin'))
+
+  importIndexedDir(linkingImporter, newDir, filenames, { safeToSkip: true, symlinks: new Map([['bin/tool', '../package.json']]) })
+
+  expect(fs.lstatSync(path.join(newDir, 'bin')).isDirectory()).toBe(true)
+  expect(fs.readlinkSync(path.join(newDir, 'bin/tool'))).toBe('../package.json')
+  expect(fs.readdirSync(outside)).toStrictEqual([])
+})
+
+test('importIndexedDir() swaps an occupied target aside when rename onto an existing directory throws EPERM', () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'stale.txt'), 'stale')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (newPath === newDir && fs.existsSync(newDir)) {
+      throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    importIndexedDir(
+      { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+      newDir,
+      new Map([['package.json', path.join(src, 'package.json')]]),
+      { keepModulesDir: true }
+    )
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"pkg"}')
+  expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
+})
+
+test('overwriteDirSync() stages cross-device copies into a sibling directory before swapping', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === stage && newPath === newDir) {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted'), { code: 'EXDEV' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    overwriteDirSync(stage, newDir)
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.existsSync(stage)).toBe(false)
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"fresh"}')
+})
+
+test('overwriteDirSync() falls back to removing newDir when renaming it aside throws EPERM', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'stale.txt'), 'stale')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if ((newPath === newDir && fs.existsSync(newDir)) || oldPath === newDir) {
+      throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    overwriteDirSync(stage, newDir)
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"fresh"}')
+  expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
+})
+
+test('overwriteDirSync() falls back to removing newDir when renaming it aside throws EXDEV', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'stale.txt'), 'stale')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === newDir) {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted, rename'), { code: 'EXDEV' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    overwriteDirSync(stage, newDir)
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.existsSync(stage)).toBe(false)
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"fresh"}')
+  expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
+})
+
+test('overwriteDirSync() restores the previous package when removing it after an EXDEV backup fails partway', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(path.join(newDir, 'lib'), { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
+  fs.writeFileSync(path.join(newDir, 'lib/index.js'), 'old')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === newDir) {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted, rename'), { code: 'EXDEV' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  const realRmSync = fs.rmSync.bind(fs)
+  const rmSpy = jest.spyOn(fs, 'rmSync').mockImplementation((target, opts) => {
+    if (target === newDir) {
+      realRmSync(path.join(newDir, 'package.json'))
+      throw Object.assign(new Error('EACCES: permission denied, rmdir'), { code: 'EACCES' })
+    }
+    realRmSync(target, opts)
+  })
+  try {
+    expect(() => overwriteDirSync(stage, newDir)).toThrow('EACCES')
+  } finally {
+    renameSpy.mockRestore()
+    rmSpy.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"old"}')
+  expect(fs.readFileSync(path.join(newDir, 'lib/index.js'), 'utf8')).toBe('old')
+  expect(fs.readdirSync(tmp).sort()).toEqual(['dest', 'stage'])
+})
+
+test('overwriteDirSync() restores the backed-up target when both moving newDir aside and renaming stage fail', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === stage || oldPath === newDir) {
+      throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    expect(() => overwriteDirSync(stage, newDir)).toThrow('EPERM')
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"old"}')
+})
+
+test('overwriteDirSync() keeps the displaced directory on disk if both swap and restore renames fail', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
+
+  let movedAsidePath: string | undefined
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === newDir) {
+      movedAsidePath = String(newPath)
+      realRenameSync(oldPath, newPath)
+      return
+    }
+    throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+  })
+  try {
+    expect(() => overwriteDirSync(stage, newDir)).toThrow('EPERM')
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(movedAsidePath).toBeDefined()
+  expect(fs.readFileSync(path.join(movedAsidePath!, 'package.json'), 'utf8')).toBe('{"name":"old"}')
+})
+
+test('importIndexedDir() omits a dangling link under the imported policy', () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const dest = path.join(tmp, 'dest')
+  fs.mkdirSync(src)
+  fs.writeFileSync(path.join(src, 'package.json'), '{}')
+  fs.symlinkSync(path.join('node_modules', 'missing'), path.join(src, 'dangling-link'), 'dir')
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, dest, new Map([
+    ['package.json', path.join(src, 'package.json')],
+    ['dangling-link', path.join(src, 'dangling-link')],
+  ]), { resolvedFrom: 'local-dir', symlinkTargets: 'imported' })
+  expect(fs.readFileSync(path.join(dest, 'package.json'), 'utf8')).toBe('{}')
+  expect(() => fs.lstatSync(path.join(dest, 'dangling-link'))).toThrow(expect.objectContaining({ code: 'ENOENT' }))
+})
+
+test.each([false, true])('importIndexedDir() keeps internal directory links to unselected targets and copies file links (occupied=%s)', (occupied) => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const dest = path.join(tmp, 'dest')
+  fs.mkdirSync(path.join(src, 'omitted'), { recursive: true })
+  fs.writeFileSync(path.join(src, 'omitted/file.txt'), 'content')
+  fs.symlinkSync('omitted', path.join(src, 'directory-link'), 'dir')
+  fs.symlinkSync('omitted/file.txt', path.join(src, 'file-link'), 'file')
+  fs.symlinkSync(path.join('node_modules', 'missing'), path.join(src, 'dangling-link'), 'dir')
+  if (occupied) {
+    fs.mkdirSync(dest)
+    fs.writeFileSync(path.join(dest, 'file-link'), 'stale')
+  }
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, dest, new Map([
+    ['directory-link', path.join(src, 'directory-link')],
+    ['file-link', path.join(src, 'file-link')],
+    ['dangling-link', path.join(src, 'dangling-link')],
+  ]), { resolvedFrom: 'local-dir', symlinkTargets: 'internal' })
+  expect(path.resolve(dest, fs.readlinkSync(path.join(dest, 'directory-link')))).toBe(path.join(dest, 'omitted'))
+  expect(path.resolve(dest, fs.readlinkSync(path.join(dest, 'dangling-link')))).toBe(path.join(dest, 'node_modules', 'missing'))
+  expect(fs.lstatSync(path.join(dest, 'file-link')).isFile()).toBe(true)
+  expect(fs.readFileSync(path.join(dest, 'file-link'), 'utf8')).toBe('content')
+  expect(fs.existsSync(path.join(dest, 'omitted'))).toBe(false)
+})
+
+test.each(['clone-or-copy', 'auto'] as const)('createIndexedPkgImporter(%s) imports a fresh target after skipping an already-placed safeToSkip slot', (method) => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const placedSlot = path.join(tmp, 'placed-slot')
+  const stagedTarget = path.join(tmp, 'staged-target')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg","version":"1.0.0"}')
+  fs.writeFileSync(path.join(src, 'bin.js'), 'console.log("ok")\n')
+  fs.mkdirSync(placedSlot, { recursive: true })
+  fs.copyFileSync(path.join(src, 'package.json'), path.join(placedSlot, 'package.json'))
+  fs.copyFileSync(path.join(src, 'bin.js'), path.join(placedSlot, 'bin.js'))
+
+  const filesMap = new Map([
+    ['bin.js', path.join(src, 'bin.js')],
+    ['package.json', path.join(src, 'package.json')],
+  ])
+  const importPackage = createIndexedPkgImporter(method)
+  expect(importPackage(placedSlot, {
+    filesMap,
+    force: false,
+    resolvedFrom: 'remote',
+    safeToSkip: true,
+  })).toBeUndefined()
+  expect(importPackage(stagedTarget, {
+    filesMap,
+    force: true,
+    resolvedFrom: 'remote',
+  })).toBeDefined()
+  expect(fs.readFileSync(path.join(stagedTarget, 'bin.js'), 'utf8')).toBe('console.log("ok")\n')
+})

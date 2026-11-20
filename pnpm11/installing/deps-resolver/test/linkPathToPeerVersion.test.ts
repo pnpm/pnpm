@@ -5,7 +5,7 @@ import { linkPathToPeerVersion } from '../lib/linkPathToPeerVersion.js'
 // These outputs are lockfile-format: changing any of them breaks existing
 // v9 lockfiles. See https://github.com/pnpm/pnpm/issues/11272.
 test.each([
-  // The case from #11272: link target outside the workspace root.
+  // The case from pnpm/pnpm#11272: link target outside the workspace root.
   ['../packages/b', 'packages+b'],
   ['./packages/b', 'packages+b'],
   ['packages/b', 'packages+b'],

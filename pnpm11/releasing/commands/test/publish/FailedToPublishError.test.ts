@@ -9,6 +9,10 @@ const pack = (): PackResult => ({
     name: 'example-pack',
     version: '0.1.2',
   },
+  packedManifest: {
+    name: 'example-pack',
+    version: '0.1.2',
+  },
   tarballPath: 'example-pack.tgz',
   unpackedSize: 0,
 })
@@ -99,6 +103,19 @@ describe('createFailedToPublishError', () => {
       statusText: '',
       text: '',
       pack: pack(),
+    } as Partial<FailedToPublishError<PackResult>>)
+  })
+
+  test('for a stage publish', async () => {
+    expect(await createFailedToPublishError(pack(), {
+      status: 401,
+      statusText: 'Unauthorized',
+      text: () => '',
+    }, true)).toMatchObject({
+      code: 'ERR_PNPM_FAILED_TO_PUBLISH',
+      message: 'Failed to stage package example-pack@0.1.2 (status 401 Unauthorized)',
+      stage: true,
+      status: 401,
     } as Partial<FailedToPublishError<PackResult>>)
   })
 })

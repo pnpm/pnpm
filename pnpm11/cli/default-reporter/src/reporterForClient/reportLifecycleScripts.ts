@@ -1,11 +1,13 @@
 import path from 'node:path'
+import { stripVTControlCharacters } from 'node:util'
 
 import type { LifecycleLog } from '@pnpm/core-loggers'
+import type { LogLevel } from '@pnpm/logger'
 import chalk from 'chalk'
 import cliTruncate from 'cli-truncate'
 import prettyTime from 'pretty-ms'
 import * as Rx from 'rxjs'
-import { buffer, filter, groupBy, map, mergeAll, mergeMap } from 'rxjs/operators'
+import { buffer, filter, groupBy, map, mergeMap } from 'rxjs/operators'
 
 import { EOL } from '../constants.js'
 import { hlValue } from './outputConstants.js'
@@ -31,70 +33,110 @@ export function reportLifecycleScripts (
     appendOnly?: boolean
     aggregateOutput?: boolean
     hideLifecyclePrefix?: boolean
+    logLevel?: LogLevel
+    annotateOptionalFailure?: boolean
     cwd: string
     width: number
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
   // When the reporter is not append-only, the length of output is limited
-  // in order to reduce flickering
+  // to reduce flickering
   if (opts.appendOnly) {
-    let lifecycle$ = log$.lifecycle
-    if (opts.aggregateOutput) {
-      lifecycle$ = lifecycle$.pipe(aggregateOutput)
-    }
-
-    const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd, !!opts.hideLifecyclePrefix)
-    return lifecycle$.pipe(
-      map((log: LifecycleLog) => Rx.of({
-        msg: streamLifecycleOutput(log),
-      }))
-    )
+    return streamLifecycleScripts(log$.lifecycle, opts)
   }
-  const lifecycleMessages: {
-    [depPath: string]: {
-      collapsed: boolean
-      output: string[]
-      script: string
-      startTime: [number, number]
-      status: string
-    }
-  } = {}
-  const lifecycleStreamByDepPath: {
-    [depPath: string]: Rx.Subject<{ msg: string }>
-  } = {}
-  const lifecyclePushStream = new Rx.Subject<Rx.Observable<{ msg: string }>>()
+  return renderLifecycleScripts(log$.lifecycle, opts)
+}
 
-  // TODO: handle promise of .forEach?!
-  log$.lifecycle
+function streamLifecycleScripts (
+  lifecycle$: Rx.Observable<LifecycleLog>,
+  opts: {
+    aggregateOutput?: boolean
+    hideLifecyclePrefix?: boolean
+    logLevel?: LogLevel
+    annotateOptionalFailure?: boolean
+    cwd: string
+  }
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
+  if (opts.aggregateOutput) {
+    lifecycle$ = lifecycle$.pipe(aggregateOutput(opts.logLevel))
+  }
+
+  const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd, !!opts.hideLifecyclePrefix, opts.annotateOptionalFailure)
+  return lifecycle$.pipe(
+    map((log: LifecycleLog) => Rx.of({
+      msg: streamLifecycleOutput(log),
+    }))
+  )
+}
+
+interface LifecycleMessageCache {
+  collapsed: boolean
+  output: string[]
+  script: string
+  startTime: [number, number]
+  status: string
+}
+
+interface LifecycleOutputStreams {
+  lifecycleStreamByDepPath: Record<string, Rx.Subject<{ msg: string }>>
+  lifecyclePushStream: Rx.Subject<Rx.Observable<{ msg: string }>>
+}
+
+function renderLifecycleScripts (
+  lifecycle$: Rx.Observable<LifecycleLog>,
+  opts: { cwd: string, width: number }
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
+  const lifecycleMessages: Record<string, LifecycleMessageCache> = {}
+  const streams: LifecycleOutputStreams = {
+    lifecycleStreamByDepPath: {},
+    lifecyclePushStream: new Rx.Subject<Rx.Observable<{ msg: string }>>(),
+  }
+
+  void lifecycle$
     .forEach((log: LifecycleLog) => {
       const key = `${log.stage}:${log.depPath}`
-      lifecycleMessages[key] = lifecycleMessages[key] || {
-        collapsed: log.wd.includes(NODE_MODULES) || log.wd.includes(TMP_DIR_IN_STORE),
-        output: [],
-        startTime: process.hrtime(),
-        status: formatIndentedStatus(chalk.magentaBright('Running...')),
-      }
       const exit = typeof log['exitCode'] === 'number'
-      let msg: string
-      if (lifecycleMessages[key].collapsed) {
-        msg = renderCollapsedScriptOutput(log, lifecycleMessages[key], { cwd: opts.cwd, exit, maxWidth: opts.width })
-      } else {
-        msg = renderScriptOutput(log, lifecycleMessages[key], { cwd: opts.cwd, exit, maxWidth: opts.width })
-      }
-      if (exit) {
-        delete lifecycleMessages[key]
-      }
-      if (!lifecycleStreamByDepPath[key]) {
-        lifecycleStreamByDepPath[key] = new Rx.Subject<{ msg: string }>()
-        lifecyclePushStream.next(Rx.from(lifecycleStreamByDepPath[key]))
-      }
-      lifecycleStreamByDepPath[key].next({ msg })
-      if (exit) {
-        lifecycleStreamByDepPath[key].complete()
-      }
+      const msg = renderLifecycleMessage(lifecycleMessages, key, log, { cwd: opts.cwd, exit, maxWidth: opts.width })
+      pushLifecycleMessage(streams, key, { msg, exit })
     })
 
-  return Rx.from(lifecyclePushStream)
+  return Rx.from(streams.lifecyclePushStream)
+}
+
+function renderLifecycleMessage (
+  lifecycleMessages: Record<string, LifecycleMessageCache>,
+  key: string,
+  log: LifecycleLog,
+  opts: { cwd: string, exit: boolean, maxWidth: number }
+): string {
+  lifecycleMessages[key] = lifecycleMessages[key] || {
+    collapsed: log.wd.includes(NODE_MODULES) || log.wd.includes(TMP_DIR_IN_STORE),
+    output: [],
+    startTime: process.hrtime(),
+    status: formatIndentedStatus(chalk.magentaBright('Running...')),
+  }
+  const msg = lifecycleMessages[key].collapsed
+    ? renderCollapsedScriptOutput(log, lifecycleMessages[key], opts)
+    : renderScriptOutput(log, lifecycleMessages[key], opts)
+  if (opts.exit) {
+    delete lifecycleMessages[key]
+  }
+  return msg
+}
+
+function pushLifecycleMessage (
+  { lifecycleStreamByDepPath, lifecyclePushStream }: LifecycleOutputStreams,
+  key: string,
+  { msg, exit }: { msg: string, exit: boolean }
+): void {
+  if (!lifecycleStreamByDepPath[key]) {
+    lifecycleStreamByDepPath[key] = new Rx.Subject<{ msg: string }>()
+    lifecyclePushStream.next(Rx.from(lifecycleStreamByDepPath[key]))
+  }
+  lifecycleStreamByDepPath[key].next({ msg })
+  if (exit) {
+    lifecycleStreamByDepPath[key].complete()
+  }
 }
 
 function toNano (time: [number, number]): number {
@@ -211,23 +253,24 @@ function formatIndentedStatus (status: string): string {
   return `${chalk.magentaBright('└─')} ${status}`
 }
 
-function highlightLastFolder (p: string): string {
-  const lastSlash = p.lastIndexOf('/') + 1
-  return `${chalk.gray(p.slice(0, lastSlash))}${p.slice(lastSlash)}`
+function highlightLastFolder (dir: string): string {
+  const lastSlash = dir.lastIndexOf('/') + 1
+  return `${chalk.gray(dir.slice(0, lastSlash))}${dir.slice(lastSlash)}`
 }
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
-function createStreamLifecycleOutput (cwd: string, hideLifecyclePrefix: boolean): (logObj: LifecycleLog) => string {
+function createStreamLifecycleOutput (cwd: string, hideLifecyclePrefix: boolean, annotateOptionalFailure = false): (logObj: LifecycleLog) => string {
   currentColor = 0
   const colorByPrefix: ColorByPkg = new Map()
-  return streamLifecycleOutput.bind(null, colorByPrefix, cwd, hideLifecyclePrefix)
+  return streamLifecycleOutput.bind(null, colorByPrefix, cwd, hideLifecyclePrefix, annotateOptionalFailure)
 }
 
 function streamLifecycleOutput (
   colorByPkg: ColorByPkg,
   cwd: string,
   hideLifecyclePrefix: boolean,
+  annotateOptionalFailure: boolean,
   logObj: LifecycleLog
 ): string {
   const prefix = formatLifecycleScriptPrefix(colorByPkg, cwd, logObj.wd, logObj.stage)
@@ -235,7 +278,7 @@ function streamLifecycleOutput (
     if (logObj.exitCode === 0) {
       return `${prefix}: Done`
     } else {
-      return `${prefix}: Failed`
+      return `${prefix}: Failed${annotateOptionalFailure && logObj.optional ? ' (skipped as optional)' : ''}`
     }
   }
   if (logObj['script']) {
@@ -266,13 +309,39 @@ function formatLifecycleScriptPrefix (
 }
 
 function formatLine (maxWidth: number, logObj: LifecycleLog): string {
-  const line = cutLine(logObj.line, maxWidth)
+  const line = cutLine(logObj.line && printableScriptLine(logObj.line), maxWidth)
 
-  // TODO: strip only the non-color/style ansi escape codes
   if (logObj.stdio === 'stderr') {
     return chalk.gray(line)
   }
   return line
+}
+
+// eslint-disable-next-line no-control-regex -- an SGR (color) sequence starts with ESC
+const SGR_SEQUENCE = /\u001B\[[\d;:]*m/g
+// eslint-disable-next-line no-control-regex -- C1 DCS, SOS, OSC, PM and APC strings, which stripVTControlCharacters does not recognize
+const C1_CONTROL_STRING = /[\u0090\u0098\u009D-\u009F][^\u0007\u001B\u009C]*(?:\u0007|\u009C|\u001B\\)?/g
+// eslint-disable-next-line no-control-regex -- matching control characters is the point of this pattern
+const CONTROL_CHARACTERS_EXCEPT_TAB = /[\u0000-\u0008\u000A-\u001F\u007F-\u009F]/g
+
+const SGR_RESET = '\u001B[0m'
+
+/**
+ * Keeps the SGR (color) sequences of a script's output line when colors are
+ * on, followed by a reset so a color left open cannot reach the next line.
+ * Drops every other escape sequence and control character, so a script's
+ * cursor movement cannot move the reporter's cursor.
+ */
+function printableScriptLine (line: string): string {
+  const uncolored = line.replace(SGR_SEQUENCE, '')
+  if (uncolored.search(CONTROL_CHARACTERS_EXCEPT_TAB) === -1) {
+    return chalk.level > 0 && uncolored !== line ? line + SGR_RESET : uncolored
+  }
+  const colors = chalk.level > 0 ? line.match(SGR_SEQUENCE) ?? [] : []
+  const printable = line.split(SGR_SEQUENCE)
+    .map((text, index) => stripVTControlCharacters(text.replace(C1_CONTROL_STRING, '')).replace(CONTROL_CHARACTERS_EXCEPT_TAB, '') + (colors[index] ?? ''))
+    .join('')
+  return colors.length > 0 ? printable + SGR_RESET : printable
 }
 
 function cutLine (line: string | undefined, maxLength: number): string {
@@ -283,19 +352,21 @@ function cutLine (line: string | undefined, maxLength: number): string {
   return cliTruncate(line, maxLength)
 }
 
-function aggregateOutput (source: Rx.Observable<LifecycleLog>): Rx.Observable<LifecycleLog> {
-  return source.pipe(
-    // The '\0' is a null character which delimits these strings. This works since JS doesn't use
-    // null-terminated strings.
-    groupBy((data) => `${data.depPath}\0${data.stage}`),
-    mergeMap(group => {
-      return group.pipe(
-        buffer(
-          group.pipe(filter(msg => 'exitCode' in msg))
-        )
-      )
-    }),
-    map(ar => Rx.from(ar)),
-    mergeAll()
+function aggregateOutput (logLevel: LogLevel | undefined): (source: Rx.Observable<LifecycleLog>) => Rx.Observable<LifecycleLog> {
+  return (source) => source.pipe(
+    // `pnpm -r exec` reports a project's manifest name as its depPath, so
+    // same-named projects differ only by wd.
+    groupBy((data) => `${data.depPath}\0${data.stage}\0${data.wd}`),
+    mergeMap(group => group.pipe(
+      buffer(group.pipe(filter(msg => 'exitCode' in msg))),
+      filter((messages) => shouldPrintAggregatedOutput(messages, logLevel)),
+      mergeMap((messages) => Rx.from(messages))
+    ))
   )
+}
+
+function shouldPrintAggregatedOutput (messages: LifecycleLog[], logLevel: LogLevel | undefined): boolean {
+  if (logLevel == null || logLevel === 'info' || logLevel === 'debug') return true
+  const exit = messages.at(-1)
+  return exit != null && 'exitCode' in exit && exit.exitCode !== 0 && !(exit.optional === true && logLevel === 'error')
 }

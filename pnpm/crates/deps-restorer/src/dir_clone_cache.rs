@@ -4,35 +4,37 @@
 //! APFS serializes metadata-write syscalls volume-wide: measured on the
 //! alotta-files fixture, `clonefile` throughput never exceeds its
 //! single-thread rate (~6k files/s) no matter how many threads issue
-//! it, and `link` scales *negatively* — extra rayon workers only deepen
+//! it, and `link` scales *negatively*, extra rayon workers only deepen
 //! the kernel lock convoy, which is what regressed large hot installs
 //! on many-core Macs (pnpm/pnpm issue 14231). Cloning a whole directory
 //! is one syscall for the entire tree, ~20x cheaper than per-file
 //! clones of its contents and immune to the convoy.
 //!
-//! The cache materializes each package once into the global-virtual-
-//! store slot layout under `<store_dir>/links` — the same paths, marker
-//! protocol, and concurrent-writer healing that `enableGlobalVirtualStore`
-//! installs use (see [`fn@crate::import_indexed_dir`]) — and then
-//! projects it into the project-local virtual store with one
-//! `clonefile`. A hot install whose canonical slots already exist pays
+//! The cache materializes each package once under
+//! [`pnpm_store_dir::StoreDir::dir_clone_cache`], using the global virtual
+//! store's slot layout, marker protocol, and concurrent-writer healing
+//! (see [`fn@crate::import_indexed_dir`]). It projects the cached package
+//! into the project-local virtual store with one `clonefile`.
+//! A hot install whose canonical slots already exist pays
 //! one `stat` plus one `clonefile` per package instead of one syscall
 //! per file.
 //!
-//! Only isolated-linker installs with the project-local virtual store
-//! consult the cache, and only when the resolved import method may
-//! clone (`auto`, `clone`, `clone-or-copy`): an explicit `hardlink`
-//! promises store-shared inodes and an explicit `copy` promises
-//! independent data, and a clone of the canonical copy would deliver
-//! neither. Per-slot qualification is decided by the caller — see
-//! `create_virtual_store::dir_clone_cacheable` for the exclusions and
-//! their reasons. Excluded slots take the per-file import, so cached
-//! slots are always plain pre-build CAS content, indistinguishable
-//! from what a GVS-enabled install materializes before its build
-//! phase.
+//! Two install shapes consult the cache: isolated installs with a
+//! project-local virtual store, which clone into each virtual-store
+//! slot, and hoisted installs, which clone into each package's
+//! directory under `node_modules`. Both only when the
+//! resolved import method may clone (`auto`, `clone`, `clone-or-copy`):
+//! an explicit `hardlink` promises store-shared inodes and an explicit
+//! `copy` promises independent data, and a clone of the canonical copy
+//! would deliver neither. Per-slot qualification is decided by the
+//! caller; see `create_virtual_store::dir_clone_cacheable` for the
+//! exclusions and their reasons. Excluded slots take the per-file
+//! import, so cached slots are always plain pre-build CAS content,
+//! stored separately from installed global virtual store packages, so
+//! pruning can discard the cache without project reachability information.
 //!
 //! The cache is strictly best-effort: a per-install capability probe
-//! (`dir_clone_supported`) declines the whole cache up front when the
+//! declines the whole cache up front when the
 //! canonical root and the project's virtual store can't share clones
 //! (cross-volume stores, non-APFS filesystems), so no canonical slot is
 //! ever populated that the clone step can't use. Past the probe, any
@@ -41,29 +43,55 @@
 //! `ENOTSUP`, ...) disable the cache for the rest of the process.
 
 use crate::{
-    AllowBuildPolicy, VirtualStoreLayout,
-    import_indexed_dir::{ImportIndexedDirOpts, marker_present},
+    AllowBuildPolicy,
+    VirtualStoreLayout,
+    import_indexed_dir::{
+        ImportIndexedDirOpts,
+        marker_present,
+    },
     safe_join_modules_dir::safe_join_modules_dir,
 };
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
+use pnpm_fs::{
+    LinkFailure,
+    LinkFallback,
+    LinkFallbackPolicy,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PlatformSelector,
+    SnapshotEntry,
+};
 use pnpm_reporter::Reporter;
 use std::{
     collections::HashMap,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        Arc, OnceLock,
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        Arc,
+        OnceLock,
+        atomic::{
+            AtomicBool,
+            AtomicU8,
+            Ordering,
+        },
     },
 };
 
-/// The engine name that keys the cache's canonical slots — the same
+/// The engine name that keys the cache's canonical slots, the same
 /// value a GVS-enabled install computes (see
-/// [`crate::materialization_plan::resolve_engine_name`]), so the slot
-/// hashes agree between the two modes.
+/// [`crate::materialization_plan::resolve_engine_name`]).
 pub enum EngineNameSource {
-    /// Known when the cache is built: a lockfile `node@runtime:` pin or
+    /// Known when the cache is built: the root project's `node@runtime:` pin or
     /// an already-detected host.
     Ready(Option<String>),
     /// A `node --version` probe still in flight (see
@@ -77,19 +105,10 @@ pub enum EngineNameSource {
 /// See the [module documentation](self) for what the cache is and when
 /// it applies.
 pub struct DirCloneCache<'install> {
-    /// GVS-shaped layout rooted at `Config::global_virtual_store_dir`
-    /// (`<store_dir>/links` unless pinned), built via
-    /// [`VirtualStoreLayout::global`] so canonical slots coincide with
-    /// the slots a GVS-enabled install materializes. Built on first
-    /// use — see [`Self::layout`].
+    layout_inputs: CanonicalLayoutInputs<'install>,
+    /// Layout rooted at [`pnpm_store_dir::StoreDir::dir_clone_cache`].
+    /// Built on first use; see [`Self::layout`].
     layout: OnceLock<VirtualStoreLayout>,
-    global_virtual_store_dir: PathBuf,
-    virtual_store_dir_max_length: usize,
-    engine: EngineNameSource,
-    snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
-    packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
-    allow_build_policy: Option<&'install AllowBuildPolicy>,
-    lockfile_dir: Option<&'install Path>,
     /// Under `frozenStore` the store is read-only: the cache may serve
     /// canonical slots that already exist but must not populate new
     /// ones.
@@ -104,8 +123,10 @@ impl<'install> DirCloneCache<'install> {
     #[must_use]
     pub fn eligible(config: &Config, node_linker: NodeLinker) -> bool {
         cfg!(target_os = "macos")
-            && node_linker == NodeLinker::Isolated
+            && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
             && !config.enable_global_virtual_store
+            // Deploy installs do not populate the shared materialization cache.
+            && config.global_virtual_store_dir != config.virtual_store_dir()
             && matches!(
                 config.package_import_method,
                 PackageImportMethod::Auto
@@ -136,22 +157,32 @@ impl<'install> DirCloneCache<'install> {
         // wave of parallel slot links each populate a canonical slot
         // only to fall back per-file after the clone fails. Under
         // `frozenStore` the cache never writes canonical slots, so
-        // there is no duplicated work to prevent — and the store must
+        // there is no duplicated work to prevent, and the store must
         // not be written a probe directory either.
-        if !config.frozen_store
-            && !dir_clone_supported(&config.global_virtual_store_dir, &config.virtual_store_dir)
-        {
+        let destination = match node_linker {
+            NodeLinker::Hoisted => &config.modules_dir,
+            _ => config.virtual_store_dir(),
+        };
+        let cache_dir = config.store_dir.dir_clone_cache();
+        if !config.frozen_store && !dir_clone_supported(&cache_dir, destination) {
             return None;
         }
         Some(DirCloneCache {
+            layout_inputs: CanonicalLayoutInputs {
+                cache_dir,
+                virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
+                engine,
+                snapshots,
+                packages,
+                gating: crate::BuildGating {
+                    policy: allow_build_policy,
+                    runs_builds: !config.ignore_scripts,
+                },
+                lockfile_dir,
+                platform: crate::virtual_store_layout::selected_platform(config),
+            },
             layout: OnceLock::new(),
-            global_virtual_store_dir: config.global_virtual_store_dir.clone(),
-            virtual_store_dir_max_length: config.virtual_store_dir_max_length as usize,
-            engine,
-            snapshots,
-            packages,
-            allow_build_policy,
-            lockfile_dir,
+
             frozen_store: config.frozen_store,
             disabled: AtomicBool::new(false),
         })
@@ -161,24 +192,10 @@ impl<'install> DirCloneCache<'install> {
     /// here so a still-running `node --version` probe overlaps the
     /// virtual-store partition and warm-batch I/O that run between
     /// [`Self::build`] and the first [`Self::try_import`]. May block on
-    /// that probe, so it must only run on a worker thread — which
+    /// that probe, so it must only run on a worker thread, which
     /// [`Self::try_import`]'s calling convention already guarantees.
     fn layout(&self) -> &VirtualStoreLayout {
-        self.layout.get_or_init(|| {
-            let engine = match &self.engine {
-                EngineNameSource::Ready(name) => name.clone(),
-                EngineNameSource::Pending(slot) => slot.wait().clone(),
-            };
-            VirtualStoreLayout::global(
-                self.global_virtual_store_dir.clone(),
-                self.virtual_store_dir_max_length,
-                engine.as_deref(),
-                self.snapshots,
-                self.packages,
-                self.allow_build_policy,
-                self.lockfile_dir,
-            )
-        })
+        self.layout.get_or_init(|| self.layout_inputs.build())
     }
 
     /// Try to materialize `save_path` (the project slot's
@@ -192,20 +209,20 @@ impl<'install> DirCloneCache<'install> {
     /// Must be called from a worker thread (the link pass runs on
     /// rayon, under `block_in_place` on the multi-thread runtime): the
     /// first call may block on the deferred engine probe while it
-    /// builds the layout — see `Self::layout`.
+    /// builds the layout; see `Self::layout`.
     pub fn try_import<Reporter: self::Reporter>(
         &self,
         logged_methods: &AtomicU8,
         import_method: PackageImportMethod,
         package_key: &PackageKey,
         save_path: &Path,
-        cas_paths: &HashMap<String, PathBuf>,
+        cas_paths: &pnpm_fs::CasPaths,
     ) -> bool {
         if self.disabled.load(Ordering::Relaxed) {
             return false;
         }
-        // An existing dirent at the target — a completed slot, a
-        // partial import to repair, or stale junk — is
+        // An existing dirent at the target (a completed slot, a
+        // partial import to repair, or stale junk) is
         // `import_indexed_dir`'s business; `clonefile` requires a
         // fresh destination.
         match fs::symlink_metadata(save_path) {
@@ -224,29 +241,19 @@ impl<'install> DirCloneCache<'install> {
         else {
             return false;
         };
-        if self.frozen_store {
-            if !marker_present(&canonical, cas_paths) {
-                return false;
-            }
-        } else if let Err(error) = crate::import_indexed_dir::<Reporter>(
+        if !self.canonical_slot_ready::<Reporter>(
             logged_methods,
             import_method,
+            package_key,
             &canonical,
             cas_paths,
-            ImportIndexedDirOpts { safe_to_skip: true, ..ImportIndexedDirOpts::default() },
         ) {
-            tracing::debug!(
-                target: "pacquet::dir_clone_cache",
-                package = %package_key,
-                %error,
-                "failed to materialize the canonical slot; falling back to the per-file import",
-            );
             return false;
         }
         // A scoped package's directory sits below a `@scope/` component
         // the per-file importer would have created; the clone needs the
         // parent in place itself. Unscoped packages sit directly in the
-        // `node_modules` the caller created — probing it again would
+        // `node_modules` the caller created, probing it again would
         // cost every slot a syscall on the APFS-serialized metadata
         // path.
         if package_key.name.scope.is_some()
@@ -256,57 +263,105 @@ impl<'install> DirCloneCache<'install> {
         {
             return false;
         }
-        // `reflink_copy::reflink` is a raw `clonefile(2)`, which clones
-        // directories: one syscall for the whole package tree.
-        match reflink_copy::reflink(&canonical, save_path) {
-            Ok(()) => true,
-            Err(error) => {
-                // `NotFound` (a concurrent prune removed the canonical
-                // slot), `AlreadyExists` (a concurrent importer claimed
-                // the target), and `PermissionDenied` are per-call
-                // conditions; everything else — `EXDEV`, `ENOTSUP`, and
-                // the grab-bag of "this volume can't do that" codes —
-                // condemns every later clone too, the same deny-list
-                // reasoning as `link_file::is_call_error`.
-                if !matches!(
-                    error.kind(),
-                    io::ErrorKind::NotFound
-                        | io::ErrorKind::PermissionDenied
-                        | io::ErrorKind::AlreadyExists,
-                ) {
-                    self.disabled.store(true, Ordering::Relaxed);
-                }
-                tracing::debug!(
-                    target: "pacquet::dir_clone_cache",
-                    package = %package_key,
-                    %error,
-                    "failed to clone the canonical slot; falling back to the per-file import",
-                );
-                false
-            }
+        self.clone_canonical_slot(package_key, &canonical, save_path)
+    }
+
+    /// Whether the canonical slot holds the package's files. Outside a
+    /// frozen store the slot is materialized on demand; a frozen store
+    /// may only read what a previous install already put there.
+    fn canonical_slot_ready<Reporter: self::Reporter>(
+        &self,
+        logged_methods: &AtomicU8,
+        import_method: PackageImportMethod,
+        package_key: &PackageKey,
+        canonical: &Path,
+        cas_paths: &pnpm_fs::CasPaths,
+    ) -> bool {
+        if self.frozen_store {
+            return marker_present(canonical, cas_paths);
         }
+        let Err(error) = crate::import_indexed_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            canonical,
+            cas_paths,
+            ImportIndexedDirOpts { safe_to_skip: true, ..ImportIndexedDirOpts::default() },
+        ) else {
+            return true;
+        };
+        tracing::debug!(
+            target: "pacquet::dir_clone_cache",
+            package = %package_key,
+            %error,
+            "failed to materialize the canonical slot; falling back to the per-file import",
+        );
+        false
+    }
+
+    /// `reflink_copy::reflink` is a raw `clonefile(2)`, which clones
+    /// directories: one syscall for the whole package tree.
+    fn clone_canonical_slot(
+        &self,
+        package_key: &PackageKey,
+        canonical: &Path,
+        save_path: &Path,
+    ) -> bool {
+        let Err(error) = reflink_copy::reflink(canonical, save_path) else {
+            tracing::trace!(
+                target: "pacquet::dir_clone_cache",
+                package = %package_key,
+                target_path = %save_path.display(),
+                "cloned the canonical slot",
+            );
+            return true;
+        };
+        if retires_dir_clone(&error) {
+            self.disabled.store(true, Ordering::Relaxed);
+        }
+        tracing::debug!(
+            target: "pacquet::dir_clone_cache",
+            package = %package_key,
+            %error,
+            "failed to clone the canonical slot; falling back to the per-file import",
+        );
+        false
     }
 }
 
+/// Whether a failed directory clone condemns every later one. A failure
+/// that retires an import tier ([`LinkFallback::NextMethod`]) retires the
+/// cache; a canonical slot a concurrent prune removed, a target a
+/// concurrent importer claimed, or a source out of names only sends this
+/// package through the per-file import. So does a permission refusal:
+/// [`dir_clone_supported`] proved the volume clones before any slot was
+/// populated, so a refusal after it is one package's, and retiring the
+/// cache on it would cost every later package the fast path.
+fn retires_dir_clone(error: &io::Error) -> bool {
+    let failure = LinkFailure::of(error);
+    failure != LinkFailure::Denied
+        && failure.fallback(LinkFallbackPolicy::NextMethod) == LinkFallback::NextMethod
+}
+
 /// Whether a directory `clonefile` from under `links_root` can land in
-/// `virtual_store_dir`: clone an empty probe directory across and
+/// `destination`, the project's virtual store, or its `node_modules`
+/// under the hoisted linker: clone an empty probe directory across and
 /// remove both. The store side is created if absent (the caller
 /// guarantees the store is writable), but nothing is created on the
-/// project side — the probe lands in the deepest existing ancestor of
-/// the virtual-store dir, which is on the same volume, so an install
-/// the lockfile checks later reject leaves no directory behind. A
-/// stale destination from a crashed probe is removed first so pid
-/// reuse can't fail the probe with `EEXIST`.
-fn dir_clone_supported(links_root: &Path, virtual_store_dir: &Path) -> bool {
+/// project side, the probe lands in the deepest existing ancestor of
+/// the destination, which is on the same volume, so an install the
+/// lockfile checks later reject leaves no directory behind. A stale
+/// destination from a crashed probe is removed first so pid reuse
+/// can't fail the probe with `EEXIST`.
+fn dir_clone_supported(links_root: &Path, destination: &Path) -> bool {
     // Distinct basenames: were the two roots to resolve to one
     // directory, a shared name would have the destination pre-clean
     // remove the just-created source.
-    let pid = std::process::id();
+    let pid = pnpm_fs::process_id();
     let src = links_root.join(format!(".pacquet-dir-clone-probe-src-{pid}"));
     if fs::create_dir_all(&src).is_err() {
         return false;
     }
-    let dst_parent = deepest_existing_ancestor(virtual_store_dir);
+    let dst_parent = deepest_existing_ancestor(destination);
     let dst = dst_parent.join(format!(".pacquet-dir-clone-probe-dst-{pid}"));
     let _ = fs::remove_dir(&dst);
     let supported = reflink_copy::reflink(&src, &dst).is_ok();
@@ -330,3 +385,33 @@ fn deepest_existing_ancestor(path: &Path) -> &Path {
 
 #[cfg(test)]
 mod tests;
+
+struct CanonicalLayoutInputs<'install> {
+    cache_dir: PathBuf,
+    virtual_store_dir_max_length: usize,
+    engine: EngineNameSource,
+    snapshots: Option<&'install HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&'install HashMap<PackageKey, PackageMetadata>>,
+    gating: crate::BuildGating<'install>,
+    lockfile_dir: Option<&'install Path>,
+    platform: PlatformSelector,
+}
+
+impl CanonicalLayoutInputs<'_> {
+    fn build(&self) -> VirtualStoreLayout {
+        let engine = match &self.engine {
+            EngineNameSource::Ready(name) => name.clone(),
+            EngineNameSource::Pending(slot) => slot.wait().clone(),
+        };
+        VirtualStoreLayout::global(
+            self.cache_dir.clone(),
+            self.virtual_store_dir_max_length,
+            engine.as_deref(),
+            self.snapshots,
+            self.packages,
+            self.gating,
+            self.lockfile_dir,
+            &self.platform,
+        )
+    }
+}

@@ -6,12 +6,12 @@ import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from './utils/index.js'
+import { execPnpm, spawnPnpm } from './utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const PKG_FILES = [
-  ...fs.readdirSync(f.find('injected-dep-files')),
+  ...fs.readdirSync(testFixtures.find('injected-dep-files')),
   'package.json',
 ].sort()
 
@@ -49,7 +49,7 @@ function prepareInjectedDepsWorkspace (syncInjectedDepsAfterScripts: string[]) {
   ])
 
   for (const pkgName of ['foo', 'bar', 'baz']) {
-    f.copy('injected-dep-files', pkgName)
+    testFixtures.copy('injected-dep-files', pkgName)
   }
 
   writeYamlFileSync('pnpm-workspace.yaml', {
@@ -113,6 +113,137 @@ test('with sync-injected-deps-after-scripts', async () => {
       fs.readFileSync('node_modules/.pnpm/bar@file+bar/node_modules/bar/created-by-build2.txt', 'utf-8')
     ).toBe(path.resolve('bar/build2.cjs'))
   }
+})
+
+test('a listed script syncs only the files the manifest lists', async () => {
+  preparePackages([
+    {
+      name: 'foo',
+      version: '0.0.0',
+      files: ['index.js'],
+      scripts: {
+        build: 'node -e "require(\'fs\').writeFileSync(\'index.js\', \'built\')"',
+      },
+    },
+    {
+      name: 'bar',
+      version: '0.0.0',
+      dependencies: {
+        foo: 'workspace:*',
+      },
+    },
+  ])
+  fs.writeFileSync('foo/index.js', 'original')
+  fs.writeFileSync('foo/notes.txt', 'not a package file')
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['*'],
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+    syncInjectedDepsAfterScripts: ['build'],
+  })
+
+  await execPnpm(['install'])
+  await execPnpm(['--filter=foo', 'run', 'build'])
+
+  const copy = 'node_modules/.pnpm/foo@file+foo/node_modules/foo'
+  expect(fs.readFileSync(path.join(copy, 'index.js'), 'utf8')).toBe('built')
+  expect(fs.readdirSync(copy).sort()).toStrictEqual(['index.js', 'package.json'])
+})
+
+test('a listed script publishes injected edits before it exits', async () => {
+  preparePackages([
+    {
+      name: 'foo',
+      version: '0.0.0',
+      scripts: { dev: 'node ./dev.cjs' },
+    },
+    {
+      name: 'bar',
+      version: '0.0.0',
+      dependencies: { foo: 'workspace:*' },
+    },
+  ])
+  // Runs until the test creates ../stop, like a dev server.
+  fs.writeFileSync('foo/dev.cjs', `
+const fs = require('fs')
+fs.writeFileSync('live.txt', 'first')
+const timer = setInterval(() => {
+  if (fs.existsSync('../stop')) clearInterval(timer)
+}, 50)
+`)
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['*'],
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+    syncInjectedDepsAfterScripts: ['dev'],
+  })
+  await execPnpm(['install'])
+
+  const injectedFile = 'node_modules/.pnpm/foo@file+foo/node_modules/foo/live.txt'
+  const dev = spawnPnpm(['--dir', 'foo', 'run', 'dev'])
+  const exited = new Promise<number | null>(resolve => dev.once('exit', resolve))
+  try {
+    await waitForContent(injectedFile, 'first')
+    fs.writeFileSync('foo/live.txt', 'second')
+    await waitForContent(injectedFile, 'second')
+    expect(fs.statSync(injectedFile).ino).not.toBe(fs.statSync('foo/live.txt').ino)
+  } finally {
+    fs.writeFileSync('stop', '')
+  }
+  expect(await exited).toBe(0)
+})
+
+async function waitForContent (filePath: string, content: string): Promise<void> {
+  const deadline = Date.now() + 30_000
+  while (readFileOrUndefined(filePath) !== content) {
+    if (Date.now() > deadline) {
+      throw new Error(`${filePath} never held ${JSON.stringify(content)}`)
+    }
+    await new Promise(resolve => setTimeout(resolve, 50)) // eslint-disable-line no-await-in-loop -- polls until the file holds the content
+  }
+}
+
+function readFileOrUndefined (filePath: string): string | undefined {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : undefined
+}
+
+test('a listed script syncs the copies of a package that publishes from a directory', async () => {
+  preparePackages([
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: { lib: 'workspace:*' },
+      dependenciesMeta: { lib: { injected: true } },
+    },
+    {
+      name: 'lib',
+      version: '1.0.0',
+      publishConfig: { directory: 'dist' },
+      scripts: { prepare: 'node build.cjs', build: 'node build.cjs' },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    // Not `**`: it would make the built `lib/dist` a workspace project too.
+    packages: ['app', 'lib'],
+    dedupeInjectedDeps: false,
+    syncInjectedDepsAfterScripts: ['build'],
+  })
+  // Replaces dist, so the new files share no inode with the injected copy.
+  fs.writeFileSync('lib/build.cjs', `const fs = require('fs')
+fs.rmSync(__dirname + '/dist', { recursive: true, force: true })
+fs.mkdirSync(__dirname + '/dist')
+fs.writeFileSync(__dirname + '/dist/package.json', JSON.stringify({ name: 'lib', version: '1.0.0' }))
+fs.writeFileSync(__dirname + '/dist/index.js', fs.readFileSync(__dirname + '/src.js'))
+`)
+  fs.writeFileSync('lib/src.js', 'v1')
+
+  await execPnpm(['install'])
+  const copy = fs.realpathSync('app/node_modules/lib')
+  expect(fs.readFileSync(path.join(copy, 'index.js'), 'utf8')).toBe('v1')
+
+  fs.writeFileSync('lib/src.js', 'v2')
+  await execPnpm(['--filter=lib', 'run', 'build'])
+  expect(fs.readFileSync(path.join(copy, 'index.js'), 'utf8')).toBe('v2')
 })
 
 test('without sync-injected-deps-after-scripts', async () => {
@@ -242,9 +373,10 @@ test('directories and symlinks', async () => {
         .sort()
     ).toStrictEqual(['foo.txt'])
 
-    // should recreate the structure of the symlinks at the injected location
-    // NOTE: The current implementation of @pnpm/fetching.directory-fetcher would treat symlinks to dir at real dir
-    //       because it uses fs.stat instead of fs.lstat, so testing with fs.realpathSync wouldn't work.
+    // should recreate the symlinks at the injected location, as the install does
+    const injectedFoo = 'node_modules/.pnpm/foo@file+foo/node_modules/foo'
+    expect(fs.lstatSync(path.join(injectedFoo, 'link-to-a-dir')).isSymbolicLink()).toBe(true)
+    expect(fs.realpathSync(path.join(injectedFoo, 'link-to-a-dir'))).toBe(fs.realpathSync(path.join(injectedFoo, 'files/foo')))
     expect(fs.readFileSync('node_modules/.pnpm/foo@file+foo/node_modules/foo/link-to-a-file', 'utf-8')).toBe('This is foo_bar')
     expect(
       fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo/link-to-a-dir')

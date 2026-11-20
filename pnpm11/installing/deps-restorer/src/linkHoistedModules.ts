@@ -1,6 +1,8 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { linkBins } from '@pnpm/bins.linker'
+import { removeBinsOfDependency } from '@pnpm/bins.remover'
 import {
   removalLogger,
   reportPackageImported,
@@ -10,7 +12,10 @@ import type {
   DependenciesGraph,
   DepHierarchy,
 } from '@pnpm/deps.graph-builder'
-import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { calcDepState, type DepsStateCache, shouldIncludeDepGraphHash } from '@pnpm/deps.graph-hasher'
+import { isError } from '@pnpm/error'
+import { readModulesDir } from '@pnpm/fs.read-modules-dir'
+import { symlinkDependency } from '@pnpm/fs.symlink-dependency'
 import { logger } from '@pnpm/logger'
 import { createRemoteSideEffectsRestorer, type RemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
@@ -18,60 +23,72 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import type { AllowBuild, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
+import { importerModulesDir, isStrictlyInside } from '@pnpm/workspace.state'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
+import { pathExists } from 'path-exists'
 import { difference, isEmpty } from 'ramda'
 
+import { reportOptionalFetchFailure } from './reportOptionalFetchFailure.js'
+
 const limitLinking = pLimit(16)
+
+/** A package directory on disk that the hoisting plan does not place. */
+interface UnplannedDir {
+  dir: string
+  modulesDir: string
+  /** `dir` relative to `modulesDir`, so scoped packages keep their `@scope/` prefix. */
+  pkgName: string
+}
+
+interface LinkHoistedModulesOptions {
+  allowBuild?: AllowBuild
+  deferDependencyBuilds: boolean
+  depsStateCache: DepsStateCache
+  disableRelinkLocalDirDeps?: boolean
+  force: boolean
+  /**
+   * Hold back the missing-target bins of every `.bin` directory, since a
+   * dependency's scripts may run with them on PATH. See
+   * `holdBackMissingTargets` in `@pnpm/bins.linker`. The caller links the
+   * projects' `.bin` directories and the returned nested ones again after
+   * the builds.
+   */
+  holdBackMissingBins: boolean
+  ignoreScripts: boolean
+  /** The directories of every project in the lockfile, whether the plan places anything in them or not. */
+  importerDirs: string[]
+  lockfileDir: string
+  /** The configured `modulesDir`. Each importer keeps its dependencies there. */
+  modulesDir?: string
+  /**
+   * The root project's `engines.runtime` Node version, which keys the
+   * side-effects cache of every package that does not pin its own.
+   */
+  nodeVersion?: string
+  preferSymlinkedExecutables?: boolean
+  sideEffectsCacheRead: boolean
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  pnprServer?: string
+  configByUri: Record<string, RegistryConfig>
+  supportedArchitectures?: SupportedArchitectures
+}
 
 export async function linkHoistedModules (
   storeController: StoreController,
   graph: DependenciesGraph,
-  prevGraph: DependenciesGraph,
+  previousDirs: string[],
   hierarchy: DepHierarchy,
-  opts: {
-    allowBuild?: AllowBuild
-    depsStateCache: DepsStateCache
-    disableRelinkLocalDirDeps?: boolean
-    force: boolean
-    ignoreScripts: boolean
-    lockfileDir: string
-    preferSymlinkedExecutables?: boolean
-    sideEffectsCacheRead: boolean
-    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
-    pnprServer?: string
-    configByUri: Record<string, RegistryConfig>
-    supportedArchitectures?: SupportedArchitectures
-  }
-): Promise<void> {
-  // TODO: remove nested node modules first
-  const dirsToRemove = difference(
-    Object.keys(prevGraph),
-    Object.keys(graph)
-  )
-  statsLogger.debug({
-    prefix: opts.lockfileDir,
-    removed: dirsToRemove.length,
-  })
-  // We should avoid removing unnecessary directories while simultaneously adding new ones.
-  // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
-  await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
-  // Resolve the project's pinned runtime Node version once, before
-  // the recursive walk. The graph is keyed by install directory in
-  // this module, so scanning `Object.keys(graph)` would miss every
-  // `node@runtime:<version>` entry — pull the depPath off each
-  // node instead. Threading it down via `opts` also avoids a
-  // re-scan at every recursion level.
-  const nodeVersion = findRuntimeNodeVersion(
-    Object.values(graph).map((node) => node.depPath)
-  )
+  opts: LinkHoistedModulesOptions
+): Promise<string[]> {
+  await removeDirsOutsidePlan(graph, previousDirs, hierarchy, opts)
   const restorer = createRemoteSideEffectsRestorer({
     allowBuild: opts.allowBuild,
     configByUri: opts.configByUri,
     depsGraph: graph,
     depsStateCache: opts.depsStateCache,
     ignoreScripts: opts.ignoreScripts,
-    nodeVersion,
+    nodeVersion: opts.nodeVersion,
     pnprServer: opts.pnprServer,
     settings: opts.remoteSideEffectsCache,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -79,6 +96,7 @@ export async function linkHoistedModules (
     supportedArchitectures: opts.supportedArchitectures,
     warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
   })
+  const heldBackBinsDirs = new Set<string>()
   await Promise.all(
     Object.entries(hierarchy)
       .map(([parentDir, depsHierarchy]) => {
@@ -88,18 +106,177 @@ export async function linkHoistedModules (
             prefix: parentDir,
           })
         }
-        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
+        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, importerModulesDir(parentDir, opts), {
           ...opts,
-          nodeVersion,
+          holdBackMissingTargets: opts.holdBackMissingBins,
+          nestedHeldBackBinsDirs: heldBackBinsDirs,
+          nodeVersion: opts.nodeVersion,
           restorer,
           warn,
         })
       })
   )
+  return Array.from(heldBackBinsDirs)
+}
+
+async function removeDirsOutsidePlan (
+  graph: DependenciesGraph,
+  previousDirs: string[],
+  hierarchy: DepHierarchy,
+  { importerDirs, lockfileDir, modulesDir }: Pick<LinkHoistedModulesOptions, 'importerDirs' | 'lockfileDir' | 'modulesDir'>
+): Promise<void> {
+  // TODO: remove nested node modules first
+  const holdsImporter = holdsAnyOf([lockfileDir, ...importerDirs, ...Object.keys(hierarchy)])
+  const rootModulesDir = importerModulesDir(lockfileDir, { lockfileDir, modulesDir })
+  const isPermittedDir = (dir: string) => isStrictlyInside(dir, lockfileDir) || isStrictlyInside(dir, rootModulesDir)
+  const orphanDirs = difference(previousDirs, Object.keys(graph))
+    .filter((dir) => !holdsImporter(dir) && isPermittedDir(dir))
+  // Probe every candidate before deleting a parent that may contain another candidate.
+  const existingOrphanDirs = await Promise.all(orphanDirs.map((dir) => limitLinking(async () => await orphanPathMayExist(dir) ? dir : null)))
+  const dirsToRemove = existingOrphanDirs.filter((dir) => dir != null)
+  // A directory the previous install recorded is pnpm's to delete. One that only
+  // the on-disk scan found is not: pnpm has no record of putting it there, so it
+  // is quarantined instead, the way an alien package directory already is.
+  const recordedDirs = new Set(dirsToRemove)
+  const dirsToQuarantine = (await findUnplannedDirs(hierarchy, holdsImporter, { lockfileDir, modulesDir }))
+    .filter(({ dir }) => !recordedDirs.has(dir))
+  statsLogger.debug({
+    prefix: lockfileDir,
+    removed: dirsToRemove.length + dirsToQuarantine.length,
+  })
+  // We should avoid removing unnecessary directories while simultaneously adding new ones.
+  // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
+  await Promise.all([
+    ...dirsToRemove.map((dir) => limitLinking(() => tryRemoveDir(dir))),
+    ...dirsToQuarantine.map((unplanned) => quarantineDir(unplanned, lockfileDir)),
+  ])
+}
+
+/**
+ * Move a package directory pnpm has no record of installing into the
+ * `node_modules/.ignored` sibling of wherever it sits.
+ *
+ * Deleting is reserved for what the previous install recorded placing. Anything
+ * else may hold work someone did by hand, so it is displaced rather than
+ * destroyed — the treatment `safeIsInnerLink` already gives a package directory
+ * that pnpm did not put there. Getting it out of `node_modules` is what makes
+ * the tree correct; the bytes are incidental.
+ */
+async function quarantineDir ({ dir, modulesDir, pkgName }: UnplannedDir, lockfileDir: string): Promise<void> {
+  removalLogger.debug(dir)
+  let ignoredDir: string | null
+  try {
+    if (!await makeIgnoredParent(modulesDir, pkgName)) {
+      logger.warn({
+        message: `Not moving ${pkgName} to "node_modules/.ignored": the destination leads outside "${modulesDir}"`,
+        prefix: lockfileDir,
+      })
+      return
+    }
+    ignoredDir = await renameToFreeName(dir, path.join(modulesDir, '.ignored', pkgName))
+  } catch (err: unknown) {
+    logger.warn({
+      error: err as Error,
+      message: `Failed to move "${dir}" to "${path.join(modulesDir, '.ignored')}"`,
+      prefix: lockfileDir,
+    })
+    return
+  }
+  if (ignoredDir == null) {
+    logger.warn({
+      message: `Not moving ${pkgName} to "node_modules/.ignored": every free name there is taken`,
+      prefix: lockfileDir,
+    })
+    return
+  }
+  logger.warn({
+    message: `Moving ${pkgName} to "${path.relative(path.dirname(modulesDir), ignoredDir)}". It is not in the dependency tree and pnpm has no record of installing it.`,
+    prefix: path.dirname(modulesDir),
+  })
+}
+
+const MAX_QUARANTINE_ATTEMPTS = 100
+
+/**
+ * Rename `src` to `dest`, or to `dest_1`, `dest_2`, and so on when that is taken, and
+ * return where it landed. An earlier quarantined copy may itself hold hand
+ * edits, so an occupied name is never overwritten. Returns `null` when every
+ * candidate name is taken.
+ */
+async function renameToFreeName (src: string, dest: string): Promise<string | null> {
+  for (let attempt = 0; attempt < MAX_QUARANTINE_ATTEMPTS; attempt++) {
+    const candidate = attempt === 0 ? dest : `${dest}_${attempt}`
+    // eslint-disable-next-line no-await-in-loop -- candidate names are tried in order until one is free
+    if (await pathExistsNoFollow(candidate)) continue
+    try {
+      // eslint-disable-next-line no-await-in-loop -- a successful rename ends the search, so it must finish before the next candidate
+      await fs.promises.rename(src, candidate)
+      return candidate
+    } catch (err: unknown) {
+      // Another process took the name between the check and the rename.
+      // eslint-disable-next-line no-await-in-loop -- a taken name moves on to the next candidate, any other failure is rethrown
+      if (await pathExistsNoFollow(candidate)) continue
+      throw err
+    }
+  }
+  return null
+}
+
+async function pathExistsNoFollow (filePath: string): Promise<boolean> {
+  try {
+    await fs.promises.lstat(filePath)
+    return true
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
+}
+
+/**
+ * Create `.ignored`, and the scope directory under it when `pkgName` is scoped,
+ * refusing to descend through a level that already exists as anything but a
+ * real directory.
+ *
+ * `mkdir -p` traverses a symlink it finds on the way, so a `.ignored` link
+ * would redirect the move outside the tree pnpm is allowed to touch.
+ */
+async function makeIgnoredParent (modulesDir: string, pkgName: string): Promise<boolean> {
+  const ignoredDir = await makeRealDir(modulesDir, '.ignored')
+  if (ignoredDir == null) return false
+  const [scope] = pkgName.split('/')
+  if (scope === pkgName) return true
+  return await makeRealDir(ignoredDir, scope) != null
+}
+
+async function makeRealDir (parent: string, name: string): Promise<string | null> {
+  const dir = path.join(parent, name)
+  try {
+    await fs.promises.mkdir(dir)
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    if (!await isRealDir(dir)) return null
+  }
+  return dir
+}
+
+async function orphanPathMayExist (dir: string): Promise<boolean> {
+  try {
+    return await pathExistsNoFollow(dir)
+  } catch (error: unknown) {
+    if (isError(error) && 'code' in error && error.code === 'ENOTDIR') return false
+    // Metadata failures must not make best-effort orphan cleanup fatal.
+    logger.debug({ error, message: `Failed to inspect the orphan package at "${dir}"` })
+    return true
+  }
 }
 
 async function tryRemoveDir (dir: string): Promise<void> {
   removalLogger.debug(dir)
+  try {
+    await removeOrphanBins(dir)
+  } catch (error: unknown) {
+    logger.debug({ error, message: `Failed to remove the bins of the orphan package at "${dir}"` })
+  }
   try {
     await rimraf(dir)
   } catch (err: any) { // eslint-disable-line
@@ -113,99 +290,236 @@ async function tryRemoveDir (dir: string): Promise<void> {
   }
 }
 
+export async function removeOrphanBins (pkgDir: string): Promise<void> {
+  const binsDir = path.join(getModulesDir(pkgDir), '.bin')
+  let binsDirStats: fs.Stats
+  try {
+    binsDirStats = await fs.promises.lstat(binsDir)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return
+    throw err
+  }
+  // Unlinking through a symlinked `.bin` would delete files outside the install root.
+  if (!binsDirStats.isDirectory()) return
+  await removeBinsOfDependency(pkgDir, { binsDir })
+}
+
+function getModulesDir (pkgDir: string): string {
+  const parentDir = path.dirname(pkgDir)
+  return path.basename(parentDir).startsWith('@') ? path.dirname(parentDir) : parentDir
+}
+
+interface LinkAllPkgsInOrderOptions {
+  allowBuild?: AllowBuild
+  deferDependencyBuilds: boolean
+  depsStateCache: DepsStateCache
+  disableRelinkLocalDirDeps?: boolean
+  force: boolean
+  holdBackMissingTargets?: boolean
+  /** Whether `parentDir` is a package directory rather than a project root. */
+  isNested?: boolean
+  /** Receives each nested `.bin` directory that held back a bin. */
+  nestedHeldBackBinsDirs: Set<string>
+  ignoreScripts: boolean
+  lockfileDir: string
+  preferSymlinkedExecutables?: boolean
+  sideEffectsCacheRead: boolean
+  restorer?: RemoteSideEffectsRestorer<string>
+  supportedArchitectures?: SupportedArchitectures
+  /**
+   * Resolved `engines.runtime` Node version, computed once by
+   * [`linkHoistedModules`] before the recursion. Threaded into
+   * each [`calcDepState`] call so the side-effects-cache key
+   * prefix tracks the script-runner Node rather than pnpm's own
+   * `process.version`.
+   */
+  nodeVersion?: string
+  warn: (message: string) => void
+}
+
 async function linkAllPkgsInOrder (
   storeController: StoreController,
   graph: DependenciesGraph,
   hierarchy: DepHierarchy,
-  parentDir: string,
-  opts: {
-    allowBuild?: AllowBuild
-    depsStateCache: DepsStateCache
-    disableRelinkLocalDirDeps?: boolean
-    force: boolean
-    ignoreScripts: boolean
-    lockfileDir: string
-    preferSymlinkedExecutables?: boolean
-    sideEffectsCacheRead: boolean
-    restorer?: RemoteSideEffectsRestorer<string>
-    supportedArchitectures?: SupportedArchitectures
-    /**
-     * Resolved `engines.runtime` Node version, computed once by
-     * [`linkHoistedModules`] before the recursion. Threaded into
-     * each [`calcDepState`] call so the side-effects-cache key
-     * prefix tracks the script-runner Node rather than pnpm's own
-     * `process.version`.
-     */
-    nodeVersion?: string
-    warn: (message: string) => void
-  }
+  modulesDir: string,
+  opts: LinkAllPkgsInOrderOptions
 ): Promise<void> {
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
       const depNode = graph[dir]
-      if (depNode.fetching) {
-        let filesResponse!: PackageFilesResponse
-        try {
-          filesResponse = (await depNode.fetching()).files
-        } catch (err: any) { // eslint-disable-line
-          if (depNode.optional) return
-          throw err
-        }
-
-        depNode.requiresBuild = filesResponse.requiresBuild
-        let sideEffectsCacheKey = await opts.restorer?.restore({
-          graphKey: dir,
-          depPath: depNode.depPath,
-          files: filesResponse,
-          filesIndexFile: depNode.filesIndexFile,
-          name: depNode.name,
-          patchFileHash: depNode.patch?.hash,
-          resolution: depNode.resolution,
-          version: depNode.version,
-        })
-        if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
-          if (opts.allowBuild?.(depNode.depPath) === true) {
-            const localCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
-              includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
-              patchFileHash: depNode.patch?.hash,
-              supportedArchitectures: opts.supportedArchitectures,
-              nodeVersion: opts.nodeVersion,
-            })
-            if (filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
-              sideEffectsCacheKey = localCacheKey
-            }
-          }
-        }
-        // Limiting the concurrency here fixes an out of memory error.
-        // It is not clear why it helps as importing is also limited inside fs.indexed-pkg-importer.
-        // The out of memory error was reproduced on the teambit/bit repository with the "rootComponents" feature turned on
-        await limitLinking(async () => {
-          const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-            filesResponse,
-            force: true,
-            disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-            keepModulesDir: true,
-            requiresBuild: depNode.patch != null || depNode.requiresBuild,
-            sideEffectsCacheKey,
-          })
-          if (importMethod) {
-            reportPackageImported({
-              method: importMethod,
-              requester: opts.lockfileDir,
-              to: depNode.dir,
-            })
-          }
-          depNode.isBuilt = isBuilt
-        })
-      }
-      return linkAllPkgsInOrder(storeController, graph, deps, dir, opts)
+      if (depNode.fetching && !await importFetchedPkg({ storeController, graph, dir, opts })) return
+      await Promise.all(Object.entries(depNode.packageRootLinks ?? {}).map(([alias, target]) =>
+        symlinkDependency(path.join(depNode.dir, target), path.join(depNode.dir, 'node_modules'), alias)
+      ))
+      return linkAllPkgsInOrder(storeController, graph, deps, path.join(dir, 'node_modules'), { ...opts, isNested: true })
     })
   )
-  const modulesDir = path.join(parentDir, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   await linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
+    heldBackBinsDirs: opts.isNested ? opts.nestedHeldBackBinsDirs : undefined,
+    holdBackMissingTargets: opts.holdBackMissingTargets,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     warn: opts.warn,
   })
+}
+
+interface ImportPkgContext {
+  storeController: StoreController
+  graph: DependenciesGraph
+  /** The graph key of the package, which is also its directory. */
+  dir: string
+  opts: LinkAllPkgsInOrderOptions
+}
+
+/**
+ * Wait for the package's files and import them into its directory.
+ * Returns `false` when an optional package failed to fetch, so it is left out.
+ */
+async function importFetchedPkg (ctx: ImportPkgContext): Promise<boolean> {
+  const { storeController, opts } = ctx
+  const depNode = ctx.graph[ctx.dir]
+  let filesResponse!: PackageFilesResponse
+  try {
+    filesResponse = (await depNode.fetching!()).files
+  } catch (err: unknown) {
+    if (!depNode.optional) throw err
+    reportOptionalFetchFailure(err, depNode, opts.lockfileDir)
+    return false
+  }
+
+  depNode.requiresBuild = filesResponse.requiresBuild
+  const sideEffectsCacheKey = await pickSideEffectsCacheKey(ctx, filesResponse)
+  // Limiting the concurrency here fixes an out of memory error.
+  // It is not clear why it helps as importing is also limited inside fs.indexed-pkg-importer.
+  // The out of memory error was reproduced on the teambit/bit repository with the "rootComponents" feature turned on
+  await limitLinking(async () => {
+    const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
+      filesResponse,
+      force: true,
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+      keepModulesDir: true,
+      requiresBuild: depNode.patch != null || depNode.requiresBuild,
+      sideEffectsCacheKey,
+    })
+    if (importMethod) {
+      reportPackageImported({
+        method: importMethod,
+        requester: opts.lockfileDir,
+        to: depNode.dir,
+      })
+    }
+    depNode.isBuilt = isBuilt
+  })
+  return true
+}
+
+/**
+ * The side-effects cache entry to import: pnpr's verified build when it has
+ * one, otherwise a locally built entry, but only for a package allowed to build.
+ */
+async function pickSideEffectsCacheKey (
+  { graph, dir, opts }: ImportPkgContext,
+  filesResponse: PackageFilesResponse
+): Promise<string | undefined> {
+  const depNode = graph[dir]
+  const remoteCacheKey = await opts.restorer?.restore({
+    graphKey: dir,
+    depPath: depNode.depPath,
+    files: filesResponse,
+    filesIndexFile: depNode.filesIndexFile,
+    name: depNode.name,
+    patchFileHash: depNode.patch?.hash,
+    resolution: depNode.resolution,
+    version: depNode.version,
+  })
+  const hasLocalSideEffects = opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)
+  if (remoteCacheKey != null || !hasLocalSideEffects || opts.allowBuild?.(depNode.depPath) !== true) return remoteCacheKey
+  const localCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
+    includeDepGraphHash: shouldIncludeDepGraphHash({
+      ignoreScripts: opts.ignoreScripts,
+      deferDependencyBuilds: opts.deferDependencyBuilds,
+      requiresBuild: depNode.requiresBuild,
+    }),
+    patchFileHash: depNode.patch?.hash,
+    supportedArchitectures: opts.supportedArchitectures,
+    nodeVersion: opts.nodeVersion,
+  })
+  return filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null ? localCacheKey : remoteCacheKey
+}
+
+/**
+ * Package directories that physically exist inside the projects' `node_modules`
+ * but that the new hoisting plan does not place there.
+ *
+ * The `prevGraph`/`graph` difference cannot see them: an install that is
+ * interrupted before the current lockfile and `.modules.yaml` are written
+ * leaves nested copies on disk while the next install starts from an empty
+ * `prevGraph`, so nothing ever reclaims them
+ * (https://github.com/pnpm/pnpm/issues/13676).
+ *
+ * Symlinks are skipped: that is how workspace packages and `link:` dependencies
+ * are attached, and they are absent from the graph by design. A modules
+ * directory is scanned only when it is strictly inside its importer and holds
+ * no importer: `modulesDir` may point at the importer itself, a parent, a
+ * directory of projects, or a directory outside the workspace, and pnpm does
+ * not own the rest of what is there.
+ */
+async function findUnplannedDirs (
+  hierarchy: DepHierarchy,
+  holdsImporter: (dir: string) => boolean,
+  opts: { lockfileDir: string, modulesDir?: string }
+): Promise<UnplannedDir[]> {
+  const unplannedDirs = await Promise.all(
+    Object.entries(hierarchy).map(async ([projectDir, plannedDeps]) => {
+      const modulesDir = importerModulesDir(projectDir, opts)
+      if (!isStrictlyInside(modulesDir, projectDir) || holdsImporter(modulesDir)) return []
+      const isUnplanned = (dir: string) => plannedDeps[dir] == null
+      return findUnplannedDirsIn(modulesDir, isUnplanned)
+    })
+  )
+  return unplannedDirs.flat()
+}
+
+async function findUnplannedDirsIn (modulesDir: string, isUnplanned: (dir: string) => boolean): Promise<UnplannedDir[]> {
+  const pkgNames = await readModulesDir(modulesDir)
+  if (pkgNames == null) return []
+  const candidates = pkgNames
+    .map((pkgName) => ({ dir: path.join(modulesDir, pkgName), modulesDir, pkgName }))
+    .filter(({ dir }) => isUnplanned(dir))
+  const checked = await Promise.all(
+    candidates.map(async (candidate) => await isPackageDir(candidate.dir) ? candidate : null)
+  )
+  return checked.filter((candidate) => candidate != null)
+}
+
+function holdsAnyOf (importerDirs: string[]): (dir: string) => boolean {
+  const resolvedImporterDirs = importerDirs.map((importerDir) => path.resolve(importerDir))
+  return (dir) => {
+    const resolvedDir = path.resolve(dir)
+    return resolvedImporterDirs.some((importerDir) => importerDir === resolvedDir || isStrictlyInside(importerDir, resolvedDir))
+  }
+}
+
+/**
+ * Whether `dir` holds a package rather than something else that happens to sit
+ * in a `node_modules`.
+ *
+ * `package.json` is the marker [`importIndexedDir`] writes last, so a directory
+ * carrying one is a package that was materialized in full. A directory without
+ * one is not a package, and pruning is not entitled to remove it however little
+ * the hoisting plan has to say about it.
+ */
+async function isPackageDir (dir: string): Promise<boolean> {
+  if (!await isRealDir(dir)) return false
+  return pathExists(path.join(dir, 'package.json'))
+}
+
+async function isRealDir (dir: string): Promise<boolean> {
+  try {
+    return (await fs.promises.lstat(dir)).isDirectory()
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
 }

@@ -1,4 +1,4 @@
-import { PnpmError } from '@pnpm/error'
+import { isError, PnpmError } from '@pnpm/error'
 
 import { formatAuthUrlMessage } from './formatAuthUrlMessage.js'
 import type { WebAuthFetchOptions, WebAuthFetchResponse } from './pollForWebAuthToken.js'
@@ -47,10 +47,10 @@ export const isOtpError = (error: unknown): error is OtpError =>
   'code' in error &&
   error.code === 'EOTP'
 
-export interface OtpHandlingParams<T> {
+export interface OtpHandlingParams<Result> {
   context: OtpContext
   fetchOptions: WebAuthFetchOptions
-  operation: (otp?: string) => Promise<T>
+  operation: (otp?: string) => Promise<Result>
 }
 
 export interface OtpSessionParams {
@@ -70,7 +70,7 @@ export interface OtpSession {
    * being accepted — a classic OTP expires within a minute — the challenge it
    * triggers obtains a new one and the operation is retried with it.
    */
-  run: <T>(operation: (otp?: string) => Promise<T>) => Promise<T>
+  run: <Result>(operation: (otp?: string) => Promise<Result>) => Promise<Result>
 }
 
 /**
@@ -84,7 +84,7 @@ export interface OtpSession {
 export function createOtpSession ({ context, fetchOptions }: OtpSessionParams): OtpSession {
   let sessionOtp: string | undefined
   return {
-    async run<T> (operation: (otp?: string) => Promise<T>): Promise<T> {
+    async run<Result> (operation: (otp?: string) => Promise<Result>): Promise<Result> {
       let error: unknown
       try {
         return await operation(sessionOtp)
@@ -125,11 +125,11 @@ export function createOtpSession ({ context, fetchOptions }: OtpSessionParams): 
  *
  * @see https://github.com/npm/cli/blob/7d900c46/lib/utils/otplease.js for npm's implementation.
  */
-export async function withOtpHandling<T> ({
+export async function withOtpHandling<Result> ({
   context,
   fetchOptions,
   operation,
-}: OtpHandlingParams<T>): Promise<T> {
+}: OtpHandlingParams<Result>): Promise<Result> {
   return createOtpSession({ context, fetchOptions }).run(operation)
 }
 
@@ -173,7 +173,7 @@ async function resolveOtpChallenge (
     })
   } catch (err: unknown) {
     // The user aborted the prompt: re-throw the original challenge.
-    if (err instanceof Error && err.name === 'ExitPromptError') return undefined
+    if (isError(err) && err.name === 'ExitPromptError') return undefined
     throw err
   }
   return otp || undefined

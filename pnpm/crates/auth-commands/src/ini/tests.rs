@@ -1,8 +1,11 @@
-use super::{IniSettings, encode_value};
+use super::{
+    IniSettings,
+    encode_value,
+};
 
 /// One `auth.ini` line holding `key = value`, quoted the way the writer
-/// quotes it, so a test can start from a file an earlier `pnpm login` — or a
-/// hand edit — could have left behind.
+/// quotes it, so a test can start from a file an earlier `pnpm login` (or a
+/// hand edit) could have left behind.
 fn line(key: &str, value: &str) -> String {
     format!("{}={}\n", encode_value(key), encode_value(value))
 }
@@ -62,9 +65,9 @@ fn a_value_with_a_newline_survives_a_removal_as_one_line() {
 }
 
 // `encode_value` and `decode_value` must be inverses for every value shape
-// the `ini` package quotes — `=`, an already-`"`-wrapped value (else the
+// the `ini` package quotes (`=`, an already-`"`-wrapped value (else the
 // quotes are stripped on read), leading/trailing whitespace (else trimmed),
-// and a leading `[` — not just newlines.
+// and a leading `[`) not just newlines.
 #[test]
 fn quotes_every_ambiguous_value_shape_for_a_faithful_round_trip() {
     for value in [
@@ -74,6 +77,7 @@ fn quotes_every_ambiguous_value_shape_for_a_faithful_round_trip() {
         " leading-space",
         "trailing-space ",
         "[bracketed",
+        "'single-quoted'",
         "plain-token",
     ] {
         let settings = IniSettings::parse(&line("k", value));
@@ -107,4 +111,37 @@ fn remove_drops_every_duplicate_of_the_key() {
     let mut settings = IniSettings::parse("//reg/:_authToken=old1\n//reg/:_authToken=old2\n");
     assert!(settings.remove("//reg/:_authToken"));
     assert_eq!(settings.serialize(), "");
+}
+
+// A registry-controlled token with an embedded newline must not be able to
+// plant extra `auth.ini` entries when `pnpm login` records it.
+#[test]
+fn set_quotes_a_value_with_a_newline_onto_one_line() {
+    let injected = "x\n//registry.npmjs.org/:_authToken=attacker-token";
+    let mut settings = IniSettings::default();
+    settings.set("//evil.example/:_authToken", injected);
+
+    let text = settings.serialize();
+    assert_eq!(text.lines().count(), 1, "the value must stay on one line: {text:?}");
+    assert_eq!(IniSettings::parse(&text).get("//evil.example/:_authToken"), Some(injected));
+}
+
+#[test]
+fn set_updates_in_place_and_collapses_duplicates() {
+    let mut settings =
+        IniSettings::parse("a=1\n//reg/:_authToken=old1\nb=2\n//reg/:_authToken=old2\n");
+    settings.set("//reg/:_authToken", "new");
+    settings.set("c", "3");
+    assert_eq!(settings.serialize(), "a=1\n//reg/:_authToken=new\nb=2\nc=3\n");
+}
+
+/// The config reader unwraps a single-quoted value, so a rewrite must keep the
+/// token it reads, not the quotes around it.
+#[test]
+fn a_single_quoted_value_keeps_its_meaning_across_a_rewrite() {
+    let mut settings = IniSettings::parse("//other/:_authToken='abc='\n");
+    settings.set("//reg/:_authToken", "new");
+
+    let reparsed = IniSettings::parse(&settings.serialize());
+    assert_eq!(reparsed.get("//other/:_authToken"), Some("abc="));
 }

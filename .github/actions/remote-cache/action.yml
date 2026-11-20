@@ -1,0 +1,54 @@
+name: Remote task cache
+
+description: >
+  Point `pnpm pipeline` at the Vercel Remote Cache. Configured only in the
+  merge queue and on pushes to main, which also publish their results, so the
+  Vercel token never reaches pull request code. Does nothing while the token,
+  team, or public key is unset. Run it after pnpm is installed.
+
+inputs:
+  token:
+    description: A Vercel access token scoped to the team that owns the cache
+    required: true
+  team:
+    description: The Vercel team ID or slug
+    required: true
+  public-key:
+    description: Base64 P-256 SubjectPublicKeyInfo DER key the results are verified with
+    required: true
+  private-key:
+    description: Base64 P-256 PKCS#8 DER key the published results are signed with
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Configure the remote task cache
+      if: ${{ github.event_name == 'merge_group' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+      shell: bash
+      env:
+        TOKEN: ${{ inputs.token }}
+        TEAM: ${{ inputs.team }}
+        PUBLIC_KEY: ${{ inputs.public-key }}
+        PRIVATE_KEY: ${{ inputs.private-key }}
+        BUILDER_ID: ${{ github.workflow }}/${{ github.job }}/${{ runner.os }}
+      run: |
+        if [ -z "$TOKEN" ] || [ -z "$TEAM" ] || [ -z "$PUBLIC_KEY" ]; then
+          echo "The remote task cache is not configured for this repository."
+          exit 0
+        fi
+        pnpm config set //vercel.com/api/:_authToken "$TOKEN"
+        {
+          echo "PNPM_REMOTE_CACHE_URL=https://vercel.com/api"
+          echo "PNPM_REMOTE_CACHE_TEAM=$TEAM"
+          echo "PNPM_REMOTE_CACHE_ORG=pnpm"
+          echo "PNPM_REMOTE_CACHE_TRUSTED_KEYS={\"pnpm-ci\":\"$PUBLIC_KEY\"}"
+        } >> "$GITHUB_ENV"
+        if [ -n "$PRIVATE_KEY" ]; then
+          {
+            echo "PNPM_REMOTE_CACHE_PUBLISH=true"
+            echo "PNPM_REMOTE_CACHE_KEY_ID=pnpm-ci"
+            echo "PNPM_REMOTE_CACHE_PRIVATE_KEY=$PRIVATE_KEY"
+            echo "PNPM_REMOTE_CACHE_BUILDER_ID=$BUILDER_ID"
+          } >> "$GITHUB_ENV"
+        fi

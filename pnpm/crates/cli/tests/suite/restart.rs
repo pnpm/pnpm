@@ -24,10 +24,53 @@ fn restart_runs_stop_restart_start_scripts() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("restart").assert().success();
+    pacquet
+        .with_arg("restart")
+        .assert()
+        .success();
     let content = fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
     assert_eq!(lines, vec!["stop", "restart", "start"]);
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn restart_runs_stop_and_start_when_restart_script_is_missing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let log_file = workspace.join("log.txt");
+    let append = |name: &str| format!(r#"echo {name} >> "{}""#, log_file.display());
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {
+            "prestop": append("prestop"),
+            "stop": append("stop"),
+            "poststop": append("poststop"),
+            "prestart": append("prestart"),
+            "start": append("start"),
+            "poststart": append("poststart"),
+        },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+    pacquet
+        .with_arg("restart")
+        .assert()
+        .success();
+    let content = fs::read_to_string(&log_file).expect("read log file");
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    assert_eq!(lines, vec!["prestop", "stop", "poststop", "prestart", "start", "poststart"]);
 
     drop(root);
 }
@@ -51,7 +94,10 @@ fn restart_fails_when_stop_script_fails() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("restart").output().expect("spawn pacquet restart");
+    let output = pacquet
+        .with_arg("restart")
+        .output()
+        .expect("spawn pacquet restart");
     assert!(!output.status.success(), "restart should fail when stop fails");
     assert!(!restart_marker.exists(), "restart script should NOT have run after stop failure");
 
@@ -77,7 +123,10 @@ fn restart_fails_when_restart_script_fails() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    let output = pacquet.with_arg("restart").output().expect("spawn pacquet restart");
+    let output = pacquet
+        .with_arg("restart")
+        .output()
+        .expect("spawn pacquet restart");
     assert!(!output.status.success(), "restart should fail when restart script fails");
     assert!(!start_marker.exists(), "start script should NOT have run after restart failure");
 
@@ -101,7 +150,11 @@ fn restart_with_if_present_skips_missing_scripts() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("restart").with_arg("--if-present").assert().success();
+    pacquet
+        .with_arg("restart")
+        .with_arg("--if-present")
+        .assert()
+        .success();
     assert!(start_marker.exists(), "start script should have run");
 
     drop(root);
@@ -135,9 +188,17 @@ fn restart_passes_args_to_scripts() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("restart").with_arg("hello-world").assert().success();
+    pacquet
+        .with_arg("restart")
+        .with_arg("hello-world")
+        .assert()
+        .success();
     let content = fs::read_to_string(&log_file).expect("read log file");
-    let lines: Vec<&str> = content.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&str> = content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
     assert_eq!(lines, vec!["stop hello-world", "restart hello-world", "start hello-world"]);
 
     drop(root);
@@ -159,7 +220,10 @@ fn stop_runs_declared_script() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("stop").assert().success();
+    pacquet
+        .with_arg("stop")
+        .assert()
+        .success();
     assert!(marker.exists(), "stop script should have created the marker");
 
     drop(root);
@@ -177,7 +241,10 @@ fn stop_without_script_fails() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("stop").assert().failure();
+    pacquet
+        .with_arg("stop")
+        .assert()
+        .failure();
 
     drop(root);
 }
@@ -196,13 +263,17 @@ fn stop_without_script_succeeds_with_if_present() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("--if-present").with_arg("stop").assert().success();
+    pacquet
+        .with_arg("--if-present")
+        .with_arg("stop")
+        .assert()
+        .success();
 
     drop(root);
 }
 
 /// The mirror of the above: after the command name `--if-present` is the
-/// script's argument, so a missing script is still an error — pnpm reports
+/// script's argument, so a missing script is still an error, pnpm reports
 /// `Command "stop" not found` for the same invocation.
 #[test]
 fn stop_without_script_fails_when_if_present_follows_the_command() {
@@ -215,7 +286,11 @@ fn stop_without_script_fails_when_if_present_follows_the_command() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("stop").with_arg("--if-present").assert().failure();
+    pacquet
+        .with_arg("stop")
+        .with_arg("--if-present")
+        .assert()
+        .failure();
 
     drop(root);
 }
@@ -238,8 +313,134 @@ fn start_runs_declared_script() {
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
 
-    pacquet.with_arg("start").assert().success();
+    pacquet
+        .with_arg("start")
+        .assert()
+        .success();
     assert!(marker.exists(), "start script should have created the marker");
+
+    drop(root);
+}
+
+#[test]
+fn start_and_restart_fail_without_script_or_server_js() {
+    for args in [&["start"][..], &["restart"]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": { "stop": r#"node -e "process.exit(0)""# },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+        let output = pacquet
+            .with_args(args)
+            .output()
+            .expect("spawn pnpm");
+        assert!(!output.status.success(), "{args:?} must fail without start or server.js");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("ERR_PNPM_NO_SCRIPT_OR_SERVER"),
+            "{args:?} should report ERR_PNPM_NO_SCRIPT_OR_SERVER:\n{stderr}",
+        );
+
+        drop(root);
+    }
+}
+
+#[test]
+fn start_and_restart_succeed_with_if_present_when_script_and_server_js_are_missing() {
+    for args in [
+        &["--if-present", "start"][..],
+        &["run", "--if-present", "start"],
+        &["restart", "--if-present"],
+        &["--if-present", "restart"],
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "prestart": r#"node -e "require('fs').writeFileSync('prestart.txt', 'ran')""#,
+            },
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+
+        fs::write(workspace.join(".npmrc"), "enable-pre-post-scripts=true\n")
+            .expect("write .npmrc");
+
+        pacquet
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(
+            !workspace.join("prestart.txt").exists(),
+            "{args:?} must not run prestart when neither scripts.start nor server.js exists",
+        );
+
+        drop(root);
+    }
+}
+
+#[test]
+fn start_and_restart_with_if_present_still_run_server_js_when_present() {
+    for args in [
+        &["--if-present", "start"][..],
+        &["run", "--if-present", "start"],
+        &["restart", "--if-present"],
+        &["--if-present", "restart"],
+    ] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = json!({
+            "name": "test",
+            "version": "0.0.0",
+        })
+        .to_string();
+        fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+        fs::write(
+            workspace.join("server.js"),
+            "require('fs').writeFileSync('server-ran.txt', 'ok')",
+        )
+        .expect("write server.js");
+
+        pacquet
+            .with_args(args)
+            .assert()
+            .success();
+        assert_eq!(
+            fs::read_to_string(workspace.join("server-ran.txt")).expect("read server-ran.txt"),
+            "ok",
+            "{args:?} should run node server.js when server.js exists",
+        );
+
+        drop(root);
+    }
+}
+
+#[test]
+fn recursive_start_respects_if_present_when_no_package_has_start_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    let pkg_a = workspace.join("packages/a");
+    fs::create_dir_all(&pkg_a).expect("create packages/a");
+    fs::write(
+        pkg_a.join("package.json"),
+        json!({ "name": "pkg-a", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/a/package.json");
+
+    pacquet
+        .with_args(["-r", "--if-present", "start"])
+        .assert()
+        .success();
 
     drop(root);
 }

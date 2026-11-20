@@ -1,22 +1,45 @@
-//! Resolves `yarn@runtime:<spec>` dependencies against `yarnpkg/zpm`.
+//! Resolves `yarn@tool:<spec>` (alias `yarn@runtime:<spec>`) dependencies against `yarnpkg/zpm`.
 
 use std::sync::Arc;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{LockfileResolution, VariationsResolution};
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_lockfile::{
+    LockfileResolution,
+    VariationsResolution,
+};
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
+};
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
+};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
 };
 
 use crate::read_yarn_releases::{
-    ReadYarnReleasesError, YarnRelease, asset_variants, fetch_yarn_releases,
+    ReadYarnReleasesError,
+    YarnRelease,
+    asset_variants,
+    fetch_yarn_releases,
 };
 
 const RESOLVED_VIA: &str = "github.com/yarnpkg/zpm";
-const BARE_SPEC_PREFIX: &str = "runtime:";
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum YarnResolverError {
@@ -36,23 +59,28 @@ pub enum YarnResolverError {
 /// nothing here goes through a registry.
 pub struct YarnResolver {
     pub http_client: Arc<ThrottledClient>,
+    /// Whether the release fetch may carry a GitHub token. Turned off when
+    /// the project relaxed certificate verification: `strict-ssl` is aimed at
+    /// the registry it installs from, and spending it on a credential for
+    /// GitHub would take the setting somewhere it was never pointed.
+    pub authenticate: bool,
     /// The release list, fetched at most once per resolver. One command
-    /// can resolve Yarn more than once — a resolve and a latest probe, or
-    /// several importers pinning it — and the list is one unconditional
+    /// can resolve Yarn more than once (a resolve and a latest probe, or
+    /// several importers pinning it) and the list is one unconditional
     /// GitHub API request, which is rate-limited for an unauthenticated
     /// caller.
     releases: tokio::sync::OnceCell<Arc<Vec<YarnRelease>>>,
 }
 
 impl YarnResolver {
-    pub fn new(http_client: Arc<ThrottledClient>) -> Self {
-        Self { http_client, releases: tokio::sync::OnceCell::new() }
+    pub fn new(http_client: Arc<ThrottledClient>, authenticate: bool) -> Self {
+        Self { http_client, authenticate, releases: tokio::sync::OnceCell::new() }
     }
 
     async fn releases(&self) -> Result<&[YarnRelease], ReadYarnReleasesError> {
         self.releases
             .get_or_try_init(|| async {
-                fetch_yarn_releases(&self.http_client).await.map(Arc::new)
+                fetch_yarn_releases(&self.http_client, self.authenticate).await.map(Arc::new)
             })
             .await
             .map(|releases| releases.as_slice())
@@ -81,25 +109,34 @@ impl YarnResolver {
     async fn resolve_impl(
         &self,
         wanted_dependency: &WantedDependency,
-        _opts: &ResolveOptions,
+        opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency) else {
             return Ok(None);
         };
+        let lookup_spec =
+            if opts.refresh.update == UpdateBehavior::Latest { "latest" } else { version_spec };
         let releases = self
             .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let release = pick_release(releases, version_spec).ok_or_else(|| {
-            // The specifier comes from a manifest, so it can carry
-            // credentials — the message a user sees must not.
-            let spec = redact_and_sanitize(version_spec);
-            Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
-        })?;
+        let release = pick_release(releases, lookup_spec)
+            .ok_or_else(|| {
+                // The specifier comes from a manifest, so it can carry
+                // credentials, the message a user sees must not.
+                let spec = redact_and_sanitize(version_spec);
+                Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
+            })?;
         let variants = asset_variants(release)
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
 
         let version = release.version.clone();
+        let normalized_spec = normalized_yarn_spec(
+            opts.refresh.update,
+            version_spec,
+            wanted_dependency.prev_specifier.as_deref(),
+            &version,
+        );
         let manifest = serde_json::json!({
             "name": "yarn",
             "version": version,
@@ -107,15 +144,15 @@ impl YarnResolver {
         });
         Ok(Some(ResolveResult {
             id: format!("yarn@runtime:{version}").into(),
-            name_ver: None,
-            latest: None,
-            published_at: None,
-            manifest: Some(Arc::new(manifest)),
             resolution: LockfileResolution::Variations(VariationsResolution { variants }),
             resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
+            normalized_bare_specifier: Some(format!("{RUNTIME_PROTOCOL}{normalized_spec}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                manifest: Some(Arc::new(manifest)),
+                ..Default::default()
+            },
         }))
     }
 
@@ -123,14 +160,15 @@ impl YarnResolver {
         &self,
         query: &LatestQuery,
     ) -> Result<Option<LatestInfo>, ResolveError> {
-        if bare_runtime_spec(&query.wanted_dependency).is_none() {
+        let Some(manifest_spec) = bare_runtime_spec(&query.wanted_dependency) else {
             return Ok(None);
-        }
+        };
+        let version_spec = if query.compatible { manifest_spec } else { "latest" };
         let releases = self
             .releases()
             .await
             .map_err(|error| Box::new(YarnResolverError::ReadReleases(error)) as ResolveError)?;
-        let Some(release) = pick_release(releases, "latest") else {
+        let Some(release) = pick_release(releases, version_spec) else {
             return Ok(Some(LatestInfo::default()));
         };
         Ok(Some(LatestInfo {
@@ -142,6 +180,28 @@ impl YarnResolver {
     }
 }
 
+fn normalized_yarn_spec(
+    update: UpdateBehavior,
+    version_spec: &str,
+    prev_specifier: Option<&str>,
+    resolved_version: &str,
+) -> String {
+    if update != UpdateBehavior::Latest {
+        return version_spec.to_string();
+    }
+    let source = prev_specifier
+        .and_then(pnpm_tool_protocol::strip_tool_protocol)
+        .unwrap_or(version_spec)
+        .trim();
+    if source.starts_with('~') {
+        format!("~{resolved_version}")
+    } else if source.starts_with('^') {
+        format!("^{resolved_version}")
+    } else {
+        resolved_version.to_string()
+    }
+}
+
 /// The exact version `version_spec` selects, without installing it.
 ///
 /// Recording which Yarn a project uses needs the version the release list
@@ -150,12 +210,15 @@ impl YarnResolver {
 pub async fn resolve_yarn_version(
     http_client: &ThrottledClient,
     version_spec: &str,
+    authenticate: bool,
 ) -> Result<String, YarnResolverError> {
-    let releases =
-        fetch_yarn_releases(http_client).await.map_err(YarnResolverError::ReadReleases)?;
-    pick_release(&releases, version_spec).map(|release| release.version.clone()).ok_or_else(|| {
-        YarnResolverError::ResolutionFailure { spec: redact_and_sanitize(version_spec) }
-    })
+    let releases = fetch_yarn_releases(http_client, authenticate).await
+        .map_err(YarnResolverError::ReadReleases)?;
+    pick_release(&releases, version_spec)
+        .map(|release| release.version.clone())
+        .ok_or_else(|| YarnResolverError::ResolutionFailure {
+            spec: redact_and_sanitize(version_spec),
+        })
 }
 
 /// The newest release satisfying `version_spec`.
@@ -164,7 +227,7 @@ pub async fn resolve_yarn_version(
 /// matches nothing under semver's prerelease rule. Rather than refuse to
 /// install the only Yarn 6 that exists, an unsatisfied range is retried
 /// against each candidate's release version with its prerelease tag
-/// dropped — the same allowance the `packageManager` version check makes.
+/// dropped, the same allowance the `packageManager` version check makes.
 pub(crate) fn pick_release<'a>(
     releases: &'a [YarnRelease],
     version_spec: &str,
@@ -184,7 +247,9 @@ pub(crate) fn pick_release<'a>(
         .iter()
         .find(|(version, _)| version.satisfies(&range))
         .or_else(|| {
-            candidates.iter().find(|(version, _)| without_prerelease(version).satisfies(&range))
+            candidates
+                .iter()
+                .find(|(version, _)| without_prerelease(version).satisfies(&range))
         })
         .map(|(_, release)| *release)
 }
@@ -199,11 +264,12 @@ fn without_prerelease(version: &node_semver::Version) -> node_semver::Version {
     }
 }
 
+/// The version selector of a `yarn@tool:` / `yarn@runtime:` request.
 fn bare_runtime_spec(wanted: &WantedDependency) -> Option<&str> {
     if wanted.alias.as_deref() != Some("yarn") {
         return None;
     }
-    wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier.as_deref().and_then(strip_tool_protocol)
 }
 
 /// The archive member the manifest advertises as the engine's bin. See

@@ -16,7 +16,7 @@ export function throwOrFilterHiddenScripts (specifiedScripts: string[], scriptNa
     })
   }
   // Regex/glob matched both visible and hidden — filter out hidden
-  const visible = specifiedScripts.filter((s) => !s.startsWith('.'))
+  const visible = specifiedScripts.filter((scriptName) => !scriptName.startsWith('.'))
   if (visible.length > 0) return visible
   // Only hidden scripts matched
   throw new PnpmError('HIDDEN_SCRIPT', `All matched scripts are hidden and cannot be run directly: ${hidden.join(', ')}`, {

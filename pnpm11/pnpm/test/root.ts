@@ -3,8 +3,9 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
-import { tempDir } from '@pnpm/prepare'
+import { preparePackages, tempDir } from '@pnpm/prepare'
 import PATH_NAME from 'path-name'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpmSync } from './utils/index.js'
 
@@ -17,6 +18,38 @@ test('pnpm root', async () => {
   expect(result.status).toBe(0)
 
   expect(result.stdout.toString()).toBe(path.resolve('node_modules') + '\n')
+})
+
+test.each(['vendor', 'www/modules'])('pnpm root prints the configured modules directory %s', async (modulesDir) => {
+  tempDir()
+  fs.writeFileSync('pnpm-workspace.yaml', `modulesDir: ${modulesDir}\n`, 'utf8')
+
+  const result = execPnpmSync(['root'])
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toBe(path.resolve(modulesDir) + '\n')
+})
+
+test('pnpm root reports the modules directory a packageConfigs entry gives the project', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0' } },
+    { name: 'aside', version: '1.0.0' },
+    { name: 'plain', version: '1.0.0' },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    modulesDir: 'vendor',
+    sharedWorkspaceLockfile: false,
+    packageConfigs: { aside: { modulesDir: 'private_modules' } },
+  })
+
+  const aside = execPnpmSync(['root'], { cwd: path.resolve('aside') })
+  expect(aside.status).toBe(0)
+  expect(aside.stdout.toString()).toBe(path.resolve('aside/private_modules') + '\n')
+
+  const plain = execPnpmSync(['root'], { cwd: path.resolve('plain') })
+  expect(plain.status).toBe(0)
+  expect(plain.stdout.toString()).toBe(path.resolve('plain/vendor') + '\n')
 })
 
 test('pnpm root -g', async () => {

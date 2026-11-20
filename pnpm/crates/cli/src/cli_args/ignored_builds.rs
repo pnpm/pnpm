@@ -2,7 +2,11 @@ use clap::Args;
 use indexmap::IndexSet;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_modules_yaml::{Host, Modules, read_modules_manifest};
+use pnpm_modules_yaml::{
+    Host,
+    Modules,
+    read_modules_manifest,
+};
 use pnpm_package_manager::allow_build_key_from_ignored_build;
 use std::path::PathBuf;
 
@@ -16,7 +20,7 @@ pub struct IgnoredBuildsArgs {}
 pub(crate) struct IgnoredBuildsScan {
     /// The `allowBuilds` keys of the packages whose build scripts were
     /// ignored, deduplicated in first-seen order. `None` when there is no
-    /// `.modules.yaml` or it records no `ignoredBuilds` field at all — the
+    /// `.modules.yaml` or it records no `ignoredBuilds` field at all, the
     /// "cannot identify as no `node_modules` found" signal.
     pub names: Option<Vec<String>>,
     pub modules_dir: PathBuf,
@@ -36,7 +40,8 @@ pub(crate) fn get_automatically_ignored_builds(
         .map(|ignored| {
             ignored
                 .iter()
-                .map(|dep_path| allow_build_key_from_ignored_build(dep_path.as_str()))
+                .map(pnpm_modules_yaml::DepPath::as_str)
+                .map(allow_build_key_from_ignored_build)
                 .collect::<IndexSet<String>>()
                 .into_iter()
                 .collect()
@@ -48,8 +53,7 @@ pub(crate) fn render_ignored_builds(config: &Config) -> miette::Result<String> {
     // pnpm preserves `allowBuilds` insertion order; pacquet's
     // `Config::allow_builds` is a `HashMap`, so the source order is already
     // lost. Sort for a deterministic, reproducible listing.
-    let mut disallowed_builds: Vec<String> = config
-        .allow_builds
+    let mut disallowed_builds: Vec<String> = config.allow_builds
         .iter()
         .filter(|&(_, &allowed)| !allowed)
         .map(|(pkg, _)| pkg.clone())

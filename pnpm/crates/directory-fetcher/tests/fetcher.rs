@@ -3,9 +3,15 @@
 //! exercises the full request/response shape upstream callers depend
 //! on (`manifest`, `requires_build`, `files_map` keys).
 
-use pnpm_directory_fetcher::DirectoryFetcher;
+use pnpm_directory_fetcher::{
+    CopyFiles,
+    DirectoryFetcher,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn touch(root: &Path, rel: &str, body: &str) {
@@ -28,13 +34,12 @@ fn run_in_all_files_mode_returns_manifest_and_filesmap() {
         directory: root.to_path_buf(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()
     .unwrap();
 
-    // node_modules dropped; manifest read; no install scripts ↔
-    // requires_build = false.
     let mut rels: Vec<_> = out.files_map.keys().cloned().collect();
     rels.sort();
     assert_eq!(rels, vec!["package.json".to_string(), "src/index.ts".into()]);
@@ -62,13 +67,12 @@ fn run_flags_requires_build_when_install_script_present() {
         directory: root.to_path_buf(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()
     .unwrap();
 
-    // `pkg_requires_build` sees the install script in the manifest
-    // and flips the bit.
     assert!(out.requires_build);
 }
 
@@ -83,6 +87,7 @@ fn run_flags_requires_build_when_binding_gyp_present() {
         directory: root.to_path_buf(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()
@@ -98,7 +103,7 @@ fn run_flags_requires_build_when_binding_gyp_present() {
 fn run_returns_none_manifest_for_bit_workspace_directory_without_package_json() {
     // `safe_read_package_json_from_dir` returns `Ok(None)` when no
     // manifest variant exists (the `ENOENT` case). The fetcher must
-    // surface that as `manifest: None` rather than erroring — the
+    // surface that as `manifest: None` rather than erroring, the
     // Bit-workspace shape, where a directory has no `package.json`.
     let dir = tempdir().unwrap();
     let root = dir.path();
@@ -108,6 +113,7 @@ fn run_returns_none_manifest_for_bit_workspace_directory_without_package_json() 
         directory: root.to_path_buf(),
         include_only_package_files: false,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()
@@ -131,6 +137,7 @@ fn run_in_package_files_mode_honors_files_field() {
         directory: root.to_path_buf(),
         include_only_package_files: true,
         resolve_symlinks: false,
+        preserve_symlinks: false,
         allow_path_escape: true,
     }
     .run()
@@ -147,4 +154,69 @@ fn run_in_package_files_mode_honors_files_field() {
             "package.json".into(),
         ],
     );
+}
+
+#[test]
+fn copy_files_follows_deploy_all_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json", r#"{ "name": "x", "version": "0.0.0", "files": ["index.js"] }"#);
+    touch(root, "index.js", "");
+    touch(root, "tsconfig.json", "");
+    let listed = |deploy_all_files| {
+        let mut rels: Vec<_> = CopyFiles::from_deploy_all_files(deploy_all_files)
+            .fetcher(root)
+            .run()
+            .unwrap()
+            .files_map
+            .into_keys()
+            .collect();
+        rels.sort();
+        rels
+    };
+
+    assert_eq!(listed(false), ["index.js", "package.json"]);
+    assert_eq!(listed(true), ["index.js", "package.json", "tsconfig.json"]);
+    assert_eq!(CopyFiles::default(), CopyFiles::from_deploy_all_files(false));
+}
+
+fn fetcher_for(directory: &Path) -> DirectoryFetcher {
+    DirectoryFetcher {
+        directory: directory.to_path_buf(),
+        include_only_package_files: true,
+        resolve_symlinks: false,
+        preserve_symlinks: false,
+        allow_path_escape: false,
+    }
+}
+
+#[test]
+fn run_tolerates_an_unbuilt_publish_directory() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(
+        root,
+        "package.json",
+        r#"{ "name": "x", "version": "1.0.0", "publishConfig": { "directory": "dist" } }"#,
+    );
+
+    let out = fetcher_for(&root.join("dist")).run().unwrap();
+
+    assert!(!out.exists);
+    assert!(out.files_map.is_empty());
+    let manifest = out.manifest.expect("owning project's manifest");
+    assert_eq!(manifest.get("name").and_then(|v| v.as_str()), Some("x"));
+}
+
+#[test]
+fn run_fails_for_a_missing_directory_that_no_project_publishes_from() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(
+        root,
+        "package.json",
+        r#"{ "name": "x", "version": "1.0.0", "publishConfig": { "directory": "dist" } }"#,
+    );
+
+    assert!(fetcher_for(&root.join("missing")).run().is_err());
 }

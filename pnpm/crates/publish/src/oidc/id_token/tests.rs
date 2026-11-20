@@ -1,12 +1,36 @@
-use super::{GetIdTokenError, IdTokenError, get_id_token};
+use super::{
+    GetIdTokenError,
+    IdTokenError,
+    get_id_token,
+};
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
+};
+use base64::{
+    Engine,
+    engine::general_purpose::URL_SAFE_NO_PAD,
 };
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
+use serde_json::{
+    Value,
+    json,
+};
 
 const REGISTRY: &str = "https://registry.npmjs.org/";
+
+fn npm_id_token(audience: &Value) -> String {
+    let payload = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&json!({ "aud": audience })).unwrap());
+    format!("header.{payload}.signature")
+}
 
 /// Default clock/CI fakes the GitHub-Actions tests share. A test overrides
 /// only the capability it cares about by declaring its own `Sys` struct.
@@ -37,10 +61,11 @@ macro_rules! github_actions_env {
 
 #[tokio::test]
 async fn returns_npm_id_token_without_any_fetch() {
+    let expected = npm_id_token(&json!("npm:registry.npmjs.org"));
     struct Sys;
     impl EnvVar for Sys {
         fn var(name: &str) -> Option<String> {
-            (name == "NPM_ID_TOKEN").then(|| "forwarded-token".to_owned())
+            (name == "NPM_ID_TOKEN").then(|| npm_id_token(&json!("npm:registry.npmjs.org")))
         }
     }
     impl Clock for Sys {
@@ -54,9 +79,63 @@ async fn returns_npm_id_token_without_any_fetch() {
         }
     }
 
-    let token =
-        get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await.unwrap();
-    assert_eq!(token, Some("forwarded-token".to_owned()));
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(token, Some(expected));
+}
+
+#[tokio::test]
+async fn rejects_npm_id_token_with_a_different_registry_audience() {
+    struct Sys;
+    impl EnvVar for Sys {
+        fn var(name: &str) -> Option<String> {
+            (name == "NPM_ID_TOKEN").then(|| npm_id_token(&json!("npm:attacker.example")))
+        }
+    }
+    impl Clock for Sys {
+        fn now_ms() -> u64 {
+            unreachable!("no request is made when the injected audience is invalid")
+        }
+    }
+    impl OidcFetch for Sys {
+        async fn fetch(_: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+            unreachable!("no request is made when the injected audience is invalid")
+        }
+    }
+
+    let err = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap_err();
+    assert!(matches!(err, GetIdTokenError::IdToken(IdTokenError::NpmIdTokenAudienceMismatch)));
+}
+
+#[tokio::test]
+async fn accepts_npm_id_token_with_matching_audience_in_array() {
+    let expected = npm_id_token(&json!(["sigstore", "npm:registry.npmjs.org"]));
+    struct Sys;
+    impl EnvVar for Sys {
+        fn var(name: &str) -> Option<String> {
+            (name == "NPM_ID_TOKEN").then(|| {
+                npm_id_token(&json!(["sigstore", "npm:registry.npmjs.org"]))
+            })
+        }
+    }
+    impl Clock for Sys {
+        fn now_ms() -> u64 {
+            unreachable!("no request is made when NPM_ID_TOKEN is set")
+        }
+    }
+    impl OidcFetch for Sys {
+        async fn fetch(_: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+            unreachable!("no request is made when NPM_ID_TOKEN is set")
+        }
+    }
+
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(token, Some(expected));
 }
 
 #[tokio::test]
@@ -78,8 +157,9 @@ async fn returns_none_outside_supported_ci() {
         }
     }
 
-    let token =
-        get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await.unwrap();
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, None);
 }
 
@@ -115,8 +195,9 @@ async fn fetches_and_returns_github_id_token() {
         Ok(OidcResponse { ok: true, status: 200, body: r#"{"value":"gh-id-token"}"#.to_owned() })
     });
 
-    let token =
-        get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default()).await.unwrap();
+    let token = get_id_token::<Sys, SilentReporter>(REGISTRY, &OidcHttpOptions::default())
+        .await
+        .unwrap();
     assert_eq!(token, Some("gh-id-token".to_owned()));
 }
 

@@ -1,0 +1,740 @@
+//! Several pnpr replicas behind one load balancer: separate processes, each
+//! with its own local scratch and accounts, sharing one hosted object store
+//! and one database. Replicas share a libSQL primary; here one
+//! `SQLite` file stands in for it.
+//!
+//! What holds the deployment together is that every write into that shared
+//! store is conditional, so a request can land on any replica. These tests
+//! drive two routers over one bucket the way a load balancer would spread
+//! requests over two containers.
+
+use crate::{
+    npm,
+    pausing_store,
+};
+
+use axum::{
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
+};
+use npm::publish_doc;
+use object_store::{
+    ObjectStore,
+    memory::InMemory,
+};
+use pausing_store::PausingStore;
+use pnpr::{
+    Config,
+    HostedStoreConfig,
+    MaxUsers,
+};
+use pnpr_config::DatabaseBackend;
+use pnpr_fixtures::MockConfigPresets;
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    sync::Arc,
+};
+use tempfile::TempDir;
+use tower::ServiceExt;
+
+/// One replica: its own storage directory (accounts, cache)
+/// over the hosted store every replica shares.
+struct Replica {
+    app: axum::Router,
+    token: String,
+    _storage: TempDir,
+}
+
+/// The database every replica of a test shares.
+struct SharedMetadata(TempDir);
+
+impl SharedMetadata {
+    fn new() -> Self {
+        Self(TempDir::new().unwrap())
+    }
+}
+
+impl Replica {
+    async fn start(store: &Arc<dyn ObjectStore>, metadata: &SharedMetadata) -> Replica {
+        Self::start_with_database(
+            store,
+            DatabaseBackend::Sqlite(metadata.0.path().join("metadata.sqlite")),
+        )
+        .await
+    }
+
+    async fn start_with_database(
+        store: &Arc<dyn ObjectStore>,
+        database: DatabaseBackend,
+    ) -> Replica {
+        let storage = TempDir::new().unwrap();
+        let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+        let mut config = Config::static_serve(listen, storage.path().to_path_buf());
+        config.http.public_url = "http://example.test".to_string();
+        config.identity.auth.users.max_users = MaxUsers::Unlimited;
+        config.storage.hosted_backend =
+            HostedStoreConfig::ObjectStore { store: Arc::clone(store), prefix: String::new() };
+        config.storage.database = database;
+        let auth = crate::tokens::seeded_auth(&config, &[("alice", "secret123")]);
+        let app = pnpr::router_with_auth(config, auth);
+        let token = add_user_and_get_token(app.clone(), "alice", "secret123").await;
+        Replica { app, token, _storage: storage }
+    }
+
+    async fn send(&self, method: &str, path: &str, body: Body) -> (StatusCode, Value) {
+        let request = Request::builder()
+            .method(method)
+            .uri(path)
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {}", self.token))
+            .body(body)
+            .unwrap();
+        let response = self.app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    }
+
+    async fn publish(&self, name: &str, version: &str, tarball: &[u8]) -> StatusCode {
+        let body = publish_doc(name, version, tarball);
+        self.send("PUT", &format!("/npm/{name}"), Body::from(serde_json::to_vec(&body).unwrap()))
+            .await
+            .0
+    }
+
+    /// Publish `name@version` in the background, answering its status.
+    fn spawn_publish(
+        &self,
+        name: &str,
+        version: &str,
+        tarball: &[u8],
+    ) -> tokio::task::JoinHandle<StatusCode> {
+        let app = self.app.clone();
+        let token = self.token.clone();
+        let body = publish_doc(name, version, tarball);
+        let request = Request::put(format!("/npm/{name}"))
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        tokio::spawn(async move {
+            app.oneshot(request).await
+                .unwrap()
+                .status()
+        })
+    }
+
+    async fn packument(&self, name: &str) -> Value {
+        let (status, document) = self.send("GET", &format!("/npm/{name}"), Body::empty()).await;
+        assert_eq!(status, StatusCode::OK, "{name} must be served by every replica");
+        document
+    }
+
+    async fn stage(&self, name: &str, version: &str, tarball: &[u8]) -> String {
+        let body = publish_doc(name, version, tarball);
+        let (status, payload) = self.send(
+            "POST",
+            &format!("/npm/-/stage/package/{name}"),
+            Body::from(serde_json::to_vec(&body).unwrap()),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        payload["stageId"]
+            .as_str()
+            .expect("stageId in response")
+            .to_string()
+    }
+
+    async fn approve(&self, stage_id: &str) -> StatusCode {
+        self.send("POST", &format!("/npm/-/stage/{stage_id}/approve"), Body::empty())
+            .await
+            .0
+    }
+}
+
+/// Two replicas publishing versions of one package at once both land: the one
+/// that commits second rebases its versions and tags onto what the first
+/// committed, instead of writing over it or being refused.
+#[tokio::test]
+async fn concurrent_publishes_of_one_package_keep_both_versions() {
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let metadata = SharedMetadata::new();
+    let first = Replica::start(&store, &metadata).await;
+    let second = Replica::start(&store, &metadata).await;
+
+    let publish_one = first.publish("shared-pkg", "1.0.0", b"one");
+    let publish_two = second.publish("shared-pkg", "2.0.0", b"two");
+    let (left, right) = tokio::join!(publish_one, publish_two);
+    assert_eq!((left, right), (StatusCode::CREATED, StatusCode::CREATED));
+    assert_both_versions(&[&first, &second], "shared-pkg").await;
+}
+
+/// The race made certain: one replica has read the packument and is
+/// uploading its tarball when another replica publishes, so its commit finds
+/// another generation and rebases.
+#[tokio::test]
+async fn a_publish_that_loses_the_race_rebases_onto_the_winner() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let metadata = SharedMetadata::new();
+    let slow = Replica::start(&store, &metadata).await;
+    let fast = Replica::start(&store, &metadata).await;
+    assert_eq!(fast.publish("raced-pkg", "1.0.0", b"one").await, StatusCode::CREATED);
+
+    objects.pause_write(tarball_key("raced-pkg", "1.1.0", b"slow"));
+    let slow_publish = slow.spawn_publish("raced-pkg", "1.1.0", b"slow");
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the slow publish reaches its tarball upload");
+    assert_eq!(fast.publish("raced-pkg", "2.0.0", b"two").await, StatusCode::CREATED);
+    objects.resume.notify_one();
+
+    assert_eq!(slow_publish.await.unwrap(), StatusCode::CREATED);
+    for replica in [&slow, &fast] {
+        let packument = replica.packument("raced-pkg").await;
+        let versions = packument["versions"].as_object().expect("versions");
+        for version in ["1.0.0", "1.1.0", "2.0.0"] {
+            assert!(versions.contains_key(version), "{version} is missing: {versions:?}");
+        }
+    }
+}
+
+/// A publish that loses the race for a package another user created meanwhile
+/// is not rebased: that user owns the package now.
+#[tokio::test]
+async fn a_first_publish_that_loses_the_race_to_another_user_is_refused() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let metadata = SharedMetadata::new();
+    let slow = Replica::start(&store, &metadata).await;
+    let mut fast = Replica::start(&store, &metadata).await;
+    fast.token = add_user_and_get_token(fast.app.clone(), "bob", "secret123").await;
+
+    objects.pause_write(tarball_key("claimed-pkg", "1.0.0", b"slow"));
+    let slow_publish = slow.spawn_publish("claimed-pkg", "1.0.0", b"slow");
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the slow publish reaches its tarball upload");
+    assert_eq!(fast.publish("claimed-pkg", "2.0.0", b"two").await, StatusCode::CREATED);
+    objects.resume.notify_one();
+
+    assert_eq!(slow_publish.await.unwrap(), StatusCode::CONFLICT);
+    let packument = slow.packument("claimed-pkg").await;
+    assert_eq!(
+        packument["maintainers"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+    );
+    let id = crate::tokens::account_id(&fast.app, "bob", Some(&fast.token))
+        .await
+        .unwrap();
+    assert_eq!(packument["maintainers"][0]["userId"], id);
+    assert_eq!(packument["maintainers"][0]["name"], "bob");
+    assert!(packument["versions"].get("1.0.0").is_none());
+}
+
+/// A first publish that loses the race to another user who published and then
+/// unpublished the package is refused: that user's tombstone owns the name.
+#[tokio::test]
+async fn a_first_publish_that_loses_the_race_to_a_tombstone_is_refused() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let metadata = SharedMetadata::new();
+    let slow = Replica::start(&store, &metadata).await;
+    let mut fast = Replica::start(&store, &metadata).await;
+    fast.token = add_user_and_get_token(fast.app.clone(), "bob", "secret123").await;
+
+    objects.pause_write(tarball_key("tombstoned-pkg", "1.0.0", b"slow"));
+    let slow_publish = slow.spawn_publish("tombstoned-pkg", "1.0.0", b"slow");
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the slow publish reaches its tarball upload");
+    assert_eq!(fast.publish("tombstoned-pkg", "2.0.0", b"two").await, StatusCode::CREATED);
+    let (deleted, _) = fast.send("DELETE", "/npm/tombstoned-pkg/-rev/1", Body::empty()).await;
+    assert_eq!(deleted, StatusCode::CREATED);
+    objects.resume.notify_one();
+
+    assert_eq!(slow_publish.await.unwrap(), StatusCode::CONFLICT);
+    assert_eq!(
+        slow.send("GET", "/npm/tombstoned-pkg", Body::empty()).await.0,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(slow.publish("tombstoned-pkg", "3.0.0", b"three").await, StatusCode::FORBIDDEN);
+}
+
+/// The key the first incarnation of the tarball `publish_doc` builds for
+/// `name@version` from `payload` is stored under.
+fn tarball_key(name: &str, version: &str, payload: &[u8]) -> String {
+    let tarball = crate::npm::publishable_tgz(name, version, payload);
+    pnpr_storage::BlobId::of_bytes(pnpr_storage::Ecosystem::Npm, &tarball).key(1)
+}
+
+#[tokio::test]
+async fn unrelated_publishes_finish_while_an_upload_is_paused() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let metadata = SharedMetadata::new();
+    assert_parallel_uploads(&objects, &Replica::start(&store, &metadata).await).await;
+}
+
+#[cfg(feature = "backend-libsql")]
+#[tokio::test]
+async fn unrelated_publishes_finish_while_a_libsql_publish_upload_is_paused() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let metadata = SharedMetadata::new();
+    let (primary, address, server) =
+        pnpr_libsql::testing::serve_primary(metadata.0.path().join("primary.db")).await;
+    let backend = DatabaseBackend::Libsql(pnpr_config::LibsqlSettings {
+        url: format!("http://{address}"),
+        auth_token: None,
+        replica_path: None,
+        sync_interval_secs: None,
+        max_connections: None,
+    });
+    let replica = Replica::start_with_database(&store, backend).await;
+    assert_parallel_uploads(&objects, &replica).await;
+    drop(primary);
+    server.abort();
+}
+
+#[cfg(feature = "backend-libsql")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_unsynced_libsql_replica_serves_tarballs_and_exact_versions_from_the_primary() {
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let metadata = SharedMetadata::new();
+    let (primary, address, server) =
+        pnpr_libsql::testing::serve_primary(metadata.0.path().join("primary.db")).await;
+    let libsql = |name: &str| {
+        DatabaseBackend::Libsql(pnpr_config::LibsqlSettings {
+            url: format!("http://{address}"),
+            auth_token: None,
+            replica_path: Some(
+                metadata.0
+                    .path()
+                    .join(name)
+                    .join("replica.db"),
+            ),
+            sync_interval_secs: Some(3600),
+            max_connections: None,
+        })
+    };
+    let writer = Replica::start_with_database(&store, libsql("writer")).await;
+    assert_eq!(writer.publish("lag-pkg", "1.0.0", b"v1").await, StatusCode::CREATED);
+
+    let reader = Replica::start_with_database(&store, libsql("reader")).await;
+    assert_eq!(reader.packument("lag-pkg").await["dist-tags"]["latest"], "1.0.0");
+
+    let expected_v2 = npm::publishable_tgz("lag-pkg", "2.0.0", b"v2");
+    let expected_new = npm::publishable_tgz("fresh-pkg", "1.0.0", b"fresh");
+    assert_eq!(writer.publish("lag-pkg", "2.0.0", b"v2").await, StatusCode::CREATED);
+    assert_eq!(writer.publish("fresh-pkg", "1.0.0", b"fresh").await, StatusCode::CREATED);
+
+    assert!(
+        reader.packument("lag-pkg").await["versions"].get("2.0.0").is_none(),
+        "packuments still come from the unsynced replica",
+    );
+    assert_eq!(reader.send("GET", "/npm/fresh-pkg", Body::empty()).await.0, StatusCode::NOT_FOUND);
+
+    for path in ["/npm/lag-pkg/-/lag-pkg-2.0.0.tgz", "/npm/lag-pkg@2.0.0"] {
+        let response = reader.app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(body.as_ref(), expected_v2.as_slice(), "{path}");
+    }
+    let (status, manifest) = reader.send("GET", "/npm/lag-pkg/2.0.0", Body::empty()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(manifest["version"], "2.0.0");
+
+    let response = reader.app
+        .clone()
+        .oneshot(
+            Request::get("/npm/fresh-pkg/-/fresh-pkg-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(body.as_ref(), expected_new.as_slice());
+    let (status, manifest) = reader.send("GET", "/npm/fresh-pkg/1.0.0", Body::empty()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(manifest["version"], "1.0.0");
+
+    assert_eq!(
+        reader.send("GET", "/npm/lag-pkg/-/lag-pkg-9.9.9.tgz", Body::empty())
+            .await
+            .0,
+        StatusCode::NOT_FOUND,
+    );
+
+    drop(primary);
+    server.abort();
+}
+
+#[expect(clippy::print_stderr, reason = "Reports test timings, which nextest captures.")]
+async fn assert_parallel_uploads(objects: &PausingStore, replica: &Replica) {
+    objects.pause_write(tarball_key("paused-pkg", "1.0.0", b"slow"));
+    let paused = replica.spawn_publish("paused-pkg", "1.0.0", b"slow");
+    wait_for_pause(objects).await;
+    let started = std::time::Instant::now();
+    let other = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        replica.publish("parallel-pkg", "1.0.0", b"other"),
+    )
+    .await;
+    objects.resume.notify_one();
+    assert_eq!(
+        other.expect("an unrelated publish must not wait for the paused upload"),
+        StatusCode::CREATED,
+    );
+    eprintln!(
+        "unrelated publish completed in {:?} while the first upload was paused",
+        started.elapsed(),
+    );
+    assert_eq!(paused.await.unwrap(), StatusCode::CREATED);
+}
+
+async fn wait_for_pause(objects: &PausingStore) {
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the publish reaches the paused object-store operation");
+}
+
+#[tokio::test]
+async fn a_publish_retries_when_a_refused_publish_discards_the_same_bytes() {
+    for endpoint in [PublishEndpoint::Package, PublishEndpoint::Batch] {
+        let objects = Arc::new(PausingStore::default());
+        let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+        let metadata = SharedMetadata::new();
+        let replica = Replica::start(&store, &metadata).await;
+        let storage = shared_storage(&store, &metadata);
+        let bytes = npm::npm_tgz("retried-pkg", "1.0.0", b"contents");
+        let id = pnpr_storage::BlobId::of_bytes(pnpr_storage::Ecosystem::Npm, &bytes);
+        objects.pause_write(id.key(1));
+        let publish = spawn_retry_publish(&replica, endpoint, &bytes);
+        wait_for_pause(&objects).await;
+
+        // The cleanup a refused publish of these bytes performs before
+        // this publish reaches its metadata commit.
+        storage
+            .remove_uncommitted(vec![pnpr_storage::database::Uncommitted {
+                blob: pnpr_storage::database::BlobRef { id, incarnation: 1 },
+                may_fence: true,
+            }])
+            .await
+            .unwrap();
+        objects.resume.notify_one();
+        let (status, payload) = publish.await.unwrap();
+        assert_eq!(status, StatusCode::CREATED, "{payload}");
+        assert_retried_archive(&replica, &storage, &bytes).await;
+    }
+}
+
+#[tokio::test]
+async fn a_publish_retries_when_unpublish_reclaims_the_bytes_it_read_live() {
+    for endpoint in [PublishEndpoint::Package, PublishEndpoint::Batch] {
+        let objects = Arc::new(PausingStore::default());
+        let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+        let metadata = SharedMetadata::new();
+        let replica = Replica::start(&store, &metadata).await;
+        let storage = shared_storage(&store, &metadata);
+        let name = pnpr_package_name::CanonicalPackageName::parse(
+            "retried-pkg",
+            pnpr_storage::Ecosystem::Npm,
+        )
+        .unwrap();
+        let bytes = npm::npm_tgz("retried-pkg", "1.0.0", b"contents");
+        let slot = storage.reserve_hosted_blob(&name, "retried-pkg-1.0.0.tgz").await.unwrap();
+        tokio::fs::write(&slot.tmp_path, &bytes).await.unwrap();
+        let identity = storage.identify_blob_slot(&slot).await.unwrap();
+        let promoted = storage.promote_blob_slot(slot, identity, None).await.unwrap();
+        let id = promoted.artifact.blob.id.clone();
+        storage.map_hosted_artifact(promoted.artifact).await.unwrap();
+        // Unpublish has removed the mapping, but has not marked its blob
+        // reclaiming yet. The HTTP publish reads that live incarnation.
+        storage
+            .sql_database()
+            .unmap_artifacts(
+                "",
+                pnpr_storage::Ecosystem::Npm,
+                name.as_str(),
+                (None, vec!["retried-pkg-1.0.0.tgz".to_string().into()]),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        objects.pause("document.json".to_string());
+        let publish = spawn_retry_publish(&replica, endpoint, &bytes);
+        wait_for_pause(&objects).await;
+        assert_eq!(
+            storage
+                .reclaim_blobs(vec![id])
+                .await
+                .unwrap()
+                .len(),
+            1,
+        );
+        objects.resume.notify_one();
+        let (status, payload) = publish.await.unwrap();
+        assert_eq!(status, StatusCode::CREATED, "{payload}");
+        assert_retried_archive(&replica, &storage, &bytes).await;
+    }
+}
+
+fn shared_storage(
+    store: &Arc<dyn ObjectStore>,
+    metadata: &SharedMetadata,
+) -> pnpr_storage::Storage {
+    pnpr_storage::Storage::new(
+        &HostedStoreConfig::ObjectStore { store: Arc::clone(store), prefix: String::new() },
+        metadata.0.path().join("store"),
+        metadata.0.path().join("cache"),
+        &DatabaseBackend::Sqlite(metadata.0.path().join("metadata.sqlite")),
+    )
+    .unwrap()
+}
+
+#[derive(Clone, Copy)]
+enum PublishEndpoint {
+    Package,
+    Batch,
+}
+
+fn spawn_retry_publish(
+    replica: &Replica,
+    endpoint: PublishEndpoint,
+    bytes: &[u8],
+) -> tokio::task::JoinHandle<(StatusCode, Value)> {
+    let document = publish_doc("retried-pkg", "1.0.0", bytes);
+    let (path, body) = match endpoint {
+        PublishEndpoint::Package => ("/npm/retried-pkg", document),
+        PublishEndpoint::Batch => ("/npm/-/pnpr/v0/publish", json!({ "packages": [document] })),
+    };
+    let request = Request::put(path)
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {}", replica.token))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let app = replica.app.clone();
+    tokio::spawn(async move {
+        let response = app.oneshot(request).await.unwrap();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, serde_json::from_slice(&bytes).unwrap())
+    })
+}
+
+async fn assert_retried_archive(replica: &Replica, storage: &pnpr_storage::Storage, bytes: &[u8]) {
+    let name =
+        pnpr_package_name::CanonicalPackageName::parse("retried-pkg", pnpr_storage::Ecosystem::Npm)
+            .unwrap();
+    let blob = storage
+        .hosted_blob_of(&name, "retried-pkg-1.0.0.tgz")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(blob.incarnation, 2);
+    assert_eq!(
+        storage
+            .stored_incarnations()
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+    let response = replica.app
+        .clone()
+        .oneshot(
+            Request::get("/npm/retried-pkg/-/retried-pkg-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(to_bytes(response.into_body(), usize::MAX).await.unwrap().as_ref(), bytes);
+    assert!(replica.packument("retried-pkg").await["versions"]["1.0.0"].is_object());
+}
+
+async fn assert_both_versions(replicas: &[&Replica], name: &str) {
+    for replica in replicas {
+        let packument = replica.packument(name).await;
+        let versions = packument["versions"].as_object().expect("versions");
+        assert!(versions.contains_key("1.0.0"), "1.0.0 is missing: {versions:?}");
+        assert!(versions.contains_key("2.0.0"), "2.0.0 is missing: {versions:?}");
+    }
+}
+
+/// A staged record is shared state, not the state of the replica that took it.
+#[tokio::test]
+async fn a_stage_created_on_one_replica_is_approved_on_another() {
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let metadata = SharedMetadata::new();
+    let first = Replica::start(&store, &metadata).await;
+    let second = Replica::start(&store, &metadata).await;
+
+    let stage_id = first.stage("staged-pkg", "1.0.0", b"the tarball").await;
+    assert_eq!(second.approve(&stage_id).await, StatusCode::CREATED);
+    assert!(first.packument("staged-pkg").await["versions"]["1.0.0"].is_object());
+    assert_eq!(
+        first.approve(&stage_id).await,
+        StatusCode::NOT_FOUND,
+        "the stage is spent on every replica",
+    );
+}
+
+/// Approving one stage on two replicas at once publishes it once: the held
+/// document is replayed by whichever approval claims the record.
+#[tokio::test]
+async fn one_stage_approved_on_two_replicas_publishes_once() {
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let metadata = SharedMetadata::new();
+    let first = Replica::start(&store, &metadata).await;
+    let second = Replica::start(&store, &metadata).await;
+
+    let stage_id = first.stage("staged-pkg", "1.0.0", b"the tarball").await;
+    let approve_here = first.approve(&stage_id);
+    let approve_there = second.approve(&stage_id);
+    let (left, right) = tokio::join!(approve_here, approve_there);
+    let (approved, refused) =
+        if left == StatusCode::CREATED { (left, right) } else { (right, left) };
+    assert_eq!(approved, StatusCode::CREATED, "one approval must publish: {left}, {right}");
+    assert!(
+        // Whether the loser saw the winner's claim or the record it had
+        // already consumed depends on how far the winner got.
+        refused == StatusCode::CONFLICT || refused == StatusCode::NOT_FOUND,
+        "the other must be refused, not failed: {refused}",
+    );
+
+    let packument = first.packument("staged-pkg").await;
+    assert_eq!(
+        packument["versions"]
+            .as_object()
+            .expect("versions")
+            .len(),
+        1,
+    );
+    let (status, listing) = second.send("GET", "/npm/-/stage", Body::empty()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(listing["total"], 0, "the stage is spent");
+}
+
+/// A rejection reaching one replica takes the stage back from an approval
+/// under way on another, as long as it lands before that approval commits.
+///
+/// The approving replica is paused after it has the held publish in hand,
+/// while it stages it: reading the tarball's integrity record, the one
+/// `document.json` the bucket still holds, before the commit, which is where
+/// a rejection can still be observed.
+#[tokio::test]
+async fn a_rejection_stops_an_approval_that_has_not_committed() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let metadata = SharedMetadata::new();
+    let approving = Replica::start(&store, &metadata).await;
+    let rejecting = Replica::start(&store, &metadata).await;
+
+    let stage_id = approving.stage("staged-pkg", "1.0.0", b"the tarball").await;
+    objects.pause("document.json".to_string());
+    let approval = tokio::spawn({
+        let app = approving.app.clone();
+        let token = approving.token.clone();
+        let path = format!("/npm/-/stage/{stage_id}/approve");
+        async move {
+            let request = Request::post(&path)
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap();
+            app.oneshot(request).await
+                .unwrap()
+                .status()
+        }
+    });
+
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .expect("the approval reaches the paused read");
+    let (rejected, _) =
+        rejecting.send("DELETE", &format!("/npm/-/stage/{stage_id}"), Body::empty()).await;
+    assert_eq!(rejected, StatusCode::NO_CONTENT);
+    objects.resume.notify_one();
+
+    assert_ne!(approval.await.unwrap(), StatusCode::CREATED, "the rejection stands");
+    let (status, _) = approving.send("GET", "/npm/staged-pkg", Body::empty()).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "a rejected publish must not be served");
+}
+
+/// A dist-tag moved through one replica is what every replica serves.
+#[tokio::test]
+async fn a_dist_tag_written_on_one_replica_is_served_by_the_other() {
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let metadata = SharedMetadata::new();
+    let first = Replica::start(&store, &metadata).await;
+    let second = Replica::start(&store, &metadata).await;
+
+    assert_eq!(first.publish("tagged-pkg", "1.0.0", b"one").await, StatusCode::CREATED);
+    assert_eq!(second.publish("tagged-pkg", "2.0.0", b"two").await, StatusCode::CREATED);
+    let (status, _) =
+        first.send("PUT", "/npm/-/package/tagged-pkg/dist-tags/next", Body::from(r#""2.0.0""#))
+            .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, tags) =
+        second.send("GET", "/npm/-/package/tagged-pkg/dist-tags", Body::empty()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(tags["next"], "2.0.0");
+}
+
+async fn add_user_and_get_token(app: axum::Router, username: &str, password: &str) -> String {
+    let path = format!("/-/user/org.couchdb.user:{username}");
+    let body = json!({
+        "_id": format!("org.couchdb.user:{username}"),
+        "name": username,
+        "password": password,
+        "email": "foo@bar.net",
+        "type": "user",
+        "roles": [],
+    });
+    let request = Request::put(&path)
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&bytes).unwrap();
+    payload["token"]
+        .as_str()
+        .expect("token in response")
+        .to_string()
+}

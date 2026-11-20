@@ -1,6 +1,6 @@
 //! Pacquet's prod manifest type
 //! (`pnpm_config::workspace_yaml::WorkspaceSettings`) is shaped for
-//! deserializing user input as an additive overlay over `Config` — it
+//! deserializing user input as an additive overlay over `Config`; it
 //! is `Deserialize`-only, has no `supportedArchitectures` /
 //! `allowBuilds` fields, and its semantics are "apply non-`None` fields
 //! onto an existing `Config`". The benchmark needs to *emit* a complete
@@ -9,20 +9,30 @@
 //! the keys we read and write.
 
 use crate::fixtures::PNPM_WORKSPACE;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the benchmark fixture pnpm-workspace.yaml format."
+    )
+)]
 pub struct MinimalWorkspaceManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_dir: Option<String>,
-    /// Packument-metadata cache location (`<cacheDir>/v11/metadata-full`).
+    /// Packument-metadata cache location (`<cacheDir>/v12/metadata-full`).
     /// The benchmark forces this bench-local (`./cache-dir`) for the same
     /// reason it forces `storeDir` local: so the cold-cache scenarios can
     /// wipe it per-iteration. Left at the global default it would survive
     /// every wipe, leaving the direct client's resolution served from a
-    /// warm mirror — which makes "cold cache" cold in name only and hides
+    /// warm mirror, which makes "cold cache" cold in name only and hides
     /// pnpr's resolution-offload win. Both pnpm and pacquet read it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_dir: Option<String>,
@@ -46,6 +56,8 @@ pub struct MinimalWorkspaceManifest {
     /// source tree into the install's project enumeration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub packages: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dedupe_injected_deps: Option<bool>,
     /// The `enableGlobalVirtualStore` setting. Effective default is
     /// `false` for non-`--global` installs in both pnpm v11 and pacquet
     /// (the `true` value is forced only by the `pnpm install --global`
@@ -54,15 +66,36 @@ pub struct MinimalWorkspaceManifest {
     /// default flip surfaces in CI rather than silently changing
     /// the on-disk layout being measured: with GVS on, slot
     /// directories move to `<storeDir>/links/<scope>/<name>/<version>/<hash>`,
-    /// a different shape from the project-local baseline. A
-    /// separate GVS-on benchmark variant lives behind a caller-
-    /// supplied `--fixture-dir` with the flag flipped to `true`.
+    /// a different shape from the project-local baseline.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_global_virtual_store: Option<bool>,
+    /// The `enableModulesDir` setting. `false` makes an install resolve,
+    /// write the lockfile and fetch into the store without creating
+    /// `node_modules`; the store-only scenario measures that path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_modules_dir: Option<bool>,
+    /// The `storeIndexFormat` setting: `sqlite` (the default) or `files`,
+    /// the per-file index a store shared between machines uses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub store_index_format: Option<String>,
+    /// The `trustLockfile` setting. `true` skips the supply-chain
+    /// verification of the loaded lockfile, which reads every entry's
+    /// packument and would otherwise hide what the resolution itself
+    /// fetches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_lockfile: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cargo: Option<CargoSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supported_architectures: Option<SupportedArchitectures>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub allow_builds: BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CargoSettings {
+    pub enabled: bool,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -78,17 +111,14 @@ pub struct SupportedArchitectures {
 
 impl MinimalWorkspaceManifest {
     /// The default manifest the benchmark uses when no `--fixture-dir`
-    /// is provided. Loaded from the static
-    /// `tasks/integrated-benchmark/src/fixtures/pnpm-workspace.yaml`
-    /// text fixture, parallel to how `package.json` and `pnpm-lock.yaml`
-    /// are bundled.
+    /// is provided.
     ///
     /// The fixture pins `supportedArchitectures` to every OS/CPU/libc
     /// pnpm releases for, so pnpm on Linux CI doesn't skip darwin-only
     /// optionals (e.g. `fsevents`) while pacquet installs every snapshot
-    /// unconditionally — the asymmetry would tilt the benchmark in
+    /// unconditionally, the asymmetry would tilt the benchmark in
     /// pnpm's favour. It also pins `allowBuilds` to `false` for the
-    /// three packages whose postinstalls would otherwise trip pnpm's
+    /// packages whose postinstalls would otherwise trip pnpm's
     /// `ERR_PNPM_IGNORED_BUILDS` warning under `ignore-scripts=true`.
     pub fn default_for_benchmark() -> Self {
         serde_saphyr::from_str(PNPM_WORKSPACE).expect("parse default pnpm-workspace.yaml fixture")

@@ -9,11 +9,11 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { caretRangeForPatched, createMinimumReleaseAgeExcludes } from '../../src/audit/fix.js'
+import { createMinimumReleaseAgeExcludes, createOverrides, patchedRangeForStyle } from '../../src/audit/fix.js'
 import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 const collectedInfos: string[] = []
 
@@ -35,7 +35,7 @@ function collectInfos (msg: LogBase & { message?: string }): void {
 }
 
 test('overrides are added for vulnerable dependencies', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -55,19 +55,16 @@ test('overrides are added for vulnerable dependencies', async () => {
   expect(output).toContain('entries were added to minimumReleaseAgeExclude')
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string>, minimumReleaseAgeExclude?: string[] }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('^1.15.0')
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 
-  // minimumReleaseAgeExclude should combine versions per module
   const axiosExclude = manifest.minimumReleaseAgeExclude?.find((e) => e.startsWith('axios@'))
-  expect(axiosExclude).toBeDefined()
-  expect(axiosExclude).toContain('0.18.1')
-  expect(axiosExclude).toContain('0.21.1')
-  expect(axiosExclude).toContain('0.21.2')
+  expect(axiosExclude).toBe('axios@1.15.0')
 })
 
 test('no minimumReleaseAgeExclude entries are added for patched versions published before the cutoff', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -107,7 +104,7 @@ test('no minimumReleaseAgeExclude entries are added for patched versions publish
 })
 
 test('no overrides or minimumReleaseAgeExclude entries are added when the inferred patched version was never published', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -146,7 +143,7 @@ test('no overrides or minimumReleaseAgeExclude entries are added when the inferr
 })
 
 test('minimumReleaseAgeExclude entries are added for patched versions published after the cutoff', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -186,7 +183,7 @@ test('minimumReleaseAgeExclude entries are added for patched versions published 
 })
 
 test('no overrides are added if no vulnerabilities are found', async () => {
-  const tmp = f.prepare('fixture')
+  const tmp = testFixtures.prepare('fixture')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -205,7 +202,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
 })
 
 test('GHSAs in the ignore list are not added as overrides', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -232,7 +229,7 @@ test('GHSAs in the ignore list are not added as overrides', async () => {
 })
 
 test('audit --fix respects auditLevel and only fixes matching severities', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -252,7 +249,8 @@ test('audit --fix respects auditLevel and only fixes matching severities', async
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
 
   // Critical advisories should be fixed
-  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.1']).toBe('^1.6.1')
+  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.2']).toBe('^1.6.2')
+  expect(manifest.overrides?.['xmlhttprequest-ssl@<1.6.1']).toBeFalsy()
   expect(manifest.overrides?.['nodemailer@<6.4.16']).toBe('^6.4.16')
   expect(manifest.overrides?.['netmask@<1.1.0']).toBe('^1.1.0')
 
@@ -263,7 +261,7 @@ test('audit --fix respects auditLevel and only fixes matching severities', async
 })
 
 test('audit.ignorePrune removes ignored GHSAs that are no longer in the report', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -302,7 +300,7 @@ test('audit.ignorePrune removes ignored GHSAs that are no longer in the report',
 })
 
 test('audit.ignorePrune is disabled by default - no pruning', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -332,7 +330,7 @@ test('audit.ignorePrune is disabled by default - no pruning', async () => {
 
 // GHSA ids are case-insensitive; lowercase version should match uppercase in report
 test('audit.ignorePrune handles case normalization', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -362,7 +360,7 @@ test('audit.ignorePrune handles case normalization', async () => {
 })
 
 test('audit.ignorePrune persists the canonical form even when nothing is removed', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -394,7 +392,7 @@ test('audit.ignorePrune persists the canonical form even when nothing is removed
 })
 
 test('audit.ignorePrune removes all entries when none are relevant', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -423,7 +421,7 @@ test('audit.ignorePrune removes all entries when none are relevant', async () =>
 })
 
 test('audit.ignorePrune edits an inline (flow-style) auditConfig in place', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
   fs.writeFileSync(
     path.join(tmp, 'pnpm-workspace.yaml'),
     'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\nauditConfig: { ignoreGhsas: [GHSA-42xw-2xvc-qx8m, GHSA-xxxx-xxxx-xxxx] }\n'
@@ -462,7 +460,7 @@ test('audit.ignorePrune edits an inline (flow-style) auditConfig in place', asyn
 })
 
 test('audit.ignorePrune updates the canonical audit.ignore list', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
   fs.writeFileSync(
     path.join(tmp, 'pnpm-workspace.yaml'),
     'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\naudit:\n  ignorePrune: true\n  ignore:\n    - GHSA-42xw-2xvc-qx8m\n    - GHSA-xxxx-xxxx-xxxx\n'
@@ -501,7 +499,7 @@ test('audit.ignorePrune updates the canonical audit.ignore list', async () => {
 })
 
 test('audit.ignorePrune sanitizes the removed ids in the log message', async () => {
-  const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
+  const tmp = testFixtures.prepare('has-vulnerabilities-with-ignored-ghsas')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -534,7 +532,7 @@ test.each([
   ['a boolean from an rc file', true],
   ['the string form of that boolean', 'true'],
 ])('a --fix without a method applies the default fix method: %s', async (_label, fix) => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -552,11 +550,12 @@ test.each([
   expect(output).toMatch(/Run "pnpm install"/)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('^0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('^1.15.0')
+  expect(manifest.overrides?.['axios@<=0.18.0']).toBeFalsy()
 })
 
 test('an invalid --fix value is rejected', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -572,7 +571,7 @@ test('an invalid --fix value is rejected', async () => {
 })
 
 test('saveExact saves the override as an exact version', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -590,11 +589,11 @@ test('saveExact saves the override as an exact version', async () => {
   expect(exitCode).toBe(0)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('1.15.0')
 })
 
 test('savePrefix ~ saves the override as a tilde range', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -612,11 +611,11 @@ test('savePrefix ~ saves the override as a tilde range', async () => {
   expect(exitCode).toBe(0)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('~0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('~1.15.0')
 })
 
 test('savePrefix = saves the override as an exact = range', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -634,11 +633,11 @@ test('savePrefix = saves the override as an exact = range', async () => {
   expect(exitCode).toBe(0)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('=0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('=1.15.0')
 })
 
 test('savePrefix "" saves the override as an exact version', async () => {
-  const tmp = f.prepare('has-vulnerabilities')
+  const tmp = testFixtures.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
@@ -656,7 +655,7 @@ test('savePrefix "" saves the override as an exact version', async () => {
   expect(exitCode).toBe(0)
 
   const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
-  expect(manifest.overrides?.['axios@<=0.18.0']).toBe('0.18.1')
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('1.15.0')
 })
 
 function advisory (moduleName: string, vulnerableVersions: string, patchedVersions?: string): AuditAdvisory {
@@ -888,12 +887,96 @@ describe('createMinimumReleaseAgeExcludes', () => {
   })
 })
 
-describe('caretRangeForPatched', () => {
-  test('converts a >= range to a caret range', () => {
-    expect(caretRangeForPatched('>=0.18.1')).toBe('^0.18.1')
+describe('patchedRangeForStyle', () => {
+  test('converts a >= range to a caret range for the major style', () => {
+    expect(patchedRangeForStyle('>=0.18.1', 'major')).toBe('^0.18.1')
   })
 
   test('picks the minimum version from a complex range', () => {
-    expect(caretRangeForPatched('>=1.0.0 <2.0.0')).toBe('^1.0.0')
+    expect(patchedRangeForStyle('>=1.0.0 <2.0.0', 'major')).toBe('^1.0.0')
+  })
+
+  test('returns the bare version for the patch style', () => {
+    expect(patchedRangeForStyle('>=0.18.1', 'patch')).toBe('0.18.1')
+  })
+
+  test('returns a tilde-prefixed version for the minor style', () => {
+    expect(patchedRangeForStyle('>=0.18.1', 'minor')).toBe('~0.18.1')
+  })
+
+  test('returns an =-prefixed version for the exact style', () => {
+    expect(patchedRangeForStyle('>=0.18.1', 'exact')).toBe('=0.18.1')
   })
 })
+
+describe('createOverrides', () => {
+  test('prunes subset overrides for the same package', () => {
+    const advisories = [
+      advisory('postcss', '<7.0.36', '>=7.0.36'),
+      advisory('postcss', '<8.4.31', '>=8.4.31'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'postcss@<8.4.31': '^8.4.31',
+    })
+  })
+
+  test('keeps different packages as separate overrides', () => {
+    const advisories = [
+      advisory('postcss', '<8.4.31', '>=8.4.31'),
+      advisory('axios', '<1.15.0', '>=1.15.0'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'axios@<1.15.0': '^1.15.0',
+      'postcss@<8.4.31': '^8.4.31',
+    })
+  })
+
+  test('keeps disjoint ranges for the same package', () => {
+    const advisories = [
+      advisory('foo', '<1.0.0', '>=1.0.0'),
+      advisory('foo', '>=2.0.0 <2.1.0', '>=2.1.0'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'foo@<1.0.0': '^1.0.0',
+      'foo@>=2.0.0 <2.1.0': '^2.1.0',
+    })
+  })
+
+  test('prefers higher patched version for equivalent ranges', () => {
+    const advisories = [
+      advisory('foo', '<1.0.0', '>=1.0.0'),
+      advisory('foo', '<1.0.0', '>=1.0.2'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'foo@<1.0.0': '^1.0.2',
+    })
+  })
+
+  test('deduplicates identical vulnerable and patched ranges', () => {
+    const advisories = [
+      advisory('foo', '<1.0.0', '>=1.0.0'),
+      advisory('foo', '<1.0.0', '>=1.0.0'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'foo@<1.0.0': '^1.0.0',
+    })
+  })
+
+  test('retains narrower range when it has a higher patched version floor', () => {
+    const advisories = [
+      advisory('foo', '<1.0.2', '>=1.0.2'),
+      advisory('foo', '<2.0.0', '>=1.0.0'),
+    ]
+    const overrides = createOverrides(advisories, 'major')
+    expect(overrides).toEqual({
+      'foo@<1.0.2': '^1.0.2',
+      'foo@<2.0.0': '^1.0.0',
+    })
+  })
+})
+

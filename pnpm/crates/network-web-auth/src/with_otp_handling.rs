@@ -1,17 +1,32 @@
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
     WebAuthTimeoutError,
     capabilities::{
-        Clock, EnterKeyListener, OpenUrl, PromptError, PromptOtp, Sleep, StdinIsTty, StdoutIsTty,
+        Clock,
+        EnterKeyListener,
+        OpenUrl,
+        PromptError,
+        PromptOtp,
+        Sleep,
+        StdinIsTty,
+        StdoutIsTty,
         WebAuthFetch,
     },
     format_auth_url_message::format_auth_url_message,
-    global_log::{global_info, global_warn},
+    global_log::{
+        global_info,
+        global_warn,
+    },
     poll_for_web_auth_token::{
-        WebAuthFetchOptions, WebAuthTokenPollParams, poll_for_web_auth_token,
+        WebAuthFetchOptions,
+        WebAuthTokenPollParams,
+        poll_for_web_auth_token,
     },
     prompt_browser_open::prompt_browser_open,
 };
@@ -62,7 +77,7 @@ pub fn otp_challenge_from_unauthorized_body(body: &[u8]) -> Option<OtpChallenge>
 }
 
 /// Synthetic EOTP error meant to be thrown by an operation passed to
-/// [`with_otp_handling`] and caught by it — never to propagate elsewhere.
+/// [`with_otp_handling`] and caught by it, never to propagate elsewhere.
 #[derive(Debug, derive_more::Display, derive_more::Error, Clone)]
 #[display(
     "This error was meant to be caught by `with_otp_handling`, not to propagate to other parts of \
@@ -201,23 +216,18 @@ pub struct OtpSecondChallengeError;
 /// errors.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum WithOtpError<Error: Diagnostic + 'static> {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Operation(Error),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     NonInteractive(OtpNonInteractiveError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     SecondChallenge(OtpSecondChallengeError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Timeout(WebAuthTimeoutError),
 
-    #[display("{_0}")]
     Prompt(PromptError),
 }
 
@@ -227,7 +237,7 @@ pub enum WithOtpError<Error: Diagnostic + 'static> {
 /// still send a configured `--otp`); the password a challenge yields is
 /// kept and passed to every later operation, so a batch of operations
 /// costs one proof of presence instead of one per operation. When a kept
-/// password stops being accepted — a classic OTP expires within a minute —
+/// password stops being accepted (a classic OTP expires within a minute)
 /// the challenge that follows obtains a new one and the operation that
 /// triggered it is retried with it.
 #[derive(Debug, Clone)]
@@ -315,9 +325,10 @@ where
     }
 
     let web_auth_urls = match &challenge.body {
-        Some(OtpErrorBody { auth_url: Some(auth_url), done_url: Some(done_url) }) => {
-            canonical_http_url(auth_url).zip(canonical_http_url(done_url))
-        }
+        Some(OtpErrorBody {
+            auth_url: Some(auth_url),
+            done_url: Some(done_url),
+        }) => canonical_http_url(auth_url).zip(canonical_http_url(done_url)),
         _ => None,
     };
 
@@ -329,8 +340,7 @@ where
                 fetch_options,
                 timeout_ms: None,
             });
-            prompt_browser_open::<Sys, Reporter, _, _>(&auth_url, poll)
-                .await
+            prompt_browser_open::<Sys, Reporter, _, _>(&auth_url, poll).await
                 .map(Some)
                 .map_err(WithOtpError::Timeout)
         }
@@ -374,15 +384,14 @@ where
     // The operation is a plain `FnMut` returning a named future `Fut`, not an
     // `AsyncFnMut`. `AsyncFnMut`'s per-call `CallRefFuture<'a>` is higher-ranked
     // over the closure's `&mut` borrow, so a `Send` bound on the resulting
-    // future would have to hold `for<'a>` — which the compiler cannot prove for
+    // future would have to hold `for<'a>`, which the compiler cannot prove for
     // the CLI's `Send`-required command future. A concrete `Fut` makes `Send`
     // an ordinary, non-higher-ranked obligation. The one-time password is passed
     // by value so `Fut` borrows nothing from the closure.
     Operation: FnMut(Option<String>) -> Fut,
     Fut: Future<Output = Result<Token, Error>>,
 {
-    OtpSession::new(fetch_options)
-        .run::<Sys, Reporter, Token, Error, Operation, Fut>(operation)
+    OtpSession::new(fetch_options).run::<Sys, Reporter, Token, Error, Operation, Fut>(operation)
         .await
 }
 

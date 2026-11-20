@@ -78,6 +78,228 @@ test('recursive add/remove', async () => {
   projects['project-2'].hasNot('is-negative')
 })
 
+test('recursive install prunes minimumReleaseAgeExclude against the lockfile of every project in a workspace with many lockfiles', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+    minimumReleaseAgeExclude: ['is-positive@1.0.0', 'is-negative@1.0.0', 'is-odd@1.0.0'],
+  })
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    minimumReleaseAgeExcludePrune: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  })
+
+  expect(readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml').minimumReleaseAgeExclude)
+    .toStrictEqual(['is-positive@1.0.0', 'is-negative@1.0.0'])
+})
+
+test('recursive install prunes trustPolicyExclude against the lockfile of every project in a workspace with many lockfiles', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+    trustPolicyExclude: ['is-positive@1.0.0', 'is-negative@1.0.0', 'is-odd@1.0.0'],
+  })
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    trustPolicyExcludePrune: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  })
+
+  expect(readYamlFileSync<{ trustPolicyExclude?: string[] }>('pnpm-workspace.yaml').trustPolicyExclude)
+    .toStrictEqual(['is-positive@1.0.0', 'is-negative@1.0.0'])
+})
+
+test('recursive install prunes undecided allowBuilds against the lockfile of every project in a workspace with many lockfiles', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  const allowBuilds = {
+    'is-positive': 'set this to true or false',
+    'is-negative': false,
+    'is-odd': 'set this to true or false',
+  }
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+    allowBuilds,
+  })
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    allowBuilds,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  })
+
+  expect(readYamlFileSync<{ allowBuilds?: Record<string, boolean | string> }>('pnpm-workspace.yaml').allowBuilds)
+    .toStrictEqual({
+      'is-positive': 'set this to true or false',
+      'is-negative': false,
+    })
+})
+
+test('filtered recursive install keeps minimumReleaseAgeExclude in a workspace with many lockfiles', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+  })
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    minimumReleaseAgeExcludePrune: true,
+    recursive: true,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  }
+  await install.handler({ ...opts, selectedProjectsGraph })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+    minimumReleaseAgeExclude: ['is-odd@1.0.0'],
+  })
+
+  const { selectedProjectsGraph: filteredGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  await install.handler({ ...opts, selectedProjectsGraph: filteredGraph })
+
+  expect(readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml').minimumReleaseAgeExclude)
+    .toStrictEqual(['is-odd@1.0.0'])
+})
+
+test('recursive update that skips a project keeps minimumReleaseAgeExclude in a workspace with many lockfiles', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+  })
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    minimumReleaseAgeExcludePrune: true,
+    recursive: true,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  }
+  await install.handler({ ...opts, selectedProjectsGraph })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-1', 'project-2'],
+    minimumReleaseAgeExclude: ['is-odd@1.0.0'],
+  })
+
+  await update.handler({ ...opts, selectedProjectsGraph }, ['is-positive'])
+
+  expect(readYamlFileSync<{ minimumReleaseAgeExclude?: string[] }>('pnpm-workspace.yaml').minimumReleaseAgeExclude)
+    .toStrictEqual(['is-odd@1.0.0'])
+})
+
 test('recursive add/remove in workspace with many lockfiles', async () => {
   const projects = preparePackages([
     {
@@ -615,6 +837,181 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   projects['project-1'].has('project-2')
 })
 
+test.each([
+  [['project-1']],
+  [['project-1', 'project-2']],
+])('filtered recursive install keeps the importer of a project missing from disk (filter: %j)', async (filter) => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': 'catalog:only-3',
+      },
+    },
+  ])
+  const catalogs = { 'only-3': { 'is-negative': '1.0.0' } }
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    catalogs,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+  const before = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
+
+  fs.rmSync('project-3', { recursive: true })
+  writeJsonFileSync(path.join(projects['project-1'].dir(), 'package.json'), {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+  })
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), filter.map((namePattern) => ({ namePattern }))),
+    catalogs,
+    dir: process.cwd(),
+    filter,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
+  expect(lockfile.importers!['project-1'].dependencies).toHaveProperty(['@pnpm.e2e/foo'])
+  expect(lockfile.importers!['project-3']).toStrictEqual(before.importers!['project-3'])
+  expect(lockfile.catalogs).toStrictEqual(before.catalogs)
+  expect(lockfile.packages).toHaveProperty(['is-negative@1.0.0'])
+  expect(fs.existsSync('project-3')).toBe(false)
+})
+
+test.each([
+  { lockfileOnly: true, nodeLinker: 'isolated' as const, frozenLockfile: false },
+  { lockfileOnly: false, nodeLinker: 'isolated' as const, frozenLockfile: false },
+  { lockfileOnly: false, nodeLinker: 'hoisted' as const, frozenLockfile: false },
+  { lockfileOnly: false, nodeLinker: 'hoisted' as const, frozenLockfile: true },
+])('filtered recursive install resolves against the dependencies of a project missing from disk (%o)', async ({ lockfileOnly, nodeLinker, frozenLockfile }) => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/has-optional-peer': '1.0.0',
+        '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-c': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-c': '1.0.1',
+        'is-positive': '1.0.0',
+        'local-pkg': 'file:../local-pkg',
+        'project-2': 'workspace:*',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['project-*'] })
+  fs.mkdirSync('local-pkg')
+  writeJsonFileSync('local-pkg/package.json', {
+    name: 'local-pkg',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0' },
+  })
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    lockfileOnly,
+    nodeLinker,
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+  const before = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
+  expect(before.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer'].version).toBe('1.0.0(@pnpm.e2e/peer-c@1.0.1)')
+  if (nodeLinker === 'hoisted') {
+    expect(fs.existsSync('project-3/node_modules')).toBe(true)
+    expect(fs.existsSync('node_modules/local-pkg')).toBe(true)
+    expect(fs.existsSync('node_modules/is-negative')).toBe(true)
+  }
+
+  fs.rmSync('project-3', { recursive: true })
+  if (!frozenLockfile) {
+    writeJsonFileSync(path.join(projects['project-1'].dir(), 'package.json'), {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/has-optional-peer': '1.0.0',
+        '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    })
+  }
+  const filter = ['project-1', 'project-2']
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), filter.map((namePattern) => ({ namePattern }))),
+    dir: process.cwd(),
+    filter,
+    frozenLockfile,
+    lockfileDir: process.cwd(),
+    lockfileOnly,
+    nodeLinker,
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
+  if (!frozenLockfile) {
+    expect(lockfile.importers!['project-1'].dependencies).toHaveProperty(['@pnpm.e2e/foo'])
+  }
+  expect(lockfile.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer']).toStrictEqual(before.importers!['project-1'].dependencies!['@pnpm.e2e/has-optional-peer'])
+  expect(lockfile.importers!['project-3']).toStrictEqual(before.importers!['project-3'])
+  for (const depPath of ['is-positive@1.0.0', 'local-pkg@file:local-pkg', 'is-negative@1.0.0']) {
+    expect(before.snapshots![depPath]).toBeDefined()
+    expect(lockfile.snapshots![depPath]).toStrictEqual(before.snapshots![depPath])
+  }
+  expect(fs.existsSync('project-3')).toBe(false)
+  if (nodeLinker === 'hoisted') {
+    for (const pkgName of ['local-pkg', 'is-negative']) {
+      expect(fs.existsSync(path.join('node_modules', pkgName))).toBe(false)
+    }
+    const currentLockfile = readYamlFileSync<LockfileFile>('node_modules/.pnpm/lock.yaml')
+    expect(currentLockfile.importers!['project-3']).toStrictEqual({})
+    for (const depPath of ['local-pkg@file:local-pkg', 'is-negative@1.0.0']) {
+      expect(currentLockfile.snapshots).not.toHaveProperty([depPath])
+    }
+  }
+})
+
 test('recursive install on workspace with custom lockfile-dir', async () => {
   preparePackages([
     {
@@ -797,4 +1194,82 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
   })
 
   projects['project-1'].has('is-positive')
+})
+
+test('recursive install installs a workspace project located in a parent directory of the workspace', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('project-1/workspace/pnpm-workspace.yaml', { packages: ['..'] })
+  const workspaceDir = path.resolve('project-1/workspace')
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(workspaceDir, []),
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    recursive: true,
+    workspaceDir,
+  })
+
+  expect(fs.existsSync('project-1/node_modules/is-positive/package.json')).toBe(true)
+  const lockfile = readYamlFileSync<LockfileFile>('project-1/workspace/pnpm-lock.yaml')
+  expect(Object.keys(lockfile.importers!['..']?.dependencies ?? {})).toStrictEqual(['is-positive'])
+})
+
+test('recursive install installs a workspace project that is a symlink to a directory outside the workspace', async () => {
+  preparePackages([
+    {
+      location: 'workspace',
+      package: { name: 'root', version: '1.0.0', private: true },
+    },
+    {
+      location: 'external/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: { 'is-positive': '1.0.0' },
+      },
+    },
+  ])
+  fs.mkdirSync('workspace/packages')
+  await symlinkDir('external/project-1', 'workspace/packages/project-1')
+  writeYamlFileSync('workspace/pnpm-workspace.yaml', { packages: ['packages/*'] })
+  const workspaceDir = path.resolve('workspace')
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(workspaceDir, []),
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    recursive: true,
+    workspaceDir,
+  })
+
+  expect(fs.existsSync('external/project-1/node_modules/is-positive/package.json')).toBe(true)
+  const lockfile = readYamlFileSync<LockfileFile>('workspace/pnpm-lock.yaml')
+  expect(Object.keys(lockfile.importers!).sort()).toStrictEqual(['.', 'packages/project-1'])
+
+  writeJsonFileSync('external/project-1/package.json', {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0', 'is-positive': '1.0.0' },
+  })
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(workspaceDir, [{ namePattern: 'root' }]),
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    recursive: true,
+    workspaceDir,
+  })
+
+  const lockfileAfterFilteredInstall = readYamlFileSync<LockfileFile>('workspace/pnpm-lock.yaml')
+  expect(Object.keys(lockfileAfterFilteredInstall.importers?.['packages/project-1']?.dependencies ?? {}).sort()).toStrictEqual(['is-negative', 'is-positive'])
 })

@@ -1,16 +1,41 @@
 use super::{
-    Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
-    classify, current_versions_from_importer, render_dependents, render_json, render_latest,
-    render_recursive_json, sort_outdated,
+    OutdatedDependencyOptions,
+    OutdatedInWorkspace,
+    OutdatedPackage,
+    render_json,
+    render_recursive_json,
+    render_recursive_table,
+    sort_outdated,
+    workspace::DependentProject,
+};
+use crate::cli_args::{
+    outdated::{
+        OutdatedFormat,
+        notes::with_notes,
+        query::current_versions_from_importer,
+        render::{
+            Change,
+            DEPENDENTS_COLUMN_WIDTH,
+            classify,
+            render_dependents,
+            render_latest,
+        },
+    },
+    release_notes::{
+        UpgradeNotes,
+        reader::VersionNote,
+    },
 };
 use node_semver::Version;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::DependencyGroup;
-use std::{collections::HashMap, path::PathBuf};
-use text_block_macros::text_block;
-
+use std::path::PathBuf;
 #[cfg(unix)]
-use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+use std::{
+    ffi::OsString,
+    os::unix::ffi::OsStringExt,
+};
+use text_block_macros::text_block;
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")
@@ -25,9 +50,7 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
         target: v(target),
         wanted: v(current),
         github_action: false,
-        deprecated: None,
-        homepage: None,
-        workspace: None,
+        metadata: crate::cli_args::outdated::query::OutdatedMetadata::default(),
     }
 }
 
@@ -37,7 +60,7 @@ fn pkg(name: &str, current: &str, target: &str, group: DependencyGroup) -> Outda
 // lockfile-pinned semver, so `collect_outdated` drops it before any
 // registry fetch even when its manifest specifier is a plain semver range.
 #[test]
-fn current_versions_omit_local_refs() {
+fn current_versions_record_local_refs_without_a_version() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"
         "importers:"
@@ -62,8 +85,10 @@ fn current_versions_omit_local_refs() {
         Lockfile::ROOT_IMPORTER_KEY,
         &[DependencyGroup::Dev],
     );
-    dbg!(&versions);
-    assert_eq!(versions, HashMap::from([("is-positive".to_string(), v("1.0.0"))]));
+    assert_eq!(versions.get("is-positive"), Some(&Some(v("1.0.0"))));
+    assert_eq!(versions.get("private-workspace-pkg"), Some(&None));
+    assert_eq!(versions.get("injected-pkg"), Some(&None));
+    assert_eq!(versions.get("workspace-pkg"), Some(&None));
 }
 
 #[test]
@@ -115,7 +140,10 @@ fn default_sort_orders_by_change_then_name() {
         pkg("feature-a", "1.0.0", "1.1.0", DependencyGroup::Prod),
     ];
     sort_outdated(&mut outdated, None);
-    let order: Vec<&str> = outdated.iter().map(|item| item.package_name.as_str()).collect();
+    let order: Vec<&str> = outdated
+        .iter()
+        .map(|item| item.package_name.as_str())
+        .collect();
     assert_eq!(order, vec!["fix-a", "fix-b", "feature-a", "breaking-z"]);
 }
 
@@ -139,7 +167,7 @@ fn json_report_has_expected_shape() {
 #[test]
 fn render_latest_outdated_and_deprecated() {
     let mut item = pkg("foo", "0.0.1", "1.0.0", DependencyGroup::Prod);
-    item.deprecated = Some("This package is deprecated".to_string());
+    item.metadata.deprecated = Some("This package is deprecated".to_string());
     let output = render_latest(&item);
     assert!(output.contains("1.0.0"), "shows the latest version: {output}");
     assert!(output.contains("(deprecated)"), "flags the deprecation: {output}");
@@ -164,24 +192,33 @@ fn border_columns(line: &str) -> Vec<usize> {
     let mut column = 0;
     while let Some(ch) = chars.next() {
         if ch == '\u{1b}' {
-            for esc in chars.by_ref() {
-                if esc.is_ascii_alphabetic() {
-                    break;
-                }
-            }
-        } else {
-            if VERTICAL_BORDERS.contains(&ch) {
-                columns.push(column);
-            }
-            column += 1;
+            skip_sgr_escape(&mut chars);
+            continue;
         }
+        if VERTICAL_BORDERS.contains(&ch) {
+            columns.push(column);
+        }
+        column += 1;
     }
     columns
 }
 
+/// Step past the rest of an ANSI escape sequence, which ends at its
+/// first alphabetic byte.
+fn skip_sgr_escape(chars: &mut std::str::Chars<'_>) {
+    for escape in chars.by_ref() {
+        if escape.is_ascii_alphabetic() {
+            break;
+        }
+    }
+}
+
 fn assert_borders_aligned(table: &str) {
     let mut rows = table.lines();
-    let expected = rows.next().map(border_columns).unwrap_or_default();
+    let expected = rows
+        .next()
+        .map(border_columns)
+        .unwrap_or_default();
     assert!(!expected.is_empty(), "expected box-drawing borders in:\n{table}");
     for row in table.lines() {
         assert_eq!(
@@ -195,8 +232,8 @@ fn assert_borders_aligned(table: &str) {
 // Enabling `tabled`'s `ansi` feature makes it size a colored cell by its
 // visible glyphs, not its escape bytes; without it the columns and borders
 // drift apart. Feed a modern-style table the kind of ANSI-colored cells the
-// `outdated` renderers emit — a highlighted version segment, a dim group
-// label, bright-blue headers — and confirm every vertical border lands on the
+// `outdated` renderers emit (a highlighted version segment, a dim group
+// label, bright-blue headers) and confirm every vertical border lands on the
 // same column. Coloring the cells directly (`owo_colors` unconditional
 // styling) rather than forcing the global color override keeps the test free
 // of process-global state, so it can't leak into or be perturbed by other
@@ -204,8 +241,10 @@ fn assert_borders_aligned(table: &str) {
 #[test]
 fn colored_table_borders_stay_aligned() {
     use owo_colors::OwoColorize;
-    use tabled::builder::Builder;
-    use tabled::settings::Style;
+    use tabled::{
+        builder::Builder,
+        settings::Style,
+    };
 
     let header = ["Package", "Current", "Latest"].map(|name| name.bright_blue().to_string());
     let rows = [
@@ -235,8 +274,8 @@ fn colored_table_borders_stay_aligned() {
 #[test]
 fn json_report_long_includes_latest_manifest() {
     let mut item = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
-    item.deprecated = Some("do not use".to_string());
-    item.homepage = Some("https://example.com".to_string());
+    item.metadata.deprecated = Some("do not use".to_string());
+    item.metadata.homepage = Some("https://example.com".to_string());
     let value: serde_json::Value =
         serde_json::from_str(&render_json(&[item], true)).expect("valid JSON");
     let manifest = &value["foo"]["latestManifest"];
@@ -259,6 +298,74 @@ fn dependent_names_are_sanitized_for_terminal_output() {
     assert_eq!(render_dependents(&entry), "app[2J");
 }
 
+// Mirrors the `getCellWidth(data, 3, 30)` clamp of pnpm 11's recursive
+// renderer in `pnpm11/deps/inspection/commands/src/outdated/recursive.ts`.
+// A dependency shared by a dozen workspace projects lists all of them in one
+// cell, which sizes the `Dependents` column past any terminal unless the cell
+// wraps.
+#[test]
+fn recursive_table_wraps_the_dependents_column() {
+    // The last dependent is one unbreakable name longer than the clamp, so the
+    // rendered column lands on exactly `DEPENDENTS_COLUMN_WIDTH` rather than on
+    // whatever width the shorter names happen to pack into.
+    let long_name = "example-workspace-package-with-a-name-past-the-clamp";
+    assert!(long_name.len() > DEPENDENTS_COLUMN_WIDTH);
+    let entry = OutdatedInWorkspace {
+        package: pkg("is-odd", "3.0.0", "3.0.1", DependencyGroup::Prod),
+        dependents: (1..=12)
+            .map(|index| DependentProject {
+                name: format!("example-workspace-package-{index:02}"),
+                location: PathBuf::from(format!("packages/pkg-{index:02}")),
+            })
+            .chain([DependentProject {
+                name: long_name.to_string(),
+                location: PathBuf::from("packages/pkg-long"),
+            }])
+            .collect(),
+    };
+
+    let table = render_recursive_table(&[entry], false);
+    println!("{table}");
+    assert_borders_aligned(&table);
+    assert_eq!(last_column_width(&table), DEPENDENTS_COLUMN_WIDTH);
+
+    let cells = last_column_cells(&table);
+    let (heading, wrapped) = cells.split_first().expect("a heading and one row");
+    assert_eq!(*heading, "Dependents");
+    assert!(wrapped.len() > 1, "the dependents cell must wrap onto several lines");
+
+    let rejoined = wrapped.concat();
+    for index in 1..=12 {
+        let name = format!("example-workspace-package-{index:02}");
+        assert!(rejoined.contains(&name), "wrapping must not drop {name}");
+    }
+    assert!(rejoined.contains(long_name), "wrapping must not drop {long_name}");
+}
+
+fn last_column_cells(table: &str) -> Vec<&str> {
+    table
+        .lines()
+        .filter_map(|line| line.rsplit('│').nth(1))
+        .map(str::trim)
+        .collect()
+}
+
+/// Content width of the table's rightmost column, excluding its border and
+/// padding.
+fn last_column_width(table: &str) -> usize {
+    const PADDING: usize = 2;
+    let borders = border_columns(
+        table
+            .lines()
+            .next()
+            .expect("top border"),
+    );
+    let [.., left, right] = borders[..] else {
+        panic!("expected at least two column boundaries in:\n{table}");
+    };
+    right - left - 1 - PADDING
+}
+
 #[cfg(unix)]
 #[test]
 fn recursive_json_replaces_invalid_utf8_in_locations() {
@@ -273,4 +380,176 @@ fn recursive_json_replaces_invalid_utf8_in_locations() {
     let value: serde_json::Value =
         serde_json::from_str(&render_recursive_json(&[entry], false)).expect("valid JSON");
     assert_eq!(value["foo"]["dependentPackages"][0]["location"], "packages/�-app");
+}
+
+#[test]
+fn recursive_json_preserves_multiple_entries_for_same_package() {
+    let entries = vec![
+        OutdatedInWorkspace {
+            package: pkg("is-negative", "1.0.0", "2.1.0", DependencyGroup::Prod),
+            dependents: vec![DependentProject {
+                name: "project-2".to_string(),
+                location: PathBuf::from("/path/to/project-2"),
+            }],
+        },
+        OutdatedInWorkspace {
+            package: pkg("is-negative", "1.0.0", "2.1.0", DependencyGroup::Dev),
+            dependents: vec![DependentProject {
+                name: "project-3".to_string(),
+                location: PathBuf::from("/path/to/project-3"),
+            }],
+        },
+        OutdatedInWorkspace {
+            package: pkg("is-positive", "1.0.0", "3.1.0", DependencyGroup::Prod),
+            dependents: vec![
+                DependentProject {
+                    name: "project-1".to_string(),
+                    location: PathBuf::from("/path/to/project-1"),
+                },
+                DependentProject {
+                    name: "project-3".to_string(),
+                    location: PathBuf::from("/path/to/project-3"),
+                },
+            ],
+        },
+        OutdatedInWorkspace {
+            package: pkg("is-positive", "2.0.0", "3.1.0", DependencyGroup::Prod),
+            dependents: vec![DependentProject {
+                name: "project-2".to_string(),
+                location: PathBuf::from("/path/to/project-2"),
+            }],
+        },
+        OutdatedInWorkspace {
+            package: pkg("single-dep", "1.0.0", "2.0.0", DependencyGroup::Prod),
+            dependents: vec![DependentProject {
+                name: "project-1".to_string(),
+                location: PathBuf::from("/path/to/project-1"),
+            }],
+        },
+    ];
+
+    let value: serde_json::Value =
+        serde_json::from_str(&render_recursive_json(&entries, false)).expect("valid JSON");
+
+    assert!(value.get("single-dep").is_some());
+    assert_eq!(value["single-dep"]["current"], "1.0.0");
+
+    assert!(value.get("is-negative@1.0.0").is_some());
+    assert_eq!(value["is-negative@1.0.0"]["dependencyType"], "dependencies");
+
+    assert!(value.get("is-negative@1.0.0 (dev)").is_some());
+    assert_eq!(value["is-negative@1.0.0 (dev)"]["dependencyType"], "devDependencies");
+
+    assert!(value.get("is-positive@1.0.0").is_some());
+    assert_eq!(value["is-positive@1.0.0"]["current"], "1.0.0");
+
+    assert!(value.get("is-positive@2.0.0").is_some());
+    assert_eq!(value["is-positive@2.0.0"]["current"], "2.0.0");
+}
+
+#[test]
+fn notes_go_into_the_json_entry_of_their_package() {
+    let packages = [
+        pkg("a", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        pkg("b", "1.0.0", "1.1.0", DependencyGroup::Prod),
+    ];
+    let refs: Vec<&OutdatedPackage> = packages.iter().collect();
+    let notes = [
+        None,
+        Some(UpgradeNotes {
+            versions: vec![VersionNote {
+                version: "1.1.0".into(),
+                text: Some("B.\u{1b}".into()),
+                publication: None,
+            }],
+            publications: Vec::new(),
+        }),
+    ];
+    let output =
+        with_notes(r#"{"a": {}, "b": {}}"#.to_owned(), OutdatedFormat::Json, &refs, &notes);
+    let report: serde_json::Value = serde_json::from_str(&output).expect("JSON");
+
+    assert_eq!(report["a"].get("releaseNotes"), None);
+    assert_eq!(report["b"]["releaseNotes"]["versions"][0]["notes"], "B.");
+
+    let text = with_notes("table".to_owned(), OutdatedFormat::Table, &refs, &notes);
+    assert_eq!(text, "table\n\nb 1.0.0 => 1.1.0\n  1.1.0:\n    B.");
+}
+
+/// Two aliases of one package at one version render as one JSON entry, so
+/// the notes of a later package still go into its own entry.
+#[test]
+fn notes_find_their_json_entry_when_two_packages_share_one() {
+    let mut alias_a = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    alias_a.alias = "a".to_owned();
+    let mut alias_b = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    alias_b.alias = "b".to_owned();
+    let packages = [alias_a, alias_b, pkg("bar", "1.0.0", "1.1.0", DependencyGroup::Prod)];
+    let refs: Vec<&OutdatedPackage> = packages.iter().collect();
+    let output = render_json(&packages, false);
+    let entries = serde_json::from_str::<serde_json::Value>(&output).expect("JSON");
+    assert_eq!(entries.as_object().map(serde_json::Map::len), Some(2), "{output}");
+    let notes = [
+        None,
+        None,
+        Some(UpgradeNotes {
+            versions: vec![VersionNote {
+                version: "1.1.0".into(),
+                text: Some("Bar.".into()),
+                publication: None,
+            }],
+            publications: Vec::new(),
+        }),
+    ];
+
+    let report: serde_json::Value =
+        serde_json::from_str(&with_notes(output, OutdatedFormat::Json, &refs, &notes))
+            .expect("JSON");
+
+    assert_eq!(report["bar"]["releaseNotes"]["versions"][0]["notes"], "Bar.");
+    let foo = report
+        .as_object()
+        .expect("object")
+        .iter()
+        .find(|(key, _)| key.starts_with("foo"))
+        .map(|(_, entry)| entry)
+        .expect("foo entry");
+    assert_eq!(foo.get("releaseNotes"), None);
+}
+
+/// The entry two packages share shows the last of them, so the notes of
+/// the earlier one, for another target, do not go into it.
+#[test]
+fn a_shared_json_entry_gets_only_the_notes_of_the_package_it_shows() {
+    let mut alias_a = pkg("foo", "1.0.0", "1.1.0", DependencyGroup::Prod);
+    alias_a.alias = "a".to_owned();
+    let mut alias_b = pkg("foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    alias_b.alias = "b".to_owned();
+    let packages = [alias_a, alias_b];
+    let refs: Vec<&OutdatedPackage> = packages.iter().collect();
+    let output = render_json(&packages, false);
+    let notes = [
+        Some(UpgradeNotes {
+            versions: vec![VersionNote {
+                version: "1.1.0".into(),
+                text: Some("Only a.".into()),
+                publication: None,
+            }],
+            publications: Vec::new(),
+        }),
+        None,
+    ];
+
+    let report: serde_json::Value =
+        serde_json::from_str(&with_notes(output, OutdatedFormat::Json, &refs, &notes))
+            .expect("JSON");
+
+    let entries = report.as_object().expect("object");
+    assert_eq!(entries.len(), 1, "{report}");
+    let (_, entry) = entries
+        .iter()
+        .next()
+        .expect("one entry");
+    assert_eq!(entry["latest"], "2.0.0", "the entry shows the later package: {report}");
+    assert_eq!(entry.get("releaseNotes"), None, "{report}");
 }

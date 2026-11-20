@@ -74,23 +74,54 @@ export type InitOptions =
     bare?: boolean
   }
 
+const MANIFEST_NAMES = ['package.json', 'package.json5', 'package.yaml']
+
+const MANIFEST_FIELD_PRIORITY = Object.fromEntries([
+  'name',
+  'version',
+  'private',
+  'description',
+  'main',
+  'scripts',
+  'keywords',
+  'author',
+  'license',
+  'devEngines',
+  'packageManager',
+].map((key, index) => [key, index]))
+
 export async function handler (opts: InitOptions, params?: string[]): Promise<string> {
   if (params?.length) {
     throw new PnpmError('INIT_ARG', 'init command does not accept any arguments', {
       hint: `Maybe you wanted to run "pnpm create ${params.join(' ')}"`,
     })
   }
-  // Using cwd instead of the dir option because the dir option
-  // is set to the first parent directory that has a package.json file
-  // But --dir option from cliOptions should be respected.
   const initDir = opts.cliOptions.dir ?? process.cwd()
-  const manifestPath = path.join(initDir, 'package.json')
-  if (fs.existsSync(manifestPath)) {
-    throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
+  assertNoManifestExists(initDir)
+
+  const packageJson = buildInitialManifest(opts)
+  if (shouldPinPackageManager(opts, initDir)) {
+    const version = await resolveVersionToPin({ ...opts, dir: initDir })
+    applyPackageManagerPin(packageJson, version)
   }
-  const isWorkspaceSubpackage = opts.workspaceDir != null &&
-    path.resolve(opts.workspaceDir) !== path.resolve(initDir)
-  const manifest: ProjectManifest = opts.bare
+
+  const sortedPackageJson = sortKeysByPriority({ priority: MANIFEST_FIELD_PRIORITY }, packageJson)
+  assertNoManifestExists(initDir)
+
+  const manifestPath = path.join(initDir, 'package.json')
+  await writeProjectManifest(manifestPath, sortedPackageJson, { indent: 2 })
+  return `Wrote to ${manifestPath}\n\n${JSON.stringify(sortedPackageJson, null, 2)}`
+}
+
+function assertNoManifestExists (dir: string): void {
+  const existing = MANIFEST_NAMES.find(name => fs.existsSync(path.join(dir, name)))
+  if (existing) {
+    throw new PnpmError('PACKAGE_JSON_EXISTS', `${existing} already exists`)
+  }
+}
+
+function buildInitialManifest (opts: InitOptions): ProjectManifest {
+  const base: ProjectManifest = opts.bare
     ? {}
     : {
       name: path.basename(process.cwd()),
@@ -106,52 +137,28 @@ export async function handler (opts: InitOptions, params?: string[]): Promise<st
     }
 
   if (opts.initType === 'module') {
-    manifest.type = opts.initType
+    base.type = opts.initType
   }
+  return { ...base, ...getInitConfig(opts) }
+}
 
-  const initConfig = getInitConfig(opts)
-  const packageJson = { ...manifest, ...initConfig }
-  if (opts.initPackageManager && !isWorkspaceSubpackage) {
-    const version = await resolveVersionToPin({ ...opts, dir: initDir })
-    packageJson.devEngines = {
-      ...packageJson.devEngines,
-      packageManager: {
-        name: 'pnpm',
-        version,
-        onFail: 'download',
-      },
-    }
-    // Corepack reads only "packageManager", so the pin is written to both
-    // fields. They must stay in sync: a mismatch makes pnpm warn and ignore
-    // the legacy field.
-    packageJson.packageManager = `pnpm@${version}`
-  }
-  const priority = Object.fromEntries([
-    'name',
-    'version',
-    'private',
-    'description',
-    'main',
-    'scripts',
-    'keywords',
-    'author',
-    'license',
-    'devEngines',
-    'packageManager',
-  ].map((key, index) => [key, index]))
-  const sortedPackageJson = sortKeysByPriority({ priority }, packageJson)
-  // Checked again right before the write, not only on entry: the pin lookup
-  // above waits on a registry, and a manifest that appeared during that wait
-  // must not be overwritten.
-  if (fs.existsSync(manifestPath)) {
-    throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
-  }
-  await writeProjectManifest(manifestPath, sortedPackageJson, {
-    indent: 2,
-  })
-  return `Wrote to ${manifestPath}
+function shouldPinPackageManager (opts: InitOptions, initDir: string): boolean {
+  if (!opts.initPackageManager) return false
+  const isWorkspaceSubpackage = opts.workspaceDir != null &&
+    path.resolve(opts.workspaceDir) !== path.resolve(initDir)
+  return !isWorkspaceSubpackage
+}
 
-${JSON.stringify(sortedPackageJson, null, 2)}`
+function applyPackageManagerPin (packageJson: ProjectManifest, version: string): void {
+  packageJson.devEngines = {
+    ...packageJson.devEngines,
+    packageManager: {
+      name: 'pnpm',
+      version,
+      onFail: 'download',
+    },
+  }
+  packageJson.packageManager = `pnpm@${version}`
 }
 
 /**

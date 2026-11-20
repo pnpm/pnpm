@@ -1,10 +1,13 @@
 use std::path::PathBuf;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// Errors of the versioning engine. Codes and messages match the TypeScript
-/// implementation's `PnpmError`s — they are part of the shared CLI contract.
+/// implementation's `PnpmError`s; they are part of the shared CLI contract.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum VersioningError {
     #[display("Change intent file {} has no YAML frontmatter", file_path.display())]
@@ -116,6 +119,20 @@ pub enum VersioningError {
     #[diagnostic(code(ERR_PNPM_VERSIONING_MAX_BUMP_EXCEEDED))]
     MaxBumpExceeded { pkg_name: String, bump_type: String, max_bump: String, raised_by: String },
 
+    #[display(
+        "The release notes composed for {} would form one publication across several registries declared with serverType: pnpr ({}), but a publication reaches one registry",
+        members.join(", "),
+        registries.join(", ")
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_RELEASE_NOTES_SEVERAL_REGISTRIES),
+        help("Version the packages of each registry on their own with --filter.")
+    )]
+    PublicationSeveralRegistries { members: Vec<String>, registries: Vec<String> },
+
+    #[diagnostic(code(ERR_PNPM_VERSIONING_INVARIANTS_VIOLATED))]
+    InvariantsViolated { message: String },
+
     #[display("Failed to read {}: {source}", path.display())]
     #[diagnostic(code(ERR_PNPM_VERSIONING_READ_ERROR))]
     Read { path: PathBuf, source: std::io::Error },
@@ -128,7 +145,6 @@ pub enum VersioningError {
     #[diagnostic(code(ERR_PNPM_VERSIONING_REMOVE_ERROR))]
     Remove { path: PathBuf, source: std::io::Error },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Manifest(pnpm_package_manifest::PackageManifestError),
 }

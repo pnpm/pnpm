@@ -1,29 +1,35 @@
 import path from 'node:path'
 
 import { readProjectManifest } from '@pnpm/cli.utils'
-import { type Config, types as allTypes } from '@pnpm/config.reader'
+import { type Config, createProjectModulesDirResolver, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
 import { isGitRepo, isWorkingTreeClean } from '@pnpm/network.git-utils'
 import {
+  type AppliedRelease,
   applyReleasePlan,
   type ApplyReleasePlanOptions,
   assembleReleasePlan,
   changelogStorage,
+  type PlannedRelease,
+  privateProjectDirs,
   readChangeIntents,
   readLedger,
+  type ReleasePlan,
   toProjectDir,
 } from '@pnpm/releasing.versioning'
 import type { Project, ProjectsGraph } from '@pnpm/types'
 import { safeExeca as execa } from 'execa'
 import { pick } from 'ramda'
-import { renderHelp } from 'render-help'
 import { inc, valid } from 'semver'
 
 import { renderReleasePlan, toWorkspaceProjects } from '../change/index.js'
 import { changelogHasSection, fetchPublishedChangelog } from '../publish/previousChangelog.js'
 import { publishedNameByManifestName } from '../publishedNames.js'
 import { type CheckVersionPublished, resolveUnpublishedDirs } from '../resolveUnpublishedDirs.js'
+import { help } from './help.js'
+import { runVersionLifecycleHook, type VersionChange, type VersionLifecycleOptions } from './lifecycle.js'
+
+export { help }
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -31,6 +37,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'commit-hooks',
     'git-checks',
     'git-tag-version',
+    'ignore-scripts',
     'message',
     'sign-git-tag',
     'tag-version-prefix',
@@ -54,80 +61,6 @@ type BumpType = typeof BUMP_TYPES[number]
 
 function isBumpType (value: string): value is BumpType {
   return (BUMP_TYPES as readonly string[]).includes(value)
-}
-
-export function help (): string {
-  return renderHelp({
-    description: 'Bumps the version of a package.',
-    usages: [
-      'pnpm version <newversion>',
-      'pnpm version <major|minor|patch|premajor|preminor|prepatch|prerelease|from-git>',
-      'pnpm version -r [--dry-run]',
-    ],
-    descriptionLists: [
-      {
-        title: 'Options',
-        list: [
-          {
-            description: "Don't check if working tree is clean",
-            name: '--no-git-checks',
-          },
-          {
-            description: 'Sets the prerelease identifier (e.g. alpha, beta, rc)',
-            name: '--preid <preid>',
-          },
-          {
-            description: 'Sets the tag prefix. Default is "v". Set to empty string to remove the prefix.',
-            name: '--tag-version-prefix <prefix>',
-          },
-          {
-            description: 'Allow bumping to the same version',
-            name: '--allow-same-version',
-          },
-          {
-            description: 'Commit message. "%s" is replaced with the new version. Default is "%s".',
-            name: '--message <message>',
-          },
-          {
-            description: "Don't create a commit or tag for the version bump. Git commits and tags are always skipped in recursive mode.",
-            name: '--no-git-tag-version',
-          },
-          {
-            description: 'Skip running git commit hooks when committing the version bump',
-            name: '--no-commit-hooks',
-          },
-          {
-            description: 'Sign the generated git tag with GPG',
-            name: '--sign-git-tag',
-          },
-          {
-            description: 'Filter packages by name (glob pattern)',
-            name: '--filter <pattern>',
-          },
-          {
-            description: 'Show information in JSON format',
-            name: '--json',
-          },
-          {
-            description: 'Apply command to all packages in workspace. Without a version argument, consumes the pending change intents from .changeset/ and applies the resulting release plan',
-            name: '--recursive',
-          },
-          {
-            description: 'Print what the command would do without changing anything',
-            name: '--dry-run',
-          },
-        ],
-      },
-    ],
-  })
-}
-
-interface VersionChange {
-  name: string
-  currentVersion: string
-  newVersion: string
-  path: string
-  manifestPath: string
 }
 
 interface VersionHandlerOptions extends Config {
@@ -161,37 +94,11 @@ export async function handler (
   }
 
   const gitCwd = opts.workspaceDir ?? opts.dir
-  const explicitVersion = rawBump === 'from-git'
-    ? await versionFromGit(gitCwd, opts.tagVersionPrefix)
-    : valid(rawBump)
-  if (!explicitVersion && !isBumpType(rawBump)) {
-    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git`)
-  }
+  const explicitVersion = await resolveExplicitVersion(rawBump, { cwd: gitCwd, tagVersionPrefix: opts.tagVersionPrefix })
+  await assertCleanWorkingTree(opts, gitCwd)
 
-  if (!opts.dryRun && opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
-    if (!await isWorkingTreeClean({ cwd: gitCwd })) {
-      throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
-    }
-  }
-
-  const changes: VersionChange[] = []
-
-  if (opts.recursive) {
-    const pkgDirs = Object.keys(opts.selectedProjectsGraph ?? {})
-    const bumpResults = await Promise.all(
-      pkgDirs.map(pkgDir => bumpPackageVersion(pkgDir, rawBump, explicitVersion, opts))
-    )
-    for (const change of bumpResults) {
-      if (change) {
-        changes.push(change)
-      }
-    }
-  } else {
-    const change = await bumpPackageVersion(opts.dir, rawBump, explicitVersion, opts)
-    if (change) {
-      changes.push(change)
-    }
-  }
+  const lifecycleOpts = { ...opts, modulesDirFor: createProjectModulesDirResolver(opts) }
+  const changes = await bumpSelectedPackageVersions({ rawBump, explicitVersion, opts: lifecycleOpts })
 
   if (changes.length === 0) {
     throw new PnpmError('NO_PACKAGES_TO_VERSION', 'No packages to version')
@@ -204,8 +111,44 @@ export async function handler (
     await commitAndTag(changes, { ...opts, cwd: gitCwd })
   }
 
-  await Promise.all(changes.map(change => runVersionLifecycleHook('postversion', change, opts)))
+  await Promise.all(changes.map(change => runVersionLifecycleHook('postversion', change, lifecycleOpts)))
 
+  return renderVersionChanges(changes, opts)
+}
+
+/**
+ * The exact version `rawBump` names, or `null` when it is a bump type.
+ * Throws when it is neither.
+ */
+async function resolveExplicitVersion (
+  rawBump: string,
+  { cwd, tagVersionPrefix }: { cwd: string, tagVersionPrefix?: string }
+): Promise<string | null> {
+  const explicitVersion = rawBump === 'from-git'
+    ? await versionFromGit(cwd, tagVersionPrefix)
+    : valid(rawBump)
+  if (!explicitVersion && !isBumpType(rawBump)) {
+    throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git`)
+  }
+  return explicitVersion
+}
+
+async function assertCleanWorkingTree (opts: VersionHandlerOptions, cwd: string): Promise<void> {
+  if (opts.dryRun || opts.gitChecks === false || !await isGitRepo({ cwd })) return
+  if (!await isWorkingTreeClean({ cwd })) {
+    throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
+  }
+}
+
+async function bumpSelectedPackageVersions ({ rawBump, explicitVersion, opts }: Omit<BumpPackageVersionOptions, 'pkgDir'>): Promise<VersionChange[]> {
+  const pkgDirs = opts.recursive ? Object.keys(opts.selectedProjectsGraph ?? {}) : [opts.dir]
+  const bumpResults = await Promise.all(
+    pkgDirs.map(pkgDir => bumpPackageVersion({ pkgDir, rawBump, explicitVersion, opts }))
+  )
+  return bumpResults.filter((change): change is VersionChange => change != null)
+}
+
+function renderVersionChanges (changes: VersionChange[], opts: Pick<VersionHandlerOptions, 'dryRun' | 'json'>): string {
   if (opts.json) {
     return JSON.stringify(changes.map(({ manifestPath: _manifestPath, ...change }) => change), null, 2)
   }
@@ -224,12 +167,67 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     throw new PnpmError('WORKSPACE_ONLY', 'The bare "pnpm version -r" form consumes change intents and is only supported in a workspace')
   }
 
-  if (!opts.dryRun && opts.gitChecks !== false && await isGitRepo({ cwd: workspaceDir })) {
-    if (!await isWorkingTreeClean({ cwd: workspaceDir })) {
-      throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
+  await assertCleanWorkingTree(opts, workspaceDir)
+
+  const { applyOpts, filter, plan } = await planReleaseFromIntents(opts, workspaceDir)
+
+  if (plan.releases.length === 0) {
+    // A full (unfiltered) run garbage-collects the intent files an empty plan
+    // leaves behind: declined ("none"-only) intents and files a merge
+    // resurrected after every named package had already consumed them. A
+    // filtered run must not — "nothing pending in this scope" is no reason to
+    // delete prose belonging to packages outside the filter.
+    if (!opts.dryRun && filter == null) {
+      await applyReleasePlan(plan, applyOpts)
     }
+    return opts.json ? '[]' : 'No pending changes. Record one with "pnpm change".'
   }
 
+  if (opts.dryRun) {
+    if (opts.json) {
+      const planned: AppliedRelease[] = plan.releases.map((release) => ({
+        name: release.name,
+        currentVersion: release.currentVersion,
+        newVersion: release.newVersion,
+      }))
+      return JSON.stringify(planned, null, 2)
+    }
+    return renderReleasePlan(plan)
+  }
+
+  const lifecycleOpts: VersionLifecycleOptions = { ...opts, modulesDirFor: createProjectModulesDirResolver(opts) }
+  await runReleaseLifecycleHooks('preversion', plan.releases, lifecycleOpts)
+  const applied = await applyReleasePlan(plan, applyOpts)
+  await runReleaseLifecycleHooks('version', plan.releases, lifecycleOpts)
+  await runReleaseLifecycleHooks('postversion', plan.releases, lifecycleOpts)
+  return renderAppliedReleases(applied, opts.json)
+}
+
+async function runReleaseLifecycleHooks (
+  stage: 'preversion' | 'version' | 'postversion',
+  releases: PlannedRelease[],
+  opts: VersionLifecycleOptions
+): Promise<void> {
+  for (const release of releases) {
+    const newVersion = stage === 'preversion' ? release.currentVersion : release.newVersion
+    // eslint-disable-next-line no-await-in-loop -- lifecycle scripts run one project at a time, in release plan order
+    await runVersionLifecycleHook(stage, {
+      name: release.name,
+      currentVersion: release.currentVersion,
+      newVersion,
+      path: release.rootDir,
+      manifestPath: path.join(release.rootDir, 'package.json'),
+    }, opts)
+  }
+}
+
+interface IntentReleasePlan {
+  applyOpts: ApplyReleasePlanOptions
+  filter?: Set<string>
+  plan: ReleasePlan
+}
+
+async function planReleaseFromIntents (opts: VersionHandlerOptions, workspaceDir: string): Promise<IntentReleasePlan> {
   const intents = await readChangeIntents(workspaceDir)
   const ledger = await readLedger(workspaceDir)
   const projects = toWorkspaceProjects(opts.allProjects ?? [])
@@ -247,7 +245,8 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     enforceWorkspaceProtocol: true,
   }
   const publishedNames = publishedNameByManifestName(projects)
-  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames })
+  const privateDirs = privateProjectDirs(projects, workspaceDir)
+  const unpublishedDirs = await resolveUnpublishedDirs(assembleReleasePlan(baseArgs), { ...opts, publishedNames, privateDirs })
   const plan = assembleReleasePlan({ ...baseArgs, unpublishedDirs })
 
   const applyOpts: ApplyReleasePlanOptions = {
@@ -257,26 +256,11 @@ async function releaseFromIntents (opts: VersionHandlerOptions): Promise<string>
     versioning: opts.versioning,
     verifyPublished: buildVerifyPublished(opts, publishedNames),
   }
+  return { applyOpts, filter, plan }
+}
 
-  if (plan.releases.length === 0) {
-    // A full (unfiltered) run garbage-collects the intent files an empty plan
-    // leaves behind: declined ("none"-only) intents and files a merge
-    // resurrected after every named package had already consumed them. A
-    // filtered run must not — "nothing pending in this scope" is no reason to
-    // delete prose belonging to packages outside the filter.
-    if (!opts.dryRun && filter == null) {
-      await applyReleasePlan(plan, applyOpts)
-    }
-    return opts.json ? '[]' : 'No pending changes. Record one with "pnpm change".'
-  }
-
-  if (opts.dryRun) {
-    return renderReleasePlan(plan)
-  }
-
-  const applied = await applyReleasePlan(plan, applyOpts)
-
-  if (opts.json) {
+function renderAppliedReleases (applied: AppliedRelease[], json: boolean | undefined): string {
+  if (json) {
     return JSON.stringify(applied, null, 2)
   }
   let output = 'Versions applied:\n'
@@ -330,12 +314,14 @@ async function versionFromGit (cwd: string, tagVersionPrefix = 'v'): Promise<str
   return version
 }
 
-async function bumpPackageVersion (
-  pkgDir: string,
-  rawBump: string,
-  explicitVersion: string | null,
-  opts: VersionHandlerOptions
-): Promise<VersionChange | null> {
+interface BumpPackageVersionOptions {
+  pkgDir: string
+  rawBump: string
+  explicitVersion: string | null
+  opts: VersionHandlerOptions & VersionLifecycleOptions
+}
+
+async function bumpPackageVersion ({ pkgDir, rawBump, explicitVersion, opts }: BumpPackageVersionOptions): Promise<VersionChange | null> {
   const { manifest, writeProjectManifest, fileName } = await readProjectManifest(pkgDir)
 
   if (!manifest.name || !manifest.version) {
@@ -382,27 +368,6 @@ async function bumpPackageVersion (
   await runVersionLifecycleHook('version', change, opts)
 
   return change
-}
-
-async function runVersionLifecycleHook (stage: 'preversion' | 'version' | 'postversion', change: VersionChange, opts: VersionHandlerOptions): Promise<void> {
-  if (opts.ignoreScripts === true || opts.dryRun) return
-
-  const { manifest } = await readProjectManifest(change.path)
-  const lifecycleOpts: RunLifecycleHookOptions = {
-    depPath: change.name,
-    extraBinPaths: opts.extraBinPaths,
-    extraEnv: opts.extraEnv,
-    initCwd: opts.dir,
-    pkgRoot: change.path,
-    rootModulesDir: path.join(change.path, opts.modulesDir ?? 'node_modules'),
-    scriptShell: opts.scriptShell,
-    scriptsPrependNodePath: opts.scriptsPrependNodePath,
-    shellEmulator: opts.shellEmulator,
-    stdio: 'inherit',
-    unsafePerm: opts.unsafePerm ?? false,
-    userAgent: opts.userAgent,
-  }
-  await runLifecycleHook(stage, manifest, lifecycleOpts)
 }
 
 async function commitAndTag (changes: VersionChange[], opts: VersionHandlerOptions & { cwd: string }): Promise<void> {

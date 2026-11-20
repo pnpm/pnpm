@@ -1,42 +1,22 @@
-mod catalog_snapshots;
-mod comver;
-mod env_lockfile;
-mod filter_by_importers;
-mod freshness;
-mod git_branch_lockfile;
-mod lazy_lockfile;
-mod load_lockfile;
-mod lockfile_version;
-mod merge_lockfile_changes;
-mod package_metadata;
-mod pkg_id_with_patch_hash;
-mod pkg_name;
-mod pkg_name_suffix;
-mod pkg_name_ver;
-mod pkg_name_ver_peer;
-mod pkg_ver_peer;
-mod project_snapshot;
-mod prune_time;
-mod prune_undeclared_importer_deps;
-mod resolution;
-mod resolved_dependency;
-mod save_lockfile;
-mod serialize_yaml;
-mod snapshot_dep_ref;
-mod snapshot_entry;
-mod yaml_documents;
-mod yaml_emit;
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 pub use catalog_snapshots::*;
 pub use comver::*;
 pub use env_lockfile::*;
 pub use filter_by_importers::*;
 pub use freshness::*;
+pub use injected_deps::*;
+pub use integrity_target::*;
 pub use lazy_lockfile::*;
 pub use load_lockfile::*;
 pub use lockfile_version::*;
 pub use merge_lockfile_changes::*;
+pub use next_format::*;
 pub use package_metadata::*;
+pub use patched_dep_paths::*;
+pub use peer_bindings::*;
+pub use peer_edges::*;
 pub use pkg_id_with_patch_hash::*;
 pub use pkg_name::*;
 pub use pkg_name_suffix::*;
@@ -44,18 +24,70 @@ pub use pkg_name_ver::*;
 pub use pkg_name_ver_peer::*;
 pub use pkg_ver_peer::*;
 pub use project_snapshot::*;
+pub use prune_env_lockfile::*;
 pub use prune_time::*;
 pub use prune_undeclared_importer_deps::*;
 pub use resolution::*;
+pub use resolution_settings::*;
 pub use resolved_dependency::*;
+pub use restore_moved_links::*;
 pub use save_lockfile::*;
 pub use snapshot_dep_ref::*;
 pub use snapshot_entry::*;
 pub use yaml_documents::*;
 
+mod catalog_snapshots;
+mod comver;
+mod env_lockfile;
+mod filter_by_importers;
+mod freshness;
+mod git_branch_lockfile;
+mod git_merge_file;
+mod implied_version;
+mod injected_deps;
+mod integrity_target;
+mod json_document;
+mod lazy_lockfile;
+mod load_lockfile;
+mod lockfile_version;
+mod merge_lockfile_changes;
+mod next_format;
+mod package_metadata;
+mod parallel_parse;
+mod patched_dep_paths;
+mod peer_bindings;
+mod peer_edges;
+mod pkg_id_with_patch_hash;
+mod pkg_name;
+mod pkg_name_suffix;
+mod pkg_name_ver;
+mod pkg_name_ver_peer;
+mod pkg_ver_peer;
+mod project_snapshot;
+mod prune_env_lockfile;
+mod prune_time;
+mod prune_undeclared_importer_deps;
+mod resolution;
+mod resolution_settings;
+mod resolved_dependency;
+mod restore_moved_links;
+mod save_lockfile;
+mod serialize_yaml;
+mod snapshot_dep_ref;
+mod snapshot_entry;
+mod yaml_documents;
+mod yaml_emit;
+
 use indexmap::IndexMap;
-use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// Package key used by the `packages:` and `snapshots:` maps.
 ///
@@ -63,13 +95,18 @@ use std::collections::{BTreeMap, HashMap};
 pub type PackageKey = PkgNameVerPeer;
 
 /// Default `peersSuffixMaxLength` an unset `settings.peersSuffixMaxLength`
-/// in the lockfile decays to. This value is also the threshold below which
-/// the field is stripped on serialization: when `peersSuffixMaxLength`
-/// equals this default it is omitted from the serialized file.
+/// in the lockfile decays to.
 pub const DEFAULT_PEERS_SUFFIX_MAX_LENGTH: u64 = 1000;
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the `settings` block of pnpm-lock.yaml."
+    )
+)]
 pub struct LockfileSettings {
     pub auto_install_peers: bool,
     /// Recorded as `Some(true)` when the install ran with
@@ -80,8 +117,17 @@ pub struct LockfileSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dedupe_peers: Option<bool>,
     pub exclude_links_from_lockfile: bool,
+    /// Recorded as `Some(true)` when the install ran with
+    /// `addMissingPeerTypes` on, omitted otherwise, like
+    /// [`Self::dedupe_peers`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub add_missing_peer_types: Option<bool>,
+    /// Recorded as `Some(true)` while `projectScopedOptionalPeers` takes
+    /// effect, omitted otherwise, like [`Self::dedupe_peers`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_scoped_optional_peers: Option<bool>,
     /// `injectWorkspacePackages` recorded by the install that wrote
-    /// this lockfile. `false` round-trips as a missing key — the key
+    /// this lockfile. `false` round-trips as a missing key, the key
     /// is stripped on save so historic v9 lockfiles (which never
     /// carried it) stay byte-identical after a re-save. The drift
     /// gate reads the value as a boolean, so a missing key and `false`
@@ -93,22 +139,71 @@ pub struct LockfileSettings {
     /// so existing lockfiles round-trip byte-for-byte.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub peers_suffix_max_length: Option<u64>,
+    /// Recorded as `Some(Tar)` when the lockfile's package tarball
+    /// entries pin tar hashes, omitted otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub integrity_target: Option<IntegrityTarget>,
+    #[serde(flatten)]
+    pub resolution: ResolutionSettings,
+}
+
+impl LockfileSettings {
+    /// Which hash the lockfile's package tarball entries pin.
+    #[must_use]
+    pub fn integrity_target(&self) -> IntegrityTarget {
+        self.integrity_target.unwrap_or_default()
+    }
+}
+
+impl Lockfile {
+    /// Which hash the lockfile's package tarball entries pin. A lockfile
+    /// without a `settings` block pins the resource.
+    #[must_use]
+    pub fn integrity_target(&self) -> IntegrityTarget {
+        self.settings
+            .as_ref()
+            .map(LockfileSettings::integrity_target)
+            .unwrap_or_default()
+    }
 }
 
 /// Top-level lockfile keys pnpm itself does not define, in the order they
 /// were read. See [`Lockfile::extra`].
 pub type LockfileExtra = IndexMap<String, serde_json::Value>;
 
-/// A pnpm lockfile using a supported wire format.
+/// A pnpm lockfile, with peer-suffixed keys.
+pub type Lockfile = LockfileDocument;
+
+/// A lockfile document. `Importer`, `Snapshot` and `Settings` are the shapes
+/// of the parts the formats differ in. [`Lockfile`] holds the peer-suffixed ones,
+/// and [`NextLockfile`] those of [the next format](crate::NEXT_LOCKFILE_MAJOR).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Lockfile {
+#[serde(bound(
+    serialize = "Importer: Serialize + Sync, Snapshot: Serialize + Sync, Package: Serialize + Sync, \
+                 Settings: Serialize",
+    deserialize = "Importer: Deserialize<'de>, Snapshot: Deserialize<'de>, Package: Deserialize<'de>, \
+                   Settings: Deserialize<'de>",
+))]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the pnpm-lock.yaml format."
+    )
+)]
+pub struct LockfileDocument<
+    Importer = ProjectSnapshot,
+    Snapshot = SnapshotEntry,
+    Package = PackageMetadata,
+    Settings = LockfileSettings,
+> {
     pub lockfile_version: LockfileVersion<9>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub settings: Option<LockfileSettings>,
+    pub settings: Option<Settings>,
 
-    /// `catalogs:` snapshot — the resolved specifier + version for every
+    /// `catalogs:` snapshot, the resolved specifier + version for every
     /// catalog-referenced direct dependency. Sits between `settings` and
     /// `overrides` in the root-key order, so the field is declared here
     /// to serialize in the same position.
@@ -117,7 +212,7 @@ pub struct Lockfile {
 
     /// `overrides` recorded by the install that wrote this lockfile.
     /// Kept in an [`IndexMap`] so the entries serialize in the order
-    /// the user declared them — this map is **not** sorted (it is the
+    /// the user declared them; this map is **not** sorted (it is the
     /// one lockfile map left out of the root-key sort), so preserving
     /// insertion order is what keeps the lockfile byte-stable.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -128,25 +223,24 @@ pub struct Lockfile {
     /// install, drift between this value and the freshly-computed
     /// checksum of `Config::package_extensions` is what
     /// [`crate::check_lockfile_settings`] flags as outdated. `None`
-    /// when no `packageExtensions` were configured at write time — the
+    /// when no `packageExtensions` were configured at write time, the
     /// checksum short-circuits to nothing on empty input, so an empty
     /// `packageExtensions` round-trips identically.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package_extensions_checksum: Option<String>,
 
     /// `pnpmfileChecksum` recorded by the install that wrote this
-    /// lockfile — the normalized-content hash of the project's
+    /// lockfile, the normalized-content hash of the project's
     /// `.pnpmfile.{cjs,mjs}` when it exports hooks. Top-level in the v9
     /// wire shape, serialized right after `packageExtensionsChecksum`
     /// in the root-key order. `None` when the project has no pnpmfile
-    /// (or one without a `hooks` export) — the key is omitted in that
-    /// case, and the `skip_serializing_if` below does the same so the
-    /// lockfile round-trips byte-for-byte.
+    /// (or one without a `hooks` export), the key is omitted in that
+    /// case.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pnpmfile_checksum: Option<String>,
 
     /// `ignoredOptionalDependencies` recorded by the install that
-    /// wrote this lockfile. Top-level in the v9 wire shape —
+    /// wrote this lockfile. Top-level in the v9 wire shape,
     /// **not** inside `settings`. On a subsequent install, drift
     /// between this set and `Config::ignored_optional_dependencies` is
     /// what `satisfies_package_manifest` flags as outdated.
@@ -159,9 +253,6 @@ pub struct Lockfile {
     /// patch file. Top-level in the v9 wire shape, sitting between
     /// `pnpmfileChecksum` and `importers` in the root-key order.
     /// A [`BTreeMap`] so the entries serialize sorted by key.
-    ///
-    /// Loading also accepts the `{hash, path}` shape pnpm 10 wrote,
-    /// collapsing it to the hash.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -174,21 +265,23 @@ pub struct Lockfile {
         skip_serializing_if = "HashMap::is_empty",
         serialize_with = "crate::serialize_yaml::sorted_map"
     )]
-    pub importers: HashMap<String, ProjectSnapshot>,
+    /// `importers` in today's format and `projects` in the next.
+    #[serde(alias = "projects")]
+    pub importers: HashMap<String, Importer>,
 
     #[serde(
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub packages: Option<HashMap<PackageKey, PackageMetadata>>,
+    pub packages: Option<HashMap<PackageKey, Package>>,
 
     #[serde(
         skip_serializing_if = "Option::is_none",
         serialize_with = "crate::serialize_yaml::sorted_map_opt"
     )]
-    pub snapshots: Option<HashMap<PackageKey, SnapshotEntry>>,
+    pub snapshots: Option<HashMap<PackageKey, Snapshot>>,
 
-    /// `time:` — the publish date of every direct dependency, recorded
+    /// `time:`: the publish date of every direct dependency, recorded
     /// by a `resolutionMode: time-based` install. It is the fallback
     /// source of a package's publish date when the registry's
     /// abbreviated metadata carries none, so the cutoff a later
@@ -203,8 +296,8 @@ pub struct Lockfile {
     /// round trip does not delete them.
     ///
     /// Tools that drive pnpm programmatically record their own state
-    /// alongside the lockfile — Bit writes a `bit:` block listing the
-    /// dependencies whose build scripts it has approved — and a lockfile
+    /// alongside the lockfile. Bit writes a `bit:` block listing the
+    /// dependencies whose build scripts it has approved, and a lockfile
     /// rewrite that silently dropped it would lose that state on every
     /// install. Serialized last, after every key pnpm defines, which is
     /// where such a block already sits in the files pnpm's own consumers
@@ -213,7 +306,64 @@ pub struct Lockfile {
     pub extra: LockfileExtra,
 }
 
+/// One lockfile's `packages:` and `snapshots:` maps, borrowed together.
+///
+/// The two are read as a pair everywhere they are read at all: a
+/// snapshot names the wiring, the matching `packages` entry carries the
+/// metadata for the same key. Passing them as one value is what keeps a
+/// caller from pairing one lockfile's snapshots with another's
+/// metadata, and it lets a phase that must be handed *the same* maps
+/// twice (`CasPrefetch` derives a cache key per snapshot that
+/// `CreateVirtualStore` then consumes) take one argument instead of
+/// two that must agree.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct LockfileEntries<'a> {
+    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+}
+
+impl<'a> From<&'a Lockfile> for LockfileEntries<'a> {
+    fn from(lockfile: &'a Lockfile) -> Self {
+        LockfileEntries {
+            packages: lockfile.packages.as_ref(),
+            snapshots: lockfile.snapshots.as_ref(),
+        }
+    }
+}
+
+impl<'a> LockfileEntries<'a> {
+    /// Entries recorded by the previous install, including under `--force`.
+    /// Consumers decide whether to reuse packages; cleanup always needs the
+    /// previous dependency records. Empty when no current lockfile exists.
+    pub fn of_previous_install(lockfile: Option<&'a Lockfile>) -> Self {
+        lockfile.map(LockfileEntries::from).unwrap_or_default()
+    }
+}
+
 impl Lockfile {
+    const UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK: &'static str = "untrackedPnpmfileReadPackageHook";
+
+    #[must_use]
+    pub fn untracked_pnpmfile_read_package_hook(&self) -> Option<bool> {
+        self.extra
+            .get(Self::UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK)
+            .and_then(serde_json::Value::as_bool)
+    }
+
+    pub fn set_untracked_pnpmfile_read_package_hook(&mut self, value: Option<bool>) {
+        match value {
+            Some(value) => {
+                self.extra.insert(
+                    Self::UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK.to_string(),
+                    serde_json::Value::Bool(value),
+                );
+            }
+            None => {
+                self.extra.shift_remove(Self::UNTRACKED_PNPMFILE_READ_PACKAGE_HOOK);
+            }
+        }
+    }
+
     /// Base file name of the lockfile.
     pub const FILE_NAME: &str = "pnpm-lock.yaml";
 
@@ -235,8 +385,6 @@ impl Lockfile {
                 metadata.cpu = None;
                 metadata.os = None;
                 metadata.libc = None;
-                metadata.deprecated = None;
-                metadata.has_bin = None;
                 metadata.prepare = None;
                 metadata.bundled_dependencies = None;
                 metadata.peer_dependencies = None;
@@ -266,16 +414,18 @@ impl Lockfile {
     /// and `dependencies` only, but its in-memory `specifiers` map
     /// spans every dependency group; pacquet's v9-inline model leaves
     /// `specifiers` unpopulated, so the equivalent check here inspects
-    /// all three group maps — otherwise a dev-only install would
+    /// all three group maps; otherwise a dev-only install would
     /// misread as empty and delete its current lockfile.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.importers.values().all(|importer| {
-            importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
-                && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
-                && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
-                && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
-        })
+        self.importers
+            .values()
+            .all(|importer| {
+                importer.specifiers.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.dependencies.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.dev_dependencies.as_ref().is_none_or(HashMap::is_empty)
+                    && importer.optional_dependencies.as_ref().is_none_or(HashMap::is_empty)
+            })
     }
 
     /// Defense-in-depth for pruned lockfiles (older `turbo prune --docker`,
@@ -295,7 +445,7 @@ impl Lockfile {
                     return None;
                 }
                 let VersionPart::File(path) = metadata_key.suffix.version() else { return None };
-                if is_local_tarball_path(path) {
+                if pnpm_local_spec::is_tarball_filename(path) {
                     return None;
                 }
                 let directory = path.clone();
@@ -307,46 +457,34 @@ impl Lockfile {
         }
         let packages = self.packages.get_or_insert_with(HashMap::new);
         for (key, directory_resolution) in to_insert {
-            packages.entry(key).or_insert_with(|| PackageMetadata {
-                resolution: LockfileResolution::Directory(directory_resolution),
-                version: None,
-                engines: None,
-                cpu: None,
-                os: None,
-                libc: None,
-                deprecated: None,
-                has_bin: None,
-                prepare: None,
-                bundled_dependencies: None,
-                peer_dependencies: None,
-                peer_dependencies_meta: None,
-            });
+            packages
+                .entry(key)
+                .or_insert_with(|| PackageMetadata {
+                    specifiers: None,
+                    resolution: LockfileResolution::Directory(directory_resolution),
+                    version: None,
+                    engines: None,
+                    cpu: None,
+                    os: None,
+                    libc: None,
+                    deprecated: None,
+                    has_bin: None,
+                    prepare: None,
+                    bundled_dependencies: None,
+                    peer_dependencies: None,
+                    peer_dependencies_meta: None,
+                });
         }
     }
-}
-
-/// Whether `path` ends in a tarball extension (`.tgz`, `.tar.gz`, or
-/// `.tar`, case-insensitively) — the directory-vs-tarball boundary the
-/// resolver applies to a `file:` spec at resolve time. Public so
-/// consumers classifying a `file:` snapshot key (such as the hoister's
-/// identity function) draw the same line.
-#[must_use]
-pub fn is_local_tarball_path(path: &str) -> bool {
-    let lower = path.as_bytes();
-    let ends_with_ci = |suffix: &str| {
-        let bytes = suffix.as_bytes();
-        lower.len() >= bytes.len() && lower[lower.len() - bytes.len()..].eq_ignore_ascii_case(bytes)
-    };
-    ends_with_ci(".tgz") || ends_with_ci(".tar.gz") || ends_with_ci(".tar")
 }
 
 /// Accepts both shapes a lockfile can carry for a `patchedDependencies`
 /// entry: the bare patch-file hash pnpm writes today, and the
 /// `{hash, path}` mapping pnpm 10 wrote. The mapping collapses to its
-/// hash — the path is redundant, since patch paths come from the
-/// project's `patchedDependencies` config — so a lockfile committed by
+/// hash (the path is redundant, since patch paths come from the
+/// project's `patchedDependencies` config) so a lockfile committed by
 /// pnpm 10 installs unchanged and normalizes the next time it is saved.
-fn deserialize_patched_dependencies<'de, Deser>(
+pub(crate) fn deserialize_patched_dependencies<'de, Deser>(
     deserializer: Deser,
 ) -> Result<Option<BTreeMap<String, String>>, Deser::Error>
 where

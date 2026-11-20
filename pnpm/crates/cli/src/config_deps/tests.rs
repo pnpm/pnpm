@@ -1,9 +1,299 @@
-use std::{fs, path::Path};
+use super::{
+    hooks::{
+        legacy_registries_warning,
+        warn_legacy_registries,
+    },
+    resolve_engine_version,
+    run_update_config_hooks,
+};
+use pnpm_config::{
+    Config,
+    Host,
+    NodeLinker,
+    PNPM_VERSION,
+    TrustPolicy,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+    sync::Mutex,
+};
 
-use pnpm_config::{Config, Host, PNPM_VERSION, TrustPolicy};
-use pnpm_reporter::SilentReporter;
+#[test]
+fn legacy_registries_warning_names_routes_left_unchanged() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": {
+            "@zz": "https://registry-a/",
+            "@other": "https://registry-a/",
+            "@jsr": "https://npm.jsr.io/"
+        }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/", "@zz": "https://registry-b/" },
+        "registriesByScope": {
+            "@zz": "https://registry-a/",
+            "@other": "https://registry-a/",
+            "@jsr": "https://npm.jsr.io/"
+        }
+    });
 
-use super::{resolve_engine_version, run_update_config_hooks};
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([
+            ("@zz".to_string(), "https://registry-b/".to_string()),
+            ("@other".to_string(), "https://registry-a/".to_string()),
+            ("@jsr".to_string(), "https://npm.jsr.io/".to_string()),
+        ]),
+    )
+    .expect("legacy routes warning");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@other"));
+    assert!(!warning.contains("@zz"));
+    assert!(!warning.contains("@jsr"));
+    assert!(warning.contains("registriesByScope"));
+}
+
+#[test]
+fn legacy_registries_warning_uses_the_global_log_channel() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+
+    warn_legacy_registries::<RecordingReporter>(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://registry-a/".to_string())]),
+    );
+
+    assert!(matches!(
+        EVENTS.lock().unwrap().as_slice(),
+        [LogEvent::Global(GlobalLog { level: LogLevel::Warn, message })]
+            if message.contains("@acme")
+    ));
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_scope_routes_are_updated() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@zz": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" },
+        "registriesByScope": { "@zz": "https://registry-b/" }
+    });
+
+    assert_eq!(
+        legacy_registries_warning(
+            &before,
+            &after,
+            &BTreeMap::from([("@zz".to_string(), "https://registry-b/".to_string())]),
+        ),
+        None,
+    );
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_urls_differ_only_by_trailing_slash() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+
+    assert_eq!(
+        legacy_registries_warning(
+            &before,
+            &after,
+            &BTreeMap::from([("@acme".to_string(), "https://mirror.example/".to_string())]),
+        ),
+        None,
+    );
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_urls_differ_only_by_default_port() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example:443/" },
+        "registriesByScope": { "@acme": "https://mirror.example/" }
+    });
+
+    assert_eq!(
+        legacy_registries_warning(
+            &before,
+            &after,
+            &BTreeMap::from([("@acme".to_string(), "https://mirror.example/".to_string())]),
+        ),
+        None,
+    );
+}
+
+#[test]
+fn legacy_registries_warning_keeps_credentials_when_comparing_urls() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://user:pass@mirror.example/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example:443/" },
+        "registriesByScope": { "@acme": "https://user:pass@mirror.example/" }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://user:pass@mirror.example/".to_string())]),
+    )
+    .expect("legacy route has different credentials");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@acme"));
+}
+
+#[test]
+fn legacy_registries_warning_keeps_queries_when_comparing_urls() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://mirror.example/?region=a" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://mirror.example/?region=b" },
+        "registriesByScope": { "@acme": "https://mirror.example/?region=a" }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://mirror.example/?region=a".to_string())]),
+    )
+    .expect("legacy route has a different query");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@acme"));
+}
+
+#[tokio::test]
+async fn update_config_warns_about_scope_left_on_its_registry_by_legacy_routes() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(root.path().join(".npmrc"), "@acme:registry=https://acme.example/\n")
+        .expect("write npmrc");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig: (config) => ({ ...config, registries: { default: 'https://other.example/' } }) } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<RecordingReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.registry, "https://other.example/");
+    let events = EVENTS.lock().unwrap();
+    let warnings: Vec<&str> = events
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Global(GlobalLog { level: LogLevel::Warn, message }) => {
+                Some(message.as_str())
+            }
+            _ => None,
+        })
+        .collect();
+    eprintln!("{warnings:?}");
+    assert!(matches!(
+        warnings.as_slice(),
+        [message] if message.contains("still use their configured registry: @acme.")
+    ));
+}
+
+#[test]
+fn legacy_registries_warning_is_present_when_scope_routes_are_omitted() {
+    let before = serde_json::json!({
+        "registries": { "default": "https://registry-a/" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "default": "https://registry-b/" }
+    });
+
+    let warning = legacy_registries_warning(
+        &before,
+        &after,
+        &BTreeMap::from([("@acme".to_string(), "https://registry-a/".to_string())]),
+    )
+    .expect("legacy routes warning");
+
+    eprintln!("{warning}");
+    assert!(warning.contains("@acme"));
+}
+
+#[test]
+fn legacy_registries_warning_is_absent_when_registry_setting_is_unchanged() {
+    let config = serde_json::json!({ "registries": { "default": "https://registry-a/" } });
+
+    assert_eq!(legacy_registries_warning(&config, &config, &BTreeMap::new()), None);
+}
+
+#[test]
+fn legacy_registries_warning_ignores_registry_url_settings() {
+    let before = serde_json::json!({
+        "registries": { "https://registry.example/": "artifactory" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+    let after = serde_json::json!({
+        "registries": { "https://registry.example/": "npm" },
+        "registriesByScope": { "@acme": "https://registry-a/" }
+    });
+
+    assert_eq!(legacy_registries_warning(&before, &after, &BTreeMap::new()), None);
+}
 
 #[tokio::test]
 async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
@@ -26,13 +316,579 @@ async fn update_config_records_prefer_frozen_lockfile_as_explicit() {
 
         assert_eq!(config.prefer_frozen_lockfile, prefer_value);
         assert_eq!(
-            config
-                .explicit_settings
+            config.explicit_settings
                 .get("preferFrozenLockfile")
                 .and_then(serde_json::Value::as_bool),
             Some(prefer_value),
         );
     }
+}
+
+#[tokio::test]
+async fn update_config_lockfile_dir_reanchors_install_paths() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = 'custom'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    let lockfile_dir = root.path().join("custom");
+    assert_eq!(config.lockfile_dir, Some(lockfile_dir.clone()));
+    assert_eq!(config.modules_dir, lockfile_dir.join("node_modules"));
+    assert_eq!(config.install_state_dir, lockfile_dir.join("node_modules/.pnpm"));
+}
+
+#[tokio::test]
+async fn update_config_lockfile_dir_restores_default_workspace_paths() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "lockfileDir: custom\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.modules_dir, root.path().join("node_modules"));
+    assert_eq!(config.install_state_dir, root.path().join("node_modules/.pnpm"));
+}
+
+#[tokio::test]
+async fn clearing_lockfile_dir_preserves_project_relative_virtual_store_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: custom\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    let virtual_store_dir = project.join("cache");
+    config.explicit_settings.insert("virtualStoreDir".to_string(), serde_json::json!("cache"));
+    config.set_virtual_store_dir(virtual_store_dir.clone());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.install_state_dir, virtual_store_dir);
+}
+
+#[tokio::test]
+async fn update_config_default_lockfile_dir_preserves_project_virtual_store_path() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir + '/.'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    let virtual_store_dir = project.join("cache");
+    config.explicit_settings.insert("virtualStoreDir".to_string(), serde_json::json!("cache"));
+    config.set_virtual_store_dir(virtual_store_dir.clone());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &project).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.configured_virtual_store_dir, Some(virtual_store_dir.clone()));
+    assert_eq!(config.install_state_dir, virtual_store_dir);
+}
+
+#[tokio::test]
+async fn update_config_default_lockfile_dir_keeps_hook_virtual_store_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    fs::create_dir_all(&workspace).expect("create workspace directory");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfileDir: custom\nvirtualStoreDir: old\n")
+        .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir + '/.'; config.virtualStoreDir = 'new'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&workspace).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    let virtual_store_dir = workspace.join("new");
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.configured_virtual_store_dir, Some(virtual_store_dir.clone()));
+    assert_eq!(config.install_state_dir, virtual_store_dir);
+}
+
+#[tokio::test]
+async fn update_config_default_lockfile_dir_rederives_state_after_modules_dir_change() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.modulesDir = 'custom_modules'; config.lockfileDir = config.workspaceDir + '/.'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.modules_dir, workspace.join("custom_modules"));
+    assert_eq!(config.install_state_dir, workspace.join("custom_modules/.pnpm"));
+}
+
+#[tokio::test]
+async fn clearing_lockfile_dir_with_modules_dir_change_reanchors_virtual_store_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nlockfileDir: custom\nvirtualStoreDir: cache\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = null; config.modulesDir = 'custom_modules'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.modules_dir, workspace.join("custom_modules"));
+    assert_eq!(config.virtual_store_dir(), workspace.join("cache"));
+    assert_eq!(config.install_state_dir, workspace.join("cache"));
+}
+
+#[tokio::test]
+async fn update_config_lockfile_dir_uses_the_invoking_project_as_its_default() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = '.'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, Some(workspace.clone()));
+    assert_eq!(config.modules_dir, workspace.join("node_modules"));
+    assert!(config.shares_one_lockfile());
+}
+
+#[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
+#[tokio::test]
+async fn update_config_lockfile_dir_refreshes_derived_node_path() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    let lockfile_dir = workspace.join("external");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: external\npreferSymlinkedExecutables: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        lockfile_dir.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    assert_eq!(
+        config.extra_env.get("NODE_PATH").map(String::as_str),
+        Some(
+            lockfile_dir
+                .join("node_modules/.pnpm/node_modules")
+                .to_str()
+                .unwrap()
+        ),
+    );
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(
+        config.extra_env.get("NODE_PATH").map(String::as_str),
+        Some(
+            workspace
+                .join("node_modules/.pnpm/node_modules")
+                .to_str()
+                .unwrap()
+        ),
+    );
+}
+
+#[tokio::test]
+async fn clearing_lockfile_dir_and_virtual_store_dir_restores_the_default_install_state_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: custom\nvirtualStoreDir: cache\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = null; config.virtualStoreDir = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.lockfile_dir, None);
+    assert_eq!(config.configured_virtual_store_dir, None);
+    assert_eq!(config.install_state_dir, workspace.join("node_modules/.pnpm"));
+}
+
+#[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
+#[tokio::test]
+async fn update_config_default_lockfile_dir_refreshes_node_path_after_the_global_virtual_store() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nenableGlobalVirtualStore: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = '.'; config.virtualStoreDir = 'shared-links'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &workspace).await
+        .expect("run updateConfig hook");
+
+    let node_path = config.extra_env.get("NODE_PATH").expect("NODE_PATH is configured");
+    assert!(!node_path.contains("shared-links"), "NODE_PATH was {node_path}");
+    let install_state_node_path = workspace
+        .join("node_modules/.pnpm/node_modules")
+        .display()
+        .to_string();
+    assert!(node_path.contains(&install_state_node_path), "NODE_PATH was {node_path}");
+}
+
+#[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
+#[tokio::test]
+async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    let lockfile_dir = workspace.join("external");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: external\nenableGlobalVirtualStore: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        lockfile_dir.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    let old_paths =
+        [lockfile_dir.join("node_modules/.pnpm/node_modules"), lockfile_dir.join("node_modules")];
+    config.extra_env.insert(
+        "NODE_PATH".to_string(),
+        format!(
+            "/custom{delimiter}{}",
+            old_paths
+                .iter()
+                .map(|path| path.display())
+                .map(|shown| shown.to_string())
+                .collect::<Vec<_>>()
+                .join(&delimiter.to_string()),
+        ),
+    );
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
+        .expect("run updateConfig hook");
+
+    let node_path = config.extra_env.get("NODE_PATH").expect("NODE_PATH is configured");
+    assert!(node_path.contains("/custom"), "NODE_PATH was {node_path}");
+    let old_lockfile_dir = lockfile_dir.display().to_string();
+    assert!(!node_path.contains(&old_lockfile_dir), "NODE_PATH was {node_path}");
+    let workspace_node_path = workspace
+        .join("node_modules/.pnpm/node_modules")
+        .display()
+        .to_string();
+    assert!(node_path.contains(&workspace_node_path), "NODE_PATH was {node_path}");
+}
+
+#[cfg_attr(not(unix), ignore = "requires Unix path semantics")]
+#[tokio::test]
+async fn update_config_lockfile_dir_preserves_hook_node_path() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    let lockfile_dir = workspace.join("external");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: external\npreferSymlinkedExecutables: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        lockfile_dir.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; config.extraEnv = { ...config.extraEnv, NODE_PATH: '/custom' }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.extra_env.get("NODE_PATH").map(String::as_str), Some("/custom"));
+}
+
+#[tokio::test]
+async fn update_config_lockfile_dir_preserves_hook_node_options() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    let lockfile_dir = workspace.join("external");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: external\nenableGlobalVirtualStore: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        lockfile_dir.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; config.extraEnv = { ...config.extraEnv, NODE_OPTIONS: '--require /custom' }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
+        .expect("run updateConfig hook");
+
+    let node_options = config.extra_env.get("NODE_OPTIONS").expect("NODE_OPTIONS is configured");
+    assert!(node_options.contains("--require /custom"), "NODE_OPTIONS was {node_options}");
+    let esm_node_path_loader =
+        pnpm_config::esm_node_path_loader::esm_node_path_loader_import_flag();
+    assert!(node_options.contains(esm_node_path_loader), "NODE_OPTIONS was {node_options}");
+}
+
+#[tokio::test]
+async fn update_config_lockfile_dir_preserves_existing_extra_env_node_options() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let workspace = root.path().join("workspace");
+    let project = workspace.join("packages/app");
+    let lockfile_dir = workspace.join("external");
+    fs::create_dir_all(&project).expect("create project directory");
+    fs::create_dir_all(&lockfile_dir).expect("create lockfile directory");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlockfileDir: external\nenableGlobalVirtualStore: true\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        lockfile_dir.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.lockfileDir = config.workspaceDir; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&project).expect("load configuration");
+    config.extra_env.insert("NODE_OPTIONS".to_string(), "--require /custom".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &lockfile_dir).await
+        .expect("run updateConfig hook");
+
+    let node_options = config.extra_env.get("NODE_OPTIONS").expect("NODE_OPTIONS is configured");
+    assert!(node_options.contains("--require /custom"), "NODE_OPTIONS was {node_options}");
+    let esm_node_path_loader =
+        pnpm_config::esm_node_path_loader::esm_node_path_loader_import_flag();
+    assert!(node_options.contains(esm_node_path_loader), "NODE_OPTIONS was {node_options}");
+}
+
+/// Deleting the setting leaves it unset, so CI regains the frozen-lockfile
+/// default a source had turned off.
+#[tokio::test]
+async fn update_config_null_restores_the_prefer_frozen_lockfile_default() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "preferFrozenLockfile: false\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.preferFrozenLockfile = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert!(!config.prefer_frozen_lockfile);
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert!(config.prefer_frozen_lockfile);
+    assert!(!config.explicit_settings.contains_key("preferFrozenLockfile"));
+}
+
+/// A setting the hook deletes returns to its default, whichever group of
+/// `from_resolved` it belongs to: reported at its resolved value
+/// (`nodeLinker`), reported only when set (`lockfile`), or anchored on
+/// apply (`storeDir`).
+#[tokio::test]
+async fn update_config_null_restores_the_default_of_any_setting() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "nodeLinker: hoisted\nlockfile: true\npackageLock: false\nstoreDir: pinned-store\nhoist: false\n",
+    )
+    .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { for (const key of ['nodeLinker', 'lockfile', 'storeDir', 'hoist']) config[key] = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert_eq!(config.node_linker, NodeLinker::Hoisted);
+    assert_eq!(config.prefer_symlinked_executables, Some(true));
+    assert!(config.lockfile);
+    assert!(format!("{:?}", config.store_dir).contains("pinned-store"));
+    assert_eq!(config.hoist_pattern, None);
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    // The derivations follow: the isolated linker's executables, the
+    // `lockfile` that `packageLock` still turns off, the hoist pattern.
+    assert_eq!(config.node_linker, NodeLinker::Isolated);
+    assert_eq!(config.prefer_symlinked_executables, None);
+    assert!(!config.lockfile);
+    let mut unpinned = Config::default();
+    unpinned.reset_store_dir_to_default::<Host>(root.path());
+    assert_eq!(config.store_dir, unpinned.store_dir);
+    assert!(config.hoist);
+    assert!(config.hoist_pattern.is_some());
+    for key in ["nodeLinker", "lockfile", "storeDir", "hoist"] {
+        assert!(!config.explicit_settings.contains_key(key), "{key} is still explicit");
+    }
+}
+
+/// The public hoist pattern is derived from the explicit `shamefullyHoist`,
+/// so the hook's answer has to reach both.
+#[tokio::test]
+async fn update_config_shamefully_hoist_false_stops_public_hoisting() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "shamefullyHoist: true\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.shamefullyHoist = false; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert!(!config.shamefully_hoist);
+    assert_eq!(config.public_hoist_pattern, None);
+    assert_eq!(
+        config.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool),
+        Some(false),
+    );
+}
+
+#[tokio::test]
+async fn update_config_can_change_the_state_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let state_dir = root.path().join("hook-state");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        format!(
+            "module.exports = {{ hooks: {{ updateConfig (config) {{ config.stateDir = {}; return config }} }} }}",
+            serde_json::json!(state_dir),
+        ),
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.state_dir, state_dir);
+}
+
+/// The hook reads the default registry as `registriesByScope.default`; the
+/// config carries it as `registry` beside a map of `@scope` routes only.
+#[tokio::test]
+async fn update_config_default_route_lands_on_the_registry_setting() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.registriesByScope = { ...config.registriesByScope, default: 'https://hook.example/', '@acme': 'https://acme.example/' }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.registry, "https://hook.example/");
+    assert!(!config.registries_by_scope.contains_key("default"));
+    assert_eq!(
+        config.registries_by_scope.get("@acme").map(String::as_str),
+        Some("https://acme.example/"),
+    );
 }
 
 #[tokio::test]
@@ -47,11 +903,10 @@ async fn update_config_null_clears_virtual_store_dir() {
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
-    assert_eq!(config.virtual_store_dir, root.path().join("node_modules/.pnpm"));
+    assert_eq!(config.install_state_dir, root.path().join("node_modules/.pnpm"));
     assert!(!config.explicit_settings.contains_key("virtualStoreDir"));
 }
 
@@ -70,8 +925,7 @@ async fn update_config_null_clears_global_virtual_store_dir() {
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert_eq!(config.global_virtual_store_dir, root.path().join("pinned-virtual"));
@@ -91,10 +945,16 @@ async fn update_config_can_extend_extra_bin_paths() {
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
     let seeded = config.extra_bin_paths.clone();
-    assert_eq!(seeded, vec![root.path().join("node_modules").join(".bin")]);
+    assert_eq!(
+        seeded,
+        vec![
+            root.path()
+                .join("node_modules")
+                .join(".bin")
+        ],
+    );
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     let mut expected = seeded;
@@ -117,8 +977,7 @@ async fn update_config_can_set_extra_env() {
     // assert only on the entry the hook adds.
     assert_eq!(config.extra_env.get("npm_config_nodedir"), None);
 
-    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
-        .await
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
     assert_eq!(
@@ -127,20 +986,169 @@ async fn update_config_can_set_extra_env() {
     );
 }
 
+/// pnpm adopts the hook's result as-is, so a relative `scriptShell` set by a
+/// hook is not anchored at the workspace root the way the manifest's is.
+#[tokio::test]
+async fn update_config_script_shell_output_is_not_resolved_again() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.scriptShell = './hook-shell.sh'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let expected_manifest_shell = root
+        .path()
+        .join("manifest-shell.sh")
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected_manifest_shell.as_str()));
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.script_shell.as_deref(), Some("./hook-shell.sh"));
+}
+
+#[tokio::test]
+async fn update_config_hook_reads_resolved_script_shell_value() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.scriptShell += '-from-hook'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let expected = format!(
+        "{}-from-hook",
+        root.path()
+            .join("manifest-shell.sh")
+            .display(),
+    );
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
+}
+
+#[tokio::test]
+async fn update_config_hook_deleting_script_shell_clears_value() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { delete config.scriptShell; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert!(config.script_shell.is_some());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.script_shell, None);
+}
+
+#[tokio::test]
+async fn update_config_hook_setting_script_shell_to_null_clears_value() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.scriptShell = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert!(config.script_shell.is_some());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.script_shell, None);
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_read_or_change_macos_backup_policy() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { if ('macosBackup' in config) throw new Error('backup policy leaked'); config.macosBackup = { excludeModulesDir: true, excludeStoreDir: true }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.macos_backup.exclude_modules_dir = false;
+    config.macos_backup.exclude_store_dir = false;
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert!(!config.macos_backup.exclude_modules_dir);
+    assert!(!config.macos_backup.exclude_store_dir);
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_read_or_change_the_symlinked_lockfile_dirs() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { if ('symlinkedLockfileTargetDirs' in config) throw new Error('allowed directories leaked'); config.symlinkedLockfileTargetDirs = ['/']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let allowed_dirs = vec![root.path().join("source")];
+    config.symlinked_lockfile_target_dirs.clone_from(&allowed_dirs);
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.symlinked_lockfile_target_dirs, allowed_dirs);
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_read_or_change_the_global_packages_settings() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { if ('globalPackagesConfig' in config) throw new Error('global packages settings leaked'); config.globalPackagesConfig = { dangerouslyAllowAllBuilds: true }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let global_packages_config = std::sync::Arc::new(pnpm_config::WorkspaceSettings {
+        trust_policy_exclude: Some(vec!["vercel".to_string()]),
+        ..pnpm_config::WorkspaceSettings::default()
+    });
+    config.global_packages_config = Some(std::sync::Arc::clone(&global_packages_config));
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.global_packages_config, Some(global_packages_config));
+}
+
 /// `Accept` header the resolver sends for full metadata
 /// (`ACCEPT_FULL_DOC`); only the full packument carries the per-version
 /// `time` map and trust evidence the no-downgrade check reads.
 const ACCEPT_FULL: &str = "application/json; q=1.0, */*";
 
 /// `Accept` header the resolver sends for abbreviated metadata
-/// (`ACCEPT_ABBREVIATED_DOC`) — what the probe would use if it did *not*
+/// (`ACCEPT_ABBREVIATED_DOC`), what the probe would use if it did *not*
 /// derive full metadata from the trust policy.
 const ACCEPT_ABBREVIATED: &str =
     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
 
 /// Full `pnpm` packument: carries the per-version `time` map. `1.0.0` has
 /// stronger trust evidence (`trustedPublisher` + provenance) than the
-/// later `1.1.0` (none) — a trust downgrade the no-downgrade check must
+/// later `1.1.0` (none), a trust downgrade the no-downgrade check must
 /// reject once it can see `time`.
 const FULL_DOWNGRADE_BODY: &str = r#"{
     "name": "pnpm",
@@ -212,7 +1220,7 @@ const FULL_CLEAN_BODY: &str = r#"{
 
 /// Abbreviated packument: no `time` map. Served only to the abbreviated
 /// `Accept` header, so the probe reaches it only if it *fails* to request
-/// full metadata — in which case the trust check fails closed with
+/// full metadata, in which case the trust check fails closed with
 /// "missing time". A test that instead sees a "trust downgrade" (or a
 /// clean resolve) proves the probe requested full metadata.
 const ABBREVIATED_BODY: &str = r#"{
@@ -240,7 +1248,7 @@ const ABBREVIATED_BODY: &str = r#"{
     }
 }"#;
 
-/// Abbreviated packument that *does* carry `time` — what a registry with
+/// Abbreviated packument that *does* carry `time`, what a registry with
 /// `registrySupportsTimeField=true` serves. It still omits the trust
 /// evidence (`_npmUser` / `dist.attestations`) that no abbreviated
 /// packument carries, so a no-downgrade check run against it would see no
@@ -285,11 +1293,12 @@ fn no_downgrade_config(registry: String, cache_dir: &Path) -> Config {
 }
 
 /// Under `trustPolicy=no-downgrade`, the self-update probe must resolve
-/// against **full** metadata — the same as a regular install — so the
+/// against **full** metadata (the same as a regular install) so the
 /// no-downgrade check actually runs. It reaches the full packument (with
-/// `time`), sees the downgrade, and rejects it. If the probe fetched
-/// abbreviated metadata it would instead fail closed with "missing time";
-/// if it skipped the check it would resolve `1.1.0` with no error.
+/// `time`), sees the downgrade, rejects the requested `1.1.0`, and falls
+/// back to `1.0.0` for a range. If the probe fetched abbreviated metadata it
+/// would instead fail closed with "missing time"; if it skipped the check it
+/// would resolve `1.1.0` with no error.
 #[tokio::test]
 async fn resolve_pnpm_version_fetches_full_metadata_and_rejects_a_downgrade() {
     let mut server = mockito::Server::new_async().await;
@@ -310,8 +1319,12 @@ async fn resolve_pnpm_version_fetches_full_metadata_and_rejects_a_downgrade() {
     let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
     let config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
 
-    let err = resolve_engine_version(&config, "pnpm", "^1.0.0")
-        .await
+    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0").await
+        .expect("a range falls back past the downgrade")
+        .expect("a matching pnpm version resolves");
+    assert_eq!(resolved.version, "1.0.0");
+
+    let err = resolve_engine_version(&config, "pnpm", "1.1.0").await
         .expect_err("a trust downgrade must be rejected");
     let report = format!("{err:?}");
     assert!(
@@ -347,8 +1360,7 @@ async fn resolve_pnpm_version_resolves_a_clean_update_under_no_downgrade() {
     let cache_dir = tempfile::TempDir::new().expect("cache tempdir");
     let config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
 
-    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0")
-        .await
+    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0").await
         .expect("a clean update must resolve")
         .expect("a matching pnpm version resolves");
 
@@ -360,7 +1372,7 @@ async fn resolve_pnpm_version_resolves_a_clean_update_under_no_downgrade() {
 /// must NOT let the no-downgrade check settle for abbreviated metadata:
 /// abbreviated still omits the trust evidence, so the check would see none
 /// and miss the downgrade. The probe must fetch full metadata regardless of
-/// `registrySupportsTimeField` and reject the downgrade.
+/// `registrySupportsTimeField` and skip the downgrade.
 #[tokio::test]
 async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_registry_time_field() {
     let mut server = mockito::Server::new_async().await;
@@ -373,7 +1385,7 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
         .await;
     // Abbreviated here carries `time` (as a `registrySupportsTimeField`
     // registry would) but no trust evidence. If the probe wrongly settled
-    // for it, the downgrade would be missed and resolution would succeed.
+    // for it, the downgrade would be missed and `1.1.0` would resolve.
     let _abbreviated = server
         .mock("GET", "/pnpm")
         .match_header("accept", ACCEPT_ABBREVIATED)
@@ -385,13 +1397,12 @@ async fn resolve_pnpm_version_forces_full_metadata_for_no_downgrade_despite_regi
     let mut config = no_downgrade_config(format!("{}/", server.url()), cache_dir.path());
     config.registry_supports_time_field = true;
 
-    let err = resolve_engine_version(&config, "pnpm", "^1.0.0")
-        .await
-        .expect_err("the downgrade must be rejected even with registrySupportsTimeField");
-    let report = format!("{err:?}");
-    assert!(
-        report.contains("trust downgrade"),
-        "expected a trust-downgrade rejection, got: {report}",
+    let resolved = resolve_engine_version(&config, "pnpm", "^1.0.0").await
+        .expect("a range falls back past the downgrade")
+        .expect("a matching pnpm version resolves");
+    assert_eq!(
+        resolved.version, "1.0.0",
+        "the downgrade must be skipped even with registrySupportsTimeField",
     );
 }
 
@@ -436,7 +1447,7 @@ async fn resolve_pnpm_version_keeps_a_dist_tag_on_the_running_version() {
         }}
     }}
 }}"#,
-        fresh = chrono::Utc::now().to_rfc3339(),
+        fresh = pnpm_time::format_rfc3339(jiff::Timestamp::now()),
     );
     let mut server = mockito::Server::new_async().await;
     let _packument = server
@@ -454,10 +1465,172 @@ async fn resolve_pnpm_version_keeps_a_dist_tag_on_the_running_version() {
     };
     config.package_manager_bootstrap.registry = format!("{}/", server.url());
 
-    let resolved = resolve_engine_version(&config, "pnpm", "latest")
-        .await
+    let resolved = resolve_engine_version(&config, "pnpm", "latest").await
         .expect("the tag must resolve")
         .expect("a matching pnpm version resolves");
 
     assert_eq!(resolved.version, PNPM_VERSION);
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_override_cli_proxy_settings() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.httpsProxy = 'http://hook-https:8080/'; config.httpProxy = 'http://hook-http:8080/'; config.noProxy = 'hook.example'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.apply_proxy_cli_overrides(
+        Some("http://cli-https:8080/"),
+        Some("http://cli-http:8080/"),
+        Some("cli.example"),
+    );
+    config.cli_settings.insert("httpsProxy".to_string());
+    config.cli_settings.insert("httpProxy".to_string());
+    config.cli_settings.insert("noProxy".to_string());
+    config.cli_settings.insert("noproxy".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://cli-https:8080/"));
+    assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://cli-http:8080/"));
+    assert_eq!(
+        config.proxy.no_proxy,
+        Some(pnpm_network::NoProxySetting::List(vec!["cli.example".to_string()])),
+    );
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_override_command_cli_flags() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.optional = true; config.autoDedupe = true; config.frozenStore = true; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.optional = false;
+    config.auto_dedupe = false;
+    config.frozen_store = false;
+    config.cli_settings.insert("optional".to_string());
+    config.cli_settings.insert("autoDedupe".to_string());
+    config.cli_settings.insert("frozenStore".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert!(!config.optional);
+    assert!(!config.auto_dedupe);
+    assert!(!config.frozen_store);
+}
+
+#[tokio::test]
+async fn update_config_hook_cannot_replace_the_public_hoist_pattern_of_cli_shamefully_hoist() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.shamefullyHoist = false; config.publicHoistPattern = ['*types*']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.explicit_settings.insert("shamefullyHoist".to_string(), true.into());
+    config.apply_shamefully_hoist_derivation();
+    config.cli_settings.insert("shamefullyHoist".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
+}
+
+#[tokio::test]
+async fn update_config_filter_prod_replaces_the_default_filter() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.filterProd = ['app']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.filter = vec!["{.}...".to_string()];
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert!(config.filter.is_empty());
+    assert_eq!(config.filter_prod, ["app"]);
+}
+
+#[tokio::test]
+async fn update_config_hook_reads_only_command_line_filters() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.filterProd = [String('filterProd' in config)]; config.filter = [...config.filter, 'hook']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    config.filter = vec!["cli".to_string()];
+    config.cli_settings.insert("filter".to_string());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.filter, ["cli"]);
+    assert_eq!(config.filter_prod, ["false"]);
+}
+
+#[tokio::test]
+async fn update_config_rebases_relative_filters_and_reports_subdir_as_dir() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    let other_dir = root.path().join("packages/other");
+    fs::create_dir_all(&other_dir).expect("create packages/other");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "packages:\n  - 'packages/*'\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.filter = [config.dir, './packages/app']; config.filterProd = ['{./packages/app}...']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(&other_dir).expect("load configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.filter, [other_dir.to_string_lossy().as_ref(), "../app"]);
+    assert_eq!(config.filter_prod, ["{../app}..."]);
+}
+
+#[tokio::test]
+async fn global_update_config_hook_ignores_malformed_ancestor_workspace_manifest() {
+    let root = tempfile::tempdir().expect("tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "packages: [\n")
+        .expect("write malformed ancestor workspace settings");
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global/11");
+    fs::create_dir_all(&global_pkg_dir).expect("create global package directory");
+    let global_pnpmfile = root.path().join("trusted-global-pnpmfile.cjs");
+    fs::write(
+        &global_pnpmfile,
+        "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, GLOBAL_HOOK_APPLIED: '1' }; return config } } }",
+    )
+    .expect("write global pnpmfile");
+
+    let mut config = Config::default();
+    config.cli.command_target = pnpm_config::CommandTarget::GlobalPackages;
+    config.global_pnpmfile = Some(global_pnpmfile);
+    let mut config = config.current::<Host>(&pnpm_home).expect("load global configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &global_pkg_dir)
+        .await
+        .expect("run global updateConfig hook despite malformed ancestor workspace");
+
+    assert_eq!(config.extra_env.get("GLOBAL_HOOK_APPLIED").map(String::as_str), Some("1"));
 }

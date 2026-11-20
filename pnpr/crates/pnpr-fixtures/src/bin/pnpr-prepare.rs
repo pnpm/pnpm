@@ -1,12 +1,13 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use pnpr_fixtures::build_storage_at;
+use pnpr_fixtures::{
+    build_storage_at_with_substitutions,
+    seed_storage_registries,
+};
 
 /// Build verdaccio-shaped registry storage from raw package fixtures, so the
-/// `pnpr` server can serve them. The pnpm test harness runs this
-/// before launching the registry; pacquet's Rust tests build the same storage
-/// in-process instead.
+/// `pnpr` server can serve them.
 #[derive(Debug, Parser)]
 #[command(name = "pnpr-prepare", version, about)]
 struct Args {
@@ -17,9 +18,36 @@ struct Args {
     /// Directory to write the generated storage into (cleared first).
     #[arg(long)]
     out: PathBuf,
+
+    /// Replace an exact manifest string. May be passed more than once.
+    #[arg(long = "substitute", value_parser = parse_substitution)]
+    substitutions: Vec<(String, String)>,
+
+    /// Registries document to store instead of the registry-mock one.
+    #[arg(long)]
+    registries: Option<PathBuf>,
 }
 
 fn main() {
     let args = Args::parse();
-    build_storage_at(&args.packages, &args.out);
+    let substitutions = args.substitutions
+        .iter()
+        .map(|(from, to)| (from.as_str(), to.as_str()))
+        .collect::<Vec<_>>();
+    build_storage_at_with_substitutions(&args.packages, &args.out, &substitutions);
+    if let Some(registries) = &args.registries {
+        let yaml = std::fs::read_to_string(registries)
+            .unwrap_or_else(|error| panic!("read {}: {error}", registries.display()));
+        seed_storage_registries(&args.out, &yaml);
+    }
+}
+
+fn parse_substitution(value: &str) -> Result<(String, String), String> {
+    let Some((from, to)) = value.split_once('=') else {
+        return Err("expected FROM=TO".to_string());
+    };
+    if from.is_empty() {
+        return Err("FROM must not be empty".to_string());
+    }
+    Ok((from.to_string(), to.to_string()))
 }

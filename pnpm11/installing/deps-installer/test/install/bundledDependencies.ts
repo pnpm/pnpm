@@ -5,7 +5,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(import.meta.dirname)
+const testFixtures = fixtures(import.meta.dirname)
 
 test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
   const project = prepareEmpty()
@@ -30,7 +30,7 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
 test('local tarball with bundledDependencies', async () => {
   const project = prepareEmpty()
 
-  f.copy('pkg-with-bundled-dependencies-1.0.0.tgz', 'pkg.tgz')
+  testFixtures.copy('pkg-with-bundled-dependencies-1.0.0.tgz', 'pkg.tgz')
   await addDependenciesToPackage({}, ['file:pkg.tgz'], testDefaults({ fastUnpack: false }))
 
   const lockfile = project.readLockfile()
@@ -47,7 +47,7 @@ test('local tarball with bundledDependencies', async () => {
 test('local tarball with bundledDependencies true', async () => {
   const project = prepareEmpty()
 
-  f.copy('pkg-with-bundle-dependencies-true-1.0.0.tgz', 'pkg.tgz')
+  testFixtures.copy('pkg-with-bundle-dependencies-true-1.0.0.tgz', 'pkg.tgz')
   await addDependenciesToPackage({}, ['file:pkg.tgz'], testDefaults({ fastUnpack: false }))
 
   const lockfile = project.readLockfile()

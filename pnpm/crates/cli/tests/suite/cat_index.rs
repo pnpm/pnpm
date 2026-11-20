@@ -1,7 +1,10 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn should_cat_index_of_installed_package() {
@@ -9,10 +12,12 @@ fn should_cat_index_of_installed_package() {
         CommandTempCwd::init().add_mocked_registry();
 
     let pacquet = pacquet;
-    pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin-parent"]).assert().success();
+    pacquet
+        .with_args(["add", "@pnpm.e2e/hello-world-js-bin-parent"])
+        .assert()
+        .success();
 
-    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
-    pacquet2.current_dir(&workspace);
+    let pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
     let output = pacquet2
         .with_args(["cat-index", "@pnpm.e2e/hello-world-js-bin-parent"])
         .output()
@@ -35,12 +40,16 @@ fn should_cat_index_of_npm_alias() {
         CommandTempCwd::init().add_mocked_registry();
 
     let alias_spec = "my-alias@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0";
-    pacquet.with_args(["add", alias_spec]).assert().success();
+    pacquet
+        .with_args(["add", alias_spec])
+        .assert()
+        .success();
 
-    let mut pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap();
-    pacquet2.current_dir(&workspace);
-    let output =
-        pacquet2.with_args(["cat-index", alias_spec]).output().expect("run pacquet cat-index");
+    let pacquet2 = std::process::Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
+    let output = pacquet2
+        .with_args(["cat-index", alias_spec])
+        .output()
+        .expect("run pacquet cat-index");
 
     assert!(output.status.success(), "Failed to cat-index npm alias");
 
@@ -83,11 +92,13 @@ fn should_cat_index_with_dir_pointing_to_workspace_project() {
     )
     .expect("write workspace project package.json");
 
-    pacquet.with_args(["install"]).assert().success();
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
 
     let project_dir_arg = project_dir.to_string_lossy().into_owned();
-    let mut pacquet2 = Command::cargo_bin("pnpm").unwrap();
-    pacquet2.current_dir(&workspace);
+    let pacquet2 = Command::cargo_bin("pnpm").unwrap().with_current_dir(&workspace);
     let output = pacquet2
         .with_args(["--dir", project_dir_arg.as_str(), "cat-index", dependency])
         .output()
@@ -124,7 +135,10 @@ fn should_fail_on_missing_package() {
 }
 
 fn files_from_cat_index(json: &serde_json::Value) -> &serde_json::Map<String, serde_json::Value> {
-    json.get("files").expect("has 'files' object").as_object().expect("'files' is an object")
+    json.get("files")
+        .expect("has 'files' object")
+        .as_object()
+        .expect("'files' is an object")
 }
 
 fn assert_package_json_file_entry(files: &serde_json::Map<String, serde_json::Value>) {

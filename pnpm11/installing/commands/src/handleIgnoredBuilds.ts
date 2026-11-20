@@ -5,9 +5,12 @@ import {
 } from '@pnpm/installing.deps-installer'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { IgnoredBuilds } from '@pnpm/types'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { isCI } from 'ci-info'
 
 export interface HandleIgnoredBuildsOpts {
   allowBuilds?: Record<string, boolean | string>
+  ci?: boolean
   ignoreWorkspace?: boolean
   rootProjectManifestDir?: string
   workspaceDir?: string
@@ -19,7 +22,10 @@ export async function handleIgnoredBuilds (
   ignoredBuilds: IgnoredBuilds | undefined
 ): Promise<void> {
   if (!ignoredBuilds?.size) return
-  if (!opts.ignoreWorkspace) {
+  // Nobody is at the terminal to edit a placeholder in CI or under a
+  // dependency-update bot, and it would land in the committed workspace manifest.
+  const canPrompt = !(opts.ci ?? isCI) && Boolean(process.stdin.isTTY)
+  if (canPrompt && !opts.ignoreWorkspace) {
     await writeIgnoredBuildsToAllowBuilds(opts, ignoredBuilds)
   }
   if (opts.strictDepBuilds) {
@@ -39,11 +45,15 @@ async function writeIgnoredBuildsToAllowBuilds (
     }
   }
   if (Object.keys(newEntries).length && opts.rootProjectManifestDir) {
+    const workspaceDir = opts.workspaceDir ?? opts.rootProjectManifestDir
+    // Merged into the file's own entries: `opts.allowBuilds` also holds
+    // entries from other config sources and approvals made for this run only.
+    const workspaceManifest = await readWorkspaceManifest(workspaceDir)
     await writeSettings({
       rootProjectManifestDir: opts.rootProjectManifestDir,
-      workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+      workspaceDir,
       updatedSettings: {
-        allowBuilds: { ...opts.allowBuilds, ...newEntries },
+        allowBuilds: { ...workspaceManifest?.allowBuilds, ...newEntries },
       },
     })
   }

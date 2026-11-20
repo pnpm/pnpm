@@ -1,4 +1,4 @@
-//! `pacquet with <version|current> <args...>` — run pnpm at a specific
+//! `pacquet with <version|current> <args...>`: run pnpm at a specific
 //! version (or the currently running one) for a single invocation,
 //! ignoring the project's `packageManager` / `devEngines.packageManager`
 //! pin.
@@ -13,21 +13,38 @@
 //! version / range / dist-tag spec, which it resolves, installs into the
 //! global virtual store, and spawns.
 
-use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::Config;
-use pnpm_reporter::Reporter;
-use std::{path::PathBuf, process::Command};
-
 use crate::{
-    cli_args::package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
+    cli_args::{
+        dlx::exit_unless_success,
+        package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
+    },
     engine_pm::{
         channel::PackageManager,
-        error::EngineError,
-        provision::{engine_bin, provision},
+        provision::provision,
     },
-    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    path_env::{
+        BadPathDir,
+        prepend_dirs_to_path,
+        set_command_path,
+    },
+    process::Command,
+};
+
+use clap::Args;
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::Config;
+use pnpm_reporter::Reporter;
+use std::path::{
+    Path,
+    PathBuf,
 };
 
 /// Errors specific to `pacquet with`. The codes carry the shared
@@ -57,8 +74,8 @@ impl From<BadPathDir> for WithError {
 
 #[derive(Debug, Args)]
 pub struct WithArgs {
-    /// The pnpm version, range, or dist-tag to run — or `current` to use
-    /// the pnpm that is already running — followed by the pnpm command and
+    /// The pnpm version, range, or dist-tag to run (or `current` to use
+    /// the pnpm that is already running) followed by the pnpm command and
     /// its arguments.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub params: Vec<String>,
@@ -78,12 +95,12 @@ impl WithArgs {
 
         let engine = Box::pin(provision::<Reporter>(config, PackageManager::Pnpm, spec)).await?;
 
-        let status = spawn_pnpm(&engine.bin_dirs, args, PackageManagerCheck::Disabled)?;
-        if !status.success() {
-            // Propagate the child's exit code. A signal-terminated child
-            // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
-            std::process::exit(status.code().unwrap_or(1));
-        }
+        let status =
+            spawn_pnpm(&engine.program, &engine.bin_dirs, args, PackageManagerCheck::Disabled)?;
+        drop(engine);
+        // End the way the child did: with its exit code, or with its signal
+        // when a signal killed it.
+        exit_unless_success(status);
         Ok(())
     }
 }
@@ -94,29 +111,32 @@ pub(crate) enum PackageManagerCheck {
     Disabled,
 }
 
-/// Spawn the downloaded `pnpm`, inheriting stdio. The first entry is the
-/// engine's own bin directory; any that follow are what it needs to run,
-/// such as a managed Node.js.
+/// Spawn the downloaded `pnpm` `program`, inheriting stdio. The first entry
+/// of `bin_dirs` is the engine's own bin directory; any that follow are what
+/// it needs to run, such as a managed Node.js.
 pub(crate) fn spawn_pnpm<Args, Arg>(
+    program: &Path,
     bin_dirs: &[PathBuf],
     args: Args,
     package_manager_check: PackageManagerCheck,
-) -> miette::Result<std::process::ExitStatus>
+) -> miette::Result<crate::process::ExitStatus>
 where
     Args: IntoIterator<Item = Arg>,
     Arg: AsRef<std::ffi::OsStr>,
 {
-    let bin_dir = bin_dirs.first().expect("an installed engine has a bin directory");
-    let program = engine_bin(bin_dir, "pnpm").ok_or_else(|| EngineError::MissingEngineBin {
-        name: "pnpm",
-        dir: bin_dir.display().to_string(),
-    })?;
-
     let mut cmd = Command::new(program);
     cmd.args(args);
     configure_pnpm_environment(&mut cmd, bin_dirs, package_manager_check)?;
 
-    cmd.status().into_diagnostic().wrap_err("run the requested pnpm version")
+    // The child runs under the interrupt relay, so a signal sent to this pnpm
+    // reaches the pnpm it switched to, and this one waits for it to shut down.
+    let mut child = pnpm_executor::spawn_child(&mut cmd, None)
+        .into_diagnostic()
+        .wrap_err("run the requested pnpm version")?;
+    child
+        .wait()
+        .into_diagnostic()
+        .wrap_err("run the requested pnpm version")
 }
 
 fn configure_pnpm_environment(

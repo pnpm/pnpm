@@ -1,10 +1,15 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { expect, jest, test } from '@jest/globals'
 import {
   addDependenciesToPackage,
+  install,
   mutateModulesInSingleProject,
 } from '@pnpm/installing.deps-installer'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
+import { symlinkDir } from 'symlink-dir'
 
 import { testDefaults } from './../utils/index.js'
 
@@ -104,4 +109,62 @@ test('uninstall package with dependencies and do not touch other deps', async ()
       version: '2.1.0',
     },
   })
+})
+
+test('uninstall a linked dependency', async () => {
+  const project = prepareEmpty()
+  const localPkgDir = path.resolve('..', 'local-pkg')
+  fs.mkdirSync(localPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(localPkgDir, 'package.json'), JSON.stringify({ name: '@local/pkg', version: '1.0.0' }))
+
+  let { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['link:../local-pkg'],
+    testDefaults({ nodeLinker: 'hoisted', save: true })
+  )
+  expect(fs.lstatSync('node_modules/@local/pkg').isSymbolicLink()).toBe(true)
+
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['@local/pkg'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ nodeLinker: 'hoisted', save: true }))).updatedProject.manifest
+
+  expect(manifest.dependencies).toStrictEqual({})
+  expect(project.readLockfile().importers['.'].dependencies).toBeUndefined()
+  expect(fs.existsSync('node_modules/@local/pkg')).toBe(false)
+  expect(fs.existsSync(path.join(localPkgDir, 'package.json'))).toBe(true)
+
+  await install(manifest, testDefaults({ frozenLockfile: true, nodeLinker: 'hoisted' }))
+  expect(fs.existsSync('node_modules/@local/pkg')).toBe(false)
+})
+
+test('uninstall a linked dependency does not unlink through a symlinked scope directory', async () => {
+  prepareEmpty()
+  const localPkgDir = path.resolve('..', 'local-pkg')
+  fs.mkdirSync(localPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(localPkgDir, 'package.json'), JSON.stringify({ name: '@local/pkg', version: '1.0.0' }))
+
+  let { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['link:../local-pkg'],
+    testDefaults({ nodeLinker: 'hoisted', save: true })
+  )
+
+  const externalScopeDir = path.resolve('..', 'external-scope')
+  fs.mkdirSync(externalScopeDir)
+  await symlinkDir(localPkgDir, path.join(externalScopeDir, 'pkg'))
+  fs.rmSync('node_modules/@local', { recursive: true })
+  await symlinkDir(externalScopeDir, 'node_modules/@local')
+
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['@local/pkg'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ nodeLinker: 'hoisted', save: true }))).updatedProject.manifest
+
+  expect(manifest.dependencies).toStrictEqual({})
+  expect(fs.lstatSync(path.join(externalScopeDir, 'pkg')).isSymbolicLink()).toBe(true)
 })

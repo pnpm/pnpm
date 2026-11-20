@@ -5,12 +5,25 @@
 //! current shell's rc file is edited. The Windows changes are rendered into
 //! the same `old_settings` / `new_settings` shape the POSIX path reports.
 
+pub(super) use posix::{
+    detect_current_shell,
+    pwsh_quote,
+    render_shell_settings,
+    sh_quote,
+};
+
 mod posix;
 mod windows;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Where the new directory is inserted into `PATH` (defaulting to `start`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,11 +46,24 @@ pub(super) enum ConfigFileChangeType {
 }
 
 /// The config file that was touched and how. `None` on Windows, where the
-/// registry — not a file — is edited.
+/// registry (not a file) is edited.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ConfigReport {
     pub path: PathBuf,
     pub change_type: ConfigFileChangeType,
+}
+
+impl ConfigReport {
+    /// The command that loads the config file into the running shell.
+    pub fn reload_command(&self) -> String {
+        if self.path
+            .extension()
+            .is_some_and(|extension| extension == "ps1")
+        {
+            return format!(". {}", pwsh_quote(&self.path.to_string_lossy()));
+        }
+        format!("source {}", self.path.display())
+    }
 }
 
 /// The before/after of a path-extension run.
@@ -68,13 +94,16 @@ pub(crate) enum PathExtenderError {
         code(ERR_PNPM_BAD_SHELL_SECTION),
         help("If you want to override the existing configuration section, use the --force option")
     )]
-    BadShellSection { config_file: PathBuf, config_section_name: String },
+    BadShellSection {
+        config_file: PathBuf,
+        config_section_name: String,
+    },
 
     #[display("Could not infer shell type.")]
     #[diagnostic(
         code(ERR_PNPM_UNKNOWN_SHELL),
         help(
-            "Set the SHELL environment variable to your active shell.\nSupported shell languages are bash, zsh, fish, ksh, dash, sh, and nushell."
+            "Set the SHELL environment variable to your active shell.\nSupported shell languages are bash, zsh, fish, ksh, dash, sh, nushell, and PowerShell."
         )
     )]
     UnknownShell,
@@ -82,20 +111,28 @@ pub(crate) enum PathExtenderError {
     #[display(r#"Can't setup configuration for "{shell}" shell"#)]
     #[diagnostic(
         code(ERR_PNPM_UNSUPPORTED_SHELL),
-        help("Supported shell languages are bash, zsh, fish, ksh, dash, sh, and nushell.")
+        help(
+            "Supported shell languages are bash, zsh, fish, ksh, dash, sh, nushell, and PowerShell."
+        )
     )]
-    UnsupportedShell { shell: String },
+    UnsupportedShell {
+        shell: String,
+    },
 
     #[display("Cannot find a config file for {shell}. The ENV environment variable is not set.")]
     #[diagnostic(code(ERR_PNPM_NO_SHELL_CONFIG))]
-    NoShellConfig { shell: String },
+    NoShellConfig {
+        shell: String,
+    },
 
     #[display("Could not determine the home directory")]
     NoHomeDir,
 
     #[display(r#"Invalid proxyVarSubDir: "{sub_dir}""#)]
     #[diagnostic(code(ERR_PNPM_INVALID_SUBDIR))]
-    InvalidSubDir { sub_dir: String },
+    InvalidSubDir {
+        sub_dir: String,
+    },
 
     // Hardening: a path-separator (`:` on POSIX, `;` on Windows), a `%`
     // (Windows `%PNPM_HOME%` expansion), or a newline in `PNPM_HOME` would
@@ -105,22 +142,33 @@ pub(crate) enum PathExtenderError {
         r#"The pnpm home directory "{dir}" contains a character ({character:?}) that is unsafe for the PATH"#
     )]
     #[diagnostic(code(ERR_PNPM_INVALID_PNPM_HOME))]
-    UnsafePnpmHome { dir: String, character: char },
+    UnsafePnpmHome {
+        dir: String,
+        character: char,
+    },
 
-    #[display("Currently '{env_name}' is set to '{wanted_value}'")]
+    #[display("Currently '{env_name}' is set to '{current_value}'")]
     #[diagnostic(
         code(ERR_PNPM_BAD_ENV_FOUND),
         help("If you want to override the existing env variable, use the --force option")
     )]
-    BadEnvFound { env_name: String, wanted_value: String },
+    BadEnvFound {
+        env_name: String,
+        current_value: String,
+    },
 
-    #[display("exec chcp failed: {message}")]
-    #[diagnostic(code(ERR_PNPM_CHCP))]
-    Chcp { message: String },
+    #[display("could not read the console code page: {message}")]
+    #[diagnostic(code(ERR_PNPM_CODE_PAGE))]
+    CodePage {
+        message: String,
+    },
 
-    #[display("`{command}` failed: {stderr}")]
+    #[display("`{command}` failed: {message}")]
     #[diagnostic(code(ERR_PNPM_SETUP_COMMAND_FAILED))]
-    CommandFailed { command: String, stderr: String },
+    CommandFailed {
+        command: String,
+        message: String,
+    },
 
     #[display("win32 registry environment values could not be retrieved")]
     #[diagnostic(code(ERR_PNPM_REG_READ))]
@@ -132,12 +180,14 @@ pub(crate) enum PathExtenderError {
 
     #[display(r#"Failed to set "{env_name}" to "{value}": {stderr}"#)]
     #[diagnostic(code(ERR_PNPM_FAILED_SET_ENV))]
-    FailedSetEnv { env_name: String, value: String, stderr: String },
+    FailedSetEnv {
+        env_name: String,
+        value: String,
+        stderr: String,
+    },
 
-    #[display("{_0}")]
     Io(std::io::Error),
 
-    #[display("{_0}")]
     EnsureFile(pnpm_fs::EnsureFileError),
 }
 
@@ -176,7 +226,10 @@ pub(super) fn validate_windows_pnpm_home(dir: &Path) -> Result<(), PathExtenderE
 
 fn reject_unsafe_chars(dir: &Path, unsafe_chars: &[char]) -> Result<(), PathExtenderError> {
     let dir = dir.to_string_lossy();
-    if let Some(character) = dir.chars().find(|character| unsafe_chars.contains(character)) {
+    if let Some(character) = dir
+        .chars()
+        .find(|character| unsafe_chars.contains(character))
+    {
         return Err(PathExtenderError::UnsafePnpmHome { dir: dir.into_owned(), character });
     }
     Ok(())

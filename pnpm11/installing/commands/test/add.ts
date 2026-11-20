@@ -10,7 +10,7 @@ import type { Project, ProjectManifest, ProjectRootDir, ProjectRootDirRealPath }
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const tmp = temporaryDirectory()
 
 const DEFAULT_OPTIONS = {
@@ -293,6 +293,22 @@ test('pnpm add - should add prefix when set in .npmrc when a range is not specif
       manifest.dependencies['is-positive']
     ).toMatch(/~(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Z-]+(?:\.[0-9A-Z-]+)*))?(?:\+[0-9A-Z-]+)?$/i)
   }
+})
+
+test('pnpm add pkg@<version> honors exact version when existing entry has a range (pnpm/pnpm#6040)', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '^0.5.0',
+    },
+  })
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    dir: process.cwd(),
+    linkWorkspacePackages: false,
+  }, ['is-positive@1.0.0'])
+
+  const manifest = await loadJsonFile<ProjectManifest>(path.resolve('package.json'))
+  expect(manifest.dependencies?.['is-positive']).toBe('1.0.0')
 })
 
 test('pnpm add automatically installs missing peer dependencies', async () => {

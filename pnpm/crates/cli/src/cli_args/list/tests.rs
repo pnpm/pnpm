@@ -1,13 +1,20 @@
-use pretty_assertions::assert_eq;
-use text_block_macros::text_block;
-
 use super::{
-    RecursionLimit, parse_depth,
+    RecursionLimit,
+    parse_depth,
     render::{
-        ProjectHierarchy, RenderParseableOptions, RenderTreeOptions, render_parseable, render_tree,
+        ProjectHierarchy,
+        RenderParseableOptions,
+        RenderTreeOptions,
+        render_parseable,
+        render_tree,
     },
 };
-use crate::cli_args::deps_tree::{DependencyNode, build::DependenciesHierarchy};
+use crate::cli_args::deps_tree::{
+    DependencyNode,
+    build::DependenciesHierarchy,
+};
+use pretty_assertions::assert_eq;
+use text_block_macros::text_block;
 
 #[test]
 fn parse_depth_accepts_infinity_and_minus_one() {
@@ -21,9 +28,12 @@ fn parse_depth_accepts_infinity_and_minus_one() {
 fn dep(alias: &str, name: &str, version: &str, path: &str) -> DependencyNode {
     DependencyNode {
         alias: alias.to_string(),
-        name: name.to_string(),
-        version: version.to_string(),
-        path: path.to_string(),
+        package: pnpm_deps_inspection::DependencyPackage {
+            name: name.to_string(),
+            version: version.to_string(),
+            path: path.to_string(),
+            ..Default::default()
+        },
         ..DependencyNode::default()
     }
 }
@@ -309,7 +319,13 @@ fn render_parseable_search_shared_dep_across_packages_is_not_duplicated() {
     assert!(lines.contains(&"/workspace/packages/pkg-a"));
     assert!(lines.contains(&"/workspace/packages/pkg-b"));
     assert!(lines.contains(&"/workspace/packages/shared"));
-    assert_eq!(lines.iter().filter(|line| **line == "/workspace/packages/shared").count(), 1);
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| **line == "/workspace/packages/shared")
+            .count(),
+        1,
+    );
 }
 
 // Port of upstream's 'renderParseable search: packages unrelated to search are excluded' (deps/inspection/list/test/index.ts).
@@ -382,7 +398,111 @@ fn render_parseable_search_long_shared_dep_across_packages_is_not_duplicated() {
     assert!(lines.contains(&"/workspace/packages/pkg-a:pkg-a@1.0.0"));
     assert!(lines.contains(&"/workspace/packages/pkg-b:pkg-b@1.0.0"));
     assert_eq!(
-        lines.iter().filter(|line| line.starts_with("/workspace/packages/shared")).count(),
+        lines
+            .iter()
+            .filter(|line| line.starts_with("/workspace/packages/shared"))
+            .count(),
         1,
+    );
+}
+
+#[test]
+fn render_tree_displays_scoped_file_protocol_with_at_in_path_for_aliased_packages() {
+    let projects = vec![project(
+        "test-project",
+        "1.0.0",
+        "/test/path",
+        DependenciesHierarchy {
+            dependencies: vec![dep(
+                "scoped-alias",
+                "@example/local",
+                "@example/local@file:@scoped-dir/local",
+                "/test/path/@scoped-dir/local",
+            )],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_tree(&projects, &tree_opts(false, false));
+    assert!(output.contains("scoped-alias@@example/local@file:@scoped-dir/local"), "{output}");
+    assert!(!output.contains("npm:"), "{output}");
+}
+
+#[test]
+fn render_parseable_long_keeps_package_name_when_version_contains_at_in_path_or_peers() {
+    let projects = vec![project(
+        "my-app",
+        "1.0.0",
+        "/workspace/packages/app",
+        DependenciesHierarchy {
+            dependencies: vec![
+                dep(
+                    "@example/lib",
+                    "@example/lib",
+                    "link:../@example/lib",
+                    "/workspace/packages/@example/lib",
+                ),
+                dep(
+                    "@example/local",
+                    "@example/local",
+                    "file:@scoped-dir/local",
+                    "/workspace/@scoped-dir/local",
+                ),
+                dep(
+                    "my-local-pkg",
+                    "my-local-pkg",
+                    "file:local-pkg(peer-pkg@1.0.0)",
+                    "/workspace/local-pkg",
+                ),
+                dep(
+                    "ws-alias",
+                    "ws-alias",
+                    "link:../@example/other",
+                    "/workspace/packages/@example/other",
+                ),
+                dep(
+                    "scoped-alias",
+                    "@example/local-aliased",
+                    "@example/local-aliased@file:@scoped-dir/local-aliased",
+                    "/workspace/@scoped-dir/local-aliased",
+                ),
+                dep(
+                    "missing-pkg",
+                    "missing-pkg",
+                    "missing-pkg@1.0.0",
+                    "/workspace/node_modules/missing-pkg",
+                ),
+                dep(
+                    "missing-alias",
+                    "missing-alias",
+                    "canonical@1.0.0",
+                    "/workspace/node_modules/missing-alias",
+                ),
+                dep(
+                    "missing-scoped-alias",
+                    "missing-scoped-alias",
+                    "@scope/canonical@1.0.0",
+                    "/workspace/node_modules/missing-scoped-alias",
+                ),
+            ],
+            ..DependenciesHierarchy::default()
+        },
+    )];
+
+    let output = render_parseable(&projects, &parseable_opts(true));
+    let lines: Vec<&str> = output.lines().collect();
+    assert_eq!(
+        lines,
+        vec![
+            "/workspace/packages/app:my-app@1.0.0",
+            "/workspace/packages/@example/lib:@example/lib@link:../@example/lib",
+            "/workspace/@scoped-dir/local:@example/local@file:@scoped-dir/local",
+            "/workspace/@scoped-dir/local-aliased:scoped-alias @example/local-aliased@file:@scoped-dir/local-aliased",
+            "/workspace/node_modules/missing-alias:canonical@1.0.0",
+            "/workspace/node_modules/missing-pkg:missing-pkg@1.0.0",
+            "/workspace/node_modules/missing-scoped-alias:@scope/canonical@1.0.0",
+            "/workspace/local-pkg:my-local-pkg@file:local-pkg(peer-pkg@1.0.0)",
+            "/workspace/packages/@example/other:ws-alias@link:../@example/other",
+        ],
     );
 }

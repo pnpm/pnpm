@@ -1,15 +1,28 @@
 use super::relocate_pre_subcommand_flags;
-use crate::{boolean_negations::with_boolean_negations, cli_args::CliArgs};
-use clap::{CommandFactory, FromArgMatches};
+use crate::{
+    boolean_negations::with_boolean_negations,
+    cli_args::CliArgs,
+};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
 use pretty_assertions::assert_eq;
 use std::ffi::OsString;
 
 fn relocate(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
-    relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect())
-        .into_iter()
-        .map(|token| token.into_string().expect("test tokens are UTF-8"))
-        .collect()
+    relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    )
+    .into_iter()
+    .map(OsString::into_string)
+    .map(|text| text.expect("test tokens are UTF-8"))
+    .collect()
 }
 
 fn parse(tokens: &[&str]) -> CliArgs {
@@ -18,7 +31,13 @@ fn parse(tokens: &[&str]) -> CliArgs {
 
 fn try_parse(tokens: &[&str]) -> Result<CliArgs, clap::Error> {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect());
+    let argv = relocate_pre_subcommand_flags(
+        &cmd,
+        tokens
+            .iter()
+            .map(OsString::from)
+            .collect(),
+    );
     cmd.try_get_matches_from(argv).and_then(|matches| CliArgs::from_arg_matches(&matches))
 }
 
@@ -52,12 +71,12 @@ fn relocated_deploy_invocation_parses_with_the_flags_applied() {
         "deploy",
         "temp-deploy",
     ]);
-    assert_eq!(args.filter, ["pnpm"]);
+    assert_eq!(args.workspace.selection.filter, ["pnpm"]);
     let crate::cli_args::cli_command::CliCommand::Deploy(deploy) = args.command else {
         panic!("expected deploy");
     };
-    assert!(deploy.install_args.force);
-    assert!(deploy.install_args.ignore_scripts);
+    assert!(deploy.install_args.materialization.force);
+    assert!(deploy.install_args.scripts.ignore);
     assert_eq!(deploy.target_dirs, [std::path::PathBuf::from("temp-deploy")]);
 }
 
@@ -99,25 +118,68 @@ fn short_subcommand_flag_moves() {
 #[test]
 fn mixed_short_cluster_moves_with_its_value() {
     assert_eq!(
-        relocate(&["pnpm", "-ro", "dist", "pack-app"]),
-        ["pnpm", "pack-app", "-ro", "dist"],
-        "the global -r rides along so clap sees pack-app's -o after the subcommand",
+        relocate(&["pnpm", "-rt", "linux-x64", "pack-app"]),
+        ["pnpm", "pack-app", "-rt", "linux-x64"],
+        "the global -r rides along so clap sees pack-app's -t after the subcommand",
     );
     assert_eq!(
-        relocate(&["pnpm", "-rodist", "pack-app"]),
-        ["pnpm", "pack-app", "-rodist"],
+        relocate(&["pnpm", "-rtlinux-x64", "pack-app"]),
+        ["pnpm", "pack-app", "-rtlinux-x64"],
         "an attached value keeps the cluster a single token",
     );
 }
 
 #[test]
 fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
-    let args = parse(&["pnpm", "-ro", "dist", "pack-app"]);
-    assert!(args.recursive);
+    let args = parse(&["pnpm", "-rt", "linux-x64", "pack-app"]);
+    assert!(args.workspace.recursive);
     let crate::cli_args::cli_command::CliCommand::PackApp(pack_app) = args.command else {
         panic!("expected pack-app");
     };
-    assert_eq!(pack_app.output_dir.as_deref(), Some("dist"));
+    assert_eq!(pack_app.target, ["linux-x64"]);
+}
+
+#[test]
+fn short_with_conflicting_arity_moves_with_the_value_its_command_reads() {
+    assert_eq!(
+        relocate(&["pnpm", "-o", "dist", "pack-app"]),
+        ["pnpm", "pack-app", "-o", "dist"],
+        "`add -o` takes no value, but `pack-app -o` does",
+    );
+    let crate::cli_args::cli_command::CliCommand::Patch(patch) =
+        parse(&["pnpm", "-d", "dir", "patch", "foo"]).command
+    else {
+        panic!("expected patch");
+    };
+    assert_eq!(patch.edit_dir.as_deref(), Some(std::path::Path::new("dir")));
+}
+
+#[test]
+fn short_with_conflicting_arity_takes_a_command_name_as_its_value() {
+    assert_eq!(
+        relocate(&["pnpm", "-d", "edit", "patch", "foo"]),
+        ["pnpm", "patch", "-d", "edit", "foo"],
+        "`edit` does not declare -d, so `patch -d` reads `edit` as its value",
+    );
+    assert_eq!(
+        relocate(&["pnpm", "-d", "add", "foo"]),
+        ["pnpm", "add", "-d", "foo"],
+        "`add` declares -d, so the boolean reading stands",
+    );
+}
+
+#[test]
+fn moved_option_never_takes_the_subcommand_as_its_value() {
+    assert_eq!(
+        relocate(&["pnpm", "-o", "pack-app", "target"]),
+        ["pnpm", "pack-app", "-o", "target"],
+    );
+}
+
+#[test]
+fn short_with_conflicting_arity_before_a_script_stays_put() {
+    let argv = ["pnpm", "-o", "dist", "build"];
+    assert_eq!(relocate(&argv), argv);
 }
 
 #[test]

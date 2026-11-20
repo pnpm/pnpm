@@ -31,7 +31,7 @@ export function reportProgress (
   },
   opts: {
     cwd: string
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the operator is applied to streams of different element types
     throttle?: Rx.OperatorFunction<any, any>
     hideAddedPkgsProgress?: boolean
     hideProgressPrefix?: boolean
@@ -60,7 +60,7 @@ export function reportProgress (
 
 function throttledProgressOutput (
   opts: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the operator is applied to streams of different element types
     throttle?: Rx.OperatorFunction<any, any>
     hideAddedPkgsProgress?: boolean
   },

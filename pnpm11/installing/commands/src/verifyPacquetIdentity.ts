@@ -41,7 +41,7 @@ export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOpt
  * Fails closed: if a declared pacquet's signature does not verify, or it cannot
  * be verified (e.g. the registry is unreachable), this throws rather than
  * silently running pnpm's own engine — a verification failure should be loud.
- * The one exception is when pacquet simply has no binary for this platform: that
+ * The one exception is when pacquet has no binary for this platform: that
  * is unavailability, not tampering, so it returns `false` and the caller uses
  * pnpm's own install engine.
  */

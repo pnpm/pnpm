@@ -1,5 +1,6 @@
 /// <reference path="../../../../__typings__/index.d.ts"/>
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
@@ -9,18 +10,18 @@ import { depPathToFilename } from '@pnpm/deps.path'
 import { fixtures } from '@pnpm/test-fixtures'
 
 const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120
-const f = fixtures(import.meta.dirname)
-const generalFixture = f.find('general')
-const withPeerFixture = f.find('with-peer')
-const circularFixture = f.find('circular')
-const withFileDepFixture = f.find('with-file-dep')
-const withNonPackageDepFixture = f.find('with-non-package-dep')
-const withLinksOnlyFixture = f.find('fixtureWithLinks/with-links-only')
-const withUnsavedDepsFixture = f.find('with-unsaved-deps')
+const testFixtures = fixtures(import.meta.dirname)
+const generalFixture = testFixtures.find('general')
+const withPeerFixture = testFixtures.find('with-peer')
+const circularFixture = testFixtures.find('circular')
+const withFileDepFixture = testFixtures.find('with-file-dep')
+const withNonPackageDepFixture = testFixtures.find('with-non-package-dep')
+const withLinksOnlyFixture = testFixtures.find('fixtureWithLinks/with-links-only')
+const withUnsavedDepsFixture = testFixtures.find('with-unsaved-deps')
 const fixtureMonorepo = path.join(import.meta.dirname, '..', 'fixtureMonorepo')
-const withAliasedDepFixture = f.find('with-aliased-dep')
-const workspaceWithNestedWorkspaceDeps = f.find('workspace-with-nested-workspace-deps')
-const customModulesDirFixture = f.find('custom-modules-dir')
+const withAliasedDepFixture = testFixtures.find('with-aliased-dep')
+const workspaceWithNestedWorkspaceDeps = testFixtures.find('workspace-with-nested-workspace-deps')
+const customModulesDirFixture = testFixtures.find('custom-modules-dir')
 
 test('one package depth 0', async () => {
   const tree = await buildDependenciesTree([generalFixture], { depth: 0, lockfileDir: generalFixture, virtualStoreDirMaxLength })
@@ -324,19 +325,19 @@ test('circular dependency', async () => {
 })
 
 function resolvePaths (modulesDir: string, node: DependencyNode): DependencyNode {
-  const p = path.resolve(modulesDir, '.pnpm', node.path, 'node_modules', node.name)
+  const resolvedPath = path.resolve(modulesDir, '.pnpm', node.path, 'node_modules', node.name)
   if (node.dependencies == null) {
     return {
       ...node,
       alias: node.name,
-      path: p,
+      path: resolvedPath,
     }
   }
   return {
     ...node,
     alias: node.name,
     dependencies: node.dependencies.map((dep) => resolvePaths(modulesDir, dep)),
-    path: p,
+    path: resolvedPath,
   }
 }
 
@@ -394,7 +395,7 @@ test('on a package that has only links', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'general',
-          path: path.join(f.find('fixtureWithLinks'), 'general'),
+          path: path.join(testFixtures.find('fixtureWithLinks'), 'general'),
           version: 'link:../general',
         },
       ],
@@ -485,6 +486,96 @@ test('unsaved dependencies are listed', async () => {
         ],
       },
     })
+})
+
+test.each(['default', 'relative', 'absolute hoisted'] as const)('unsaved dependencies come from each project with %s layout', async (layout) => {
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
+  try {
+    const appDir = path.join(lockfileDir, 'packages/app')
+    const customModulesDir = 'vendor/modules'
+    const modulesDir = layout === 'absolute hoisted' ? path.join(lockfileDir, customModulesDir) : layout === 'relative' ? customModulesDir : undefined
+    const nodeLinker = layout === 'absolute hoisted' ? 'hoisted' : 'isolated'
+    fs.writeFileSync(path.join(lockfileDir, WANTED_LOCKFILE), `lockfileVersion: '9.0'
+importers:
+  .: {}
+  packages/app: {}
+`)
+    const rootModulesDir = path.join(lockfileDir, layout === 'default' ? 'node_modules' : customModulesDir)
+    const appModulesDir = path.join(appDir, layout === 'relative' ? customModulesDir : 'node_modules')
+    for (const [projectModulesDir, name] of [[rootModulesDir, 'root-extra'], [appModulesDir, 'app-extra']]) {
+      const pkgDir = path.join(projectModulesDir, name)
+      fs.mkdirSync(pkgDir, { recursive: true })
+      fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+    }
+
+    const tree = await buildDependenciesTree([lockfileDir, appDir], { depth: 0, lockfileDir, modulesDir, nodeLinker, virtualStoreDirMaxLength })
+
+    expect(tree[lockfileDir].unsavedDependencies?.map(({ alias }) => alias)).toEqual(['root-extra'])
+    expect(tree[appDir].unsavedDependencies?.map(({ alias }) => alias)).toEqual(['app-extra'])
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})
+
+test('unsaved dependencies follow a relative modulesDir outside the workspace', async () => {
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
+  try {
+    const workspaceParent = path.join(fixtureDir, 'projects', 'group')
+    const lockfileDir = path.join(workspaceParent, 'workspace')
+    const appDir = path.join(lockfileDir, 'packages/app')
+    fs.mkdirSync(appDir, { recursive: true })
+    fs.writeFileSync(path.join(lockfileDir, WANTED_LOCKFILE), `lockfileVersion: '9.0'
+importers:
+  .: {}
+  packages/app: {}
+`)
+    const modulesDir = '../../../external'
+    const pkgDir = path.join(workspaceParent, 'external', 'external-extra')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'external-extra', version: '1.0.0' }))
+
+    const tree = await buildDependenciesTree([appDir], { depth: 0, lockfileDir, modulesDir, virtualStoreDirMaxLength })
+
+    expect(tree[appDir].unsavedDependencies?.map(({ alias }) => alias)).toEqual(['external-extra'])
+  } finally {
+    fs.rmSync(fixtureDir, { recursive: true, force: true })
+  }
+})
+
+test('an unsaved dependency named like an Object.prototype property is listed', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-'))
+  try {
+    fs.writeFileSync(path.join(projectDir, WANTED_LOCKFILE), 'lockfileVersion: \'9.0\'\n\nimporters:\n\n  .: {}\n')
+    const pkgDir = path.join(projectDir, 'node_modules/constructor')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'constructor', version: '1.0.0' }))
+
+    const tree = await buildDependenciesTree([projectDir], { depth: 0, lockfileDir: projectDir, virtualStoreDirMaxLength })
+
+    expect(tree[projectDir].unsavedDependencies).toStrictEqual([
+      {
+        alias: 'constructor',
+        isMissing: false,
+        isPeer: false,
+        isSkipped: false,
+        name: 'constructor',
+        path: await fs.promises.realpath(pkgDir),
+        version: '1.0.0',
+      },
+    ])
+  } finally {
+    fs.rmSync(projectDir, { recursive: true, force: true })
+  }
+})
+
+test('unsaved dependencies are omitted when only projects are listed', async () => {
+  const tree = await buildDependenciesTree([withUnsavedDepsFixture], {
+    depth: 0,
+    lockfileDir: withUnsavedDepsFixture,
+    onlyProjects: true,
+    virtualStoreDirMaxLength,
+  })
+  expect(tree[withUnsavedDepsFixture].unsavedDependencies).toBeUndefined()
 })
 
 test('unsaved dependencies are listed and filtered', async () => {
@@ -664,4 +755,113 @@ test('on custom modules-dir workspaces', async () => {
       optionalDependencies: [],
     },
   })
+})
+
+test('a production tree leaves out a devDependency that only satisfies an optional peer', async () => {
+  const lockfileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-optional-peer-'))
+  try {
+    fs.writeFileSync(path.join(lockfileDir, 'package.json'), JSON.stringify({ name: 'root', version: '1.0.0' }))
+    fs.writeFileSync(path.join(lockfileDir, WANTED_LOCKFILE), `lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      abc:
+        specifier: 1.0.0
+        version: 1.0.0(peer-a@1.0.0)(peer-c@1.0.0)
+    devDependencies:
+      peer-a:
+        specifier: 1.0.0
+        version: 1.0.0
+      peer-c:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  abc@1.0.0:
+    resolution: {integrity: sha512-abc}
+    peerDependencies:
+      peer-a: ^1.0.0
+      peer-c: ^1.0.0
+    peerDependenciesMeta:
+      peer-c:
+        optional: true
+
+  peer-a@1.0.0:
+    resolution: {integrity: sha512-peer-a}
+
+  peer-c@1.0.0:
+    resolution: {integrity: sha512-peer-c}
+
+snapshots:
+
+  abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0):
+    dependencies:
+      peer-a: 1.0.0
+      peer-c: 1.0.0
+
+  peer-a@1.0.0: {}
+
+  peer-c@1.0.0: {}
+`)
+    const abcChildren = async (include?: { dependencies: boolean, devDependencies: boolean, optionalDependencies: boolean }) => {
+      const tree = await buildDependenciesTree([lockfileDir], {
+        checkWantedLockfileOnly: true,
+        depth: 1,
+        include,
+        lockfileDir,
+        virtualStoreDirMaxLength,
+      })
+      return tree[lockfileDir].dependencies![0].dependencies!.map(({ name }) => name)
+    }
+
+    expect(await abcChildren({ dependencies: true, devDependencies: false, optionalDependencies: true })).toStrictEqual(['peer-a'])
+    expect(await abcChildren()).toStrictEqual(['peer-a', 'peer-c'])
+  } finally {
+    fs.rmSync(lockfileDir, { recursive: true, force: true })
+  }
+})
+
+test('resolvePackagePath with nodeLinker hoisted uses hoistedLocations and projectDir', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-builder-hoisted-'))
+  try {
+    fs.writeFileSync(path.join(tmpDir, 'pnpm-lock.yaml'), `\
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+packages:
+  foo@1.0.0:
+    resolution: {integrity: sha512-foo}
+snapshots:
+  foo@1.0.0: {}
+`)
+    const modulesDir = path.join(tmpDir, 'node_modules')
+    fs.mkdirSync(modulesDir, { recursive: true })
+    fs.writeFileSync(path.join(modulesDir, '.modules.yaml'), `\
+packageManager: pnpm@11.0.0
+nodeLinker: hoisted
+hoistedLocations:
+  foo@1.0.0:
+    - node_modules/foo
+`)
+    const fooDir = path.join(modulesDir, 'foo')
+    fs.mkdirSync(fooDir, { recursive: true })
+    fs.writeFileSync(path.join(fooDir, 'package.json'), JSON.stringify({ name: 'foo', version: '1.0.0' }))
+
+    const tree = await buildDependenciesTree([tmpDir], {
+      checkWantedLockfileOnly: true,
+      depth: 0,
+      lockfileDir: tmpDir,
+      virtualStoreDirMaxLength,
+    })
+    expect(tree[tmpDir].dependencies![0].path).toBe(fooDir)
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
 })

@@ -1,13 +1,34 @@
+pub use wire::*;
+
 use std::collections::HashMap;
 
 use pipe_trait::Pipe;
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use serde::{Deserialize, Serialize};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    normalize_registry_url,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
+use crate::{
+    NetworkError,
+    PackageTag,
+    RegistryError,
+    package_distribution::PackageDistribution,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror npm registry version metadata."
+    )
+)]
 pub struct PackageVersion {
     pub name: String,
     pub version: node_semver::Version,
@@ -72,9 +93,7 @@ pub struct PackageVersion {
     ///
     /// **Wire format:** the field is nominally a string, but the real
     /// npm registry occasionally serves `"deprecated": false` for
-    /// never-deprecated versions. Rust serde is strict, so we route
-    /// through a custom deserializer that normalizes the field to
-    /// `Option<String>`, treating a `false` boolean as absent.
+    /// never-deprecated versions.
     #[serde(
         default,
         deserialize_with = "deserialize_deprecated_field",
@@ -94,171 +113,6 @@ pub struct PackageVersion {
 
 impl Eq for PackageVersion {}
 
-/// Deserialize a `Record<string, string>`-shaped dependency map while
-/// tolerating historical npm registry entries whose values are objects
-/// or other non-string shapes. Non-string entries are silently dropped
-/// (e.g. `deep-diff@0.1.0`'s nested `devDependencies`). Missing field
-/// and JSON `null` both decode to `None`; a present map (even one whose
-/// entries are all dropped) decodes to `Some`.
-fn deserialize_dependency_map<'de, Deser>(
-    deserializer: Deser,
-) -> Result<Option<HashMap<String, String>>, Deser::Error>
-where
-    Deser: serde::Deserializer<'de>,
-{
-    use serde::de::{self, MapAccess, Visitor};
-    use std::fmt;
-
-    struct DependencyMapVisitor;
-    impl<'de> Visitor<'de> for DependencyMapVisitor {
-        type Value = Option<HashMap<String, String>>;
-        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.write_str("a map of dependency name to version-spec string, or null")
-        }
-        fn visit_none<Err: de::Error>(self) -> Result<Self::Value, Err> {
-            Ok(None)
-        }
-        fn visit_unit<Err: de::Error>(self) -> Result<Self::Value, Err> {
-            Ok(None)
-        }
-        fn visit_some<Nested: serde::Deserializer<'de>>(
-            self,
-            deserializer: Nested,
-        ) -> Result<Self::Value, Nested::Error> {
-            deserializer.deserialize_any(DependencyMapVisitor)
-        }
-        fn visit_map<Map: MapAccess<'de>>(self, mut map: Map) -> Result<Self::Value, Map::Error> {
-            let mut out = HashMap::new();
-            while let Some(key) = map.next_key::<String>()? {
-                let value = map.next_value::<serde_json::Value>()?;
-                if let serde_json::Value::String(spec) = value {
-                    out.insert(key, spec);
-                }
-            }
-            Ok(Some(out))
-        }
-    }
-    deserializer.deserialize_any(DependencyMapVisitor)
-}
-
-/// Accept either a string or a boolean for the `deprecated` field.
-/// A bool `true` becomes `Some("")`, a bool `false` becomes `None`;
-/// a string stays as `Some(s)`. Missing field defaults to `None` via
-/// the `#[serde(default)]` on the field itself.
-pub(crate) fn deserialize_deprecated_field<'de, Deser>(
-    deserializer: Deser,
-) -> Result<Option<String>, Deser::Error>
-where
-    Deser: serde::Deserializer<'de>,
-{
-    use serde::de::{self, Visitor};
-    use std::fmt;
-
-    struct DeprecatedVisitor;
-    impl<'de> Visitor<'de> for DeprecatedVisitor {
-        type Value = Option<String>;
-        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.write_str("a deprecation reason (string), a boolean, or null")
-        }
-        fn visit_str<Err: de::Error>(self, value: &str) -> Result<Self::Value, Err> {
-            Ok(Some(value.to_string()))
-        }
-        fn visit_string<Err: de::Error>(self, value: String) -> Result<Self::Value, Err> {
-            Ok(Some(value))
-        }
-        fn visit_bool<Err: de::Error>(self, value: bool) -> Result<Self::Value, Err> {
-            Ok(value.then(String::new))
-        }
-        fn visit_none<Err: de::Error>(self) -> Result<Self::Value, Err> {
-            Ok(None)
-        }
-        fn visit_unit<Err: de::Error>(self) -> Result<Self::Value, Err> {
-            Ok(None)
-        }
-        fn visit_some<Nested: serde::Deserializer<'de>>(
-            self,
-            deserializer: Nested,
-        ) -> Result<Self::Value, Nested::Error> {
-            deserializer.deserialize_any(DeprecatedVisitor)
-        }
-    }
-    deserializer.deserialize_any(DeprecatedVisitor)
-}
-
-/// `peerDependenciesMeta[name]` shape from the npm registry. Only the
-/// `optional` flag is consumed by the resolver; other fields the
-/// registry may serve are ignored.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PeerDependencyMeta {
-    #[serde(
-        default,
-        deserialize_with = "crate::wire_tolerance::deserialize_strict_flag",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub optional: Option<bool>,
-}
-
-/// `_npmUser` field on a per-version manifest. The verifier reads
-/// `approver` and `trusted_publisher` to assign the trust rank
-/// (`stagedPublish` > `trustedPublisher` > `provenance` > none).
-/// `name` / `email` are kept for round-trip parity, and are decoded
-/// leniently so neither can cost the version its trust rank.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NpmUser {
-    #[serde(
-        default,
-        deserialize_with = "crate::wire_tolerance::deserialize_text_or_absent",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub name: Option<String>,
-    #[serde(
-        default,
-        deserialize_with = "crate::wire_tolerance::deserialize_text_or_absent",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub email: Option<String>,
-    #[serde(
-        default,
-        deserialize_with = "crate::wire_tolerance::deserialize_presence_marker",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub approver: Option<Approver>,
-    #[serde(
-        default,
-        deserialize_with = "crate::wire_tolerance::deserialize_presence_marker",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub trusted_publisher: Option<TrustedPublisher>,
-}
-
-/// `_npmUser.approver` record on a per-version manifest. Its presence
-/// marks a staged publish — one that required a 2FA publish approval,
-/// the strongest trust signal. The verifier only checks for the
-/// field's presence; `name` / `email` are kept for round-trip parity.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Approver {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
-}
-
-/// OIDC trusted-publisher record on `_npmUser.trustedPublisher`.
-/// The verifier only checks for the field's presence; the inner
-/// values are kept for round-trip parity, and stay `None` for a
-/// registry that marks the publisher without describing it.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TrustedPublisher {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub oidc_config_id: Option<String>,
-}
-
 impl PartialEq for PackageVersion {
     fn eq(&self, other: &Self) -> bool {
         self.dist == other.dist
@@ -277,17 +131,20 @@ impl PackageVersion {
         // lookup, and the error mapper. Keeps the auth lookup and
         // request URL byte-identical and saves two formats.
         let encoded_name = pnpm_network::encode_package_name(name);
-        let url = format!("{registry}{encoded_name}/{}", tag.registry_path_segment());
+        let normalized = normalize_registry_url(registry);
+        let url = format!("{normalized}{encoded_name}/{}", tag.registry_path_segment());
         let network_error = |error| NetworkError { error, url: url.clone() };
 
         // Hold the semaphore permit across send + body consumption so the
         // socket-bound stays effective under concurrent fan-out. See the
         // doc comment on `ThrottledClientGuard`.
         let guard = http_client.acquire_for_url(&url).await;
-        let mut request = guard.get(&url).header(
-            "accept",
-            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
-        );
+        let mut request = guard
+            .get(&url)
+            .header(
+                "accept",
+                "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+            );
         if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }
@@ -326,6 +183,8 @@ impl PackageVersion {
             .map(|(name, version)| (name.as_str(), version.as_str()))
     }
 }
+
+mod wire;
 
 #[cfg(test)]
 mod tests;

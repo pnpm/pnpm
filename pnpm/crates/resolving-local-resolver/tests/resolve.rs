@@ -1,16 +1,33 @@
 //! Resolution tests for the local-filesystem resolver, one
 //! `#[tokio::test]` per scenario.
 
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_fs::lexical_normalize;
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+    TarballResolution,
+};
 use pnpm_resolving_local_resolver::{
-    LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, ResolveLocalError,
-    WantedLocalDependency, is_local_filesystem_specifier, resolve_from_local_path,
+    LocalCurrentPkg,
+    LocalFilesystemPolicy,
+    LocalResolverContext,
+    LocalResolverOptions,
+    LocalResolverUpdate,
+    ResolveLocalError,
+    WantedLocalDependency,
+    is_local_filesystem_specifier,
+    local_spec_path,
+    recorded_local_path,
+    resolve_from_local_path,
     resolve_from_local_scheme,
 };
 use pnpm_resolving_resolver_base::PkgResolutionId;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 
@@ -33,8 +50,10 @@ fn opts(project_dir: &Path) -> LocalResolverOptions {
     LocalResolverOptions {
         project_dir: project_dir.to_path_buf(),
         lockfile_dir: None,
+        workspace_dir: None,
         current_pkg: None,
         update: LocalResolverUpdate::Off,
+        inject_workspace_packages: false,
     }
 }
 
@@ -63,14 +82,14 @@ async fn resolve_directory() {
         panic!("expected directory resolution, got {:?}", result.resolution);
     };
     let expected_dir =
-        forward_slashes(project_dir.join("..").lexical_normalize().display().to_string());
+        forward_slashes(lexical_normalize(&project_dir.join("..")).display().to_string());
     assert_eq!(dir.directory, expected_dir);
 }
 
 #[tokio::test]
 async fn resolve_directory_specified_using_absolute_path() {
     let (_tmp, project_dir) = fixture();
-    let linked_dir = project_dir.join("..").lexical_normalize();
+    let linked_dir = lexical_normalize(&project_dir.join(".."));
     let normalized_linked_dir = forward_slashes(linked_dir.display().to_string());
 
     let wd = WantedLocalDependency {
@@ -96,16 +115,15 @@ async fn resolve_directory_specified_using_absolute_path() {
 #[tokio::test]
 async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_paths() {
     let (_tmp, project_dir) = fixture();
-    let linked_dir = project_dir.join("..").lexical_normalize();
+    let linked_dir = lexical_normalize(&project_dir.join(".."));
     let normalized_linked_dir = forward_slashes(linked_dir.display().to_string());
 
     let wd = WantedLocalDependency {
         bare_specifier: format!("link:{}", linked_dir.display()),
         injected: false,
     };
-    let ctx = LocalResolverContext { preserve_absolute_paths: true };
-    let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir))
-        .await
+    let ctx = LocalResolverContext { preserve_absolute_paths: true, ..Default::default() };
+    let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir)).await
         .expect("resolve")
         .expect("claims");
 
@@ -120,16 +138,15 @@ async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_
 async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_paths_and_file_scheme()
  {
     let (_tmp, project_dir) = fixture();
-    let linked_dir = project_dir.join("..").lexical_normalize();
+    let linked_dir = lexical_normalize(&project_dir.join(".."));
     let normalized_linked_dir = forward_slashes(linked_dir.display().to_string());
 
     let wd = WantedLocalDependency {
         bare_specifier: format!("file:{}", linked_dir.display()),
         injected: false,
     };
-    let ctx = LocalResolverContext { preserve_absolute_paths: true };
-    let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir))
-        .await
+    let ctx = LocalResolverContext { preserve_absolute_paths: true, ..Default::default() };
+    let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir)).await
         .expect("resolve")
         .expect("claims");
 
@@ -158,6 +175,73 @@ async fn resolve_injected_directory() {
     assert_eq!(dir.directory, "..");
 }
 
+/// A path that cannot name a file on Windows (a `:` inside a component)
+/// is rejected with `ERROR_INVALID_NAME` there, and still reads as a
+/// missing directory (<https://github.com/pnpm/pnpm/issues/16590>).
+#[tokio::test]
+async fn resolve_directory_whose_name_cannot_exist() {
+    let (_tmp, project_dir) = fixture();
+    let wd = WantedLocalDependency {
+        bare_specifier: "./patch:got/.yarn/patches/got.patch".to_string(),
+        injected: false,
+    };
+
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    let manifest = result.manifest.as_ref().expect("manifest");
+    assert_eq!(manifest.get("name").and_then(|value| value.as_str()), Some("got.patch"));
+}
+
+/// A Yarn `patch:` specifier contains a `/`, so it reaches the local
+/// resolver by its path shape. Nothing exists at that path, so the
+/// protocol is reported.
+#[tokio::test]
+async fn resolve_missing_directory_with_unsupported_protocol() {
+    let (_tmp, project_dir) = fixture();
+    let specifier = "patch:got@npm%3A11.8.2#~/.yarn/patches/got-npm-11.8.2-c1eb105458.patch";
+    let wd = WantedLocalDependency { bare_specifier: specifier.to_string(), injected: false };
+
+    let err = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
+        .await
+        .expect_err("unsupported protocol");
+
+    let ResolveLocalError::UnsupportedProtocol(err) = err else {
+        panic!("expected UnsupportedProtocol, got {err:?}");
+    };
+    assert_eq!(err.protocol, "patch:");
+    assert_eq!(err.specifier, specifier);
+}
+
+/// The protocol check runs only once the directory is found missing.
+#[tokio::test]
+async fn resolve_existing_directory_whose_specifier_looks_like_a_protocol() {
+    let (tmp, project_dir) = fixture();
+    let linked = tmp
+        .path()
+        .join("inner")
+        .join("scheme:pkg")
+        .join("dir");
+    if fs::create_dir_all(&linked).is_err() {
+        // Windows cannot create a directory named this way.
+        return;
+    }
+    fs::write(linked.join("package.json"), r#"{"name":"linked","version":"1.0.0"}"#)
+        .expect("write package.json");
+    let wd =
+        WantedLocalDependency { bare_specifier: "scheme:pkg/dir".to_string(), injected: false };
+
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&project_dir))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    let manifest = result.manifest.as_ref().expect("manifest");
+    assert_eq!(manifest.get("name").and_then(|value| value.as_str()), Some("linked"));
+}
+
 #[tokio::test]
 async fn resolve_workspace_directory() {
     let (_tmp, project_dir) = fixture();
@@ -170,6 +254,22 @@ async fn resolve_workspace_directory() {
 
     assert_eq!(result.id.as_str(), "link:..");
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("link:.."));
+    assert_eq!(result.resolved_via, "workspace");
+}
+
+#[tokio::test]
+async fn resolve_workspace_directory_with_inject_workspace_packages() {
+    let (_tmp, project_dir) = fixture();
+    let wd = WantedLocalDependency { bare_specifier: "workspace:..".to_string(), injected: false };
+    let opts = LocalResolverOptions { inject_workspace_packages: true, ..opts(&project_dir) };
+
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts).await
+        .expect("resolve")
+        .expect("claims");
+
+    assert_eq!(result.id.as_str(), "file:..");
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("file:.."));
+    assert_eq!(result.resolved_via, "workspace");
 }
 
 #[tokio::test]
@@ -184,6 +284,7 @@ async fn resolve_directory_specified_using_the_file_protocol() {
 
     assert_eq!(result.id.as_str(), "file:..");
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("file:.."));
+    assert_eq!(result.resolved_via, "local-filesystem");
     let LockfileResolution::Directory(dir) = &result.resolution else {
         panic!("expected directory resolution");
     };
@@ -341,7 +442,13 @@ async fn resolve_file() {
         panic!("expected tarball resolution, got {:?}", result.resolution);
     };
     assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
-    assert_eq!(got_integrity.as_ref().expect("integrity").to_string(), integrity);
+    assert_eq!(
+        got_integrity
+            .as_ref()
+            .expect("integrity")
+            .to_string(),
+        integrity,
+    );
     assert_eq!(result.resolved_via, "local-filesystem");
     // The bundled manifest is what gives the dep path its `<name>@`
     // prefix, so a lockfile key can be parsed out of it.
@@ -362,14 +469,13 @@ async fn resolve_file_when_lockfile_directory_differs_from_the_packages_dir() {
     let _integrity = write_tarball(&tarball_path);
 
     let mut options = opts(&test_dir);
-    options.lockfile_dir = Some(test_dir.join("..").lexical_normalize());
+    options.lockfile_dir = Some(lexical_normalize(&test_dir.join("..")));
 
     let wd = WantedLocalDependency {
         bare_specifier: "./pnpm-local-resolver-0.1.1.tgz".to_string(),
         injected: false,
     };
-    let result = resolve_from_local_path(&ctx_default(), &wd, &options)
-        .await
+    let result = resolve_from_local_path(&ctx_default(), &wd, &options).await
         .expect("resolve")
         .expect("claims");
 
@@ -382,6 +488,202 @@ async fn resolve_file_when_lockfile_directory_differs_from_the_packages_dir() {
         panic!("expected tarball resolution");
     };
     assert_eq!(tarball, "file:tgz/pnpm-local-resolver-0.1.1.tgz");
+}
+
+#[tokio::test]
+async fn resolve_absolute_tarball_when_project_dir_contains_parent_components() {
+    let tmp = TempDir::new().expect("tempdir");
+    let data = tmp.path().join("data");
+    let child = data.join("child");
+    let pnpm_home = data.join("pnpm");
+    fs::create_dir_all(&child).expect("create child dir");
+    fs::create_dir_all(&pnpm_home).expect("create pnpm home");
+    let tarball_path = tmp.path().join("pnpm-local-resolver-0.1.1.tgz");
+    write_tarball(&tarball_path);
+
+    // Same directory as `pnpm_home`, still spelled with a `..` segment,
+    // the shape `PNPM_HOME=.../child/../pnpm` takes on a global install.
+    let unnormalized_home = child.join("..").join("pnpm");
+
+    let wd = WantedLocalDependency {
+        bare_specifier: format!("file:{}", tarball_path.display()),
+        injected: false,
+    };
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(&unnormalized_home))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    let LockfileResolution::Tarball(TarballResolution { tarball, .. }) = &result.resolution else {
+        panic!("expected tarball resolution, got {:?}", result.resolution);
+    };
+    let rel = tarball.strip_prefix("file:").expect("file: tarball");
+    let reconstructed = lexical_normalize(&unnormalized_home.join(rel));
+    assert_eq!(
+        reconstructed,
+        lexical_normalize(&tarball_path),
+        "tarball={tarball} home={}",
+        unnormalized_home.display(),
+    );
+}
+
+#[tokio::test]
+async fn resolve_relative_tarball_when_project_dir_contains_parent_components() {
+    let tmp = TempDir::new().expect("tempdir");
+    let data = tmp.path().join("data");
+    let child = data.join("child");
+    let pnpm_home = data.join("pnpm");
+    fs::create_dir_all(&child).expect("create child dir");
+    fs::create_dir_all(&pnpm_home).expect("create pnpm home");
+    write_tarball(&pnpm_home.join("pnpm-local-resolver-0.1.1.tgz"));
+
+    let unnormalized_home = child.join("..").join("pnpm");
+
+    let wd = WantedLocalDependency {
+        bare_specifier: "./pnpm-local-resolver-0.1.1.tgz".to_string(),
+        injected: false,
+    };
+    let result = resolve_from_local_path(&ctx_default(), &wd, &opts(&unnormalized_home))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    assert_eq!(
+        result.normalized_bare_specifier.as_deref(),
+        Some("file:pnpm-local-resolver-0.1.1.tgz"),
+    );
+    assert_eq!(result.id.as_str(), "file:pnpm-local-resolver-0.1.1.tgz");
+    let LockfileResolution::Tarball(TarballResolution { tarball, .. }) = &result.resolution else {
+        panic!("expected tarball resolution, got {:?}", result.resolution);
+    };
+    assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
+}
+
+/// Node's `path.resolve` collapses `..` without consulting the
+/// filesystem, and the lockfile round-trip collapses the recorded path
+/// the same way.
+#[tokio::test]
+async fn resolve_absolute_tarball_path_stepping_back_through_a_missing_directory() {
+    let tmp = TempDir::new().expect("tempdir");
+    let tarball_path = tmp.path().join("pnpm-local-resolver-0.1.1.tgz");
+    let integrity = write_tarball(&tarball_path);
+
+    let spec = tmp
+        .path()
+        .join("missing")
+        .join("..")
+        .join("pnpm-local-resolver-0.1.1.tgz");
+    let wd = WantedLocalDependency {
+        bare_specifier: format!("file:{}", spec.display()),
+        injected: false,
+    };
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &opts(tmp.path()))
+        .await
+        .expect("resolve")
+        .expect("claims");
+
+    assert_eq!(result.id.as_str(), "file:pnpm-local-resolver-0.1.1.tgz");
+    let LockfileResolution::Tarball(TarballResolution {
+        tarball, integrity: got_integrity, ..
+    }) = &result.resolution
+    else {
+        panic!("expected tarball resolution, got {:?}", result.resolution);
+    };
+    assert_eq!(tarball, "file:pnpm-local-resolver-0.1.1.tgz");
+    assert_eq!(
+        got_integrity
+            .as_ref()
+            .expect("integrity")
+            .to_string(),
+        integrity,
+    );
+}
+
+#[tokio::test]
+async fn resolve_missing_tarball_falls_back_to_current_pkg_when_not_updating() {
+    let tmp = TempDir::new().expect("tempdir");
+    let wd = WantedLocalDependency {
+        bare_specifier: "file:./missing-pkg.tgz".to_string(),
+        injected: false,
+    };
+    let mut options = opts(tmp.path());
+    let current_resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "file:missing-pkg.tgz".to_string(),
+        integrity: Some("sha512-SAVED_INTEGRITY".parse().unwrap()),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    options.current_pkg = Some(pnpm_resolving_local_resolver::LocalCurrentPkg {
+        id: PkgResolutionId::from("file:missing-pkg.tgz"),
+        resolution: current_resolution.clone(),
+        manifest: None,
+    });
+    options.update = LocalResolverUpdate::Off;
+
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &options).await
+        .expect("resolve should succeed with fallback")
+        .expect("claims");
+
+    assert_eq!(result.id.as_str(), "file:missing-pkg.tgz");
+    assert_eq!(result.resolution, current_resolution);
+
+    options.update = LocalResolverUpdate::On;
+    let err = resolve_from_local_scheme(&ctx_default(), &wd, &options).await
+        .expect_err("update should fail when tarball is missing");
+    assert!(matches!(err, ResolveLocalError::LinkedPkgDirNotFound { .. }));
+}
+
+#[tokio::test]
+async fn resolve_missing_tarball_fails_when_current_pkg_has_no_integrity() {
+    let tmp = TempDir::new().expect("tempdir");
+    let wd = WantedLocalDependency {
+        bare_specifier: "file:./missing-pkg.tgz".to_string(),
+        injected: false,
+    };
+    let mut options = opts(tmp.path());
+    options.current_pkg = Some(pnpm_resolving_local_resolver::LocalCurrentPkg {
+        id: PkgResolutionId::from("file:missing-pkg.tgz"),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: "file:missing-pkg.tgz".to_string(),
+            integrity: None,
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        manifest: None,
+    });
+    options.update = LocalResolverUpdate::Off;
+
+    let err = resolve_from_local_scheme(&ctx_default(), &wd, &options).await
+        .expect_err("should fail when integrity is missing");
+    assert!(matches!(err, ResolveLocalError::LinkedPkgDirNotFound { .. }));
+}
+
+#[tokio::test]
+async fn resolve_missing_tarball_fails_when_current_pkg_id_does_not_match() {
+    let tmp = TempDir::new().expect("tempdir");
+    let wd = WantedLocalDependency {
+        bare_specifier: "file:./missing-pkg.tgz".to_string(),
+        injected: false,
+    };
+    let mut options = opts(tmp.path());
+    options.current_pkg = Some(pnpm_resolving_local_resolver::LocalCurrentPkg {
+        id: PkgResolutionId::from("file:other-pkg.tgz"),
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: "file:other-pkg.tgz".to_string(),
+            integrity: Some("sha512-SAVED_INTEGRITY".parse().unwrap()),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        manifest: None,
+    });
+    options.update = LocalResolverUpdate::Off;
+
+    let err = resolve_from_local_scheme(&ctx_default(), &wd, &options).await
+        .expect_err("should fail when current_pkg id does not match");
+    assert!(matches!(err, ResolveLocalError::LinkedPkgDirNotFound { .. }));
 }
 
 #[tokio::test]
@@ -430,14 +732,14 @@ async fn resolve_file_with_different_integrity_force_fetch() {
             git_hosted: None,
             path: None,
         }),
+        manifest: None,
     });
 
     let wd = WantedLocalDependency {
         bare_specifier: "file:./pnpm-local-resolver-0.1.1.tgz".to_string(),
         injected: false,
     };
-    let result = resolve_from_local_scheme(&ctx_default(), &wd, &options)
-        .await
+    let result = resolve_from_local_scheme(&ctx_default(), &wd, &options).await
         .expect("resolve")
         .expect("claims");
 
@@ -445,7 +747,13 @@ async fn resolve_file_with_different_integrity_force_fetch() {
     else {
         panic!("expected tarball resolution");
     };
-    assert_eq!(integrity.as_ref().expect("integrity").to_string(), true_integrity);
+    assert_eq!(
+        integrity
+            .as_ref()
+            .expect("integrity")
+            .to_string(),
+        true_integrity,
+    );
 }
 
 #[tokio::test]
@@ -478,7 +786,10 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
     let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
         .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
-    let expected = project_dir.join("dir-does-not-exist").display().to_string();
+    let expected = project_dir
+        .join("dir-does-not-exist")
+        .display()
+        .to_string();
     match err {
         ResolveLocalError::LinkedPkgDirNotFound { path } => assert_eq!(path, expected),
         other => panic!("unexpected error: {other:?}"),
@@ -488,7 +799,7 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
 /// A `file:./missing.tgz` spec funnels through the tarball branch
 /// where `compute_tarball_integrity` raises ENOENT. The resolver must
 /// surface the same `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND` code the directory
-/// branch raises for a missing `file:` target — both kinds of
+/// branch raises for a missing `file:` target; both kinds of
 /// missing `file:` target share one error path.
 #[tokio::test]
 async fn fail_when_resolving_missing_tarball_with_file_protocol() {
@@ -500,10 +811,16 @@ async fn fail_when_resolving_missing_tarball_with_file_protocol() {
     let err = resolve_from_local_scheme(&ctx_default(), &wd, &opts(project_dir))
         .await
         .expect_err("expected LINKED_PKG_DIR_NOT_FOUND");
-    let expected = project_dir.join("missing.tgz").display().to_string();
+    let expected = project_dir
+        .join("missing.tgz")
+        .display()
+        .to_string();
     {
         use miette::Diagnostic;
-        let code = err.code().map(|c| c.to_string()).unwrap_or_default();
+        let code = err
+            .code()
+            .map(|c| c.to_string())
+            .unwrap_or_default();
         assert_eq!(
             code, "ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND",
             "diagnostic code must match the upstream error contract",
@@ -530,7 +847,9 @@ async fn do_not_fail_when_resolving_from_not_existing_directory() {
         .expect("claims");
     let manifest = result.manifest.as_ref().expect("manifest");
     assert_eq!(manifest.get("name").and_then(|value| value.as_str()), Some("dir-does-not-exist"));
-    assert_eq!(manifest.get("version").and_then(|value| value.as_str()), Some("0.0.0"));
+    // The version stays unknown so ranged selectors cannot match it
+    // (https://github.com/pnpm/pnpm/issues/15007).
+    assert_eq!(manifest.get("version"), None);
 }
 
 #[tokio::test]
@@ -574,33 +893,6 @@ async fn resolve_from_local_path_ignores_explicit_local_schemes() {
     }
 }
 
-/// Lexically normalize `.` and `..` components without resolving
-/// symlinks — matches Node's `path.resolve` semantics. `canonicalize`
-/// would resolve macOS's `/var` → `/private/var` symlink and diverge
-/// from the string-equality assertions.
-trait LexicalNormalize: Sized {
-    fn lexical_normalize(self) -> PathBuf;
-}
-
-impl LexicalNormalize for PathBuf {
-    fn lexical_normalize(self) -> PathBuf {
-        use std::path::Component;
-        let mut out = PathBuf::new();
-        for component in self.components() {
-            match component {
-                Component::CurDir => {}
-                Component::ParentDir => {
-                    if !out.pop() {
-                        out.push("..");
-                    }
-                }
-                other => out.push(other.as_os_str()),
-            }
-        }
-        out
-    }
-}
-
 fn forward_slashes(input: String) -> String {
     if input.contains('\\') { input.replace('\\', "/") } else { input }
 }
@@ -637,4 +929,178 @@ fn recognizes_only_unambiguous_local_specifiers() {
     ] {
         assert!(!is_local_filesystem_specifier(specifier), "{specifier:?} is not a local path");
     }
+}
+
+#[test]
+fn a_rooted_spec_takes_the_drive_of_the_project() {
+    let tmp = TempDir::new().expect("tempdir");
+    let project = tmp.path();
+    let rooted = project
+        .ancestors()
+        .last()
+        .expect("the project has a root")
+        .join("vendor");
+    assert_eq!(local_spec_path("file:/vendor", project), rooted);
+    assert_eq!(local_spec_path("file:/vendor", project), recorded_local_path("/vendor", project));
+}
+
+/// A `file:` directory a project publishes from is described by the project's
+/// manifest, as a `workspace:` range describes it, even after a build writes a
+/// `package.json` there. A `link:` keeps the directory's own manifest, and so
+/// does a directory whose publishing project is outside the workspace.
+#[tokio::test]
+async fn resolve_publish_directory_with_the_publishing_projects_manifest() {
+    let tmp = TempDir::new().expect("tempdir");
+    let workspace = tmp.path().join("ws");
+    let project = workspace.join("lib");
+    fs::create_dir_all(project.join("dist")).expect("create publish directory");
+    fs::write(
+        project.join("package.json"),
+        r#"{"name":"lib","version":"1.0.0","publishConfig":{"directory":"dist"},"dependencies":{"foo":"^1"}}"#,
+    )
+    .expect("write project manifest");
+    fs::write(project.join("dist/package.json"), r#"{"name":"lib","version":"1.0.0"}"#)
+        .expect("write built manifest");
+    let consumer = workspace.join("app");
+    fs::create_dir_all(&consumer).expect("create consumer");
+    let resolve = async |bare_specifier: &str, workspace_dir: &Path| {
+        let wd =
+            WantedLocalDependency { bare_specifier: bare_specifier.to_string(), injected: false };
+        let opts = LocalResolverOptions {
+            workspace_dir: Some(workspace_dir.to_path_buf()),
+            ..opts(&consumer)
+        };
+        resolve_from_local_scheme(&ctx_default(), &wd, &opts).await
+            .expect("resolve")
+            .expect("claims")
+            .manifest
+            .expect("manifest")
+    };
+    assert_eq!(resolve("file:../lib/dist", &workspace).await["dependencies"]["foo"], "^1");
+    assert!(resolve("link:../lib/dist", &workspace).await.get("dependencies").is_none());
+    assert!(
+        resolve("file:../lib/dist", &consumer).await.get("dependencies").is_none(),
+        "a publishing project outside the workspace does not describe the directory",
+    );
+}
+
+/// An ancestor manifest that fails to read is not a publishing project, so it
+/// does not stop a `file:` directory from resolving with its own manifest.
+#[tokio::test]
+async fn resolve_file_directory_beneath_a_malformed_ancestor_manifest() {
+    let tmp = TempDir::new().expect("tempdir");
+    fs::write(tmp.path().join("package.json"), "{").expect("write malformed ancestor manifest");
+    let dep = tmp.path().join("vendor/dep");
+    fs::create_dir_all(&dep).expect("create dependency");
+    fs::write(dep.join("package.json"), r#"{"name":"dep","version":"1.0.0"}"#)
+        .expect("write dependency manifest");
+    let consumer = tmp.path().join("app");
+    fs::create_dir_all(&consumer).expect("create consumer");
+    let wd =
+        WantedLocalDependency { bare_specifier: "file:../vendor/dep".to_string(), injected: false };
+    let opts =
+        LocalResolverOptions { workspace_dir: Some(tmp.path().to_path_buf()), ..opts(&consumer) };
+    let manifest = resolve_from_local_scheme(&ctx_default(), &wd, &opts).await
+        .expect("resolve")
+        .expect("claims")
+        .manifest
+        .expect("manifest");
+    assert_eq!(manifest["name"], "dep");
+}
+
+/// A `file:` publish directory that does not exist yet fails as missing, even
+/// though its publishing project could describe it.
+#[tokio::test]
+async fn resolve_missing_publish_directory_fails_as_missing() {
+    let tmp = TempDir::new().expect("tempdir");
+    let project = tmp.path().join("lib");
+    fs::create_dir_all(&project).expect("create project");
+    fs::write(
+        project.join("package.json"),
+        r#"{"name":"lib","version":"1.0.0","publishConfig":{"directory":"dist"}}"#,
+    )
+    .expect("write project manifest");
+    let consumer = tmp.path().join("app");
+    fs::create_dir_all(&consumer).expect("create consumer");
+    let wd =
+        WantedLocalDependency { bare_specifier: "file:../lib/dist".to_string(), injected: false };
+    let opts =
+        LocalResolverOptions { workspace_dir: Some(tmp.path().to_path_buf()), ..opts(&consumer) };
+    let error = resolve_from_local_scheme(&ctx_default(), &wd, &opts).await
+        .expect_err("a missing directory fails");
+    assert!(
+        matches!(error, ResolveLocalError::LinkedPkgDirNotFound { .. }),
+        "unexpected error: {error:?}",
+    );
+}
+
+#[tokio::test]
+async fn workspace_only_policy_refuses_file_link_and_escaping_workspace_specs() {
+    let tmp = TempDir::new().expect("tempdir");
+    let outside = tmp.path().join("server-secret");
+    fs::create_dir_all(&outside).expect("create outside dir");
+    fs::write(outside.join("package.json"), "{ invalid json that must never be read")
+        .expect("write outside manifest");
+    let workspace = tmp.path().join("workspace");
+    let lib = workspace.join("packages/lib");
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&lib).expect("create lib");
+    fs::create_dir_all(&app).expect("create app");
+    fs::write(lib.join("package.json"), r#"{"name":"@ws/lib","version":"1.0.0"}"#)
+        .expect("write lib manifest");
+
+    let ctx = LocalResolverContext {
+        filesystem_policy: LocalFilesystemPolicy::WorkspaceOnly,
+        ..Default::default()
+    };
+    let seeded_opts = LocalResolverOptions {
+        workspace_dir: Some(workspace.clone()),
+        lockfile_dir: Some(workspace.clone()),
+        current_pkg: Some(LocalCurrentPkg {
+            id: PkgResolutionId::from("file:../../../server-secret"),
+            manifest: None,
+            resolution: LockfileResolution::Directory(DirectoryResolution {
+                directory: "../../../server-secret".to_string(),
+            }),
+        }),
+        ..opts(&app)
+    };
+
+    for spec in [
+        format!("file:{}", outside.display()),
+        "file:../../../server-secret".to_string(),
+        "file:../lib".to_string(),
+        "file:./local.tgz".to_string(),
+        format!("link:{}", outside.display()),
+        "link:../lib".to_string(),
+        format!("workspace:{}", outside.display()),
+        "workspace:../../../server-secret".to_string(),
+    ] {
+        let wd = WantedLocalDependency { bare_specifier: spec.clone(), injected: false };
+        let error = resolve_from_local_scheme(&ctx, &wd, &seeded_opts).await
+            .expect_err("workspace-only policy must refuse local scheme spec");
+        assert!(
+            matches!(error, ResolveLocalError::LocalSpecNotAllowed { .. }),
+            "expected LocalSpecNotAllowed for {spec}, got {error:?}",
+        );
+    }
+
+    for bare in ["../../server-secret", "./local.tgz", outside.to_str().unwrap()] {
+        let wd = WantedLocalDependency { bare_specifier: bare.to_string(), injected: false };
+        let result = resolve_from_local_path(&ctx, &wd, &seeded_opts).await
+            .expect("workspace-only local path declines cleanly");
+        assert!(result.is_none(), "expected None for bare path {bare}");
+    }
+
+    let allowed =
+        WantedLocalDependency { bare_specifier: "workspace:../lib".to_string(), injected: false };
+    let clean_opts = LocalResolverOptions {
+        workspace_dir: Some(workspace.clone()),
+        lockfile_dir: Some(workspace),
+        ..opts(&app)
+    };
+    let resolved = resolve_from_local_scheme(&ctx, &allowed, &clean_opts).await
+        .expect("contained workspace path resolves")
+        .expect("claimed");
+    assert_eq!(resolved.manifest.expect("manifest")["name"], "@ws/lib");
 }

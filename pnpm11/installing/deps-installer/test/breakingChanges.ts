@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import util from 'node:util'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
-import { addDependenciesToPackage, install } from '@pnpm/installing.deps-installer'
+import { addDependenciesToPackage, install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import type { Modules } from '@pnpm/installing.modules-yaml'
+import { logger } from '@pnpm/logger'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -27,6 +27,135 @@ test('fail on non-compatible node_modules', async () => {
   } catch (err: any) { // eslint-disable-line
     expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
   }
+})
+
+test('fail when adding a dependency after changing nodeLinker', async () => {
+  prepareEmpty()
+  await install({}, testDefaults({ nodeLinker: 'hoisted' }))
+
+  await expect(addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({
+    confirmModulesPurge: false,
+    nodeLinker: 'isolated',
+  }))).rejects.toMatchObject({
+    code: 'ERR_PNPM_NODE_LINKER_DIFF',
+    message: 'This modules directory was created using a different node-linker value. Run "pnpm install" to recreate the modules directory.',
+  })
+})
+
+test('a plain install recreates the modules directory after changing nodeLinker', async () => {
+  prepareEmpty()
+  const manifest = { dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }
+  const hoistedDep = path.resolve('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await install(manifest, testDefaults({ nodeLinker: 'hoisted' }))
+  expect(fs.existsSync(hoistedDep)).toBe(true)
+
+  await install(manifest, testDefaults({ confirmModulesPurge: false, nodeLinker: 'isolated' }))
+
+  expect(fs.existsSync(hoistedDep)).toBe(false)
+})
+
+test('a warning explains why the modules directory is recreated', async () => {
+  prepareEmpty()
+  const manifest = { dependencies: { 'is-positive': '1.0.0' } }
+  await install(manifest, testDefaults({ nodeLinker: 'hoisted' }))
+
+  const reporter = jest.fn()
+  await install(manifest, testDefaults({ confirmModulesPurge: false, nodeLinker: 'isolated', reporter }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: `The modules directory at "${path.resolve('node_modules')}" has to be recreated. This modules directory was created using a different node-linker value.`,
+  }))
+})
+
+test('a modules directory with several mismatches gets one warning that lists every reason', async () => {
+  prepareEmpty()
+  const manifest = { dependencies: { 'is-positive': '1.0.0' } }
+  await install(manifest, testDefaults())
+
+  const reporter = jest.fn()
+  await install(manifest, testDefaults({ confirmModulesPurge: false, hoistPattern: ['is-*'], reporter, storeDir: path.resolve('../other-store') }))
+
+  const warnings = reporter.mock.calls
+    .map(([log]) => log as { level: string, message?: string })
+    .filter((log) => log.level === 'warn' && log.message?.includes('has to be recreated'))
+  expect(warnings).toHaveLength(1)
+  expect(warnings[0].message).toContain('different hoist-pattern value.')
+  expect(warnings[0].message).toContain('Unexpected store location')
+})
+
+test.each([
+  ['nodeLinker', { nodeLinker: 'hoisted' }, { nodeLinker: 'isolated' }, 'ERR_PNPM_NODE_LINKER_DIFF', 'node_modules/is-negative'],
+  ['virtualStoreDirMaxLength', {}, { virtualStoreDirMaxLength: 60 }, 'ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF', 'project-2/node_modules/is-negative/package.json'],
+  ['publicHoistPattern', {}, { publicHoistPattern: ['is-*'] }, 'ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF', 'project-2/node_modules/is-negative/package.json'],
+  ['hoistPattern', {}, { hoistPattern: ['is-*'] }, 'ERR_PNPM_HOIST_PATTERN_DIFF', 'project-2/node_modules/is-negative/package.json'],
+] as const)('fail when a root-only install follows a %s change in a workspace', async (_setting, before, after, code, project2Dep) => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+    },
+  ])
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: { name: 'root' },
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  await mutateModules(mutations, testDefaults({ allProjects, ...before }))
+  expect(fs.existsSync(project2Dep)).toBe(true)
+
+  await expect(mutateModules(mutations.slice(0, 1), testDefaults({
+    allProjects,
+    confirmModulesPurge: false,
+    ...after,
+  }))).rejects.toMatchObject({ code })
+
+  expect(fs.existsSync(project2Dep)).toBe(true)
+})
+
+test('a whole-workspace install recreates the modules directory after a virtualStoreDirMaxLength change', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+    },
+  ])
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: { name: 'root' },
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  await mutateModules(mutations, testDefaults({ allProjects }))
+  fs.writeFileSync('node_modules/sentinel', '')
+
+  await mutateModules(mutations, testDefaults({ allProjects, confirmModulesPurge: false, virtualStoreDirMaxLength: 60 }))
+
+  expect(fs.existsSync('node_modules/sentinel')).toBe(false)
+  expect(fs.existsSync('project-2/node_modules/is-negative/package.json')).toBe(true)
 })
 
 test("don't fail on non-compatible node_modules when forced", async () => {
@@ -72,6 +201,8 @@ test('forced modules repair never follows a modules directory symlink', async ()
       forceNewModules: true,
       lockfileDir: projectRoot,
       modulesDir,
+      nodeLinker: opts.nodeLinker ?? 'isolated',
+      mutatedProjectDirs: new Set([projectRoot]),
       registriesByScope: opts.registriesByScope,
       storeDir: opts.storeDir,
       virtualStoreDir: path.join(modulesDir, '.pnpm'),
@@ -153,35 +284,124 @@ test('do not fail on non-compatible store when forced during named installation'
   })
 })
 
-test('fail fast with actionable hint on non-TTY when modules purge needs confirmation', async () => {
+test('do not fail on non-compatible node_modules in non-TTY environment', async () => {
   prepareEmpty()
   const opts = testDefaults()
 
   await saveModulesYaml('0.50.0', opts.storeDir)
+  fs.writeFileSync('node_modules/sentinel.txt', 'sentinel')
 
-  const originalIsTTY = process.stdin.isTTY
-  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
+  await expect(addDependenciesToPackage({}, ['is-negative'], opts)).rejects.toMatchObject({
+    code: 'ERR_PNPM_MODULES_BREAKING_CHANGE',
+  })
 
-  let err: unknown
+  await withoutTTY(() => install({}, { ...opts, confirmModulesPurge: true }))
+
+  expect(fs.existsSync('node_modules/sentinel.txt')).toBe(false)
+})
+
+test('fail on non-compatible custom modules directory in non-TTY environment', async () => {
+  prepareEmpty()
+  const opts = testDefaults()
+
+  await saveModulesYaml('0.50.0', opts.storeDir, 'custom_modules')
+
+  const warn = jest.spyOn(logger, 'warn')
   try {
-    await install({}, opts)
-  } catch (_err: unknown) {
-    err = _err
+    await expect(withoutTTY(() => install({}, {
+      ...opts,
+      confirmModulesPurge: true,
+      modulesDir: 'custom_modules',
+    }))).rejects.toMatchObject({
+      code: 'ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE',
+      message: expect.stringContaining(path.resolve('custom_modules')),
+    })
+    expect(warn).not.toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('has to be recreated'),
+    }))
   } finally {
-    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
-  }
-
-  expect(util.types.isNativeError(err)).toBeTruthy()
-  if (util.types.isNativeError(err)) {
-    expect('code' in err && err.code).toBe('ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY')
-    expect(err.message).toContain('no TTY')
-    expect('hint' in err && typeof err.hint === 'string' && err.hint).toContain('confirmModulesPurge')
+    warn.mockRestore()
   }
 })
 
-async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
-  fs.mkdirSync('node_modules')
-  fs.writeFileSync('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
+test('fail on non-compatible symlinked node_modules in non-TTY environment', async () => {
+  prepareEmpty()
+  const opts = testDefaults()
+
+  fs.mkdirSync('real_modules')
+  fs.symlinkSync('real_modules', 'node_modules', process.platform === 'win32' ? 'junction' : 'dir')
+  await saveModulesYaml('0.50.0', opts.storeDir, 'real_modules')
+
+  await expect(withoutTTY(() => install({}, { ...opts, confirmModulesPurge: true }))).rejects.toMatchObject({
+    code: 'ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE',
+  })
+})
+
+test('a filtered install with other dependency groups keeps the modules directories of skipped projects', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root' } },
+    { location: 'project-1', package: { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } } },
+    { location: 'project-2', package: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } } },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: { name: 'root' }, rootDir: process.cwd() as ProjectRootDir },
+    { buildIndex: 0, manifest: { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } }, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } }, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  await mutateModules(mutations, testDefaults({ allProjects }))
+  const skippedProjectDep = path.resolve('project-2/node_modules/is-negative')
+  expect(fs.existsSync(skippedProjectDep)).toBe(true)
+
+  await withoutTTY(() => mutateModules([mutations[1]], testDefaults({
+    allProjects,
+    confirmModulesPurge: true,
+    include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+  })))
+
+  expect(fs.existsSync(path.resolve('project-1/node_modules/is-positive'))).toBe(true)
+  expect(fs.existsSync(skippedProjectDep)).toBe(true)
+})
+
+test('a filtered install with other dependency groups keeps the shared virtual store of a workspace without a root project', async () => {
+  preparePackages([
+    { location: 'project-1', package: { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } } },
+    { location: 'project-2', package: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } } },
+  ])
+  const allProjects = [
+    { buildIndex: 0, manifest: { name: 'project-1', dependencies: { 'is-positive': '1.0.0' } }, rootDir: path.resolve('project-1') as ProjectRootDir },
+    { buildIndex: 0, manifest: { name: 'project-2', dependencies: { 'is-negative': '1.0.0' } }, rootDir: path.resolve('project-2') as ProjectRootDir },
+  ]
+  const mutations: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
+  await mutateModules(mutations, testDefaults({ allProjects }))
+  const skippedProjectDep = path.resolve('project-2/node_modules/is-negative/package.json')
+  expect(fs.existsSync(skippedProjectDep)).toBe(true)
+
+  await withoutTTY(() => mutateModules([mutations[0]], testDefaults({
+    allProjects,
+    confirmModulesPurge: true,
+    include: { dependencies: true, devDependencies: false, optionalDependencies: true },
+  })))
+
+  expect(fs.existsSync(path.resolve('project-1/node_modules/is-positive/package.json'))).toBe(true)
+  expect(fs.existsSync(skippedProjectDep)).toBe(true)
+})
+
+async function withoutTTY<Result> (fn: () => Promise<Result>): Promise<Result> {
+  const originalIsTTY = process.stdin.isTTY
+  Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true })
+  try {
+    return await fn()
+  } finally {
+    Object.defineProperty(process.stdin, 'isTTY', { value: originalIsTTY, configurable: true })
+  }
+}
+
+async function saveModulesYaml (pnpmVersion: string, storeDir: string, dir: string = 'node_modules') {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir)
+  }
+  fs.writeFileSync(path.join(dir, '.modules.yaml'), `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
 }
 
 test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installation is used`, async () => {

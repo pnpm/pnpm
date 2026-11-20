@@ -1,48 +1,70 @@
 //! Rendering pnpm's terminal output inside the engine.
 //!
 //! Without this, an embedder gets the raw event stream through `onLog` and
-//! has to render it itself — in practice by keeping `@pnpm/logger` and
+//! has to render it itself, in practice by keeping `@pnpm/logger` and
 //! `@pnpm/cli.default-reporter` around and feeding the events into them.
 //! That works only for as long as the JS reporter of one pnpm line stays
 //! wire-compatible with the events of another, which is a coupling an
 //! embedder should not have to maintain. [`NativeRenderer`] folds the same
-//! events through [`pnpm_default_reporter`] — the reporter `pnpm install`
-//! itself renders with — so an embedder gets pnpm's real output and no JS
+//! events through [`pnpm_default_reporter`] (the reporter `pnpm install`
+//! itself renders with) so an embedder gets pnpm's real output and no JS
 //! reporter.
 //!
 //! Output goes to stdout (or stderr) by default. An embedder that owns the
-//! terminal — Bit's CLI server replaces `process.stdout` with a stream that
-//! forwards to connected editors — passes an `onOutput` callback instead,
+//! terminal (Bit's CLI server replaces `process.stdout` with a stream that
+//! forwards to connected editors) passes an `onOutput` callback instead,
 //! and every rendered chunk is handed back to JS rather than written to a
 //! file descriptor the host has already redirected at the JS level.
 
 use std::{
-    io::{IsTerminal, Write},
-    time::{Duration, Instant},
+    io::{
+        IsTerminal,
+        Write,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use napi::{
     Status,
-    threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode, UnknownReturnValue},
+    threadsafe_function::{
+        ThreadsafeFunction,
+        ThreadsafeFunctionCallMode,
+        UnknownReturnValue,
+    },
 };
 use napi_derive::napi;
 use pnpm_default_reporter::{
     MaxLogLevel,
     colors::Colors,
     diff::Diff,
-    state::{Output, ReporterOptions as StateOptions, ReporterState},
+    state::{
+        Output,
+        ReporterOptions as StateOptions,
+        ReporterState,
+    },
 };
-use pnpm_reporter::{FetchingProgressMessage, LogEvent};
+use pnpm_reporter::{
+    FetchingProgressMessage,
+    LogEvent,
+};
 
 /// A JS `(chunk: string) => void` callback. Same shape as the log sink:
 /// `CalleeHandled = false`, return value discarded, never blocking.
 pub type OutputSink = ThreadsafeFunction<String, UnknownReturnValue, String, Status, false>;
 
-/// pnpm's default terminal output, rendered by the engine. Mirrors
-/// [`ReporterOptions`] in `index.d.ts`; every field maps onto the option of
-/// the same name in `@pnpm/cli.default-reporter`'s `reportingOptions`.
+/// pnpm's default terminal output, rendered by the engine.
 #[napi(object)]
 #[derive(Default)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the public JavaScript object exposed by the NAPI addon."
+    )
+)]
 pub struct ReporterOptions {
     /// Print each update on its own line instead of redrawing the frame in
     /// place. The right choice whenever the output is not a live terminal.
@@ -69,7 +91,7 @@ pub struct ReporterOptions {
     /// `"error"`, `"warn"`, `"info"` (the default), or `"debug"`.
     pub log_level: Option<String>,
     /// Terminal width to wrap at, at least one column. Defaults to the
-    /// width of the output stream when it is a terminal, and 80 otherwise —
+    /// width of the output stream when it is a terminal, and 80 otherwise,
     /// an `onOutput` callback always needs it passed explicitly, since the
     /// engine cannot see where the chunks end up.
     pub width: Option<u32>,
@@ -118,7 +140,10 @@ impl Destination {
             }
             #[cfg(test)]
             Destination::Buffer(buffer) => {
-                buffer.lock().expect("the test buffer is never poisoned").push_str(chunk);
+                buffer
+                    .lock()
+                    .expect("the test buffer is never poisoned")
+                    .push_str(chunk);
             }
         }
     }
@@ -135,7 +160,7 @@ impl Destination {
     }
 
     /// The terminal width of *this* destination. Measuring stdout while
-    /// rendering to stderr would size the frame from an unrelated stream —
+    /// rendering to stderr would size the frame from an unrelated stream;
     /// they are separately redirectable and need not be the same width.
     fn terminal_columns(&self) -> Option<usize> {
         match self {
@@ -151,7 +176,7 @@ impl Destination {
 /// One engine call's renderer: the folded reporter state plus the frame
 /// differ and throttle that turn it into terminal writes. A fresh one is
 /// built per call, so consecutive installs in one process do not inherit
-/// each other's counters or options — unlike the CLI's process-global
+/// each other's counters or options, unlike the CLI's process-global
 /// reporter, which is configured once at startup.
 pub struct NativeRenderer {
     state: ReporterState,
@@ -179,47 +204,23 @@ impl NativeRenderer {
     fn with_destination(options: &ReporterOptions, dir: &str, destination: Destination) -> Self {
         let is_terminal = destination.is_terminal();
         let append_only = options.append_only.unwrap_or(!is_terminal);
-        // pnpm's `outputMaxWidth`: the terminal's columns less 2, or 80.
-        // Floored at one column, so a host that computed its width the same
-        // way from a one- or two-column terminal cannot ask the renderer to
-        // wrap at zero.
-        let width = options
-            .width
-            .map_or_else(
-                || {
-                    if is_terminal {
-                        destination.terminal_columns().unwrap_or(82).saturating_sub(2)
-                    } else {
-                        80
-                    }
-                },
-                |width| width as usize,
-            )
-            .max(1);
+        let width = renderer_width(options, &destination, is_terminal);
         let colors = Colors {
-            enabled: options
-                .color
-                .unwrap_or_else(|| is_terminal && std::env::var_os("NO_COLOR").is_none()),
+            enabled: options.color.unwrap_or_else(|| {
+                is_terminal && std::env::var_os("NO_COLOR").is_none()
+            }),
         };
         let state = ReporterState::new_with_options(
             options.cwd.clone().unwrap_or_else(|| dir.to_string()),
             width,
             colors,
-            StateOptions {
-                append_only,
-                hide_added_pkgs_progress: options.hide_added_pkgs_progress.unwrap_or(false),
-                hide_progress_prefix: options.hide_progress_prefix.unwrap_or(false),
-                hide_lifecycle_output: options.hide_lifecycle_output.unwrap_or(false),
-                ignored_builds_instruction_text: options.ignored_builds_instruction_text.clone(),
-                hide_linked_pkgs_diff: options.hide_linked_pkgs_diff.clone().unwrap_or_default(),
-                max_log_level: parse_log_level(options.log_level.as_deref()),
-                ..StateOptions::default()
-            },
+            renderer_state_options(options, append_only),
         );
-        let throttle = options.throttle_progress.map_or(
-            if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) },
-            |ms| Duration::from_millis(u64::from(ms)),
-        );
+        let throttle = match options.throttle_progress {
+            Some(ms) => Duration::from_millis(u64::from(ms)),
+            None if append_only => Duration::from_secs(1),
+            None => Duration::from_millis(200),
+        };
         NativeRenderer {
             state,
             diff: Diff::new(width.saturating_add(2)),
@@ -286,6 +287,41 @@ impl NativeRenderer {
     }
 }
 
+/// Match pnpm's outputMaxWidth, floored at one column for narrow terminals.
+fn renderer_state_options(options: &ReporterOptions, append_only: bool) -> StateOptions {
+    StateOptions {
+        append_only,
+        ignored_builds_instruction_text: options.ignored_builds_instruction_text.clone(),
+        hide_linked_pkgs_diff: options.hide_linked_pkgs_diff.clone().unwrap_or_default(),
+        max_log_level: parse_log_level(options.log_level.as_deref()),
+        lifecycle: pnpm_default_reporter::state::LifecycleOptions {
+            hide_output: options.hide_lifecycle_output.unwrap_or(false),
+            ..Default::default()
+        },
+        progress: pnpm_default_reporter::state::ProgressOptions {
+            hide_added_pkgs: options.hide_added_pkgs_progress.unwrap_or(false),
+            hide_prefix: options.hide_progress_prefix.unwrap_or(false),
+        },
+        ..StateOptions::default()
+    }
+}
+
+fn renderer_width(
+    options: &ReporterOptions,
+    destination: &Destination,
+    is_terminal: bool,
+) -> usize {
+    let width = match options.width {
+        Some(width) => width as usize,
+        None if is_terminal => destination
+            .terminal_columns()
+            .unwrap_or(82)
+            .saturating_sub(2),
+        None => 80,
+    };
+    width.max(1)
+}
+
 /// Whether an event is a high-volume progress update that may be dropped
 /// under throttling, mirroring pnpm's `throttleProgress`.
 fn is_coalesceable(event: &LogEvent) -> bool {
@@ -327,8 +363,9 @@ fn terminal_columns(stream: StreamFd) -> Option<usize> {
     // the return code is checked before it is read.
     unsafe {
         let mut ws: libc::winsize = std::mem::zeroed();
-        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
-            .then_some(ws.ws_col as usize)
+        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0).then_some(
+            ws.ws_col as usize,
+        )
     }
 }
 

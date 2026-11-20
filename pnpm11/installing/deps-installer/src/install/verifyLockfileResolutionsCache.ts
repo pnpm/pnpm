@@ -20,17 +20,6 @@ export type VerifierCacheIdentity = Pick<ResolutionVerifier, 'policy' | 'canTrus
  * the per-package registry round trips entirely — including across git
  * worktrees, where the same lockfile content lives at different paths.
  *
- * Two indexes share the same JSONL records:
- *
- * - **by content hash** — the primary index. Recognizing the same
- *   lockfile content regardless of where it sits on disk is what makes
- *   worktrees and lockfile copies hit.
- * - **by absolute path** — a same-machine stat shortcut. When we've
- *   seen this exact path before with these exact stat values, we
- *   trust the cached hash and skip reading the lockfile entirely
- *   (microseconds vs. ms-per-MB). Worktrees that get reinstalled in
- *   pay the hash cost once, then hit the stat fast path.
- *
  * All filesystem operations are synchronous: the cache is consulted
  * once before verification fan-out and recorded once after — there's
  * no concurrent install work to overlap with, so blocking the event
@@ -59,9 +48,7 @@ const CACHE_FILE_NAME = 'lockfile-verified.jsonl'
 const MAX_CACHE_ENTRIES = 1000
 
 // Records cluster around 250–400 bytes; budget 1 KiB per entry as a
-// conservative upper bound. The compaction check uses `stat().size` to
-// decide whether to read+rewrite, so we never parse the file unless it
-// has actually grown past the cap.
+// conservative upper bound.
 const COMPACT_TRIGGER_BYTES = MAX_CACHE_ENTRIES * 1024 * 3 / 2
 
 interface CacheRecord {
@@ -156,31 +143,47 @@ interface CacheIndexes {
  * walked in file order so the last record for any key wins.
  */
 function readCache (cacheDir: string): CacheIndexes {
-  const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
-  let contents: string
-  try {
-    contents = fs.readFileSync(cacheFilePath, 'utf8')
-  } catch (err: unknown) {
-    if (isNodeError(err) && err.code === 'ENOENT') return { byHash: new Map(), byPath: new Map() }
-    throw err
-  }
   const byHash = new Map<string, CacheRecord>()
   const byPath = new Map<string, CacheRecord>()
+  const contents = readCacheFileIfExists(path.join(cacheDir, CACHE_FILE_NAME))
+  if (contents == null) return { byHash, byPath }
   for (const line of contents.split('\n')) {
     if (!line) continue
-    try {
-      const parsed = JSON.parse(line) as Partial<CacheRecord>
-      const hash = parsed?.lockfile?.hash
-      const lockfilePath = parsed?.lockfile?.path
-      if (typeof hash !== 'string' || typeof lockfilePath !== 'string') continue
-      const record = normalizeRecord(parsed)
-      byHash.set(hash, record)
-      byPath.set(lockfilePath, record)
-    } catch {
-      // Skip malformed lines; the next clean append will still work.
-    }
+    const record = parseCacheLine(line)
+    if (!record) continue
+    byHash.set(record.lockfile.hash, record)
+    byPath.set(record.lockfile.path, record)
   }
   return { byHash, byPath }
+}
+
+function readCacheFileIfExists (cacheFilePath: string): string | undefined {
+  try {
+    return fs.readFileSync(cacheFilePath, 'utf8')
+  } catch (err: unknown) {
+    if (isNodeError(err) && err.code === 'ENOENT') return undefined
+    throw err
+  }
+}
+
+/**
+ * Returns `undefined` for a malformed line or one missing the hash/path
+ * keys; the next clean append will still work.
+ */
+function parseCacheLine (line: string): CacheRecord | undefined {
+  try {
+    const parsed = JSON.parse(line) as Partial<CacheRecord>
+    if (!hasRecordKeys(parsed)) return undefined
+    return normalizeRecord(parsed)
+  } catch {
+    return undefined
+  }
+}
+
+type KeyedRecord = Partial<CacheRecord> & { lockfile: Pick<CacheRecord['lockfile'], 'hash' | 'path'> }
+
+function hasRecordKeys (parsed: Partial<CacheRecord> | null): parsed is KeyedRecord {
+  return typeof parsed?.lockfile?.hash === 'string' && typeof parsed?.lockfile?.path === 'string'
 }
 
 function normalizeRecord (parsed: Partial<CacheRecord>): CacheRecord {
@@ -257,26 +260,35 @@ export function tryLockfileVerificationCache (
   const stat = statLockfile(key.lockfilePath)
   if (!stat) return { hit: false, precomputed: {} }
 
-  // Stat shortcut: same path + same stat means we trust the cached
-  // hash without reading the file. Microseconds.
   const byPathRecord = indexes.byPath.get(key.lockfilePath)
   if (byPathRecord && statMatches(stat, byPathRecord.lockfile)) {
-    const hit = everyVerifierTrustsCachedRun(byPathRecord, key.verifiers)
-    return {
-      hit,
-      verifiedAt: hit ? byPathRecord.verifiedAt || undefined : undefined,
-      // The stat-match implies the file content is unchanged since the
-      // cached record was written, so its hash is still correct. Pass
-      // it through to skip hashing on the miss-then-record path.
-      precomputed: { stat, hash: byPathRecord.lockfile.hash },
-    }
+    return lookupByStat({ record: byPathRecord, stat, verifiers: key.verifiers })
   }
+  return lookupByContentHash({ cacheDir, indexes, key, stat })
+}
 
-  // Content lookup: hash the in-memory lockfile, look up by content
-  // hash. Catches worktrees (same content, different path) and CI
-  // checkouts (same content, reset stat). On hit, refresh the
-  // path/stat entry so the next install at this path takes the stat
-  // shortcut above.
+function lookupByStat (
+  { record, stat, verifiers }: { record: CacheRecord, stat: LockfileStat, verifiers: readonly VerifierCacheIdentity[] }
+): CacheLookupResult {
+  const hit = everyVerifierTrustsCachedRun(record, verifiers)
+  return {
+    hit,
+    verifiedAt: hit ? record.verifiedAt || undefined : undefined,
+    // The stat-match implies the file content is unchanged since the
+    // cached record was written, so its hash is still correct. Pass
+    // it through to skip hashing on the miss-then-record path.
+    precomputed: { stat, hash: record.lockfile.hash },
+  }
+}
+
+interface ContentHashLookupOptions {
+  cacheDir: string
+  indexes: CacheIndexes
+  key: LockfileVerificationCacheKey
+  stat: LockfileStat
+}
+
+function lookupByContentHash ({ cacheDir, indexes, key, stat }: ContentHashLookupOptions): CacheLookupResult {
   let hash: string
   try {
     hash = key.hashLockfile()
@@ -320,11 +332,6 @@ function mergePolicies (verifiers: readonly VerifierCacheIdentity[]): Record<str
  * lockfile is hashed once and the resulting record is appended to the
  * cache file. If the file is past {@link MAX_CACHE_ENTRIES}, it is
  * rewritten keeping the most recent entries.
- *
- * Reuses `precomputed` values from a prior
- * {@link tryLockfileVerificationCache} lookup so we don't re-stat or
- * (especially) re-hash the lockfile a second time on the miss-then-
- * record path.
  */
 export function recordVerification (
   cacheDir: string,
@@ -372,53 +379,10 @@ function appendRecord (cacheDir: string, record: CacheRecord): void {
 
 function maybeCompactCache (cacheDir: string): void {
   const cacheFilePath = path.join(cacheDir, CACHE_FILE_NAME)
-  // Decide whether to compact from the file size alone — avoids reading
-  // and parsing the file on every successful install. Records cluster
-  // around a few hundred bytes; the byte budget translates directly to
-  // the entry cap with generous slack so we don't trigger a rewrite on
-  // every append once we cross the line.
-  let size: number
-  try {
-    size = fs.statSync(cacheFilePath).size
-  } catch (err: unknown) {
-    if (isNodeError(err) && err.code === 'ENOENT') return
-    logger.debug({ msg: 'lockfile-verified cache: stat for compaction failed', err })
-    return
-  }
-  if (size <= COMPACT_TRIGGER_BYTES) return
-
-  let contents: string
-  try {
-    contents = fs.readFileSync(cacheFilePath, 'utf8')
-  } catch (err: unknown) {
-    if (isNodeError(err) && err.code === 'ENOENT') return
-    logger.debug({ msg: 'lockfile-verified cache: read for compaction failed', err })
-    return
-  }
-  const lines = contents.split('\n').filter(Boolean)
-
-  // Dedup by (path, hash) — that's the unit both indexes care about.
-  // Walking reverse keeps the newest record per tuple; we then trim to
-  // MAX_CACHE_ENTRIES and write back in original order.
-  const seen = new Set<string>()
-  const reversed: string[] = []
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i]
-    try {
-      const parsed = JSON.parse(line) as Partial<CacheRecord>
-      const lockfilePath = parsed?.lockfile?.path
-      const hash = parsed?.lockfile?.hash
-      if (typeof lockfilePath !== 'string' || typeof hash !== 'string') continue
-      const tupleKey = `${lockfilePath} ${hash}`
-      if (seen.has(tupleKey)) continue
-      seen.add(tupleKey)
-      reversed.push(line)
-    } catch {
-      // Skip malformed lines.
-    }
-  }
-  reversed.reverse()
-  const kept = reversed.slice(-MAX_CACHE_ENTRIES)
+  if (!cacheExceedsCompactionTrigger(cacheFilePath)) return
+  const contents = readCacheForCompaction(cacheFilePath)
+  if (contents == null) return
+  const kept = keepNewestRecordPerTuple(contents.split('\n').filter(Boolean)).slice(-MAX_CACHE_ENTRIES)
   try {
     // Write to a sibling tempfile + rename so a concurrent pnpm process
     // can't observe a half-written file.
@@ -427,6 +391,60 @@ function maybeCompactCache (cacheDir: string): void {
     fs.renameSync(tmpPath, cacheFilePath)
   } catch (err: unknown) {
     logger.debug({ msg: 'lockfile-verified cache: compaction failed', err })
+  }
+}
+
+/**
+ * Decide whether to compact from the file size alone — avoids reading
+ * and parsing the file on every successful install.
+ */
+function cacheExceedsCompactionTrigger (cacheFilePath: string): boolean {
+  let size: number
+  try {
+    size = fs.statSync(cacheFilePath).size
+  } catch (err: unknown) {
+    if (isNodeError(err) && err.code === 'ENOENT') return false
+    logger.debug({ msg: 'lockfile-verified cache: stat for compaction failed', err })
+    return false
+  }
+  return size > COMPACT_TRIGGER_BYTES
+}
+
+function readCacheForCompaction (cacheFilePath: string): string | undefined {
+  try {
+    return fs.readFileSync(cacheFilePath, 'utf8')
+  } catch (err: unknown) {
+    if (isNodeError(err) && err.code === 'ENOENT') return undefined
+    logger.debug({ msg: 'lockfile-verified cache: read for compaction failed', err })
+    return undefined
+  }
+}
+
+/**
+ * Dedup by (path, hash) — that's the unit both indexes care about.
+ * Walking reverse keeps the newest record per tuple; the result is in
+ * original order. Malformed lines are dropped.
+ */
+function keepNewestRecordPerTuple (lines: string[]): string[] {
+  const seen = new Set<string>()
+  const reversed: string[] = []
+  for (let index = lines.length - 1; index >= 0; index--) {
+    const line = lines[index]
+    const tupleKey = readRecordTupleKey(line)
+    if (tupleKey == null || seen.has(tupleKey)) continue
+    seen.add(tupleKey)
+    reversed.push(line)
+  }
+  return reversed.reverse()
+}
+
+function readRecordTupleKey (line: string): string | undefined {
+  try {
+    const parsed = JSON.parse(line) as Partial<CacheRecord>
+    if (!hasRecordKeys(parsed)) return undefined
+    return `${parsed.lockfile.path} ${parsed.lockfile.hash}`
+  } catch {
+    return undefined
   }
 }
 

@@ -8,18 +8,13 @@ import { summarizeTarball } from '../tarball/summarizeTarball.js'
 import { createStageContext } from './context.js'
 import { requireStageId } from './parsing.js'
 import { renderTarballSummary } from './rendering.js'
-import { stageRequest } from './request.js'
+import { fetchStageTarball } from './tarball.js'
 import type { StageOptions } from './types.js'
 
 export async function stageDownload (opts: StageOptions, params: string[]): Promise<string> {
   const stageId = requireStageId(params, 'download')
   const context = createStageContext(opts)
-  const response = await stageRequest(context, {
-    url: new URL(`-/stage/${stageId}/tarball`, context.registry).href,
-    init: { method: 'GET' },
-    action: `download staged package ${stageId}`,
-  })
-  const tarballData = Buffer.from(await response.arrayBuffer())
+  const tarballData = await fetchStageTarball(context, stageId)
   const summary = await summarizeTarball(tarballData)
   const filename = createTarballFilename({ name: summary.name, version: summary.version, suffix: stageId })
   const downloadedSummary = { ...summary, filename }
