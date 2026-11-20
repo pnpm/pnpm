@@ -70,9 +70,7 @@ fn token_timestamp_iso_formats_millis_and_saturates_overflow() {
     assert_eq!(token_timestamp_iso(u64::MAX), token_timestamp_iso(i64::MAX as u64));
 }
 
-// ---------------------------------------------------------------
 // CIDR matching
-// ---------------------------------------------------------------
 
 fn ip(addr: &str) -> IpAddr {
     addr.parse().unwrap()
@@ -137,9 +135,7 @@ fn cidr_whitelist_allows_requires_some_entry_to_match() {
     assert!(!cidr_whitelist_allows(&whitelist, ip("203.0.113.1")));
 }
 
-// ---------------------------------------------------------------
 // Method classification and header parsing
-// ---------------------------------------------------------------
 
 #[test]
 fn is_write_request_flags_only_mutating_requests() {
@@ -193,9 +189,7 @@ fn token_credentials_accepts_every_client_token_shape() {
     assert_eq!(token_credentials("Digest abc"), None);
 }
 
-// ---------------------------------------------------------------
 // End-to-end restriction enforcement
-// ---------------------------------------------------------------
 
 const PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 1, 2, 3)), 40000);
 const PROXY_PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 40000);
@@ -625,10 +619,8 @@ fn access_log_uri_redacts_the_logout_token_segment() {
     assert_eq!(redact("/-/npm/v1/search?text=foo"), "/-/npm/v1/search?text=foo");
 }
 
-// --------------------------------------------------------------------
 // npm team API: listings of the instance's teams, not-found masking for
 // callers the registry-level `access` denies.
-// --------------------------------------------------------------------
 
 /// The teams [`seed_teams`] stores, each under the ID of its name.
 const TEAMS: [(&str, &[&str]); 2] = [("developers", &["bob", "alice"]), ("admins", &["alice"])];

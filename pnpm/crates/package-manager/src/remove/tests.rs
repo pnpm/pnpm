@@ -3,6 +3,8 @@
 
 use super::{
     RemoveValidationError,
+    edited_project_dirs,
+    expand_remove_patterns,
     persist_selected_manifests,
     prepare_selected_manifests,
     selected_project_indices,
@@ -220,6 +222,190 @@ fn selected_remove_still_requires_a_dependency_name() {
     let error = validate_selected_remove(&projects, &indices, &[], None)
         .expect_err("empty recursive removal must fail");
     assert!(matches!(error, RemoveValidationError::MustRemoveSomething));
+}
+
+#[test]
+fn remove_expands_dependency_glob_patterns() {
+    let (manifest, _dir) = manifest(json!({
+        "dependencies": {
+            "@eslint/js": "1.0.0",
+            "eslint": "1.0.0",
+            "eslint-plugin-import": "1.0.0",
+            "vite": "1.0.0"
+        },
+    }));
+
+    assert_eq!(
+        expand_remove_patterns(
+            &manifest.available_dependency_names(None),
+            &strings(&["eslint", "eslint-*"])
+        ),
+        strings(&["eslint", "eslint-plugin-import"]),
+    );
+}
+
+#[test]
+fn remove_preserves_missing_exact_dependencies_when_expanding_patterns() {
+    let (manifest, _dir) = manifest(json!({
+        "dependencies": {
+            "eslint": "1.0.0",
+            "eslint-plugin-import": "1.0.0"
+        },
+    }));
+
+    let package_names = expand_remove_patterns(
+        &manifest.available_dependency_names(None),
+        &strings(&["left-pad", "eslint-*"]),
+    );
+
+    assert_eq!(package_names, strings(&["left-pad", "eslint-plugin-import"]));
+    assert!(matches!(
+        validate_removable(&manifest, &package_names, None),
+        Err(RemoveValidationError::CannotRemoveMissingDeps { .. })
+    ));
+}
+
+#[test]
+fn remove_with_only_negated_dependency_patterns_is_a_no_op() {
+    let (manifest, _dir) = manifest(json!({
+        "dependencies": {
+            "eslint": "1.0.0",
+            "is-positive": "1.0.0"
+        },
+    }));
+
+    assert_eq!(
+        expand_remove_patterns(
+            &manifest.available_dependency_names(None),
+            &strings(&["!does-not-exist"])
+        ),
+        Vec::<String>::new(),
+    );
+}
+
+#[test]
+fn remove_exclusion_overrides_exact_dependency_name() {
+    let available = strings(&["eslint", "eslint-plugin-import"]);
+
+    assert_eq!(
+        expand_remove_patterns(&available, &strings(&["eslint", "eslint-*", "!eslint"])),
+        strings(&["eslint-plugin-import"]),
+    );
+}
+
+#[test]
+fn remove_exclusion_drops_exact_name_missing_from_save_field() {
+    let available = strings(&["eslint-plugin-import"]);
+
+    assert_eq!(
+        expand_remove_patterns(&available, &strings(&["eslint", "eslint-*", "!eslint"])),
+        strings(&["eslint-plugin-import"]),
+    );
+}
+
+#[test]
+fn selected_remove_skips_validation_of_excluded_exact_names() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let projects = vec![project_with_dependencies(dir.path(), "a", &["eslint-plugin-import"])];
+    let package_names = strings(&["eslint", "eslint-*", "!eslint"]);
+
+    assert!(validate_selected_remove(&projects, &[0], &package_names, None).is_ok());
+}
+
+#[test]
+fn selected_remove_glob_matches_peer_only_dependencies() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let root_dir = dir.path().join("a");
+    std::fs::create_dir_all(&root_dir).expect("create project directory");
+    let package_json = root_dir.join("package.json");
+    std::fs::write(
+        &package_json,
+        json!({ "name": "a", "peerDependencies": { "eslint-config-example": "1.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    let mut projects = vec![Project {
+        root_dir,
+        manifest: PackageManifest::from_path(package_json).expect("read package.json"),
+        dependency_manifest: None,
+    }];
+    let indices = [0];
+    let package_names = strings(&["eslint-*"]);
+
+    assert!(validate_selected_remove(&projects, &indices, &package_names, None).is_ok());
+    assert_eq!(edited_project_dirs(&projects, &indices, &package_names, None).len(), 1);
+    prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, &package_names, None);
+    assert_eq!(
+        projects[0].manifest
+            .dependencies([DependencyGroup::Peer])
+            .count(),
+        0,
+    );
+}
+
+#[test]
+fn selected_remove_accepts_dependency_glob_patterns() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let projects = vec![
+        project_with_dependencies(dir.path(), "a", &["eslint", "eslint-plugin-import"]),
+        project_with_dependencies(dir.path(), "b", &["vite"]),
+    ];
+    let ordered_dirs = projects
+        .iter()
+        .map(|project| project.root_dir.clone())
+        .collect::<Vec<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+
+    assert!(validate_selected_remove(&projects, &indices, &strings(&["eslint-*"]), None).is_ok());
+    let edited = edited_project_dirs(&projects, &indices, &strings(&["eslint-*"]), None);
+    assert_eq!(edited.len(), 1);
+    assert!(edited.contains(&projects[0].root_dir));
+}
+
+#[test]
+fn selected_remove_fails_when_mixed_exact_dependency_is_missing() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let projects = vec![project_with_dependencies(dir.path(), "a", &["eslint-plugin-import"])];
+    let ordered_dirs = projects
+        .iter()
+        .map(|project| project.root_dir.clone())
+        .collect::<Vec<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+
+    let err =
+        validate_selected_remove(&projects, &indices, &strings(&["left-pad", "eslint-*"]), None)
+            .expect_err("missing exact dependency must fail");
+    assert_eq!(err.to_string(), "Cannot remove 'left-pad': no such dependency found");
+}
+
+#[test]
+fn selected_remove_with_unmatched_glob_patterns_is_a_no_op() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let projects = vec![project_with_dependencies(dir.path(), "a", &["foo"])];
+    let ordered_dirs = projects
+        .iter()
+        .map(|project| project.root_dir.clone())
+        .collect::<Vec<_>>();
+    let selected_dirs = ordered_dirs
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let indices = selected_project_indices(&projects, &ordered_dirs, &selected_dirs);
+
+    assert!(
+        validate_selected_remove(&projects, &indices, &strings(&["does-not-match-*"]), None)
+            .is_ok(),
+    );
+    let edited = edited_project_dirs(&projects, &indices, &strings(&["does-not-match-*"]), None);
+    assert!(edited.is_empty());
 }
 
 fn project_with_dependencies(root: &std::path::Path, name: &str, dependencies: &[&str]) -> Project {

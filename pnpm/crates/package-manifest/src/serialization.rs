@@ -377,21 +377,37 @@ fn is_json5_path(path: &Path) -> bool {
         .is_some_and(|name| name.eq_ignore_ascii_case("package.json5"))
 }
 
+/// Edit the file on disk in place when the CST can parse it, so only the
+/// changed values are rewritten. Otherwise re-serialize the whole manifest
+/// and carry its comments across.
 fn serialize_json5(
     path: &Path,
     value: &Value,
     indent: &str,
 ) -> Result<String, PackageManifestError> {
-    let serialized = crate::json5::stringify(value, indent);
     let text = match fs::read_to_string(path) {
         Ok(text) => text,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(serialized),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(crate::json5::stringify(value, indent));
+        }
         Err(source) => {
             return Err(PackageManifestError::Read { path: path.to_path_buf(), source });
         }
     };
-    parse_project_manifest(path, &text)?;
-    let restored = crate::json5::restore_comments(strip_utf8_bom(&text), &serialized);
+    // Parsing with the depth-bounded reader first also keeps the CST
+    // parser, which recurses without a limit, off deeply nested input.
+    let original = parse_project_manifest(path, &text)?;
+    let text = strip_utf8_bom(&text);
+    if let Some(edited) = crate::json5::sync(text, &original, value)
+        && parse_project_manifest(path, &edited).is_ok_and(|edited| edited == *value)
+    {
+        return Ok(edited
+            .strip_suffix('\n')
+            .unwrap_or(&edited)
+            .to_owned());
+    }
+    let serialized = crate::json5::stringify(value, indent);
+    let restored = crate::json5::restore_comments(text, &serialized);
     if parse_project_manifest(path, &restored)? != *value {
         return Err(PackageManifestError::InvalidAttribute(format!(
             "{}: preserving JSON5 comments changed the manifest value",

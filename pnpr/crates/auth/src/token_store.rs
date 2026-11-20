@@ -22,9 +22,7 @@ use super::{
     UNIX_EPOCH,
 };
 
-// ---------------------------------------------------------------
 // crypto helpers
-// ---------------------------------------------------------------
 
 /// Build a freshly-randomized secret for a token or an account ID.
 /// Pulls 32 bytes from the OS CSPRNG (`getrandom` → `/dev/urandom`
