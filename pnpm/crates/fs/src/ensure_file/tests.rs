@@ -111,7 +111,7 @@ fn existing_target_with_wrong_content_is_overwritten_atomically() {
 /// Repairing a corrupt CAS blob with `ensure_cas_file` must keep the
 /// inode so hard-linked copies (other projects' `node_modules`
 /// entries importing the same blob) are healed by the same write
-/// (pnpm/pnpm#3445). `ensure_file`'s rename repair would swap the
+/// (pnpm/pnpm#3445). A rename repair would swap the
 /// inode and leave the linked copy corrupt.
 #[cfg(unix)]
 #[test]
@@ -371,12 +371,12 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
 /// `O_CREAT|O_EXCL`; the rest take `verify_or_rewrite`. With the
 /// per-path mutex, the late-comers see the winner's fully-written
 /// file and take the byte-match fast path, so the inode never
-/// changes. Without it, a late-comer can race into `write_atomic`
+/// changes. Without it, a late-comer can race into the atomic write
 /// on a partial size, swap the inode, and the per-writer
 /// observations below can diverge under a multi-rename race.
 ///
 /// Note this is a smoke test, not a strict regression test: any
-/// observation taken *after* `ensure_file` returns has already
+/// observation taken *after* the write returns has already
 /// missed the rename window, so a single-rename race typically
 /// converges on one final inode and slips past. It catches the
 /// multi-rename case and validates the "no deadlock, all writers
