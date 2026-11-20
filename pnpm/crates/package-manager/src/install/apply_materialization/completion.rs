@@ -70,6 +70,7 @@ pub(super) fn complete_resolve_only<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: inputs.prefix.to_string(),
+        new_projects: None,
     }));
     Ok(true)
 }
@@ -143,6 +144,8 @@ pub(super) fn materialized_script_projects<'a>(
 pub(super) struct ReportInstallCompletionInputs<'a> {
     pub(crate) workspace: crate::install::state_options::CompletionWorkspace<'a>,
     pub(super) prefix: String,
+    /// See [`SummaryLog::new_projects`].
+    pub(super) new_projects: Option<Vec<String>>,
     pub(super) ignored_builds: Vec<String>,
     pub(super) verified_file_integrity_baseline: VerifiedFileIntegrity,
     /// The lockfile this install resolved, or `None` when it skipped
@@ -176,6 +179,7 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: inputs.prefix,
+        new_projects: inputs.new_projects,
     }));
 
     report_verified_file_integrity::<Reporter>(

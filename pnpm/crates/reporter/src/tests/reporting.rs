@@ -32,6 +32,7 @@ fn summary_event_matches_pnpm_wire_shape() {
     let event = LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
         prefix: "/some/project".to_string(),
+        new_projects: None,
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
 
@@ -44,6 +45,18 @@ fn summary_event_matches_pnpm_wire_shape() {
     assert_eq!(json["name"], "pnpm:summary");
     assert_eq!(json["level"], "debug");
     assert_eq!(json["prefix"], "/some/project");
+    assert!(json.get("newProjects").is_none(), "{json}");
+}
+
+#[test]
+fn workspace_summary_event_lists_new_projects() {
+    let event = LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix: "/ws".to_string(),
+        new_projects: Some(vec!["/ws/packages/a".to_string()]),
+    });
+    let json: Value = event.pipe_ref(serde_json::to_value).expect("serialize event");
+    assert_eq!(json["newProjects"], serde_json::json!(["/ws/packages/a"]));
 }
 
 /// `pnpm:progress` flattens its `status`-tagged payload into the

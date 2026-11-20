@@ -85,6 +85,7 @@ fn report_up_to_date_install(
     emit(&pnpm_reporter::LogEvent::Summary(pnpm_reporter::SummaryLog {
         level: pnpm_reporter::LogLevel::Debug,
         prefix,
+        new_projects: None,
     }));
 }
 

@@ -1,15 +1,18 @@
 use super::{
     BlockPlacement,
     DepKind,
+    DiffBuckets,
     PackageDiff,
     PackageManifestMessage,
     ReporterState,
     SUMMARY_ORDER,
+    SummaryLog,
     SummaryScope,
-    SummaryState,
     Value,
+    WorkspaceSummary,
     added_diff,
     diff_key,
+    empty_diff_buckets,
     is_strictly_newer,
     manifest_dep_versions,
     normalized_prefix,
@@ -28,26 +31,18 @@ impl ReporterState {
         let prefix = match message {
             RootMessage::Added { prefix, .. } | RootMessage::Removed { prefix, .. } => prefix,
         };
-        if !self.is_current_prefix(prefix) {
-            return;
-        }
+        let buckets = if self.is_current_prefix(prefix) {
+            &mut self.summary.diff
+        } else {
+            self.summary.other_projects
+                .entry(normalized_prefix(&self.rendering.cwd, prefix))
+                .or_insert_with(empty_diff_buckets)
+        };
         let (kind, entry) = match message {
             RootMessage::Added { added, .. } => added_diff(added),
             RootMessage::Removed { removed, .. } => removed_diff(removed),
         };
-        let key = diff_key(kind);
-        let Some(bucket) = self.summary.diff.get_mut(key) else {
-            return;
-        };
-        let opposite_key = format!("{}{}", if entry.added { '-' } else { '+' }, entry.name);
-        if let Some(prev) = bucket.get(&opposite_key)
-            && prev.version == entry.version
-        {
-            bucket.remove(&opposite_key);
-            return;
-        }
-        let entry_key = format!("{}{}", if entry.added { '+' } else { '-' }, entry.name);
-        bucket.insert(entry_key, entry);
+        record_root_change(buckets, kind, entry);
     }
 
     pub(super) fn on_manifest(&mut self, message: &PackageManifestMessage) {
@@ -55,13 +50,12 @@ impl ReporterState {
             PackageManifestMessage::Initial { prefix, .. }
             | PackageManifestMessage::Updated { prefix, .. } => prefix,
         };
-        if !self.is_current_prefix(prefix) {
-            return;
-        }
         let should_render_after_update = matches!(message, PackageManifestMessage::Updated { .. })
             && self.summary.seen;
         {
-            let diff = self.summary.manifest_diffs.entry(prefix.clone()).or_default();
+            let diff = self.summary.manifest_diffs
+                .entry(normalized_prefix(&self.rendering.cwd, prefix))
+                .or_default();
             match message {
                 PackageManifestMessage::Initial { initial, .. } => {
                     diff.initial.get_or_insert_with(|| initial.clone());
@@ -76,11 +70,17 @@ impl ReporterState {
         }
     }
 
-    pub(super) fn on_summary(&mut self, prefix: &str) {
-        if prefix == self.rendering.cwd
+    pub(super) fn on_summary(&mut self, log: &SummaryLog) {
+        if log.prefix == self.rendering.cwd
             && (self.install.stats_added.is_some() || self.install.stats_removed.is_some())
         {
             self.render_stats();
+        }
+        if let Some(new_projects) = &log.new_projects
+            && self.options.scope.summary == SummaryScope::CurrentPrefix
+        {
+            self.summary.workspace =
+                Some(WorkspaceSummary::new(&self.rendering.cwd, &log.prefix, new_projects));
         }
         self.summary.seen = true;
         self.try_render_summary();
@@ -90,7 +90,7 @@ impl ReporterState {
         if self.summary.rendered {
             return;
         }
-        self.summary.apply_manifest_diff();
+        self.apply_manifest_diffs();
         let msg = self.render_summary();
         if msg.is_empty() {
             return;
@@ -111,33 +111,36 @@ impl ReporterState {
     pub(super) fn render_summary(&self) -> String {
         let mut msg = String::new();
         for kind in SUMMARY_ORDER {
-            let bucket = &self.summary.diff[diff_key(kind)];
-            if bucket.is_empty() {
+            let lines = match &self.summary.workspace {
+                Some(workspace) => self.workspace_summary_lines(workspace, kind),
+                None => self.current_project_summary_lines(kind),
+            };
+            if lines.is_empty() {
                 continue;
             }
-            let mut diffs: Vec<&PackageDiff> = bucket
-                .values()
-                .filter(|diff| !self.is_hidden_linked(diff))
-                .collect();
-            if diffs.is_empty() {
-                continue;
-            }
-            diffs.sort_by(|a, b| {
-                a.name
-                    .cmp(&b.name)
-                    .then(u8::from(a.added).cmp(&u8::from(b.added)))
-            });
             msg.push('\n');
             msg.push_str(&self.rendering.colors.cyan_bright(&format!("{}:", kind.header())));
             msg.push('\n');
-            let lines: Vec<String> = diffs
-                .iter()
-                .map(|diff| self.diff_line(diff))
-                .collect();
             msg.push_str(&lines.join("\n"));
             msg.push('\n');
         }
         msg
+    }
+
+    fn current_project_summary_lines(&self, kind: DepKind) -> Vec<String> {
+        let mut diffs: Vec<&PackageDiff> = self.summary.diff[diff_key(kind)]
+            .values()
+            .filter(|diff| !self.is_hidden_linked(diff))
+            .collect();
+        diffs.sort_by(|a, b| {
+            a.name
+                .cmp(&b.name)
+                .then(u8::from(a.added).cmp(&u8::from(b.added)))
+        });
+        diffs
+            .iter()
+            .map(|diff| self.diff_line(diff))
+            .collect()
     }
 
     /// Whether this summary entry is a linked instance of a package the
@@ -191,34 +194,56 @@ impl ReporterState {
         }
         format!(" {}", self.rendering.colors.grey(&format!("({latest} is available)")))
     }
-}
 
-impl SummaryState {
-    pub(super) fn apply_manifest_diff(&mut self) {
-        let manifest_diffs: Vec<(Value, Value)> = self.manifest_diffs
-            .values()
-            .filter_map(|diff| {
-                Some((diff.initial.as_ref()?.clone(), diff.updated.as_ref()?.clone()))
+    /// Fold every manifest edit into the changes of its project. Without a
+    /// workspace summary only the current project's edits render.
+    fn apply_manifest_diffs(&mut self) {
+        let edits: Vec<(String, Value, Value)> = self.summary.manifest_diffs
+            .iter()
+            .filter_map(|(prefix, diff)| {
+                Some((prefix.clone(), diff.initial.clone()?, diff.updated.clone()?))
             })
             .collect();
-        for (initial, updated) in manifest_diffs {
-            self.apply_manifest_pair_diff(&initial, &updated);
+        for (prefix, initial, updated) in edits {
+            let buckets = if self.is_current_prefix(&prefix) {
+                &mut self.summary.diff
+            } else if self.summary.workspace.is_some() {
+                self.summary.other_projects.entry(prefix).or_insert_with(empty_diff_buckets)
+            } else {
+                continue;
+            };
+            apply_manifest_pair_diff(buckets, &initial, &updated);
         }
     }
 }
 
-impl SummaryState {
-    pub(super) fn apply_manifest_pair_diff(&mut self, initial: &Value, updated: &Value) {
-        let initial = remove_optional_from_prod(initial);
-        let updated = remove_optional_from_prod(updated);
-        for kind in [DepKind::Peer, DepKind::Prod, DepKind::Optional, DepKind::Dev] {
-            let prop = kind.header();
-            let initial_deps = manifest_dep_versions(&initial, prop);
-            let updated_deps = manifest_dep_versions(&updated, prop);
-            if let Some(bucket) = self.diff.get_mut(diff_key(kind)) {
-                record_missing(bucket, &initial_deps, &updated_deps, false);
-                record_missing(bucket, &updated_deps, &initial_deps, true);
-            }
+/// Record one `pnpm:root` change. A change that undoes an earlier one of
+/// the same version cancels it.
+fn record_root_change(buckets: &mut DiffBuckets, kind: DepKind, entry: PackageDiff) {
+    let Some(bucket) = buckets.get_mut(diff_key(kind)) else {
+        return;
+    };
+    let opposite_key = format!("{}{}", if entry.added { '-' } else { '+' }, entry.name);
+    if let Some(prev) = bucket.get(&opposite_key)
+        && prev.version == entry.version
+    {
+        bucket.remove(&opposite_key);
+        return;
+    }
+    let entry_key = format!("{}{}", if entry.added { '+' } else { '-' }, entry.name);
+    bucket.insert(entry_key, entry);
+}
+
+fn apply_manifest_pair_diff(buckets: &mut DiffBuckets, initial: &Value, updated: &Value) {
+    let initial = remove_optional_from_prod(initial);
+    let updated = remove_optional_from_prod(updated);
+    for kind in [DepKind::Peer, DepKind::Prod, DepKind::Optional, DepKind::Dev] {
+        let prop = kind.header();
+        let initial_deps = manifest_dep_versions(&initial, prop);
+        let updated_deps = manifest_dep_versions(&updated, prop);
+        if let Some(bucket) = buckets.get_mut(diff_key(kind)) {
+            record_missing(bucket, &initial_deps, &updated_deps, false);
+            record_missing(bucket, &updated_deps, &initial_deps, true);
         }
     }
 }

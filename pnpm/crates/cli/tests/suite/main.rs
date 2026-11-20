@@ -246,6 +246,7 @@ mod with;
 mod workspace_bins;
 mod workspace_cycles;
 mod workspace_install;
+mod workspace_install_summary;
 mod workspace_path_overrides;
 mod workspace_peer_pins;
 mod workspace_settings_check;

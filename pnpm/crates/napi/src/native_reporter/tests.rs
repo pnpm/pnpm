@@ -52,7 +52,11 @@ fn stats(added: u64) -> LogEvent {
 }
 
 fn summary() -> LogEvent {
-    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: DIR.to_string() })
+    LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix: DIR.to_string(),
+        new_projects: None,
+    })
 }
 
 #[test]

@@ -383,6 +383,7 @@ impl ReporterState {
     /// deprecations render immediately; transitive ones wait for the
     /// `resolution_done` summary.
     pub(super) fn on_deprecation(&mut self, log: &DeprecationLog) {
+        self.summary.deprecated_packages.insert((log.pkg_name.clone(), log.pkg_version.clone()));
         if log.depth != 0 {
             self.notices.deprecated_subdeps.push(log.clone());
             return;

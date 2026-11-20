@@ -60,9 +60,16 @@ pub enum Stage {
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SummaryLog {
     pub level: LogLevel,
     pub prefix: String,
+    /// The root directories of the projects this install found no
+    /// previous install of. Set only when the install covers a workspace
+    /// of several projects, with `prefix` as its root, and skipped from the
+    /// wire otherwise, so `None` means a single-project install.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_projects: Option<Vec<String>>,
 }
 
 /// `pnpm:package-import-method` payload. The method names match pnpm's

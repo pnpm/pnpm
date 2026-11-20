@@ -193,7 +193,11 @@ fn summary() -> LogEvent {
 }
 
 fn summary_at(prefix: &str) -> LogEvent {
-    LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix: prefix.to_string() })
+    LogEvent::Summary(SummaryLog {
+        level: LogLevel::Debug,
+        prefix: prefix.to_string(),
+        new_projects: None,
+    })
 }
 
 fn pnpm_log(level: LogLevel, message: &str) -> LogEvent {
@@ -411,3 +415,6 @@ mod script_output;
 
 #[path = "render/peers.rs"]
 mod peers;
+
+#[path = "render/workspace_summary.rs"]
+mod workspace_summary;
