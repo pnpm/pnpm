@@ -253,7 +253,8 @@ fn retire_deleted_files(
         .chain(
             declared_deleted
                 .iter()
-                .filter(|name| !already_removed.contains(*name) && !dropped.contains_key(*name)),
+                .filter(|name| !already_removed.contains(*name))
+                .filter(|name| !dropped.contains_key(*name)),
         )
         .map(String::as_str)
         .collect();

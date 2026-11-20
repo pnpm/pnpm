@@ -1235,7 +1235,8 @@ fn dedupe_filters_workspace_projects_and_checks_without_writing() {
         };
         let snapshots: Vec<_> = lockfiles
             .iter()
-            .map(|path| fs::read(path).unwrap())
+            .map(fs::read)
+            .map(Result::unwrap)
             .collect();
         pacquet_at(&workspace)
             .with_args(["dedupe", "--check", "-F", "pkg-a"])
@@ -1299,7 +1300,8 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
         [".", "packages/a", "packages/b"].map(|dir| workspace.join(dir).join("pnpm-lock.yaml"));
     let snapshots: Vec<_> = lockfiles
         .iter()
-        .map(|path| fs::read(path).unwrap())
+        .map(fs::read)
+        .map(Result::unwrap)
         .collect();
     let workspace_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&workspace_path).unwrap();
@@ -1399,7 +1401,8 @@ fn dedupe_warm_full_run_counts_each_reused_package_once() {
     let package_ids = |status: &str| {
         records
             .iter()
-            .filter(|record| record["name"] == "pnpm:progress" && record["status"] == status)
+            .filter(|record| record["name"] == "pnpm:progress")
+            .filter(|record| record["status"] == status)
             .map(|record| {
                 record["packageId"]
                     .as_str()

@@ -145,7 +145,8 @@ fn is_excluded(dir: &str, excluded: &[Vec<&str>]) -> bool {
 
 fn path_components(path: &str) -> Vec<&str> {
     path.split('/')
-        .filter(|component| !component.is_empty() && *component != ".")
+        .filter(|component| !component.is_empty())
+        .filter(|component| *component != ".")
         .collect()
 }
 
@@ -209,7 +210,10 @@ fn dependency_package(
     if let Some(package) = renamed_package(value) {
         return package.to_owned();
     }
-    let inherits = value.get("workspace").and_then(Value::as_bool) == Some(true);
+    let inherits = value
+        .get("workspace")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     match workspace_packages.get(key) {
         Some(package) if inherits => package.clone(),
         _ => key.to_owned(),

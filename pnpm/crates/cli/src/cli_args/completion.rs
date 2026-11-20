@@ -318,7 +318,8 @@ impl<'a> CompletionContext<'a> {
         while let Some(word) = words.get(index) {
             if let Some(subcommand) = context.command
                 .get_subcommands()
-                .find(|subcommand| !subcommand.is_hide_set() && command_matches(subcommand, word))
+                .filter(|subcommand| !subcommand.is_hide_set())
+                .find(|subcommand| command_matches(subcommand, word))
             {
                 context.command = subcommand;
                 context.command_name = Some(subcommand.get_name());

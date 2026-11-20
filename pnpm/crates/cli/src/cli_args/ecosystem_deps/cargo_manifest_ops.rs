@@ -331,7 +331,7 @@ fn is_workspace_inherited(value: &toml::Value) -> bool {
         .as_table()
         .and_then(|table| table.get("workspace"))
         .and_then(toml::Value::as_bool)
-        == Some(true)
+        .unwrap_or(false)
 }
 
 fn extract_registry_spec(alias: &str, value: &toml::Value) -> Option<(String, String)> {

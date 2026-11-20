@@ -213,7 +213,10 @@ fn extract_paths_from_dep_table(
         };
         if let Some(rel_path) = dep.get("path").and_then(toml::Value::as_str) {
             out.push(resolve_local_path(&pkg_dir.join(rel_path)));
-        } else if dep.get("workspace").and_then(toml::Value::as_bool) == Some(true)
+        } else if dep
+            .get("workspace")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(false)
             && let Some(ws_path) = resolve_workspace_dep_path(ws_dir, root_doc, key, dep)
         {
             out.push(ws_path);
@@ -260,7 +263,8 @@ fn cargo_glob_matches(pattern: &str, path: &str) -> bool {
         .trim_start_matches("./")
         .trim_matches('/')
         .split('/')
-        .filter(|seg| !seg.is_empty() && *seg != ".")
+        .filter(|seg| !seg.is_empty())
+        .filter(|seg| *seg != ".")
         .collect();
     let path_segs: Vec<&str> = path
         .split('/')

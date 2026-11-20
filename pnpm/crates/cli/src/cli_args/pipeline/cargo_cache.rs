@@ -361,7 +361,8 @@ pub(super) fn prepend_path(environment: &mut BTreeMap<String, String>, dir: Path
     let dirs = std::iter::once(dir).chain(env::split_paths(path));
     if let Some(joined) = env::join_paths(dirs)
         .ok()
-        .and_then(|joined| joined.into_string().ok())
+        .map(std::ffi::OsString::into_string)
+        .and_then(Result::ok)
     {
         environment.insert("PATH".to_string(), joined);
     }

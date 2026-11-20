@@ -230,7 +230,8 @@ impl SharedArtifactStore {
         let upload = self.store
             .put_multipart(&self.object_path(path))
             .await
-            .map_err(|error| WriteFailure::Rejected(error.into()))?;
+            .map_err(|error| error.into())
+            .map_err(WriteFailure::Rejected)?;
         let mut writer = WriteMultipart::new(upload);
         let streamed = async {
             while let Some(chunk) = body.next().await {
@@ -254,7 +255,11 @@ impl SharedArtifactStore {
             }
             return stored_meanwhile.map(|_| false).map_err(WriteFailure::Rejected);
         }
-        writer.finish().await.map_err(|error| WriteFailure::Store(error.into()))?;
+        writer
+            .finish()
+            .await
+            .map_err(|error| error.into())
+            .map_err(WriteFailure::Store)?;
         Ok(true)
     }
 

@@ -70,7 +70,8 @@ fn reported_prefix(workspace: &Path) -> String {
 fn scope_records(printed: &str) -> Vec<serde_json::Value> {
     printed
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .filter(|record| record["name"] == "pnpm:scope")
         .collect()
 }

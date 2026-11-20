@@ -308,7 +308,8 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
                 snapshot.optional
                     && snapshot.transitive_peer_dependencies
                         .as_ref()
-                        .is_some_and(|peers| peers.len() == 1 && peers[0] == "preserved-peer")
+                        .filter(|peers| peers.len() == 1)
+                        .is_some_and(|peers| peers[0] == "preserved-peer")
             }),
     );
     handshake_mock.assert();

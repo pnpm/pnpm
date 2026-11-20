@@ -33,7 +33,9 @@ pub(super) fn prior_tarball_entries(
             packages
                 .iter()
                 .filter_map(|(key, metadata)| match &metadata.resolution {
-                    LockfileResolution::Tarball(tarball) if tarball.git_hosted != Some(true) => {
+                    LockfileResolution::Tarball(tarball)
+                        if !tarball.git_hosted.unwrap_or(false) =>
+                    {
                         let integrity = tarball.integrity.clone()?;
                         let pkg_id = key.pkg_id();
                         let store_index_key = store_index_key(&integrity.to_string(), &pkg_id);

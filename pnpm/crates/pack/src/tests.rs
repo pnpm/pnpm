@@ -290,7 +290,7 @@ fn en_collator_matches_full_compiled_en_collation() {
     let full = CollatorBorrowed::try_new(locale!("en").into(), CollatorOptions::default()).unwrap();
     let en = en_collator();
     let root = en.as_borrowed();
-    let mut by_full: Vec<String> = ('\u{20}'..='\u{24FF}')
+    let mut by_full: Vec<String> = ('\u{20}'..='⓿')
         .flat_map(|char| [char.to_string(), format!("{char}\u{301}")])
         .collect();
     let mut by_root = by_full.clone();

@@ -167,7 +167,9 @@ fn segment_counts(sources: &[SkillSource]) -> HashMap<String, usize> {
 
 fn local_dir_slug(dir: &str) -> String {
     dir.split('/')
-        .filter(|part| !part.is_empty() && *part != "." && *part != "..")
+        .filter(|part| !part.is_empty())
+        .filter(|part| *part != ".")
+        .filter(|part| *part != "..")
         .map(sanitize_slug_part)
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()

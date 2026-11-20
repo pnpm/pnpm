@@ -408,7 +408,7 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
     assert_eq!(
         prod_only,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n└── {PKG}@100.0.0\n\n1 package\n"
         ),
     );
 
@@ -416,7 +416,7 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
     assert_eq!(
         dev_only,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   devDependencies:\n\u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   devDependencies:\n└── {HELLO}@1.0.0\n\n1 package\n"
         ),
     );
 
@@ -424,7 +424,7 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
     assert_eq!(
         both,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{251c}\u{2500}\u{2500} {PKG}@100.0.0\n\u{2502}\n\u{2502}   devDependencies:\n\u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\n2 packages\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n├── {PKG}@100.0.0\n│\n│   devDependencies:\n└── {HELLO}@1.0.0\n\n2 packages\n"
         ),
     );
 }
@@ -464,7 +464,7 @@ fn listing_packages_of_a_project_with_an_external_lockfile() {
     assert_eq!(
         output,
         format!(
-            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
+            "{LEGEND}\n\npkg@1.0.0 {dir}\n│\n│   dependencies:\n└── {PKG}@100.0.0\n\n1 package\n"
         ),
     );
 }
@@ -501,7 +501,7 @@ fn listing_packages_with_local_file_directory_dependency() {
     assert_eq!(
         output,
         format!(
-            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} dep@file:../dep\n\n1 package\n"
+            "{LEGEND}\n\npkg@1.0.0 {dir}\n│\n│   dependencies:\n└── dep@file:../dep\n\n1 package\n"
         ),
     );
 }
@@ -529,7 +529,7 @@ fn listing_packages_with_lockfile_only() {
     assert_eq!(
         prod_only,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n└── {PKG}@100.0.0\n\n1 package\n"
         ),
     );
 
@@ -537,7 +537,7 @@ fn listing_packages_with_lockfile_only() {
     assert_eq!(
         dev_only,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   devDependencies:\n\u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   devDependencies:\n└── {HELLO}@1.0.0\n\n1 package\n"
         ),
     );
 
@@ -545,7 +545,7 @@ fn listing_packages_with_lockfile_only() {
     assert_eq!(
         both,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{251c}\u{2500}\u{2500} {PKG}@100.0.0\n\u{2502}\n\u{2502}   devDependencies:\n\u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\n2 packages\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n├── {PKG}@100.0.0\n│\n│   devDependencies:\n└── {HELLO}@1.0.0\n\n2 packages\n"
         ),
     );
 }
@@ -596,7 +596,7 @@ fn listing_specific_package_with_lockfile_only() {
     assert_eq!(
         output,
         format!(
-            "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
+            "{LEGEND}\n\nproject@0.0.0 {dir}\n│\n│   dependencies:\n└── {PKG}@100.0.0\n\n1 package\n"
         ),
     );
 }

@@ -131,7 +131,8 @@ fn a_bare_cargo_runs_the_toolchain_the_project_names() {
     assert_eq!(
         lines
             .next()
-            .map(|rustc| fs::canonicalize(rustc).unwrap()),
+            .map(fs::canonicalize)
+            .map(Result::unwrap),
         Some(fs::canonicalize(toolchain.join("bin/rustc")).unwrap()),
     );
     // A rustup proxy cargo runs, such as `$CARGO_HOME/bin/cargo-clippy`,

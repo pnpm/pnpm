@@ -22,7 +22,8 @@ use std::collections::BTreeSet;
 pub(super) fn derive_bin(manifest: &Value, files: &BTreeSet<String>) -> Option<Value> {
     let declared = manifest
         .get("bin")
-        .filter(|bin| !bin.is_null() && bin.as_str() != Some(""));
+        .filter(|bin| !bin.is_null())
+        .filter(|bin| bin.as_str() != Some(""));
     let entries = match declared {
         Some(bin) => {
             let name = manifest

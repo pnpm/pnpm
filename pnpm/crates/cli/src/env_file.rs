@@ -205,7 +205,8 @@ fn strip_env_file_prefix(token: &OsStr) -> Option<PathBuf> {
         token
             .as_bytes()
             .strip_prefix(b"--env-file=")
-            .map(|bytes| PathBuf::from(OsStr::from_bytes(bytes)))
+            .map(OsStr::from_bytes)
+            .map(PathBuf::from)
     }
     #[cfg(windows)]
     {

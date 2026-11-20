@@ -596,7 +596,8 @@ fn link_warns_about_peer_dependencies() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
     let warn_events: Vec<serde_json::Value> = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .filter(|val| {
             val.get("name").and_then(serde_json::Value::as_str) == Some("pnpm")
                 && val.get("level").and_then(serde_json::Value::as_str) == Some("warn")

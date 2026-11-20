@@ -105,7 +105,8 @@ pub(super) fn current_revision_number(
     };
     let revision = raw_revision
         .as_u64()
-        .and_then(|revision| TarballRevision::try_from(revision).ok())
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok)
         .map(TarballRevision::get);
     revision.ok_or_else(|| ResolutionVerification::Err {
         code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,

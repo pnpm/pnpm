@@ -91,7 +91,9 @@ pub(super) fn eligible_roots(
                 .copied()
                 .unwrap_or(false)
                 && eligible_packages.contains(&snapshot_key.name.to_string())
-                && allow_build_policy.check(&snapshot_key.without_peer().to_string()) == Some(true)
+                && allow_build_policy
+                    .check(&snapshot_key.without_peer().to_string())
+                    .unwrap_or(false)
                 && allow_build_policy.caches_build(snapshot_key)
                 && has_materialized_base(snapshot_key, base_cas_paths, cold_snapshots)
         })

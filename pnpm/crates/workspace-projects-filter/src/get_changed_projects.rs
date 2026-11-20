@@ -284,7 +284,8 @@ fn symlinked_ancestors(repo_root: &Path, path: &Path) -> Vec<PathBuf> {
 fn is_inside_repo(path: &Path, repo_root: &Path) -> bool {
     let canonical_dir = path
         .parent()
-        .and_then(|dir| std::fs::canonicalize(dir).ok());
+        .map(std::fs::canonicalize)
+        .and_then(Result::ok);
     let canonical_root = std::fs::canonicalize(repo_root).ok();
     matches!((canonical_dir, canonical_root), (Some(dir), Some(root)) if dir.starts_with(&root))
 }

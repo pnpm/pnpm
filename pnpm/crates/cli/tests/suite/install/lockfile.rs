@@ -575,7 +575,8 @@ fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
     let up_to_date = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .find(|record| {
             record.get("name").and_then(|v| v.as_str()) == Some("pnpm")
                 && record.get("level").and_then(|v| v.as_str()) == Some("info")
@@ -645,7 +646,8 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
     let up_to_date = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .find(|record| {
             record.get("name").and_then(|v| v.as_str()) == Some("pnpm")
                 && record.get("level").and_then(|v| v.as_str()) == Some("info")

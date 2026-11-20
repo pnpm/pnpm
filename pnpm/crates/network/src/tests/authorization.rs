@@ -281,7 +281,8 @@ fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
     // different way.
     assert_eq!(
         ca.iter()
-            .flat_map(|pem| crate::certificates::parse_ca_bundle(pem.as_bytes()))
+            .map(String::as_bytes)
+            .flat_map(crate::certificates::parse_ca_bundle)
             .count(),
         1,
     );

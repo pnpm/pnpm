@@ -120,7 +120,8 @@ pub(super) fn pin_locked_version(
         && let Some(version) = key.suffix.registry_version()
         && wanted.bare_specifier
             .as_deref()
-            .is_some_and(|spec| !spec.trim().is_empty() && is_valid_semver_range(spec))
+            .filter(|spec| !spec.trim().is_empty())
+            .is_some_and(|spec| is_valid_semver_range(spec))
     {
         wanted.bare_specifier = Some(version.to_string());
     }

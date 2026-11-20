@@ -306,7 +306,7 @@ impl WatchdogProcess {
     fn is_running(&mut self) -> bool {
         match &self.address {
             #[cfg(target_os = "linux")]
-            WatchdogAddress::Pidfd(pidfd) => linux::exited(pidfd, libc::WNOHANG) == Some(false),
+            WatchdogAddress::Pidfd(pidfd) => !linux::exited(pidfd, libc::WNOHANG).unwrap_or(true),
             WatchdogAddress::Pid => matches!(self.child.try_wait(), Ok(None)),
             #[cfg(target_os = "linux")]
             WatchdogAddress::Gone => false,

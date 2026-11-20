@@ -146,7 +146,8 @@ impl ApprovalPrompt for DialoguerPrompt {
             result
         })
         .await
-        .map_err(|error| dialoguer::Error::IO(std::io::Error::other(error)))?
+        .map_err(std::io::Error::other)
+        .map_err(dialoguer::Error::IO)?
     }
 }
 

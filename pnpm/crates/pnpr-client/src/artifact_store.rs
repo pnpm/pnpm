@@ -56,7 +56,8 @@ impl ArtifactStore {
         if let Some(url) = remote_cache_url {
             let authorization = auth_headers.for_secure_url(url);
             return TurborepoArtifactStore::new(url, team, authorization)
-                .map(|store| Some(ArtifactStore::Turborepo(store)))
+                .map(ArtifactStore::Turborepo)
+                .map(Some)
                 .map_err(remote_cache_error);
         }
         let Some(server) = pnpr_server else {

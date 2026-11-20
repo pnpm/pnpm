@@ -271,7 +271,10 @@ fn build_or_defer<Reporter: self::Reporter>(
                 .keys()
                 .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
                 .all(|snapshot_key| {
-                    inputs.cache.requires_build_by_snapshot.get(snapshot_key) == Some(&false)
+                    !inputs.cache.requires_build_by_snapshot
+                        .get(snapshot_key)
+                        .copied()
+                        .unwrap_or(true)
                 })
         })
     {
@@ -458,7 +461,10 @@ fn auto_installed_peer_bin_locations(
             packages
                 .get(&key.without_peer())
                 .is_some_and(crate::link_bins::may_have_bin)
-                || inputs.cache.requires_build_by_snapshot.get(key) == Some(&true)
+                || inputs.cache.requires_build_by_snapshot
+                    .get(key)
+                    .copied()
+                    .unwrap_or(false)
         })
         .map(|key| {
             inputs.directories.layout

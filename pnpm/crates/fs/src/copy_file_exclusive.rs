@@ -106,7 +106,9 @@ pub fn copy_permissions(source: &Path) -> io::Result<CopyPermissions> {
 pub fn read_file_permissions(file: &fs::File) -> io::Result<CopyPermissions> {
     #[cfg(not(target_os = "wasi"))]
     {
-        file.metadata().map(|metadata| CopyPermissions(metadata.permissions()))
+        file.metadata()
+            .map(|metadata| metadata.permissions())
+            .map(CopyPermissions)
     }
     #[cfg(target_os = "wasi")]
     {

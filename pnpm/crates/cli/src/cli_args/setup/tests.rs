@@ -216,7 +216,7 @@ fn registry_write_failure_prints_powershell_instructions() {
 
 #[test]
 fn powershell_instructions_quote_pnpm_home_as_a_literal() {
-    for quote in ['\'', '\u{2018}', '\u{2019}', '\u{201a}', '\u{201b}'] {
+    for quote in ['\'', '‘', '’', '‚', '‛'] {
         let output = render_env_path_outcome(
             Err(PathExtenderError::RegRead),
             Path::new(&format!(r"C:\Users\o{quote}neil\$(Write-Error injected)")),

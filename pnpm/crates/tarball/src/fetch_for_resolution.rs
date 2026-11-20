@@ -396,7 +396,8 @@ impl FetchTarballForResolution<'_> {
             }
             AttemptedFetch::Extracted(extracted) => {
                 self.process_extracted(*extracted).await
-                    .map(|validated| FetchedBody::Extracted(Box::new(validated)))
+                    .map(Box::new)
+                    .map(FetchedBody::Extracted)
             }
         }
     }

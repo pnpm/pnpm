@@ -107,7 +107,7 @@ impl Settled<'_, '_> {
                 lockfile.settings
                     .as_ref()
                     .and_then(|settings| settings.resolution.auto_dedupe)
-                    == Some(true)
+                    .unwrap_or(false)
             })
     }
 

@@ -78,7 +78,7 @@ impl TarLimits {
     /// worked before tars existed.
     #[must_use]
     pub fn with_unpacked_size(self, unpacked_size: Option<usize>) -> Self {
-        let unpacked_size = unpacked_size.and_then(|size| u64::try_from(size).ok());
+        let unpacked_size = unpacked_size.map(u64::try_from).and_then(Result::ok);
         Self { unpacked_size, ..self }
     }
 

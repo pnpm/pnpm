@@ -51,20 +51,23 @@ async fn public_packument_responses_carry_caching_headers() {
         response
             .headers()
             .get(header::CACHE_CONTROL)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("public, max-age=300"),
     );
     assert_eq!(
         response
             .headers()
             .get(header::VARY)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("Accept"),
     );
     let full_etag = response
         .headers()
         .get(header::ETAG)
-        .and_then(|header_value| header_value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .expect("ETag header must be present")
         .to_string();
     assert!(full_etag.starts_with('"') && full_etag.ends_with('"'));
@@ -84,20 +87,23 @@ async fn public_packument_responses_carry_caching_headers() {
         abbrev_response
             .headers()
             .get(header::CACHE_CONTROL)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("public, max-age=300"),
     );
     assert_eq!(
         abbrev_response
             .headers()
             .get(header::VARY)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("Accept"),
     );
     let abbrev_etag = abbrev_response
         .headers()
         .get(header::ETAG)
-        .and_then(|header_value| header_value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .expect("ETag header must be present")
         .to_string();
     assert_ne!(full_etag, abbrev_etag, "abbreviated packument has distinct body and ETag");
@@ -154,21 +160,24 @@ async fn packument_conditional_if_none_match() {
         not_modified
             .headers()
             .get(header::ETAG)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some(etag.as_str()),
     );
     assert_eq!(
         not_modified
             .headers()
             .get(header::VARY)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("Accept"),
     );
     assert_eq!(
         not_modified
             .headers()
             .get(header::CACHE_CONTROL)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("public, max-age=300"),
     );
     assert_eq!(body_bytes(not_modified.into_body()).await.len(), 0);
@@ -321,7 +330,8 @@ async fn packument_conditional_if_modified_since() {
         ims_exact
             .headers()
             .get(header::LAST_MODIFIED)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some(last_modified.as_str()),
     );
     assert_eq!(body_bytes(ims_exact.into_body()).await.len(), 0);
@@ -492,7 +502,8 @@ async fn per_upstream_packument_ttl_overrides_global_ttl_in_cache_control() {
         response
             .headers()
             .get(header::CACHE_CONTROL)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("public, max-age=900"),
     );
 }
@@ -545,20 +556,23 @@ async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() 
         response
             .headers()
             .get(header::CACHE_CONTROL)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("public, max-age=120"),
     );
     assert_eq!(
         response
             .headers()
             .get(header::VARY)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("Accept"),
     );
     let etag = response
         .headers()
         .get(header::ETAG)
-        .and_then(|header_value| header_value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .unwrap();
     assert!(etag.starts_with('"') && etag.ends_with('"'));
 }
@@ -616,14 +630,16 @@ async fn anonymous_only_package_carries_private_cache_headers_and_denies_authent
         response
             .headers()
             .get(header::CACHE_CONTROL)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("private, no-store"),
     );
     assert_eq!(
         response
             .headers()
             .get(header::VARY)
-            .and_then(|header_value| header_value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("Accept, Authorization"),
     );
 

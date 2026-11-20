@@ -149,7 +149,8 @@ impl Walker<'_> {
             .get(pkg_id)
             .into_iter()
             .flat_map(|children| children.iter())
-            .filter(|edge| edge.optional && edges.contains_key(&edge.alias))
+            .filter(|edge| edge.optional)
+            .filter(|edge| edges.contains_key(&edge.alias))
             .map(|edge| edge.alias.clone())
             .collect()
     }

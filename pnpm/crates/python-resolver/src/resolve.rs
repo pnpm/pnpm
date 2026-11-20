@@ -240,11 +240,13 @@ impl Provider<'_> {
                 requirement.name,
             )));
         }
-        let parsed =
-            crate::Source::parse(source).map_err(|error| Needed::Invalid(error.to_string()))?;
+        let parsed = crate::Source::parse(source)
+            .map_err(|error| error.to_string())
+            .map_err(Needed::Invalid)?;
         if let Some(chosen) = self.packages.direct_urls.get(&requirement.name) {
-            let chosen_source =
-                crate::Source::parse(chosen).map_err(|error| Needed::Invalid(error.to_string()))?;
+            let chosen_source = crate::Source::parse(chosen)
+                .map_err(|error| error.to_string())
+                .map_err(Needed::Invalid)?;
             if !chosen_source.compatible_with(&parsed) {
                 return Err(Needed::RejectedSource(format!(
                     "conflicting Python sources for {}",

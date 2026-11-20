@@ -27,13 +27,13 @@ use tempfile::TempDir;
 
 #[test]
 fn unicode_and_space_directories_keep_their_owners() {
-    assert_directory_owners(&["ascii", "with spaces", "\u{4e2d}\u{6587}", "\u{d55c}\u{ae00}"]);
+    assert_directory_owners(&["ascii", "with spaces", "中文", "한글"]);
 }
 
 #[test]
 fn nested_git_paths_match_native_project_paths() {
     // On Windows, exercise Git's '/' paths against native PathBuf keys.
-    let directory = Path::new("packages").join("\u{4e2d}\u{6587}").join("leaf with spaces");
+    let directory = Path::new("packages").join("中文").join("leaf with spaces");
     assert_directory_owners(&[directory.to_str().expect("UTF-8 directory")]);
 }
 
@@ -95,7 +95,7 @@ fn assert_directory_owners(dir_names: &[&str]) {
 
 #[test]
 fn literal_unicode_and_space_filename_patterns_are_respected() {
-    for filename in ["test.js", "test file.js", "\u{68c0}\u{67e5}.js", "\u{d55c}\u{ae00}.js"] {
+    for filename in ["test.js", "test file.js", "检查.js", "한글.js"] {
         assert_literal_filename_patterns(filename);
     }
 }

@@ -85,7 +85,8 @@ where
     // is a hard error rather than a silent "not public".
     let visibility = response.body
         .pipe_as_ref(serde_json::from_str::<Value>)
-        .map_err(|error| DetermineProvenanceError::VisibilityParse(error.to_string()))?;
+        .map_err(|error| error.to_string())
+        .map_err(DetermineProvenanceError::VisibilityParse)?;
     let public = visibility
         .get("public")
         .and_then(Value::as_bool)
@@ -130,9 +131,11 @@ fn visibility_url(registry: &str, package_name: &str) -> Result<String, Determin
 fn decode_jwt_payload(payload_b64: &str) -> Result<Value, DetermineProvenanceError> {
     let bytes = URL_SAFE_NO_PAD
         .decode(payload_b64.trim_end_matches('='))
-        .map_err(|error| DetermineProvenanceError::PayloadParse(error.to_string()))?;
+        .map_err(|error| error.to_string())
+        .map_err(DetermineProvenanceError::PayloadParse)?;
     serde_json::from_slice(&bytes)
-        .map_err(|error| DetermineProvenanceError::PayloadParse(error.to_string()))
+        .map_err(|error| error.to_string())
+        .map_err(DetermineProvenanceError::PayloadParse)
 }
 
 /// A skippable provenance error: the publish proceeds without provenance.

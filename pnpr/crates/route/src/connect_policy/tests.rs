@@ -25,7 +25,9 @@ fn config(public_url: &str, public_routes: &[&str], allowed_private_networks: &[
     );
     config.routing.route_policy.allowed_private_networks = allowed_private_networks
         .iter()
-        .map(|network| IpNetwork::parse(network).unwrap())
+        .copied()
+        .map(IpNetwork::parse)
+        .map(Result::unwrap)
         .collect();
     config
 }

@@ -164,7 +164,8 @@ fn run_resolve_blocking(
         // (`Box<dyn Error>`), so the underlying miette `Diagnostic` — and its
         // `ERR_PNPM_*` code / hint — is already gone by the time it reaches
         // here; only the message survives.
-        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
+        .map_err(|error| error.to_string())
+        .map_err(napi::Error::from_reason)?;
 
     Ok(ResolveDependencyResult {
         id: resolved.id.to_string(),

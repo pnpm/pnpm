@@ -84,7 +84,8 @@ fn merged_package_snapshot_json(
     if let Some(Value::Object(fields)) = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&dep_path.without_peer()))
-        .and_then(|metadata| serde_json::to_value(metadata).ok())
+        .map(serde_json::to_value)
+        .and_then(Result::ok)
     {
         merged.extend(fields);
     }

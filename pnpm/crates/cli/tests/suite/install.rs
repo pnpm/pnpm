@@ -338,7 +338,8 @@ fn install_emits_canonical_prefix_in_ndjson_events() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
     let prefixes: Vec<String> = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .filter_map(|val| {
             val.get("prefix")
                 .and_then(|p| p.as_str())

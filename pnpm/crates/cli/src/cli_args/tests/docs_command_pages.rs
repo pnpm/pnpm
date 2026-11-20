@@ -459,7 +459,8 @@ fn documented_unknown_flags(
         .collect();
     page.own
         .iter()
-        .filter(|flag| !accepted.contains(*flag) && !global.accepted.contains(*flag))
+        .filter(|flag| !accepted.contains(*flag))
+        .filter(|flag| !global.accepted.contains(*flag))
         .filter(|flag| !SHORTHAND_FLAGS.contains(&flag.as_str()))
         .filter(|flag| !commands.iter().any(|(path, _)| is_bare_setting_flag(path, flag)))
         .cloned()

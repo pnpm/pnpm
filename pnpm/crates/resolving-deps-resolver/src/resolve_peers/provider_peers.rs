@@ -260,7 +260,8 @@ fn missing_peers<'a>(
 ) -> Vec<CandidatePeer> {
     peers
         .iter()
-        .filter(|peer| !peer.has_fallback_child && version_of(&peer.name).is_none())
+        .filter(|peer| !peer.has_fallback_child)
+        .filter(|peer| version_of(&peer.name).is_none())
         .cloned()
         .collect()
 }

@@ -261,7 +261,7 @@ impl SuffixRules {
             .and_then(|settings| settings.peers_suffix_max_length)
             .unwrap_or(DEFAULT_PEERS_SUFFIX_MAX_LENGTH);
         SuffixRules {
-            dedupe: settings.is_some_and(|settings| settings.dedupe_peers == Some(true)),
+            dedupe: settings.is_some_and(|settings| settings.dedupe_peers.unwrap_or(false)),
             max_length: usize::try_from(max_length).unwrap_or(usize::MAX),
         }
     }

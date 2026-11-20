@@ -97,7 +97,8 @@ fn overriding_error(
     let bare_specifier = wanted.bare_specifier.as_deref()?;
     let matched = overrides
         .iter()
-        .find(|entry| entry.name == alias && entry.new_bare_specifier == bare_specifier)?;
+        .filter(|entry| entry.name == alias)
+        .find(|entry| entry.new_bare_specifier == bare_specifier)?;
     let selector_range = matched.selector_range.clone();
     // The registry metadata belongs to the package the forced specifier
     // names, so it describes the target only for a plain range, not for an

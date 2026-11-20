@@ -59,10 +59,7 @@ fn token_decodes_an_invalid_utf8_body_lossily() {
     body.extend_from_slice(br#"b"}"#);
     let response =
         WebAuthFetchResponse { ok: true, status: 200, retry_after: None, body, truncated: false };
-    assert_eq!(
-        response.token().expect("parse the lossily-decoded body"),
-        Some("a\u{FFFD}b".to_owned()),
-    );
+    assert_eq!(response.token().expect("parse the lossily-decoded body"), Some("a�b".to_owned()),);
 }
 
 /// A leading UTF-8 BOM is stripped before parsing, matching the TypeScript

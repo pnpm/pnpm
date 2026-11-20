@@ -83,13 +83,13 @@ pub(in crate::cli_args) fn apply_cli_layers(
         }
     }
     config.offline = resolve_bool_override(
-        invocation.offline == Some(true),
-        invocation.offline == Some(false),
+        invocation.offline.unwrap_or(false),
+        !invocation.offline.unwrap_or(true),
         config.offline,
     );
     config.prefer_offline = resolve_bool_override(
-        invocation.prefer_offline == Some(true),
-        invocation.prefer_offline == Some(false),
+        invocation.prefer_offline.unwrap_or(false),
+        !invocation.prefer_offline.unwrap_or(true),
         config.prefer_offline,
     );
     Ok(())

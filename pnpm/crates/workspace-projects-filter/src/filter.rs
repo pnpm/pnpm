@@ -170,7 +170,8 @@ where
     let reverse = |id: &Path| {
         reversed_graph
             .as_ref()
-            .and_then(|graph| graph.get(id).cloned())
+            .and_then(|graph| graph.get(id))
+            .cloned()
     };
 
     for selector in selectors {

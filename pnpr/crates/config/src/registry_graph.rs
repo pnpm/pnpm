@@ -167,12 +167,14 @@ fn check_hosted_tar_sources(
 ) -> Result<(), RegistryError> {
     let tgz_routers = registries
         .names()
-        .filter(|name| registries.is_router(name) && !tar_registries.contains(*name));
+        .filter(|name| registries.is_router(name))
+        .filter(|name| !tar_registries.contains(*name));
     for router in tgz_routers {
         let tar_source = registries
             .sources(router, Ecosystem::Npm)
             .into_iter()
-            .find(|source| hosted.contains_key(*source) && tar_registries.contains(*source));
+            .filter(|source| hosted.contains_key(*source))
+            .find(|source| tar_registries.contains(*source));
         if let Some(source) = tar_source {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(

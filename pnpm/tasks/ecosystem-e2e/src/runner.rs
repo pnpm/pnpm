@@ -412,7 +412,8 @@ fn probe(port: u16, path: &str) -> Result<u16, String> {
     status_line
         .split_whitespace()
         .nth(1)
-        .and_then(|code| code.parse().ok())
+        .map(str::parse)
+        .and_then(Result::ok)
         .ok_or_else(|| format!("unparsable status line: {status_line:?}"))
 }
 

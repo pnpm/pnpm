@@ -238,7 +238,8 @@ pub(crate) fn should_persist_package_manager_lockfile(pm: &WantedPackageManager)
     }
     pm.version
         .as_deref()
-        .and_then(|version| node_semver::Version::parse(version).ok())
+        .map(node_semver::Version::parse)
+        .and_then(Result::ok)
         .is_some_and(|version| version.major >= 12)
 }
 

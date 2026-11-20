@@ -256,7 +256,8 @@ fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str> + Clone>
     Some(
         target
             .split(SEPARATORS)
-            .filter(|segment| !segment.is_empty() && *segment != "."),
+            .filter(|segment| !segment.is_empty())
+            .filter(|segment| *segment != "."),
     )
 }
 

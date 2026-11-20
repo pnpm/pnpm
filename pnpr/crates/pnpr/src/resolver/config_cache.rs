@@ -199,7 +199,9 @@ impl ConfigKeyInputs {
         let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
         let overrides = request.overrides
             .as_ref()
-            .and_then(|value| serde_json::from_value(value.clone()).ok());
+            .map(|value| value.clone())
+            .map(serde_json::from_value)
+            .and_then(Result::ok);
         ConfigKeyInputs {
             registry,
             overrides,

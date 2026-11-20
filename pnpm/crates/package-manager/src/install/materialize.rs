@@ -372,7 +372,7 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
                 let shared_lockfile = self.lockfiles.wanted_shared
                     .as_ref()
                     .map(Arc::clone)
-                    .or_else(|| self.lockfiles.wanted.map(|loaded| Arc::new(loaded.clone())));
+                    .or_else(|| self.lockfiles.wanted.map(|loaded| loaded.clone()).map(Arc::new));
                 shared_lockfile.and_then(|loaded_lockfile| {
                     super::LockfileVerificationGate::spawn::<Reporter>(
                         Arc::clone(&loaded_lockfile),

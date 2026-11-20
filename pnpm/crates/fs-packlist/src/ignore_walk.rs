@@ -426,7 +426,8 @@ fn parse_ignore_rules(content: &[u8]) -> Vec<IgnoreRule> {
     String::from_utf8_lossy(content)
         .lines()
         .map(trim_ignore_line)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter(|line| !line.is_empty())
+        .filter(|line| !line.starts_with('#'))
         .map(IgnoreRule::parse)
         .collect()
 }
@@ -457,7 +458,8 @@ fn inherited_rules<Sys: FsRead>(
     let Some(workspace_dir) = workspace_dir else { return Ok(rules) };
     let Some(parent_rel) = pkg_dir
         .parent()
-        .and_then(|parent| parent.strip_prefix(workspace_dir).ok())
+        .map(|parent| parent.strip_prefix(workspace_dir))
+        .and_then(Result::ok)
     else {
         return Ok(rules);
     };

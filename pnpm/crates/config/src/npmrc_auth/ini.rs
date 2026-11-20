@@ -91,7 +91,9 @@ fn is_registry_key(key: &str) -> bool {
 
 fn scoped_registry_key(key: &str) -> Option<&str> {
     key.strip_suffix(":registry")
-        .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
+        .filter(|scope| scope.starts_with('@'))
+        .filter(|scope| scope.len() > 1)
+        .filter(|scope| !scope.contains('/'))
 }
 
 fn has_env_placeholder(value: &str) -> bool {

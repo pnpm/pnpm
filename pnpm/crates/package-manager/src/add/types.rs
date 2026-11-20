@@ -148,7 +148,8 @@ async fn pick_types_metadata(
     );
     pick_package(&context, &spec, &options).await
         .map(|result| result.picked_package.map(|package| (package, registry)))
-        .map_err(|error| AddError::ResolveSpec(Box::new(error)))
+        .map_err(Box::new)
+        .map_err(AddError::ResolveSpec)
 }
 
 fn types_package_name(name: &str) -> String {

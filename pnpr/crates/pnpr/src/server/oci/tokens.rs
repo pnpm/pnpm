@@ -194,12 +194,16 @@ async fn issue_token(
         addressed_registry(state, registry, Ecosystem::Oci).ok_or(RegistryError::NotFound)?;
     let raw = headers
         .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .and_then(token_credentials);
     if raw.is_some() && *identity == Identity::Anonymous {
         return Ok(error(ErrorCode::Unauthorized, "invalid credentials"));
     }
-    let parent = raw.as_ref().map(|raw| sha256_hex(raw.as_bytes()));
+    let parent = raw
+        .as_ref()
+        .map(String::as_bytes)
+        .map(sha256_hex);
     let record = match &parent {
         Some(parent) => state.inner.identity.auth.tokens.find_by_key(parent).await?,
         None => None,

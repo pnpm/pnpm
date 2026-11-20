@@ -356,7 +356,8 @@ fn describe_missing_shared(project: &Path) -> String {
                 .map(|rel| candidate.parent().unwrap().join(rel));
             let target_entries = resolved
                 .as_deref()
-                .and_then(|dir| fs::read_dir(dir).ok())
+                .map(fs::read_dir)
+                .and_then(Result::ok)
                 .map(|entries| {
                     entries
                         .filter_map(Result::ok)

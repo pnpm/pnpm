@@ -302,7 +302,7 @@ fn edge_target(
 fn publish_directory_importers(lockfile: &Lockfile) -> HashMap<String, String> {
     lockfile.importers
         .iter()
-        .filter(|(_, importer)| importer.link_directory != Some(false))
+        .filter(|(_, importer)| importer.link_directory.unwrap_or(true))
         .filter_map(|(importer_id, importer)| {
             let publish_directory = importer.publish_directory.as_deref()?;
             let linked_importer_id = normalize_importer_path(importer_id, publish_directory)?;
@@ -318,7 +318,8 @@ fn publish_directory_importers(lockfile: &Lockfile) -> HashMap<String, String> {
 pub fn normalize_importer_path(base: &str, relative: &str) -> Option<String> {
     let mut parts: Vec<&str> = base
         .split('/')
-        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .filter(|segment| !segment.is_empty())
+        .filter(|segment| *segment != ".")
         .collect();
     let normalized = relative.replace('\\', "/");
     for part in normalized.split('/') {

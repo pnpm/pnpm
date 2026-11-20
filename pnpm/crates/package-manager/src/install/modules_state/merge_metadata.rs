@@ -36,7 +36,9 @@ where
         let (Some(rebuild), Some(policy)) = (rebuild, rebuild_build_policy) else { return false };
         !current.is_some_and(|current| current.importers.contains_key(entry))
             && rebuild.settles_dependency(entry)
-            && policy.check(pnpm_deps_path::remove_suffix(entry)) == Some(true)
+            && policy
+                .check(pnpm_deps_path::remove_suffix(entry))
+                .unwrap_or(false)
     };
     let retained = previous
         .iter()

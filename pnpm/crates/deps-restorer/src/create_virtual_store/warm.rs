@@ -84,7 +84,10 @@ pub(super) fn cached_git_prepare_allowed(
             metadata_key: metadata_key.to_string(),
         })?;
     if !is_git_hosted_resolution(&metadata.resolution)
-        || prefetch.requires_prepare.get(key) == Some(&false)
+        || !prefetch.requires_prepare
+            .get(key)
+            .copied()
+            .unwrap_or(true)
     {
         return Ok(true);
     }
@@ -161,8 +164,9 @@ impl<'a> SlotBuilds<'a> {
         crate::snapshot_has_patch(snapshot_key)
             || (requires_build
                 && !self.ignore_scripts
-                && self.allow_build_policy.check(&snapshot_key.without_peer().to_string())
-                    == Some(true))
+                && self.allow_build_policy
+                    .check(&snapshot_key.without_peer().to_string())
+                    .unwrap_or(false))
     }
 }
 /// The pristine CAS paths of every warm snapshot whose package may publish

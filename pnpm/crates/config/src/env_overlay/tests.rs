@@ -508,7 +508,8 @@ fn every_setting_is_read_from_the_environment() {
     let unread: Vec<&str> = settings
         .keys()
         .map(String::as_str)
-        .filter(|key| !requested.contains(*key) && !SETTINGS_NOT_READ_FROM_ENV.contains(key))
+        .filter(|key| !requested.contains(*key))
+        .filter(|key| !SETTINGS_NOT_READ_FROM_ENV.contains(key))
         .collect();
     assert_eq!(unread, Vec::<&str>::new(), "settings with no PNPM_CONFIG_* read");
 

@@ -43,7 +43,8 @@ const NULL_SET_COMPARATOR: &str = "<0.0.0-0";
 pub fn is_any_version_range(range: &str) -> bool {
     range
         .split("||")
-        .any(|comparator_set| comparator_set.trim_matches(is_semver_whitespace).is_empty())
+        .map(|comparator_set| comparator_set.trim_matches(is_semver_whitespace))
+        .any(str::is_empty)
 }
 
 /// The Rust equivalent of JS `semver.validRange(range) != null`, the strict
@@ -150,7 +151,8 @@ fn desugar_strict_range(range: &str) -> Option<Vec<Vec<String>>> {
     let collapsed = collapse_whitespace(range);
     collapsed
         .split("||")
-        .map(|branch| desugar_branch(branch.trim_matches(' ')))
+        .map(|branch| branch.trim_matches(' '))
+        .map(desugar_branch)
         .collect()
 }
 

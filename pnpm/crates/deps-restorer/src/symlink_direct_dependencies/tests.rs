@@ -69,7 +69,7 @@ fn importer_task_groups_serialize_all_missing_dirs_together() {
     // canonicalization failure shares one serial group, on every
     // platform.
     let dir = tempdir().expect("tempdir");
-    let nfc = "packages/caf\u{e9}";
+    let nfc = "packages/café";
     let nfd = "packages/cafe\u{301}";
     let groups = group_ids(super::importer_task_groups(
         dir.path(),
@@ -84,7 +84,7 @@ fn importer_task_groups_fold_unicode_normalization_aliases() {
     // APFS resolves composed and decomposed forms to one directory;
     // no string transform groups these — only the filesystem's answer.
     let dir = tempdir().expect("tempdir");
-    let nfc = "packages/caf\u{e9}";
+    let nfc = "packages/café";
     let nfd = "packages/cafe\u{301}";
     fs::create_dir_all(dir.path().join(nfc)).expect("create project dir");
     let groups = group_ids(super::importer_task_groups(dir.path(), vec![nfc, nfd]));

@@ -76,7 +76,7 @@ pub(super) fn modules_consistent_with(
     // A `virtualStoreOnly` install populates the store and stops, so the
     // modules directory it leaves behind cannot satisfy an ordinary install,
     // and an existing modules directory cannot short-circuit `pnpm fetch`.
-    if config.virtual_store_only || modules.virtual_store_only == Some(true) {
+    if config.virtual_store_only || modules.virtual_store_only.unwrap_or(false) {
         return false;
     }
     modules.included == included && modules_layout_consistent_with(modules, config, node_linker)
@@ -221,7 +221,7 @@ pub(crate) fn modules_layout_consistent_with(
     // as layout drift — a purge every install for `hoistPattern: []`
     // projects, and a spurious `*_DIFF` error for `add` / `remove`.
     let skips_hoisted_tree = config.virtual_store_only && node_linker == NodeLinker::Hoisted;
-    let hoist_patterns_match = modules.virtual_store_only == Some(true)
+    let hoist_patterns_match = modules.virtual_store_only.unwrap_or(false)
         || skips_hoisted_tree
         || (normalized_pattern(modules.hoist_pattern.as_deref())
             == normalized_pattern(config.hoist_pattern.as_deref())
@@ -263,7 +263,7 @@ pub(super) fn has_newly_allowed_ignored_builds(
     };
     ignored
         .iter()
-        .any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
+        .any(|dep_path| policy.check(dep_path.as_str()).unwrap_or(false))
 }
 
 /// Whether the `allowBuilds` entries the previous install recorded differ

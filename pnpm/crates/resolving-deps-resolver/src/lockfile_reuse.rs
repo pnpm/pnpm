@@ -264,7 +264,7 @@ fn synthesize_manifest(
     // bundled-manifest bin linker sees a non-empty bin set; the exact
     // bin paths live in the store-index bundled manifest the install
     // pass reads, not here.
-    if metadata.has_bin == Some(true) {
+    if metadata.has_bin.unwrap_or(false) {
         manifest.insert("bin".to_string(), Value::String(name.to_string()));
     }
 
@@ -376,7 +376,8 @@ fn string_array(items: &[String]) -> Value {
     Value::Array(
         items
             .iter()
-            .map(|item| Value::String(item.clone()))
+            .map(|item| item.clone())
+            .map(Value::String)
             .collect(),
     )
 }
@@ -458,11 +459,11 @@ fn reusable_resolution(resolution: &LockfileResolution) -> Option<ReusableResolu
     let reusable = match resolution {
         LockfileResolution::Registry(_) => ReusableResolution::Registry,
         LockfileResolution::Tarball(tarball)
-            if tarball.integrity.is_some() && tarball.git_hosted != Some(true) =>
+            if tarball.integrity.is_some() && !tarball.git_hosted.unwrap_or(false) =>
         {
             ReusableResolution::Registry
         }
-        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => {
+        LockfileResolution::Tarball(tarball) if tarball.git_hosted.unwrap_or(false) => {
             ReusableResolution::Git
         }
         LockfileResolution::Git(_) => ReusableResolution::Git,

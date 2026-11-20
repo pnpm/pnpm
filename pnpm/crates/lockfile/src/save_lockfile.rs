@@ -176,7 +176,8 @@ pub fn render_hook_lockfile(value: &serde_json::Value) -> Result<String, SaveLoc
     let next_format = value
         .get("lockfileVersion")
         .and_then(serde_json::Value::as_str)
-        .and_then(|version| version.parse::<crate::ComVer>().ok())
+        .map(str::parse::<crate::ComVer>)
+        .and_then(Result::ok)
         .is_some_and(|version| version.major == crate::NEXT_LOCKFILE_MAJOR);
     if !next_format {
         return serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml);
@@ -298,7 +299,8 @@ fn allowed_link_target(path: &Path, allowed_dirs: &[PathBuf]) -> io::Result<Path
     let target = fs::canonicalize(path)?;
     let allowed = allowed_dirs
         .iter()
-        .filter_map(|dir| fs::canonicalize(dir).ok())
+        .map(fs::canonicalize)
+        .filter_map(Result::ok)
         .any(|dir| target.starts_with(dir));
     if allowed {
         Ok(target)

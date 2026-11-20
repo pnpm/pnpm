@@ -140,8 +140,10 @@ fn add_local_package_with_a_peer(selector: &str) -> Vec<String> {
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
     let warnings = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .filter(|event| event["name"] == "pnpm" && event["level"] == "warn")
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
+        .filter(|event| event["name"] == "pnpm")
+        .filter(|event| event["level"] == "warn")
         .filter_map(|event| event["message"].as_str().map(str::to_string))
         .collect();
 

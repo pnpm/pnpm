@@ -178,7 +178,8 @@ pub(super) fn unique_revision_url(
                 && entry
                     .get("integrity")
                     .and_then(Value::as_str)
-                    .and_then(|integrity| integrity.parse::<Integrity>().ok())
+                    .map(str::parse::<Integrity>)
+                    .and_then(Result::ok)
                     .is_some_and(|candidate| candidate == integrity)
                 && entry.get("tarball").and_then(Value::as_str) == Some(revision_url.as_str())
         })
@@ -226,7 +227,8 @@ pub(super) fn rewrite_revision_tarball(
     let has_sha512 = revision
         .get("integrity")
         .and_then(Value::as_str)
-        .and_then(|integrity| integrity.parse::<Integrity>().ok())
+        .map(str::parse::<Integrity>)
+        .and_then(Result::ok)
         .is_some_and(|integrity| has_complete_sha512_digest(&integrity));
     if !has_sha512 {
         return false;

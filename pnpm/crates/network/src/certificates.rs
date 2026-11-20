@@ -181,7 +181,9 @@ pub(super) fn parse_ca_bundle(pem: &[u8]) -> Vec<Certificate> {
     }
     String::from_utf8_lossy(pem)
         .split_inclusive(END_CERTIFICATE)
-        .filter_map(|block| Certificate::from_pem_bundle(block.as_bytes()).ok())
+        .map(str::as_bytes)
+        .map(Certificate::from_pem_bundle)
+        .filter_map(Result::ok)
         .flatten()
         .collect()
 }

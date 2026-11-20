@@ -185,7 +185,8 @@ impl<'a> SurvivorNamer<'a> {
             // the text.
             None => split_peer_suffix_segments(suffix)?
                 .into_iter()
-                .map(|segment| PeerId::DepPath(DepPath::from(segment)))
+                .map(DepPath::from)
+                .map(PeerId::DepPath)
                 .collect(),
         };
         let mut renamed = false;

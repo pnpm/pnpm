@@ -194,7 +194,9 @@ pub(super) async fn write_under_permit(
         Ok((slot, derived))
     })
     .await
-    .map_err(|join_err| RegistryError::Io(std::io::Error::other(join_err.to_string())))?
+    .map_err(|join_err| join_err.to_string())
+    .map_err(std::io::Error::other)
+    .map_err(RegistryError::Io)?
 }
 
 async fn acquire_decode_permit(

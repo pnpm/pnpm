@@ -27,7 +27,9 @@ pub(crate) fn mark_changed_children(tree: &mut ResolvedTree, lockfile: Option<&L
             let TreeChildren::Realized(children) = &node.children else { return None };
             let snapshot = node
                 .previous_dep_path()
-                .and_then(|path| path.as_str().parse().ok())
+                .map(DepPath::as_str)
+                .map(str::parse)
+                .and_then(Result::ok)
                 .and_then(|key| lockfile?.snapshots.as_ref()?.get(&key));
             let aliases: HashSet<_> = children
                 .iter()

@@ -376,7 +376,7 @@ fn releasable_package_name<'a>(
         .value()
         .get("private")
         .and_then(Value::as_bool)
-        == Some(true)
+        .unwrap_or(false)
         || node_semver::Version::parse(version).is_err()
         || ignored.matches(package_name, project_dir)
     {

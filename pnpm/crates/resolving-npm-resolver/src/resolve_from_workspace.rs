@@ -340,7 +340,7 @@ pub fn resolve_workspace_package_dir(root_dir: &Path, manifest: &DependencyManif
     let link_directory = publish_config
         .and_then(|cfg| cfg.get("linkDirectory"))
         .and_then(serde_json::Value::as_bool);
-    if publish_dir.is_none() || link_directory == Some(false) {
+    if publish_dir.is_none() || !link_directory.unwrap_or(true) {
         return root_dir.to_path_buf();
     }
     root_dir.join(publish_dir.expect("guard above"))

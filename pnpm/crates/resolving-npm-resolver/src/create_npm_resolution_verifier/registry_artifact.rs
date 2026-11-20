@@ -400,7 +400,8 @@ fn pnpr_published_tarball_url(
     current_revision: Option<u64>,
 ) -> String {
     current_revision
-        .and_then(|revision| TarballRevision::try_from(revision).ok())
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok)
         .and_then(|revision| {
             pnpm_lockfile::revision_registry_tarball_url(name, version, revision, registry)
         })

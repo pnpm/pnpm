@@ -256,7 +256,7 @@ impl ExecRun<'_> {
                 // Unlike `run`'s `--stream`, `exec` prefixes its output only when
                 // the user turned the hiding off explicitly — pnpm gates on
                 // `reporterHidePrefix === false`, not on its falsiness.
-                show_prefix: self.config.reporter_hide_prefix == Some(false),
+                show_prefix: !self.config.reporter_hide_prefix.unwrap_or(true),
                 emit: self.emit,
             },
         };

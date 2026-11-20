@@ -33,10 +33,8 @@ pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchPar
     let text = query
         .strip_prefix("maintainer:")
         .filter(|maintainer| !maintainer.is_empty())
-        .map_or_else(
-            || SearchText::Package(query.clone()),
-            |maintainer| SearchText::Maintainer(maintainer.to_string()),
-        );
+        .map(|maintainer| maintainer.to_string())
+        .map_or_else(|| SearchText::Package(query.clone()), SearchText::Maintainer);
     Some(SearchParams {
         text,
         from: parse_from(query_string),

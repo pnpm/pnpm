@@ -191,7 +191,7 @@ fn apply_derived_tar_metadata(
     if let Some(requires_build) = derived.requires_build {
         pnpr.insert("requiresBuild".to_string(), Value::Bool(requires_build));
     }
-    if derived.requires_build == Some(false)
+    if !derived.requires_build.unwrap_or(true)
         && let Some((bins_value, bins_bytes)) =
             derived.bins.as_ref().and_then(serialize_precalculated_bins)
         && bins_bytes <= *bins_budget

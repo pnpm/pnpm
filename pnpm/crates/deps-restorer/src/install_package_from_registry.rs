@@ -364,7 +364,8 @@ fn manifest_dist_field(manifest: Option<&Value>, field: &str) -> Option<usize> {
         .get("dist")?
         .get(field)?
         .as_u64()
-        .and_then(|value| usize::try_from(value).ok())
+        .map(usize::try_from)
+        .and_then(Result::ok)
 }
 
 #[cfg(test)]

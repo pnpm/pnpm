@@ -283,7 +283,8 @@ fn highest_provider_version<'a, 'tier>(
     };
     tiers
         .into_iter()
-        .find_map(|tier| highest_in(Some(tier)))
+        .map(Some)
+        .find_map(highest_in)
         .or_else(|| highest_in(None))
 }
 
@@ -534,7 +535,7 @@ pub(crate) fn dependencies_named_as_peers(
                 .and_then(|meta| meta.get(name))
                 .and_then(|entry| entry.get("optional"))
                 .and_then(Value::as_bool)
-                == Some(true);
+                .unwrap_or(false);
             (name, is_optional_peer)
         })
 }

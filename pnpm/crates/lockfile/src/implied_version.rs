@@ -144,7 +144,8 @@ pub(crate) fn link_path(id: &str, target: &str) -> String {
 
 fn segments(id: &str) -> impl Iterator<Item = &str> {
     id.split('/')
-        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .filter(|segment| !segment.is_empty())
+        .filter(|segment| *segment != ".")
 }
 
 fn joined(segments: &[&str]) -> String {

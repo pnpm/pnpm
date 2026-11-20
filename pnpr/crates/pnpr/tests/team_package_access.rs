@@ -106,7 +106,10 @@ async fn send(
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
     }
-    let body = body.map(|body| Body::from(body.to_string())).unwrap_or_else(Body::empty);
+    let body = body
+        .map(|body| body.to_string())
+        .map(Body::from)
+        .unwrap_or_else(Body::empty);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())
@@ -181,7 +184,8 @@ async fn a_grant_is_one_grant_of_the_instance() {
         .as_array()
         .unwrap()
         .iter()
-        .filter(|grant| grant["include"] == json!(["@acme/lib"]) && grant["exclude"] == json!([]))
+        .filter(|grant| grant["include"] == json!(["@acme/lib"]))
+        .filter(|grant| grant["exclude"] == json!([]))
         .filter(|grant| grant["subjects"].get("team:devs").is_some())
         .collect();
     assert_eq!(granted.len(), 1, "{listed}");

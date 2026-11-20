@@ -79,7 +79,8 @@ pub fn stored_archives(
     let mut names: Vec<String> = walkdir::WalkDir::new(dir)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|entry| entry.depth() == 2 && entry.file_type().is_file())
+        .filter(|entry| entry.depth() == 2)
+        .filter(|entry| entry.file_type().is_file())
         .map(|entry| {
             entry
                 .file_name()

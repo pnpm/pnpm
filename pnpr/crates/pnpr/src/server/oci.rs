@@ -230,7 +230,8 @@ async fn get_version_check(
     if identity == Identity::Anonymous
         && !headers
             .get(header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
+            .map(HeaderValue::to_str)
+            .and_then(Result::ok)
             .and_then(super::authentication::token_credentials)
             .is_some_and(|token| token.starts_with(tokens::TOKEN_PREFIX))
     {
@@ -425,7 +426,8 @@ impl Request {
         }
         self.headers
             .get(header::RANGE)
-            .and_then(|value| value.to_str().ok())
+            .map(HeaderValue::to_str)
+            .and_then(Result::ok)
             .and_then(parse_download_range)
     }
 
@@ -473,7 +475,8 @@ impl Request {
     fn token_forbids_pull(&self, source_key: &str) -> Result<bool, RegistryError> {
         let Some(raw) = self.headers
             .get(header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
+            .map(HeaderValue::to_str)
+            .and_then(Result::ok)
             .and_then(super::authentication::token_credentials)
         else {
             return Ok(false);

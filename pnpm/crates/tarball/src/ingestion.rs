@@ -122,7 +122,8 @@ impl ArchiveIngestion<'_> {
         Ok(self
             .load_legacy_cache::<Reporter>(progress_key)
             .await?
-            .map(|files| CachedCasPaths::files_only(Arc::new(files))))
+            .map(Arc::new)
+            .map(CachedCasPaths::files_only))
     }
 
     pub(crate) async fn ingest_zip_buffer(

@@ -474,12 +474,12 @@ fn a_differently_cased_delegation_marker_is_dropped_on_windows() {
 fn is_stamping_key_handles_non_ascii_keys_without_panicking() {
     // 1 ASCII byte + 4-byte UTF-8 codepoint = 5 bytes; byte 4 is
     // mid-char. Comparison must be byte-safe.
-    assert!(!is_stamping_key("x\u{10000}", true));
-    assert!(!is_stamping_key("x\u{10000}", false));
+    assert!(!is_stamping_key("x𐀀", true));
+    assert!(!is_stamping_key("x𐀀", false));
     // 2-byte codepoint repeated: byte 4 IS a char boundary, but
     // the leading bytes are not ASCII so the comparison must
     // still return false.
-    assert!(!is_stamping_key("\u{0419}\u{0419}", true));
+    assert!(!is_stamping_key("ЙЙ", true));
     // 1-character ASCII (< 4 bytes): byte slice short-circuits.
     assert!(!is_stamping_key("abc", true));
     assert!(!is_stamping_key("", true));

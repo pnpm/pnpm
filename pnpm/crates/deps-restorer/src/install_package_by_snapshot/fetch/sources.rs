@@ -211,7 +211,7 @@ impl InstallPackageBySnapshot<'_> {
     ) -> Result<pnpm_fs::CasPaths, InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         let built = !config.ignore_scripts
-            && allow_build(&fetch.package_key.without_peer().to_string()) != Some(false);
+            && allow_build(&fetch.package_key.without_peer().to_string()).unwrap_or(true);
         let files_index_file = git_hosted_store_index_key(fetch.package_id, built);
         let package_name = fetch.package_key.name.to_string();
         let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
@@ -308,7 +308,7 @@ impl InstallPackageBySnapshot<'_> {
             fetch.package_id,
             !config.ignore_scripts
                 && (fetch.allow_build)(&fetch.package_key.without_peer().to_string())
-                    != Some(false),
+                    .unwrap_or(true),
         );
         let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
             scripts: prepare_script_options(config),

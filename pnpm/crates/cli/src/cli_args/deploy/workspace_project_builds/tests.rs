@@ -249,8 +249,8 @@ fn does_not_approve_a_directory_whose_name_only_prints_like_a_project_root() {
         },
     );
     let workspace = Workspace { projects_by_path, ..workspace };
-    let look_alike = workspace.file_key("lib\u{FFFD}");
-    let lockfile = Workspace::lockfile(&[(&look_alike, "../lib\u{FFFD}")]);
+    let look_alike = workspace.file_key("lib�");
+    let lockfile = Workspace::lockfile(&[(&look_alike, "../lib�")]);
 
     assert_eq!(workspace.approve(&[], &lockfile), approvals(&[]));
 }

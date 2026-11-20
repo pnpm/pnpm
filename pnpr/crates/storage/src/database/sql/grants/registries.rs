@@ -131,6 +131,7 @@ pub(super) fn unknown_registry(stored: Option<&Vec<String>>, named: &[String]) -
     let stored = stored?;
     named
         .iter()
-        .find(|registry| *registry != "*" && !stored.contains(registry))
+        .filter(|registry| *registry != "*")
+        .find(|registry| !stored.contains(registry))
         .cloned()
 }

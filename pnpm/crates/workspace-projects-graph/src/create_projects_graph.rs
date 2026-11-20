@@ -152,7 +152,8 @@ where
     ProjectFields {
         node_keys: projects
             .iter()
-            .map(|project| project.root_dir().to_path_buf())
+            .map(|project| project.root_dir())
+            .map(Path::to_path_buf)
             .collect(),
         names: projects
             .iter()
@@ -374,7 +375,7 @@ fn resolve_by_name_version(
 ) -> Option<PathBuf> {
     let candidates = lookups.by_name.get(dep_name)?;
 
-    if lookups.link_workspace_packages == Some(false) && !is_workspace_spec {
+    if !lookups.link_workspace_packages.unwrap_or(true) && !is_workspace_spec {
         unmatched.push(Unmatched { pkg_name: dep_name.to_string(), range: raw_spec.to_string() });
         return None;
     }

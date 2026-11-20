@@ -349,6 +349,7 @@ pub(super) fn package_manager_switch_disabled() -> bool {
 
 fn env_var_is_false(name: &str) -> bool {
     std::env::var_os(name)
-        .and_then(|value| value.into_string().ok())
+        .map(std::ffi::OsString::into_string)
+        .and_then(Result::ok)
         .is_some_and(|value| matches!(value.to_ascii_lowercase().as_str(), "false" | "0"))
 }

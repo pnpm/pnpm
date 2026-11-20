@@ -53,7 +53,7 @@ fn collect_paths(
     let mut parser = Parser::new_from_str(text);
     let mut collector = PathCollector { collect_mapping_paths, ..Default::default() };
     while let Some(event) = parser.next_event() {
-        let (event, span) = event.map_err(|error| invalid(error.to_string()))?;
+        let (event, span) = event.map_err(|error| error.to_string()).map_err(invalid)?;
         if matches!(collector.containers.last(), Some(Container::Mapping { key: None }))
             && event.is_node()
         {
@@ -159,7 +159,8 @@ fn mapping_key<'a>(
         let (event, span) = parser
             .next_event()
             .ok_or_else(|| invalid("Unclosed YAML mapping key".to_string()))?
-            .map_err(|error| invalid(error.to_string()))?;
+            .map_err(|error| error.to_string())
+            .map_err(invalid)?;
         match event {
             Event::SequenceStart(..) | Event::MappingStart(..) => depth += 1,
             Event::SequenceEnd | Event::MappingEnd => depth -= 1,

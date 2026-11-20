@@ -234,7 +234,8 @@ pub(super) fn validate_current_package_revision(
     };
     let revision = raw_revision
         .as_u64()
-        .and_then(|revision| TarballRevision::try_from(revision).ok())
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok)
         .map(TarballRevision::get)
         .ok_or_else(|| {
             malformed_revision_history(

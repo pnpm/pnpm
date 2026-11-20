@@ -266,7 +266,9 @@ impl SlotPool {
         seq.read_to_end(&mut buf)?;
         let ticket = match std::str::from_utf8(&buf)
             .ok()
-            .and_then(|text| text.trim().parse().ok())
+            .map(str::trim)
+            .map(str::parse)
+            .and_then(Result::ok)
         {
             Some(ticket) => ticket,
             None => self
@@ -409,7 +411,8 @@ impl SlotPool {
         let priority = lines
             .next()
             .and_then(|line| line.strip_prefix("priority "))
-            .and_then(|value| value.parse().ok())
+            .map(str::parse)
+            .and_then(Result::ok)
             .unwrap_or(0);
         let second = lines.next().unwrap_or("");
         let (limit, rest) = match second.strip_prefix("limit ") {

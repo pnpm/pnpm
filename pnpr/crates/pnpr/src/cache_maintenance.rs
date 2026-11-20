@@ -274,7 +274,8 @@ async fn sync_configured_cache_marker(
         )
     })
     .await
-    .map_err(|err| std::io::Error::other(err.to_string()))??;
+    .map_err(|err| err.to_string())
+    .map_err(std::io::Error::other)??;
     Ok(())
 }
 

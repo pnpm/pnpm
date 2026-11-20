@@ -318,8 +318,8 @@ impl Config {
         project_dir: &Path,
         modules_dir: &Path,
     ) {
-        let symlinked =
-            cfg!(any(unix, target_os = "wasi")) && self.prefer_symlinked_executables == Some(true);
+        let symlinked = cfg!(any(unix, target_os = "wasi"))
+            && self.prefer_symlinked_executables.unwrap_or(false);
         if !symlinked || !self.extend_node_path || modules_dir == project_dir.join("node_modules") {
             return;
         }
@@ -335,7 +335,8 @@ impl Config {
         let node_path = std::iter::once(project_node_path.as_str())
             .chain(
                 rest.split(':')
-                    .filter(|entry| !entry.is_empty() && *entry != project_node_path),
+                    .filter(|entry| !entry.is_empty())
+                    .filter(|entry| *entry != project_node_path),
             )
             .collect::<Vec<_>>()
             .join(":");

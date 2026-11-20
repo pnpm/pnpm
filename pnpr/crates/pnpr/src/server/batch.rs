@@ -252,7 +252,8 @@ async fn publish_batch(
     // just like with a single publish.
     let names: Vec<&str> = validated
         .iter()
-        .map(|entry| entry.key().as_str())
+        .map(ValidatedEntry::key)
+        .map(CanonicalPackageName::as_str)
         .collect();
     let _guards = state.inner.locks.packages.lock_many(&names).await;
     // Every entry is authorized above, so a retry gets the outcome of the

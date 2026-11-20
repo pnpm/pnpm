@@ -728,7 +728,7 @@ fn workspace_link_dangling_with_lockfile(
     prepare: impl FnOnce(&std::path::Path),
 ) -> bool {
     let lockfile: Option<pnpm_lockfile::Lockfile> =
-        lockfile.map(|lockfile| serde_saphyr::from_str(lockfile).unwrap());
+        lockfile.map(serde_saphyr::from_str).map(Result::unwrap);
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     let sibling_dir = root.join("pkg-a");

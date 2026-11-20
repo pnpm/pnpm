@@ -167,7 +167,8 @@ fn into_filter_options(options: Option<FilterLockfileOptions>) -> FilterByImport
         // An unparsable dep path matches no snapshot key, so skipping it
         // is a no-op either way; dropping it keeps a stale entry in a
         // host's skip list from failing the whole call.
-        .filter_map(|dep_path| dep_path.parse().ok())
+        .map(|dep_path| dep_path.parse())
+        .filter_map(Result::ok)
         .collect();
     FilterByImportersOptions {
         include: IncludedDependencies {

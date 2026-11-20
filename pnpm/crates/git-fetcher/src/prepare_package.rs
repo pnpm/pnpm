@@ -422,7 +422,8 @@ fn host_can_prepare(wanted: &WantedPm) -> bool {
 fn probe_host(wanted: &WantedPm) -> bool {
     let wanted_range = wanted.version_spec
         .as_deref()
-        .and_then(|range| node_semver::Range::parse(range).ok());
+        .map(node_semver::Range::parse)
+        .and_then(Result::ok);
     // A dependency's scripts reach for any of the package manager's names
     // — `yarnpkg` as readily as `yarn` — and nothing says two of them on
     // one host are the same install, so each has to answer for itself.
@@ -444,7 +445,8 @@ fn probe_host(wanted: &WantedPm) -> bool {
                     .lines()
                     .next()
                     .map(str::trim)
-                    .and_then(|version| node_semver::Version::parse(version).ok())
+                    .map(node_semver::Version::parse)
+                    .and_then(Result::ok)
                     .is_some_and(|version| version.satisfies(wanted_range))
         })
 }

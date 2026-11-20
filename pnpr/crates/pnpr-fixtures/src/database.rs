@@ -94,7 +94,8 @@ pub fn remove_version(storage: &Path, package: &str, version: &str) {
         assert!(versions.remove(version).is_some(), "{package} has no fixture version {version}");
         let highest = versions
             .keys()
-            .filter_map(|left| left.parse::<Version>().ok())
+            .map(|left| left.parse::<Version>())
+            .filter_map(Result::ok)
             .max()
             .unwrap_or_else(|| panic!("{package} keeps a version after removing {version}"))
             .to_string();

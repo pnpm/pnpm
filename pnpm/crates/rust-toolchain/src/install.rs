@@ -265,7 +265,8 @@ pub(crate) async fn install<Reporter: self::Reporter>(
             verify_and_unpack(&archive, &body, staged.path()).map(|()| staged)
         })
         .await
-        .map_err(|error| install_error(io::Error::other(error)))??;
+        .map_err(io::Error::other)
+        .map_err(install_error)??;
     }
     publish(staged, dir).map_err(install_error)
 }

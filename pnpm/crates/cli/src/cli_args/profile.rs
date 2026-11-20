@@ -235,7 +235,8 @@ impl ProfileArgs {
 fn parse_set(rest: &[String]) -> Result<ProfileCommand, ProfileError> {
     let property = rest
         .first()
-        .map(|property| property.trim().to_ascii_lowercase())
+        .map(|property| property.trim())
+        .map(str::to_ascii_lowercase)
         .unwrap_or_default();
     let value = rest
         .get(1..)
@@ -308,7 +309,11 @@ where
     let password = read_password::<Sys>("Password: ").await?;
     let tfa_pending = profile
         .get("tfa")
-        .is_some_and(|tfa| tfa.get("pending").and_then(Value::as_bool) == Some(true));
+        .is_some_and(|tfa| {
+            tfa.get("pending")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        });
     if tfa_pending {
         registry.update(&json!({ "tfa": { "password": password, "mode": "disable" } })).await?;
     }

@@ -55,7 +55,8 @@ fn rejects_non_canonical_paths() {
 fn lists_the_tiles_of_a_tree_of_70000_entries_as_the_spec_does() {
     let tiles: Vec<TilePath> = Tile::new_tiles(TILE_HEIGHT, 0, 70_000)
         .iter()
-        .map(|tile| TilePath::of_tile(tile).unwrap())
+        .map(TilePath::of_tile)
+        .map(Option::unwrap)
         .collect();
     let count = |level: u8, is_full: bool| {
         tiles

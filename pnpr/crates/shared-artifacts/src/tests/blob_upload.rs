@@ -27,7 +27,8 @@ use std::convert::Infallible;
 fn body(bytes: &[u8]) -> impl Stream<Item = Result<Bytes, Infallible>> + Unpin + use<> {
     let chunks: Vec<_> = bytes
         .chunks(64 * 1024)
-        .map(|chunk| Ok(Bytes::copy_from_slice(chunk)))
+        .map(Bytes::copy_from_slice)
+        .map(Ok)
         .collect();
     stream::iter(chunks)
 }

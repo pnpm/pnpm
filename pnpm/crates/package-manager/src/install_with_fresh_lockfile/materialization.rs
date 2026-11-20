@@ -387,7 +387,7 @@ fn collect_known_bins(
     let mut known = pnpm_deps_restorer::PackageBins::new();
     for node in graph.values() {
         let manifest = node.resolve_result.package.manifest.as_deref();
-        if pnpm_deps_restorer::manifest_requires_build(manifest) != Some(false) {
+        if pnpm_deps_restorer::manifest_requires_build(manifest).unwrap_or(true) {
             continue;
         }
         let Some(bins) = pnpm_deps_restorer::manifest_bins(manifest) else {

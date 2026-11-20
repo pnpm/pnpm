@@ -47,7 +47,8 @@ pub(super) fn set_object_value_by_property_path(
     }
     check_unsafe_key_in_path(path)?;
     let segments = parse_property_path(path)
-        .map_err(|err| miette::Report::new(PkgError::InvalidPropertyPath(err)))?;
+        .map_err(PkgError::InvalidPropertyPath)
+        .map_err(miette::Report::new)?;
     let Some((last, parents)) = segments.split_last() else {
         return Err(PkgError::EmptyPath.into());
     };
@@ -173,7 +174,8 @@ pub(super) fn delete_object_value_by_property_path(
     path: &str,
 ) -> miette::Result<bool> {
     let segments = parse_property_path(path)
-        .map_err(|err| miette::Report::new(PkgError::InvalidPropertyPath(err)))?;
+        .map_err(PkgError::InvalidPropertyPath)
+        .map_err(miette::Report::new)?;
     let Some((last, parents)) = segments.split_last() else {
         return Ok(false);
     };

@@ -249,7 +249,8 @@ fn matches_unanchored_files_negation(manifest: &Value, path: &str) -> bool {
             files
                 .iter()
                 .filter_map(Value::as_str)
-                .filter(|entry| entry.starts_with('!') && !entry[1..].contains('/'))
+                .filter(|entry| entry.starts_with('!'))
+                .filter(|entry| !entry[1..].contains('/'))
                 .any(|entry| unanchored_pattern_matches(&entry[1..], file_name))
         })
 }

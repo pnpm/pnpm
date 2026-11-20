@@ -74,7 +74,8 @@ fn importer_depth(importer_dir: &str) -> usize {
     }
     importer_dir
         .split('/')
-        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .filter(|segment| !segment.is_empty())
+        .filter(|segment| *segment != ".")
         .count()
 }
 

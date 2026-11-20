@@ -145,15 +145,12 @@ fn modules_dir_entries(dir: &Path) -> Vec<PathBuf> {
 
 fn list_dir(dir: &Path) -> Vec<PathBuf> {
     std::fs::read_dir(dir)
-        .map_or_else(
-            |_| Vec::new(),
-            |entries| {
-                entries
-                    .flatten()
-                    .map(|entry| entry.path())
-                    .collect()
-            },
-        )
+        .map_or_default(|entries| {
+            entries
+                .flatten()
+                .map(|entry| entry.path())
+                .collect()
+        })
 }
 
 /// A real `@scope` directory. A scope directory that is itself a link is

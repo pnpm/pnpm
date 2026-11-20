@@ -38,7 +38,7 @@ pub(crate) fn agent_skill_targets_changed(config: &Config, workspace_root: &Path
         return false;
     };
     let linked = modules.linked_skills.unwrap_or_default();
-    (!linked.is_empty() || modules.has_unlinked_skills == Some(true))
+    (!linked.is_empty() || modules.has_unlinked_skills.unwrap_or(false))
         && targets::targets_changed(config, workspace_root, agent_skills_dir_from_env(), &linked)
 }
 

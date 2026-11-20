@@ -89,7 +89,8 @@ impl ReleaseAge {
 fn lists_version(versions: &[String], version: &Version) -> bool {
     versions
         .iter()
-        .filter_map(|listed| Version::parse(listed).ok())
+        .map(Version::parse)
+        .filter_map(Result::ok)
         .any(|listed| &listed == version)
 }
 

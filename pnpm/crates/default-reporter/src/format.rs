@@ -128,7 +128,8 @@ pub fn cut_line(line: &str, max: isize) -> String {
 pub fn printable_script_line(line: &str, keep_colors: bool) -> Cow<'_, str> {
     if !line
         .chars()
-        .any(|ch| ch.is_control() && ch != '\t')
+        .filter(|ch| ch.is_control())
+        .any(|ch| ch != '\t')
     {
         return Cow::Borrowed(line);
     }
@@ -201,10 +202,10 @@ fn escape_len(text: &str) -> usize {
 
 /// Parameter and intermediate bytes up to and including the final byte.
 fn csi_len(text: &str) -> usize {
-    let Some(end) = text.find(|ch: char| !('\u{20}'..='\u{3f}').contains(&ch)) else {
+    let Some(end) = text.find(|ch: char| !('\u{20}'..='?').contains(&ch)) else {
         return text.len();
     };
-    let has_final_byte = text[end..].starts_with(|ch: char| ('\u{40}'..='\u{7e}').contains(&ch));
+    let has_final_byte = text[end..].starts_with(|ch: char| ('@'..='~').contains(&ch));
     end + usize::from(has_final_byte)
 }
 

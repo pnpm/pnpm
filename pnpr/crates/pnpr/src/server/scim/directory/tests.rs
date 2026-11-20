@@ -40,11 +40,12 @@ async fn deactivation_holds_the_binding_lock_until_revocation_finishes() {
     let worker = thread::spawn(move || updating.apply_statuses(&state, &[status]));
     let deadline = Instant::now() + Duration::from_secs(5);
     let inactive = loop {
-        if directory.active_by_id
+        if !directory.active_by_id
             .read()
             .unwrap()
             .get("example-account")
-            == Some(&false)
+            .copied()
+            .unwrap_or(true)
         {
             break true;
         }

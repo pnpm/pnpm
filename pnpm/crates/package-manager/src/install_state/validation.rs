@@ -432,7 +432,7 @@ fn shared_inputs_match(
         if settings.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
             settings.allow_builds = None;
         }
-        if settings.enable_global_virtual_store == Some(false) {
+        if !settings.enable_global_virtual_store.unwrap_or(true) {
             settings.enable_global_virtual_store = None;
         }
         if settings.package_extensions

@@ -237,7 +237,7 @@ fn malformed_env_file_loads_like_node() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "command must exit 0, got: {output:?}");
     assert!(
-        stdout.contains("before|\u{FFFD}|\"never closed"),
+        stdout.contains("before|�|\"never closed"),
         "script must see the values Node.js would set; stdout: {stdout:?}",
     );
 

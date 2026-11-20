@@ -85,7 +85,10 @@ async fn send_with_key(
     if let Some(key) = key {
         request = request.header("idempotency-key", key);
     }
-    let body = body.map_or_else(Body::empty, |body| Body::from(serde_json::to_vec(body).unwrap()));
+    let body = body
+        .map(serde_json::to_vec)
+        .map(Result::unwrap)
+        .map_or_else(Body::empty, Body::from);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())

@@ -73,9 +73,7 @@ impl DeclaredIndexes {
                 registries: quote_and_join(urls.iter().map(|index| index.url.as_str())),
             }),
             _ => super::python::validate_routes(
-                self.urls
-                    .get(&Ecosystem::Pypi)
-                    .map_or(&[], Vec::as_slice),
+                self.urls.get(&Ecosystem::Pypi).map_or_default(Vec::as_slice),
             ),
         }
     }

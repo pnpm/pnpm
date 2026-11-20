@@ -416,7 +416,8 @@ fn lockfile_generation_preserves_legacy_path_replacements() {
         .unwrap();
     let original = lock.packages
         .iter()
-        .find(|package| package.name.as_str() == "demo" && package.source.is_some())
+        .filter(|package| package.name.as_str() == "demo")
+        .find(|package| package.source.is_some())
         .unwrap();
     assert_eq!(
         original.replace

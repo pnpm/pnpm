@@ -265,7 +265,8 @@ fn filter_remaining_node_selectors(
     {
         let remaining = node_selectors
             .iter()
-            .filter(|sel| !is_cargo_prefixed(sel) && !is_python_prefixed(sel))
+            .filter(|sel| !is_cargo_prefixed(sel))
+            .filter(|sel| !is_python_prefixed(sel))
             .cloned()
             .collect();
         return Ok(pnpm_matcher::prune_orphan_ignores(remaining, node_selectors));

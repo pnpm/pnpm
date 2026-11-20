@@ -140,7 +140,9 @@ impl BlobSlot {
             Ok(self)
         })
         .await
-        .map_err(|err| pnpr_error::RegistryError::Io(std::io::Error::other(err.to_string())))?
+        .map_err(|err| err.to_string())
+        .map_err(std::io::Error::other)
+        .map_err(pnpr_error::RegistryError::Io)?
     }
 
     pub async fn abandon(mut self) {

@@ -348,7 +348,8 @@ fn advisory_url(record: &OsvRecord) -> String {
     }
     if let Some(reference) = record.references
         .iter()
-        .find(|reference| reference.kind == "ADVISORY" && is_http_url(&reference.url))
+        .filter(|reference| reference.kind == "ADVISORY")
+        .find(|reference| is_http_url(&reference.url))
     {
         return reference.url.clone();
     }

@@ -288,7 +288,8 @@ impl StoreIndex {
         }
         open(store_root)
             .ok()
-            .map(|index| Arc::new(Mutex::new(index)))
+            .map(Mutex::new)
+            .map(Arc::new)
     }
 }
 

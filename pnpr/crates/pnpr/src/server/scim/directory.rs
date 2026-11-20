@@ -120,7 +120,7 @@ pub(in super::super) fn is_deprovisioned(
     state: &AppState,
     user_id: &str,
 ) -> Result<bool, RegistryError> {
-    Ok(directory_entry(state, user_id)? == Some(false))
+    Ok(!directory_entry(state, user_id)?.unwrap_or(true))
 }
 
 fn directory_entry(state: &AppState, user_id: &str) -> Result<Option<bool>, RegistryError> {

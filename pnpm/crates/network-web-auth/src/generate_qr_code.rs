@@ -58,20 +58,20 @@ fn render_small(code: &QrCode) -> String {
     let is_dark = |row: usize, col: usize| row < width && colors[row * width + col] == Color::Dark;
 
     let mut out = String::with_capacity((width / 2 + 2) * (width + 3) * 3);
-    out.push_str(&"\u{2584}".repeat(width + 2));
+    out.push_str(&"▄".repeat(width + 2));
     out.push('\n');
     let mut row = 0;
     while row < width {
-        out.push('\u{2588}');
+        out.push('█');
         for col in 0..width {
             out.push(match (is_dark(row, col), is_dark(row + 1, col)) {
-                (false, false) => '\u{2588}', // both light  -> full block
-                (false, true) => '\u{2580}',  // light / dark -> upper half
-                (true, false) => '\u{2584}',  // dark / light -> lower half
-                (true, true) => ' ',          // both dark   -> blank
+                (false, false) => '█', // both light  -> full block
+                (false, true) => '▀',  // light / dark -> upper half
+                (true, false) => '▄',  // dark / light -> lower half
+                (true, true) => ' ',   // both dark   -> blank
             });
         }
-        out.push('\u{2588}');
+        out.push('█');
         out.push('\n');
         row += 2;
     }

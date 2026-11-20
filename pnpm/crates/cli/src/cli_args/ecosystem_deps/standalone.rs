@@ -197,7 +197,8 @@ fn select_standalone_cargo_dirs(
     let matched = filter_standalone_graph(&all_graph, &prod_graph, config, prefix)?;
     let selected = dirs
         .into_iter()
-        .filter(|dir| !npm_project_dirs.contains(dir) && matched.contains(dir))
+        .filter(|dir| !npm_project_dirs.contains(dir))
+        .filter(|dir| matched.contains(dir))
         .collect();
     Ok((discovered, selected))
 }
@@ -299,7 +300,11 @@ fn resolve_cargo_edge_target(
         let norm = pnpm_fs::lexical_normalize(&dir.join(rel_path));
         return index.by_norm_dir.get(&norm).cloned();
     }
-    if dep_table.get("workspace").and_then(toml::Value::as_bool) == Some(true) {
+    if dep_table
+        .get("workspace")
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(false)
+    {
         let dep_package = dep_table.get("package").and_then(toml::Value::as_str);
         return resolve_workspace_cargo_edge(key, dep_package, dir, index);
     }

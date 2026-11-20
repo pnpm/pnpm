@@ -894,11 +894,11 @@ async fn postgres_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
     let (outcome, logged_in_id) = auth.add_or_login("alice", "secret123").await.unwrap();
     assert_eq!(outcome, UpsertOutcome::LoggedIn);
     assert_eq!(logged_in_id, user_id);
-    let (_, _) = auth.add_or_login("zo\u{00e9}", "secret123").await.unwrap();
+    let (_, _) = auth.add_or_login("zoé", "secret123").await.unwrap();
     let decomposed = auth.add_or_login("zoe\u{0301}", "secret123").await.unwrap_err();
     assert_eq!(decomposed.status_code(), axum::http::StatusCode::BAD_REQUEST);
     assert_eq!(auth.account_id("zoe\u{0301}").await.unwrap(), None);
-    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zo\u{00e9}"]);
+    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zoé"]);
     let (raw, record) = auth
         .issue_token(&user_id, NewToken::new().with_readonly(true))
         .await
@@ -960,11 +960,11 @@ async fn mysql_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
     let (outcome, logged_in_id) = auth.add_or_login("alice", "secret123").await.unwrap();
     assert_eq!(outcome, UpsertOutcome::LoggedIn);
     assert_eq!(logged_in_id, user_id);
-    let (_, _) = auth.add_or_login("zo\u{00e9}", "secret123").await.unwrap();
+    let (_, _) = auth.add_or_login("zoé", "secret123").await.unwrap();
     let decomposed = auth.add_or_login("zoe\u{0301}", "secret123").await.unwrap_err();
     assert_eq!(decomposed.status_code(), axum::http::StatusCode::BAD_REQUEST);
     assert_eq!(auth.account_id("zoe\u{0301}").await.unwrap(), None);
-    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zo\u{00e9}"]);
+    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zoé"]);
     let (raw, record) = auth
         .issue_token(&user_id, NewToken::new().with_readonly(true))
         .await

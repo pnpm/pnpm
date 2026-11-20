@@ -64,7 +64,8 @@ fn package_funding(spec: &str, dir: &Path, projects: &[ProjectDependencies]) -> 
         visit_named(&project.dependencies, &name, &mut |package| {
             let Some(version) = package.version
                 .as_deref()
-                .and_then(|version| node_semver::Version::parse(version).ok())
+                .map(node_semver::Version::parse)
+                .and_then(Result::ok)
             else {
                 return;
             };

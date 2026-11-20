@@ -475,7 +475,8 @@ fn inspection_commands_read_the_merged_keys() {
         .as_array()
         .expect("components")
         .iter()
-        .filter(|component| component["name"] == "foo" && component["group"] == "@pnpm.e2e")
+        .filter(|component| component["name"] == "foo")
+        .filter(|component| component["group"] == "@pnpm.e2e")
         .collect();
     assert_eq!(foo_components.len(), 1, "{sbom}");
     assert_eq!(foo_components[0]["version"], "100.1.0");

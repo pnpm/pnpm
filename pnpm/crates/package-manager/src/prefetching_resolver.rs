@@ -355,7 +355,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         wanted_dependency: &WantedDependency,
         result: &ResolveResult,
     ) -> bool {
-        if wanted_dependency.optional != Some(true) || !is_remote_tarball(&result.resolution) {
+        if !wanted_dependency.optional.unwrap_or(false) || !is_remote_tarball(&result.resolution) {
             return false;
         }
         let manifest = crate::platform_manifest_from_resolve_result(

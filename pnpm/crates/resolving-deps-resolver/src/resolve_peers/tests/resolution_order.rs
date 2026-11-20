@@ -216,7 +216,8 @@ fn walk_order_cannot_change_the_graph() {
     assert!(
         !first_order
             .iter()
-            .any(|key| key.starts_with("ring02") && key.contains("(w@")),
+            .filter(|key| key.starts_with("ring02"))
+            .any(|key| key.contains("(w@")),
         "ring02's canonical subtree ends at the back-edge and reaches no w consumer;          got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");

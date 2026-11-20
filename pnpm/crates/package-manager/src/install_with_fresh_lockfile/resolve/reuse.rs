@@ -196,7 +196,8 @@ pub(in super::super) fn stale_override_targets(
     locked_overrides
         .keys()
         .filter(|selector| !overrides.is_some_and(|overrides| overrides.contains_key(*selector)))
-        .filter_map(|selector| parse_pkg_and_parent_selector(selector).ok())
+        .map(|selector| parse_pkg_and_parent_selector(selector))
+        .filter_map(Result::ok)
         .filter(|(parent, target)| {
             parent.is_none()
                 && target.bare_specifier.is_none()

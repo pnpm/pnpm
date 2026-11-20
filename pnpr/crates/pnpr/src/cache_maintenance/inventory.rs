@@ -60,7 +60,8 @@ pub(super) async fn inventory_cache_dir(
     let excluded = excluded_dirs.clone();
     tokio::task::spawn_blocking(move || inventory_cache_dir_sync(&root, &excluded))
         .await
-        .map_err(|err| io::Error::other(err.to_string()))?
+        .map_err(|err| err.to_string())
+        .map_err(io::Error::other)?
 }
 
 fn inventory_cache_dir_sync(

@@ -124,7 +124,8 @@ pub fn check_installability(
         Cow::Borrowed(manifest)
     };
     check_package(package_id, manifest.as_ref(), options)
-        .map_err(|invalid| Box::new(InstallabilityError::InvalidNodeVersion(invalid)))
+        .map_err(InstallabilityError::InvalidNodeVersion)
+        .map_err(Box::new)
 }
 #[must_use]
 pub fn manifest_with_inferred_platform(

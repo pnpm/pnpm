@@ -459,7 +459,8 @@ fn resolve_packument_limit(
         return Ok(UpstreamConfig::DEFAULT_MAX_PACKUMENT_SIZE);
     };
     super::parse_byte_size(&value.0)
-        .and_then(|size| usize::try_from(size).ok())
+        .map(usize::try_from)
+        .and_then(Result::ok)
         .filter(|size| *size > 0)
         .ok_or_else(|| RegistryError::InvalidConfig {
             reason: format!("upstream {name:?} maxPackumentSize must be a positive byte size"),

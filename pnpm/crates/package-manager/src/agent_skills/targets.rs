@@ -88,7 +88,8 @@ pub(super) fn targets_changed(
 ) -> bool {
     let previous: BTreeSet<String> = linked
         .iter()
-        .filter_map(|entry| Path::new(entry).parent())
+        .map(Path::new)
+        .filter_map(Path::parent)
         .map(|dir| dir.to_string_lossy().replace('\\', "/"))
         .collect();
     let Ok(canonical_root) = dunce::canonicalize(workspace_root) else {

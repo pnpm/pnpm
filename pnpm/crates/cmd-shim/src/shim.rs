@@ -152,7 +152,7 @@ pub fn generate_cmd_shim(
 
     let runs_target_directly = runtime.is_none_or(|runtime| runtime.prog.is_none());
     if batch == CmdShimBatch::EndedBeforeTarget && runs_target_directly {
-        let args = runtime.map_or(String::new(), |runtime| cmd_escape(&runtime.args));
+        let args = runtime.map_or_default(|runtime| cmd_escape(&runtime.args));
         return generate_batchless_cmd_shim(&quoted_target, &args);
     }
 
@@ -179,7 +179,7 @@ pub fn generate_cmd_shim(
             .unwrap();
         }
         runtime_opt => {
-            let args = runtime_opt.map_or(String::new(), |runtime| cmd_escape(&runtime.args));
+            let args = runtime_opt.map_or_default(|runtime| cmd_escape(&runtime.args));
             writeln!(cmd, "@{quoted_target} {args} %*\r").unwrap();
         }
     }

@@ -33,7 +33,8 @@ pub(super) fn warn_about_unlisted_dotenv_files<Reporter: self::Reporter>(
     let unlisted: Vec<&str> = files_map
         .keys()
         .filter_map(|name| name.strip_prefix("package/"))
-        .filter(|path| is_dotenv_file(path) && !is_listed(path))
+        .filter(|path| is_dotenv_file(path))
+        .filter(|path| !is_listed(path))
         .collect();
     if unlisted.is_empty() {
         return;

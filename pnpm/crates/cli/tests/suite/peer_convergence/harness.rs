@@ -468,7 +468,8 @@ impl Harness {
     fn moved_spec(&self, project: &Project, alias: &str, spec: &'static str) -> &'static str {
         self.moves
             .iter()
-            .find(|change| change.project == project.dir && change.alias == alias)
+            .filter(|change| change.project == project.dir)
+            .find(|change| change.alias == alias)
             .map_or(spec, |change| change.to)
     }
 

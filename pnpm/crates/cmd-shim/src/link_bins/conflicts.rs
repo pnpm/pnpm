@@ -48,5 +48,6 @@ fn package_version(pkg: &PackageBinSource) -> Option<Version> {
     pkg.manifest
         .get("version")
         .and_then(Value::as_str)
-        .and_then(|version| Version::parse(version).ok())
+        .map(Version::parse)
+        .and_then(Result::ok)
 }

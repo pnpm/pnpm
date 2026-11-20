@@ -456,7 +456,8 @@ fn progress_label(checked: u64, entries: u64) -> String {
 /// verification run and this install cannot render a negative age.
 fn cached_verdict(verified_at: Option<&str>, now: Timestamp) -> String {
     let elapsed_ms = verified_at
-        .and_then(|verified_at| pnpm_time::parse_rfc3339(verified_at).ok())
+        .map(pnpm_time::parse_rfc3339)
+        .and_then(Result::ok)
         .map(|verified_at| {
             now.duration_since(verified_at)
                 .as_millis()

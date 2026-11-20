@@ -184,7 +184,8 @@ pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
         .package(name)?
         .iter()
         .rev()
-        .find(|version| !version.yanked && version.version.pre.is_empty())
+        .filter(|version| !version.yanked)
+        .find(|version| version.version.pre.is_empty())
         .map(|version| version.version.to_string())
         .ok_or_else(|| miette::miette!("crate {name} has no stable, non-yanked version"))
 }
@@ -230,11 +231,13 @@ pub fn latest_matching_version(
         Some(req) => versions
             .iter()
             .rev()
-            .find(|version| !version.yanked && req.matches(&version.version)),
+            .filter(|version| !version.yanked)
+            .find(|version| req.matches(&version.version)),
         None => versions
             .iter()
             .rev()
-            .find(|version| !version.yanked && version.version.pre.is_empty())
+            .filter(|version| !version.yanked)
+            .find(|version| version.version.pre.is_empty())
             .or_else(|| {
                 versions
                     .iter()

@@ -123,11 +123,12 @@ impl RemoteTaskCache {
         // not agreed to share task outputs and their logs.
         let publishes_tasks = config.remote_cache
             .as_ref()
-            .is_some_and(|remote_cache| remote_cache.publish == Some(true));
+            .is_some_and(|remote_cache| remote_cache.publish.unwrap_or(false));
         let publisher = publishes_tasks
             .then(|| {
                 ArtifactSigner::from_settings(artifact_signer_settings(&settings))
-                    .map(|signer| Arc::new(TaskPublisher(signer)))
+                    .map(TaskPublisher)
+                    .map(Arc::new)
             })
             .transpose()?;
         Ok(Some(RemoteTaskCache {

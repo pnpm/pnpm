@@ -285,6 +285,7 @@ async fn query_engine_version(
             manifest
                 .get("version")
                 .and_then(Value::as_str)
-                .and_then(|ver| Version::parse(ver).ok())
+                .map(Version::parse)
+                .and_then(Result::ok)
         }))
 }

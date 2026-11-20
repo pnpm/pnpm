@@ -142,7 +142,7 @@ fn subtree_exclusions_do_not_confuse_non_unicode_roots_with_replacement_characte
     fs::create_dir_all(&workspace).unwrap();
     make_project(&workspace, ".", "root");
     make_project(&workspace, "generated/child", "excluded");
-    make_project(root.path(), "work\u{fffd}space/generated/child", "keep");
+    make_project(root.path(), "work�space/generated/child", "keep");
     let mut names = find_project_names(&workspace, &["../**", "!generated/**"]);
     names.sort();
     assert_eq!(names, vec!["keep", "root"]);

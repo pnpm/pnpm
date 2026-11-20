@@ -89,7 +89,8 @@ impl<'de> Deserialize<'de> for NextPackageDep {
                 map: Map,
             ) -> Result<NextPackageDep, Map::Error> {
                 NextPackageDepMap::deserialize(de::value::MapAccessDeserializer::new(map))
-                    .map(|map| NextPackageDep::Map(Box::new(map)))
+                    .map(Box::new)
+                    .map(NextPackageDep::Map)
             }
         }
 

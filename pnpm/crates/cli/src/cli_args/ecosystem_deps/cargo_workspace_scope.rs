@@ -203,7 +203,8 @@ fn extend_unique_declared(
         }
         if let Some(existing) = all_declared
             .iter_mut()
-            .find(|existing| existing.group == dep.group && same_declared_dep(existing, &dep))
+            .filter(|existing| existing.group == dep.group)
+            .find(|existing| same_declared_dep(existing, &dep))
         {
             existing.merge_aliases_from(&dep);
         } else {

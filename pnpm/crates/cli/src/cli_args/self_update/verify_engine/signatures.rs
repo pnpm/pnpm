@@ -218,7 +218,9 @@ fn parse_signatures(raw: Option<&serde_json::Value>) -> Option<Vec<PackageSignat
         None => Some(Vec::new()),
         Some(serde_json::Value::Array(elements)) => elements
             .iter()
-            .map(|element| serde_json::from_value::<PackageSignature>(element.clone()).ok())
+            .map(|element| element.clone())
+            .map(serde_json::from_value::<PackageSignature>)
+            .map(Result::ok)
             .collect(),
         Some(_) => None,
     }

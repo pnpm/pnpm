@@ -124,7 +124,8 @@ impl<'value> Collector<'_, 'value> {
         }
         let range = self.aliases
             .iter()
-            .find(|range| range.start >= span.start && range.end <= span.end)
+            .filter(|range| range.start >= span.start)
+            .find(|range| range.end <= span.end)
             .ok_or_else(|| {
                 Error::InvalidOperation("Cannot locate the collection alias".to_string())
             })?;

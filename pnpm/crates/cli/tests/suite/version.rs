@@ -846,7 +846,8 @@ fn engine_shim(links: &Path) -> PathBuf {
     let shims: Vec<_> = walkdir::WalkDir::new(links)
         .into_iter()
         .flatten()
-        .filter(|entry| entry.depth() == 5 && entry.file_name() == "bin")
+        .filter(|entry| entry.depth() == 5)
+        .filter(|entry| entry.file_name() == "bin")
         .map(|entry| entry.path().join("pnpm"))
         .collect();
     assert_eq!(

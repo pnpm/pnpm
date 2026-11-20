@@ -142,7 +142,7 @@ impl ReporterState {
             return;
         }
         self.display.frame.push_block(format!(
-            "Update available! {current} \u{2192} {latest}.\n{changelog} https://pnpm.io/v/{version}\nTo update, run: {command}",
+            "Update available! {current} → {latest}.\n{changelog} https://pnpm.io/v/{version}\nTo update, run: {command}",
             current = self.rendering.colors.red(&log.current_version),
             latest = self.rendering.colors.green(&log.latest_version),
             changelog = self.rendering.colors.magenta("Changelog:"),

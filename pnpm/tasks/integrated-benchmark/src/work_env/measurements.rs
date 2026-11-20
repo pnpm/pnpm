@@ -112,7 +112,8 @@ pub(super) fn read_benchmark_diagnostics(path: &Path) -> BenchmarkDiagnostics {
 pub(super) fn read_phase_events(path: &Path) -> Vec<PhaseEvent> {
     let Ok(text) = fs::read_to_string(path) else { return Vec::new() };
     text.lines()
-        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .map(serde_json::from_str::<Value>)
+        .filter_map(Result::ok)
         .filter(|value| {
             value.get("target").and_then(Value::as_str) == Some("pacquet::install::phase")
         })
@@ -150,7 +151,8 @@ pub(super) fn event_u64(value: &Value, key: &str) -> Option<u64> {
         .or_else(|| {
             value
                 .as_str()
-                .and_then(|text| text.parse().ok())
+                .map(str::parse)
+                .and_then(Result::ok)
         })
 }
 pub(super) fn summarize_phase_events(events: &[PhaseEvent]) -> PhaseSummary {

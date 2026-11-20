@@ -92,7 +92,9 @@ pub(super) fn requires_build_by_key(inputs: RequiresBuildInputs<'_>) -> HashMap<
             let requires = is_selected(rebuild, key)
                 && match (
                     pkg_roots.canonical(key).as_deref(),
-                    prefetched.and_then(|map| map.get(key).copied()),
+                    prefetched
+                        .and_then(|map| map.get(key))
+                        .copied(),
                 ) {
                     (None, _) => false,
                     (_, Some(requires)) => requires,
@@ -218,7 +220,8 @@ pub(super) fn previewed_patch_adds_build(
     // from, so its scripts and its `gypfile` value are what the build sees.
     if let Some(patched) = preview.manifest
         .as_deref()
-        .and_then(|raw| parse_manifest(raw).ok())
+        .map(parse_manifest)
+        .and_then(Result::ok)
     {
         triggers.read_manifest(&patched);
     }
@@ -287,7 +290,9 @@ impl<'a> ScheduledBuilds<'a> {
                 })
             })
             .filter(|key| {
-                inputs.allow_build_policy.check(&key.without_peer().to_string()) == Some(true)
+                inputs.allow_build_policy
+                    .check(&key.without_peer().to_string())
+                    .unwrap_or(false)
             })
             .collect();
         Some(ScheduledBuilds { snapshots })

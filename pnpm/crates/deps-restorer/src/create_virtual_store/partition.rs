@@ -327,7 +327,10 @@ impl IndexRows {
         rebuilds: &Rebuilds<'_>,
         seed_known_requires_build: bool,
     ) {
-        if self.requires_build_by_snapshot.get(snapshot_key) != Some(&false)
+        if self.requires_build_by_snapshot
+            .get(snapshot_key)
+            .copied()
+            .unwrap_or(true)
             || (!seed_known_requires_build && rebuilds.known_bins.is_none())
         {
             return;

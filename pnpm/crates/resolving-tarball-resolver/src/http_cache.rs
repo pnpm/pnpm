@@ -177,8 +177,10 @@ fn initial_age_ms(headers: &CacheHeaders, now_ms: u64) -> u64 {
         .map_or(0, |seconds| seconds.saturating_mul(1000));
     let apparent_ms = headers.date
         .as_deref()
-        .and_then(|date| httpdate::parse_http_date(date).ok())
-        .and_then(|date| date.duration_since(UNIX_EPOCH).ok())
+        .map(httpdate::parse_http_date)
+        .and_then(Result::ok)
+        .map(|date| date.duration_since(UNIX_EPOCH))
+        .and_then(Result::ok)
         .map_or(0, |date| now_ms.saturating_sub(duration_ms(date)));
     age_ms.max(apparent_ms)
 }
@@ -192,7 +194,8 @@ pub(crate) fn varies_between_requests(headers: &CacheHeaders) -> bool {
         .is_some_and(|vary| {
             vary.split(',')
                 .map(str::trim)
-                .any(|field| !field.is_empty() && !field.eq_ignore_ascii_case("accept-encoding"))
+                .filter(|field| !field.is_empty())
+                .any(|field| !field.eq_ignore_ascii_case("accept-encoding"))
         })
 }
 

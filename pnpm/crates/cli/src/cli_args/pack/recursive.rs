@@ -71,7 +71,8 @@ fn dependency_order(
 /// Whether `--out` names one file for every project, with no `%s` / `%v`
 /// placeholders telling them apart.
 fn output_is_literal(out: Option<&str>) -> bool {
-    out.is_some_and(|out| !out.contains("%s") && !out.contains("%v"))
+    out.filter(|out| !out.contains("%s"))
+        .is_some_and(|out| !out.contains("%v"))
 }
 
 pub(super) fn order_index(dependency_order: Vec<PathBuf>) -> HashMap<PathBuf, usize> {

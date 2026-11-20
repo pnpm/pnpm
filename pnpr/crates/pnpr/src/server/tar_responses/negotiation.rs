@@ -56,7 +56,9 @@ impl Qualities {
             .to_ascii_lowercase();
         let quality = parts
             .find_map(|param| param.trim().strip_prefix("q="))
-            .map_or(Some(1.0), |quality| quality.trim().parse::<f32>().ok())
+            .map(str::trim)
+            .map(str::parse::<f32>)
+            .map_or(Some(1.0), Result::ok)
             .unwrap_or(0.0);
         let slot = match coding.as_str() {
             "zstd" => &mut self.zstd,

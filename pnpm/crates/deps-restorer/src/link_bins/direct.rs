@@ -147,7 +147,10 @@ pub(super) fn prefetched_bin_source(
         return PrefetchedBin::ReadFromDisk;
     };
     if crate::snapshot_has_patch(snapshot_key)
-        || lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) != Some(&false)
+        || lookup.requires_build
+            .and_then(|flags| flags.get(snapshot_key))
+            .copied()
+            .unwrap_or(true)
     {
         return PrefetchedBin::ReadFromDisk;
     }

@@ -276,7 +276,7 @@ async fn read_pyprojects(
     for path in paths {
         let root = path.parent().expect("manifest has a parent");
         let declared_membership = declared.contains(root);
-        let workspace_declaration_only = declared_membership == Some(false)
+        let workspace_declaration_only = !declared_membership.unwrap_or(true)
             || declared_membership.is_none() && is_ignored_by_default(root, workspace_root);
         let Some(manifest) = read_pyproject(path, workspace_declaration_only).await? else {
             continue;

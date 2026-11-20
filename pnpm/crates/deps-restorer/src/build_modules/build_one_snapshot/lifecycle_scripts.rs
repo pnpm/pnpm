@@ -48,7 +48,8 @@ pub(super) fn run_scripts_in_every_copy<Reporter: self::Reporter>(
         .pkg_roots()
         .all(snapshot_key)
         .into_iter()
-        .filter(|dir| dir != pkg_dir && dir.exists());
+        .filter(|dir| dir != pkg_dir)
+        .filter(|dir| dir.exists());
     let mut has_side_effects = false;
     for dir in std::iter::once(pkg_dir.to_path_buf()).chain(other_copies) {
         let extra_bin_paths = snapshot_extra_bin_paths(context, &dir);

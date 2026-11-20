@@ -168,7 +168,8 @@ fn mirrored_lists_and_workspace_settings_match_unknown_settings_ts() {
     let unclassified: Vec<&String> = settings_field_keys()
         .iter()
         .filter(|key| key.as_str() != "_auth")
-        .filter(|key| !v11_known_keys.contains(*key) && !v11_other_versions.contains(*key))
+        .filter(|key| !v11_known_keys.contains(*key))
+        .filter(|key| !v11_other_versions.contains(*key))
         .collect();
     assert_eq!(
         unclassified,

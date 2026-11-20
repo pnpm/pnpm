@@ -60,7 +60,8 @@ fn bound_children(
 ) -> HashSet<PkgName> {
     peers
         .keys()
-        .filter_map(|alias| alias.parse().ok())
+        .map(|alias| alias.parse())
+        .filter_map(Result::ok)
         .filter(|alias| {
             [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
                 .into_iter()

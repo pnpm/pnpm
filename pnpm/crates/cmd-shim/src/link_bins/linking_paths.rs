@@ -58,7 +58,8 @@ impl<'a> LinkingPaths<'a> {
             },
             relocatable_root: None,
             project_node_path: project_modules_dir(bins_dir, options)
-                .map(|dir| dir.to_string_lossy().into_owned()),
+                .map(Path::to_string_lossy)
+                .map(Cow::into_owned),
             extra_node_paths: Cow::Borrowed(&options.extra_node_paths),
             bin_dir,
         };

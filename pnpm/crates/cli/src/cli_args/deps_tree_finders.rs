@@ -184,7 +184,8 @@ pub(crate) async fn evaluate_finders(
 ) -> miette::Result<HashMap<(String, Option<TreeNodeId>), SearchMatch>> {
     let store_index = env.layout.store_dir
         .as_ref()
-        .and_then(|store_dir| StoreIndex::open_readonly(store_dir).ok());
+        .map(|store_dir| StoreIndex::open_readonly(store_dir))
+        .and_then(Result::ok);
 
     let mut results = HashMap::new();
     for (alias, node_id, source) in candidates {

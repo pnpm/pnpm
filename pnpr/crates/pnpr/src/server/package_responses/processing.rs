@@ -298,7 +298,8 @@ fn next_precision_change(doc: &Value, now: Timestamp) -> Option<Timestamp> {
         .as_object()?
         .values()
         .filter_map(Value::as_str)
-        .filter_map(|value| pnpm_time::parse_rfc3339(value).ok())
+        .map(pnpm_time::parse_rfc3339)
+        .filter_map(Result::ok)
         .filter_map(|time| {
             time.checked_add(jiff::SignedDuration::from_hours(
                 24 * pnpr_upstream::TIME_PRECISION_HORIZON_DAYS,

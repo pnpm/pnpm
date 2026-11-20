@@ -223,7 +223,8 @@ impl State {
             &config.tls_by_uri,
             &config.network_settings(),
         )
-        .map(|client| Arc::new(client.with_max_sockets_per_host(config.max_sockets)))
+        .map(|client| client.with_max_sockets_per_host(config.max_sockets))
+        .map(Arc::new)
         .map_err(InitStateError::Network)
     }
 

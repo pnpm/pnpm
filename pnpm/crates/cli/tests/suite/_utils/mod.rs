@@ -196,7 +196,8 @@ pub fn without_colors(mut command: Command) -> Command {
 pub fn flatten_report(report: &str) -> String {
     report
         .chars()
-        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
+        .filter(|ch| !ch.is_whitespace())
+        .filter(|ch| !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
         .collect()
 }
 

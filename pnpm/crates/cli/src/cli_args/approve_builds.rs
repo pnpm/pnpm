@@ -434,7 +434,12 @@ mod tests;
 
 pub(crate) fn exclude_disallowed_builds(scan: &mut IgnoredBuildsScan, config: &Config) {
     if let Some(names) = scan.names.as_mut() {
-        names.retain(|name| config.allow_builds.get(name) != Some(&false));
+        names.retain(|name| {
+            config.allow_builds
+                .get(name)
+                .copied()
+                .unwrap_or(true)
+        });
     }
 }
 

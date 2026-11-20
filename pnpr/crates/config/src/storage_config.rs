@@ -165,7 +165,8 @@ impl<'de> serde::de::Visitor<'de> for StorageFileVisitor {
         map: Map,
     ) -> Result<StorageFile, Map::Error> {
         StorageSettingsFile::deserialize(serde::de::value::MapAccessDeserializer::new(map))
-            .map(|settings| StorageFile::Settings(Box::new(settings)))
+            .map(Box::new)
+            .map(StorageFile::Settings)
     }
 }
 

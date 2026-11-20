@@ -370,7 +370,8 @@ where
     Ok(Option::<f64>::deserialize(deserializer)?
         .filter(|found| found.fract() == 0.0)
         .and_then(|found| u32::try_from(found as i64).ok())
-        .and_then(|found| LayoutVersion::try_from(found).ok()))
+        .map(LayoutVersion::try_from)
+        .and_then(Result::ok))
 }
 
 /// Returned by [`LayoutVersion::try_from`] when the on-disk `layoutVersion`

@@ -140,7 +140,8 @@ impl PackageExtender {
         let version = map
             .get("version")
             .and_then(Value::as_str)
-            .and_then(|raw| raw.parse::<Version>().ok());
+            .map(str::parse::<Version>)
+            .and_then(Result::ok);
         entries.iter().any(|entry| entry_matches(&entry.range, version.as_ref()))
     }
 
@@ -158,7 +159,8 @@ impl PackageExtender {
         let version = map
             .get("version")
             .and_then(Value::as_str)
-            .and_then(|raw| raw.parse::<Version>().ok());
+            .map(str::parse::<Version>)
+            .and_then(Result::ok);
         for entry in entries {
             if !entry_matches(&entry.range, version.as_ref()) {
                 continue;

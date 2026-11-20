@@ -38,7 +38,8 @@ fn frozen_injected_installs_reuse_unchanged_hardlinks_and_refresh_replacements()
         let stderr = String::from_utf8_lossy(&repeated.get_output().stderr);
         let methods: Vec<serde_json::Value> = stderr
             .lines()
-            .map(|line| serde_json::from_str(line).unwrap())
+            .map(serde_json::from_str)
+            .map(Result::unwrap)
             .filter(|event: &serde_json::Value| event["name"] == "pnpm:package-import-method")
             .collect();
         assert_eq!(methods.len(), 1);

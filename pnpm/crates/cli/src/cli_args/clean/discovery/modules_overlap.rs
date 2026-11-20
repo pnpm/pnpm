@@ -199,7 +199,8 @@ fn hoisted_dirs_under_root(
         .into_values()
         .flatten()
         .map(|loc| lexical_normalize(&workspace_dir.join(loc)))
-        .filter(|dir| dir.starts_with(&root_norm) && dir != &root_norm)
+        .filter(|dir| dir.starts_with(&root_norm))
+        .filter(|dir| dir != &root_norm)
         .collect())
 }
 

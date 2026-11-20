@@ -247,7 +247,8 @@ async fn head_proxy_manifest(
     let declared = declared
         .to_str()
         .ok()
-        .and_then(|value| Digest::parse(value).ok())
+        .map(Digest::parse)
+        .and_then(Result::ok)
         .ok_or_else(|| RegistryError::BadRequest {
             reason: "invalid upstream manifest digest".to_string(),
         })?;
@@ -326,8 +327,10 @@ async fn head_proxy_blob(
             response
                 .headers()
                 .get(header::CONTENT_LENGTH)
-                .and_then(|value| value.to_str().ok())
-                .and_then(|value| value.parse().ok()),
+                .map(reqwest::header::HeaderValue::to_str)
+                .and_then(Result::ok)
+                .map(str::parse)
+                .and_then(Result::ok),
         ),
     })
 }

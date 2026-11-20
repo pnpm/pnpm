@@ -314,7 +314,7 @@ pub(crate) fn untracked_read_package_hook_may_have_changed(
     recorded: Option<bool>,
     current: Option<bool>,
 ) -> bool {
-    current == Some(true) || recorded != current
+    current.unwrap_or(false) || recorded != current
 }
 
 /// What the freshness gates compare the lockfile's `pnpmfileChecksum`

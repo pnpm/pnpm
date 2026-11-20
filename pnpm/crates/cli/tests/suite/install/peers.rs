@@ -71,7 +71,8 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
         assert!(
             entries
                 .iter()
-                .any(|name| name.starts_with(&prefix) && !name.contains('_')),
+                .filter(|name| name.starts_with(&prefix))
+                .any(|name| !name.contains('_')),
             "expected {peer} to be auto-installed; .pnpm/ entries: {entries:?}",
         );
     }

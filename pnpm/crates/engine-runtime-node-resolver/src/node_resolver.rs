@@ -447,7 +447,8 @@ fn exact_release_version(parsed: &NodeSpecifier) -> Option<String> {
     }
     Version::parse(&parsed.version_specifier)
         .ok()
-        .filter(|version| version.pre_release.is_empty() && version.build.is_empty())
+        .filter(|version| version.pre_release.is_empty())
+        .filter(|version| version.build.is_empty())
         .map(|version| version.to_string())
         .filter(|version| *version == parsed.version_specifier)
 }

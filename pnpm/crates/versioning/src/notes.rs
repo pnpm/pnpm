@@ -123,9 +123,7 @@ impl<'a> IntentPlacement<'a> {
 
     /// The members whose release lists `intent` under a bump.
     fn members_of(&self, intent: &ChangeIntent) -> &[&'a PlannedRelease] {
-        self.applies_to
-            .get(intent.id.as_str())
-            .map_or(&[], Vec::as_slice)
+        self.applies_to.get(intent.id.as_str()).map_or_default(Vec::as_slice)
     }
 
     fn names_an_outsider(&self, intent: &ChangeIntent) -> bool {

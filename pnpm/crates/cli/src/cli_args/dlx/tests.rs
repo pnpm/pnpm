@@ -441,7 +441,8 @@ fn create_cache_key_changes_with_the_platforms_it_names() {
         SupportedArchitectures::Platforms(
             platforms
                 .iter()
-                .map(|platform| platform.parse().unwrap())
+                .map(|platform| platform.parse())
+                .map(Result::unwrap)
                 .collect(),
         )
     };

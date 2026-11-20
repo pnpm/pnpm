@@ -69,7 +69,8 @@ pub fn is_on_revision_tarball_route(tarball: &str, registry: &str) -> bool {
     is_valid_revision_version(version)
         && build
             .strip_prefix('r')
-            .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+            .filter(|digits| !digits.is_empty())
+            .is_some_and(|digits| digits.bytes().all(|b| b.is_ascii_digit()))
 }
 
 fn registry_relative_path(tarball: &str, registry: &str) -> Option<String> {

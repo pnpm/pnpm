@@ -120,7 +120,7 @@ pub fn build_hoist_graph_with_max_length(
                     name: key.name.clone(),
                     children,
                     sort_key: key.to_virtual_store_name(virtual_store_dir_max_length),
-                    has_bin: metadata.has_bin == Some(true),
+                    has_bin: metadata.has_bin.unwrap_or(false),
                 },
             ))
         })

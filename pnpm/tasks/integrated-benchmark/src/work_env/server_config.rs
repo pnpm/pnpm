@@ -392,7 +392,7 @@ pub(super) fn serves_npm_under_base_path(port: u16) -> bool {
             response.status(),
         );
         let directory: Value = response.json().await.expect("parse the registry directory");
-        directory["ecosystems"]["npm"]["prefixed"].as_bool() == Some(true)
+        directory["ecosystems"]["npm"]["prefixed"].as_bool().unwrap_or(false)
     })
 }
 /// Log in as the seeded benchmark user and return a bearer token.

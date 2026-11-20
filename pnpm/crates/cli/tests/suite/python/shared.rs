@@ -32,7 +32,8 @@ fn list(items: &[&str]) -> toml::Value {
     toml::Value::Array(
         items
             .iter()
-            .map(|item| toml::Value::String(item.to_string()))
+            .map(|item| item.to_string())
+            .map(toml::Value::String)
             .collect(),
     )
 }

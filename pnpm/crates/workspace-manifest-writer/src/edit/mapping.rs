@@ -221,7 +221,8 @@ fn replace_scalar_at(
         .iter()
         .copied()
         .chain(std::iter::once(dep))
-        .map(|key| Component::Key(key.into()))
+        .map(|key| key.into())
+        .map(Component::Key)
         .collect();
     let patch = Patch { route: Route::from(components), operation: Op::Replace(value) };
     let patched = yamlpatch::apply_yaml_patches(&document, &[patch]).map_err(Box::new)?;

@@ -62,7 +62,8 @@ pub(super) fn parse_version_request(contents: &str, file: PathBuf) -> Option<Ver
     let line = contents
         .lines()
         .map(str::trim)
-        .find(|line| !line.is_empty() && !line.starts_with('#'))?;
+        .filter(|line| !line.is_empty())
+        .find(|line| !line.starts_with('#'))?;
     let release = line
         .split('.')
         .map(str::parse::<u64>)

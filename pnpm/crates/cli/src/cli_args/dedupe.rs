@@ -302,7 +302,8 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
                     store_index
                         .lock()
                         .ok()
-                        .and_then(|index| index.contains_key(&package_key).ok())
+                        .map(|index| index.contains_key(&package_key))
+                        .and_then(Result::ok)
                         .unwrap_or(false)
                 });
         if found_in_store {

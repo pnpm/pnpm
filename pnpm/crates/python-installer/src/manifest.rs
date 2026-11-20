@@ -269,7 +269,8 @@ impl Manifest {
             .values()
             .flatten()
             .filter_map(toml::Value::as_str)
-            .filter_map(|requirement| parse_requirement(requirement).ok())
+            .map(parse_requirement)
+            .filter_map(Result::ok)
             .map(|requirement| requirement.name)
             .filter(|name| !names.contains(name))
             .collect()
@@ -311,7 +312,8 @@ impl Manifest {
                 .chain(project.optional_dependencies.values().flatten())
                 .map(String::as_str)
                 .chain(groups)
-                .filter_map(|requirement| parse_requirement(requirement).ok())
+                .map(parse_requirement)
+                .filter_map(Result::ok)
                 .map(|requirement| requirement.name)
                 .collect(),
         )
@@ -439,7 +441,8 @@ fn merge_requirements(entries: &mut Vec<toml::Value>, requirements: &[String]) -
             .position(|entry| {
                 entry
                     .as_str()
-                    .and_then(|value| value.parse::<Requirement>().ok())
+                    .map(str::parse::<Requirement>)
+                    .and_then(Result::ok)
                     .is_some_and(|entry| entry.name == parsed.name && entry.marker == parsed.marker)
             });
         if let Some(index) = existing {

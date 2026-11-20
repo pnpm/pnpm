@@ -114,7 +114,7 @@ impl BootstrapTokens {
         for (index, short) in shorts.char_indices() {
             let rest = &shorts[index + short.len_utf8()..];
             let Some(consumes_value) = BootstrapArgv::options().short_consumes_value(short) else {
-                if options.short_consumes_value(short) != Some(false) {
+                if options.short_consumes_value(short).unwrap_or(true) {
                     return None;
                 }
                 continue;
@@ -260,7 +260,7 @@ pub(super) fn cluster_options<'a>(
         .chars()
         .take_while(move |&short| {
             let named = !value_follows;
-            value_follows = options.short_consumes_value(short) != Some(false);
+            value_follows = options.short_consumes_value(short).unwrap_or(true);
             named
         })
 }

@@ -130,7 +130,7 @@ pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> 
             // schemes other than HTTP and HTTPS (file:, etc.), so a `file:` tarball under a
             // name@semver key would otherwise be trusted with no safety net.
             is_http_tarball_url(&tarball.tarball)
-                && tarball.git_hosted != Some(true)
+                && !tarball.git_hosted.unwrap_or(false)
                 && !is_git_hosted_tarball_url(&tarball.tarball)
         }
         LockfileResolution::Variations(variations) => {

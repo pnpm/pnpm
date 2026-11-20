@@ -438,7 +438,7 @@ fn read_project(
     if manifest.distribution() != Some(name) {
         bail!("the Python project at {} does not declare `{name}`", path.display());
     }
-    if manifest.tool.uv.package == Some(false) {
+    if !manifest.tool.uv.package.unwrap_or(true) {
         bail!(
             "the Python project at {} sets `tool.uv.package = false`, so it builds no package for \
              `{name}` to install",

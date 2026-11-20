@@ -178,7 +178,8 @@ impl Manifest {
             .unwrap_or_default();
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
         let (text, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
-            .map_err(|error| Box::new(<serde_saphyr::Error as serde::de::Error>::custom(error)))?;
+            .map_err(<serde_saphyr::Error as serde::de::Error>::custom)
+            .map_err(Box::new)?;
 
         Ok(Manifest {
             config_dependencies: data.config_dependencies.map(clean_config_dependencies),

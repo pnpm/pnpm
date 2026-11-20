@@ -78,7 +78,10 @@ async fn send(
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
     }
-    let body = body.map(|body| Body::from(body.to_string())).unwrap_or_else(Body::empty);
+    let body = body
+        .map(|body| body.to_string())
+        .map(Body::from)
+        .unwrap_or_else(Body::empty);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())
@@ -801,9 +804,9 @@ async fn registration_and_rename_reject_lookalike_usernames() {
         ("Cltest", "Cltest"),
         ("cLtest", "cLtest"),
         ("clTest", "clTest"),
-        ("clt%C3%A9st", "clt\u{00e9}st"),
+        ("clt%C3%A9st", "cltést"),
         ("clte%CC%81st", "clte\u{0301}st"),
-        ("cl%D1%82est", "cl\u{0442}est"),
+        ("cl%D1%82est", "clтest"),
     ] {
         let register_path = format!("/-/user/org.couchdb.user:{encoded}");
         let register_body =
@@ -830,7 +833,7 @@ async fn registration_and_rename_reject_lookalike_usernames() {
 
     let other_id = create_admin_user(&app, &root, "other", "secret123").await;
     let other_rename_path = format!("/-/pnpr/v0/admin/users/{other_id}");
-    for lookalike in ["CLTEST", "Cltest", "clt\u{00e9}st", "clte\u{0301}st", "cl\u{0442}est"] {
+    for lookalike in ["CLTEST", "Cltest", "cltést", "clte\u{0301}st", "clтest"] {
         assert_eq!(
             send(
                 &app,

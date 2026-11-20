@@ -78,7 +78,8 @@ async fn without_store_hits_drops_entries_with_an_index_row() {
             .unwrap();
     }
     let index = StoreIndex::open_readonly(store.path())
-        .map(|idx| std::sync::Arc::new(std::sync::Mutex::new(idx)))
+        .map(std::sync::Mutex::new)
+        .map(std::sync::Arc::new)
         .ok();
     assert!(index.is_some(), "readonly index should open after a write");
 
@@ -241,7 +242,8 @@ async fn a_row_whose_files_are_gone_is_fetched_again() {
     let context = pnpm_tarball::ArchiveStoreContext {
         dir: std::borrow::Cow::Borrowed(store_dir),
         index: StoreIndex::open_readonly(store.path())
-            .map(|idx| Arc::new(std::sync::Mutex::new(idx)))
+            .map(std::sync::Mutex::new)
+            .map(Arc::new)
             .ok(),
         index_writer: None,
         verified_files_cache: SharedVerifiedFilesCache::default(),

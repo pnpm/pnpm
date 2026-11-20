@@ -269,7 +269,8 @@ fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
     assert!(
         combined
             .lines()
-            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .map(serde_json::from_str::<serde_json::Value>)
+            .filter_map(Result::ok)
             .any(|event| {
                 event["name"] == "pnpm"
                     && event["level"] == "warn"
@@ -631,7 +632,8 @@ fn a_broken_current_lockfile_is_ignored_with_a_warning() {
     assert!(
         combined
             .lines()
-            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .map(serde_json::from_str::<serde_json::Value>)
+            .filter_map(Result::ok)
             .any(|event| {
                 event["name"] == "pnpm"
                     && event["level"] == "warn"

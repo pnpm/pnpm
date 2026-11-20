@@ -72,9 +72,9 @@ fn a_large_section_parses_in_chunks() {
 /// end instead of slicing through it.
 #[test]
 fn entry_search_from_inside_a_character_does_not_panic() {
-    let body = "  \u{e9}: 1\n  b: 2\n";
+    let body = "  é: 1\n  b: 2\n";
     assert_eq!(super::next_entry_start(body, 3), body.find("\n  b").expect("b") + 1);
-    let json = "    \"\u{e9}\": 1,\n\t\t\"b\": 2,\n";
+    let json = "    \"é\": 1,\n\t\t\"b\": 2,\n";
     assert_eq!(super::json::next_entry_start(json, 6), json.find("\n\t\t\"b\"").expect("b") + 1);
     assert_eq!(super::next_entry_start(body, body.len() + 5), body.len());
 }

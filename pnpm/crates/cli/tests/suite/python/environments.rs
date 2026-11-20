@@ -34,7 +34,8 @@ pub(super) fn project_directories(root: &Path) -> Vec<PathBuf> {
 pub(super) fn generations(root: &Path) -> Vec<PathBuf> {
     let mut generations = project_directories(root)
         .into_iter()
-        .flat_map(|project| fs::read_dir(project).unwrap())
+        .map(fs::read_dir)
+        .flat_map(Result::unwrap)
         .map(|generation| generation.unwrap().path())
         .collect::<Vec<_>>();
     generations.sort();

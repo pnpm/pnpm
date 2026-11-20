@@ -35,14 +35,14 @@ pub(crate) async fn assert_username_skeletons(users: &dyn crate::UserBackend) {
 
 async fn assert_rejected_unicode_usernames(users: &dyn crate::UserBackend) {
     for invalid_name in [
-        "cl\u{0442}est",
-        "sc\u{043e}pe",
-        "sc\u{03bf}pe",
-        "distin\u{0441}t",
-        "cl\u{1d1b}est",
+        "clтest",
+        "scоpe",
+        "scοpe",
+        "distinсt",
+        "clᴛest",
         "cl\u{200b}test",
         "cl\u{00ad}test",
-        "\u{ff43}\u{ff4c}\u{ff54}\u{ff45}\u{ff53}\u{ff54}",
+        "ｃｌｔｅｓｔ",
         "\u{202e}tsetlc",
         "\u{0301}cltest",
     ] {
@@ -61,16 +61,9 @@ async fn assert_cltest_lookalikes_rejected(users: &dyn crate::UserBackend) {
     assert_eq!(err.status_code(), axum::http::StatusCode::CONFLICT);
     assert!(matches!(err, crate::RegistryError::AdminConflict { .. }));
 
-    for lookalike in [
-        "CLTEST",
-        "Cltest",
-        "cLtest",
-        "clTest",
-        "clt\u{00e9}st",
-        "clte\u{0301}st",
-        "cl\u{0167}est",
-        "c1test",
-    ] {
+    for lookalike in
+        ["CLTEST", "Cltest", "cLtest", "clTest", "cltést", "clte\u{0301}st", "clŧest", "c1test"]
+    {
         let err = users.add_or_login(lookalike, "password").await.unwrap_err();
         assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{lookalike:?}");
         assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
@@ -90,12 +83,12 @@ async fn assert_cltest_lookalikes_rejected(users: &dyn crate::UserBackend) {
     }
 
     let other_id = users.provision_user("other").await.unwrap();
-    for lookalike in ["CLTEST", "Cltest", "clt\u{00e9}st", "clte\u{0301}st"] {
+    for lookalike in ["CLTEST", "Cltest", "cltést", "clte\u{0301}st"] {
         let err = users.rename_user(&other_id, lookalike).await.unwrap_err();
         assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{lookalike:?}");
         assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
     }
-    let err = users.rename_user(&other_id, "cl\u{0442}est").await.unwrap_err();
+    let err = users.rename_user(&other_id, "clтest").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
     let err = users.rename_user(&other_id, "cltest").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::CONFLICT);
@@ -116,7 +109,7 @@ async fn assert_cltest_lookalikes_rejected(users: &dyn crate::UserBackend) {
 
     users.rename_user(&other_id, "distinct").await.unwrap();
     assert!(users.provision_user("DISTINCT").await.is_err());
-    assert!(users.provision_user("distin\u{0441}t").await.is_err());
+    assert!(users.provision_user("distinсt").await.is_err());
 
     users.create_user("modern", "password").await.unwrap();
     assert!(users.add_or_login("rnodern", "password").await.is_err());
@@ -126,7 +119,7 @@ async fn assert_cltest_lookalikes_rejected(users: &dyn crate::UserBackend) {
 
 async fn assert_deleted_accounts_release_skeletons(users: &dyn crate::UserBackend) {
     let (_, scope_id) = users.add_or_login("scope", "password").await.unwrap();
-    for lookalike in ["Scope", "SCOPE", "sc0pe", "sc\u{00f8}pe"] {
+    for lookalike in ["Scope", "SCOPE", "sc0pe", "scøpe"] {
         let err = users.add_or_login(lookalike, "password").await.unwrap_err();
         assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST, "{lookalike:?}");
         assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
@@ -136,11 +129,11 @@ async fn assert_deleted_accounts_release_skeletons(users: &dyn crate::UserBacken
     users.add_or_login("sc0pe", "password").await.unwrap();
 
     let (_, ace_id) = users.add_or_login("ace", "password").await.unwrap();
-    let err = users.add_or_login("\u{0430}\u{0441}\u{0435}", "password").await.unwrap_err();
+    let err = users.add_or_login("асе", "password").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
     assert_eq!(err.to_string(), crate::validation::confusable_username().to_string());
     users.delete_user(&ace_id).await.unwrap();
-    users.add_or_login("\u{0430}\u{0441}\u{0435}", "password").await.unwrap();
+    users.add_or_login("асе", "password").await.unwrap();
 }
 
 fn sqlite_auth(path: Option<&std::path::Path>, bcrypt_cost: u32) -> crate::SqliteAuth {
@@ -172,7 +165,7 @@ async fn concurrent_confusable_registrations_create_only_one_account() {
 async fn imports_reject_names_confusable_with_saved_accounts() {
     assert_import_rejects_confusable_names("modern", &["rnodern"]).await;
     assert_import_rejects_confusable_names("cltest", &["CLTEST"]).await;
-    assert_import_rejects_confusable_names("cltest", &["clt\u{00e9}st"]).await;
+    assert_import_rejects_confusable_names("cltest", &["cltést"]).await;
 }
 
 #[tokio::test]
@@ -263,16 +256,16 @@ fn skeleton_hash_equates_case_diacritics_and_homoglyphs() {
                 "Cltest",
                 "cLtest",
                 "clTest",
-                "clt\u{00e9}st",
+                "cltést",
                 "clte\u{0301}st",
-                "cl\u{0167}est",
+                "clŧest",
                 "c1test",
             ][..],
         ),
-        ("alice", &["ALICE", "al\u{0131}ce", "al\u{0130}ce"]),
-        ("scope", &["Scope", "SCOPE", "sc0pe", "SC0PE", "sc\u{00f8}pe"]),
-        ("stra\u{00df}e", &["STRASSE", "STRA\u{1e9e}E"]),
-        ("\u{03c3}\u{03bf}\u{03c6}\u{03cc}\u{03c2}", &["\u{03a3}\u{039f}\u{03a6}\u{039f}\u{03a3}"]),
+        ("alice", &["ALICE", "alıce", "alİce"]),
+        ("scope", &["Scope", "SCOPE", "sc0pe", "SC0PE", "scøpe"]),
+        ("straße", &["STRASSE", "STRAẞE"]),
+        ("σοφός", &["ΣΟΦΟΣ"]),
     ] {
         let expected = username_skeleton_hash(canonical);
         for variant in variants {
@@ -281,8 +274,5 @@ fn skeleton_hash_equates_case_diacritics_and_homoglyphs() {
     }
 
     assert_ne!(username_skeleton_hash("alice"), username_skeleton_hash("allce"));
-    assert_ne!(
-        username_skeleton_hash("\u{d55c}\u{ae00}"),
-        username_skeleton_hash("\u{d63c}\u{ae00}"),
-    );
+    assert_ne!(username_skeleton_hash("한글"), username_skeleton_hash("혼글"),);
 }

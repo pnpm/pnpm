@@ -56,7 +56,7 @@ pub(super) fn declaration_url(source: &Source) -> Result<Option<String>> {
     if count > 1 {
         bail!("a Python source must declare exactly one of git, url, path or workspace");
     }
-    if (source.git.is_some() || source.url.is_some()) && source.editable == Some(true) {
+    if (source.git.is_some() || source.url.is_some()) && source.editable.unwrap_or(false) {
         bail!("Python git and URL sources cannot be installed editable");
     }
     let Some(git) = &source.git else { return Ok(source.url.clone()) };

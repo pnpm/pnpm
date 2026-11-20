@@ -231,7 +231,8 @@ pub(crate) fn update_included_manifests(
 ) -> Result<(), UpdateWorkspaceManifestError> {
     let merged = manifests.merged_text
         .as_deref()
-        .map(|text| Manifest::parse(Some(text)))
+        .map(Some)
+        .map(Manifest::parse)
         .transpose()
         .map_err(|source| UpdateWorkspaceManifestError::Parse {
             path: manifests.root.clone(),

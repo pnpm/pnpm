@@ -116,7 +116,8 @@ where
     }
 
     let json: Value = serde_json::from_str(&response.body)
-        .map_err(|source| GitHubRequestTokenError::JsonParse(source.to_string()))?;
+        .map_err(|source| source.to_string())
+        .map_err(GitHubRequestTokenError::JsonParse)?;
 
     json.get("value")
         .and_then(Value::as_str)

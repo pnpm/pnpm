@@ -86,8 +86,11 @@ fn emitted_codes(dir: &Path) -> BTreeSet<String> {
     WalkDir::new(dir)
         .into_iter()
         .filter_entry(|entry| !is_skipped_dir(entry))
-        .map(|entry| entry.expect("walk the source tree").into_path())
-        .filter(|path| path.is_file() && is_source_file(path) && !is_test_file(path))
+        .map(|entry| entry.expect("walk the source tree"))
+        .map(DirEntry::into_path)
+        .filter(|path| path.is_file())
+        .filter(|path| is_source_file(path))
+        .filter(|path| !is_test_file(path))
         .flat_map(|path| codes_in(&read(&path)))
         .collect()
 }
@@ -98,7 +101,8 @@ fn documented_codes() -> BTreeMap<String, BTreeSet<String>> {
     let docs_dir = pnpm_dir().join("docs");
     WalkDir::new(&docs_dir)
         .into_iter()
-        .map(|entry| entry.expect("walk pnpm/docs").into_path())
+        .map(|entry| entry.expect("walk pnpm/docs"))
+        .map(DirEntry::into_path)
         .filter(|path| {
             path.extension()
                 .is_some_and(|extension| extension == "md" || extension == "mdx")

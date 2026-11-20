@@ -1075,7 +1075,8 @@ fn update_config_omits_the_settings_nothing_set() {
     assert!(
         seen["cacheDir"]
             .as_str()
-            .is_some_and(|dir| Path::new(dir).is_absolute()),
+            .map(Path::new)
+            .is_some_and(Path::is_absolute),
     );
 
     drop(root);

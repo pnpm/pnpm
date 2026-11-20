@@ -328,7 +328,8 @@ fn unclaimed_importer_id<'a>(
     lockfile.importers
         .keys()
         .map(String::as_str)
-        .find(|importer_id| !manifest_ids.contains(importer_id) && matches(importer_id))
+        .filter(|importer_id| !manifest_ids.contains(importer_id))
+        .find(|importer_id| matches(importer_id))
 }
 
 /// Fail on an importer no project claims whose directory exists but holds no

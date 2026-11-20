@@ -137,7 +137,7 @@ pub(super) fn state_owners(ecosystem: Ecosystem, state: &[u8]) -> Result<Vec<Str
     } else {
         // Other ecosystems' documents are opaque here; one that does not
         // parse records no owners.
-        Ok(serde_json::from_slice(state).map_or_else(|_| Vec::new(), |state| owner_ids(&state)))
+        Ok(serde_json::from_slice(state).map_or_default(|state| owner_ids(&state)))
     }
 }
 

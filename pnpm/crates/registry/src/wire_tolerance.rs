@@ -169,7 +169,8 @@ fn integral_count(number: &serde_json::Number) -> Option<usize> {
     let float = number.as_f64()?;
     ((0.0..EXACT_FLOAT_LIMIT).contains(&float) && float.fract() == 0.0)
         .then_some(float as u64)
-        .and_then(|count| usize::try_from(count).ok())
+        .map(usize::try_from)
+        .and_then(Result::ok)
 }
 
 /// Deserialize a flag that only counts when the registry sends a real

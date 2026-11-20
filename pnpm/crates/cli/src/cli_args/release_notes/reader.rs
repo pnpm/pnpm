@@ -146,7 +146,8 @@ impl<'a> NotesReader<'a> {
         .map_err(miette::Report::new)?;
         let mut versions: Vec<Version> = package.versions
             .keys()
-            .filter_map(|key| key.parse::<Version>().ok())
+            .map(|key| key.parse::<Version>())
+            .filter_map(Result::ok)
             .filter(|version| is_in_upgrade_range(version, installed, target))
             .filter(|version| {
                 oldest_listed

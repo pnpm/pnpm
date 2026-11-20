@@ -54,7 +54,8 @@ pub fn extend_path(
     if let Some(orig) = original_path {
         let added: HashSet<OsString> = path_arr
             .iter()
-            .map(|entry| entry.as_os_str().to_os_string())
+            .map(|entry| entry.as_os_str())
+            .map(OsStr::to_os_string)
             .collect();
         path_arr.extend(
             pnpm_fs::split_paths(orig).filter(|entry| !added.contains(entry.as_os_str())),

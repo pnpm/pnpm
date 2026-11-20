@@ -220,7 +220,8 @@ impl PeerBindings {
         };
         segments
             .iter()
-            .filter_map(|segment| segment.parse().ok())
+            .map(|segment| segment.parse())
+            .filter_map(Result::ok)
     }
 
     /// The peer suffix that records these bindings; see
@@ -241,7 +242,9 @@ impl PeerBindings {
         if !providers.is_empty() {
             let peer_ids: Vec<PeerId> = providers
                 .into_iter()
-                .map(|segment| PeerId::DepPath(DepPath::from(segment.clone())))
+                .map(|segment| segment.clone())
+                .map(DepPath::from)
+                .map(PeerId::DepPath)
                 .collect();
             suffix.push_str(&Self::suffix_of(&peer_ids, max_length));
         }

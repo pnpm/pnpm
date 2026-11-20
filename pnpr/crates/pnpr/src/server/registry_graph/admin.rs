@@ -355,7 +355,7 @@ fn revision_view(revision: &RegistryGraphRevision) -> Value {
         "version": graph_version(Some(revision.generation)),
         "actorId": revision.actor_id,
         "createdAt": iso_from_unix_millis(revision.created_at),
-        "restoredFrom": revision.restored_from.map(|generation| graph_version(Some(generation))),
+        "restoredFrom": revision.restored_from.map(Some).map(graph_version),
     })
 }
 

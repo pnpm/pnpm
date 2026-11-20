@@ -124,7 +124,7 @@ impl ClaimedCommands {
                 keys
             })
             .get(real)
-            .map_or(&[], Vec::as_slice)
+            .map_or_default(Vec::as_slice)
     }
 }
 

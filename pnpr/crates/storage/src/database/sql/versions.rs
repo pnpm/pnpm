@@ -160,7 +160,7 @@ fn insert_release_record(
     };
     let record =
         StoredRecord::parse(bytes.to_vec()).map_err(|err| invalid(format!("is invalid: {err}")))?;
-    let purl = Purl::npm(name, version).map_err(|err| invalid(err.to_string()))?;
+    let purl = Purl::npm(name, version).map_err(|err| err.to_string()).map_err(invalid)?;
     let key = record.key();
     let describes_version = key.identity == RecordIdentity::Package(purl)
         && key.revision == Some(0)
@@ -170,7 +170,8 @@ fn insert_release_record(
     }
     let entry = record
         .log_entry()
-        .map_err(|err| invalid(err.to_string()))?
+        .map_err(|err| err.to_string())
+        .map_err(invalid)?
         .to_bytes();
     sequence_log_entry(commit, &entry)?;
     // The record keeps the index its entry was just sequenced at, the log's

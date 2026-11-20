@@ -278,7 +278,8 @@ fn assert_transform_metadata(
         .filter(|extensions| !extensions.is_empty())
     {
         let value = serde_json::to_value(package_extensions)
-            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+            .map_err(|err| err.to_string())
+            .map_err(PnprClientError::Protocol)?;
         let expected = hash_object_nullable_with_prefix(&value)
             .expect("a non-empty packageExtensions map has a checksum");
         if lockfile.package_extensions_checksum.as_deref() != Some(expected.as_str()) {
@@ -332,7 +333,7 @@ fn equal_patch_hashes(
 }
 
 pub(super) fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
-    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+    serde_json::from_slice(line).map_err(|err| err.to_string()).map_err(PnprClientError::Protocol)
 }
 
 /// One NDJSON frame from resolve endpoint. `package` frames stream as the

@@ -272,7 +272,8 @@ impl Grants {
     pub(super) fn any_admits(&self, action: Action, identity: &Identity) -> bool {
         self.all
             .iter()
-            .any(|grant| !grant.covers_nothing() && grant.gives(action, identity, false))
+            .filter(|grant| !grant.covers_nothing())
+            .any(|grant| grant.gives(action, identity, false))
     }
 
     /// Whether `identity` may do `action` on every package.

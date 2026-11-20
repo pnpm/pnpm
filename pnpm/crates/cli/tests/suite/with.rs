@@ -278,10 +278,12 @@ fn assert_semver_like(value: &str) {
     assert!(
         parts
             .next()
-            .is_some_and(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
+            .filter(|part| !part.is_empty())
+            .is_some_and(|part| part.chars().all(|c| c.is_ascii_digit()))
             && parts
                 .next()
-                .is_some_and(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
+                .filter(|part| !part.is_empty())
+                .is_some_and(|part| part.chars().all(|c| c.is_ascii_digit()))
             && parts
                 .next()
                 .is_some_and(|part| part
@@ -332,7 +334,8 @@ fn a_held_engine_lock_installs_the_engine_privately() {
     let linked_slots: Vec<_> = walkdir::WalkDir::new(engine_store.join("links"))
         .into_iter()
         .flatten()
-        .filter(|entry| entry.depth() == 5 && entry.file_name() == "bin")
+        .filter(|entry| entry.depth() == 5)
+        .filter(|entry| entry.file_name() == "bin")
         .map(|entry| entry.path().to_path_buf())
         .collect();
     assert!(linked_slots.is_empty(), "the held slot must not be entered: {linked_slots:?}");

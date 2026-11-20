@@ -105,11 +105,13 @@ fn builder_version_can_build_sea(version: &str) -> bool {
     let mut parts = version.split('.');
     let major = parts
         .next()
-        .and_then(|major| major.parse::<u64>().ok())
+        .map(str::parse::<u64>)
+        .and_then(Result::ok)
         .unwrap_or(0);
     let minor = parts
         .next()
-        .and_then(|minor| minor.parse::<u64>().ok())
+        .map(str::parse::<u64>)
+        .and_then(Result::ok)
         .unwrap_or(0);
     major > MIN_BUILDER_VERSION.0
         || (major == MIN_BUILDER_VERSION.0 && minor >= MIN_BUILDER_VERSION.1)

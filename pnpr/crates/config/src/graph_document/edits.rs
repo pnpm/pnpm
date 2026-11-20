@@ -66,7 +66,8 @@ impl RegistryGraphDocument {
     pub fn registry_entry(&self, name: &str) -> Option<serde_json::Value> {
         self.registries
             .get(name)
-            .and_then(|entry| serde_json::to_value(entry).ok())
+            .map(serde_json::to_value)
+            .and_then(Result::ok)
     }
 
     /// Add `entry` under `name`, or replace the entry already there in place.

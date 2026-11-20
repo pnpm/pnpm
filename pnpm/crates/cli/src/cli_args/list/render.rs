@@ -166,7 +166,7 @@ fn project_label(project: &ProjectHierarchy) -> String {
 type PkgColor = fn(&DependencyNode) -> ColorFn;
 
 fn get_pkg_color(node: &DependencyNode) -> ColorFn {
-    if node.status.dev == Some(true) {
+    if node.status.dev.unwrap_or(false) {
         yellow
     } else if node.status.optional {
         blue

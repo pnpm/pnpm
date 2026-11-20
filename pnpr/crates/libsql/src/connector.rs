@@ -104,7 +104,8 @@ impl LibsqlConnector {
         let config = ClientConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
             .and_then(BuilderVerifierExt::with_platform_verifier)
-            .map_err(|error| LibsqlError::InvalidTlsConfiguration(io::Error::other(error)))?
+            .map_err(io::Error::other)
+            .map_err(LibsqlError::InvalidTlsConfiguration)?
             .with_no_client_auth();
         Ok(Self::new(config))
     }

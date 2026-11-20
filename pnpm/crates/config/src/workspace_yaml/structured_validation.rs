@@ -79,7 +79,8 @@ fn validate_concurrency_groups(value: &Value, target: YamlConfigTarget) -> Resul
     if let Some(group) = settings.concurrency_groups
         .iter()
         .flat_map(|groups| groups.keys())
-        .find(|group| !has_env_placeholder(group) && !is_valid_concurrency_group_name(group))
+        .filter(|group| !has_env_placeholder(group))
+        .find(|group| !is_valid_concurrency_group_name(group))
     {
         return Err(format!("invalid concurrency group name {group:?}"));
     }

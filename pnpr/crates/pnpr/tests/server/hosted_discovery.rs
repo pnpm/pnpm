@@ -492,7 +492,8 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
             response
                 .headers()
                 .get(header::CACHE_CONTROL)
-                .and_then(|value| value.to_str().ok()),
+                .map(reqwest::header::HeaderValue::to_str)
+                .and_then(Result::ok),
             Some("private, no-store"),
             "missing private cache header on {path}",
         );
@@ -500,7 +501,8 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
             response
                 .headers()
                 .get(header::VARY)
-                .and_then(|value| value.to_str().ok()),
+                .map(reqwest::header::HeaderValue::to_str)
+                .and_then(Result::ok),
             if path == "/npm/@acme/widget" {
                 Some("Accept, Authorization")
             } else {
@@ -533,7 +535,8 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
         response
             .headers()
             .get(header::CACHE_CONTROL)
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("public, max-age=60"),
         "a public path-less response must stay cacheable",
     );
@@ -580,7 +583,8 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         response
             .headers()
             .get(header::CACHE_CONTROL)
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("private, no-store"),
         "an ACL-gated path-less response must not be shared-cacheable",
     );
@@ -588,7 +592,8 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         response
             .headers()
             .get(header::VARY)
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("Accept, Authorization"),
     );
 }

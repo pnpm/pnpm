@@ -30,7 +30,8 @@ fn public_only(addresses: &[&str]) -> GuardedDnsResolver {
         Arc::new(FixedResolver(
             addresses
                 .iter()
-                .map(|address| address.parse().unwrap())
+                .map(|address| address.parse())
+                .map(Result::unwrap)
                 .collect(),
         )),
         Arc::new(|_, address| is_public_address(address)),

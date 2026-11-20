@@ -463,7 +463,7 @@ pub fn publish_source_dir(pkg_root_dir: &Path, manifest: Option<&serde_json::Val
         .and_then(|config| config.get("linkDirectory"))
         .and_then(serde_json::Value::as_bool);
     match publish_dir {
-        Some(publish_dir) if link_directory != Some(false) => pkg_root_dir.join(publish_dir),
+        Some(publish_dir) if link_directory.unwrap_or(true) => pkg_root_dir.join(publish_dir),
         _ => pkg_root_dir.to_path_buf(),
     }
 }

@@ -60,7 +60,8 @@ impl<'de> Deserialize<'de> for PeerEntry {
 
             fn visit_map<Map: MapAccess<'de>>(self, map: Map) -> Result<PeerEntry, Map::Error> {
                 PeerDetails::deserialize(de::value::MapAccessDeserializer::new(map))
-                    .map(|details| PeerEntry::Detailed(Box::new(details)))
+                    .map(Box::new)
+                    .map(PeerEntry::Detailed)
             }
         }
 
@@ -166,7 +167,7 @@ impl Bindings {
 
     fn add(&mut self, name: PkgName, details: &PeerDetails) {
         let Some(binding) = details.binding() else { return };
-        let map = if details.below == Some(true) { &mut self.below } else { &mut self.own };
+        let map = if details.below.unwrap_or(false) { &mut self.below } else { &mut self.own };
         map.get_or_insert_default().insert(name, binding);
     }
 }

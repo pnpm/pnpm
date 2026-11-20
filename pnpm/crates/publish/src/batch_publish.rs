@@ -90,7 +90,7 @@ pub fn validate_batch_publish_options(
     if opts.stage {
         return Err(BatchPublishError::Stage);
     }
-    if opts.registry.provenance == Some(true) {
+    if opts.registry.provenance.unwrap_or(false) {
         return Err(BatchPublishError::Provenance);
     }
     Ok(())

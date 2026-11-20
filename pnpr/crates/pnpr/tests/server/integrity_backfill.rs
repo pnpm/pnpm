@@ -837,6 +837,7 @@ fn has_integrity(version: &Value) -> bool {
     version
         .pointer("/dist/integrity")
         .and_then(Value::as_str)
-        .and_then(|value| value.parse::<ssri::Integrity>().ok())
+        .map(str::parse::<ssri::Integrity>)
+        .and_then(Result::ok)
         .is_some_and(|integrity| !integrity.hashes.is_empty())
 }

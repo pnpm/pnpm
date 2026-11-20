@@ -431,7 +431,9 @@ fn explicit_or_default(
 fn explicit_pattern(config: &Config, key: &str) -> Option<Vec<String>> {
     config.explicit_settings
         .get(key)
-        .and_then(|value| serde_json::from_value(value.clone()).ok())
+        .map(|value| value.clone())
+        .map(serde_json::from_value)
+        .and_then(Result::ok)
 }
 
 /// Warn that a file sets both the `audit` section and the deprecated
@@ -510,7 +512,8 @@ fn as_set<Setting: serde::de::DeserializeOwned>(config: &Config, key: &str) -> O
     config.explicit_settings
         .get(key)
         .cloned()
-        .and_then(|value| serde_json::from_value(value).ok())
+        .map(serde_json::from_value)
+        .and_then(Result::ok)
 }
 
 #[cfg(test)]

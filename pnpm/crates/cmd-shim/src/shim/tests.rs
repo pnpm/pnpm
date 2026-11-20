@@ -180,7 +180,8 @@ fn generate_sh_shim_matches_pnpm_typical_case() {
     assert!(
         !body
             .lines()
-            .any(|line| !line.starts_with('#') && line.contains("uname")),
+            .filter(|line| !line.starts_with('#'))
+            .any(|line| line.contains("uname")),
         "the header must not fork uname, body was:\n{body}",
     );
     // POSIX echo processes `\n` / `\t` before sed can convert the backslashes.
@@ -536,9 +537,9 @@ fn a_shim_that_doubles_the_cmd_switch_is_outdated() {
 fn strip_exe_suffix_is_case_insensitive() {
     assert_eq!(strip_exe_suffix("cmd.exe"), Some("cmd"));
     assert_eq!(strip_exe_suffix("cmd.EXE"), Some("cmd"));
-    assert_eq!(strip_exe_suffix("\u{e5}.exe"), Some("\u{e5}"));
+    assert_eq!(strip_exe_suffix("å.exe"), Some("å"));
     assert_eq!(strip_exe_suffix("node"), None);
-    assert_eq!(strip_exe_suffix("\u{e5}\u{e5}x"), None);
+    assert_eq!(strip_exe_suffix("ååx"), None);
 }
 
 #[test]

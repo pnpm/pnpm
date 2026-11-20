@@ -131,7 +131,8 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         }
         if crate::install_package_from_registry::manifest_requires_build(
             package.result.package.manifest.as_deref(),
-        ) == Some(true)
+        )
+        .unwrap_or(false)
         {
             return;
         }

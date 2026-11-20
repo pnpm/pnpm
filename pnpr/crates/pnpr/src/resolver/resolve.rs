@@ -123,7 +123,8 @@ pub async fn resolve(
         })?;
 
     Lockfile::load_wanted_from_dir(dir)
-        .map_err(|err| ResolveError::install(err.to_string()))?
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)?
         .ok_or(ResolveError::NoLockfile)
 }
 
@@ -145,7 +146,8 @@ fn write_input_lockfile(
     if let Some(lockfile) = input_lockfile {
         lockfile
             .save_to_path(&lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
-            .map_err(|err| ResolveError::install(err.to_string()))?;
+            .map_err(|err| err.to_string())
+            .map_err(ResolveError::install)?;
     }
     Ok(lockfile_path)
 }
@@ -157,7 +159,8 @@ fn root_manifest(dir: &Path, wrote_root: bool) -> Result<PackageManifest, Resolv
     let manifest_path = dir.join("package.json");
     if wrote_root {
         return PackageManifest::from_path(manifest_path)
-            .map_err(|err| ResolveError::Manifest(err.to_string()));
+            .map_err(|err| err.to_string())
+            .map_err(ResolveError::Manifest);
     }
     Ok(PackageManifest::from_value(
         manifest_path,
@@ -177,8 +180,9 @@ async fn write_workspace_manifest(dir: &Path, member_dirs: &[&str]) -> Result<()
         // YAML) so a dir with YAML-significant characters (`:`, `#`, leading
         // `-`, ...) stays a plain string instead of being reparsed as a
         // mapping or breaking the document.
-        let quoted =
-            serde_json::to_string(member).map_err(|err| ResolveError::install(err.to_string()))?;
+        let quoted = serde_json::to_string(member)
+            .map_err(|err| err.to_string())
+            .map_err(ResolveError::install)?;
         yaml.push_str("  - ");
         yaml.push_str(&quoted);
         yaml.push('\n');
@@ -229,8 +233,9 @@ async fn write_importer_manifest(
     project: &ProjectDeps,
 ) -> Result<(), ResolveError> {
     let manifest_json = importer_manifest_json(project, rel);
-    let manifest_bytes =
-        serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::install(err.to_string()))?;
+    let manifest_bytes = serde_json::to_vec(&manifest_json)
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)?;
     let opened = tokio::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -272,7 +277,7 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     if request.update_patches
         || request.fix_lockfile
         || !request.frozen_lockfile
-        || request.prefer_frozen_lockfile == Some(false)
+        || !request.prefer_frozen_lockfile.unwrap_or(true)
     {
         return None;
     }

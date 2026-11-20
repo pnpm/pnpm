@@ -651,7 +651,9 @@ async fn allowlisted_registry_egress(
     });
     config.routing.route_policy.allowed_private_networks = allowed_private_networks
         .iter()
-        .map(|network| IpNetwork::parse(network).unwrap())
+        .copied()
+        .map(IpNetwork::parse)
+        .map(Result::unwrap)
         .collect();
     let body = json!({
         "dependencies": { "carrier": "1.0.0" },

@@ -1221,7 +1221,7 @@ async fn python_index_and_wheel_requests_carry_the_credential_held_for_their_ori
 #[tokio::test]
 async fn python_index_credentials_survive_unusual_characters() {
     for (username, password) in
-        [("user", "secret"), ("user&name", "secret&suffix+space"), ("us\u{e9}r", "s\u{eb}cret")]
+        [("user", "secret"), ("user&name", "secret&suffix+space"), ("usér", "sëcret")]
     {
         let root = tempfile::tempdir().unwrap();
         let mut server = mockito::Server::new_async().await;
@@ -1916,15 +1916,15 @@ async fn locks_every_declared_platform_into_one_lockfile() {
     assert!(
         environments
             .iter()
-            .any(|marker| marker.contains("sys_platform == 'win32'")
-                && marker.contains("platform_machine == 'AMD64'")),
+            .filter(|marker| marker.contains("sys_platform == 'win32'"))
+            .any(|marker| marker.contains("platform_machine == 'AMD64'")),
         "{environments:?}",
     );
     assert!(
         environments
             .iter()
-            .any(|marker| marker.contains("sys_platform == 'darwin'")
-                && marker.contains("platform_machine == 'arm64'")),
+            .filter(|marker| marker.contains("sys_platform == 'darwin'"))
+            .any(|marker| marker.contains("platform_machine == 'arm64'")),
         "{environments:?}",
     );
     let packages = parsed["packages"].as_array().unwrap();

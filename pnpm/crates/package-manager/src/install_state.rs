@@ -205,7 +205,7 @@ fn peer_dependency_is_optional(
         .and_then(serde_json::Value::as_object)
         .and_then(|entry| entry.get("optional"))
         .and_then(serde_json::Value::as_bool)
-        == Some(true)
+        .unwrap_or(false)
 }
 
 /// The pnpmfile list recorded in the workspace state and compared by

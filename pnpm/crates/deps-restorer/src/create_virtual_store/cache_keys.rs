@@ -36,8 +36,9 @@ pub(super) fn derive_cache_keys(
                 snapshot_cache_key(snapshot_key, packages, config.ignore_scripts, &selector)
                     .map(|mut key| {
                         if key.is_git_hosted
-                            && allow_build_policy.check(&snapshot_key.without_peer().to_string())
-                                == Some(false)
+                            && !allow_build_policy
+                                .check(&snapshot_key.without_peer().to_string())
+                                .unwrap_or(true)
                         {
                             key.value = Some(pnpm_store_dir::git_hosted_store_index_key(
                                 &snapshot_key.without_peer().pkg_id(),
@@ -59,7 +60,8 @@ pub(super) fn prefetch_keys(
 ) -> Vec<String> {
     let mut refs: Vec<&str> = cache_keys
         .values()
-        .filter_map(|cache_key| cache_key.as_ref().ok())
+        .map(Result::as_ref)
+        .filter_map(Result::ok)
         .filter_map(|cache_key| cache_key.value.as_deref())
         .collect();
     refs.sort_unstable();

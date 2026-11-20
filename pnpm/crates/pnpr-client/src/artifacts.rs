@@ -141,7 +141,10 @@ fn index_candidates(
     }
     let mut by_key = BTreeMap::new();
     for candidate in candidates {
-        candidate.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        candidate
+            .validate()
+            .map_err(|err| err.to_string())
+            .map_err(PnprClientError::Protocol)?;
         if by_key.insert(candidate.key.as_str(), candidate).is_some() {
             return Err(PnprClientError::Protocol(format!(
                 "duplicate shared artifact candidate {:?}",
@@ -195,8 +198,10 @@ fn verify_variant(
     let Ok(payload_bytes) = variant.envelope.verify_signature_bytes(public_key) else {
         return Ok(None);
     };
-    let envelope_digest =
-        variant.envelope.digest().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+    let envelope_digest = variant.envelope
+        .digest()
+        .map_err(|err| err.to_string())
+        .map_err(PnprClientError::Protocol)?;
     let quarantined = opts.quarantined_envelope_digests
         .get(candidate.key.as_str())
         .is_some_and(|digests| digests.contains(&envelope_digest));
@@ -236,7 +241,8 @@ pub(super) fn retain_permitted_candidates(
     opts: &mut ResolveArtifactsOptions,
 ) -> Result<bool, PnprClientError> {
     validate_supported_tags(&opts.supported_tags)
-        .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        .map_err(|err| err.to_string())
+        .map_err(PnprClientError::Protocol)?;
     if opts.build_policy.ignore_scripts {
         return Ok(false);
     }
@@ -405,7 +411,9 @@ impl PnprClient {
         let response = post.send().await?;
         let response = super::check_status(response, "/-/pnpr/v0/artifacts/resolve").await?;
         let body = response_body_bounded(response, MAX_RESOLVE_RESPONSE_SIZE).await?;
-        serde_json::from_slice(&body).map_err(|err| PnprClientError::Protocol(err.to_string()))
+        serde_json::from_slice(&body)
+            .map_err(|err| err.to_string())
+            .map_err(PnprClientError::Protocol)
     }
 
     /// One blob of a selected manifest, held to the `size` the manifest
@@ -439,7 +447,10 @@ impl PnprClient {
         size: u64,
         authorization: Option<&str>,
     ) -> Result<reqwest::Response, PnprClientError> {
-        request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        request
+            .validate()
+            .map_err(|err| err.to_string())
+            .map_err(PnprClientError::Protocol)?;
         let mut get = self.http
             .get(self.blob_url(&request.owner, &request.integrity)?)
             .timeout(blob_timeout(self.artifact_request_timeout, size));

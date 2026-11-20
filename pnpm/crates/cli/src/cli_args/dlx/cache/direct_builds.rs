@@ -103,13 +103,17 @@ fn collect_direct_build_keys(
     let policy = pnpm_deps_restorer::AllowBuildPolicy::from_config(config).into_diagnostic()?;
     let mut approved = Vec::new();
     for (alias, dep) in direct_deps {
-        if config.allow_builds.get(&alias.to_string()) == Some(&false) {
+        if !config.allow_builds
+            .get(&alias.to_string())
+            .copied()
+            .unwrap_or(true)
+        {
             continue;
         }
         let Some(dep_path) = dep.version.resolved_key(alias).map(|key| key.to_string()) else {
             continue;
         };
-        if policy.check(&dep_path) == Some(false) {
+        if !policy.check(&dep_path).unwrap_or(true) {
             continue;
         }
         let allow_key = allow_build_key_from_ignored_build(&dep_path);

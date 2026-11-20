@@ -19,7 +19,9 @@ fn ip(raw: &str) -> IpAddr {
 fn networks(entries: &[&str]) -> Vec<IpNetwork> {
     entries
         .iter()
-        .map(|entry| IpNetwork::parse(entry).unwrap())
+        .copied()
+        .map(IpNetwork::parse)
+        .map(Result::unwrap)
         .collect()
 }
 

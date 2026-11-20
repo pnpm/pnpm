@@ -778,7 +778,7 @@ fn json_document_with_todays_version_is_todays_format() {
 /// multi-byte character, is rejected rather than sliced through.
 #[test]
 fn catalog_entry_with_an_odd_npm_alias_is_rejected() {
-    for specifier in ["npm:", "npm:\u{e9}"] {
+    for specifier in ["npm:", "npm:é"] {
         let text = format!(
             r#"{{"lockfileVersion": "13.0", "settings": {{"catalogs": {{"default": {{"renamed": "{specifier}"}}}}}}, "projects": {{".": {{}}}}}}"#,
         );

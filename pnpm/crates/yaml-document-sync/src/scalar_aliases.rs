@@ -153,7 +153,7 @@ fn scalar_definitions(
     let mut definitions = HashMap::<usize, Definition>::new();
     let mut parser = Parser::new_from_str(text);
     while let Some(event) = parser.next_event() {
-        let (event, span) = event.map_err(|error| invalid(error.to_string()))?;
+        let (event, span) = event.map_err(|error| error.to_string()).map_err(invalid)?;
         match event {
             Event::Scalar(value, style, id, _) if id != 0 => {
                 let anchor_token = anchors
@@ -225,7 +225,7 @@ fn format_block_replacement(raw: &str, replacement: &str) -> String {
         .lines()
         .next()
         .and_then(|line| line.split_once('#'))
-        .map_or(String::new(), |(_, comment)| format!(" #{comment}"));
+        .map_or_default(|(_, comment)| format!(" #{comment}"));
     format!("{replacement}{comment}{suffix}")
 }
 
@@ -271,7 +271,7 @@ fn surviving_values(
         let Some(feature) = feature else { continue };
         let literal = document.extract(&feature);
         let value: yaml_serde::Value =
-            serde_saphyr::from_str(literal).map_err(|error| invalid(error.to_string()))?;
+            serde_saphyr::from_str(literal).map_err(|error| error.to_string()).map_err(invalid)?;
         if value.is_mapping() || value.is_sequence() {
             continue;
         }
@@ -375,7 +375,8 @@ fn tagged_scalar(
         raw.to_string()
     };
     let literal = format!("{} {value_text}", &text[tag.clone()]);
-    let value = serde_saphyr::from_str(&literal).map_err(|error| invalid(error.to_string()))?;
+    let value =
+        serde_saphyr::from_str(&literal).map_err(|error| error.to_string()).map_err(invalid)?;
     Ok(Some(TaggedScalar { value, literal }))
 }
 
@@ -388,7 +389,8 @@ fn scalar_replacement(
         .as_ref()
         .map_or(definition.anchor.start, |tag| tag.start.min(definition.anchor.start));
     let value: yaml_serde::Value = serde_saphyr::from_str(&text[start..definition.value.end])
-        .map_err(|error| invalid(error.to_string()))?;
+        .map_err(|error| error.to_string())
+        .map_err(invalid)?;
     Ok(match &value {
         yaml_serde::Value::String(_)
             if definition.tag.is_none() && !definition.block && !literal.contains(['\n', '\r']) =>

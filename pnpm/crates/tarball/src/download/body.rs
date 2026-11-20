@@ -314,6 +314,6 @@ pub(super) fn streams_while_downloading(
     unpacked_size: Option<usize>,
 ) -> bool {
     expected_size
-        .or_else(|| unpacked_size.and_then(|size| u64::try_from(size).ok()))
+        .or_else(|| unpacked_size.map(u64::try_from).and_then(Result::ok))
         .is_some_and(|size| size >= STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD)
 }

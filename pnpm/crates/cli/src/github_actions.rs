@@ -7,7 +7,7 @@ use pnpm_package_manager::PickPolicy;
 /// `pnpm update` only look at workflow files when asked to, either with
 /// `--include-github-actions` or with `update.githubActions: true`.
 pub(crate) fn opted_in(include_github_actions: bool, config: &Config) -> bool {
-    include_github_actions || config.update_config.github_actions == Some(true)
+    include_github_actions || config.update_config.github_actions.unwrap_or(false)
 }
 
 pub(crate) fn without_action_selectors(selectors: &[String]) -> Vec<String> {

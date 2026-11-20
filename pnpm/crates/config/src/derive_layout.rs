@@ -55,7 +55,7 @@ impl Config {
         }
         if hook_node_path.is_none()
             && cfg!(any(unix, target_os = "wasi"))
-            && self.prefer_symlinked_executables == Some(true)
+            && self.prefer_symlinked_executables.unwrap_or(false)
         {
             remove_node_paths(&mut self.extra_env, previous_node_path_dirs);
             let hidden_modules_dir =
@@ -136,7 +136,9 @@ impl Config {
         // `lockfileDir ?? dir` to the same effect
         // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
         // `true` fires.
-        if cfg!(any(unix, target_os = "wasi")) && self.prefer_symlinked_executables == Some(true) {
+        if cfg!(any(unix, target_os = "wasi"))
+            && self.prefer_symlinked_executables.unwrap_or(false)
+        {
             let hidden_modules_dir =
                 pnpm_fs::lexical_normalize(&self.install_state_dir.join("node_modules"));
             append_node_path(&mut self.extra_env, &hidden_modules_dir);

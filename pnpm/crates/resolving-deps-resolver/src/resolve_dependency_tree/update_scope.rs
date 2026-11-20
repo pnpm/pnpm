@@ -182,7 +182,7 @@ impl UpdateDepth {
     /// CLI uses for the `Infinity` default, among them — is unlimited.
     #[must_use]
     pub fn new(depth: usize) -> Self {
-        i32::try_from(depth).map_or(Self::UNLIMITED, |depth| Self(Some(depth)))
+        i32::try_from(depth).map(Some).map_or(Self::UNLIMITED, Self)
     }
 
     /// Whether an update reaches a node at `depth`.

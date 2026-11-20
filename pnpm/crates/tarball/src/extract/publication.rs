@@ -122,7 +122,8 @@ fn read_publication_archive_within(
     // An installer refuses data after the end-of-archive marker, so the
     // archive is refused here too.
     check_trailer(archive.into_inner())
-        .map_err(|err| PublicationArchiveError::Unreadable(err.to_string()))?;
+        .map_err(|err| err.to_string())
+        .map_err(PublicationArchiveError::Unreadable)?;
     scan.finish()
 }
 

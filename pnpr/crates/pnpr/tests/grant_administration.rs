@@ -128,7 +128,10 @@ async fn send_conditional(app: &axum::Router, sent: Sent<'_>) -> (StatusCode, Va
     if let Some(version) = sent.if_match {
         request = request.header("if-match", format!(r#""{version}""#));
     }
-    let body = sent.body.map(|body| Body::from(body.to_string())).unwrap_or_else(Body::empty);
+    let body = sent.body
+        .map(|body| body.to_string())
+        .map(Body::from)
+        .unwrap_or_else(Body::empty);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())

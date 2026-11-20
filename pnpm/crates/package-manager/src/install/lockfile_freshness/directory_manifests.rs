@@ -222,7 +222,8 @@ impl DirectoryWalk<'_, '_> {
         let mut queued: HashSet<&DirectoryDep> = HashSet::new();
         let unread: Vec<&Visit> = level
             .iter()
-            .filter(|visit| !read.contains_key(&visit.dep) && queued.insert(&visit.dep))
+            .filter(|visit| !read.contains_key(&visit.dep))
+            .filter(|visit| queued.insert(&visit.dep))
             .collect();
         let manifests = futures_util::future::try_join_all(
             unread

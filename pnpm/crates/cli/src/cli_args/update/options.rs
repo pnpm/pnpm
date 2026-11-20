@@ -44,10 +44,11 @@ impl UpdateDependencyOptions {
             .then_some(true)
             .or_else(|| self.no_optional.then_some(false));
 
-        let ne_true = |flag: Option<bool>| flag != Some(true);
-        let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));
-        let dev_dependencies = dev == Some(true) || (ne_true(production) && ne_true(optional));
-        let optional_dependencies = optional == Some(true) || (ne_true(production) && ne_true(dev));
+        let ne_true = |flag: Option<bool>| !flag.unwrap_or(false);
+        let dependencies = production.unwrap_or(false) || (ne_true(dev) && ne_true(optional));
+        let dev_dependencies = dev.unwrap_or(false) || (ne_true(production) && ne_true(optional));
+        let optional_dependencies =
+            optional.unwrap_or(false) || (ne_true(production) && ne_true(dev));
 
         std::iter::empty()
             .chain(dependencies.then_some(DependencyGroup::Prod))

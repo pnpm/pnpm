@@ -170,10 +170,14 @@ impl<'a> Checker<'a> {
         let patched_names = groups
             .keys()
             .chain(&unusable)
-            .filter_map(|name| PkgName::parse(name.as_str()).ok())
+            .map(String::as_str)
+            .map(PkgName::parse)
+            .filter_map(Result::ok)
             .collect();
-        let peers_are_deduped =
-            lockfile.settings.as_ref().and_then(|settings| settings.dedupe_peers) == Some(true);
+        let peers_are_deduped = lockfile.settings
+            .as_ref()
+            .and_then(|settings| settings.dedupe_peers)
+            .unwrap_or(false);
         let patched_peer_markers = if peers_are_deduped {
             Vec::new()
         } else {

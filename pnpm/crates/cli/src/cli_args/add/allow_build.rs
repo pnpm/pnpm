@@ -68,7 +68,12 @@ pub(crate) fn apply_allow_build(
     let overlap: Vec<&str> = selectors
         .iter()
         .filter_map(|&AllowBuildSelector { name, allowed }| {
-            (allowed && config.allow_builds.get(name) == Some(&false)).then_some(name)
+            (allowed
+                && !config.allow_builds
+                    .get(name)
+                    .copied()
+                    .unwrap_or(true))
+            .then_some(name)
         })
         .collect();
     if !overlap.is_empty() {

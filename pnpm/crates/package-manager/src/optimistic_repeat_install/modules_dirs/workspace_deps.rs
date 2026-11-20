@@ -154,10 +154,10 @@ pub(super) fn reached_workspace_project_dirs(
 ) -> HashSet<PathBuf> {
     let index = WorkspaceProjectIndex::from_check(check);
     let groups = [
-        (state.settings.production != Some(false)).then_some(DependencyGroup::Prod),
-        (state.settings.dev != Some(false)).then_some(DependencyGroup::Dev),
-        (state.settings.optional != Some(false)).then_some(DependencyGroup::Optional),
-        (check.config.auto_install_peers && state.settings.auto_install_peers != Some(false))
+        state.settings.production.unwrap_or(true).then_some(DependencyGroup::Prod),
+        state.settings.dev.unwrap_or(true).then_some(DependencyGroup::Dev),
+        state.settings.optional.unwrap_or(true).then_some(DependencyGroup::Optional),
+        (check.config.auto_install_peers && state.settings.auto_install_peers.unwrap_or(true))
             .then_some(DependencyGroup::Peer),
     ];
     let mut reached = HashSet::new();

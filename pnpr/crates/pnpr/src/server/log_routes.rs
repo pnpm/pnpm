@@ -375,7 +375,8 @@ async fn sigstore_bundle(
         return Ok(None);
     };
     let bytes = axum::body::to_bytes(body, 16 * 1024 * 1024).await
-        .map_err(|err| pnpr_error::RegistryError::Io(std::io::Error::other(err)))?;
+        .map_err(std::io::Error::other)
+        .map_err(pnpr_error::RegistryError::Io)?;
     Ok(Some(serde_json::from_slice(&bytes)?))
 }
 

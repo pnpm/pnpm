@@ -351,7 +351,7 @@ fn metadata_headers(
         (header::IF_NONE_MATCH, validators.etag),
         (header::IF_MODIFIED_SINCE, validators.modified.as_deref()),
     ] {
-        if let Some(value) = value.and_then(|value| value.parse().ok()) {
+        if let Some(value) = value.map(str::parse).and_then(Result::ok) {
             headers.insert(name, value);
         }
     }

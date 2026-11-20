@@ -428,7 +428,8 @@ pub(super) fn ndjson_frames_until(
     let stream = futures_util::stream::iter(
         frames
             .into_iter()
-            .map(|line| Ok::<_, std::convert::Infallible>(axum::body::Bytes::from(line))),
+            .map(axum::body::Bytes::from)
+            .map(Ok::<_, std::convert::Infallible>),
     );
     Some(
         Response::builder()

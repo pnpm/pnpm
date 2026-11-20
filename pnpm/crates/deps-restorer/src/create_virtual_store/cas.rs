@@ -296,7 +296,8 @@ fn immutable_download<'a>(
 ) -> Option<&'a crate::HoistedPackageFiles> {
     downloaded
         .get(&cas_paths_key(snapshot_key))
-        .filter(|files| !files.source_is_mutable && files.source_exists)
+        .filter(|files| !files.source_is_mutable)
+        .filter(|files| files.source_exists)
 }
 
 pub(crate) fn materialized_snapshots(

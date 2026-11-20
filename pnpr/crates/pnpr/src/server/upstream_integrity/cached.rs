@@ -45,7 +45,7 @@ pub(in crate::server) async fn hash_cached_file(
     expected: Option<&Integrity>,
 ) -> std::io::Result<(Integrity, Option<ssri::IntegrityChecker>)> {
     let mut hasher = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    let mut checker = expected.map(|integrity| ssri::IntegrityChecker::new(integrity.clone()));
+    let mut checker = expected.map(|integrity| integrity.clone()).map(ssri::IntegrityChecker::new);
     let mut buffer = vec![0; 64 * 1024];
     loop {
         let read = file.read(&mut buffer).await?;

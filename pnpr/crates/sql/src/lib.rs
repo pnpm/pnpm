@@ -115,7 +115,8 @@ impl<Database: sqlx::Database> Pools<Database> {
         entries.retain(|entry| entry.pool.strong_count() > 0);
         if let Some(pool) = entries
             .iter()
-            .find(|entry| entry.runtime == runtime && &entry.settings == settings)
+            .filter(|entry| entry.runtime == runtime)
+            .find(|entry| &entry.settings == settings)
             .and_then(|entry| entry.pool.upgrade())
         {
             return Ok(pool);

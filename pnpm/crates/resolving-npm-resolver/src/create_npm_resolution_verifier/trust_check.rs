@@ -24,7 +24,12 @@ impl NpmResolutionVerifier {
             "variationResolutionsVerified",
         ]
         .into_iter()
-        .all(|flag| cached_policy.get(flag).and_then(JsonValue::as_bool) == Some(true));
+        .all(|flag| {
+            cached_policy
+                .get(flag)
+                .and_then(JsonValue::as_bool)
+                .unwrap_or(false)
+        });
         if !recorded_every_unconditional_rule {
             return false;
         }

@@ -336,7 +336,7 @@ fn linked_project_dirs(projects: &[Project]) -> HashMap<PathBuf, PathBuf> {
         let links_publish_directory = publish_config
             .and_then(|publish_config| publish_config.get("linkDirectory"))
             .and_then(serde_json::Value::as_bool)
-            != Some(false);
+            .unwrap_or(true);
         if links_publish_directory && let Some(publish_directory) = publish_directory {
             dirs.entry(lexical_normalize(&project.root_dir.join(publish_directory)))
                 .or_insert_with(|| project.root_dir.clone());

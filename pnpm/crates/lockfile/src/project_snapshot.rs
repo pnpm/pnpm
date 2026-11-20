@@ -88,7 +88,7 @@ impl ProjectSnapshot {
                 meta.and_then(|meta| meta.get(alias))
                     .and_then(|entry| entry.get("injected"))
                     .and_then(serde_json::Value::as_bool)
-                    == Some(true)
+                    .unwrap_or(false)
             })
             .map(|alias| (alias, serde_json::json!({ "injected": true })))
             .collect();

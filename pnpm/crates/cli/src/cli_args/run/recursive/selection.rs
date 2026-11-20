@@ -78,7 +78,8 @@ pub(super) fn check_required_script(
     }
     let missing: Vec<String> = task_graph
         .values()
-        .filter(|node| node.requested && node.scripts.is_empty())
+        .filter(|node| node.requested)
+        .filter(|node| node.scripts.is_empty())
         .map(|node| project_display_name(graph, &node.project))
         .collect();
     if missing.is_empty() {

@@ -86,7 +86,8 @@ impl LinkedWorkspaceProject {
             peer_names: project.peer_set
                 .taken()
                 .keys()
-                .filter_map(|name| name.parse().ok())
+                .map(|name| name.parse())
+                .filter_map(Result::ok)
                 .collect(),
             deduped_peer_resolutions: None,
         }

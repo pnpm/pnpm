@@ -109,7 +109,8 @@ impl Manifest {
         let artifact_type_digest = subject
             .as_ref()
             .and_then(|_| self.artifact_type())
-            .map(|value| Digest::of(value.as_bytes()));
+            .map(str::as_bytes)
+            .map(Digest::of);
         crate::ReferrerMetadata { subject, artifact_type_digest }
     }
 

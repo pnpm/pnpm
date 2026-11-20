@@ -111,7 +111,8 @@ fn is_line_break(character: char) -> bool {
 
 fn canonicalize(line: &str) -> String {
     line.chars()
-        .filter(|character| !character.is_whitespace() && !matches!(character, '\'' | '"'))
+        .filter(|character| !character.is_whitespace())
+        .filter(|character| !matches!(character, '\'' | '"'))
         .collect()
 }
 

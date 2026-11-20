@@ -55,7 +55,8 @@ fn signer(key: &Key, message: &[u8], signature: &RawSignature) -> Option<[u8; 32
         return None;
     }
     let public_key = decode_hex(&key.keyval.public)
-        .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
+        .map(<[u8; 32]>::try_from)
+        .and_then(Result::ok)
         .and_then(|bytes| VerifyingKey::from_bytes(&bytes).ok());
     let signature = decode_hex(&signature.sig).and_then(|bytes| Signature::from_slice(&bytes).ok());
     let (public_key, signature) = (public_key?, signature?);

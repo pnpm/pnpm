@@ -299,7 +299,8 @@ fn files_pnpm_writes_into_a_project_follow_the_umask() {
     let owner_only: Vec<_> = walkdir::WalkDir::new(&workspace)
         .into_iter()
         .map(|entry| entry.expect("walk the project"))
-        .filter(|entry| entry.file_type().is_file() && file_mode(entry.path()) & 0o044 == 0)
+        .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| file_mode(entry.path()) & 0o044 == 0)
         .map(|entry| {
             entry
                 .path()

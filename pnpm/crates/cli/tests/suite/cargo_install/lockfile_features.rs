@@ -148,7 +148,8 @@ std = []
     let mut built = String::from_utf8(output)
         .unwrap()
         .lines()
-        .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .map(Result::unwrap)
         .filter(|message| message["reason"] == "compiler-artifact")
         .map(|message| {
             message["target"]["name"]

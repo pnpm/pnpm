@@ -419,7 +419,9 @@ pub fn find_root_runtime_node_key<'a>(
     let ver_peer = root_runtime_node_ver_peer(importers)?;
     snapshots
         .keys()
-        .find(|key| key.name.scope.is_none() && key.name.bare == "node" && key.suffix == *ver_peer)
+        .filter(|key| key.name.scope.is_none())
+        .filter(|key| key.name.bare == "node")
+        .find(|key| key.suffix == *ver_peer)
 }
 
 pub(crate) fn root_runtime_node_ver_peer(

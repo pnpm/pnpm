@@ -118,7 +118,10 @@ pub(super) fn check_statements(
                 name.as_str(),
             ),
         };
-        let subjects = subjects.as_ref().map_err(|reason| refuse(reason.clone()))?;
+        let subjects = subjects
+            .as_ref()
+            .map_err(|reason| reason.clone())
+            .map_err(refuse)?;
         let purl = version_purl(name, version)?;
         for tar in tars
             .iter()

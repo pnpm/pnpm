@@ -154,6 +154,7 @@ fn recompute_vulnerability_counts(doc: &mut Map<String, Value>) {
 fn json_usize(obj: &Map<String, Value>, key: &str) -> usize {
     obj.get(key)
         .and_then(Value::as_u64)
-        .and_then(|num| usize::try_from(num).ok())
+        .map(usize::try_from)
+        .and_then(Result::ok)
         .unwrap_or(0)
 }

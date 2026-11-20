@@ -194,7 +194,8 @@ impl Request {
         let target = self.publish_target(name).await?;
         let content_type = self.headers
             .get(header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok());
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok);
         let bytes = collect_body(body, self.state.inner.config.http.oci.max_manifest_bytes).await?;
         OciPublication::new(
             target,

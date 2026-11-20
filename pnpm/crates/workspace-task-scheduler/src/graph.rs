@@ -149,7 +149,8 @@ pub fn resume_task_graph_from(
         |completed| {
             completed
                 .iter()
-                .filter(|key| !anchors.contains(*key) && graph.contains_key(*key))
+                .filter(|key| !anchors.contains(*key))
+                .filter(|key| graph.contains_key(*key))
                 .cloned()
                 .collect()
         },

@@ -234,7 +234,8 @@ fn collect_protected_member_dirs(
         .iter()
         .map(|project| &project.root_dir)
         .chain(explicit_dirs.iter())
-        .filter_map(|dir| dunce::canonicalize(dir).ok())
+        .map(dunce::canonicalize)
+        .filter_map(Result::ok)
         .filter(|dir| dir != real_root_dir)
         .collect();
     protected.sort();

@@ -85,7 +85,8 @@ fn collect_pyproject_edits(
     transform: &mut impl FnMut(PythonDependencyGroup, Requirement) -> Result<Option<Vec<Requirement>>>,
 ) -> Result<Vec<(Range<usize>, String)>> {
     let mut edits = Vec::new();
-    if let Some(project) = table_entry(document, "project").and_then(|val| val.get_ref().as_table())
+    if let Some(project) =
+        table_entry(document, "project").map(Spanned::get_ref).and_then(DeValue::as_table)
     {
         collect_project_edits(project, original, non_index, transform, &mut edits)?;
     }

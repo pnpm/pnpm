@@ -87,9 +87,11 @@ fn stall_message(script: &str) -> String {
 fn assert_grandchild_reported_and_killed(message: &str) {
     let grandchild_pid = message
         .lines()
-        .find(|line| line.contains(LONG_RUNNING) && !line.contains("spawn"))
+        .filter(|line| line.contains(LONG_RUNNING))
+        .find(|line| !line.contains("spawn"))
         .and_then(|line| line.split_whitespace().next())
-        .and_then(|pid| pid.parse().ok())
+        .map(str::parse)
+        .and_then(Result::ok)
         .unwrap_or_else(|| panic!("the report must list the grandchild:\n{message}"));
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut system = System::new().expect("read the process table");

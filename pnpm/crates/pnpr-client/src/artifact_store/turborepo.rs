@@ -182,7 +182,10 @@ impl TurborepoArtifactStore {
         request: &ArtifactBlobRequest,
         size: u64,
     ) -> Result<reqwest::Response, PnprClientError> {
-        request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        request
+            .validate()
+            .map_err(|err| err.to_string())
+            .map_err(PnprClientError::Protocol)?;
         let url = self.artifact_url(&blob_hash(&request.owner, &request.integrity));
         let response = self
             .authorize(self.http.get(url))
@@ -225,7 +228,8 @@ impl TurborepoArtifactStore {
             .try_collect::<()>()
             .await?;
         let envelope = serde_json::to_vec(&publication.envelope)
-            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+            .map_err(|err| err.to_string())
+            .map_err(PnprClientError::Protocol)?;
         let envelopes: Vec<_> = publication_scopes(&payload.compatibility)
             .iter()
             .map(|scope| self.artifact_url(&envelope_hash(owner, &publication.key, scope)))

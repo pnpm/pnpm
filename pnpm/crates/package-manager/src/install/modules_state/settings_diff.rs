@@ -54,7 +54,7 @@ fn check_modules_settings_diff(
     // patterns; neither the follow-up install nor a hoisted `fetch` must
     // fail on them.
     let skips_hoisted_tree = config.virtual_store_only && node_linker == NodeLinker::Hoisted;
-    if modules.virtual_store_only != Some(true) && !skips_hoisted_tree {
+    if !modules.virtual_store_only.unwrap_or(false) && !skips_hoisted_tree {
         check_hoist_patterns_diff(modules, config)?;
     }
     check_compatibility(modules, config)

@@ -202,7 +202,8 @@ async fn get_search(
         )
     };
     let Some(text) = pnpr_search::parse_query(&query_string)
-        .map(|query| pnpr_search::SearchText::Package(query.replace('_', "-")))
+        .map(|query| query.replace('_', "-"))
+        .map(pnpr_search::SearchText::Package)
     else {
         return respond(Vec::new(), 0);
     };
@@ -483,7 +484,8 @@ async fn download_via_upstream(
     };
     let Some(entry) = entries
         .iter()
-        .find(|entry| entry.vers == version && entry.name.eq_ignore_ascii_case(name))
+        .filter(|entry| entry.vers == version)
+        .find(|entry| entry.name.eq_ignore_ascii_case(name))
     else {
         return not_found();
     };

@@ -108,7 +108,8 @@ fn append_flow(document: &Document, edits: &mut Vec<Edit>, range: Range<usize>, 
             let indent = source[range]
                 .lines()
                 .skip(1)
-                .find(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
+                .filter(|line| !line.trim().is_empty())
+                .find(|line| !line.trim_start().starts_with('#'))
                 .map_or("  ", |line| &line[..line.len() - line.trim_start().len()]);
             (line_start, format!("{indent}{entry}{}", newline(source)))
         } else {

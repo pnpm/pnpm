@@ -52,7 +52,8 @@ pub(super) async fn resolver_sqlite_bytes(cache_root: &Arc<OpenDir>) -> io::Resu
         Ok(verdict.saturating_add(store_index))
     })
     .await
-    .map_err(|err| io::Error::other(err.to_string()))?
+    .map_err(|err| err.to_string())
+    .map_err(io::Error::other)?
 }
 
 pub(super) async fn expire_verdict_rows(

@@ -44,7 +44,8 @@ pub fn apply_changed_catalogs(
             continue;
         }
         let deps = opts.project_dependencies
-            .and_then(|map| map.get(project_dir).cloned())
+            .and_then(|map| map.get(project_dir))
+            .cloned()
             .unwrap_or_else(|| read_manifest_dependencies(project_dir));
         if project_uses_changed_catalogs(&deps, &changed_catalogs) {
             *change_type = Some(ChangeType::Source);
@@ -91,7 +92,8 @@ fn detect_changed_catalogs(
     let prev_catalogs =
         load_workspace_catalogs(prev_content.as_deref(), &rel_workspace_dir, |path| {
             read_git_file(commit, workspace_dir, path)
-                .map_err(|err| std::io::Error::other(err.to_string()))
+                .map_err(|err| err.to_string())
+                .map_err(std::io::Error::other)
         })?;
     let curr_catalogs =
         load_workspace_catalogs(curr_content.as_deref(), workspace_dir, read_working_tree_file)?;

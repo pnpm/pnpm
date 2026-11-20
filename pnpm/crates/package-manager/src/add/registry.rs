@@ -117,7 +117,8 @@ pub(super) async fn resolve_explicit_registry_spec(
     );
 
     let pick = pick_package(&ctx, &spec_parsed, &opts).await
-        .map_err(|error| AddError::ResolveSpec(Box::new(error)))?;
+        .map_err(Box::new)
+        .map_err(AddError::ResolveSpec)?;
     let Some(picked) = pick.picked_package else {
         return Ok(None);
     };
@@ -157,7 +158,8 @@ pub(super) fn parse_explicit_registry_spec(
     registry: &str,
 ) -> Option<pnpm_resolving_npm_resolver::RegistryPackageSpec> {
     parse_bare_specifier(spec, Some(package_name), "latest", registry)
-        .filter(|parsed| parsed.normalized_bare_specifier.is_none() && parsed.name == package_name)
+        .filter(|parsed| parsed.normalized_bare_specifier.is_none())
+        .filter(|parsed| parsed.name == package_name)
 }
 /// The explicit range is authoritative; including the latest tag could exceed its bounds.
 pub(super) fn explicit_registry_pick_options<'a>(

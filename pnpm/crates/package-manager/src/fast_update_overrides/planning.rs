@@ -248,10 +248,10 @@ pub(super) fn override_replacement(
         || matches!(
             old_metadata.resolution,
             LockfileResolution::Tarball(ref tarball)
-                if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
+                if tarball.integrity.is_some() && !tarball.git_hosted.unwrap_or(false),
         );
     if old_snapshot.optional
-        || old_snapshot.patched == Some(true)
+        || old_snapshot.patched.unwrap_or(false)
         || old_snapshot.id.is_some()
         || old_metadata.peer_dependencies.is_some()
         || old_metadata.peer_dependencies_meta.is_some()
@@ -370,7 +370,7 @@ pub(super) fn is_safe_registry_result(
         && matches!(
             result.resolution,
             LockfileResolution::Tarball(ref tarball)
-                if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
+                if tarball.integrity.is_some() && !tarball.git_hosted.unwrap_or(false),
         )
 }
 pub(super) fn package_metadata(

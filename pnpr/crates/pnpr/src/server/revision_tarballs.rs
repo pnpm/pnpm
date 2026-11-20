@@ -75,7 +75,8 @@ pub(super) fn parse_revision_version(version: &str) -> Option<Result<(&str, Tarb
     let parsed = digits
         .parse::<u64>()
         .ok()
-        .and_then(|num| TarballRevision::try_from(num).ok());
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok);
     Some(
         parsed
             .map(|revision| (base_version, revision))

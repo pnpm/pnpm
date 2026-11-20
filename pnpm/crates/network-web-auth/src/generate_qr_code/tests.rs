@@ -41,13 +41,13 @@ fn renders_a_thin_one_module_border() {
     assert!(
         lines[0]
             .chars()
-            .all(|glyph| glyph == '\u{2584}'),
+            .all(|glyph| glyph == '▄'),
         "the top border should be one ▄ row, got {:?}",
         lines[0],
     );
     for line in &lines[1..] {
         assert!(
-            line.starts_with('\u{2588}') && line.ends_with('\u{2588}'),
+            line.starts_with('█') && line.ends_with('█'),
             "each module row should be framed by a single █ column, got {line:?}",
         );
     }

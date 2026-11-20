@@ -265,11 +265,17 @@ fn lookup_typed_config(config: &Config, kebab: &str) -> Value {
         protected_settings::censor_protected_setting_value(&camel, &mut value);
         return value;
     }
-    config.raw_auth_config.get(kebab).map_or(Value::Null, |value| Value::String(value.clone()))
+    config.raw_auth_config
+        .get(kebab)
+        .map(|value| value.clone())
+        .map_or(Value::Null, Value::String)
 }
 
 fn auth_value(config: &Config, key: &str) -> Value {
-    config.raw_auth_config.get(key).map_or(Value::Null, |value| Value::String(value.clone()))
+    config.raw_auth_config
+        .get(key)
+        .map(|value| value.clone())
+        .map_or(Value::Null, Value::String)
 }
 
 /// `lookupByPropertyPath`: resolve a (possibly nested) property path against the

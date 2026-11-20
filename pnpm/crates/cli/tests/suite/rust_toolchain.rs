@@ -119,7 +119,8 @@ fn dlx_runs_a_tool_of_the_release_it_names() {
     assert_eq!(
         lines
             .next()
-            .map(|dir| fs::canonicalize(dir).unwrap()),
+            .map(fs::canonicalize)
+            .map(Result::unwrap),
         Some(fs::canonicalize(&toolchain).unwrap()),
     );
     drop(root);

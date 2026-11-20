@@ -352,7 +352,8 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
         paths.sort_unstable();
         let hashes: Option<Vec<String>> = paths
             .into_iter()
-            .map(|path| pnpm_crypto_hash::create_hash_from_file(path).ok())
+            .map(pnpm_crypto_hash::create_hash_from_file)
+            .map(Result::ok)
             .collect();
         let hashes = hashes?;
         Some(match hashes.as_slice() {

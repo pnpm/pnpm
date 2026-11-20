@@ -103,7 +103,7 @@ fn approve(
     keys: Vec<ProjectBuildKey>,
 ) -> miette::Result<()> {
     let source_policy = AllowBuildPolicy::from_approvals(allow_builds, false).into_diagnostic()?;
-    let is_denied = |key: &str| source_policy.check(key) == Some(false);
+    let is_denied = |key: &str| !source_policy.check(key).unwrap_or(true);
     allow_builds.extend(
         keys.into_iter()
             .filter(|keys| {

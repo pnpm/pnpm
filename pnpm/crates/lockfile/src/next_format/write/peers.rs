@@ -60,7 +60,8 @@ pub(super) fn transitive_named_in_key<'a>(
                 .map(|segments| {
                     segments
                         .iter()
-                        .filter_map(|segment| segment.parse::<PkgNameVerPeer>().ok())
+                        .map(|segment| segment.parse::<PkgNameVerPeer>())
+                        .filter_map(Result::ok)
                         .collect()
                 })
         });

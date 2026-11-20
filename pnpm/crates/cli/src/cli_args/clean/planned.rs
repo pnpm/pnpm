@@ -42,7 +42,8 @@ impl ModulesCleanMode {
         shared_virtual_store_dir: Option<&Path>,
     ) -> Self {
         let preserved_entry = shared_virtual_store_dir
-            .and_then(|vs_dir| vs_dir.strip_prefix(modules_dir).ok())
+            .map(|vs_dir| vs_dir.strip_prefix(modules_dir))
+            .and_then(Result::ok)
             .and_then(|rel| match rel.components().next()? {
                 Component::Normal(first) => Some(first.to_os_string()),
                 _ => None,

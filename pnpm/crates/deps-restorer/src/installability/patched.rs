@@ -20,7 +20,7 @@ pub(crate) fn snapshot_is_patched(
     snapshot_key: &PackageKey,
     snapshot: Option<&SnapshotEntry>,
 ) -> bool {
-    snapshot.is_some_and(|snapshot| snapshot.patched == Some(true))
+    snapshot.is_some_and(|snapshot| snapshot.patched.unwrap_or(false))
         || pnpm_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string())
             .patch_hash_index
             .is_some()

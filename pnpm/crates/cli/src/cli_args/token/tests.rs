@@ -77,7 +77,7 @@ fn parses_token_cli_args() {
 #[test]
 fn skips_prefix_lengths_inside_a_multibyte_character() {
     let mut tokens = vec![TokenItem {
-        key: "abcde\u{e9}f".to_string(),
+        key: "abcdeéf".to_string(),
         token: "abcde".to_string(),
         id: None,
         name: None,
@@ -88,7 +88,7 @@ fn skips_prefix_lengths_inside_a_multibyte_character() {
 
     generate_token_ids(&mut tokens);
 
-    assert_eq!(tokens[0].id.as_deref(), Some("abcde\u{e9}"));
+    assert_eq!(tokens[0].id.as_deref(), Some("abcdeé"));
 }
 
 #[test]

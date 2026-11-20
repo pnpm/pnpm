@@ -480,7 +480,8 @@ impl<'de> Deserialize<'de> for TaskSettings {
 fn json_i32(value: &serde_json::Value) -> Option<i32> {
     value
         .as_i64()
-        .and_then(|n| i32::try_from(n).ok())
+        .map(i32::try_from)
+        .and_then(Result::ok)
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.

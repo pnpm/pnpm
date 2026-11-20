@@ -565,9 +565,11 @@ pub fn needs_deferred_engine_probe(
     snapshots
         .keys()
         .any(|key| {
-            crate::lookup_known_requires_build(Some(known), key) != Some(false)
+            crate::lookup_known_requires_build(Some(known), key).unwrap_or(true)
                 || (dir_clone_eligible
-                    && allow_build_policy.check(&key.without_peer().to_string()) == Some(true))
+                    && allow_build_policy
+                        .check(&key.without_peer().to_string())
+                        .unwrap_or(false))
         })
 }
 

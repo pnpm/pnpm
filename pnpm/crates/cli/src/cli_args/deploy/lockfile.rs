@@ -319,7 +319,7 @@ fn importer_linked_publish_dir(
     projects_by_path: &HashMap<ProjectPathKey, ProjectInfo>,
 ) -> Option<PathBuf> {
     let publish_directory = project_snapshot.publish_directory.as_deref()?;
-    if project_snapshot.link_directory == Some(false) {
+    if !project_snapshot.link_directory.unwrap_or(true) {
         return None;
     }
     let publish_dir = lexical_normalize(&project_root.join(publish_directory));

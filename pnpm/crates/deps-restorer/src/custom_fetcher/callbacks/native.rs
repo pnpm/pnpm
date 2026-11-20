@@ -223,6 +223,6 @@ fn git_hosted_files_index_file(
     package_id: &str,
     allow_build: &impl Fn(&str) -> Option<bool>,
 ) -> String {
-    let built = !settings.ignore_scripts && allow_build(package_id) != Some(false);
+    let built = !settings.ignore_scripts && allow_build(package_id).unwrap_or(true);
     git_hosted_store_index_key(package_id, built)
 }

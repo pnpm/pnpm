@@ -853,7 +853,7 @@ impl Resolver for WarmupProbeResolver {
             .cloned();
         let (held, release) = self.gate
             .as_ref()
-            .map_or((false, false), |(held, release)| (*held == alias, *release == alias));
+            .map_or_default(|(held, release)| (*held == alias, *release == alias));
         if release {
             self.released.store(true, std::sync::atomic::Ordering::Release);
         }

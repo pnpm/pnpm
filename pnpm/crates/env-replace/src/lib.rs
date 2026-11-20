@@ -186,7 +186,9 @@ fn expand_placeholder<Sys: EnvVar>(
 fn optional_var_name(inside: &str) -> Option<&str> {
     inside
         .strip_suffix('?')
-        .filter(|name| !name.is_empty() && !name.contains('?') && !name.ends_with('-'))
+        .filter(|name| !name.is_empty())
+        .filter(|name| !name.contains('?'))
+        .filter(|name| !name.ends_with('-'))
 }
 
 /// Return the index of the closing `}` for a `${...}` starting at `start`.

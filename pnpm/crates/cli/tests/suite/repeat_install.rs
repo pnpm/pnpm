@@ -672,7 +672,8 @@ fn available_packages_are_relinked_during_forced_install() {
     );
     let resolved: Vec<String> = ndjson_records(&output)
         .iter()
-        .filter(|record| record["name"] == "pnpm:progress" && record["status"] == "resolved")
+        .filter(|record| record["name"] == "pnpm:progress")
+        .filter(|record| record["status"] == "resolved")
         .filter_map(|record| record["packageId"].as_str().map(str::to_string))
         .collect();
     for package_id in ["@pnpm.e2e/foobarqar@1.0.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"] {

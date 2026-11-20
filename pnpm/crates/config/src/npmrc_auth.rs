@@ -353,7 +353,8 @@ impl NpmrcTls {
         config.tls.strict_ssl = self.strict_ssl.take();
         config.tls.local_address = self.local_address
             .take()
-            .and_then(|raw| raw.parse().ok());
+            .map(|raw| raw.parse())
+            .and_then(Result::ok);
         // Per-registry TLS overrides. `PerRegistryTls::from_map`
         // drops any entry whose three fields are all `None`, so the
         // lookup never returns an empty hit that would otherwise

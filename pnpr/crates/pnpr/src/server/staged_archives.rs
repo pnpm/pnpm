@@ -389,7 +389,7 @@ pub(super) fn principal(identity: &Identity) -> Result<&str, RegistryError> {
 
 /// The hosted-store identity a staged archive with `integrity` is stored under.
 pub(super) fn archive_blob_id(integrity: &str) -> Result<BlobId, RegistryError> {
-    let digest = blob_id(integrity).map_err(|err| bad_request(err.to_string()))?;
+    let digest = blob_id(integrity).map_err(|err| err.to_string()).map_err(bad_request)?;
     BlobId::parse(&format!("sha512-{digest}"))
         .ok_or_else(|| bad_request(format!("invalid staged archive integrity {integrity:?}")))
 }

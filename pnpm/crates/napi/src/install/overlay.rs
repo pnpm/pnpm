@@ -138,7 +138,7 @@ fn build_dependencies_overlay(
         // opaque `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`. A
         // fetch-shaped install reads the lockfile as its only input, and
         // would fail with `ERR_PNPM_NO_LOCKFILE`.
-        lockfile: (fetch_shaped || options.enable_modules_dir == Some(false)).then_some(true),
+        lockfile: (fetch_shaped || !options.enable_modules_dir.unwrap_or(true)).then_some(true),
         prefer_frozen_lockfile: options.prefer_frozen_lockfile,
         dedupe_peer_dependents: options.dedupe_peer_dependents,
         dedupe_peers: options.dedupe_peers,
@@ -295,7 +295,8 @@ fn build_tls_config(input: &NetworkConfigInput) -> napi::Result<TlsConfig> {
         strict_ssl: input.strict_ssl,
         local_address: input.local_address
             .as_deref()
-            .and_then(|value| value.parse::<IpAddr>().ok()),
+            .map(str::parse::<IpAddr>)
+            .and_then(Result::ok),
     })
 }
 

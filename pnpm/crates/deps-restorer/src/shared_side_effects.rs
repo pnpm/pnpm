@@ -228,7 +228,7 @@ pub(crate) fn shared_side_effects_publisher(
 ) -> Option<SharedSideEffectsPublisher> {
     let packages = &config.remote_side_effects_cache.as_ref()?.packages;
     let settings = config.remote_cache_settings();
-    if settings.publish != Some(true) {
+    if !settings.publish.unwrap_or(false) {
         return None;
     }
     let platform = artifact_platform(importers)?;

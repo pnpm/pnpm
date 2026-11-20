@@ -159,7 +159,8 @@ async fn stored_tar_problem(
     let expected = dist
         .get("integrity")
         .and_then(Value::as_str)
-        .and_then(|integrity| integrity.parse::<ssri::Integrity>().ok())
+        .map(str::parse::<ssri::Integrity>)
+        .and_then(Result::ok)
         .and_then(|integrity| table.get(&integrity.to_string()));
     let Some(expected) = expected else {
         return Ok(Some("no recorded tar integrity".to_string()));

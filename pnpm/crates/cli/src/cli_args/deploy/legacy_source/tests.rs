@@ -190,7 +190,8 @@ fn rebase_ignores_publish_directory_absent_from_project_manifest_and_keeps_decla
     assert!(
         !keys
             .iter()
-            .any(|key| key.contains("stale-lib") && key.contains("dist")),
+            .filter(|key| key.contains("stale-lib"))
+            .any(|key| key.contains("dist")),
         "stale lockfile publishDirectory absent from manifest must be ignored: {keys:?}",
     );
     assert!(

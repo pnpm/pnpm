@@ -69,7 +69,8 @@ pub(super) fn abbreviate_versions(versions: &serde_json::Map<String, Value>) -> 
 pub fn abbreviate_version(manifest: &Value) -> Value {
     manifest
         .as_object()
-        .map_or(Value::Null, |version_obj| Value::Object(abbreviate_version_object(version_obj)))
+        .map(abbreviate_version_object)
+        .map_or(Value::Null, Value::Object)
 }
 
 fn abbreviate_version_object(

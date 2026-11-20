@@ -63,7 +63,10 @@ fn libsql_config(storage: &Path, primary: SocketAddr) -> Config {
 }
 
 fn request(method: &str, path: &str, token: &str, body: Option<&Value>) -> Request<Body> {
-    let body = body.map_or_else(Body::empty, |body| Body::from(serde_json::to_vec(body).unwrap()));
+    let body = body
+        .map(serde_json::to_vec)
+        .map(Result::unwrap)
+        .map_or_else(Body::empty, Body::from);
     Request::builder()
         .method(method)
         .uri(path)

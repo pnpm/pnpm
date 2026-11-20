@@ -406,7 +406,8 @@ fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
     assert!(output.status.success(), "add failed\nstderr:\n{stderr}");
     let records = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .collect::<Vec<_>>();
     let initial_manifest_count = records
         .iter()

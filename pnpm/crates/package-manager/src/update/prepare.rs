@@ -205,7 +205,8 @@ fn overridden_direct(
     }
     let catalogs = &ensure_catalog_ctx(catalog_ctx, manifest, update.config)?.catalogs;
     let parsed = crate::install::parse_config_overrides(update.config, catalogs)
-        .map_err(|error| UpdateError::Install(error.into()))?
+        .map_err(|error| error.into())
+        .map_err(UpdateError::Install)?
         .unwrap_or_default();
     let project_dir = super::manifest_dir(manifest);
     let lockfile_root = crate::install::lockfile_root_dir(update.config, project_dir)

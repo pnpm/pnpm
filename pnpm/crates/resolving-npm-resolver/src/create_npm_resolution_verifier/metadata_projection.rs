@@ -144,7 +144,8 @@ pub(super) fn project_artifact_history(
             integrity: revision
                 .get("integrity")
                 .and_then(JsonValue::as_str)
-                .and_then(|integrity| integrity.parse().ok()),
+                .map(str::parse)
+                .and_then(Result::ok),
             tarball: revision
                 .get("tarball")
                 .and_then(JsonValue::as_str)

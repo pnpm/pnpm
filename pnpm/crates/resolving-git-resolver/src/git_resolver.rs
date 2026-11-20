@@ -407,7 +407,7 @@ fn git_resolve_result(
     manifest: Option<Arc<serde_json::Value>>,
 ) -> Option<ResolveResult> {
     let id = match &resolution {
-        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => {
+        LockfileResolution::Tarball(tarball) if tarball.git_hosted.unwrap_or(false) => {
             match &tarball.path {
                 Some(path) => format!("{}#path:{path}", tarball.tarball),
                 None => tarball.tarball.clone(),

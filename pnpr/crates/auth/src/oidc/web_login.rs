@@ -211,7 +211,8 @@ impl OidcState {
 fn normalize_user_code(user_code: &str) -> Option<String> {
     let letters: String = user_code
         .chars()
-        .filter(|char| !char.is_whitespace() && *char != '-')
+        .filter(|char| !char.is_whitespace())
+        .filter(|char| *char != '-')
         .map(|char| char.to_ascii_uppercase())
         .collect();
     (letters.len() == USER_CODE_LETTERS

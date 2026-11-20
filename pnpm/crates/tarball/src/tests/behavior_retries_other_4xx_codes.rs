@@ -206,7 +206,8 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                 let target_shard = mem_cache.determine_map(&url1);
                 let url2 = (0u32..10_000)
                     .map(|i| format!("{}/pkg-{i}.tgz", server.url()))
-                    .find(|url| url != &url1 && mem_cache.determine_map(url) == target_shard)
+                    .filter(|url| url != &url1)
+                    .find(|url| mem_cache.determine_map(url) == target_shard)
                     .expect("no colliding URL within 10000 candidates");
 
                 let path1 = url1

@@ -964,7 +964,8 @@ fn assigns_root_features_to_the_preferred_compatibility_line() {
     let dependencies = |version: semver::Version| {
         lockfile.packages
             .iter()
-            .find(|package| package.name.as_str() == "foo" && package.version == version)
+            .filter(|package| package.name.as_str() == "foo")
+            .find(|package| package.version == version)
             .map(|package| {
                 package.dependencies
                     .iter()
@@ -1027,7 +1028,8 @@ fn keeps_requested_features_on_the_line_that_asked_for_them() {
     let dependencies = |version: semver::Version| {
         lockfile.packages
             .iter()
-            .find(|package| package.name.as_str() == "foo" && package.version == version)
+            .filter(|package| package.name.as_str() == "foo")
+            .find(|package| package.version == version)
             .map(|package| {
                 package.dependencies
                     .iter()

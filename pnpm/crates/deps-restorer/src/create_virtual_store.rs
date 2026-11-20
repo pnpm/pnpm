@@ -476,9 +476,7 @@ fn removed_aliases_for<'a>(
     removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     snapshot_key: &PackageKey,
 ) -> &'a [PkgName] {
-    removed_aliases_by_key
-        .get(snapshot_key)
-        .map_or(&[], Vec::as_slice)
+    removed_aliases_by_key.get(snapshot_key).map_or_default(Vec::as_slice)
 }
 
 /// Child aliases linked by the previous install (`current`) that are

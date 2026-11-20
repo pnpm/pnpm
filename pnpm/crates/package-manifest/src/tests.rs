@@ -95,12 +95,12 @@ fn prefers_higher_readme_kinds_then_lower_file_names() {
 #[test]
 fn breaks_readme_ties_in_utf16_order() {
     assert!(is_preferred_readme(
-        (ReadmeKind::Markdown, "README.\u{1F600}.md"),
+        (ReadmeKind::Markdown, "README.😀.md"),
         Some((ReadmeKind::Markdown, "README.\u{E000}.md"))
     ));
     assert!(!is_preferred_readme(
         (ReadmeKind::Markdown, "README.\u{E000}.md"),
-        Some((ReadmeKind::Markdown, "README.\u{1F600}.md"))
+        Some((ReadmeKind::Markdown, "README.😀.md"))
     ));
 }
 

@@ -30,7 +30,8 @@ fn addon_entry_point_configures_rayon_pool() {
         std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1);
     let override_threads = std::env::var("RAYON_NUM_THREADS")
         .ok()
-        .and_then(|value| value.parse::<usize>().ok());
+        .map(|value| value.parse::<usize>())
+        .and_then(Result::ok);
     let expected = match override_threads {
         Some(0) => parallelism,
         Some(threads) => threads,

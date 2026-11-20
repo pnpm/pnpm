@@ -76,7 +76,8 @@ fn every_global_flag_is_read_before_the_switch_or_after_it() {
 
     let unclassified = global
         .iter()
-        .filter(|id| !bootstrap.contains(*id) && !READ_AFTER_THE_SWITCH.contains(id))
+        .filter(|id| !bootstrap.contains(*id))
+        .filter(|id| !READ_AFTER_THE_SWITCH.contains(id))
         .collect::<Vec<_>>();
     assert!(
         unclassified.is_empty(),

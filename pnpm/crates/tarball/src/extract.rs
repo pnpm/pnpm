@@ -195,7 +195,9 @@ pub(crate) fn checked_now() -> Option<u64> {
     UNIX_EPOCH
         .elapsed()
         .ok()
-        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok())
+        .map(|elapsed| elapsed.as_millis())
+        .map(u64::try_from)
+        .and_then(Result::ok)
 }
 
 pub(crate) type ExtractedEntries =

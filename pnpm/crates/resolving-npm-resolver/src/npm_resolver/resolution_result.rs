@@ -306,7 +306,8 @@ fn find_non_deprecated_alternative(
         .filter(|version| {
             installable_under_policy(meta, version, published_by, published_by_exclude)
         })
-        .filter_map(|version| Version::parse(version).ok())
+        .map(Version::parse)
+        .filter_map(Result::ok)
         .max()?;
     let version = newest.to_string();
     // A tag says nothing about which versions are acceptable, so there is no
@@ -416,7 +417,8 @@ fn rebuilt_tarball_url(
     let revision = picked.dist.revision
         .as_ref()
         .and_then(serde_json::Value::as_u64)
-        .and_then(|revision| TarballRevision::try_from(revision).ok());
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok);
     if source.server_type == Some(pnpm_lockfile::RegistryServerType::Pnpr)
         && let Some(revision) = revision
         && let Some(url) = pnpm_lockfile::revision_registry_tarball_url(

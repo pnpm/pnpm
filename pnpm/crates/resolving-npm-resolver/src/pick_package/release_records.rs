@@ -183,7 +183,8 @@ impl ReleaseRecordRequest<'_> {
             }
         })
         .await
-        .map_err(|error| ReleaseRecordError::Other(error.to_string()))
+        .map_err(|error| error.to_string())
+        .map_err(ReleaseRecordError::Other)
     }
 
     /// The record in `body`, checked to name the picked version.
@@ -205,10 +206,12 @@ async fn read_release_record_response(
     }
     let response = response
         .error_for_status()
-        .map_err(|error| ReleaseRecordError::Other(error.to_string()))?;
+        .map_err(|error| error.to_string())
+        .map_err(ReleaseRecordError::Other)?;
     let lasting = is_immutable_cache_control(response.headers());
     let body = read_limited_body(response, RELEASE_RECORD_BODY_LIMIT).await
-        .map_err(|error| ReleaseRecordError::Other(error.to_string()))?;
+        .map_err(|error| error.to_string())
+        .map_err(ReleaseRecordError::Other)?;
     if body.truncated {
         return Err(ReleaseRecordError::Other(format!(
             "it is larger than {RELEASE_RECORD_BODY_LIMIT} bytes",

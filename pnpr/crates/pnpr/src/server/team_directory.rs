@@ -86,9 +86,7 @@ impl Teams {
     }
 
     fn of_member(&self, user_id: &str) -> &[String] {
-        self.by_member
-            .get(user_id)
-            .map_or(&[], Vec::as_slice)
+        self.by_member.get(user_id).map_or_default(Vec::as_slice)
     }
 }
 

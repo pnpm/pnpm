@@ -150,7 +150,8 @@ async fn collect_frames(response: Response) -> (StatusCode, Vec<Value>) {
     let frames = bytes
         .split(|&byte| byte == b'\n')
         .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_slice::<Value>(line).unwrap())
+        .map(serde_json::from_slice::<Value>)
+        .map(Result::unwrap)
         .collect();
     (status, frames)
 }

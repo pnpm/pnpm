@@ -90,7 +90,8 @@ fn from_git_fails_when_no_matching_tag_exists() {
     assert!(stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"), "{stderr}");
     let compact_stderr: String = stderr
         .chars()
-        .filter(|character| !character.is_whitespace() && *character != '│')
+        .filter(|character| !character.is_whitespace())
+        .filter(|character| *character != '│')
         .collect();
     assert!(compact_stderr.contains(r#"usingtagprefix"v":nomatchingGittagfound"#), "{stderr}");
     drop(root);
@@ -116,7 +117,8 @@ fn from_git_rejects_a_malformed_version_tag() {
     assert!(stderr.contains("ERR_PNPM_INVALID_VERSION_FROM_GIT"), "{stderr}");
     let compact_stderr: String = stderr
         .chars()
-        .filter(|character| !character.is_whitespace() && *character != '│')
+        .filter(|character| !character.is_whitespace())
+        .filter(|character| *character != '│')
         .collect();
     assert!(
         compact_stderr.contains(r#"usingtagprefix"v":tagisnotavalidversion:"v-release-2.3.4""#),

@@ -325,7 +325,7 @@ impl TarScanState {
     fn finish(self) -> TarInspection {
         let requires_build = (!self.manifest_parse_failed).then(|| self.triggers.requires_build());
         let bins =
-            (requires_build == Some(false)).then(|| self.bins.finish(self.manifest.as_ref()));
+            (!requires_build.unwrap_or(true)).then(|| self.bins.finish(self.manifest.as_ref()));
         TarInspection {
             requires_build,
             file_count: Some(self.file_count),

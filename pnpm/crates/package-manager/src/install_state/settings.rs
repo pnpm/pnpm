@@ -63,7 +63,8 @@ pub(crate) fn recorded_supported_architectures_match(
         recorded.and_then(|state| state.settings.supported_architectures.as_ref());
     recorded
         == live
-            .and_then(|value| serde_json::to_value(value).ok())
+            .map(serde_json::to_value)
+            .and_then(Result::ok)
             .as_ref()
 }
 
@@ -364,7 +365,8 @@ pub(crate) fn current_settings(
         overrides: recorded_overrides(config),
         package_extensions: config.package_extensions
             .as_ref()
-            .and_then(|map| serde_json::to_value(map).ok()),
+            .map(serde_json::to_value)
+            .and_then(Result::ok),
         patched_dependencies: config.patched_dependencies.clone(),
         peers_suffix_max_length: Some(
             u32::try_from(config.peers_suffix_max_length).unwrap_or(u32::MAX),

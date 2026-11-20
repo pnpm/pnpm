@@ -49,7 +49,8 @@ pub fn normalize_symlink_target(link_path: &str, target: &str) -> Option<String>
     }
     let segments: Vec<&str> = target
         .split('/')
-        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .filter(|segment| !segment.is_empty())
+        .filter(|segment| *segment != ".")
         .collect();
     let parents = segments
         .iter()

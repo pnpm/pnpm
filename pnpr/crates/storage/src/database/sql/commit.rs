@@ -393,7 +393,8 @@ fn npm_state_version(state: &Map<String, Value>) -> u32 {
     state
         .get("formatVersion")
         .and_then(Value::as_u64)
-        .and_then(|value| u32::try_from(value).ok())
+        .map(u32::try_from)
+        .and_then(Result::ok)
         .filter(|&value| value >= 1 && value <= PACKUMENT_FORMAT_VERSION)
         .unwrap_or(PACKUMENT_FORMAT_VERSION)
 }

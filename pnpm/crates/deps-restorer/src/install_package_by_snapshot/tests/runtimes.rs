@@ -87,7 +87,7 @@ fn runtime_platform_selector_prefers_the_host_among_the_platforms_a_list_names()
         host.cpu,
         host.libc
             .as_deref()
-            .map_or(String::new(), |libc| format!("-{libc}")),
+            .map_or_default(|libc| format!("-{libc}")),
     );
     let supported = SupportedArchitectures::Platforms(vec![
         "linux-ppc64le-musl".parse().unwrap(),

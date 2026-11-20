@@ -150,9 +150,7 @@ impl<'n> NestedByImporter<'n> {
     }
 
     pub(crate) fn of(&self, importer_id: &str) -> &[&'n NestedDirectoryPackage] {
-        self.0
-            .get(importer_id)
-            .map_or(&[], Vec::as_slice)
+        self.0.get(importer_id).map_or_default(Vec::as_slice)
     }
 }
 

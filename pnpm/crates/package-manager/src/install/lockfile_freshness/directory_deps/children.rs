@@ -89,7 +89,7 @@ pub(super) fn check_recorded_local_targets(
         if (child_catalogs
             .get(&child.alias)
             .is_some_and(|catalog| {
-                recorded_catalog_spec_matches(check, dep, &child.alias, catalog) == Some(false)
+                !recorded_catalog_spec_matches(check, dep, &child.alias, catalog).unwrap_or(true)
                     || !(catalog_child_is_fresh(check, dep, snapshot, child)
                         || peer_replaces_child(
                             check,

@@ -313,7 +313,7 @@ fn build_has_bin_set(
 /// Whether a lockfile package row may declare a bin. See
 /// [`build_has_bin_set`] for the rows it counts.
 pub(crate) fn may_have_bin(meta: &PackageMetadata) -> bool {
-    meta.has_bin == Some(true)
+    meta.has_bin.unwrap_or(false)
         || matches!(
             meta.resolution,
             LockfileResolution::Binary(_) | LockfileResolution::Variations(_),

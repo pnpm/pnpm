@@ -466,7 +466,7 @@ fn recordable_projects(
     versioning: &VersioningSettings,
 ) -> Vec<ReleasableProject> {
     let mut releasable = releasable_projects(projects, workspace_dir, versioning);
-    if versioning.include_private_packages == Some(false) {
+    if !versioning.include_private_packages.unwrap_or(true) {
         let private_dirs: HashSet<String> = projects
             .iter()
             .filter(|project| project.private)
@@ -500,7 +500,10 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
             }
             WorkspaceProject {
                 root_dir: project.root_dir.clone(),
-                private: manifest.get("private").and_then(serde_json::Value::as_bool) == Some(true),
+                private: manifest
+                    .get("private")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false),
                 name: manifest
                     .get("name")
                     .and_then(|name| name.as_str())

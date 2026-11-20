@@ -125,7 +125,8 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
     assert!(
         !virtual_store_entries
             .iter()
-            .any(|entry| entry.starts_with('@') && !entry.contains('+')),
+            .filter(|entry| entry.starts_with('@'))
+            .any(|entry| !entry.contains('+')),
         "deploy virtual store should hold one copy of each package: {virtual_store_entries:#?}",
     );
 
@@ -804,7 +805,8 @@ fn assert_ignored_broken_source_lockfile(output: &Output, lockfile_dir: &Path) {
     assert!(
         combined
             .lines()
-            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .map(serde_json::from_str::<serde_json::Value>)
+            .filter_map(Result::ok)
             .any(|event| {
                 event["name"] == "pnpm"
                     && event["level"] == "warn"

@@ -91,7 +91,8 @@ impl DroppedEdges {
     fn are_absent_from(&self, peers: &str) -> bool {
         peers
             .split(['(', ')'])
-            .filter(|peer_id| !peer_id.is_empty() && !peer_id.starts_with("patch_hash="))
+            .filter(|peer_id| !peer_id.is_empty())
+            .filter(|peer_id| !peer_id.starts_with("patch_hash="))
             .all(|peer_id| {
                 // The `@` of a scoped name is not the separator, and a
                 // segment the lockfile put a multi-byte character in front

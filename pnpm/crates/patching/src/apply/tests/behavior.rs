@@ -583,7 +583,7 @@ diff --git a/blob.txt b/blob.txt
 --- a/blob.txt
 +++ b/blob.txt
 @@ -1 +1,2 @@
- \u{fffd}\u{fffd}\u{fffd}
+ ���
 +added line
 ",
     );

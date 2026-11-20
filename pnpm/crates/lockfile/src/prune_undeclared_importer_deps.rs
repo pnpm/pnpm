@@ -207,7 +207,10 @@ fn injected_dep_names(meta: Option<&serde_json::Value>) -> HashSet<String> {
     entries
         .iter()
         .filter(|(_, entry)| {
-            entry.get("injected").and_then(serde_json::Value::as_bool) == Some(true)
+            entry
+                .get("injected")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
         })
         .map(|(name, _)| name.clone())
         .collect()
@@ -336,12 +339,14 @@ impl DeclaredNames {
             .filter(|name| !optional.contains(name))
             .collect();
         let dev: HashSet<PkgName> = names_of(DependencyGroup::Dev)
-            .filter(|name| !optional.contains(name) && !prod.contains(name))
+            .filter(|name| !optional.contains(name))
+            .filter(|name| !prod.contains(name))
             .collect();
         prod.extend(
             auto_installed_peer_deps(manifest, auto_install_peers)
                 .into_keys()
-                .filter_map(|name| PkgName::parse(name).ok()),
+                .map(PkgName::parse)
+                .filter_map(Result::ok),
         );
         DeclaredNames { prod, dev, optional }
     }

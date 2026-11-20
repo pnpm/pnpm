@@ -100,7 +100,11 @@ fn format_tfa_field(info: &Value) -> String {
 /// The 2FA mode the registry enforces, or `None` when 2FA is off or pending.
 pub(super) fn tfa_mode(info: &Value) -> Option<&str> {
     let tfa = info.get("tfa")?;
-    if tfa.get("pending").and_then(Value::as_bool) == Some(true) {
+    if tfa
+        .get("pending")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
         return None;
     }
     tfa.get("mode").and_then(Value::as_str)

@@ -233,7 +233,7 @@ fn percent_decode_reassembles_utf8_sequences() {
     // `%E2%80%A6` is U+2026 (ellipsis) in UTF-8. A byte-wise
     // decoder would emit two Latin-1 chars; a UTF-8-aware decoder
     // restores the original ellipsis.
-    assert_eq!(super::percent_decode("a%E2%80%A6b"), "a\u{2026}b");
+    assert_eq!(super::percent_decode("a%E2%80%A6b"), "a…b");
     // Branch / tag with a percent-encoded scope-style slash
     // (`@foo/bar` → `%40foo%2Fbar`).
     assert_eq!(super::percent_decode("%40foo%2Fbar"), "@foo/bar");

@@ -61,7 +61,8 @@ impl IgnoreRule {
     pub(super) fn reinclude_path(path: &str) -> Self {
         let segments = split_on_slash_runs(&format!("/{path}"))
             .into_iter()
-            .map(|segment| Segment::Pattern(SegmentPattern::exact(segment)))
+            .map(SegmentPattern::exact)
+            .map(Segment::Pattern)
             .collect();
         IgnoreRule { negate: true, alternatives: vec![segments] }
     }
@@ -116,7 +117,8 @@ fn split_on_slash_runs(path: &str) -> Vec<&str> {
     let preserve_unc = cfg!(windows)
         && path
             .strip_prefix("//")
-            .is_some_and(|suffix| !suffix.is_empty() && !suffix.starts_with('/'));
+            .filter(|suffix| !suffix.is_empty())
+            .is_some_and(|suffix| !suffix.starts_with('/'));
     let parts: Vec<&str> = path.split('/').collect();
     let last = parts.len() - 1;
     parts

@@ -88,7 +88,9 @@ pub(crate) fn last_upper_bound(input: &str) -> Option<(&str, &str)> {
 pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> String {
     patched
         .strip_prefix(">=")
-        .and_then(|version| version.trim().parse::<Version>().ok())
+        .map(str::trim)
+        .map(str::parse::<Version>)
+        .and_then(Result::ok)
         .map_or_else(|| patched.to_string(), |version| format!("{}{version}", style.range_prefix()))
 }
 

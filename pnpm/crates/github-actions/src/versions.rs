@@ -68,7 +68,8 @@ fn find_matching_commit_version(
     match comment {
         CommentVersion::Exact(version) => versions
             .iter()
-            .find(|candidate| candidate.commit == commit && &candidate.version == version)
+            .filter(|candidate| candidate.commit == commit)
+            .find(|candidate| &candidate.version == version)
             .cloned(),
         CommentVersion::MajorMinor(major, minor) => versions
             .iter()

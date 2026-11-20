@@ -81,7 +81,8 @@ async fn login(
     };
     redirect_to_provider(&state.inner.identity.oidc, &provider, returns_to)
         .await
-        .unwrap_or_else(|err| protect(err.into_response()))
+        .map_err(|err| err.into_response())
+        .unwrap_or_else(protect)
 }
 
 /// Send the browser to `provider` to sign in. Only this browser can finish
@@ -237,7 +238,8 @@ fn browser_secret<'h>(headers: &'h HeaderMap, cookie_name: &str) -> Option<&'h s
     let mut cookies = headers
         .get_all(header::COOKIE)
         .iter()
-        .filter_map(|value| value.to_str().ok())
+        .map(HeaderValue::to_str)
+        .filter_map(Result::ok)
         .flat_map(|value| value.split(';'))
         .filter_map(|cookie| cookie.trim().split_once('='))
         .filter(|(name, _)| *name == cookie_name);

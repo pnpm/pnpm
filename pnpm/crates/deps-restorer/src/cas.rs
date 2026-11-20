@@ -145,10 +145,10 @@ fn store_package(
         resolution: None,
         dependencies: package.dependencies,
     };
-    if materialized == Some(true) {
+    if materialized.unwrap_or(false) {
         entry.resolution = Some("node".to_string());
         entry.dependencies.clear();
-    } else if materialized == Some(false) {
+    } else if !materialized.unwrap_or(true) {
         entry.files = Some(package_files(inputs, id, snapshot)?);
         entry.root = None;
     }

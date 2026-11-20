@@ -34,7 +34,9 @@ pub(crate) fn is_within_root(
     target: &Path,
 ) -> bool {
     cfg!(any(unix, target_os = "wasi"))
-        && relocatable_root.is_some_and(|root| is_subdir(root, shim_dir) && is_subdir(root, target))
+        && relocatable_root
+            .filter(|root| is_subdir(root, shim_dir))
+            .is_some_and(|root| is_subdir(root, target))
 }
 
 /// What the target marker of a shim in `shim_dir` names: `sh_target`, the

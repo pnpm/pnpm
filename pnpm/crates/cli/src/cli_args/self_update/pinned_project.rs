@@ -37,8 +37,10 @@ impl ProjectPin {
         let manifest = roots.read_manifest();
         let external_manager = refuse_without_pin(external_manager, manifest.as_ref().ok())?;
         let manifest = manifest.wrap_err("read the project manifest")?;
-        let wanted =
-            manifest.as_ref().and_then(|manifest| wanted_package_manager(manifest.value()));
+        let wanted = manifest
+            .as_ref()
+            .map(pnpm_package_manifest::PackageManifest::value)
+            .and_then(wanted_package_manager);
         Ok((Self { roots, wanted }, external_manager))
     }
 

@@ -50,7 +50,8 @@ pub fn get_peer_version_range(version: &str) -> String {
     if version.contains("||") {
         return version
             .split("||")
-            .map(|part| get_peer_version_range(part.trim()))
+            .map(str::trim)
+            .map(get_peer_version_range)
             .collect::<Vec<_>>()
             .join(" || ");
     }

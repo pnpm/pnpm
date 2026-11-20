@@ -331,7 +331,7 @@ fn push_label(label: &str, connector: &str, prefix: &str, leaf: bool, out: &mut 
     out.push_str(lines[0]);
     out.push('\n');
 
-    let continuation = if leaf { "  " } else { "\u{2502} " };
+    let continuation = if leaf { "  " } else { "│ " };
     for line in &lines[1..] {
         out.push_str(&dim(&format!("{prefix}{continuation}")));
         out.push_str(line);
@@ -353,9 +353,9 @@ fn render_children(items: &[(&TreeNode, &str)], prefix: &str, out: &mut String) 
 }
 
 fn push_group_header(group: &str, prefix: &str, out: &mut String) {
-    out.push_str(&dim(&format!("{prefix}\u{2502}")));
+    out.push_str(&dim(&format!("{prefix}│")));
     out.push('\n');
-    out.push_str(&dim(&format!("{prefix}\u{2502}   ")));
+    out.push_str(&dim(&format!("{prefix}│   ")));
     out.push_str(group);
     out.push('\n');
 }
@@ -363,10 +363,10 @@ fn push_group_header(group: &str, prefix: &str, out: &mut String) {
 /// The connector drawn before a child and the prefix its own children inherit.
 /// `last` picks the corner glyph, `parent` the downward stem.
 fn child_frames(prefix: &str, last: bool, parent: bool) -> (String, String) {
-    let branch = if last { "\u{2514}" } else { "\u{251c}" };
-    let stem = if parent { "\u{252c}" } else { "\u{2500}" };
-    let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}\u{2502} ") };
-    (format!("{prefix}{branch}\u{2500}{stem} "), child_prefix)
+    let branch = if last { "└" } else { "├" };
+    let stem = if parent { "┬" } else { "─" };
+    let child_prefix = if last { format!("{prefix}  ") } else { format!("{prefix}│ ") };
+    (format!("{prefix}{branch}─{stem} "), child_prefix)
 }
 
 // --- helpers ---------------------------------------------------------------

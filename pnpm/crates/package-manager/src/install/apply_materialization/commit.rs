@@ -394,7 +394,7 @@ pub(super) fn retain_current_ignored_builds(
         let decision = allow_build_policy.check(dep_path.as_str());
         let still_unbuilt = match retention {
             IgnoredBuildRetention::SettledByBuildPhase => decision.is_none(),
-            IgnoredBuildRetention::DeferredByHoistedFetch => decision != Some(false),
+            IgnoredBuildRetention::DeferredByHoistedFetch => decision.unwrap_or(true),
         };
         if current_contains_ignored_build(current, dep_path.as_str()) && still_unbuilt {
             next.ignored_builds.get_or_insert_default().insert(dep_path.clone());

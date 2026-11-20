@@ -272,7 +272,7 @@ where
     )?;
     opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
 
-    if resolved.provenance == Some(true) {
+    if resolved.provenance.unwrap_or(false) {
         attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.registry.http)
             .await?;
     }

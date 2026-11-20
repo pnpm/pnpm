@@ -170,7 +170,8 @@ impl FilesIndex {
         Ok(self
             .aliases()
             .get(key)?
-            .and_then(|target| String::from_utf8(target).ok()))
+            .map(String::from_utf8)
+            .and_then(Result::ok))
     }
 
     /// Whether [`Self::get`] finds an entry for `key`.

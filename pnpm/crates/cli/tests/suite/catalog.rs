@@ -85,7 +85,8 @@ fn lockfile_override(workspace: &Path, selector: &str) -> Option<String> {
         serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
     lockfile.overrides
         .as_ref()
-        .and_then(|overrides| overrides.get(selector).cloned())
+        .and_then(|overrides| overrides.get(selector))
+        .cloned()
 }
 
 fn snapshot_dep_version(workspace: &Path, snapshot_key: &str, name: &str) -> String {

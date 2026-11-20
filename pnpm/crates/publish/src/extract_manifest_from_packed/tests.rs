@@ -289,7 +289,7 @@ fn publish_manifest_replaces_invalid_utf8_in_the_readme() {
         ],
     );
     let manifest = extract_publish_manifest_from_packed(&path).unwrap();
-    assert_eq!(manifest["readme"], "text\u{FFFD}");
+    assert_eq!(manifest["readme"], "text�");
 }
 
 #[test]

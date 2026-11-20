@@ -106,7 +106,8 @@ fn override_specifier(
     };
     let parsed =
         pnpm_config_parse_overrides::parse_overrides_iter(overrides.iter(), inputs.catalogs)
-            .map_err(|error| AddError::Install(crate::InstallError::InvalidOverrides(error)))?;
+            .map_err(crate::InstallError::InvalidOverrides)
+            .map_err(AddError::Install)?;
     let project_dir = manifest
         .path()
         .parent()

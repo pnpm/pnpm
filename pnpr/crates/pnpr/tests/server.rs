@@ -604,7 +604,8 @@ fn header_of(response: &axum::response::Response, name: impl header::AsHeaderNam
     response
         .headers()
         .get(name)
-        .and_then(|value| value.to_str().ok())
+        .map(HeaderValue::to_str)
+        .and_then(Result::ok)
 }
 
 fn foo_packument(upstream_url: &str) -> Value {

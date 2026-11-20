@@ -50,7 +50,8 @@ fn recorded_peer_ids(graph: &DependenciesGraph) -> HashMap<DepPath, Vec<PeerId>>
             let segments = split_peer_suffix_segments(&dep_path.as_str()[peers_index..])?;
             let peer_ids = segments
                 .into_iter()
-                .map(|segment| PeerId::DepPath(DepPath::from(segment)))
+                .map(DepPath::from)
+                .map(PeerId::DepPath)
                 .collect();
             Some((dep_path.clone(), peer_ids))
         })

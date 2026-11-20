@@ -103,14 +103,14 @@ fn check_publish_directory(
         });
     }
     let lockfile_links_publish_directory =
-        importer.publish_directory.is_some() && importer.link_directory != Some(false);
+        importer.publish_directory.is_some() && importer.link_directory.unwrap_or(true);
     let manifest_links_publish_directory = manifest_publish_dir.is_some()
         && manifest
             .value()
             .get("publishConfig")
             .and_then(|publish_config| publish_config.get("linkDirectory"))
             .and_then(serde_json::Value::as_bool)
-            != Some(false);
+            .unwrap_or(true);
     if lockfile_links_publish_directory != manifest_links_publish_directory {
         return Err(StalenessReason::LinkDirectoryMismatch {
             lockfile: lockfile_links_publish_directory,

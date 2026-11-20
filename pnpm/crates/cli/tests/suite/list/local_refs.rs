@@ -59,13 +59,13 @@ fn list_and_why_format_aliased_file_and_scoped_link_dependencies() {
         format!(
             "{LEGEND}\n\n\
              my-app@1.0.0 {app_path}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{251c}\u{2500}\u{2500} @example/lib@link:../@example/lib\n\
-             \u{251c}\u{2500}\u{2500} scoped-alias@@example/local-scoped@file:@scoped-dir/local-scoped\n\
-             \u{251c}\u{2500}\u{2500} my-alias@my-local-pkg@file:local-pkg\n\
-             \u{251c}\u{2500}\u{2500} unscoped-lib@link:../unscoped-lib\n\
-             \u{2514}\u{2500}\u{2500} ws-alias@link:../@example/other\n\
+             │\n\
+             │   dependencies:\n\
+             ├── @example/lib@link:../@example/lib\n\
+             ├── scoped-alias@@example/local-scoped@file:@scoped-dir/local-scoped\n\
+             ├── my-alias@my-local-pkg@file:local-pkg\n\
+             ├── unscoped-lib@link:../unscoped-lib\n\
+             └── ws-alias@link:../@example/other\n\
              \n\
              5 packages\n"
         ),
@@ -112,7 +112,7 @@ fn list_and_why_format_aliased_file_and_scoped_link_dependencies() {
     let why_tree = run_ok(&app_dir, &["why", "my-local-pkg"]);
     assert_eq!(
         why_tree,
-        "my-local-pkg\n\u{2514}\u{2500}\u{2500} my-app@1.0.0 (dependencies)\n\nFound 1 version of my-local-pkg\n",
+        "my-local-pkg\n└── my-app@1.0.0 (dependencies)\n\nFound 1 version of my-local-pkg\n",
     );
 
     let why_parseable = run_ok(&app_dir, &["why", "my-local-pkg", "--parseable", "--long"]);

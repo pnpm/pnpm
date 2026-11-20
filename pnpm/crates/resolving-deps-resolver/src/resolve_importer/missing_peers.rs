@@ -264,7 +264,8 @@ pub(super) fn collapse_covered_alternatives(range: &Range) -> Range {
     }
     let Some(parsed) = alternatives
         .iter()
-        .map(|alternative| Range::parse(alternative).ok())
+        .map(Range::parse)
+        .map(Result::ok)
         .collect::<Option<Vec<Range>>>()
     else {
         return range.clone();

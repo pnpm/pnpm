@@ -130,7 +130,8 @@ fn has_body_framing(headers: &HeaderMap) -> bool {
         || headers
             .get_all(TRANSFER_ENCODING)
             .iter()
-            .filter_map(|value| value.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .filter_map(Result::ok)
             .flat_map(|value| value.split(','))
             .any(|coding| coding.trim().eq_ignore_ascii_case("chunked"))
 }

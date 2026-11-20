@@ -96,7 +96,8 @@ fn drop_version(packument: &mut Map<String, Value>, version: &str) -> bool {
     }
     let highest = versions
         .keys()
-        .filter_map(|left| node_semver::Version::parse(left).ok())
+        .map(node_semver::Version::parse)
+        .filter_map(Result::ok)
         .max()
         .map(|highest| highest.to_string());
     if let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) {

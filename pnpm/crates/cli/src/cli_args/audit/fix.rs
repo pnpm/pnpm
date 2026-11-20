@@ -358,7 +358,9 @@ pub(crate) fn minimum_release_age_excludes(
             let patched = advisory.patched_versions.as_deref()?;
             let min = patched
                 .strip_prefix(">=")
-                .and_then(|version| version.trim().parse::<Version>().ok())?;
+                .map(str::trim)
+                .map(str::parse::<Version>)
+                .and_then(Result::ok)?;
             let name = advisory.module_name.trim();
             let info = match publish_infos.get(name) {
                 Some(PublishInfoLookup::Resolved(info)) => info,

@@ -252,7 +252,8 @@ fn commit_streamed_temp_file(
         .is_some_and(|meta| meta.file_type().is_file());
     let existing_is_live = existing_meta
         .as_ref()
-        .is_some_and(|meta| meta.file_type().is_file() && meta.len() == size)
+        .filter(|meta| meta.file_type().is_file())
+        .is_some_and(|meta| meta.len() == size)
         && files_have_equal_contents(tmp_path, file_path);
     if existing_is_live || (existing_is_regular && repair_in_place(tmp_path, file_path)) {
         let _ = fs::remove_file(tmp_path);

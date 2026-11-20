@@ -123,8 +123,10 @@ impl NpmResolutionVerifier {
         let modified = cell.get_or_init(|| self.fetch_head_modified(registry, name)).await;
         modified
             .as_deref()
-            .and_then(|value| httpdate::parse_http_date(value).ok())
-            .and_then(|time| Timestamp::try_from(time).ok())
+            .map(httpdate::parse_http_date)
+            .and_then(Result::ok)
+            .map(Timestamp::try_from)
+            .and_then(Result::ok)
             .and_then(|parsed| {
                 parsed
                     .checked_add(jiff::SignedDuration::from_secs(1))

@@ -359,7 +359,8 @@ fn outdated_target(
     let target = target_manifest
         .get("version")
         .and_then(serde_json::Value::as_str)
-        .and_then(|version| version.parse::<Version>().ok())?;
+        .map(str::parse::<Version>)
+        .and_then(Result::ok)?;
     let deprecated = target_manifest
         .get("deprecated")
         .and_then(serde_json::Value::as_str)

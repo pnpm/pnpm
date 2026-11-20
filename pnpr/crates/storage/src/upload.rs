@@ -453,7 +453,8 @@ async fn sweep_upload_entry(root: &Path, entry: &fs::DirEntry, max_age: Duration
     let idle = metadata
         .modified()
         .ok()
-        .and_then(|at| at.elapsed().ok());
+        .map(|at| at.elapsed())
+        .and_then(Result::ok);
     if idle.is_none_or(|idle| idle <= max_age)
         || fs::remove_file(entry.path()).await.is_err()
     {

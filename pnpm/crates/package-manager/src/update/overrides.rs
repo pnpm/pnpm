@@ -85,7 +85,8 @@ pub(super) fn override_governed<'scope>(
 ) -> Option<&'scope OverriddenDirect> {
     scope.overridden_direct
         .iter()
-        .find(|item| item.name == name && item.group == group)
+        .filter(|item| item.name == name)
+        .find(|item| item.group == group)
 }
 
 /// Whether an override keeps the declaration of `name` from moving: every
@@ -254,7 +255,8 @@ fn names_another_dependency(value: &str) -> bool {
 /// takes effect with no write at all.
 fn override_admits(override_value: &str, version: &Version) -> bool {
     range_of_specifier(override_value)
-        .and_then(|range| node_semver::Range::parse(range).ok())
+        .map(node_semver::Range::parse)
+        .and_then(Result::ok)
         .is_some_and(|range| range.satisfies(version))
 }
 

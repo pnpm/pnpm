@@ -419,7 +419,7 @@ fn find_reusable_dependency(
                     || matches!(
                         metadata.resolution,
                         LockfileResolution::Tarball(ref tarball)
-                            if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
+                            if tarball.integrity.is_some() && !tarball.git_hosted.unwrap_or(false),
                     ))
         })
         });
@@ -432,7 +432,7 @@ fn find_reusable_dependency(
 
 fn snapshot_is_reusable(snapshot: &SnapshotEntry) -> bool {
     !snapshot.optional
-        && snapshot.patched != Some(true)
+        && !snapshot.patched.unwrap_or(false)
         && snapshot.id.is_none()
         && snapshot.transitive_peer_dependencies.is_none()
 }

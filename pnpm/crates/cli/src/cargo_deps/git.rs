@@ -307,7 +307,8 @@ fn import_package(
         nested: package_dirs
             .iter()
             .copied()
-            .filter(|dir| *dir != package.dir && dir.starts_with(&package.dir))
+            .filter(|dir| *dir != package.dir)
+            .filter(|dir| dir.starts_with(&package.dir))
             .collect(),
         manifest: &package.manifest,
     };

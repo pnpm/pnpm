@@ -62,7 +62,8 @@ fn generated_changesets(workspace: &Path) -> Vec<std::path::PathBuf> {
         .filter(|path| {
             path.file_name()
                 .and_then(OsStr::to_str)
-                .is_some_and(|name| name.starts_with("pnpm-update-") && name.ends_with(".md"))
+                .filter(|name| name.starts_with("pnpm-update-"))
+                .is_some_and(|name| name.ends_with(".md"))
         })
         .collect::<Vec<_>>();
     paths.sort();

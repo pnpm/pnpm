@@ -337,7 +337,8 @@ pub(crate) fn package_semver(
     }
     metadata
         .and_then(|metadata| metadata.version.as_deref())
-        .and_then(|version| version.parse::<Version>().ok())
+        .map(str::parse::<Version>)
+        .and_then(Result::ok)
 }
 
 pub(crate) fn package_version(

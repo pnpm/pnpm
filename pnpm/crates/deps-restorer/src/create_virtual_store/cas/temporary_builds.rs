@@ -117,7 +117,12 @@ fn candidates(
     let mut temporary = HashMap::new();
     for key in selected
         .keys()
-        .filter(|key| fetched.requires_build_by_snapshot.get(*key) == Some(&true))
+        .filter(|key| {
+            fetched.requires_build_by_snapshot
+                .get(*key)
+                .copied()
+                .unwrap_or(false)
+        })
     {
         if !installer.ctx.config.force && placed(installer.ctx.linker.layout, key)? {
             continue;
@@ -132,10 +137,13 @@ fn candidates(
                         .as_ref()
                         .and_then(|files| immutable_download(files, key))
                         .is_none()
-                    || (fetched.requires_build_by_snapshot.get(key) == Some(&true)
-                        && (installer.ctx.allow_build_policy.check(
-                            &key.without_peer().to_string(),
-                        ) != Some(true)
+                    || (fetched.requires_build_by_snapshot
+                        .get(key)
+                        .copied()
+                        .unwrap_or(false)
+                        && (!installer.ctx.allow_build_policy
+                            .check(&key.without_peer().to_string())
+                            .unwrap_or(false)
                             || !installer.ctx.allow_build_policy.caches_build(key)))
             })
         {

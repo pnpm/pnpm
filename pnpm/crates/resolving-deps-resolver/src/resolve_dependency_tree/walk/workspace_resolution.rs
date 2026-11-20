@@ -348,7 +348,8 @@ fn manifest_from_current_pkg(
         .filter(|name| !name.is_empty())?;
     let version = current.version
         .as_deref()
-        .filter(|version| !version.is_empty() && *version != "0.0.0")?;
+        .filter(|version| !version.is_empty())
+        .filter(|version| *version != "0.0.0")?;
     Some(serde_json::json!({ "name": name, "version": version }))
 }
 

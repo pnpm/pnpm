@@ -237,7 +237,8 @@ fn unmatched_after_ecosystems(
 ) -> Option<miette::Report> {
     unmatched
         .filter(|_| ecosystem.python.selected == 0)
-        .map(|unmatched| unmatched.counting(ecosystem.python.discovered).report())
+        .map(|unmatched| unmatched.counting(ecosystem.python.discovered))
+        .map(UnmatchedFilters::report)
 }
 
 /// Anchor the dedicated-lockfile project the npm half of the add writes to,

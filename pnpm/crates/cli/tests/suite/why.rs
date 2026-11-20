@@ -592,7 +592,7 @@ fn why_displays_finder_message_in_tree_output() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(lines[0], format!("{PKG}@100.0.0"), "stdout: {stdout}");
-    assert_eq!(lines[1], "\u{2502} Found: has 1 dep", "stdout: {stdout}");
+    assert_eq!(lines[1], "│ Found: has 1 dep", "stdout: {stdout}");
 }
 
 /// Port of upstream's `"why" should display finder message in JSON
@@ -704,9 +704,7 @@ fn why_marks_importer_dep_field_and_prints_summary() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert_eq!(
         stdout,
-        format!(
-            "{PKG}@100.0.0\n\u{2514}\u{2500}\u{2500} project@0.0.0 (devDependencies)\n\nFound 1 version of {PKG}\n"
-        ),
+        format!("{PKG}@100.0.0\n└── project@0.0.0 (devDependencies)\n\nFound 1 version of {PKG}\n"),
     );
 }
 

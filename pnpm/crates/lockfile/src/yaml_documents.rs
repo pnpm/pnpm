@@ -79,7 +79,7 @@ pub fn extract_main_document(content: &str) -> Cow<'_, str> {
 pub fn extract_env_document(content: &str) -> Option<Cow<'_, str>> {
     match normalize_lockfile_content(content) {
         Cow::Borrowed(content) => env_document_of(content).map(Cow::Borrowed),
-        Cow::Owned(content) => env_document_of(&content).map(|doc| Cow::Owned(doc.to_string())),
+        Cow::Owned(content) => env_document_of(&content).map(|doc| doc.to_string()).map(Cow::Owned),
     }
 }
 

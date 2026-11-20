@@ -91,8 +91,8 @@ fn in_use_files(
         return Ok(HashSet::new());
     }
     let keys: Vec<String> = keys.into_iter().collect();
-    let rows = read_rows(store_dir, &keys)
-        .map_err(|error| PruneError::InUseFiles(io::Error::other(error)))?;
+    let rows =
+        read_rows(store_dir, &keys).map_err(io::Error::other).map_err(PruneError::InUseFiles)?;
     Ok(rows
         .iter()
         .flat_map(row_files)
@@ -191,7 +191,7 @@ impl ModulesDirSettings {
         else {
             return Ok(Self::default());
         };
-        let shares_one_lockfile = settings.shared_workspace_lockfile != Some(false)
+        let shares_one_lockfile = settings.shared_workspace_lockfile.unwrap_or(true)
             || settings.lockfile_dir.is_some();
         let project_modules_dirs = match settings.package_configs {
             Some(package_configs) if !shares_one_lockfile => package_configs

@@ -223,7 +223,8 @@ fn condition_holds(
     let step = || {
         condition["step"]
             .as_u64()
-            .and_then(|step| usize::try_from(step).ok())
+            .map(usize::try_from)
+            .and_then(Result::ok)
             .unwrap()
     };
     let each = |conds: &JsonValue| {

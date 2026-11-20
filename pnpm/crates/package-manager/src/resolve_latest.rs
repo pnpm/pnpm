@@ -187,7 +187,8 @@ impl<'a> LatestPicker<'a> {
         );
 
         let pick = pick_package(&ctx, &spec, &opts).await
-            .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
+            .map_err(Box::new)
+            .map_err(ResolveLatestError::Pick)?;
         if let Some(picked) = pick.picked_package {
             return Ok(picked);
         }

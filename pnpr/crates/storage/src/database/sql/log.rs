@@ -96,7 +96,8 @@ pub(super) fn head_and_size(connection: &dyn Connection, log: &LogId) -> Result<
         .next()
         .map(|mut row| row.get::<i64>(0))
         .transpose()?
-        .and_then(|count| u64::try_from(count).ok())
+        .map(u64::try_from)
+        .and_then(Result::ok)
         .unwrap_or_default();
     Ok(RawLogState { head, sequenced })
 }

@@ -425,7 +425,8 @@ impl ResolverChainInputs<'_> {
         chain.extend(
             custom_resolvers
                 .iter()
-                .filter(|custom| custom.has_can_resolve() && custom.has_resolve())
+                .filter(|custom| custom.has_can_resolve())
+                .filter(|custom| custom.has_resolve())
                 .map(|custom| {
                     Box::new(pnpm_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
                         Arc::clone(custom),

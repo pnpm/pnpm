@@ -357,7 +357,11 @@ pub(super) fn engine_gating_dep_paths(
 ) -> HashSet<String> {
     let built_dep_paths = snapshots
         .keys()
-        .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
+        .filter(|key| {
+            policy
+                .check(&key.without_peer().to_string())
+                .unwrap_or(false)
+        })
         .map(ToString::to_string)
         .collect();
     pnpm_graph_hasher::build_required_dep_paths(graph, &built_dep_paths)

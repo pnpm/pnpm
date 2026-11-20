@@ -105,11 +105,11 @@ fn test_pattern_from_workspace_yaml_is_respected_by_the_test_script() {
     git(&["push", "-u", "origin", "main"]);
 
     fs::write(workspace.join("project-2").join("file.js"), "").expect("write changed file");
-    fs::write(workspace.join("project-2").join("\u{d55c}\u{ae00}.js"), "")
+    fs::write(workspace.join("project-2").join("한글.js"), "")
         .expect("write changed Unicode test file");
     fs::write(workspace.join("project-4").join("different-pattern.js"), "")
         .expect("write changed file");
-    let workspace_yaml = "packages:\n  - project-1\n  - project-2\n  - project-3\n  - project-4\ntestPattern:\n  - '*/file.js'\n  - '*/\u{d55c}\u{ae00}.js'\n";
+    let workspace_yaml = "packages:\n  - project-1\n  - project-2\n  - project-3\n  - project-4\ntestPattern:\n  - '*/file.js'\n  - '*/한글.js'\n";
     fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)
         .expect("write pnpm-workspace.yaml");
     git(&["add", "."]);
@@ -273,7 +273,8 @@ fn streamed_scripts_get_force_color_when_pnpm_output_is_colored() {
         assert!(output.status.success(), "streamed run failed: {output:?}");
         let printed: Vec<String> = sorted_lines(&output.stdout)
             .into_iter()
-            .filter(|line| !line.contains("project-") && !line.starts_with("Scope:"))
+            .filter(|line| !line.contains("project-"))
+            .filter(|line| !line.starts_with("Scope:"))
             .collect();
         assert_eq!(printed, [expected, expected], "with --color={color}");
 

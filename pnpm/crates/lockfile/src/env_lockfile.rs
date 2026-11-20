@@ -233,7 +233,8 @@ impl EnvDocumentFormat {
         let major = version
             .split('.')
             .next()
-            .and_then(|major| major.parse::<u64>().ok());
+            .map(str::parse::<u64>)
+            .and_then(Result::ok);
         if major.is_some_and(|major| major >= Self::V13_FROM_MAJOR) { Self::V13 } else { Self::V9 }
     }
 
@@ -269,7 +270,8 @@ impl EnvLockfile {
         self.lockfile_version
             .split('.')
             .next()
-            .and_then(|major| major.parse::<u16>().ok())
+            .map(str::parse::<u16>)
+            .and_then(Result::ok)
             == Some(crate::NEXT_LOCKFILE_MAJOR)
     }
 }

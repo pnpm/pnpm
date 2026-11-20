@@ -304,8 +304,8 @@ pub fn save_meta_indexed_with_headers(
     meta: &Package,
     headers: &MetaHeaders,
 ) -> Result<(), SaveMetaError> {
-    let headers = serde_json::to_string(headers)
-        .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    let headers =
+        serde_json::to_string(headers).map_err(EncodeMetaError).map_err(SaveMetaError::Encode)?;
 
     // A version manifest past the loader's fragment bound would be
     // persisted only to be skipped on every read; omit it so the saved and
@@ -331,7 +331,8 @@ pub fn save_meta_indexed_with_headers(
         homepage: meta.homepage.clone(),
         versions: spans,
     })
-    .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    .map_err(EncodeMetaError)
+    .map_err(SaveMetaError::Encode)?;
 
     save_meta_with(pkg_mirror, |file| {
         let mut writer = BufWriter::new(file);
@@ -363,11 +364,11 @@ pub fn save_meta_ndjson_with_headers(
     headers: &MetaHeaders,
 ) -> Result<(), SaveMetaError> {
     let headers =
-        serde_json::to_vec(headers).map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+        serde_json::to_vec(headers).map_err(EncodeMetaError).map_err(SaveMetaError::Encode)?;
     let mut body_meta = meta.clone();
     body_meta.etag = None;
-    let body = serde_json::to_vec(&body_meta)
-        .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    let body =
+        serde_json::to_vec(&body_meta).map_err(EncodeMetaError).map_err(SaveMetaError::Encode)?;
 
     let mut bytes = Vec::with_capacity(headers.len() + 1 + body.len());
     bytes.extend_from_slice(&headers);

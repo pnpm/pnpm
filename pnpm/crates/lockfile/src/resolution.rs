@@ -77,7 +77,7 @@ impl TarballResolution {
     /// before it existed) or contradicts it.
     #[must_use]
     pub fn is_git_hosted(&self) -> bool {
-        self.git_hosted == Some(true) || is_git_hosted_tarball_url(&self.tarball)
+        self.git_hosted.unwrap_or(false) || is_git_hosted_tarball_url(&self.tarball)
     }
 }
 

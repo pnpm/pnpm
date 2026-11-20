@@ -104,7 +104,10 @@ pub fn declared_peer_dependencies(manifest: &Value) -> BTreeMap<String, PeerDep>
         .collect();
     for (name, info) in object("peerDependenciesMeta").into_iter().flatten() {
         if own.contains(name.as_str())
-            || info.get("optional").and_then(Value::as_bool) != Some(true)
+            || !info
+                .get("optional")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
         {
             continue;
         }

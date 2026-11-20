@@ -246,8 +246,8 @@ fn check_fresh_resolution_ignores_optional_dependencies(patterns: &str) {
         assert!(
             importer.optional_dependencies
                 .as_ref()
-                .is_some_and(|deps| !deps.contains_key(&ignored)
-                    && deps.contains_key(&"is-negative".parse().unwrap())),
+                .filter(|deps| !deps.contains_key(&ignored))
+                .is_some_and(|deps| deps.contains_key(&"is-negative".parse().unwrap())),
             "retained optional dependencies: {importer:?}",
         );
         assert!(
