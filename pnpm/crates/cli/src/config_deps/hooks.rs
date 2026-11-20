@@ -1,4 +1,6 @@
-pub use self::package_settings::apply_config_dependency_settings;
+pub use self::{
+    catalogs::update_config_hook_catalogs, package_settings::apply_config_dependency_settings,
+};
 
 use self::apply::apply_hook_delta;
 use super::{
@@ -124,8 +126,14 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .wrap_err("serialize the resolved settings for updateConfig hooks")?;
     seed_hook_input(&mut input, config, root_dir, &pnpmfiles, manifest_catalogs_value(root_dir)?)?;
 
-    let current =
-        execute_update_config_hooks::<Reporter>(&pnpmfiles, &hooks, input.clone(), root_dir).await?;
+    let current = execute_update_config_hooks::<Reporter>(
+        &pnpmfiles,
+        &hooks,
+        input.clone(),
+        root_dir,
+        IgnoredHookWarnings::Emit,
+    )
+    .await?;
     adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
@@ -133,11 +141,20 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     Ok(hooks)
 }
 
+/// Whether a hook run reports the hooks a pnpmfile defines but pnpm ignores.
+/// A repeated run skips them, so each warning appears once per command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IgnoredHookWarnings {
+    Emit,
+    Skip,
+}
+
 async fn execute_update_config_hooks<Reporter: self::Reporter>(
     pnpmfiles: &[PathBuf],
     hooks: &[Arc<dyn PnpmfileHooks>],
     mut current: Value,
     root_dir: &Path,
+    warnings: IgnoredHookWarnings,
 ) -> Result<Value> {
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut ignored_hooks = Vec::new();
@@ -149,7 +166,9 @@ async fn execute_update_config_hooks<Reporter: self::Reporter>(
             .map_err(|err| update_config_hook_error(pnpmfile, err))?;
         ignored_hooks.push((pnpmfile.as_path(), hook.ignored_hooks().await));
     }
-    warn_ignored_hooks::<Reporter>(&ignored_hooks, &prefix);
+    if warnings == IgnoredHookWarnings::Emit {
+        warn_ignored_hooks::<Reporter>(&ignored_hooks, &prefix);
+    }
     Ok(current)
 }
 
@@ -492,19 +511,10 @@ fn hook_logger<Reporter: self::Reporter>(pnpmfile: &Path, prefix: &str) -> LogFn
 
 /// Hook output replaces the seeded catalogs, including removed entries.
 fn adopt_hook_catalogs(config: &mut Config, current: &Value) -> Result<()> {
-    config.catalogs = Some(
-        current
-            .get("catalogs")
-            .cloned()
-            .map(serde_json::from_value)
-            .transpose()
-            .into_diagnostic()
-            .wrap_err("the updateConfig hook produced an invalid catalogs value")?
-            .unwrap_or_default(),
-    );
-
+    config.catalogs = Some(catalogs::hook_output_catalogs(current)?);
     Ok(())
 }
 
 mod apply;
+mod catalogs;
 mod package_settings;
