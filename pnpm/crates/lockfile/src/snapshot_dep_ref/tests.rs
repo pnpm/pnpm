@@ -1,5 +1,12 @@
-use super::{SnapshotDepRef, looks_like_alias};
-use crate::{PkgName, PkgNameVerPeer, PkgVerPeer};
+use super::{
+    SnapshotDepRef,
+    looks_like_alias,
+};
+use crate::{
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+};
 use pretty_assertions::assert_eq;
 
 fn pkg_name(text: &str) -> PkgName {

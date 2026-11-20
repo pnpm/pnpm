@@ -3,18 +3,39 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, Query, Row},
-    cargo_rows::{
-        bad_request, check_format_version, insert_owners, take_optional_string, take_owners,
+    adapter::{
+        Connection,
+        Query,
+        Row,
     },
-    commit::{Commit, PackageRow, parse_json},
-    removed, to_column, to_generation,
+    cargo_rows::{
+        bad_request,
+        check_format_version,
+        insert_owners,
+        take_optional_string,
+        take_owners,
+    },
+    commit::{
+        Commit,
+        PackageRow,
+        parse_json,
+    },
+    removed,
+    to_column,
+    to_generation,
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value, json};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::collections::BTreeMap;
 
 pub(super) const OCI_STATE_VERSION: u32 = 1;

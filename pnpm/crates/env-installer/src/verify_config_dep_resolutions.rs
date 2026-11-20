@@ -1,13 +1,28 @@
 use crate::{
-    ConfigDepError, ConfigDepsInstallOptions, install_config_deps::config_deps_installed,
-    parse_integrity::parse_integrity, verify_env_lockfile::verify_env_lockfile,
+    ConfigDepError,
+    ConfigDepsInstallOptions,
+    install_config_deps::config_deps_installed,
+    parse_integrity::parse_integrity,
+    verify_env_lockfile::verify_env_lockfile,
 };
 use futures_util::future::try_join_all;
-use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, is_git_hosted_tarball_url};
-use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
+use pnpm_lockfile::{
+    EnvLockfile,
+    LockfileResolution,
+    PackageKey,
+    is_git_hosted_tarball_url,
+};
+use pnpm_resolving_resolver_base::{
+    ResolutionVerification,
+    VerifyCtx,
+};
 use pnpm_workspace_state::ConfigDependency;
 use ssri::Integrity;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+    HashSet,
+};
 
 /// Check the env lockfile's config dependencies against their declarations
 /// and, unless `.pnpm-config` already holds exactly these packages, against

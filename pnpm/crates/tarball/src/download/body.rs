@@ -1,15 +1,36 @@
 use super::{
-    Arc, BodyChunkSender, Duration, IgnoreEntryFilter, Instant, NetworkError, Reporter,
-    STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SemaphorePermit,
-    StoreDir, Stream, StreamExt, TarballError, ThrottledClient, allocate_tarball_buffer,
-    body_chunk_channel, fetch_error, redact_url_for_display, spawn_extraction,
+    Arc,
+    BodyChunkSender,
+    Duration,
+    IgnoreEntryFilter,
+    Instant,
+    NetworkError,
+    Reporter,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    SemaphorePermit,
+    StoreDir,
+    Stream,
+    StreamExt,
+    TarballError,
+    ThrottledClient,
+    allocate_tarball_buffer,
+    body_chunk_channel,
+    fetch_error,
+    redact_url_for_display,
+    spawn_extraction,
 };
 use crate::{
     TarLimits,
     archive_integrity::ArchiveVerification,
     content_coding::ContentCoding,
     download::buffered::ExtractedFiles,
-    extract::{BodyChunkReceiver, ExtractedResource, StreamedResource, stream_extract_channel},
+    extract::{
+        BodyChunkReceiver,
+        ExtractedResource,
+        StreamedResource,
+        stream_extract_channel,
+    },
 };
 
 /// How a body extracted while it downloads is decoded, checked, and stored.
@@ -51,7 +72,7 @@ impl BodyVerification {
 /// The extractor runs on a blocking thread fed through a channel. It
 /// removes the content coding, hashes the decoded resource, and extracts
 /// it, so what is held in memory is the queued chunks plus the
-/// extractor's own bounded batch — never the archive.
+/// extractor's own bounded batch, never the archive.
 ///
 /// `seed` is the part of the body already pulled off the socket; the
 /// caller has reported it to `progress`.
@@ -255,7 +276,7 @@ where
     // path will ever fill: past the threshold below the body is
     // handed to the streaming extractor, so reserving for a larger
     // advertised size would be reserving for bytes that never land
-    // here — and would let a server's claim, rather than its body,
+    // here, and would let a server's claim, rather than its body,
     // decide the size of an allocation.
     let reserve =
         inputs.expected_size.map(|size| size.min(STREAM_EXTRACT_COMPRESSED_THRESHOLD as u64));
@@ -293,6 +314,6 @@ pub(super) fn streams_while_downloading(
     unpacked_size: Option<usize>,
 ) -> bool {
     expected_size
-        .or_else(|| unpacked_size.and_then(|size| u64::try_from(size).ok()))
+        .or_else(|| unpacked_size.map(u64::try_from).and_then(Result::ok))
         .is_some_and(|size| size >= STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD)
 }

@@ -1,6 +1,14 @@
-use super::super::walker::{Symlinks, walk_all_files, walk_package_files};
+use super::super::walker::{
+    Symlinks,
+    walk_all_files,
+    walk_package_files,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn touch(root: &Path, rel: &str) {
@@ -28,14 +36,12 @@ fn collect_rels(
             // the remainder. That keeps assertions deterministic.
             let stripped = abs
                 .strip_prefix(root)
-                .map_or_else(
-                    |_| abs.display().to_string(),
-                    |path| {
-                        path.display()
-                            .to_string()
-                            .replace('\\', "/")
-                    },
-                );
+                .map(|path| {
+                    path.display()
+                        .to_string()
+                        .replace('\\', "/")
+                })
+                .unwrap_or_else(|_| abs.display().to_string());
             (rel, stripped)
         })
         .collect()

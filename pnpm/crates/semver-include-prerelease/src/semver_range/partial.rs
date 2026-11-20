@@ -1,6 +1,9 @@
 use std::borrow::Cow;
 
-use node_semver::{MAX_LENGTH, MAX_SAFE_INTEGER};
+use node_semver::{
+    MAX_LENGTH,
+    MAX_SAFE_INTEGER,
+};
 
 const MAX_SAFE_BUILD_LENGTH: usize = MAX_LENGTH - 6;
 

@@ -167,7 +167,9 @@ This selector requires Git 2.24 or newer.
 A project also counts as changed when:
 
 * a version it takes from a [catalog](catalogs.md) changes in
-  `pnpm-workspace.yaml`;
+  `pnpm-workspace.yaml`, including a catalog entry that an
+  [`overrides`](./settings/dependency-resolution.md#overrides) entry points
+  its dependency at;
 * files were moved out of it and git detects the move as a rename.
 
 ### --fail-if-no-match

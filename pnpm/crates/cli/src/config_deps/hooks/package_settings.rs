@@ -1,9 +1,20 @@
 use super::{
-    Arc, Config, Host, IntoDiagnostic, Path, Result, TrustedSettings, Value, WorkspaceSettings,
+    Arc,
+    Config,
+    Host,
+    IntoDiagnostic,
+    Path,
+    Result,
+    TrustedSettings,
+    Value,
+    WorkspaceSettings,
     apply::apply_hook_delta,
 };
 use miette::WrapErr;
-use pnpm_workspace::{PackageEntry, WorkspaceIncludes};
+use pnpm_workspace::{
+    PackageEntry,
+    WorkspaceIncludes,
+};
 use std::collections::HashSet;
 
 /// Apply the settings of the config dependencies the workspace manifest

@@ -5,13 +5,28 @@
 //! shared package walked its children.
 
 use crate::{
-    NodeId, ResolveDependencyTreeError, SkippedOptionalDependency, SkippedOptionalDependencyParent,
+    NodeId,
+    ResolveDependencyTreeError,
+    SkippedOptionalDependency,
+    SkippedOptionalDependencyParent,
     SkippedOptionalLogFn,
     resolve_peers::ImporterPeerInput,
-    resolved_tree::{ChildEdge, ResolvedPackage, ResolvedTree, TreeChildren},
+    resolved_tree::{
+        ChildEdge,
+        ResolvedPackage,
+        ResolvedTree,
+        TreeChildren,
+    },
 };
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// Each importer's `optionalDependencies`, alias to specifier.
 pub(super) type OptionalDirect = HashMap<String, String>;
@@ -268,10 +283,12 @@ fn skipped_parent(id: &Arc<str>, pkg: Option<&ResolvedPackage>) -> SkippedOption
     SkippedOptionalDependencyParent {
         id: id.to_string(),
         name: pkg
-            .map(|pkg| pkg.name().to_string())
+            .map(ResolvedPackage::name)
+            .map(std::string::ToString::to_string)
             .unwrap_or_default(),
         version: pkg
-            .map(|pkg| pkg.version().to_string())
+            .map(ResolvedPackage::version)
+            .map(std::string::ToString::to_string)
             .unwrap_or_default(),
     }
 }

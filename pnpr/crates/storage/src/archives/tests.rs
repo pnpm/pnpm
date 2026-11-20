@@ -1,10 +1,22 @@
-use super::testing::{promote_file, served, store_file};
+use super::testing::{
+    promote_file,
+    served,
+    store_file,
+};
 use crate::{
-    BlobId, HostedStoreConfig, Storage,
-    database::{BlobRef, Uncommitted},
+    BlobId,
+    HostedStoreConfig,
+    Storage,
+    database::{
+        BlobRef,
+        Uncommitted,
+    },
     layout::local_archive_path,
 };
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {

@@ -1,11 +1,26 @@
-use super::{BuildPhaseError, BuildPhaseInputs};
+use super::{
+    BuildPhaseError,
+    BuildPhaseInputs,
+};
 use crate::build_options::HoistedBinPlans;
-use pnpm_cmd_shim::{Host, LinkBinsOptions};
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_cmd_shim::{
+    Host,
+    LinkBinsOptions,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(all(test, unix))]

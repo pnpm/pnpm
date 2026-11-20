@@ -3,13 +3,26 @@
 
 use crate::{
     _utils::read_lockfile,
-    auto_dedupe::{pnpm_at, write_settings},
+    auto_dedupe::{
+        pnpm_at,
+        write_settings,
+    },
 };
 use command_extra::CommandExtra;
 use pnpm_lockfile::IntegrityTarget;
-use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndex,
+    store_index_key,
+};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 const PACKAGE: &str = "is-odd@3.0.1";
 const TAR_TARGET: &str = "lockfile:\n  integrityTarget: tar\n";

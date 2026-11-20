@@ -15,29 +15,65 @@
 
 use pnpr_fixtures::MockConfigPresets;
 use std::{
-    collections::{BTreeMap, HashSet},
-    net::{Ipv4Addr, SocketAddr},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+    },
     sync::Arc,
     time::Duration,
 };
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use p256::{
-    ecdsa::{SigningKey, signature::Signer as _},
+    ecdsa::{
+        SigningKey,
+        signature::Signer as _,
+    },
     pkcs8::EncodePublicKey as _,
 };
 use pnpm_pnpr_client::{
-    ArtifactBlobRequest, ArtifactBlobSource, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactPublication, ArtifactSubject, BuilderProfile,
-    CompatibilityConstraints, OwnerScope, PackageIdentity, PnprClient, PnprClientError,
-    PublishArtifactRequest, RegistryDeclaration, ResolveArtifactsOptions, ResolveOptions,
-    ResolveProject, ResolveProjectsOptions, SignedArtifactEnvelope, VerifyLockfileOptions,
+    ArtifactBlobRequest,
+    ArtifactBlobSource,
+    ArtifactBlobUpload,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactPublication,
+    ArtifactSubject,
+    BuilderProfile,
+    CompatibilityConstraints,
+    OwnerScope,
+    PackageIdentity,
+    PnprClient,
+    PnprClientError,
+    PublishArtifactRequest,
+    RegistryDeclaration,
+    ResolveArtifactsOptions,
+    ResolveOptions,
+    ResolveProject,
+    ResolveProjectsOptions,
+    SignedArtifactEnvelope,
+    VerifyLockfileOptions,
 };
 use pnpm_testing_utils::registry::TestRegistry;
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    },
     net::TcpListener,
     sync::Barrier,
 };
@@ -46,7 +82,7 @@ use tokio::{
 /// `registry_url` as a public route so the client may resolve against it
 /// (off-allowlist registries are rejected at the request boundary). Returns
 /// the base URL, the bearer `Authorization` for the registered `pnpr-client`
-/// caller (pnpr only honors `_authToken` on requests — the resolver
+/// caller (pnpr only honors `_authToken` on requests, the resolver
 /// endpoints reject Basic credentials), and the storage guard.
 async fn start_pnpr(registry_url: &str) -> (String, String, TempDir) {
     start_pnpr_inner(None, Vec::new(), vec![registry_url.to_string()], false).await
@@ -114,7 +150,8 @@ async fn start_pnpr_inner(
     config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
     config.routing.route_policy.allowed_private_networks = ["127.0.0.0/8", "::1"]
         .into_iter()
-        .map(|network| pnpr::IpNetwork::parse(network).expect("loopback network parses"))
+        .map(pnpr::IpNetwork::parse)
+        .map(|parsed| parsed.expect("loopback network parses"))
         .collect();
     for (name, upstream) in upstreams {
         config.routing.upstreams.insert(name, upstream);
@@ -340,7 +377,7 @@ fn signed_artifact_fixture_with_builder_id(builder_id: &str) -> SignedFixture {
 }
 
 /// One input key admits one artifact per set of compatibility constraints, so a
-/// test wanting several of them for one dependency varies the platform — which
+/// test wanting several of them for one dependency varies the platform, which
 /// is the only reason a second artifact for one input is legitimate.
 fn signed_artifact_fixture_for_platform(index: usize) -> SignedFixture {
     // Node major, not the glibc floor: two floors for one architecture and Node

@@ -1,13 +1,23 @@
 use super::{
-    LegacyGlobalLayout, MigrationSelector, is_legacy_bin, legacy_bin_files, legacy_home_bin_files,
+    LegacyGlobalLayout,
+    MigrationSelector,
+    is_legacy_bin,
+    legacy_bin_files,
+    legacy_home_bin_files,
 };
 use pnpm_fs::lexical_normalize;
 use pnpm_global::GlobalPackageInfo;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::BTreeSet,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 

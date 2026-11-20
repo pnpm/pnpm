@@ -1,12 +1,29 @@
 use crate::fast_update_compose::Drift;
-use pnpm_deps_path::{index_of_dep_path_suffix, remove_suffix};
+use pnpm_deps_path::{
+    index_of_dep_path_suffix,
+    remove_suffix,
+};
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PackageKey, PatchedDepPathsStatus, ProjectSnapshot,
-    ResolvedDependencyMap, SnapshotDepRef, applied_patch_keys, check_patched_dep_paths,
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    PatchedDepPathsStatus,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    applied_patch_keys,
+    check_patched_dep_paths,
     patch_groups_from_hashes,
 };
-use pnpm_patching::{PatchGroupRecord, all_patch_keys, get_patch_info};
-use std::collections::{BTreeMap, HashMap};
+use pnpm_patching::{
+    PatchGroupRecord,
+    all_patch_keys,
+    get_patch_info,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// Where a package's snapshot key moves to when its patch changes.
 type Rekeys = HashMap<PackageKey, PackageKey>;
@@ -29,7 +46,7 @@ pub(crate) struct PatchedPlan {
 /// Whether `patchedDependencies` drifted from what the lockfile
 /// records, against the hashes of the configured patch files.
 /// [`Drift::Resolve`] when a key's version segment parses as neither a
-/// version nor a range — the resolver reports that.
+/// version nor a range, the resolver reports that.
 pub(crate) fn detect_patched_drift(
     lockfile: &Lockfile,
     hashes: Option<&BTreeMap<String, String>>,
@@ -56,12 +73,12 @@ pub(crate) fn detect_patched_drift(
 /// the new hashes.
 ///
 /// Runs after removals have been applied and pruned, so the unused-patch
-/// guard and the rekey plan see the packages a full resolution would see
-/// — a patch whose only referent was just removed falls back exactly
+/// guard and the rekey plan see the packages a full resolution would see,
+/// a patch whose only referent was just removed falls back exactly
 /// like the resolver raising `ERR_PNPM_UNUSED_PATCH` would.
 ///
-/// `false` — a patched package reachable as a peer, an opaque peer
-/// suffix, or a patch left unused while `allowUnusedPatches` is off —
+/// `false` (a patched package reachable as a peer, an opaque peer
+/// suffix, or a patch left unused while `allowUnusedPatches` is off)
 /// leaves the caller on the full-resolution path.
 pub(crate) fn apply_patched_update(
     candidate: &mut Lockfile,
@@ -136,7 +153,7 @@ fn rekeyed_snapshot_key(key: &PackageKey, groups: &PatchGroupRecord) -> Rekey {
     // named registry (`name@registry:version`) or a git / tarball
     // reference occupies the same slot. The two only agree on plain
     // semver, so anything else is left to the resolver rather than
-    // guessed at — as long as it needs no rekey at all.
+    // guessed at, as long as it needs no rekey at all.
     if key.suffix.version_semver().is_none() {
         // Matching cannot be reproduced here, so the question is only
         // whether it could matter: any configured patch naming this

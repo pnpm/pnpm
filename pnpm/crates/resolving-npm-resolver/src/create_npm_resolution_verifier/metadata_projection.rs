@@ -1,6 +1,14 @@
 use super::{
-    Arc, DistStats, HashMap, JsonValue, Package, Pipe, PublishedAtTimeMap, TrustEvidence,
-    TrustHistory, TrustHistoryProjection,
+    Arc,
+    DistStats,
+    HashMap,
+    JsonValue,
+    Package,
+    Pipe,
+    PublishedAtTimeMap,
+    TrustEvidence,
+    TrustHistory,
+    TrustHistoryProjection,
 };
 use crate::trust_checks::get_policy_trust_evidence;
 
@@ -59,7 +67,7 @@ impl TrustHistory for TrustHistoryProjection {
 
 /// Pull the `(modified, versionTarballs)` projection the verifier
 /// needs out of a packument document. Works against either the
-/// abbreviated or the full form — both carry `modified` and a
+/// abbreviated or the full form; both carry `modified` and a
 /// `versions` map with per-version `dist.tarball`.
 pub(super) fn project_abbreviated_meta(
     meta: &Package,
@@ -136,7 +144,8 @@ pub(super) fn project_artifact_history(
             integrity: revision
                 .get("integrity")
                 .and_then(JsonValue::as_str)
-                .and_then(|integrity| integrity.parse().ok()),
+                .map(str::parse)
+                .and_then(Result::ok),
             tarball: revision
                 .get("tarball")
                 .and_then(JsonValue::as_str)

@@ -2,9 +2,15 @@
 //! map, the shared ancestor chains threaded down the walk, `link:`
 //! node-id remapping, peer-suffix parsing, and range matching.
 
-pub(crate) use peer_specifier::{ComparablePeerRange, satisfies_with_prereleases};
+pub(crate) use peer_specifier::{
+    ComparablePeerRange,
+    satisfies_with_prereleases,
+};
 pub(super) use peer_specifier::{
-    importer_relative_link_dep_path, link_node_id_as_dep_path, peer_id_pair, peer_segment_names,
+    importer_relative_link_dep_path,
+    link_node_id_as_dep_path,
+    peer_id_pair,
+    peer_segment_names,
     remap_link_node_id,
 };
 pub(crate) use pnpm_lockfile::split_peer_suffix_segments;
@@ -14,15 +20,38 @@ use peer_specifier::version_gte;
 
 use crate::{
     node_id::NodeId,
-    resolve_peers::{ResolvePeersOptions, walker::Walker},
-    resolved_tree::{ResolvedPackage, TreeChildren, pkg_name},
+    resolve_peers::{
+        ResolvePeersOptions,
+        walker::Walker,
+    },
+    resolved_tree::{
+        ResolvedPackage,
+        TreeChildren,
+        pkg_name,
+    },
 };
-use node_semver::{Range, Version};
-use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
-use pnpm_resolving_resolver_base::{ResolveResult, get_peer_version_range};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    index_of_dep_path_suffix,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveResult,
+    get_peer_version_range,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -31,7 +60,7 @@ use std::{
 pub(super) struct ParentRef {
     pub(super) version: Arc<str>,
     /// `None` for top-level deps that were already installed. Pacquet
-    /// doesn't surface those yet — `None` only appears on the
+    /// doesn't surface those yet. `None` only appears on the
     /// importer-level cycle-break fallback, where the `name@version`
     /// form of the peer-id is the only useful representation.
     pub(super) node_id: Option<NodeId>,
@@ -45,7 +74,7 @@ pub(super) struct ParentRef {
 }
 
 /// `name → ParentRef` map propagated down the walk. Entries are indexed
-/// by both the package's real name and its alias when the two differ —
+/// by both the package's real name and its alias when the two differ,
 /// `react-dom@npm:next` resolves a `peerDependencies.react-dom`
 /// requirement against the alias and `peerDependencies.next` against
 /// the real name.
@@ -107,7 +136,7 @@ impl<Element: PartialEq> SharedChain<Element> {
 ///
 /// Each entry keeps the link it is keyed on alive. Addresses are only
 /// unique among live allocations, so a dropped link could otherwise
-/// hand its address — and its answer — to whatever was allocated there
+/// hand its address (and its answer) to whatever was allocated there
 /// next.
 pub(super) struct ChainSuffixMemo<Element> {
     answers: HashMap<usize, (Arc<SharedChainLink<Element>>, bool)>,

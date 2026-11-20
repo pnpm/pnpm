@@ -8,13 +8,23 @@
 pub(in crate::cli_args::setup) use pwsh::pwsh_quote;
 
 use super::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    ConfigFileChangeType,
+    ConfigReport,
+    PathExtenderError,
     PathExtenderReport,
 };
-use pnpm_text_section::{find_sections, wrap_section};
+use pnpm_text_section::{
+    find_sections,
+    wrap_section,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn add_dir_to_posix_env_path(
@@ -64,7 +74,8 @@ pub(in crate::cli_args::setup) fn detect_current_shell() -> Option<String> {
     let shell = std::env::var("SHELL").ok()?;
     Path::new(&shell)
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(std::ffi::OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
 }
 
 fn update_shell(
@@ -126,7 +137,7 @@ enum PathGuard {
 ///
 /// `dir` is single-quote escaped before it is interpolated into the shell
 /// code. This hardens beyond pnpm's `@pnpm/os.env.path-extender`, which
-/// interpolates the directory into double quotes — where a value containing
+/// interpolates the directory into double quotes, where a value containing
 /// `$(...)` / backticks would execute when the rc file is sourced.
 fn render_posix_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
     render_posix_section(dir, opts, PathGuard::Positioned, sh_quote)

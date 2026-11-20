@@ -1,5 +1,11 @@
-use crate::{StoreIndex, store_index::tests::sample_index};
-use std::{path::Path, sync::Barrier};
+use crate::{
+    StoreIndex,
+    store_index::tests::sample_index,
+};
+use std::{
+    path::Path,
+    sync::Barrier,
+};
 
 #[test]
 fn concurrent_first_open_persists_every_writer_row() {

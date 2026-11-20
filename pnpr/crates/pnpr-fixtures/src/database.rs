@@ -7,32 +7,52 @@
 //! use them too.
 
 use node_semver::Version;
-use pnpr_config::{DatabaseBackend, HostedStoreConfig, default_cache_dir, default_database_path};
+use pnpr_config::{
+    DatabaseBackend,
+    HostedStoreConfig,
+    default_cache_dir,
+    default_database_path,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    HostedDocumentVersion, Storage,
+    HostedDocumentVersion,
+    Storage,
     database::{
-        ArtifactBlob, BatchDocument, BlobFence, PublishNotes, ReleaseRecords, SqlDatabase,
-        TagChange, TagUpdate,
+        ArtifactBlob,
+        BatchDocument,
+        BlobFence,
+        PublishNotes,
+        ReleaseRecords,
+        SqlDatabase,
+        TagChange,
+        TagUpdate,
     },
 };
-use serde_json::{Map, Value, json};
-use std::{future::Future, path::Path, sync::Arc};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use std::{
+    future::Future,
+    path::Path,
+    sync::Arc,
+};
 
 /// How many times an edit retries a write that lost to a concurrent one.
 const EDIT_RETRIES: usize = 8;
 
-/// Point `tag` at `version` in a built storage tree — the fixture-side
+/// Point `tag` at `version` in a built storage tree, the fixture-side
 /// equivalent of the JS harness's `addDistTag`, and the only way to give a
 /// package a `latest` other than its highest published version.
 ///
 /// `time.modified` moves with the tag, the same as pnpr's own
-/// `PUT /-/package/:pkg/dist-tags/:tag` — it is what the served
+/// `PUT /-/package/:pkg/dist-tags/:tag`; it is what the served
 /// `Last-Modified` is derived from.
 ///
 /// Only call this on a tree the test owns, never on the process-global
-/// storage every other test reads — see [`crate::build_storage_at`].
+/// storage every other test reads; see [`crate::build_storage_at`].
 pub fn set_dist_tag(storage: &Path, package: &str, version: &str, tag: &str) {
     let packument = read_packument(storage, package);
     assert!(
@@ -74,7 +94,8 @@ pub fn remove_version(storage: &Path, package: &str, version: &str) {
         assert!(versions.remove(version).is_some(), "{package} has no fixture version {version}");
         let highest = versions
             .keys()
-            .filter_map(|left| left.parse::<Version>().ok())
+            .map(|left| left.parse::<Version>())
+            .filter_map(Result::ok)
             .max()
             .unwrap_or_else(|| panic!("{package} keeps a version after removing {version}"))
             .to_string();

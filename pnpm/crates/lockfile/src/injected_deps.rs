@@ -1,6 +1,12 @@
 //! Which direct dependencies of an importer are injected.
 
-use crate::{DirectoryResolution, Lockfile, LockfileResolution, PkgName, ResolvedDependencySpec};
+use crate::{
+    DirectoryResolution,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    ResolvedDependencySpec,
+};
 use pnpm_package_manifest::DependencyGroup;
 
 impl Lockfile {

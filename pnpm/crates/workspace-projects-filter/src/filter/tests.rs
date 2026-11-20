@@ -1,15 +1,26 @@
 use crate::{
     filter::{
-        FilterError, FilterProjectsOptions, FilterWorkspaceProjectsOptions, WorkspaceFilter,
-        filter_projects, filter_workspace_projects,
+        FilterError,
+        FilterProjectsOptions,
+        FilterWorkspaceProjectsOptions,
+        WorkspaceFilter,
+        filter_projects,
+        filter_workspace_projects,
     },
     parse_project_selector::ProjectSelector,
 };
 use indexmap::IndexMap;
 use pnpm_workspace_projects_graph::{
-    BaseProject, DependencyGroups, GraphProject, ProjectGraph, ProjectGraphNode,
+    BaseProject,
+    DependencyGroups,
+    GraphProject,
+    ProjectGraph,
+    ProjectGraphNode,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[derive(Clone)]
 struct TestPkg {
@@ -122,7 +133,8 @@ fn selected(graph: &ProjectGraph<TestPkg>, selectors: &[ProjectSelector]) -> Vec
         .expect("filter should succeed")
         .selected_projects
         .iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect()
 }
 
@@ -135,7 +147,8 @@ fn selected_with_glob(graph: &ProjectGraph<TestPkg>, selectors: &[ProjectSelecto
     .expect("filter should succeed")
     .selected_projects
     .iter()
-    .map(|path| path.to_string_lossy().into_owned())
+    .map(|path| path.to_string_lossy())
+    .map(std::borrow::Cow::into_owned)
     .collect()
 }
 
@@ -466,7 +479,8 @@ fn select_all_packages_except_one() {
         selected(&graph, &[ProjectSelector { exclude: true, ..selector(Some("project-1")) }]);
     let expected: Vec<String> = projects_graph()
         .keys()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .filter(|path| path != "/packages/project-1")
         .collect();
     assert_eq!(result, expected);
@@ -605,22 +619,39 @@ fn is_subdir_contract() {
 /// upstream's "select changed packages" suite. Each builds a real git
 /// repository in a temp directory.
 mod changed_packages {
+    mod catalog_overrides;
     mod git_pathnames;
 
-    use super::{TestPkg, graph_project, node_at};
+    use super::{
+        TestPkg,
+        graph_project,
+        node_at,
+    };
     use crate::{
-        filter::{FilterError, FilterWorkspaceProjectsOptions, filter_workspace_projects},
+        filter::{
+            FilterError,
+            FilterWorkspaceProjectsOptions,
+            filter_workspace_projects,
+        },
         parse_project_selector::ProjectSelector,
     };
+    use command_extra::CommandExtra;
     use indexmap::IndexMap;
-    use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
-    use std::{fs, path::Path, process::Command};
+    use pnpm_workspace_projects_graph::{
+        ProjectGraph,
+        ProjectGraphNode,
+    };
+    use std::{
+        fs,
+        path::Path,
+        process::Command,
+    };
     use tempfile::TempDir;
 
     fn git(cwd: &Path, args: &[&str]) {
         let output = Command::new("git")
-            .args(args)
-            .current_dir(cwd)
+            .with_args(args)
+            .with_current_dir(cwd)
             .output()
             .expect("spawn git");
         assert!(
@@ -666,7 +697,8 @@ mod changed_packages {
             .expect("filter should succeed")
             .selected_projects
             .iter()
-            .map(|path| path.to_string_lossy().into_owned())
+            .map(|path| path.to_string_lossy())
+            .map(std::borrow::Cow::into_owned)
             .collect()
     }
 
@@ -1708,7 +1740,8 @@ fn graph_project(root: &str, name: &str, deps: &[(&str, &str)]) -> TestPkg {
 fn project_dirs(result: &crate::filter::FilteredProjects) -> Vec<String> {
     result.selected_projects
         .iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect()
 }
 

@@ -1,4 +1,8 @@
-use super::{canonicalize_python_name, is_valid_old_npm_package_name, is_valid_package_version};
+use super::{
+    canonicalize_python_name,
+    is_valid_old_npm_package_name,
+    is_valid_package_version,
+};
 
 #[test]
 fn is_valid_old_npm_package_name_accepts_common_shapes() {

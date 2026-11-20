@@ -1,12 +1,22 @@
 #[cfg(unix)]
 use super::{
     super::{
-        Host, LINK_STATE_CLONE, LINK_STATE_COPY, LINK_STATE_HARDLINK, auto_link, clone_or_copy_link,
+        Host,
+        LINK_STATE_CLONE,
+        LINK_STATE_COPY,
+        LINK_STATE_HARDLINK,
+        auto_link,
+        clone_or_copy_link,
     },
-    ModeDroppingClone, STORE_ENTRY, write_source,
+    ModeDroppingClone,
+    STORE_ENTRY,
+    write_source,
 };
 #[cfg(unix)]
-use pnpm_fs::{FileMode, StoreFile};
+use pnpm_fs::{
+    FileMode,
+    StoreFile,
+};
 #[cfg(unix)]
 use pnpm_reporter::SilentReporter;
 #[cfg(unix)]
@@ -14,7 +24,10 @@ use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::{
     fs,
-    sync::atomic::{AtomicU8, Ordering},
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 #[cfg(unix)]
 use tempfile::tempdir;
@@ -67,7 +80,7 @@ fn auto_respects_cached_hardlink_state() {
     assert_eq!(state.load(Ordering::Relaxed), LINK_STATE_HARDLINK, "state must not drift");
 }
 /// Pre-seed `CloneOrCopy` state to `COPY` and verify it uses
-/// `fs::copy` — mirrors [`auto_respects_cached_copy_state`]. Also
+/// `fs::copy`, mirrors [`auto_respects_cached_copy_state`]. Also
 /// confirms we skip the hardlink tier entirely (pnpm
 /// `createCloneOrCopyImporter` has no hardlink fallback).
 #[test]

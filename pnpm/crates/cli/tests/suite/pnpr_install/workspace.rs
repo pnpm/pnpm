@@ -1,11 +1,30 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Lockfile, MISSING_PEERS_PARENT,
-    WORKSPACE_HELLO, WORKSPACE_PARENT, assert_filtered_workspace_pnpr,
-    assert_standard_workspace_pnpr_from, configure_pnpr_auth, configure_workspace, fs,
-    is_preserved_key, mock_filtered_repair_response, pacquet_at, pnpr_done_frame,
-    read_workspace_lockfile, replace_workspace_dependency, seed_filtered_repair_workspace,
-    selected_only_pnpr_lockfile, start_pnpr, workspace_has_link, workspace_importer,
-    workspace_importer_version, workspace_slot, workspace_snapshot_entries,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    Lockfile,
+    MISSING_PEERS_PARENT,
+    WORKSPACE_HELLO,
+    WORKSPACE_PARENT,
+    assert_filtered_workspace_pnpr,
+    assert_standard_workspace_pnpr_from,
+    configure_pnpr_auth,
+    configure_workspace,
+    fs,
+    is_preserved_key,
+    mock_filtered_repair_response,
+    pacquet_at,
+    pnpr_done_frame,
+    read_workspace_lockfile,
+    replace_workspace_dependency,
+    seed_filtered_repair_workspace,
+    selected_only_pnpr_lockfile,
+    start_pnpr,
+    workspace_has_link,
+    workspace_importer,
+    workspace_importer_version,
+    workspace_slot,
+    workspace_snapshot_entries,
     write_workspace_project,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -43,7 +62,7 @@ fn workspace_install_via_pnpr_resolves_catalog_references() {
 }
 
 /// The importer ids the server request carries, and the ones the
-/// filtered-lockfile merge keys on, are relative to the lockfile — which
+/// filtered-lockfile merge keys on, are relative to the lockfile, which
 /// `lockfileDir` can pin outside the workspace. Deriving them from the
 /// workspace root instead leaves the two sides naming different projects.
 #[test]
@@ -289,7 +308,8 @@ fn filtered_pnpr_repair_preserves_unselected_metadata() {
                 snapshot.optional
                     && snapshot.transitive_peer_dependencies
                         .as_ref()
-                        .is_some_and(|peers| peers.len() == 1 && peers[0] == "preserved-peer")
+                        .filter(|peers| peers.len() == 1)
+                        .is_some_and(|peers| peers[0] == "preserved-peer")
             }),
     );
     handshake_mock.assert();

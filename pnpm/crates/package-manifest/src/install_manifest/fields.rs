@@ -2,8 +2,14 @@
 //! fields.
 
 use super::NODE_GYP_REBUILD;
-use crate::{is_truthy, manifest_opts_out_of_gyp_build};
-use serde_json::{Map, Value};
+use crate::{
+    is_truthy,
+    manifest_opts_out_of_gyp_build,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::collections::BTreeSet;
 
 /// The scripts an install runs, in the order npm runs them.

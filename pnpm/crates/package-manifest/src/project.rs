@@ -1,8 +1,15 @@
-use crate::{PackageManifestError, serialization::parse_project_manifest};
+use crate::{
+    PackageManifestError,
+    serialization::parse_project_manifest,
+};
 use serde_json::Value;
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Supported project manifests in precedence order.

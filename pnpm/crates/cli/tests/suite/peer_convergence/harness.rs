@@ -1,11 +1,23 @@
-use crate::_utils::{ManifestDeps, WorkspaceFixture, read_v11_bundle_path, write_project_manifest};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+    read_v11_bundle_path,
+    write_project_manifest,
+};
 use serde_json::Value;
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     ffi::OsString,
-    fmt, fs,
-    path::{Path, PathBuf},
+    fmt,
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Output,
 };
 
@@ -456,7 +468,8 @@ impl Harness {
     fn moved_spec(&self, project: &Project, alias: &str, spec: &'static str) -> &'static str {
         self.moves
             .iter()
-            .find(|change| change.project == project.dir && change.alias == alias)
+            .filter(|change| change.project == project.dir)
+            .find(|change| change.alias == alias)
             .map_or(spec, |change| change.to)
     }
 

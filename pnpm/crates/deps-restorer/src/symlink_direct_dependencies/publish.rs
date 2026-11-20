@@ -1,6 +1,10 @@
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use pnpm_lockfile::ProjectSnapshot;

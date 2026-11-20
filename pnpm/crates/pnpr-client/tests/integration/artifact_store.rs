@@ -1,11 +1,23 @@
 use super::{
-    ArtifactBlobRequest, ArtifactCandidate, ArtifactSubject, BTreeMap, HashSet, OwnerScope,
-    PackageIdentity, ResolveArtifactsOptions, SignedFixture, signed_artifact_fixture,
+    ArtifactBlobRequest,
+    ArtifactCandidate,
+    ArtifactSubject,
+    BTreeMap,
+    HashSet,
+    OwnerScope,
+    PackageIdentity,
+    ResolveArtifactsOptions,
+    SignedFixture,
+    signed_artifact_fixture,
 };
 use base64::Engine as _;
 use p256::pkcs8::EncodePublicKey as _;
 use pnpm_pnpr_client::{
-    ArtifactBlobSource, ArtifactBuildPolicy, ArtifactPublication, ArtifactStore, PnprClientError,
+    ArtifactBlobSource,
+    ArtifactBuildPolicy,
+    ArtifactPublication,
+    ArtifactStore,
+    PnprClientError,
     TurborepoArtifactStore,
 };
 use pnpm_testing_utils::turborepo_cache::TurborepoCache;

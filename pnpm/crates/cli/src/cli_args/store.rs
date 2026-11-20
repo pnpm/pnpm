@@ -1,4 +1,4 @@
-//! `pacquet store` — read and act on the content-addressable store.
+//! `pacquet store`: read and act on the content-addressable store.
 //!
 //! `status` and `add` are the two subcommands that reach past the store
 //! directory's own bookkeeping: `status` re-hashes what the store expanded
@@ -14,11 +14,24 @@ use crate::{
     cli_args::dlx::clean_expired_dlx_cache,
     engine_pm::install::remove_orphaned_private_engine_installs,
 };
-use clap::{Args, Subcommand};
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, Host, default_pnpm_home_dir};
+use clap::{
+    Args,
+    Subcommand,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    Host,
+    default_pnpm_home_dir,
+};
 use pnpm_reporter::Reporter;
-use std::{path::Path, time::SystemTime};
+use std::{
+    path::Path,
+    time::SystemTime,
+};
 
 #[derive(Debug, Subcommand)]
 pub enum StoreCommand {

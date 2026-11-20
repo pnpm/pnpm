@@ -7,16 +7,35 @@
 //! the directory so [`upload`](crate::upload()) can diff it against
 //! the pristine `PackageFilesIndex.files` row and seed the cache.
 
-use crate::{CafsFileInfo, SYMLINK_MODE, StoreDir, WriteCasFileError, normalize_symlink_target};
-use derive_more::{Display, Error};
+use crate::{
+    CafsFileInfo,
+    SYMLINK_MODE,
+    StoreDir,
+    WriteCasFileError,
+    normalize_symlink_target,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 #[cfg(not(target_os = "wasi"))]
 use pnpm_fs::file_mode::file_mode_of;
-use pnpm_fs::{FileMode, file_mode::is_executable};
+use pnpm_fs::{
+    FileMode,
+    file_mode::is_executable,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Result of [`add_files_from_dir()`]. The map's key is the file's
@@ -76,7 +95,7 @@ pub enum AddFilesFromDirError {
 /// recorded as a [`SYMLINK_MODE`] entry instead of being followed. Other
 /// symlinks are followed when they stay inside the package.
 ///
-/// Cycle-safe: `WalkCtx.visited` is a *recursion-stack* set —
+/// Cycle-safe: `WalkCtx.visited` is a *recursion-stack* set;
 /// each canonical directory path is inserted when we descend
 /// into it and removed when we return. A symlink pointing back
 /// at an ancestor of the current branch finds the ancestor's
@@ -208,7 +227,8 @@ fn bundled_package_dir(path: &str) -> Option<&str> {
     let end = name
         .match_indices('/')
         .nth(segments - 1)
-        .map_or(name.len(), |(index, _)| index);
+        .map(|(index, _)| index)
+        .unwrap_or(name.len());
     let package_dir = &path[..("node_modules/".len() + end)];
     (package_dir.matches('/').count() == segments).then_some(package_dir)
 }

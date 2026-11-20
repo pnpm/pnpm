@@ -1,8 +1,21 @@
-use miette::{Result, WrapErr};
+use miette::{
+    Result,
+    WrapErr,
+};
 use pnpm_config::Config;
 use pnpm_env_installer::ConfigDependencyStoreIndex;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_store_dir::{StoreDir, StoreIndex, StoreIndexWriter, StoreOperationLock};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+    StoreOperationLock,
+};
 use std::sync::Arc;
 
 pub(super) struct StoreIndexSession {

@@ -1,15 +1,39 @@
 //! The settings only the machine's own configuration sets.
 
 use super::{
-    BTreeMap, Config, Deserialize, EnvVar, GetHomeDir, LoadWorkspaceYamlError, MacosBackupSettings,
-    Path, Tool, ToolSettings, UnresolvedPlaceholders, WorkspaceSettings, expand_home_prefix,
-    overlay, overlay_some, overlay_tools, parse_settings, parse_settings_file,
-    read_readable_settings, read_workspace_document, resolve, substitute_optional_string,
+    BTreeMap,
+    Config,
+    Deserialize,
+    EnvVar,
+    GetHomeDir,
+    LoadWorkspaceYamlError,
+    MacosBackupSettings,
+    Path,
+    Tool,
+    ToolSettings,
+    UnresolvedPlaceholders,
+    WorkspaceSettings,
+    expand_home_prefix,
+    overlay,
+    overlay_some,
+    overlay_tools,
+    parse_settings,
+    parse_settings_file,
+    read_readable_settings,
+    read_workspace_document,
+    resolve,
+    substitute_optional_string,
 };
-use crate::{GlobalShimsSetting, SettingsRead};
+use crate::{
+    GlobalShimsSetting,
+    SettingsRead,
+};
 use std::{
     collections::HashSet,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 /// The settings a repository must not control, because they choose what

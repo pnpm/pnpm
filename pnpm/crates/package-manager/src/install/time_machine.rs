@@ -6,20 +6,33 @@ use pnpm_network::redact_and_sanitize;
 use pnpm_process::Command;
 use pnpm_reporter::Reporter;
 #[cfg(target_os = "macos")]
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+};
 #[cfg(any(target_os = "macos", test))]
 use std::{
     collections::HashSet,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Output,
     time::Duration,
 };
 #[cfg(any(target_os = "macos", all(test, unix)))]
 use std::{
     io::Read,
-    process::{Child, Stdio},
-    thread::{self, JoinHandle},
+    process::{
+        Child,
+        Stdio,
+    },
+    thread::{
+        self,
+        JoinHandle,
+    },
     time::Instant,
 };
 

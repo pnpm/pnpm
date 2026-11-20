@@ -2,18 +2,31 @@
 
 use super::ApprovalDecision;
 use crate::cli_args::config::ConfigError;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::{
-    Config, GLOBAL_CONFIG_YAML_FILENAME, TrustedSettings, WORKSPACE_MANIFEST_FILENAME,
+    Config,
+    GLOBAL_CONFIG_YAML_FILENAME,
+    TrustedSettings,
+    WORKSPACE_MANIFEST_FILENAME,
     WorkspaceSettings,
 };
 use pnpm_workspace_manifest_writer::{
-    PermissionValue, is_owned_by_config_dependency, set_allow_builds,
-    set_global_packages_build_permissions, set_permissions, update_workspace_setting,
+    PermissionValue,
+    is_owned_by_config_dependency,
+    set_allow_builds,
+    set_global_packages_build_permissions,
+    set_permissions,
+    update_workspace_setting,
 };
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Where build decisions are recorded.

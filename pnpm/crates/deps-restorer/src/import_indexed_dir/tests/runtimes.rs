@@ -1,10 +1,19 @@
 #[cfg(unix)]
 use super::super::ImportIndexedDirError;
-use super::{super::import_indexed_dir, FORCE_KEEP, FORCE_ONLY, cas_map, write_source};
+use super::{
+    super::import_indexed_dir,
+    FORCE_KEEP,
+    FORCE_ONLY,
+    cas_map,
+    write_source,
+};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{fs, sync::atomic::AtomicU8};
+use std::{
+    fs,
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -135,8 +144,14 @@ fn node_modules_collision_in_file_map_merges() {
 #[test]
 #[cfg(unix)]
 fn undeletable_stale_subtree_does_not_block_the_forced_replacement() {
-    use pnpm_reporter::{LogEvent, Reporter};
-    use std::{os::unix::fs::PermissionsExt, sync::Mutex};
+    use pnpm_reporter::{
+        LogEvent,
+        Reporter,
+    };
+    use std::{
+        os::unix::fs::PermissionsExt,
+        sync::Mutex,
+    };
 
     static WARNINGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
     struct RecordingReporter;
@@ -179,7 +194,8 @@ fn undeletable_stale_subtree_does_not_block_the_forced_replacement() {
 
     let displaced: Vec<_> = fs::read_dir(tmp.path())
         .unwrap()
-        .map(|entry| entry.unwrap().path())
+        .map(Result::unwrap)
+        .map(|value| value.path())
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
@@ -213,7 +229,7 @@ fn undeletable_stale_subtree_does_not_block_the_forced_replacement() {
 /// (permission errors, transient I/O failures).
 ///
 /// We drive a `PermissionDenied` by stripping search permission from
-/// `dir_path` itself — `symlink_metadata` on `dir_path/node_modules`
+/// `dir_path` itself, `symlink_metadata` on `dir_path/node_modules`
 /// needs search-execute on `dir_path` to resolve the child path. The
 /// outer `symlink_metadata(dir_path)` call resolves against the parent
 /// (which we leave alone), so dispatch still routes us into
@@ -246,7 +262,7 @@ fn node_modules_inspect_permission_denied_surfaces() {
     fs::set_permissions(&target, fs::Permissions::from_mode(0o700)).unwrap();
 
     assert!(matches!(err, ImportIndexedDirError::InspectTarget { .. }), "got: {err:?}");
-    // No staging directory should be left behind — the early-error
+    // No staging directory should be left behind, the early-error
     // cleanup must have rimrafed it.
     for entry in walkdir::WalkDir::new(tmp.path()) {
         let path = entry.unwrap().into_path();

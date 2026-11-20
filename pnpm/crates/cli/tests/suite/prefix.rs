@@ -4,7 +4,10 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -111,6 +114,42 @@ fn prefix_global_prints_the_global_dir_root() {
     let expected = format!("{}\n", pnpm_home.join("global").display());
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
     assert!(global_bin.is_dir(), "pacquet prefix -g should create the global bin dir");
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn prefix_global_ignores_broken_project_workspace_config_in_cwd() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: [\n")
+        .expect("write malformed pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{ "packageManager": "pnpm@0.0.0" }"#)
+        .expect("write package.json");
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("HOME", root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_env("PNPM_CONFIG_GLOBAL_DIR", "")
+        .with_env("pnpm_config_global_dir", "")
+        .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
+        .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("COREPACK_ROOT", "/fake/corepack")
+        .with_env("PATH", path)
+        .with_args(["prefix", "-g"])
+        .output()
+        .expect("run pacquet prefix -g");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet prefix -g should succeed despite broken CWD yaml");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("{}\n", pnpm_home.join("global").display()),
+    );
 
     drop(root);
 }

@@ -101,6 +101,7 @@ test('changes with active overrides, packageExtensions, and security policies wh
     trustPolicy: 'off',
     trustLockfile: false,
     blockExoticSubdeps: false,
+    ignoreScripts: false,
   })).toBe(defaultKey)
 
   const overridesForward = createCacheKey({ ...base, overrides: { 'alpha@^1.0.0': '1.0.0', 'alpha@>=1.0.0': '1.2.0' } })
@@ -158,4 +159,6 @@ test('changes with active overrides, packageExtensions, and security policies wh
   expect(createCacheKey({ ...base, trustLockfile: true })).not.toBe(defaultKey)
   expect(createCacheKey({ ...base, blockExoticSubdeps: false })).toBe(defaultKey)
   expect(createCacheKey({ ...base, blockExoticSubdeps: true })).not.toBe(defaultKey)
+  expect(createCacheKey({ ...base, ignoreScripts: false })).toBe(defaultKey)
+  expect(createCacheKey({ ...base, ignoreScripts: true })).not.toBe(defaultKey)
 })

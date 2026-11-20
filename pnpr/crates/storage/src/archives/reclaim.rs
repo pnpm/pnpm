@@ -9,13 +9,23 @@
 //! removal that lands late removes bytes nothing can reach.
 
 use crate::{
-    BlobId, Storage, StoredArchive,
-    database::{BlobRef, BlobRow, Uncommitted, Unmapping},
+    BlobId,
+    Storage,
+    StoredArchive,
+    database::{
+        BlobRef,
+        BlobRow,
+        Uncommitted,
+        Unmapping,
+    },
     parse_blob_key,
 };
 use futures_util::TryStreamExt as _;
 use pnpr_error::Result;
-use std::{collections::BTreeMap, time::Duration};
+use std::{
+    collections::BTreeMap,
+    time::Duration,
+};
 
 impl Storage {
     /// Reclaim the blobs among `ids` that are live and that nothing maps.
@@ -77,7 +87,7 @@ impl Storage {
                 Err(error) => failure = Some(error),
             }
         }
-        failure.map_or(Ok(removed), Err)
+        failure.map(Err).unwrap_or(Ok(removed))
     }
 
     /// The incarnations stored in this namespace, with their sizes and
@@ -120,7 +130,7 @@ impl Storage {
         }
         let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
         self.database.finish_reclaims(namespace, ecosystem, removed.clone()).await?;
-        failure.map_or(Ok(removed), Err)
+        failure.map(Err).unwrap_or(Ok(removed))
     }
 
     /// Drop the mappings of `artifacts` of `name`, while the package is still

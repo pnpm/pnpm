@@ -2,7 +2,13 @@ use std::fs;
 
 use assert_cmd::prelude::*;
 
-use super::{DEP, PKG, pacquet, setup, write_manifest};
+use super::{
+    DEP,
+    PKG,
+    pacquet,
+    setup,
+    write_manifest,
+};
 
 #[test]
 fn why_json_output_includes_requires() {

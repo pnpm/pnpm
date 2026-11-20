@@ -139,7 +139,7 @@ fn node_depending_on_a_cycle_runs_after_it() {
 #[test]
 fn cycle_members_appear_once() {
     // Removing `a` drops `b` to degree zero an instant before `b` is
-    // removed as the same cycle's other member — `b` must not be
+    // removed as the same cycle's other member, `b` must not be
     // emitted again after the cycle.
     let graph_map = graph(&[("a", &["b"]), ("b", &["a"])]);
     let nodes = included(&["a", "b"]);

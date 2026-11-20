@@ -1,18 +1,44 @@
 use super::{
-    PNPM_VERSION, default_cache_dir, default_child_concurrency, default_config_dir,
-    default_fetch_timeout, default_install_state_dir, default_pnpm_home_dir, default_store_dir,
-    default_unsafe_perm, default_user_agent, default_workspace_concurrency,
-    default_workspace_concurrency_with_parallelism, install_command_for, is_unsafe_perm_posix,
-    resolve_child_concurrency, resolve_child_concurrency_with_parallelism,
-    resolve_configured_state_dir, store_dir_for_os,
+    PNPM_VERSION,
+    default_cache_dir,
+    default_child_concurrency,
+    default_config_dir,
+    default_fetch_timeout,
+    default_install_state_dir,
+    default_pnpm_home_dir,
+    default_store_dir,
+    default_unsafe_perm,
+    default_user_agent,
+    default_workspace_concurrency,
+    default_workspace_concurrency_with_parallelism,
+    install_command_for,
+    is_unsafe_perm_posix,
+    resolve_child_concurrency,
+    resolve_child_concurrency_with_parallelism,
+    resolve_configured_state_dir,
+    store_dir_for_os,
 };
-use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
-use pnpm_store_dir::{STORE_VERSION, StoreDir};
+use crate::api::{
+    EnvVar,
+    GetCurrentDir,
+    GetHomeDir,
+};
+use pnpm_store_dir::{
+    STORE_VERSION,
+    StoreDir,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, io, path::PathBuf};
+use std::{
+    fs,
+    io,
+    path::PathBuf,
+};
 
 #[cfg(windows)]
-use super::{default_store_dir_windows, get_drive_letter};
+use super::{
+    default_store_dir_windows,
+    get_drive_letter,
+};
 #[cfg(windows)]
 use std::path::Path;
 
@@ -129,7 +155,7 @@ fn test_default_pnpm_home_dir_expands_nested_percent_refs() {
 }
 
 /// The fake `Sys` here returns a value for `XDG_DATA_HOME` and `None`
-/// for `PNPM_HOME` so the lookup is deterministic — no need to
+/// for `PNPM_HOME` so the lookup is deterministic, no need to
 /// snapshot-and-restore real process env state to neutralise a
 /// developer's shell that has `PNPM_HOME` set.
 #[test]
@@ -386,7 +412,7 @@ fn resolve_child_concurrency_positive_amount() {
 /// `i32::MIN.unsigned_abs()`
 /// is `2_147_483_648`, well above any plausible host
 /// parallelism, so `saturating_sub` produces `0` and `.max(1)`
-/// lifts to exactly `1` — assert that precise value so a wrong
+/// lifts to exactly `1`, assert that precise value so a wrong
 /// result like `2` would still fail the test.
 #[test]
 fn resolve_child_concurrency_handles_i32_min() {
@@ -457,7 +483,7 @@ fn test_default_store_dir_with_unc_current_dir_does_not_panic() {
 }
 
 /// Compares the rendered string rather than the `Path`. On Windows
-/// `Path` equality is separator-insensitive — it compares components,
+/// `Path` equality is separator-insensitive; it compares components,
 /// so a value built by joining an `"a/b/c"` literal still satisfies an
 /// `assert_eq!` against the backslash form, while the forward slashes
 /// survive into `.modules.yaml` and `pnpm store path`.

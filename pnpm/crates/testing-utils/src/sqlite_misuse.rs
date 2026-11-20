@@ -12,8 +12,15 @@
 
 use libsql::ffi;
 use std::{
-    ffi::{c_char, c_int, c_void},
-    sync::atomic::{AtomicUsize, Ordering},
+    ffi::{
+        c_char,
+        c_int,
+        c_void,
+    },
+    sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 static REPORTS: AtomicUsize = AtomicUsize::new(0);

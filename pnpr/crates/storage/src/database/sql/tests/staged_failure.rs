@@ -1,12 +1,28 @@
 use super::{
-    super::adapter::{Adapter, Connection, ReadSource, Snapshot},
-    Db, config,
+    super::adapter::{
+        Adapter,
+        Connection,
+        ReadSource,
+        Snapshot,
+    },
+    Db,
+    config,
 };
-use crate::{Storage, Store, database::SqlDatabase};
-use pnpr_error::{RegistryError, Result};
+use crate::{
+    Storage,
+    Store,
+    database::SqlDatabase,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::sync::{
     Arc,
-    atomic::{AtomicU8, Ordering},
+    atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 
 #[derive(Debug)]

@@ -1,4 +1,9 @@
-use super::{Identifier, Path, Version, VersionError};
+use super::{
+    Identifier,
+    Path,
+    Version,
+    VersionError,
+};
 
 /// A parsed version argument: an exact version to set, or a release type to
 /// increment by.
@@ -132,8 +137,8 @@ fn initial_prerelease(preid: Option<&str>) -> Vec<Identifier> {
 }
 
 /// Increment a non-empty prerelease in place: bump the right-most numeric
-/// identifier (appending `.0` when there is none), then — when a preid is
-/// given — keep the result only if it is already `preid.<number>`, otherwise
+/// identifier (appending `.0` when there is none), then (when a preid is
+/// given) keep the result only if it is already `preid.<number>`, otherwise
 /// restart at `preid.0`.
 fn increment_prerelease(pre_release: &mut Vec<Identifier>, preid: Option<&str>) {
     let mut bumped = false;

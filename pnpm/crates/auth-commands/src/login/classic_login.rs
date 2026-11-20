@@ -1,20 +1,47 @@
 use std::future::Future;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_network::{ThrottledClient, UNPRIORITIZED, encode_uri_component, redact_and_sanitize};
+use pnpm_network::{
+    ThrottledClient,
+    UNPRIORITIZED,
+    encode_uri_component,
+    redact_and_sanitize,
+};
 use pnpm_network_web_auth::{
-    Clock, EnterKeyListener, OpenUrl, OtpChallenge, OtpError, PromptError, PromptOtp, Sleep,
-    StdinIsTty, StdoutIsTty, SyntheticOtpError, WebAuthFetch, WebAuthFetchOptions,
+    Clock,
+    EnterKeyListener,
+    OpenUrl,
+    OtpChallenge,
+    OtpError,
+    PromptError,
+    PromptOtp,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    SyntheticOtpError,
+    WebAuthFetch,
+    WebAuthFetchOptions,
     with_otp_handling,
 };
 use pnpm_reporter::Reporter;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::{
     error::LoginError,
     global_info,
-    prompt::{Masking, PromptInput, PromptPassword, prompt_line},
+    prompt::{
+        Masking,
+        PromptInput,
+        PromptPassword,
+        prompt_line,
+    },
     registry_join,
 };
 
@@ -23,8 +50,8 @@ use super::{
 /// registry raises one.
 ///
 /// Fails with [`LoginError::NonInteractive`] when either stdin or stdout is
-/// not a terminal: unlike the web-based flow — which only prints a URL and
-/// polls — the credential prompts need one.
+/// not a terminal: unlike the web-based flow (which only prints a URL and
+/// polls) the credential prompts need one.
 pub(super) async fn classic_login<Sys, Reporter>(
     http_client: &ThrottledClient,
     registry: &str,
@@ -62,7 +89,7 @@ where
         fetch_options,
         // A plain `FnMut` returning an `async move` block: the future is a
         // concrete type carrying only `Copy` borrows and the by-value OTP, so
-        // it borrows nothing from the closure — see `with_otp_handling`'s
+        // it borrows nothing from the closure; see `with_otp_handling`'s
         // `Operation` bound.
         move |otp: Option<String>| async move {
             add_user(http_client, registry, credentials, otp.as_deref()).await
@@ -164,7 +191,8 @@ fn joined_www_authenticate(response: &reqwest::Response) -> Option<String> {
         .headers()
         .get_all(reqwest::header::WWW_AUTHENTICATE)
         .iter()
-        .filter_map(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .filter_map(Result::ok)
         .collect::<Vec<_>>()
         .join(", ");
     (!joined.is_empty()).then_some(joined)

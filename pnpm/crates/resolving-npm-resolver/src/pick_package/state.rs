@@ -1,23 +1,37 @@
 //! The per-pick route state ([`PickState`]) and the layer methods every
 //! candidate path of a pick shares.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 use pnpm_network::MetadataCacheScope;
 use pnpm_registry::Package;
 
 use crate::{
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, PNPR_META_DIR,
-        get_pkg_mirror_path, scoped_meta_dir,
+        ABBREVIATED_META_DIR,
+        FULL_FILTERED_META_DIR,
+        FULL_META_DIR,
+        PNPR_META_DIR,
+        get_pkg_mirror_path,
+        scoped_meta_dir,
     },
     pick_package_from_meta::RegistryPackageSpec,
     registry_url::to_registry_url,
 };
 
 use super::{
-    PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
-    PickerOpts, UpgradeOutcome, handle_cache_hit, maybe_upgrade_abbreviated_meta_for_release_age,
+    PackageMetaCache,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    PickPackageResult,
+    PickerOpts,
+    UpgradeOutcome,
+    handle_cache_hit,
+    maybe_upgrade_abbreviated_meta_for_release_age,
     metadata_cache_key,
 };
 
@@ -33,7 +47,7 @@ pub(super) struct PickState<'a> {
     pub(super) base_meta_dir: &'static str,
     pub(super) cache_key: String,
     /// `updateChecksums` must reach the conditional registry request, so it
-    /// can't be served from the in-memory cache — which may hold a
+    /// can't be served from the in-memory cache, which may hold a
     /// disk-promoted entry rather than a fresh network fetch (see the
     /// `update_checksums` doc).
     pub(super) use_mem_cache: bool,
@@ -45,8 +59,8 @@ impl<'a> PickState<'a> {
         spec: &RegistryPackageSpec,
         opts: &PickPackageOptions<'a>,
     ) -> Self {
-        // Every layer below — the in-memory cache, the offline / version-spec
-        // / publishedBy disk fast paths, and the network fetch — answers this
+        // Every layer below (the in-memory cache, the offline / version-spec
+        // / publishedBy disk fast paths, and the network fetch) answers this
         // pick for the same `(registry, package)` route. The fast paths return
         // straight from cache without ever reaching the auth-selection point,
         // so a server route hook would never see this package and its private
@@ -58,8 +72,8 @@ impl<'a> PickState<'a> {
         let url = to_registry_url(opts.registry, &spec.name);
         ctx.metadata.http.auth_headers.record_route(&url, Some(&spec.name));
 
-        // Classify the metadata cache scope once. Every layer below — the
-        // in-memory cache, the disk fast paths, and the network fetch — must
+        // Classify the metadata cache scope once. Every layer below (the
+        // in-memory cache, the disk fast paths, and the network fetch) must
         // agree on the mirror namespace and cache keys this route resolves to,
         // or a private packument could leak into (or read from) the global
         // mirror. `Public` for the CLI, leaving the global mirror unchanged.
@@ -113,10 +127,9 @@ impl<'a> PickState<'a> {
         ctx: &PickPackageContext<'_, Cache>,
         opts: &PickPackageOptions<'_>,
     ) -> (bool, bool, &'static str) {
-        let full_metadata = ctx.needs_full_metadata_for.map_or(
-            opts.request.optional || ctx.full_metadata,
-            |needs_full_metadata| needs_full_metadata(opts.registry, opts.request.optional),
-        );
+        let full_metadata = ctx.needs_full_metadata_for
+            .map(|needs_full_metadata| needs_full_metadata(opts.registry, opts.request.optional))
+            .unwrap_or(opts.request.optional || ctx.full_metadata);
         let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
         let base_meta_dir = if full_metadata {
             if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }

@@ -11,10 +11,16 @@
 //!   whitespace around `||` and within versions is trimmed.
 //! - Wildcards in the name **without** a version part.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use std::collections::HashSet;
 
 /// Error from [`expand_package_version_specs`] or
@@ -161,7 +167,7 @@ pub type ResolvedPackageVersions =
 /// - A bare `name` (no version part, no `*`) is dropped when the
 ///   lockfile no longer resolves the package at all.
 /// - Name patterns carrying `*` and specs that fail parsing are kept
-///   verbatim — the pass never rejects a hand-written entry.
+///   verbatim, the pass never rejects a hand-written entry.
 #[must_use]
 pub fn drop_unresolved_package_version_specs(
     specs: &[String],
@@ -204,10 +210,10 @@ fn drop_unresolved_spec(spec: &str, resolved: &ResolvedPackageVersions) -> Optio
 
 /// Decision a [`PackageVersionPolicy`] reaches for a given package name.
 ///
-/// - [`PolicyMatch::No`] — no rule matched the name.
-/// - [`PolicyMatch::AnyVersion`] — a bare-name rule matched. Every
+/// - [`PolicyMatch::No`], no rule matched the name.
+/// - [`PolicyMatch::AnyVersion`], a bare-name rule matched. Every
 ///   version of the package is covered.
-/// - [`PolicyMatch::ExactVersions`] — a name+version rule matched. Only
+/// - [`PolicyMatch::ExactVersions`], a name+version rule matched. Only
 ///   the listed versions are covered.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PolicyMatch {
@@ -222,7 +228,7 @@ pub enum PolicyMatch {
 ///
 /// Used by `minimumReleaseAgeExclude` and `trustPolicyExclude`, both
 /// of which need wildcard name patterns (`is-*`, `@scope/*`) AND
-/// exact version unions (`lodash@4.17.21 || 4.17.22`) — different from
+/// exact version unions (`lodash@4.17.21 || 4.17.22`), different from
 /// `allowBuilds`, which lands as a literal set via
 /// [`expand_package_version_specs`].
 #[derive(Clone)]
@@ -355,7 +361,7 @@ fn parse_version_policy_rule(pattern: &str) -> Result<ParsedRule<'_>, VersionPol
 }
 
 /// Parse `v1 || v2 || …` into a list of strict semver versions.
-/// Returns `None` if any component fails to parse — the caller
+/// Returns `None` if any component fails to parse, the caller
 /// surfaces that as `ERR_PNPM_INVALID_VERSION_UNION`. Whitespace
 /// around `||` and around each version is trimmed before parsing
 /// (matches Node-semver's `valid()` which trims internally).

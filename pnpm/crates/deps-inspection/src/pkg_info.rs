@@ -3,24 +3,48 @@
 //! Rust counterpart of the TypeScript tree-builder's `getPkgInfo` and
 //! `resolvePackagePath`.
 
-pub use resolve_path::{collect_hoisted_dirs, is_unsafe_path_component, resolve_package_path};
-
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+pub use resolve_path::{
+    collect_hoisted_dirs,
+    is_unsafe_path_component,
+    resolve_package_path,
 };
 
-use pnpm_fs::{is_subdir, lexical_normalize};
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+use pnpm_fs::{
+    is_subdir,
+    lexical_normalize,
+};
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PkgNameVerPeer, RegistryOptions, TarballUrlOptions,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    Lockfile,
+    LockfileResolution,
+    PkgNameVerPeer,
+    RegistryOptions,
+    TarballUrlOptions,
+    npm_tarball_url,
+    pick_registry_for_package,
+    registry_server_type,
 };
 
 use super::{
     DependencyNode,
-    dep_types::{DepType, DepTypes},
+    dep_types::{
+        DepType,
+        DepTypes,
+    },
     graph::GraphEdge,
-    peers_suffix_hash, resolved_pkg_version,
+    peers_suffix_hash,
+    resolved_pkg_version,
 };
 
 /// Everything that stays constant while resolving node metadata across
@@ -190,7 +214,7 @@ fn locked_pkg(env: &PkgInfoEnv<'_>, edge: &GraphEdge, dep_path: &PkgNameVerPeer)
     let (known, snapshot, metadata) = if in_current {
         (true, current_snapshot, current_metadata)
     } else {
-        // The package is missing from the current lockfile — it was
+        // The package is missing from the current lockfile; it was
         // never materialized (e.g. skipped platform-specific
         // optional deps).
         is_skipped = env.skipped.contains(&dep_path.to_string());

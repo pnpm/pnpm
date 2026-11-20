@@ -6,8 +6,8 @@
 //! entries for them to work with, so it is edited here instead: the
 //! collection is rebuilt from its own entry texts with one entry inserted,
 //! replaced, or dropped. Every untouched entry keeps its text (and so its
-//! quoting), and everything outside the brackets — indentation, a trailing
-//! comment — stays verbatim, which is what the TypeScript writer's yaml
+//! quoting), and everything outside the brackets (indentation, a trailing
+//! comment) stays verbatim, which is what the TypeScript writer's yaml
 //! library emits for the same edit.
 //!
 //! Only collections written on one line are edited. A flow collection
@@ -186,7 +186,8 @@ pub(crate) fn closing_bracket_across_lines(text: &str, open: usize) -> Option<us
             b'#' if idx > open && bytes[idx - 1].is_ascii_whitespace() => {
                 idx = text[idx..]
                     .find('\n')
-                    .map_or(bytes.len(), |offset| idx + offset + 1);
+                    .map(|offset| idx + offset + 1)
+                    .unwrap_or(bytes.len());
             }
             b'{' | b'[' => {
                 depth += 1;

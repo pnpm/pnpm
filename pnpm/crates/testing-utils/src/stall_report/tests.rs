@@ -1,19 +1,29 @@
 use super::output_within;
+use command_extra::CommandExtra;
 use std::{
     panic,
     process::Command,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
-use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System};
+use sysinfo::{
+    Pid,
+    ProcessRefreshKind,
+    ProcessStatus,
+    ProcessesToUpdate,
+    System,
+};
 
 const LONG_RUNNING: &str = "setTimeout(() => {}, 120000)";
 
 #[test]
 fn a_command_that_finishes_returns_its_output() {
     let output = output_within(
-        Command::new("node")
-            .args(["-e", "process.stdout.write('out'); process.stderr.write('err')"]),
+        &mut Command::new("node")
+            .with_args(["-e", "process.stdout.write('out'); process.stderr.write('err')"]),
         Duration::from_mins(1),
     );
     assert!(output.status.success());
@@ -66,7 +76,7 @@ fn spawn_grandchild_script(parent: Parent) -> String {
 
 fn stall_message(script: &str) -> String {
     let panic = panic::catch_unwind(|| {
-        output_within(Command::new("node").args(["-e", script]), Duration::from_secs(5))
+        output_within(&mut Command::new("node").with_args(["-e", script]), Duration::from_secs(5))
     })
     .expect_err("the command must fail past its deadline");
     panic
@@ -78,9 +88,12 @@ fn stall_message(script: &str) -> String {
 fn assert_grandchild_reported_and_killed(message: &str) {
     let grandchild_pid = message
         .lines()
-        .find(|line| line.contains(LONG_RUNNING) && !line.contains("spawn"))
-        .and_then(|line| line.split_whitespace().next())
-        .and_then(|pid| pid.parse().ok())
+        .filter(|line| line.contains(LONG_RUNNING))
+        .find(|line| !line.contains("spawn"))
+        .map(str::split_whitespace)
+        .and_then(|mut words| words.next())
+        .map(str::parse)
+        .and_then(Result::ok)
         .unwrap_or_else(|| panic!("the report must list the grandchild:\n{message}"));
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut system = System::new().expect("read the process table");

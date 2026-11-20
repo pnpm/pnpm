@@ -1,9 +1,29 @@
 use super::{
-    ABBREVIATED_BODY, ABBREVIATED_META_DIR, Arc, AuthHeaders, InMemoryPackageMetaCache,
-    PACKAGE_BODY, PARTIAL_TIME_PACKAGE_BODY, PickPackageContext, PickPackageError,
-    PickPackageOptions, RetryOpts, STALE_PACKAGE_BODY, TempDir, ThrottledClient, assert_eq,
-    create_package_version_policy, default_opts, get_pkg_mirror_path, load_meta, parse_cutoff,
-    persist_meta_to_mirror, pick_package, range_spec, shared_packument_fetch_locker, version_spec,
+    ABBREVIATED_BODY,
+    ABBREVIATED_META_DIR,
+    Arc,
+    AuthHeaders,
+    InMemoryPackageMetaCache,
+    PACKAGE_BODY,
+    PARTIAL_TIME_PACKAGE_BODY,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    RetryOpts,
+    STALE_PACKAGE_BODY,
+    TempDir,
+    ThrottledClient,
+    assert_eq,
+    create_package_version_policy,
+    default_opts,
+    get_pkg_mirror_path,
+    load_meta,
+    parse_cutoff,
+    persist_meta_to_mirror,
+    pick_package,
+    range_spec,
+    shared_packument_fetch_locker,
+    version_spec,
 };
 use crate::pick_package::metadata_cache::PackageMetaCache;
 
@@ -196,7 +216,7 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
         .expect(1)
         .create_async()
         .await;
-    // No second mock — the registry must NOT see a full-metadata
+    // No second mock, the registry must NOT see a full-metadata
     // request. If the upgrade trigger fires by mistake, the test
     // panics on an unmatched request from `mockito`.
 

@@ -1,11 +1,32 @@
 use crate::{
-    model::{DependencyKind, RegistryDependency, RegistryVersion, ensure_not_cancelled},
-    preferences::{PreferredVersions, is_selectable},
+    model::{
+        DependencyKind,
+        RegistryDependency,
+        RegistryVersion,
+        ensure_not_cancelled,
+    },
+    preferences::{
+        PreferredVersions,
+        is_selectable,
+    },
 };
-use cargo_util_schemas::index::{IndexPackage, RegistryDependency as IndexDependency};
-use miette::{IntoDiagnostic, Result, WrapErr};
-use semver::{Version, VersionReq};
-use std::collections::{BTreeMap, BTreeSet};
+use cargo_util_schemas::index::{
+    IndexPackage,
+    RegistryDependency as IndexDependency,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use semver::{
+    Version,
+    VersionReq,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// The source identifier `cargo` writes for a crates.io package. A crate is
 /// locked against it when its dependency named crates.io or named no
@@ -163,7 +184,8 @@ pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
         .package(name)?
         .iter()
         .rev()
-        .find(|version| !version.yanked && version.version.pre.is_empty())
+        .filter(|version| !version.yanked)
+        .find(|version| version.version.pre.is_empty())
         .map(|version| version.version.to_string())
         .ok_or_else(|| miette::miette!("crate {name} has no stable, non-yanked version"))
 }
@@ -209,11 +231,13 @@ pub fn latest_matching_version(
         Some(req) => versions
             .iter()
             .rev()
-            .find(|version| !version.yanked && req.matches(&version.version)),
+            .filter(|version| !version.yanked)
+            .find(|version| req.matches(&version.version)),
         None => versions
             .iter()
             .rev()
-            .find(|version| !version.yanked && version.version.pre.is_empty())
+            .filter(|version| !version.yanked)
+            .find(|version| version.version.pre.is_empty())
             .or_else(|| {
                 versions
                     .iter()
@@ -270,7 +294,8 @@ fn registry_version_from_index(package: IndexPackage<'_>) -> Result<Option<Regis
 
 fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<RegistryDependency> {
     let alias = dependency.name.into_owned();
-    let name = dependency.package.map_or_else(|| alias.clone(), std::borrow::Cow::into_owned);
+    let name =
+        dependency.package.map(std::borrow::Cow::into_owned).unwrap_or_else(|| alias.clone());
     let requirement = VersionReq::parse(&dependency.req)
         .into_diagnostic()
         .wrap_err_with(|| format!("parse requirement for {name}"))?;

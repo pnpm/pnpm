@@ -1,12 +1,24 @@
 //! Counting a principal's staged archives, and sweeping the expired ones.
 
 use super::{
-    STAGED_ARCHIVES_DIR, StagedArchiveKey, StagedArchiveUsage, StagedEntry, is_collectable,
-    is_held, principal_namespace, unix_now,
+    STAGED_ARCHIVES_DIR,
+    StagedArchiveKey,
+    StagedArchiveUsage,
+    StagedEntry,
+    is_collectable,
+    is_held,
+    principal_namespace,
+    unix_now,
 };
 use crate::{
-    BlobId, Result, Storage,
-    database::{StagedId, StagedRecord, StagedState},
+    BlobId,
+    Result,
+    Storage,
+    database::{
+        StagedId,
+        StagedRecord,
+        StagedState,
+    },
     parse_blob_key,
 };
 use std::collections::HashMap;

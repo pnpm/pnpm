@@ -2,9 +2,15 @@ use std::sync::Arc;
 
 use pnpr_error::RegistryError;
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
-use crate::secret::{Secret, refuse};
+use crate::secret::{
+    Secret,
+    refuse,
+};
 
 /// Minimum length of a configured `secret:` in bytes.
 pub const MIN_SECRET_LEN: usize = 16;

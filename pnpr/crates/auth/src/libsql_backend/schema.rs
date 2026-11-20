@@ -1,6 +1,12 @@
 use super::{
-    Connection, Duration, RegistryError, Result, TransactionBehavior, first_row,
-    is_unique_violation, params,
+    Connection,
+    Duration,
+    RegistryError,
+    Result,
+    TransactionBehavior,
+    first_row,
+    is_unique_violation,
+    params,
 };
 use pnpr_libsql::is_transaction_conflict;
 

@@ -16,7 +16,11 @@
 #![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
 
 #[cfg(target_os = "android")]
-pub use advisory_lock::{AdvisoryLock, Blocking, lock_file};
+pub use advisory_lock::{
+    AdvisoryLock,
+    Blocking,
+    lock_file,
+};
 pub use confined_open::open_directory_beneath;
 #[cfg(unix)]
 pub use dir_entries::directory_entry_names;
@@ -24,29 +28,61 @@ pub use dir_entries::directory_entry_names;
 pub use dir_handle::set_mode_at;
 #[cfg(unix)]
 pub use dir_handle::{
-    DirectoryAccess, EntryKind, EntryMetadata, can_write_and_search, create_directory_at,
-    create_file_at, entry_metadata_at, link_at, open_directory_at, open_directory_for_traversal,
-    open_file_at, open_file_at_without_blocking, open_search_directory, read_link_at,
-    remove_directory_at, rename_at, reopen_directory, symlink_at, unlink_at,
+    DirectoryAccess,
+    EntryKind,
+    EntryMetadata,
+    can_write_and_search,
+    create_directory_at,
+    create_file_at,
+    entry_metadata_at,
+    link_at,
+    open_directory_at,
+    open_directory_for_traversal,
+    open_file_at,
+    open_file_at_without_blocking,
+    open_search_directory,
+    read_link_at,
+    remove_directory_at,
+    rename_at,
+    reopen_directory,
+    symlink_at,
+    unlink_at,
 };
 pub use exchange::exchange_dirents;
 #[cfg(unix)]
 pub use fifo::create_fifo;
 pub use file_mode::FileMode;
 #[cfg(windows)]
-pub use mapped_drive::{drive_is_mapped, mapped_drive_target, wide_names_equal_ignoring_case};
+pub use mapped_drive::{
+    drive_is_mapped,
+    mapped_drive_target,
+    wide_names_equal_ignoring_case,
+};
 #[cfg(target_vendor = "apple")]
 pub use sync::fsync;
 #[cfg(unix)]
 pub use unlink::unlink_without_allocating;
 #[cfg(target_os = "wasi")]
 pub use wasi::{
-    FileIdentity, file_identity, file_link_count, open_for_overwrite, path_identity, symlink,
+    FileIdentity,
+    file_identity,
+    file_link_count,
+    open_for_overwrite,
+    path_identity,
+    symlink,
 };
 #[cfg(windows)]
 pub use windows_file::{
-    FileAttributes, FileInformation, change_time_ticks, file_attributes, file_information,
-    local_app_data_directory, rename_over, reparse_tag, short_path, system_directory,
+    FileAttributes,
+    FileInformation,
+    change_time_ticks,
+    file_attributes,
+    file_information,
+    local_app_data_directory,
+    rename_over,
+    reparse_tag,
+    short_path,
+    system_directory,
 };
 
 #[cfg(target_os = "android")]

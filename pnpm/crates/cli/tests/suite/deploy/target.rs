@@ -1,6 +1,12 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, flatten_miette_report, fs, pacquet_cmd,
-    write_project, write_workspace,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    flatten_miette_report,
+    fs,
+    pacquet_cmd,
+    write_project,
+    write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -561,7 +567,10 @@ diff --git a/package.json b/package.json
 #[cfg(unix)]
 #[test]
 fn deploy_preserves_links_to_dependencies_and_copies_file_links_to_unselected_targets() {
-    use std::{os::unix::fs::symlink, path::Path};
+    use std::{
+        os::unix::fs::symlink,
+        path::Path,
+    };
 
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(

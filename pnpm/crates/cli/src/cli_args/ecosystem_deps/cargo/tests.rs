@@ -1,10 +1,17 @@
 use super::pin_unchanged_deps;
 use crate::cli_args::ecosystem_deps::{
-    cargo_manifest_ops::DeclaredCargoDep, cargo_workspace_scope::tests::scope_with,
+    cargo_manifest_ops::DeclaredCargoDep,
+    cargo_workspace_scope::tests::scope_with,
 };
 use pnpm_package_manifest::DependencyGroup;
-use semver::{Version, VersionReq};
-use std::{collections::HashMap, path::PathBuf};
+use semver::{
+    Version,
+    VersionReq,
+};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 fn declared(name: &str) -> DeclaredCargoDep {
     DeclaredCargoDep {

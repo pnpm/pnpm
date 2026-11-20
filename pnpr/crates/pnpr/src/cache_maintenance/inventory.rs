@@ -1,15 +1,35 @@
 pub(super) use self::cleanup::{
-    CachedFileRemoval, check_unmodified_cached_files_sync, prune_empty_cache_dirs,
-    remove_cached_files, remove_cached_files_sync,
+    CachedFileRemoval,
+    check_unmodified_cached_files_sync,
+    prune_empty_cache_dirs,
+    remove_cached_files,
+    remove_cached_files_sync,
 };
 
 mod cleanup;
-use super::{CachedFile, HashSet, Path, PathBuf, Result, SystemTime, stat_effective_time};
-use pnpm_fs::{ChildFileStat, OpenDir};
+use super::{
+    CachedFile,
+    HashSet,
+    Path,
+    PathBuf,
+    Result,
+    SystemTime,
+    stat_effective_time,
+};
+use pnpm_fs::{
+    ChildFileStat,
+    OpenDir,
+};
 use pnpm_store_dir::STORE_VERSION;
 use std::{
-    ffi::{OsStr, OsString},
-    io::{self, ErrorKind},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
     sync::Arc,
     vec::IntoIter,
 };
@@ -28,10 +48,10 @@ enum DirPolicy {
 
 /// Walk `cache_dir` through root-anchored `O_NOFOLLOW` handles and classify
 /// regular files into eviction candidates and non-evictable live overhead
-/// (`layout.json`, `.cache-secret`, in-flight staging/replay/blob uploads, and
-/// `shared-artifacts`). SQLite databases for the active `resolver-cache` and
-/// `resolver-store` are accounted separately. Returns `Ok(None)` when
-/// `cache_dir` does not exist.
+/// (`layout.json`, `.cache-secret`, `.purged`, in-flight staging/replay/blob
+/// uploads, and `shared-artifacts`). SQLite databases for the active
+/// `resolver-cache` and `resolver-store` are accounted separately. Returns
+/// `Ok(None)` when `cache_dir` does not exist.
 pub(super) async fn inventory_cache_dir(
     cache_dir: &Path,
     excluded_dirs: &HashSet<PathBuf>,
@@ -40,7 +60,8 @@ pub(super) async fn inventory_cache_dir(
     let excluded = excluded_dirs.clone();
     tokio::task::spawn_blocking(move || inventory_cache_dir_sync(&root, &excluded))
         .await
-        .map_err(|err| io::Error::other(err.to_string()))?
+        .map_err(|err| err.to_string())
+        .map_err(io::Error::other)?
 }
 
 fn inventory_cache_dir_sync(
@@ -109,7 +130,11 @@ fn root_dir_policy(name: &OsStr) -> DirPolicy {
     };
     match raw {
         "lost+found" => DirPolicy::Skip,
-        ".staging" | ".publish-replay" | ".uploads" | "shared-artifacts" => DirPolicy::CountOnly,
+        ".staging"
+        | ".publish-replay"
+        | ".uploads"
+        | "shared-artifacts"
+        | pnpr_storage::PURGED_UPSTREAM_DIR => DirPolicy::CountOnly,
         _ => DirPolicy::Evictable,
     }
 }

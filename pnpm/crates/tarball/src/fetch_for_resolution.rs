@@ -2,24 +2,54 @@
 //! through the in-memory cache.
 
 use crate::{
-    ArchiveIntegrity, CacheClaimGuard, CacheHeaders, CacheSlotClaim, CacheValue, CachedTarball,
-    MemCache, RetryOpts, TarballError, TarballPackage, apply_placeholder_manifest,
-    archive_integrity::{ArchiveVerification, IntegrityKind},
+    ArchiveIntegrity,
+    CacheClaimGuard,
+    CacheHeaders,
+    CacheSlotClaim,
+    CacheValue,
+    CachedTarball,
+    MemCache,
+    RetryOpts,
+    TarballError,
+    TarballPackage,
+    apply_placeholder_manifest,
+    archive_integrity::{
+        ArchiveVerification,
+        IntegrityKind,
+    },
     claim_cache_entry,
-    download::{AttemptedFetch, fetch_and_extract_conditional},
-    package_mem_cache_key, read_cas_package_json, read_subdir_manifest, wait_for_cached_tarball,
+    download::{
+        AttemptedFetch,
+        fetch_and_extract_conditional,
+    },
+    package_mem_cache_key,
+    read_cas_package_json,
+    read_subdir_manifest,
+    wait_for_cached_tarball,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    UNPRIORITIZED,
+};
 use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter, store_index_key};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndexWriter,
+    store_index_key,
+};
 use ssri::Integrity;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 use tokio::sync::RwLock;
 
 /// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity
 /// computed from the downloaded tarball and the bundled manifest read
-/// from its `package.json`. The extracted CAFS paths are not returned —
+/// from its `package.json`. The extracted CAFS paths are not returned;
 /// they are stashed in the shared [`MemCache`] under the archive's
 /// computed integrity so the install pass, which records that same hash
 /// in the lockfile, reuses them without re-downloading.
@@ -58,7 +88,7 @@ pub struct NotModifiedResponse {
 /// caller pins), extract it to the store, and read its bundled manifest.
 ///
 /// Remote (non-registry) https-tarball direct dependencies carry no
-/// name/version/integrity at resolve time — those live in the tarball's
+/// name/version/integrity at resolve time; those live in the tarball's
 /// `package.json`, learned only after the fetch. pacquet builds the
 /// lockfile before the install pass, so the `TarballResolver` must
 /// fetch here to fill `manifest` + `integrity` into its
@@ -70,8 +100,8 @@ pub struct FetchTarballForResolution<'a> {
     ///
     /// `id` is used for scoped auth lookup and for the store-index row
     /// this fetch writes; it must be the `pkg_id` the install pass
-    /// derives from the lockfile entry — the bare URL for a remote
-    /// tarball — or the two passes file the same content under two rows.
+    /// derives from the lockfile entry (the bare URL for a remote
+    /// tarball) or the two passes file the same content under two rows.
     ///
     /// `integrity` is `None` when this fetch is what discovers the hash,
     /// and `Some` when the resolution already pins one and the fetch
@@ -85,7 +115,7 @@ pub struct FetchTarballForResolution<'a> {
     /// Directory *within* the archive holding the package, for a
     /// git-hosted dep that points at one directory of a repo
     /// (`#path:/packages/foo`). The archive spans the whole repo, so
-    /// the root `package.json` describes the repo, not the package —
+    /// the root `package.json` describes the repo, not the package,
     /// read the manifest from here instead. `None` reads the root.
     ///
     /// Matches the resolution's `path` field verbatim, leading slash
@@ -366,7 +396,8 @@ impl FetchTarballForResolution<'_> {
             }
             AttemptedFetch::Extracted(extracted) => {
                 self.process_extracted(*extracted).await
-                    .map(|validated| FetchedBody::Extracted(Box::new(validated)))
+                    .map(Box::new)
+                    .map(FetchedBody::Extracted)
             }
         }
     }
@@ -398,7 +429,7 @@ impl FetchTarballForResolution<'_> {
         })
     }
 
-    /// File this extraction under the caller's `package_id` — the same
+    /// File this extraction under the caller's `package_id`, the same
     /// `pkg_id` the install pass derives from the lockfile entry. Deriving
     /// a `name@version` from the bundled manifest instead would file a
     /// remote tarball under a key nothing ever reads, leaving the install
@@ -406,7 +437,7 @@ impl FetchTarballForResolution<'_> {
     ///
     /// A subdirectory package gets no row. Its key would name the
     /// subpackage while `pkg_files_idx` describes the whole archive
-    /// — the repo's manifest and every repo file — and a row whose
+    /// (the repo's manifest and every repo file) and a row whose
     /// key and payload disagree is worse than none: consumers that
     /// trust `PackageFilesIndex.manifest` / `files` to match the key
     /// (bin linking, file materialization) would read the repo.

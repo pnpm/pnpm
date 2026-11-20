@@ -1,4 +1,9 @@
-use crate::{Lockfile, PackageKey, PkgName, next_format::LockfileFormat};
+use crate::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+    next_format::LockfileFormat,
+};
 use pretty_assertions::assert_eq;
 use std::path::Path;
 

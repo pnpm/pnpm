@@ -1,6 +1,13 @@
-use crate::{graph::CrateGraph, layers::Layers, problem::Problem};
+use crate::{
+    graph::CrateGraph,
+    layers::Layers,
+    problem::Problem,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt::Write as _,
 };
 

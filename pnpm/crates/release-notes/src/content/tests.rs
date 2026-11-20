@@ -1,4 +1,9 @@
-use super::{MAX_NOTE_BYTES, NoteContentError, normalize_line_endings, validate_note};
+use super::{
+    MAX_NOTE_BYTES,
+    NoteContentError,
+    normalize_line_endings,
+    validate_note,
+};
 use pretty_assertions::assert_eq;
 
 #[test]

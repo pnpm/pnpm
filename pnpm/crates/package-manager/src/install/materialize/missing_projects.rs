@@ -1,9 +1,23 @@
 //! Stand-in manifests for the projects a filtered install cannot read, such as
 //! projects a sparse checkout leaves off disk.
 
-use super::super::{DependencyGroup, HashSet, Lockfile, PackageManifest, Path};
-use pnpm_lockfile::{ImporterDepVersion, ProjectSnapshot, ResolvedDependencySpec, VersionPart};
-use serde_json::{Map, Value};
+use super::super::{
+    DependencyGroup,
+    HashSet,
+    Lockfile,
+    PackageManifest,
+    Path,
+};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
+    VersionPart,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// A manifest for every importer `lockfile` records outside
 /// `real_importer_ids`, declaring the specifiers that importer records.

@@ -1,26 +1,47 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
-use axum::{http::StatusCode, response::Response};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
 use pnpm_lockfile::Lockfile;
 use pnpr_config::Config as RegistryConfig;
 use pnpr_policy::Identity;
 use tokio::{
-    sync::{Notify, OwnedSemaphorePermit, Semaphore},
+    sync::{
+        Notify,
+        OwnedSemaphorePermit,
+        Semaphore,
+    },
     time::Instant,
 };
 
-use crate::server::{KeyedPermit, KeyedSemaphores};
+use crate::server::{
+    KeyedPermit,
+    KeyedSemaphores,
+};
 
 use super::{
-    json_error, json_error_with_code,
-    protocol::{ResolveRequest, ResolveRequestProject},
+    json_error,
+    json_error_with_code,
+    protocol::{
+        ResolveRequest,
+        ResolveRequestProject,
+    },
 };
 
 pub(super) const STREAM_CHANNEL_CAPACITY: usize = 256;

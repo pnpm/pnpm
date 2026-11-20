@@ -117,6 +117,8 @@ Update the dependencies to their latest stable version as determined by their `l
 
 Since v12.6.0, `--latest` does not move a dependency past a specifier supplied by `packageExtensions`, a `readPackage` hook, or an override. The lockfile stays inside that specifier.
 
+Since v12.23.0, `pnpm update --latest <name>` moves the override keyed by the bare name of a dependency it selects. The override keeps its range style, so `1.0.0` becomes the new exact version and `^1.0.0` becomes `^<new version>`. The `package.json` entry stays as it is. `pnpm update --interactive --latest` does the same for the dependencies you select. pnpm prints a warning when it cannot move the override, for example an `npm:` alias, a `$` reference, or a `catalog:` value. `--latest` without selectors leaves overrides alone.
+
 A Cargo requirement keeps its operator when updated, so `~1.0` becomes `~1.1`
 and `=1.0.0` stays exact. A requirement with only an upper bound, such as `<2`,
 is kept while the new version matches it, and becomes a caret requirement, such

@@ -1,4 +1,7 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// `ERR_PNPM_UNSUPPORTED_PROTOCOL`: a specifier opens with a protocol that no

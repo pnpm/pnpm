@@ -1,4 +1,10 @@
-use super::{ColorMode, ConfigOverrides, parse_bool, parse_bool_or_enum, parse_enum};
+use super::{
+    ColorMode,
+    ConfigOverrides,
+    parse_bool,
+    parse_bool_or_enum,
+    parse_enum,
+};
 use pnpm_network::normalize_registry_url;
 
 impl ConfigOverrides {

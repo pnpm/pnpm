@@ -1,7 +1,17 @@
-use super::{Claims, verify_claims};
+use super::{
+    Claims,
+    verify_claims,
+};
 use axum::http::Method;
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use p256::ecdsa::{Signature, SigningKey, signature::Signer as _};
+use base64::{
+    Engine as _,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
+use p256::ecdsa::{
+    Signature,
+    SigningKey,
+    signature::Signer as _,
+};
 use std::collections::BTreeMap;
 
 #[test]

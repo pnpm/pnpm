@@ -8,7 +8,13 @@
 //! a stand-in for the shell that leads its session, and Windows runs it on a
 //! private console.
 
-use super::{Leftover, launcher_args, launcher_directly, surviving, write_fixture};
+use super::{
+    Leftover,
+    launcher_args,
+    launcher_directly,
+    surviving,
+    write_fixture,
+};
 #[cfg(windows)]
 use crate::_utils::console::PrivateConsole;
 #[cfg(unix)]
@@ -16,12 +22,21 @@ use crate::_utils::terminal::Terminal;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 #[cfg(windows)]
-use std::process::{ExitStatus, Stdio};
+use std::process::{
+    ExitStatus,
+    Stdio,
+};
 use std::{
     path::Path,
-    process::{Child, Command},
+    process::{
+        Child,
+        Command,
+    },
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 const LEFTOVERS: [Leftover; 2] = [Leftover::Detached, Leftover::Attached];
@@ -130,18 +145,17 @@ impl Session {
     fn start(command: &Command, workspace: &Path) -> Self {
         let script = workspace.join("shell.js");
         std::fs::write(&script, SHELL).expect("write shell.js");
-        let mut shell = Command::new(super::node_executable());
-        shell
-            .current_dir(workspace)
-            .arg(script)
-            .arg(command.get_program())
-            .args(command.get_args());
-        for (name, value) in command.get_envs() {
-            match value {
-                Some(value) => shell.env(name, value),
-                None => shell.env_remove(name),
-            };
-        }
+        let mut shell = Command::new(super::node_executable())
+            .with_current_dir(workspace)
+            .with_arg(script)
+            .with_arg(command.get_program())
+            .with_args(command.get_args());
+        shell = command
+            .get_envs()
+            .fold(shell, |shell, (name, value)| match value {
+                Some(value) => shell.with_env(name, value),
+                None => shell.without_env(name),
+            });
         let terminal = Terminal::open();
         let mut shell = terminal.spawn_foreground(shell);
         wait_for_start(&workspace.join("started.txt"), &mut shell);

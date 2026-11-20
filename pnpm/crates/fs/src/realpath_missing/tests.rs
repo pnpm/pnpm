@@ -1,4 +1,8 @@
-use super::{realpath_missing, resolve_path_with_symlinks, symlinked_dir_real_path};
+use super::{
+    realpath_missing,
+    resolve_path_with_symlinks,
+    symlinked_dir_real_path,
+};
 use std::fs;
 
 #[test]

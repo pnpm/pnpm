@@ -3,40 +3,91 @@
 //! Owns the retry policy, integrity verification, and the progress
 //! events the reporter renders during a fetch.
 
-pub(crate) use body::{BodyProgress, slow_download_warning};
+pub(crate) use body::{
+    BodyProgress,
+    slow_download_warning,
+};
 pub(crate) use buffered::{
-    BufferedArchive, ExtractedFiles, extract_local_tarball_buffer_with_sha1,
-    extract_tarball_buffer, extract_tarball_buffer_with_permit,
+    BufferedArchive,
+    ExtractedFiles,
+    extract_local_tarball_buffer_with_sha1,
+    extract_tarball_buffer,
+    extract_tarball_buffer_with_permit,
 };
 pub(crate) use fetch::{
-    AttemptedFetch, ExtractedArchive, fetch_and_extract_once, fetch_local_tarball_with_sha1,
+    AttemptedFetch,
+    ExtractedArchive,
+    fetch_and_extract_once,
+    fetch_local_tarball_with_sha1,
 };
 pub use progress::download_priority;
-pub(crate) use progress::{emit_progress_fetched, emit_progress_found_in_store};
+pub(crate) use progress::{
+    emit_progress_fetched,
+    emit_progress_found_in_store,
+};
 
 use super::{
-    Arc, Duration, IgnoreEntryFilter, Instant, MAX_UNTRUSTED_PREALLOC_BYTES, NetworkError, Path,
-    STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
-    SharedReportedProgressKeys, TarLimits, TarballError, VerifyChecksumError,
-    allocate_tarball_buffer, body_chunk_channel,
+    Arc,
+    Duration,
+    IgnoreEntryFilter,
+    Instant,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    NetworkError,
+    Path,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    SharedReportedProgressKeys,
+    TarLimits,
+    TarballError,
+    VerifyChecksumError,
+    allocate_tarball_buffer,
+    body_chunk_channel,
     content_coding::ContentCoding,
-    extract::{BodyChunkSender, ExtractedResource, StreamedResource},
-    extract_archive_bytes, extract_resource_stream,
+    extract::{
+        BodyChunkSender,
+        ExtractedResource,
+        StreamedResource,
+    },
+    extract_archive_bytes,
+    extract_resource_stream,
     extraction_task::spawn_extraction,
-    local_file_tarball_path, open_local_tarball, post_download_semaphore,
-    read_local_tarball_buffer, streaming_extract_semaphore,
+    local_file_tarball_path,
+    open_local_tarball,
+    post_download_semaphore,
+    read_local_tarball_buffer,
+    streaming_extract_semaphore,
 };
 use crate::archive_integrity::ArchiveVerification;
-use futures_util::{Stream, StreamExt};
+use futures_util::{
+    Stream,
+    StreamExt,
+};
 use pnpm_network::{
-    AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_url_for_display,
+    AuthHeaders,
+    MAX_THROUGHPUT_PRIORITY,
+    RetryOpts,
+    ThrottledClient,
+    redact_url_for_display,
 };
 use pnpm_reporter::{
-    FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
+    FetchingProgressLog,
+    FetchingProgressMessage,
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
     Reporter,
 };
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, store_index_key};
-use ssri::{Algorithm, Integrity, IntegrityOpts};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreDir,
+    store_index_key,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityOpts,
+};
 use tokio::sync::SemaphorePermit;
 
 /// Controls how archive files are projected into pnpm's content-addressable store.
@@ -156,8 +207,8 @@ pub(crate) enum PackageContentCheck {
     Skip,
 }
 
-/// `Clone` is cheap — every field is a reference, a `Copy` scalar, or an
-/// `Arc` — so a caller can keep a copy to retry through a different entry
+/// `Clone` is cheap (every field is a reference, a `Copy` scalar, or an
+/// `Arc`) so a caller can keep a copy to retry through a different entry
 /// point (e.g. fall back to [`Self::run_without_mem_cache`] after a
 /// best-effort [`Self::run_with_mem_cache`] reports a sibling failure).
 #[derive(Clone)]
@@ -178,8 +229,8 @@ pub struct IngestTarballToStore<'a> {
     /// uses to strip Node's bundled `npm` / `corepack` from the CAS.
     ///
     /// Stored as `Arc` so the install dispatcher (Slice D) can
-    /// construct one filter per fetch from runtime config — e.g.
-    /// `archiveFilters` keyed by `pkg.name` — without leaking
+    /// construct one filter per fetch from runtime config (e.g.
+    /// `archiveFilters` keyed by `pkg.name`) without leaking
     /// memory or pinning the filter to `'static`. Cloning the
     /// Arc per retry attempt is cheap; the inner trait object
     /// is shared.
@@ -281,7 +332,7 @@ impl<'a> BodyProgress<'a> {
 /// part-way through extraction stay on disk. That's safe: the CAFS is
 /// content-addressed, so re-extracting the same bytes produces
 /// identical paths and `write_cas_file` is idempotent.
-// 13 arguments — over the default clippy threshold but each is
+// 13 arguments, over the default clippy threshold but each is
 // distinct: client + URL + integrity describe the request, ID +
 // requester are the reporter dimensions, progress_key dedups the
 // package-status emit, unpacked-size is allocation hinting,
@@ -410,7 +461,11 @@ pub(crate) fn store_index_cache_key(
 
 mod body;
 use body::{
-    BodyVerification, BufferBody, Buffered, buffer_body, extract_body_while_downloading,
+    BodyVerification,
+    BufferBody,
+    Buffered,
+    buffer_body,
+    extract_body_while_downloading,
     streams_while_downloading,
 };
 

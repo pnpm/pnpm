@@ -12,7 +12,10 @@
 //! a filesystem.
 
 use pnpm_config::validate_json_auth_registry;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Base name of pnpm's global config file, inside `configDir`.
 pub const GLOBAL_CONFIG_YAML_FILENAME: &str = "config.yaml";
@@ -133,8 +136,8 @@ fn auth_without(root: &Map<String, Value>, registry: &str, scope: &str) -> Optio
 /// Route `scope` to `registry`, in whichever of the setting's two shapes the
 /// document already uses.
 ///
-/// The shapes cannot be mixed in one map — the reader rejects a `registries`
-/// that does — so a document already written as `<scope>: <url>` entries is
+/// The shapes cannot be mixed in one map (the reader rejects a `registries`
+/// that does) so a document already written as `<scope>: <url>` entries is
 /// extended in that shape rather than converted.
 ///
 /// A scope reaches one registry: the reader refuses a `registries` that

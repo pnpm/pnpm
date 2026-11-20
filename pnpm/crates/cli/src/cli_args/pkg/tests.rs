@@ -1,8 +1,17 @@
 use super::{
-    delete_object_value_by_property_path, fix_manifest, get_output, pkg_delete, pkg_fix, pkg_get,
-    pkg_set, set_object_value_by_property_path,
+    delete_object_value_by_property_path,
+    fix_manifest,
+    get_output,
+    pkg_delete,
+    pkg_fix,
+    pkg_get,
+    pkg_set,
+    set_object_value_by_property_path,
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::fs;
 use tempfile::tempdir;
 

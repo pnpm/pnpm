@@ -1,5 +1,5 @@
 //! Ports of the upstream "write and update the current lockfile"
-//! suite — `node_modules/.pnpm/lock.yaml`, the record of what the last
+//! suite, `node_modules/.pnpm/lock.yaml`, the record of what the last
 //! install actually materialized, as opposed to `pnpm-lock.yaml`'s
 //! record of what it resolved.
 
@@ -9,8 +9,15 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const CURRENT_LOCKFILE: &str = "node_modules/.pnpm/lock.yaml";
 
@@ -139,7 +146,7 @@ fn a_failed_build_writes_no_current_lockfile() {
 
 /// TS: `use current pnpm-lock.yaml as initial wanted one, when wanted was
 /// removed` (`deps-installer/test/lockfile.ts:1007`). Deleting
-/// `pnpm-lock.yaml` must not re-resolve from scratch — the current
+/// `pnpm-lock.yaml` must not re-resolve from scratch, the current
 /// lockfile stands in, so the already-installed versions are preserved
 /// and the wanted lockfile is regenerated from them.
 #[test]
@@ -262,7 +269,8 @@ fn a_broken_wanted_lockfile_is_ignored_and_regenerated() {
     assert!(
         combined
             .lines()
-            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .map(serde_json::from_str::<serde_json::Value>)
+            .filter_map(Result::ok)
             .any(|event| {
                 event["name"] == "pnpm"
                     && event["level"] == "warn"
@@ -345,7 +353,7 @@ fn a_wanted_lockfile_with_duplicate_keys_fails_a_frozen_install() {
 /// carries it. The dev-only variant (`:213`) is covered by
 /// `headless_install_include_filtering_excludes_production_group` in
 /// `optional_dependencies.rs`, which asserts on disk rather than on the
-/// current lockfile — a dev-only importer reads as empty to
+/// current lockfile, a dev-only importer reads as empty to
 /// `Lockfile::is_empty`, so no file is written.
 #[test]
 fn the_current_lockfile_is_filtered_to_the_installed_groups() {
@@ -401,7 +409,7 @@ fn the_current_lockfile_is_filtered_to_the_installed_groups() {
 /// set to copy and modules manifest and current lockfile are incorrect`
 /// (`deps-installer/test/packageImportMethods.ts:31`). Restoring stale
 /// state files must not convince the install that `node_modules` is
-/// already correct — the tree is re-derived from the wanted lockfile.
+/// already correct, the tree is re-derived from the wanted lockfile.
 #[test]
 fn stale_state_files_do_not_stop_node_modules_from_being_repaired() {
     let CommandTempCwd {
@@ -454,7 +462,7 @@ fn stale_state_files_do_not_stop_node_modules_from_being_repaired() {
     assert_eq!(installed_version(&workspace), "100.1.0");
 
     // Roll both state files back to what the 100.0.0 install wrote while
-    // node_modules holds 100.1.0 — the shape an interrupted install or a
+    // node_modules holds 100.1.0, the shape an interrupted install or a
     // bad merge leaves behind.
     fs::write(workspace.join("node_modules/.modules.yaml"), &stale_modules).expect("restore state");
     fs::write(workspace.join(CURRENT_LOCKFILE), &stale_current).expect("restore state");
@@ -624,7 +632,8 @@ fn a_broken_current_lockfile_is_ignored_with_a_warning() {
     assert!(
         combined
             .lines()
-            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .map(serde_json::from_str::<serde_json::Value>)
+            .filter_map(Result::ok)
             .any(|event| {
                 event["name"] == "pnpm"
                     && event["level"] == "warn"

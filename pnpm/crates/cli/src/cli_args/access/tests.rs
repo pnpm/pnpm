@@ -1,6 +1,9 @@
 use crate::cli_args::access::AccessArgs;
 use pnpm_config::Config;
-use pnpm_network::{escaped_package_name, normalize_registry_url};
+use pnpm_network::{
+    escaped_package_name,
+    normalize_registry_url,
+};
 
 #[tokio::test]
 async fn test_normalize_registry_url() {

@@ -1,10 +1,16 @@
 use super::expand_universal_shorthands;
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::{CliArgs, reporter::ReporterType},
+    cli_args::{
+        CliArgs,
+        reporter::ReporterType,
+    },
     flag_relocation::relocate_pre_subcommand_flags,
 };
-use clap::{CommandFactory, FromArgMatches};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
 use pretty_assertions::assert_eq;
 use std::ffi::OsString;
 
@@ -18,7 +24,8 @@ fn expand(tokens: &[&str]) -> Vec<String> {
             .collect(),
     )
     .into_iter()
-    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .map(OsString::into_string)
+    .map(|text| text.expect("test tokens are UTF-8"))
     .collect()
 }
 
@@ -68,7 +75,7 @@ fn silent_is_not_expanded_past_the_script_name() {
 #[test]
 fn short_s_expands_for_commands_that_do_not_own_it() {
     assert_eq!(expand(&["pnpm", "install", "-s"]), ["pnpm", "install", "--reporter=silent"]);
-    // Pre-subcommand placement expands too — nopt is position-independent.
+    // Pre-subcommand placement expands too, nopt is position-independent.
     assert_eq!(expand(&["pnpm", "-s", "install"]), ["pnpm", "--reporter=silent", "install"]);
 }
 

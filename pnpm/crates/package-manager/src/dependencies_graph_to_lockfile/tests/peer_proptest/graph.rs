@@ -1,5 +1,13 @@
-use pnpm_lockfile::{BoundProviders, Lockfile, PkgName, PkgNameVerPeer};
-use std::collections::{BTreeMap, HashSet};
+use pnpm_lockfile::{
+    BoundProviders,
+    Lockfile,
+    PkgName,
+    PkgNameVerPeer,
+};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 
 type Edges = BTreeMap<String, PkgNameVerPeer>;
 

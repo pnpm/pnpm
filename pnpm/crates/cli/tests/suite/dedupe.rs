@@ -1,16 +1,28 @@
-use crate::_utils::{importer_version, read_lockfile};
+use crate::_utils::{
+    importer_version,
+    read_lockfile,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use pnpr_fixtures::RemovedVersionField;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -971,7 +983,8 @@ fn dedupe_check_reports_the_lockfile_diff() {
     let ndjson_stderr = String::from_utf8(ndjson_output.stderr).expect("stderr is UTF-8");
     let ndjson_records = ndjson_stderr
         .lines()
-        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("valid NDJSON"))
+        .map(serde_json::from_str::<serde_json::Value>)
+        .map(|value| value.expect("valid NDJSON"))
         .collect::<Vec<_>>();
     assert!(
         ndjson_records
@@ -1013,7 +1026,7 @@ fn dedupe_check_reports_the_lockfile_diff() {
 }
 
 /// `--check` must not write loose-mode `minimumReleaseAge` picks to
-/// `minimumReleaseAgeExclude` — the check contract is "mutate nothing"
+/// `minimumReleaseAgeExclude`, the check contract is "mutate nothing"
 /// (see the lockfile guard in `DedupeArgs::run`).
 #[test]
 fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
@@ -1072,12 +1085,12 @@ fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
 }
 
 /// A lockfile whose snapshot keys carry no `(peer)` segment for an
-/// optional peer that only a sibling's subtree provides — the shape
-/// pnpm 11 writes for this graph — must be re-keyed completely.
+/// optional peer that only a sibling's subtree provides (the shape
+/// pnpm 11 writes for this graph) must be re-keyed completely.
 /// The graph mirrors pnpm/pnpm#14455: `optional-peer-c-consumer` and its
 /// auto-installed peer both reach `optional-peer-c-host`, whose optional
 /// `peer-c` is provided by `abc-regular-deps`. One `dedupe` pass must
-/// re-key every affected snapshot — the consumer's own key included —
+/// re-key every affected snapshot (the consumer's own key included)
 /// and a second pass must change nothing.
 #[test]
 fn dedupe_re_keys_a_hoisted_optional_peer_in_one_pass() {
@@ -1223,7 +1236,8 @@ fn dedupe_filters_workspace_projects_and_checks_without_writing() {
         };
         let snapshots: Vec<_> = lockfiles
             .iter()
-            .map(|path| fs::read(path).unwrap())
+            .map(fs::read)
+            .map(Result::unwrap)
             .collect();
         pacquet_at(&workspace)
             .with_args(["dedupe", "--check", "-F", "pkg-a"])
@@ -1287,7 +1301,8 @@ fn dedupe_check_detects_config_dependency_changes_when_root_is_unselected() {
         [".", "packages/a", "packages/b"].map(|dir| workspace.join(dir).join("pnpm-lock.yaml"));
     let snapshots: Vec<_> = lockfiles
         .iter()
-        .map(|path| fs::read(path).unwrap())
+        .map(fs::read)
+        .map(Result::unwrap)
         .collect();
     let workspace_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&workspace_path).unwrap();
@@ -1382,12 +1397,14 @@ fn dedupe_warm_full_run_counts_each_reused_package_once() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     let records = stderr
         .lines()
-        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("valid NDJSON"))
+        .map(serde_json::from_str::<serde_json::Value>)
+        .map(|value| value.expect("valid NDJSON"))
         .collect::<Vec<_>>();
     let package_ids = |status: &str| {
         records
             .iter()
-            .filter(|record| record["name"] == "pnpm:progress" && record["status"] == status)
+            .filter(|record| record["name"] == "pnpm:progress")
+            .filter(|record| record["status"] == status)
             .map(|record| {
                 record["packageId"]
                     .as_str()

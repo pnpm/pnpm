@@ -1,6 +1,13 @@
 use super::{
-    Arc, DerivedPackuments, OnceCell, Package, PackageVersionPolicy, PackageVersions, PolicyMatch,
-    Version, parse_packument_timestamp,
+    Arc,
+    DerivedPackuments,
+    OnceCell,
+    Package,
+    PackageVersionPolicy,
+    PackageVersions,
+    PolicyMatch,
+    Version,
+    parse_packument_timestamp,
 };
 
 /// What the `publishedBy` cutoff leaves visible, as computed by
@@ -13,7 +20,7 @@ pub(crate) struct PublishedByView {
 
     /// The cutoff could not be applied: the metadata is abbreviated, so
     /// there are no per-version timestamps to filter on. Whether that
-    /// is fatal is the caller's call — the pick needs full metadata to
+    /// is fatal is the caller's call, the pick needs full metadata to
     /// honor the cutoff, while a caller reasoning about a pick that
     /// already succeeded knows the versions cleared the cutoff some
     /// other way.
@@ -26,7 +33,7 @@ pub(crate) struct PublishedByView {
 /// in regardless of their age.
 ///
 /// Every consumer of the cutoff goes through here so they agree on what
-/// the policy admits — a baseline that filters differently from the
+/// the policy admits, a baseline that filters differently from the
 /// pick would misreport why a version was chosen.
 #[must_use]
 pub(crate) fn apply_published_by_policy(
@@ -64,7 +71,7 @@ pub(crate) fn apply_published_by_policy(
 /// document, whose version manifests are the ones `meta` holds.
 ///
 /// Panics if `meta.time` is `None`. Go through
-/// `apply_published_by_policy`, which reports abbreviated metadata as
+/// the published-by policy, which reports abbreviated metadata as
 /// `needs_full_metadata` rather than filtering it.
 #[must_use]
 pub fn filter_pkg_metadata_by_publish_date(

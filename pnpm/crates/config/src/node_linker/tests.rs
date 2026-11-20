@@ -1,6 +1,15 @@
-use crate::{Config, NodeLinker, TrustedSettings, WorkspaceSettings, api::EnvVar};
+use crate::{
+    Config,
+    NodeLinker,
+    TrustedSettings,
+    WorkspaceSettings,
+    api::EnvVar,
+};
 use serde_json::json;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 #[test]
 fn loaded_object_applies_exclusions_and_round_trips_through_resolved_settings() {

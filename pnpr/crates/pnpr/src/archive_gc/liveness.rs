@@ -1,7 +1,16 @@
 //! Which image blobs of a repository its retained manifests reach.
 
-use crate::{RegistryError, Result};
-use pnpr_oci::{Descriptor, Digest, ImageDocument, Manifest, media_type};
+use crate::{
+    RegistryError,
+    Result,
+};
+use pnpr_oci::{
+    Descriptor,
+    Digest,
+    ImageDocument,
+    Manifest,
+    media_type,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
 use std::collections::HashSet;
@@ -83,9 +92,10 @@ async fn read_manifest_blob(
         .await?
         .ok_or_else(|| invalid("retained manifest is missing".into()))?;
     let bytes = axum::body::to_bytes(body, manifest_limit).await
-        .map_err(|error| invalid(error.to_string()))?;
+        .map_err(|error| error.to_string())
+        .map_err(invalid)?;
     if Digest::of(&bytes) != *digest {
         return Err(invalid("manifest digest mismatch".into()));
     }
-    Manifest::parse(&bytes, content_type).map_err(|error| invalid(error.to_string()))
+    Manifest::parse(&bytes, content_type).map_err(|error| error.to_string()).map_err(invalid)
 }

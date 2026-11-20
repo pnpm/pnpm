@@ -1,8 +1,26 @@
 use super::{
-    Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, ImporterPeerInput, NodeId, PeerId,
-    PkgResolutionId, ResolvePeersOptions, ResolvedTree, WorkspacePeerSettings, graph_node,
-    linked_package, package, peer_id_pair, resolve_peers, resolve_peers_workspace, resolve_result,
-    tree_node, walker_for_tests,
+    Arc,
+    BTreeMap,
+    DepPath,
+    DirectDep,
+    HashMap,
+    HashSet,
+    ImporterPeerInput,
+    NodeId,
+    PeerId,
+    PkgResolutionId,
+    ResolvePeersOptions,
+    ResolvedTree,
+    WorkspacePeerSettings,
+    graph_node,
+    linked_package,
+    package,
+    peer_id_pair,
+    resolve_peers,
+    resolve_peers_workspace,
+    resolve_result,
+    tree_node,
+    walker_for_tests,
 };
 
 #[test]
@@ -212,12 +230,13 @@ fn a_shared_consumer_keeps_each_importers_peer_provider_variant() {
         assert_eq!(utils.edges.children["resolver"], direct["resolver"]);
     }
     // Trimming a peer segment off the edge would key it to a variant no
-    // importer reaches, leaving an orphan entry in the lockfile —
+    // importer reaches, leaving an orphan entry in the lockfile,
     // <https://github.com/pnpm/pnpm/issues/13320>.
     let mut reachable: HashSet<DepPath> = HashSet::default();
     let mut queue: Vec<DepPath> = result.direct_dependencies_by_importer
         .values()
-        .flat_map(|direct| direct.values().cloned())
+        .map(BTreeMap::values)
+        .flat_map(std::iter::Iterator::cloned)
         .collect();
     while let Some(dep_path) = queue.pop() {
         if !reachable.insert(dep_path.clone()) {
@@ -456,7 +475,7 @@ fn pruned_hoisted_providers_with_mutual_peers_resolve() {
 
 /// Mirror of the TS test "an own direct dependency and a pruned hoisted peer
 /// provider that peer-depend on each other are resolved together"
-/// (`deps-resolver/test/resolvePeers.ts`) — the shape behind
+/// (`deps-resolver/test/resolvePeers.ts`), the shape behind
 /// <https://github.com/pnpm/pnpm/issues/12921>, where the peer cycle spans an
 /// own direct dependency and a pruned provider. Both sides of the cycle must
 /// collapse to `name@version` suffixes.
@@ -610,7 +629,7 @@ fn peer_id_pair_leaves_an_ordinary_registry_package_bare() {
 }
 
 /// A parent reached through many occurrences enqueues the identical
-/// `(parent_dep_path, alias, child_node_id)` triple over and over —
+/// `(parent_dep_path, alias, child_node_id)` triple over and over,
 /// millions of times on a cyclic peer graph. Replaying a repeat is a
 /// no-op, because it resolves the same `DepPath` and `or_insert`s a
 /// slot that is already filled, so the buffer keeps only the first.

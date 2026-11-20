@@ -1,33 +1,60 @@
 //! The store index's `package_index` row lists the CAFS paths a package
 //! expanded into. Before reusing the row the caller checks those files
 //! are still on disk and still match the recorded digests. This module
-//! implements that check — with a fast path that skips filesystem work
+//! implements that check, with a fast path that skips filesystem work
 //! entirely when the caller opted out of integrity verification.
 pub use package_dir_matches_index::package_dir_matches_index;
 
-pub use pending_files_check::{PendingFilesCheck, files_maps};
+pub use pending_files_check::{
+    PendingFilesCheck,
+    files_maps,
+};
 
 use crate::{
-    CafsFileInfo, PackageFilesIndex, SideEffectsDiff, SideEffectsOverlay, StoreDir,
-    symlinks::{read_recorded_symlink_target, writes_below_a_symlink},
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    SideEffectsOverlay,
+    StoreDir,
+    symlinks::{
+        read_recorded_symlink_target,
+        writes_below_a_symlink,
+    },
 };
 use dashmap::DashMap;
-use sha2::{Digest, Sha512};
+use sha2::{
+    Digest,
+    Sha512,
+};
 use std::{
     collections::HashMap,
     fs,
-    io::{self, BufReader, Read},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        BufReader,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
-    time::{Duration, Instant, UNIX_EPOCH},
+    time::{
+        Duration,
+        Instant,
+        UNIX_EPOCH,
+    },
 };
 
 /// Process-wide tally of the CAFS files [`verify_file_integrity`] had
 /// to re-hash, and the time that hashing took. Content hashing is the
-/// expensive half of store verification — the common case never reaches
+/// expensive half of store verification, the common case never reaches
 /// it, because the recorded `checked_at` says the file is untouched. A
 /// high tally means something keeps invalidating the store (a
 /// mtime-rewriting backup tool, an antivirus scanner, a shared store on
@@ -38,7 +65,7 @@ use std::{
 /// end of the install, and every hop between the two is on the hot
 /// path. Callers that want the figures for one install take a
 /// [`VerifiedFileIntegrity`] snapshot when it starts and diff against
-/// it — see [`VerifiedFileIntegrity::since`].
+/// it; see [`VerifiedFileIntegrity::since`].
 ///
 /// That diff is exact because the CLI installs one project at a time,
 /// including the per-project loop dedicated lockfiles take. An embedder
@@ -87,7 +114,7 @@ impl VerifiedFileIntegrityTally {
 /// hashing took.
 ///
 /// Only the careful path ([`check_pkg_files_integrity`]) hashes, and
-/// only for a file whose `mtime` moved past its recorded `checked_at` —
+/// only for a file whose `mtime` moved past its recorded `checked_at`,
 /// so a warm store on an install that nothing has disturbed leaves both
 /// figures at zero. `duration` is summed across the threads doing the
 /// hashing, so it is the work spent, which can exceed the install's
@@ -129,11 +156,11 @@ impl VerifiedFileIntegrity {
 /// Concurrent: the install fans [`check_pkg_files_integrity`] calls out
 /// across tokio's blocking pool, so the cache must tolerate parallel
 /// readers and writers. `DashMap` gives us that without any external
-/// locking. Race-window duplicate verifies are benign (the `verify_file`
+/// locking. Race-window duplicate verifies are benign (the per-file verify
 /// path is idempotent) and rare in practice.
 pub type VerifiedFilesCache = DashMap<PathBuf, Option<pnpm_fs::FileMode>>;
 
-/// Shared handle to a [`VerifiedFilesCache`] — what every install-scope
+/// Shared handle to a [`VerifiedFilesCache`], what every install-scope
 /// caller passes around. `Arc` so the same cache survives across the
 /// lockfile-driven and registry-driven install loops without
 /// per-call clones, and so the value lives long enough to outlive the
@@ -173,7 +200,7 @@ pub struct VerifyResult {
 
 /// Fast path used when `verify-store-integrity` is `false`.
 ///
-/// No stat syscalls — the caller trusts the index, and any missing /
+/// No stat syscalls, the caller trusts the index, and any missing /
 /// corrupt CAFS file surfaces lazily at import time.
 pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex) -> VerifyResult {
     defer_pkg_files_integrity(store_dir, entry).0
@@ -183,9 +210,9 @@ pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex
 /// default).
 ///
 /// Verifies every CAFS file the index row references and fails the
-/// whole entry — so the caller re-fetches — when any file no longer
+/// whole entry (so the caller re-fetches) when any file no longer
 /// matches what the row recorded. Non-regular-file dirents are *not*
-/// rejected preemptively — the integrity hash catches real corruption,
+/// rejected preemptively, the integrity hash catches real corruption,
 /// and pnpm doesn't guard against it preemptively either.
 pub fn check_pkg_files_integrity(
     store_dir: &StoreDir,
@@ -250,7 +277,7 @@ mod pending_files_check;
 
 /// Materialize the per-cache-key overlaid [`FilesMap`]s from a
 /// `PackageFilesIndex.side_effects` entry. The content of `added`
-/// entries is *not* re-verified here — pnpm doesn't do that either;
+/// entries is *not* re-verified here, pnpm doesn't do that either;
 /// corruption in the side-effects layer would surface at import time
 /// as a missing CAS blob.
 fn build_side_effects_maps(
@@ -360,7 +387,7 @@ fn overlay_path(
 ) -> Option<PathBuf> {
     // The overlay map is later joined onto the package directory and
     // written during import, so a poisoned / corrupted index row (store
-    // integrity is explicitly not a tamper boundary — see `verify_file`)
+    // integrity is explicitly not a tamper boundary; see `verify_file`)
     // could otherwise escape the slot via a `..` or absolute `added` key.
     if !is_safe_overlay_path(filename) {
         tracing::debug!(
@@ -392,7 +419,7 @@ fn overlay_path(
 /// package slot. Rejects absolute paths, any `..` component, and `\`
 /// separators (which are `Normal` components on Unix but path separators
 /// on Windows). Mirrors the path-traversal guard the tarball extractor
-/// applies to archive entries — the side-effects overlay reaches the same
+/// applies to archive entries, the side-effects overlay reaches the same
 /// `dir.join(key)` import, so the same rule applies to a store row that
 /// can't be trusted not to have been tampered with.
 fn is_safe_overlay_path(filename: &str) -> bool {
@@ -420,17 +447,17 @@ fn is_safe_overlay_path(filename: &str) -> bool {
 ///
 /// **Locking discipline.** The fast path (`is_modified == false`, i.e.
 /// the file's mtime is within 100 ms of the recorded `checked_at`)
-/// runs lock-free — it never touches the file's bytes, so it cannot
+/// runs lock-free; it never touches the file's bytes, so it cannot
 /// race with an in-flight writer. The slow path acquires
 /// [`pnpm_fs::cas_write_lock`] for `path` before re-stating the
 /// file. This is the same per-path mutex
 /// [`pnpm_fs::ensure_file`] holds across `O_CREAT|O_EXCL` +
 /// `write_all`, so a concurrent same-process writer's full sequence
-/// completes before the verifier evaluates the file — without the
+/// completes before the verifier evaluates the file, without the
 /// gate the verifier would read the writer's intermediate (partial)
 /// state and report a spurious miss. The lock is process-local, which
 /// is exactly why a failed verification must never unlink a file:
-/// another *process* sharing the store may be importing from it — see
+/// another *process* sharing the store may be importing from it; see
 /// [`scrub_directory_at_cafs_path`].
 fn verify_file(
     path: &Path,
@@ -515,15 +542,15 @@ fn verify_modified_file(
 /// re-fetch's `rename` can land. Every other dirent stays: the
 /// re-fetch replaces a mismatched file atomically, and unlinking here
 /// would race installs in other processes importing from this very
-/// path (pnpm/pnpm#14353's error class) — the verifier's lock is
+/// path (pnpm/pnpm#14353's error class), the verifier's lock is
 /// process-local, and [`verify_file_integrity`] reports a transient
 /// read failure the same way as a real mismatch.
 ///
 /// A check-then-delete on the live path could delete whatever a
 /// concurrent process put there in between, so the dirent is renamed
 /// aside first and only then inspected: a directory is removed at its
-/// scrub name, and anything else — including a blob a concurrent
-/// re-fetch landed after the failed verification — is renamed back
+/// scrub name, and anything else (including a blob a concurrent
+/// re-fetch landed after the failed verification) is renamed back
 /// where it was. `remove_dir_all` is never pointed at the live path
 /// (it would unlink a terminal symlink there, not just a directory).
 ///
@@ -532,12 +559,15 @@ fn verify_modified_file(
 /// `*.pacquet-scrub-*` entry in the shard directory, which nothing
 /// ever resolves.
 fn scrub_directory_at_cafs_path(path: &Path) {
-    // Cheap gate only — the rename + inspect below re-decides
+    // Cheap gate only, the rename + inspect below re-decides
     // authoritatively, so a dirent swapped after this stat is still
     // handled correctly. Without the gate every mismatched *file*
     // would pay the rename round-trip and briefly vanish from its
     // path.
-    if !fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir()) {
+    if !fs::symlink_metadata(path)
+        .map(|meta| meta.file_type())
+        .is_ok_and(|file_type| file_type.is_dir())
+    {
         return;
     }
     static SCRUB_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -553,12 +583,14 @@ fn scrub_directory_at_cafs_path(path: &Path) {
         // rename is not possible; either way the next install retries.
         return;
     }
-    let is_dir = fs::symlink_metadata(scrub_path).is_ok_and(|meta| meta.file_type().is_dir());
+    let is_dir = fs::symlink_metadata(scrub_path)
+        .map(|meta| meta.file_type())
+        .is_ok_and(|file_type| file_type.is_dir());
     let result = if is_dir {
         fs::remove_dir_all(scrub_path)
     } else {
         // The dirent changed between the failed verification and the
-        // rename — a concurrent process replaced the squatter. Put the
+        // rename, a concurrent process replaced the squatter. Put the
         // newcomer back where every reader expects it.
         fs::rename(scrub_path, path)
     };
@@ -580,12 +612,12 @@ fn scrub_directory_at_cafs_path(path: &Path) {
 /// as a miss. Pacquet instead collapses every metadata error
 /// (permission denied, EIO, platform mtime representation failures) to
 /// `None`, which the caller then treats as "verification failed →
-/// re-fetch". That's a safer default for a cache-hint path — we don't
-/// want a transient `EACCES` on a CAS blob to panic the install — and
+/// re-fetch". That's a safer default for a cache-hint path (we don't
+/// want a transient `EACCES` on a CAS blob to panic the install) and
 /// the content-hash check in [`verify_file_integrity`] still catches
 /// actual corruption.
 ///
-/// 100 ms of slack on the mtime comparison matches pnpm's threshold —
+/// 100 ms of slack on the mtime comparison matches pnpm's threshold,
 /// accounts for coarse mtime resolution on some filesystems plus the
 /// ≤1 ms drift between when we recorded `checked_at` and when the kernel
 /// actually stamped the inode. A missing `checked_at` deserializes as
@@ -614,7 +646,7 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, fs::Metadat
 /// incremental `Digest::update` produces the same digest and keeps
 /// peak memory bounded per thread.
 ///
-/// Only `sha512` is supported — pacquet always writes that algo in
+/// Only `sha512` is supported, pacquet always writes that algo in
 /// [`StoreDir::write_cas_file`]. Any other algo falls through to
 /// `false` ("treat as verification failure"), matching pnpm's own
 /// unknown-algo behaviour. An I/O error mid-read also returns `false`
@@ -657,7 +689,7 @@ fn hash_matches(file: fs::File, digest: &str) -> bool {
         match reader.read(&mut buf) {
             Ok(0) => break,
             Ok(n) => hasher.update(&buf[..n]),
-            // `Interrupted` is the one error we retry — it's a signal,
+            // `Interrupted` is the one error we retry; it's a signal,
             // not a real IO failure. Everything else (NotFound, EIO,
             // PermissionDenied, ...) short-circuits to `false` so the
             // caller re-fetches.

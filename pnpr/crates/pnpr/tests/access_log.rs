@@ -3,12 +3,23 @@
 
 use axum::{
     body::Body,
-    http::{Request, StatusCode},
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{LogConfig, LogFormat, logging::log_subscriber, router};
+use pnpr::{
+    LogConfig,
+    LogFormat,
+    logging::log_subscriber,
+    router,
+};
 use std::{
     io,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tempfile::TempDir;
 use tower::ServiceExt;

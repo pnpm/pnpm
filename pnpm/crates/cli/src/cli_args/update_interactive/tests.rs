@@ -1,28 +1,60 @@
 mod long;
 mod named_registry;
+mod selectors;
 
 use super::{
-    ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdateDetails,
-    UpdatePrompt, collect_choices, dependencies_prompt_message,
+    ChoiceNotes,
+    InteractiveUpdateProject,
+    PromptRow,
+    PromptStyle,
+    TargetVersion,
+    UpdateDetails,
+    UpdatePrompt,
+    dependencies_prompt_message,
+    gather::{
+        ChoiceFilter,
+        collect_filtered_choices,
+    },
 };
 use crate::{
     checkbox_prompt::KeyOutcome,
-    cli_args::{outdated::TrustChange, update::UpdateArgs},
+    cli_args::{
+        outdated::{
+            OutdatedPackage,
+            TrustChange,
+        },
+        update::UpdateArgs,
+    },
 };
 use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_resolving_npm_resolver::TrustEvidence;
 use pnpm_testing_utils::registry::TestRegistry;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::VecDeque,
     fs,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tempfile::TempDir;
 
@@ -30,6 +62,25 @@ const TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 /// The default release-age policy fetches abbreviated metadata, then upgrades
 /// it to full metadata when this test fixture omits publish times.
 const RELEASE_AGE_METADATA_REQUESTS: usize = 2;
+
+pub(super) async fn collect_choices(
+    projects: &[InteractiveUpdateProject<'_>],
+    lockfile: Option<&Lockfile>,
+    config: &Config,
+    http_client: &Arc<ThrottledClient>,
+    target_version: TargetVersion<'_>,
+    include_direct: &[DependencyGroup],
+    details: UpdateDetails,
+) -> miette::Result<Vec<OutdatedPackage>> {
+    collect_filtered_choices(
+        projects,
+        lockfile,
+        config,
+        http_client,
+        ChoiceFilter { target_version, include_direct, details, package_selectors: &[] },
+    )
+    .await
+}
 
 #[tokio::test]
 async fn interactive_choices_respect_minimum_release_age() {
@@ -391,7 +442,7 @@ fn manifest_with_dependency_spec(
     PackageManifest::from_path(manifest_path).expect("read project manifest")
 }
 
-/// A project manifest whose `name` is absent, or present but empty —
+/// A project manifest whose `name` is absent, or present but empty;
 /// both shapes a workspace project's `package.json` can carry.
 fn manifest_without_usable_name(
     root: &std::path::Path,
@@ -674,8 +725,12 @@ fn package_body_with_publish_times(name: &str, registry: &str) -> String {
 
 mod selection {
     use super::super::{
-        choices::{ChoiceGroup, ChoiceRow},
-        flatten_groups, selected_packages,
+        choices::{
+            ChoiceGroup,
+            ChoiceRow,
+        },
+        flatten_groups,
+        selected_packages,
     };
 
     fn group(message: &str, rows: &[(&str, Option<&str>)]) -> ChoiceGroup {
@@ -692,7 +747,7 @@ mod selection {
         }
     }
 
-    /// Checking a group heading or a column header updates nothing —
+    /// Checking a group heading or a column header updates nothing,
     /// `dialoguer` lets either be checked, where pnpm's prompt disables
     /// them outright.
     #[test]
@@ -746,7 +801,7 @@ mod selection {
 struct SeenPrompt {
     message: String,
     /// The label of each row, paired with the package checking it
-    /// updates — [`None`] for a group heading or a header row.
+    /// updates. [`None`] for a group heading or a header row.
     rows: Vec<(String, Option<String>)>,
 }
 
@@ -773,8 +828,8 @@ static SCRIPT_LOCK: Mutex<()> = Mutex::new(());
 
 /// One test's claim on the scripted prompt.
 ///
-/// [`SCRIPT`] is process-global, which `cargo nextest run` — a process
-/// per test — makes invisible, but `cargo test` does not. Holding this
+/// [`SCRIPT`] is process-global, which `cargo nextest run` (a process
+/// per test) makes invisible, but `cargo test` does not. Holding this
 /// for the test's lifetime keeps two tests from consuming each other's
 /// answers.
 struct ScriptedPrompts {
@@ -964,10 +1019,9 @@ impl UpdateFixture {
             #[clap(flatten)]
             args: UpdateArgs,
         }
+        assert_eq!(args.first(), Some(&"update"));
         let mut parsed =
-            Harness::try_parse_from(std::iter::once("pacquet-test").chain(args.iter().copied()))
-                .expect("parse update arguments")
-                .args;
+            Harness::try_parse_from(args.iter().copied()).expect("parse update arguments").args;
         parsed.prompt = UpdatePrompt::Scripted;
         let state = crate::State::init(self.project.join("package.json"), self.config, false)
             .expect("initialize the state");

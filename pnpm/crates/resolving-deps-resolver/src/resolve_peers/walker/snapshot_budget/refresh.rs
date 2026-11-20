@@ -1,6 +1,15 @@
 use super::{
-    CancelState, DirectDep, DirectDepBudget, HashMap, HashSet, NodeId, PeerWalkAbort,
-    PendingBudgetDep, RootWalk, ScopedDiscoveryPaths, Walker,
+    CancelState,
+    DirectDep,
+    DirectDepBudget,
+    HashMap,
+    HashSet,
+    NodeId,
+    PeerWalkAbort,
+    PendingBudgetDep,
+    RootWalk,
+    ScopedDiscoveryPaths,
+    Walker,
 };
 use std::collections::VecDeque;
 
@@ -315,7 +324,8 @@ fn collect_node_predecessors<'entry>(
     entry.provider_dep_paths
         .iter()
         .map(|(prov_id, _)| prov_id)
-        .filter(|prov_id| *prov_id != node_id && in_subgraph.contains(prov_id))
+        .filter(|prov_id| *prov_id != node_id)
+        .filter(|prov_id| in_subgraph.contains(prov_id))
         .collect()
 }
 

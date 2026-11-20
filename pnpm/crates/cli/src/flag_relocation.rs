@@ -4,7 +4,7 @@
 //! with the invoked command's table and accepts any option anywhere on
 //! the command line: `pnpm --ignore-scripts --prod deploy <dir>` and
 //! `pnpm deploy --ignore-scripts --prod <dir>` are the same invocation
-//! (pnpm's release tooling relies on this — `bundle-deps.ts` passes
+//! (pnpm's release tooling relies on this, `bundle-deps.ts` passes
 //! install flags ahead of `deploy`). Clap instead scopes options to the
 //! level they are declared on, so an option owned by a subcommand aborts
 //! the parse with "unexpected argument" when it appears before the
@@ -30,11 +30,20 @@
 //! external commands (`pnpm <script>`) keep their argv untouched, as does
 //! everything after a `--` terminator.
 
-use clap::{Arg, Command};
+use clap::{
+    Arg,
+    Command,
+};
 use invoked_subcommand::find_invoked_subcommand;
 use std::{
-    collections::{HashMap, HashSet},
-    ffi::{OsStr, OsString},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    ffi::{
+        OsStr,
+        OsString,
+    },
 };
 
 /// The long option name before `=` in `--<name>=<value>`, even when
@@ -95,8 +104,8 @@ pub(crate) fn find_positional(
 }
 
 /// [`find_positional`]'s scan with the stop reason kept: a caller that
-/// mirrors nopt — which strips the `--` terminator and treats what
-/// follows as positionals — needs to tell the terminator apart from
+/// mirrors nopt (which strips the `--` terminator and treats what
+/// follows as positionals) needs to tell the terminator apart from
 /// running out of argv (`None`).
 pub(crate) fn scan_for_positional(
     argv: &[OsString],
@@ -143,7 +152,8 @@ fn option_token_width(
     if let Some(rest) = token.strip_prefix("--") {
         let (name, has_inline_value) = rest
             .split_once('=')
-            .map_or((rest, false), |(name, _)| (name, true));
+            .map(|(name, _)| (name, true))
+            .unwrap_or((rest, false));
         let consumes_value = top_level
             .long_consumes_value(name)
             .or_else(|| subcommand_union.long_consumes_value(name))
@@ -285,7 +295,8 @@ fn scan_non_utf8_option(
 fn scan_long_option(rest: &str, top_level: &ArgTable, subcommand_table: &ArgTable) -> ScannedToken {
     let (name, has_inline_value) = rest
         .split_once('=')
-        .map_or((rest, false), |(name, _)| (name, true));
+        .map(|(name, _)| (name, true))
+        .unwrap_or((rest, false));
     scan_long_option_parts(name, has_inline_value, top_level, subcommand_table)
 }
 

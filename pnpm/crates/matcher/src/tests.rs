@@ -1,4 +1,8 @@
-use super::{WildcardMatcher, create_matcher, create_matcher_with_index};
+use super::{
+    WildcardMatcher,
+    create_matcher,
+    create_matcher_with_index,
+};
 
 fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
     patterns
@@ -49,7 +53,7 @@ fn matcher_boolean_semantics() {
     assert!(matcher.matches("eslint-plugin-bar"));
 }
 
-/// `createMatcherWithIndex()` semantics — the matched include's index, or
+/// `createMatcherWithIndex()` semantics, the matched include's index, or
 /// `None` when nothing matches.
 #[test]
 fn matcher_with_index_semantics() {
@@ -225,4 +229,23 @@ fn matches_any_evaluates_includes_and_ignores_across_all_identities() {
     assert!(create_matcher(&pats(["!serde", "!itoa"])).matches_any(&ids));
     assert!(!create_matcher(&pats(["*ryu*", "!other_ryu"])).matches_any(&ids));
     assert!(create_matcher(&pats(["!ryu*", "other_ryu"])).matches_any(&ids));
+}
+
+#[test]
+fn prune_orphan_ignores_clears_leftover_exclusions_only_when_original_had_includes() {
+    assert_eq!(
+        crate::prune_orphan_ignores(pats(["!lodash"]), &pats(["actions/checkout", "!lodash"])),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
+        crate::prune_orphan_ignores(pats(["!lodash"]), &pats(["!lodash"])),
+        pats(["!lodash"]),
+    );
+    assert_eq!(
+        crate::prune_orphan_ignores(
+            pats(["react", "!lodash"]),
+            &pats(["react", "actions/checkout", "!lodash"]),
+        ),
+        pats(["react", "!lodash"]),
+    );
 }

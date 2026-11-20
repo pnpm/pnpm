@@ -5,11 +5,18 @@
 //! itself.
 
 use std::{
-    ffi::{CStr, OsStr, OsString},
+    ffi::{
+        CStr,
+        OsStr,
+        OsString,
+    },
     fs::File,
     io,
     os::{
-        fd::{AsRawFd as _, IntoRawFd as _},
+        fd::{
+            AsRawFd as _,
+            IntoRawFd as _,
+        },
         raw::c_int,
         unix::ffi::OsStrExt as _,
     },

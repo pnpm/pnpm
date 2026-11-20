@@ -1,7 +1,13 @@
 use super::SkillSource;
 use pnpm_crypto_hash::create_short_hash;
-use pnpm_deps_restorer::{is_local_directory_version, parse_dep_path_name_version};
-use std::collections::{HashMap, HashSet};
+use pnpm_deps_restorer::{
+    is_local_directory_version,
+    parse_dep_path_name_version,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Maximum filesystem entry byte length (`NAME_MAX` on Linux, macOS, and Windows).
 pub(in crate::agent_skills) const MAX_SKILL_ENTRY_BYTES: usize = 255;
@@ -161,7 +167,9 @@ fn segment_counts(sources: &[SkillSource]) -> HashMap<String, usize> {
 
 fn local_dir_slug(dir: &str) -> String {
     dir.split('/')
-        .filter(|part| !part.is_empty() && *part != "." && *part != "..")
+        .filter(|part| !part.is_empty())
+        .filter(|part| *part != ".")
+        .filter(|part| *part != "..")
         .map(sanitize_slug_part)
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()

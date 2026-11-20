@@ -1,8 +1,16 @@
-use super::{super::import_indexed_dir, FORCE_SHARED, cas_map, write_source};
+use super::{
+    super::import_indexed_dir,
+    FORCE_SHARED,
+    cas_map,
+    write_source,
+};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{fs, sync::atomic::AtomicU8};
+use std::{
+    fs,
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -51,7 +59,10 @@ fn safe_to_skip_keeps_a_target_a_concurrent_importer_already_completed() {
 }
 #[test]
 fn concurrent_importers_of_one_shared_slot_both_succeed() {
-    use std::sync::{Arc, Barrier};
+    use std::sync::{
+        Arc,
+        Barrier,
+    };
 
     let tmp = tempdir().unwrap();
     let src_root = tmp.path().join("cas");

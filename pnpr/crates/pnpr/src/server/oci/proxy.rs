@@ -1,16 +1,38 @@
 use super::{
-    DOCKER_CONTENT_DIGEST, Digest, ErrorCode, Manifest, Request, ResponseBody, api_version, error,
-    registry_error, server_error,
+    DOCKER_CONTENT_DIGEST,
+    Digest,
+    ErrorCode,
+    Manifest,
+    Request,
+    ResponseBody,
+    api_version,
+    error,
+    registry_error,
+    server_error,
 };
 use crate::server::{
     RegistrySource,
-    ecosystem::{UpstreamCacheSubtree, addressed_registry, sha256_integrity, upstream_for},
-    resolve_ecosystem_source, tarball_response, tarball_stream_error,
+    ecosystem::{
+        UpstreamCacheSubtree,
+        addressed_registry,
+        sha256_integrity,
+        upstream_for,
+    },
+    resolve_ecosystem_source,
+    tarball_response,
+    tarball_stream_error,
 };
 use axum::{
     body::Body,
-    http::{Method, StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        Method,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use futures_util::StreamExt as _;
 use pnpr_error::RegistryError;
@@ -225,7 +247,8 @@ async fn head_proxy_manifest(
     let declared = declared
         .to_str()
         .ok()
-        .and_then(|value| Digest::parse(value).ok())
+        .map(Digest::parse)
+        .and_then(Result::ok)
         .ok_or_else(|| RegistryError::BadRequest {
             reason: "invalid upstream manifest digest".to_string(),
         })?;
@@ -304,8 +327,10 @@ async fn head_proxy_blob(
             response
                 .headers()
                 .get(header::CONTENT_LENGTH)
-                .and_then(|value| value.to_str().ok())
-                .and_then(|value| value.parse().ok()),
+                .map(reqwest::header::HeaderValue::to_str)
+                .and_then(Result::ok)
+                .map(str::parse)
+                .and_then(Result::ok),
         ),
     })
 }

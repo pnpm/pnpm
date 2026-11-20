@@ -1,4 +1,8 @@
-use super::{super::Decision, check, setup_fresh_install};
+use super::{
+    super::Decision,
+    check,
+    setup_fresh_install,
+};
 
 /// Settings drift (e.g. `node_linker` changed between installs)
 /// invalidates the cached state.

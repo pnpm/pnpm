@@ -1,7 +1,20 @@
 use super::{
-    Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
-    UserBackend, UserCreation, UserRemoval, first_row, is_unique_violation, params,
-    retry_database_conflicts, schema::ensure_user_counter, with_auth_timeout,
+    Duration,
+    LibsqlAuth,
+    MaxUsers,
+    RegistryError,
+    Result,
+    TokenBackend,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    first_row,
+    is_unique_violation,
+    params,
+    retry_database_conflicts,
+    schema::ensure_user_counter,
+    with_auth_timeout,
 };
 use crate::token_store::sha256_hex;
 use libsql::Builder;
@@ -378,7 +391,7 @@ async fn tokens_store_hash_not_raw() {
     assert_eq!(stored.len(), 64, "SHA-256 hex is 64 chars");
 }
 
-/// A store failure must surface as `Err`, never a silent `Ok(None)` —
+/// A store failure must surface as `Err`, never a silent `Ok(None)`;
 /// otherwise a database outage would read as "token not found" and the
 /// caller would answer 401 instead of 5xx.
 #[tokio::test]
@@ -423,7 +436,10 @@ async fn registration_waits_for_another_database_writer() {
 async fn registration_transaction_retries_only_remote_lock_conflicts() {
     use std::sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     };
 
     for (code, expected_attempts) in [("SQLITE_BUSY", 9), ("SQLITE_AUTH", 1)] {
@@ -721,7 +737,10 @@ async fn libsql_schema_migrations_refuses_future_version() {
 async fn reading_a_remote_row_keeps_the_connection_for_the_next_query() {
     use std::sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     };
 
     let app = axum::Router::new()

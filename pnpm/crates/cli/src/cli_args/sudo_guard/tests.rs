@@ -1,5 +1,11 @@
-use super::{check_sudo_as, sudo_blocked_operation};
-use crate::cli_args::cli_command::{CliArgs, CliCommand};
+use super::{
+    check_sudo_as,
+    sudo_blocked_operation,
+};
+use crate::cli_args::cli_command::{
+    CliArgs,
+    CliCommand,
+};
 use clap::Parser;
 
 fn command(argv: &[&str]) -> CliCommand {
@@ -72,7 +78,7 @@ fn config_writes_are_blocked_but_reads_allowed() {
 }
 
 /// `--location` wins, otherwise config writes default to the global config
-/// file — a bare `sudo pnpm config set` must not slip past the guard.
+/// file, a bare `sudo pnpm config set` must not slip past the guard.
 #[test]
 fn config_writes_are_gated_on_the_effective_scope() {
     assert_eq!(

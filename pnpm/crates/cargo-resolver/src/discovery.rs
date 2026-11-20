@@ -1,16 +1,37 @@
 use crate::{
-    features::{locked_dependencies, supports_features},
-    metadata::{parse_metadata, root_dependencies},
+    features::{
+        locked_dependencies,
+        supports_features,
+    },
+    metadata::{
+        parse_metadata,
+        root_dependencies,
+    },
     model::{
-        CancelError, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion,
+        CancelError,
+        FeatureSelection,
+        PackageKey,
+        RegistryDependency,
+        RegistryVersion,
         ensure_not_cancelled,
     },
-    preferences::{PreferredVersions, is_selectable, parse as parse_preferred_versions},
-    registry::{Registry, compatibility_line},
+    preferences::{
+        PreferredVersions,
+        is_selectable,
+        parse as parse_preferred_versions,
+    },
+    registry::{
+        Registry,
+        compatibility_line,
+    },
 };
 use miette::Result;
 use semver::Version;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    VecDeque,
+};
 
 /// What discovery has reached a crate with so far: the features every
 /// dependency edge has asked of it together, and the versions those edges

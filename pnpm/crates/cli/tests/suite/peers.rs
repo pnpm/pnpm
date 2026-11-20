@@ -3,12 +3,18 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
     diagnostics::assert_diagnostic_contains,
 };
 use serde_json::Value;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 fn write_project(workspace: &std::path::Path, relative_dir: &str, name: &str) {
     let project_dir = workspace.join(relative_dir);
@@ -81,8 +87,8 @@ fn recursive_peers_uses_the_active_dedicated_lockfile() {
     drop(root);
 }
 
-/// `pnpm peers check` is the documented spelling — pnpm's own dedupe output
-/// tells users to run it — so it must behave like the bare command.
+/// `pnpm peers check` is the documented spelling (pnpm's own dedupe output
+/// tells users to run it) so it must behave like the bare command.
 #[test]
 fn peers_accepts_the_check_subcommand() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -256,7 +262,7 @@ fn an_up_to_date_install_does_not_recheck_peers() {
 }
 
 /// `peerDependencyRules` are applied before the verdict, so a rule that
-/// covers every issue leaves the install with nothing to report — and
+/// covers every issue leaves the install with nothing to report, and
 /// nothing to fail over under `strictPeerDependencies`.
 #[test]
 fn peer_dependency_rules_settle_the_install_verdict() {
@@ -290,7 +296,7 @@ const PEERS_CHECK_HINT: &str =
     r#"Issues with peer dependencies found. Run "pnpm peers check" to list them."#;
 
 /// `@pnpm.e2e/has-foo100-peer` wants `@pnpm.e2e/foo@100.0.0`; pinning
-/// `2.0.0` alongside it makes that peer resolvable but unsatisfying — a
+/// `2.0.0` alongside it makes that peer resolvable but unsatisfying, a
 /// bad peer rather than a missing one.
 fn write_peer_conflict_manifest(project_dir: &std::path::Path, name: &str) {
     fs::create_dir_all(project_dir).expect("create the project directory");
@@ -311,7 +317,7 @@ fn write_peer_conflict_manifest(project_dir: &std::path::Path, name: &str) {
 
 /// A workspace project's own `peerDependencies` are checked against the
 /// dependencies of the projects that link to it. Peer resolution never
-/// sees them — a `link:` node's peers belong to the linked importer —
+/// sees them, a `link:` node's peers belong to the linked importer,
 /// so the consuming importer reaches the report by a route of its own.
 fn write_linked_peer_workspace(workspace: &std::path::Path) {
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
@@ -890,9 +896,9 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
     )
     .expect("rewrite workspace manifest");
 
-    // Each run below has to actually resolve — an up-to-date lockfile
+    // Each run below has to actually resolve (an up-to-date lockfile
     // skips the report, which would pass both assertions for the wrong
-    // reason — so every one is preceded by an edit to `clean`.
+    // reason) so every one is preceded by an edit to `clean`.
     let install_and_resolve = |args: &[&str], dependencies: Value| {
         write_clean(dependencies);
         Command::cargo_bin("pnpm")
@@ -935,7 +941,7 @@ fn a_filtered_install_only_reports_the_projects_it_installed() {
 /// here whether or not the validation runs.
 #[test]
 fn invalid_peer_dependency_specification_fails_install() {
-    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -948,7 +954,7 @@ fn invalid_peer_dependency_specification_fails_install() {
     .expect("write package.json");
 
     let output = pacquet
-        .arg("install")
+        .with_arg("install")
         .output()
         .expect("run pnpm install");
 

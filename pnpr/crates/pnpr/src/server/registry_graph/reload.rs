@@ -4,16 +4,31 @@
 //! [`STALE_LIMIT`].
 
 use super::{
-    super::{AppState, RegistryError, managed_state::read_with_deadline},
-    RoutingSnapshot, build_snapshot,
-    stored::{Credentials, FileReferences, loaded_routing, stored_document},
+    super::{
+        AppState,
+        RegistryError,
+        managed_state::read_with_deadline,
+    },
+    RoutingSnapshot,
+    build_snapshot,
+    stored::{
+        Credentials,
+        FileReferences,
+        loaded_routing,
+        stored_document,
+    },
 };
 use pnpr_config::RoutingConfig;
 use pnpr_storage::database::StoredRegistryGraph;
 use std::{
     sync::{
-        Arc, Mutex, PoisonError,
-        atomic::{AtomicU64, Ordering},
+        Arc,
+        Mutex,
+        PoisonError,
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
     time::Duration,
 };

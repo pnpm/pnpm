@@ -1,7 +1,22 @@
-use crate::{ParsePkgNameSuffixError, ParsePkgVerPeerError, PkgName, PkgNameVerPeer, PkgVerPeer};
-use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, str::FromStr};
+use crate::{
+    ParsePkgNameSuffixError,
+    ParsePkgVerPeerError,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    borrow::Cow,
+    str::FromStr,
+};
 
 /// The start of a [`SnapshotDepRef::Link`] target that points inside the
 /// package declaring it, as in `link:<root>/typings/css-tree`. `<root>`
@@ -41,7 +56,7 @@ pub fn join_package_root_link(package_dir: &std::path::Path, target: &str) -> st
 ///
 /// A snapshot dependency can be written in one of three forms:
 ///
-/// * A bare version with an optional peer-dependency suffix — the dependency
+/// * A bare version with an optional peer-dependency suffix, the dependency
 ///   resolves to `<alias-name>@<version>` in the `snapshots:` map.
 ///
 ///   ```yaml
@@ -50,7 +65,7 @@ pub fn join_package_root_link(package_dir: &std::path::Path, target: &str) -> st
 ///       string-width: 5.1.2
 ///   ```
 ///
-/// * An npm-alias of the form `<target-name>@<version>` — the dependency
+/// * An npm-alias of the form `<target-name>@<version>`, the dependency
 ///   resolves to `<target-name>@<version>` in the `snapshots:` map and the
 ///   entry key is only used as the directory name inside `node_modules`.
 ///
@@ -60,7 +75,7 @@ pub fn join_package_root_link(package_dir: &std::path::Path, target: &str) -> st
 ///       string-width-cjs: string-width@4.2.3
 ///   ```
 ///
-/// * A `link:<path>` value — the dependency is a workspace sibling at
+/// * A `link:<path>` value, the dependency is a workspace sibling at
 ///   `<path>` relative to the lockfile root. Pnpm writes this shape for
 ///   injected workspace packages whose own dependencies resolve to other
 ///   workspace projects (and for which `excludeLinksFromLockfile` is off);

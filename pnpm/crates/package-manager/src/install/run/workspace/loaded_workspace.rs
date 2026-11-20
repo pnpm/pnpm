@@ -2,8 +2,15 @@
 //! embedder, or shared by the command across its per-project installs.
 
 use super::{
-    super::super::{InstallError, InstallRunOptions, Path, load_workspace_projects},
-    InstallOwned, InstallView, WorkspaceDirs,
+    super::super::{
+        InstallError,
+        InstallRunOptions,
+        Path,
+        load_workspace_projects,
+    },
+    InstallOwned,
+    InstallView,
+    WorkspaceDirs,
 };
 
 /// The workspace projects the run reads, and the workspace the command

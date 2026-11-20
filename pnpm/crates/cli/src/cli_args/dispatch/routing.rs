@@ -1,6 +1,14 @@
 use super::{
-    CliCommand, CommandFuture, ExecutionTimeLog, LogEvent, LogLevel, OtpNonInteractiveError,
-    RunCtx, dispatch_install, dispatch_query, dispatch_script,
+    CliCommand,
+    CommandFuture,
+    ExecutionTimeLog,
+    LogEvent,
+    LogLevel,
+    OtpNonInteractiveError,
+    RunCtx,
+    dispatch_install,
+    dispatch_query,
+    dispatch_script,
 };
 
 /// Route the command and await it, so a routing failure and a command
@@ -98,7 +106,6 @@ fn route_project<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<Co
         CliCommand::Pkg(args) => dispatch_script::pkg(ctx, args),
         CliCommand::Catalog(args) => dispatch_script::catalog(ctx, args),
         CliCommand::Edit(_) => dispatch_query::not_implemented("edit"),
-        CliCommand::Xmas(_) => dispatch_query::not_implemented("xmas"),
         command => route_maintenance(command, ctx),
     }
 }
@@ -176,7 +183,10 @@ pub(super) fn prints_json_errors(command: &CliCommand) -> bool {
 }
 
 pub(super) fn print_json_error(error: &miette::Report) {
-    let code = error.code().map_or_else(|| "pnpm".to_string(), |code| code.to_string());
+    let code = error
+        .code()
+        .map(|code| code.to_string())
+        .unwrap_or_else(|| "pnpm".to_string());
     let message = json_error_message(error);
     let mut error_body = serde_json::json!({
         "code": code,

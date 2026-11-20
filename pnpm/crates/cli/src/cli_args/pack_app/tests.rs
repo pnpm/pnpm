@@ -5,7 +5,11 @@
 //! subprocesses and are out of scope for unit tests.
 
 use super::{
-    PackAppArgs, parse_runtime, parse_target, read_project_app_config, validate_output_name,
+    PackAppArgs,
+    parse_runtime,
+    parse_target,
+    read_project_app_config,
+    validate_output_name,
 };
 use crate::cli_args::pack_app::config::is_reserved_windows_name;
 use pnpm_config::Config;
@@ -80,7 +84,7 @@ fn reads_entry_from_pnpm_app_entry_when_entry_is_omitted() {
     )
     .unwrap();
     fs::write(dir.path().join("from-config.cjs"), "module.exports = {}").unwrap();
-    // With entry from config but no target, we hit MISSING_TARGET — enough
+    // With entry from config but no target, we hit MISSING_TARGET, enough
     // to prove the entry was picked up from pnpm.app.entry.
     assert_eq!(run_and_get_code(&dir, args()), "ERR_PNPM_PACK_APP_MISSING_TARGET");
 }

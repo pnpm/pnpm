@@ -1,17 +1,34 @@
+#[cfg(not(windows))]
+use command_extra::CommandExtra;
 use pnpr_fixtures::read_packument;
 
 use super::{
-    BenchId, HyperfineCommand, LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_WIDTH, PEER_HEAVY_DEPTH,
-    PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios,
-    create_generated_projects, create_install_script, create_package_json, create_pnpm_workspace,
+    BenchId,
+    HyperfineCommand,
+    LINKED_WORKSPACE_DEPTH,
+    LINKED_WORKSPACE_WIDTH,
+    PEER_HEAVY_DEPTH,
+    PEER_HEAVY_PROVIDER,
+    PEER_HEAVY_WIDTH,
+    WorkEnv,
+    collect_pnpr_direct_ratios,
+    create_generated_projects,
+    create_install_script,
+    create_package_json,
+    create_pnpm_workspace,
     fixtures::peer_heavy_package_name,
     may_create_lockfile,
     measurements::PhaseEvent,
-    non_trivial_cold_batch, read_phase_events,
+    non_trivial_cold_batch,
+    read_phase_events,
     registries_home::RegistriesHome,
-    render_diagnostics_markdown, requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
+    render_diagnostics_markdown,
+    requires_fresh_pnpr_cold_batch_metrics,
+    seed_peer_heavy_registry,
     server_config::{
-        cold_mock_config_yaml, pnpr_auth_config_key, pnpr_benchmark_config_yaml,
+        cold_mock_config_yaml,
+        pnpr_auth_config_key,
+        pnpr_benchmark_config_yaml,
         serves_npm_under_base_path,
     },
     summarize_phase_events,
@@ -21,7 +38,10 @@ use pnpm_lockfile::Lockfile;
 use std::{
     collections::HashMap,
     fs,
-    io::{Read, Write},
+    io::{
+        Read,
+        Write,
+    },
     net::TcpListener,
     path::Path,
     thread,
@@ -805,8 +825,8 @@ fn cold_mock_cleanup_preserves_server_metadata_and_empties_the_configured_cache(
         |_| temp.path().to_path_buf(),
     );
     let status = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(command)
+        .with_arg("-c")
+        .with_arg(command)
         .status()
         .unwrap();
     assert!(status.success());

@@ -1,13 +1,22 @@
 use super::{
-    AddError, AddResolveInputs,
-    registry::{add_pick_policy, explicit_registry_pick_options, package_registry},
+    AddError,
+    AddResolveInputs,
+    registry::{
+        add_pick_policy,
+        explicit_registry_pick_options,
+        package_registry,
+    },
     specifier::declared_specifier,
 };
 use crate::resolution_policy::pick_package_context;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::PackageVersion;
 use pnpm_resolving_npm_resolver::{
-    FetchMetadataError, PickPackageError, calc_version_range, parse_bare_specifier, pick_package,
+    FetchMetadataError,
+    PickPackageError,
+    calc_version_range,
+    parse_bare_specifier,
+    pick_package,
 };
 use std::sync::Arc;
 
@@ -139,7 +148,8 @@ async fn pick_types_metadata(
     );
     pick_package(&context, &spec, &options).await
         .map(|result| result.picked_package.map(|package| (package, registry)))
-        .map_err(|error| AddError::ResolveSpec(Box::new(error)))
+        .map_err(Box::new)
+        .map_err(AddError::ResolveSpec)
 }
 
 fn types_package_name(name: &str) -> String {

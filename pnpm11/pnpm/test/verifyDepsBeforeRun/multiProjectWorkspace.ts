@@ -1220,6 +1220,52 @@ test('exec holds a link: dependency under dedicated lockfiles with injectWorkspa
   execPnpmSync([...CONFIG, '--filter=foo', 'exec', 'node', '-e', '0'], { expectSuccess: true })
 })
 
+// A dependency that an override points at `link:` is a symlink too.
+test('exec holds a link: override target under dedicated lockfiles with injectWorkspacePackages', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', private: true },
+    },
+    {
+      name: 'foo',
+      private: true,
+      dependencies: { baz: '^1.0.0' },
+    },
+    {
+      name: 'baz',
+      version: '1.0.0',
+      private: true,
+      dependencies: { '@pnpm.e2e/foo': '=100.0.0' },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    injectWorkspacePackages: true,
+    overrides: { baz: 'link:./baz' },
+  })
+
+  execPnpmSync(['--filter=foo', 'install'], { expectSuccess: true })
+  expect(fs.existsSync(path.resolve('baz/node_modules'))).toBeFalsy()
+
+  const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'exec', 'node', '-e', '0'])
+  expect(status).not.toBe(0)
+  expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
+
+  const linkedResult = execPnpmSync([
+    '--config.verify-deps-before-run=install',
+    '--filter=foo',
+    'exec',
+    'node',
+    '-e',
+    "console.log('linked-ok')",
+  ], { expectSuccess: true })
+  expect(linkedResult.stdout.toString()).toContain('linked-ok')
+  expect(fs.existsSync(path.resolve('baz/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  execPnpmSync([...CONFIG, '--filter=foo', 'exec', 'node', '-e', '0'], { expectSuccess: true })
+})
+
 // A negated selector reaches the install the gate spawns unchanged, so the
 // project it excludes is not required to have a modules directory.
 test('exec does not require a workspace dependency that a negated selector excludes', async () => {

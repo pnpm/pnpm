@@ -1,13 +1,23 @@
-use super::{AddError, AddOptions, AddResolveInputs};
+use super::{
+    AddError,
+    AddOptions,
+    AddResolveInputs,
+};
 use crate::{
-    resolution_policy::{PickPolicy, pick_package_context},
+    resolution_policy::{
+        PickPolicy,
+        pick_package_context,
+    },
     resolve_latest::LatestPicker,
 };
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{
-    PickPackageOptions, calc_version_range, parse_bare_specifier, pick_package,
+    PickPackageOptions,
+    calc_version_range,
+    parse_bare_specifier,
+    pick_package,
     pick_registry_for_package,
 };
 
@@ -58,7 +68,7 @@ pub(super) struct PickedRange {
 }
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the
 /// manifest range pnpm would record: the spec resolved to a concrete
-/// version (through the *same* resolver path the follow-up install uses —
+/// version (through the *same* resolver path the follow-up install uses,
 /// `resolutionMode` and `minimumReleaseAge` included), carrying the operator
 /// the existing entry pins, then the spec's, then the configured default. So
 /// `pnpm add foo@^7` records `^7.8.4`, not `^7`.
@@ -67,7 +77,7 @@ pub(super) struct PickedRange {
 /// saved as `^3.9.4` while `3.9.10` exists), so the install has to be seeded
 /// with [`PickedRange::version`] to lock it.
 ///
-/// Returns `Ok(None)` — write the specifier verbatim — for anything that is
+/// Returns `Ok(None)` (write the specifier verbatim) for anything that is
 /// not a plain registry range/tag/version for `package_name` itself:
 /// non-registry protocols (`git:`/`file:`/`workspace:`/URLs, which
 /// [`parse_bare_specifier`] rejects), `npm:` aliases (resolving them risks
@@ -107,7 +117,8 @@ pub(super) async fn resolve_explicit_registry_spec(
     );
 
     let pick = pick_package(&ctx, &spec_parsed, &opts).await
-        .map_err(|error| AddError::ResolveSpec(Box::new(error)))?;
+        .map_err(Box::new)
+        .map_err(AddError::ResolveSpec)?;
     let Some(picked) = pick.picked_package else {
         return Ok(None);
     };
@@ -147,7 +158,8 @@ pub(super) fn parse_explicit_registry_spec(
     registry: &str,
 ) -> Option<pnpm_resolving_npm_resolver::RegistryPackageSpec> {
     parse_bare_specifier(spec, Some(package_name), "latest", registry)
-        .filter(|parsed| parsed.normalized_bare_specifier.is_none() && parsed.name == package_name)
+        .filter(|parsed| parsed.normalized_bare_specifier.is_none())
+        .filter(|parsed| parsed.name == package_name)
 }
 /// The explicit range is authoritative; including the latest tag could exceed its bounds.
 pub(super) fn explicit_registry_pick_options<'a>(

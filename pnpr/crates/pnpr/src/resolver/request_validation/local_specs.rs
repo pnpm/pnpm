@@ -1,12 +1,18 @@
 use std::collections::HashSet;
 
-use axum::{http::StatusCode, response::Response};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
 use pnpm_package_manager::is_host_filesystem_specifier;
 use pnpm_package_manifest::DependencyGroup;
 
 use crate::resolver::{
     json_error,
-    protocol::{DepMap, ResolveRequest},
+    protocol::{
+        DepMap,
+        ResolveRequest,
+    },
 };
 
 /// Reject a request that asks the server to resolve a client-local filesystem
@@ -103,7 +109,8 @@ fn first_local_in_dep_maps<'a>(
 ) -> Option<&'a str> {
     maps.into_iter()
         .flatten()
-        .flat_map(|dependencies| dependencies.values().map(String::as_str))
+        .map(std::collections::BTreeMap::values)
+        .flat_map(|values| values.map(String::as_str))
         .find(|spec| is_local_request_spec(spec, importer_dir, declared_prefixes))
 }
 

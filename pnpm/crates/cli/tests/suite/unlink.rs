@@ -1,9 +1,15 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn write_manifest(workspace: &Path, manifest: &serde_json::Value) {
@@ -14,7 +20,7 @@ fn write_manifest(workspace: &Path, manifest: &serde_json::Value) {
 /// (`packages/first`, `packages/second`) that both depend on `pkg`, plus a
 /// `link:` override redirecting `pkg` to a local directory. Returns the two
 /// project dirs. Callers run `unlink` *before* any install, so the link is
-/// stripped and never materialized — the reinstall re-resolves `pkg` from the
+/// stripped and never materialized, the reinstall re-resolves `pkg` from the
 /// registry.
 fn scaffold_dedicated_link_workspace(workspace: &Path, pkg: &str) -> (PathBuf, PathBuf) {
     let local_target = workspace.join("local-dep");
@@ -261,7 +267,7 @@ fn dislink_alias_works() {
 /// End-to-end: a `link:` override redirects a registry dependency to a local
 /// directory, so installing produces a symlink in `node_modules` and a
 /// `link:` resolution in the lockfile. After `unlink`, the override is gone
-/// and the reinstall re-resolves the dependency from the registry — the
+/// and the reinstall re-resolves the dependency from the registry, the
 /// lockfile records the registry version instead of the link.
 #[test]
 fn unlink_restores_registry_package_in_lockfile() {
@@ -302,12 +308,15 @@ fn unlink_restores_registry_package_in_lockfile() {
         .success();
     let installed = workspace.join("node_modules").join(PKG);
     assert!(
-        fs::symlink_metadata(&installed).is_ok_and(|meta| meta.file_type().is_symlink()),
+        fs::symlink_metadata(&installed)
+            .map(|meta| meta.file_type())
+            .is_ok_and(|file_type| file_type.is_symlink()),
         "the link override should make node_modules/{PKG} a symlink before unlink",
     );
 
-    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    unlink.current_dir(&workspace);
+    let unlink = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace);
     unlink
         .with_args(["unlink", PKG])
         .assert()
@@ -347,8 +356,9 @@ fn recursive_unlink_with_dedicated_lockfiles_reinstalls_each_project() {
     const PKG: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
     let (first, second) = scaffold_dedicated_link_workspace(&workspace, PKG);
 
-    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    unlink.current_dir(&workspace);
+    let unlink = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace);
     unlink
         .with_args(["-r", "unlink", PKG])
         .assert()
@@ -382,7 +392,7 @@ fn recursive_unlink_with_dedicated_lockfiles_reinstalls_each_project() {
 }
 
 /// `pnpm --filter <project> unlink` strips the override and reinstalls only the
-/// selected project — the unselected project's dedicated lockfile is never
+/// selected project, the unselected project's dedicated lockfile is never
 /// created.
 #[test]
 fn filtered_unlink_with_dedicated_lockfiles_reinstalls_only_selected_project() {
@@ -393,8 +403,9 @@ fn filtered_unlink_with_dedicated_lockfiles_reinstalls_only_selected_project() {
     const PKG: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
     let (first, second) = scaffold_dedicated_link_workspace(&workspace, PKG);
 
-    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    unlink.current_dir(&workspace);
+    let unlink = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace);
     unlink
         .with_args(["--filter", "first", "unlink", PKG])
         .assert()
@@ -430,8 +441,9 @@ fn write_local_package(workspace: &Path, dir: &str, name: &str) {
 }
 
 fn run_pnpm(workspace: &Path, args: &[&str]) {
-    let mut command = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    command.current_dir(workspace);
+    let command = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(workspace);
     command
         .with_args(args)
         .assert()
@@ -570,8 +582,9 @@ fn failed_selection_keeps_link_override() {
     fs::create_dir_all(&member).expect("create member dir");
     write_manifest(&member, &serde_json::json!({ "name": "app", "version": "1.0.0" }));
 
-    let mut unlink = std::process::Command::cargo_bin("pnpm").expect("locate pacquet binary");
-    unlink.current_dir(&workspace);
+    let unlink = std::process::Command::cargo_bin("pnpm")
+        .expect("locate pacquet binary")
+        .with_current_dir(&workspace);
     unlink
         .with_args(["--filter", "missing", "--fail-if-no-match", "unlink"])
         .assert()

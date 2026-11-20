@@ -84,13 +84,10 @@ export async function installConfigDepsAndLoadHooks (
   opts?: {
     tolerateConfigDependenciesErrors?: boolean
     reconcileConfigDependencies?: boolean
-    // Set by `self-update`: don't auto-load the repo-controlled default
-    // `.pnpmfile.(c|m)js`. Its `updateConfig` hook could rewrite any setting —
-    // including the release-age policy the config reader just resolved for
-    // self-update — and its `customResolvers`/`customFetchers` would take over
-    // the pnpm download the trusted bootstrap registry is there to protect.
-    // Pnpmfiles from trusted sources (the `pnpmfile` setting, the global
-    // pnpmfile, config-dependency plugins) are still loaded.
+    // Set by `self-update`, `dlx`, and `create`: don't auto-load a
+    // repo-controlled default `.pnpmfile.(c|m)js`. Pnpmfiles from trusted
+    // sources (the `pnpmfile` setting, the global pnpmfile, config-dependency
+    // plugins) are still loaded.
     forSelfUpdate?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
@@ -153,9 +150,13 @@ function handleConfigDependencyError (err: unknown, tolerateErrors: boolean | un
  */
 async function loadPnpmfileHooks (config: Config, context: ConfigContext, opts: { forSelfUpdate?: boolean, configDependenciesVerified: boolean }): Promise<Config> {
   config.tryLoadDefaultPnpmfile = config.pnpmfile == null && !opts.forSelfUpdate
+  const pnpmfileDir = config.global ? config.globalPkgDir : (config.lockfileDir ?? config.dir)
   const pnpmfiles = listConfiguredPnpmfiles(config, context, opts.configDependenciesVerified)
-  const { hooks, finders, resolvedPnpmfilePaths } = await requireHooks(config.lockfileDir ?? config.dir, {
-    globalPnpmfile: config.globalPnpmfile,
+  const globalPnpmfile = config.global && config.globalPnpmfile && context.cliOptions['global-pnpmfile'] != null
+    ? path.resolve(config.dir, config.globalPnpmfile)
+    : config.globalPnpmfile
+  const { hooks, finders, resolvedPnpmfilePaths } = await requireHooks(pnpmfileDir, {
+    globalPnpmfile,
     pnpmfiles,
     tryLoadDefaultPnpmfile: config.tryLoadDefaultPnpmfile,
   })
@@ -169,7 +170,10 @@ async function loadPnpmfileHooks (config: Config, context: ConfigContext, opts: 
 }
 
 function listConfiguredPnpmfiles (config: Config, context: ConfigContext, configDependenciesVerified: boolean): string[] {
-  const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
+  const rawPnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? [...config.pnpmfile] : [config.pnpmfile]
+  const pnpmfiles = config.global && context.cliOptions['pnpmfile'] != null
+    ? rawPnpmfiles.map((pnpmfile) => path.resolve(config.dir, pnpmfile))
+    : rawPnpmfiles
   if (configDependenciesVerified && config.configDependencies) {
     const configModulesDir = path.join(config.lockfileDir ?? context.rootProjectManifestDir, 'node_modules/.pnpm-config')
     pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))

@@ -1,6 +1,14 @@
-use super::{Ecosystem, LOG_NAMESPACE, LogId, Storage};
+use super::{
+    Ecosystem,
+    LOG_NAMESPACE,
+    LogId,
+    Storage,
+};
 use pnpm_transparency_log::NoteSigner;
-use pnpr_config::{DatabaseBackend, HostedStoreConfig};
+use pnpr_config::{
+    DatabaseBackend,
+    HostedStoreConfig,
+};
 use tempfile::TempDir;
 
 const LOG_SIGNING_KEY: &str =

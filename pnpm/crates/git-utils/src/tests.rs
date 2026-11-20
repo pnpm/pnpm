@@ -1,7 +1,17 @@
 use super::{
-    CommandOutput, RunCommand, get_branches_containing_head, get_current_branch, is_head_detached,
+    CommandOutput,
+    RunCommand,
+    get_branches_containing_head,
+    get_current_branch,
+    is_head_detached,
 };
-use std::{fs, io, path::Path};
+#[cfg(unix)]
+use command_extra::CommandExtra;
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::TempDir;
 
 // The real provider is only reached by the FIFO tests, which need a
@@ -98,8 +108,8 @@ fn oversized_git_metadata_is_not_read() {
     assert_eq!(get_current_branch::<GitFails>(&worktree), None);
 }
 
-/// A `HEAD` that is not a plain file — a symlink here, a FIFO or a device
-/// in the cases this stands in for — is never opened, so a repository
+/// A `HEAD` that is not a plain file (a symlink here, a FIFO or a device
+/// in the cases this stands in for) is never opened, so a repository
 /// cannot make the read block or balloon.
 #[cfg(unix)]
 #[test]
@@ -158,7 +168,7 @@ fn repo_with_fifo_head() -> TempDir {
 #[cfg(unix)]
 fn make_fifo(path: &std::path::Path) {
     let status = std::process::Command::new("mkfifo")
-        .arg(path)
+        .with_arg(path)
         .status()
         .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed");

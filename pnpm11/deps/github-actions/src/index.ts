@@ -61,6 +61,15 @@ export function hasPositiveGitHubActionSelector (selectors: string[]): boolean {
   return selectors.some((selector) => !selector.startsWith('!') && isGitHubActionSelector(selector))
 }
 
+export function withoutGitHubActionSelectors (selectors: string[]): string[] {
+  const packageSelectors = selectors.filter((selector) => !isGitHubActionSelector(selector))
+  const hasPositiveSelector = selectors.some((selector) => !selector.startsWith('!'))
+  if (hasPositiveSelector && !packageSelectors.some((selector) => !selector.startsWith('!'))) {
+    return []
+  }
+  return packageSelectors
+}
+
 export async function findOutdatedGitHubActions (
   opts: FindOutdatedGitHubActionsOptions
 ): Promise<OutdatedGitHubAction[]> {

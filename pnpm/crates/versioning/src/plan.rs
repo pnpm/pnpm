@@ -1,21 +1,47 @@
 pub use project_refs::{
-    ProjectRefIndex, index_project_refs, is_dir_ref, private_project_dirs, to_project_dir,
+    ProjectRefIndex,
+    index_project_refs,
+    is_dir_ref,
+    private_project_dirs,
+    to_project_dir,
 };
 pub use versions::materialize_workspace_range;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use derive_more::Display;
-use node_semver::{Identifier, Version};
+use node_semver::{
+    Identifier,
+    Version,
+};
 
 use crate::{
     error::VersioningError,
-    intents::{ChangeIntent, IntentBumpType},
-    ledger::{Ledger, PackageConsumption, build_consumption_index, normalize_project_dir},
-    settings::{ReleaseBumpType, VersioningSettings},
+    intents::{
+        ChangeIntent,
+        IntentBumpType,
+    },
+    ledger::{
+        Ledger,
+        PackageConsumption,
+        build_consumption_index,
+        normalize_project_dir,
+    },
+    settings::{
+        ReleaseBumpType,
+        VersioningSettings,
+    },
 };
 
 /// One workspace project as the release-plan assembler sees it: the manifest
@@ -27,7 +53,7 @@ pub struct WorkspaceProject {
     pub version: Option<String>,
     /// The entries of the manifest's production dependency fields
     /// (`dependencies`, `optionalDependencies`, `peerDependencies`).
-    /// devDependencies never propagate — they are not part of the published
+    /// devDependencies never propagate; they are not part of the published
     /// artifact.
     pub prod_dependencies: Vec<ManifestDependency>,
     /// The manifest's `"private": true`. A private project's releases keep
@@ -76,11 +102,11 @@ pub struct DependencyUpdate {
 #[derive(Debug, Clone)]
 pub struct PlannedRelease {
     pub name: String,
-    /// Workspace-relative project directory — the engine's unit of identity.
+    /// Workspace-relative project directory, the engine's unit of identity.
     pub dir: String,
     pub root_dir: PathBuf,
     /// The intent files this release consumes for this package: the pending
-    /// ones, plus — when the release graduates the package off a lane — the
+    /// ones, plus (when the release graduates the package off a lane) the
     /// ones the ledger recorded against the lane's prerelease versions.
     pub intents: Vec<ChangeIntent>,
     pub dependency_updates: Vec<DependencyUpdate>,
@@ -111,7 +137,7 @@ pub struct AssembleReleasePlanOptions {
     /// instead of the computed one, matching snapshot releases.
     pub snapshot_suffix: Option<String>,
     /// Enforce that every internal production dependency uses the
-    /// `workspace:` protocol — a prerequisite for actually releasing. The
+    /// `workspace:` protocol, a prerequisite for actually releasing. The
     /// release path (`pnpm version -r`) sets this; read-only callers
     /// (`pnpm change status`) leave it off so a diagnostic never fails on an
     /// unmigrated dependency.
@@ -386,25 +412,45 @@ mod tests;
 mod project_refs;
 
 use project_refs::{
-    assert_internal_deps_use_workspace_protocol, collect_participants, parse_workspace_spec_alias,
+    assert_internal_deps_use_workspace_protocol,
+    collect_participants,
+    parse_workspace_spec_alias,
     resolve_config_ref,
 };
 
 mod configuration;
 use configuration::{
-    resolve_epics, resolve_fixed_groups, resolve_intents, resolve_lanes, validate_epics,
+    resolve_epics,
+    resolve_fixed_groups,
+    resolve_intents,
+    resolve_lanes,
+    validate_epics,
     validate_fixed_group_lanes,
 };
 
 mod versions;
 use versions::{
-    apply_epic_band_versions, apply_fixed_group_versions, bump_release_order, compute_new_version,
-    enforce_epic_bands, enforce_max_bump, epic_band, epic_rebase_floor, max_bump_type,
-    max_bump_type_of, range_accepts,
+    apply_epic_band_versions,
+    apply_fixed_group_versions,
+    bump_release_order,
+    compute_new_version,
+    enforce_epic_bands,
+    enforce_max_bump,
+    epic_band,
+    epic_rebase_floor,
+    max_bump_type,
+    max_bump_type_of,
+    range_accepts,
 };
 
 mod propagation;
 use propagation::{
-    PlanIntents, assert_no_duplicate_release_identity, collect_lane_consumed_intents,
-    collect_pending_intents, compute_versions, planned_releases, propagate_bumps, seed_bumps,
+    PlanIntents,
+    assert_no_duplicate_release_identity,
+    collect_lane_consumed_intents,
+    collect_pending_intents,
+    compute_versions,
+    planned_releases,
+    propagate_bumps,
+    seed_bumps,
 };

@@ -1,19 +1,33 @@
 use super::{
-    super::selected_project_indices, dependency_specifier, empty_project,
-    saved_dependency_specifier, test_add,
+    super::selected_project_indices,
+    dependency_specifier,
+    empty_project,
+    saved_dependency_specifier,
+    test_add,
 };
 use crate::add::{
-    finish::persist_selected_manifests, manifest::prepare_selected_manifests,
+    finish::persist_selected_manifests,
+    manifest::prepare_selected_manifests,
     workspace_specifier::workspace_save_specifier,
 };
-use pnpm_config::{Config, LinkWorkspacePackages, SaveWorkspaceProtocol};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+    SaveWorkspaceProtocol,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::SilentReporter;
-use pnpm_resolving_resolver_base::{WorkspacePackage, WorkspacePackages};
+use pnpm_resolving_resolver_base::{
+    WorkspacePackage,
+    WorkspacePackages,
+};
 use serde_json::json;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     path::PathBuf,
 };
 use tempfile::tempdir;

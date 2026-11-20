@@ -1,6 +1,15 @@
 use super::{
-    BTreeMap, Config, Deserialize, HashMap, SignaturesError, ThrottledClient, encode_package_name,
-    redact_url_credentials, sanitize_response_body, send_with_retry, walk_reqwest_chain,
+    BTreeMap,
+    Config,
+    Deserialize,
+    HashMap,
+    SignaturesError,
+    ThrottledClient,
+    encode_package_name,
+    redact_url_credentials,
+    sanitize_response_body,
+    send_with_retry,
+    walk_reqwest_chain,
 };
 use pnpm_network::normalize_registry_url;
 
@@ -45,7 +54,7 @@ pub(super) struct PackumentVersion {
 pub(super) struct Packument {
     /// Per-version publish times. Kept as raw JSON values (rather than
     /// `String`s) because the object also holds `created`/`modified` keys and
-    /// pnpm never validates the shape — only `versions` is required.
+    /// pnpm never validates the shape, only `versions` is required.
     #[serde(default)]
     pub(super) time: BTreeMap<String, serde_json::Value>,
     pub(super) versions: HashMap<String, PackumentVersion>,

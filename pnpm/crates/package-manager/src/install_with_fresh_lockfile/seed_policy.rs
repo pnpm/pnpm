@@ -1,9 +1,16 @@
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::ReplacedCandidate;
-use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
+use pnpm_resolving_deps_resolver::{
+    UpdateDepth,
+    UpdateTargets,
+};
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashSet,
+    },
     sync::Arc,
 };
 
@@ -32,7 +39,7 @@ impl From<PreferredVersions> for PreferredVersionsOverride {
 ///
 /// A name whose pin is withheld no longer carries its previously-locked
 /// version at the existing-version weight, so the resolver falls back to
-/// picking the highest version satisfying the manifest range — the
+/// picking the highest version satisfying the manifest range, the
 /// compatible re-resolution `pacquet update` performs. This is the
 /// `update: 'compatible'` resolver mode, which ignores the lockfile
 /// version for the dependency being updated.
@@ -57,12 +64,12 @@ pub enum UpdateSeedPolicy {
     /// current revision without allowing semver movement.
     RefreshRevisions,
     /// Withhold every lockfile pin. `pacquet update` with no package
-    /// selectors — the whole graph re-resolves to highest-in-range.
+    /// selectors, the whole graph re-resolves to highest-in-range.
     DropAll {
         max_depth: UpdateDepth,
     },
-    /// Withhold only the update targets' pins. `pacquet update <pattern>`
-    /// — a matched name re-resolves while everything else keeps its pin,
+    /// Withhold only the update targets' pins. `pacquet update <pattern>`,
+    /// a matched name re-resolves while everything else keeps its pin,
     /// and a selector that pinned an exact version narrows the target to
     /// that version line. Keyed by package name (scope included); see
     /// [`UpdateTargets`].
@@ -79,7 +86,7 @@ pub enum UpdateSeedPolicy {
 /// preference for it.
 ///
 /// A version named on the command line has to reach the lockfile even when
-/// the specifier written to the manifest doesn't carry it — a `catalog:`
+/// the specifier written to the manifest doesn't carry it, a `catalog:`
 /// entry keeps the version in the catalog, so without this the entry's
 /// recorded resolution is reused and the request is dropped silently.
 pub(crate) fn prefer_requested_version(
@@ -88,7 +95,9 @@ pub(crate) fn prefer_requested_version(
     version: &str,
 ) {
     use pnpm_resolving_resolver_base::{
-        REQUESTED_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
+        REQUESTED_VERSION_SELECTOR_WEIGHT,
+        VersionSelectorEntry,
+        VersionSelectorType,
         VersionSelectorWithWeight,
     };
 
@@ -107,7 +116,7 @@ pub(crate) fn prefer_requested_version(
         );
 }
 impl UpdateSeedPolicy {
-    /// Withhold every pin at every depth — the re-resolve `pacquet
+    /// Withhold every pin at every depth, the re-resolve `pacquet
     /// dedupe` / `pacquet import` and the napi install perform, none of
     /// which expose a `--depth`.
     #[must_use]

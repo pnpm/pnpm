@@ -1,4 +1,8 @@
-use super::{inject_alias_subcommand, parse_cli_args, prepare_cli_argv};
+use super::{
+    inject_alias_subcommand,
+    parse_cli_args,
+    prepare_cli_argv,
+};
 use pnpm_package_manager::rayon_pool_size;
 use std::ffi::OsString;
 
@@ -70,7 +74,10 @@ fn parsed_filter_order(parts: &[&str]) -> Vec<pnpm_config::FilterSource> {
 
 #[test]
 fn filter_order_preserves_positions_across_subcommand_boundary() {
-    use pnpm_config::FilterSource::{Filter, FilterProd};
+    use pnpm_config::FilterSource::{
+        Filter,
+        FilterProd,
+    };
 
     assert_eq!(
         parsed_filter_order(&[

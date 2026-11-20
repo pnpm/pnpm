@@ -10,7 +10,10 @@
 
 #![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
 
-use std::ffi::{c_int, c_long};
+use std::ffi::{
+    c_int,
+    c_long,
+};
 
 /// `mi_option_purge_delay` in `mimalloc.h`.
 const PURGE_DELAY: c_int = 15;

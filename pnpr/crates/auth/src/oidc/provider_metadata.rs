@@ -5,12 +5,28 @@
 use std::sync::Arc;
 
 use super::{
-    CoreJsonWebKeySet, CoreProviderMetadata, Deserialize, Duration, Instant, IssuerUrl,
-    JsonWebKeySetUrl, OidcState, Provider, Result, rejected, secure_url, unavailable,
+    CoreJsonWebKeySet,
+    CoreProviderMetadata,
+    Deserialize,
+    Duration,
+    Instant,
+    IssuerUrl,
+    JsonWebKeySetUrl,
+    OidcState,
+    Provider,
+    Result,
+    rejected,
+    secure_url,
+    unavailable,
 };
 use openidconnect::{
     AsyncHttpClient as _,
-    http::{Method, Request, StatusCode, header::ACCEPT},
+    http::{
+        Method,
+        Request,
+        StatusCode,
+        header::ACCEPT,
+    },
 };
 
 const METADATA_TTL: Duration = Duration::from_mins(5);

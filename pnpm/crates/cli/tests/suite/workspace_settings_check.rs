@@ -5,14 +5,20 @@
 
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
     diagnostics::assert_diagnostic_contains as assert_contains,
 };
 use std::{
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{
+        Command,
+        Output,
+    },
 };
 
 #[test]
@@ -112,8 +118,7 @@ fn an_unrecognized_task_setting_does_not_stop_the_switch_to_the_pinned_version()
     fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
         .expect("write package.json");
     write_workspace_yaml(&workspace, "packages:\n  - .\ntasks:\n  build:\n    laterSetting: 1\n");
-    let mut pacquet = pacquet;
-    pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+    let pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url());
 
     let output = run(pacquet, root.path(), &["--version"]);
 
@@ -147,10 +152,9 @@ fn unreadable_configuration_does_not_stop_the_switch_to_the_pinned_version() {
     fs::create_dir_all(&global_config).expect("create the global config dir");
     fs::write(global_config.join("config.yaml"), "registry: [not, a, url\n")
         .expect("write the global config");
-    let mut pacquet = pacquet;
-    pacquet
-        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .env(
+    let pacquet = pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_env(
             "pnpm_config__auth",
             r#"{"https://registry.example":{"laterField":"x"},"not a url":1}"#,
         );
@@ -188,8 +192,7 @@ fn a_broken_workspace_file_does_not_override_the_machines_opt_out() {
         "pmOnFail: ignore\ntasks:\n  build:\n    concurrency: 0\n",
     )
     .expect("write the global config");
-    let mut pacquet = pacquet;
-    pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+    let pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url());
 
     let output = run(pacquet, root.path(), &["--version"]);
 
@@ -218,8 +221,7 @@ fn a_setting_outside_the_pin_decision_does_not_drop_pm_on_fail() {
     fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
         .expect("write package.json");
     write_workspace_yaml(&workspace, "pmOnFail: ignore\noverrides:\n  foo: $missing\n");
-    let mut pacquet = pacquet;
-    pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+    let pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url());
 
     let output = run(pacquet, root.path(), &["--version"]);
 
@@ -355,7 +357,7 @@ fn shared_workspace_lockfile_cli_option_warns_on_the_install_fast_path() {
 fn configured_shared_workspace_lockfile_stays_quiet_outside_a_workspace() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_plain_manifest(&workspace);
-    pacquet.env("PNPM_CONFIG_SHARED_WORKSPACE_LOCKFILE", "true");
+    pacquet = pacquet.with_env("PNPM_CONFIG_SHARED_WORKSPACE_LOCKFILE", "true");
 
     let output = run(pacquet, root.path(), &["install", "--lockfile-only"]);
 
@@ -409,8 +411,9 @@ fn config_list_warns_but_succeeds_under_a_satisfied_pin() {
     );
 }
 
-/// A `--global` command does not act on the project, so the project's pin
-/// does not harden the report into an error.
+/// A `--global` command ignores the caller project's `pnpm-workspace.yaml`
+/// and never hardens an unrecognized key in the global `pnpm-workspace.yaml`
+/// into an error, even under a satisfied pin.
 #[test]
 fn a_global_command_warns_under_a_satisfied_pin() {
     let CommandTempCwd {
@@ -420,18 +423,24 @@ fn a_global_command_warns_under_a_satisfied_pin() {
         npmrc_info: _registry,
         ..
     } = init_with_running_pin();
-    write_workspace_yaml(&workspace, "minimumReleaseAg: 100\n");
+    write_workspace_yaml(&workspace, "projectUnknownKey: 100\n");
 
     let global_bin = root.path().join("pnpm-home");
     fs::create_dir_all(&global_bin).expect("create the global bin dir");
-    let mut pacquet = pacquet;
-    pacquet.env("PATH", prepend_to_path(&global_bin));
+    write_package_manager_pin(&global_bin);
+    write_workspace_yaml(&global_bin, "minimumReleaseAg: 100\n");
+    let pacquet = pacquet.with_env("PATH", prepend_to_path(&global_bin));
     let output = run_with_switch_disabled(pacquet, root.path(), &["list", "--global"]);
 
     assert_success(&output);
+    let stderr = stderr(&output);
     assert_contains(
-        &stderr(&output),
+        &stderr,
         r#"[WARN] The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?)."#,
+    );
+    assert!(
+        !stderr.contains("projectUnknownKey"),
+        "caller project's pnpm-workspace.yaml must not be read on --global: {stderr}",
     );
 }
 
@@ -457,8 +466,7 @@ fn a_pin_the_lockfile_does_not_record_is_kept_in_the_machines_global_dir() {
         format!("globalDir: {}\n", serde_json::to_string(&global_dir).expect("quote the path")),
     )
     .expect("write the global config");
-    let mut pacquet = pacquet;
-    pacquet.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+    let pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url());
 
     let output = run(pacquet, root.path(), &["--version"]);
 
@@ -539,7 +547,7 @@ fn init_with_running_pin() -> CommandTempCwd<AddMockedRegistry> {
     let mut fixture =
         CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
     let registry = fixture.npmrc_info.mock_instance.url().to_string();
-    fixture.pacquet.env("PNPM_CONFIG_REGISTRY", registry);
+    fixture.pacquet = fixture.pacquet.with_env("PNPM_CONFIG_REGISTRY", registry);
     write_package_manager_pin(&fixture.workspace);
     fixture
 }
@@ -559,12 +567,14 @@ fn write_package_manager_pin(workspace: &Path) {
 }
 
 fn run(command: Command, root: &Path, args: &[&str]) -> Output {
-    let mut command = command;
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
+    let command = command
+        .with_env("PNPM_HOME", root.join("pnpm-home"))
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"))
+        .with_env("XDG_CACHE_HOME", root.join("xdg-cache"))
+        .with_env("XDG_STATE_HOME", root.join("xdg-state"));
     command
-        .args(args)
+        .with_args(args)
         .output()
         .expect("run pacquet")
 }
@@ -572,7 +582,7 @@ fn run(command: Command, root: &Path, args: &[&str]) -> Output {
 /// Turn off version switching. The pin still reaches the strictness
 /// decision, and is still recorded through the registry.
 fn run_with_switch_disabled(mut command: Command, root: &Path, args: &[&str]) -> Output {
-    command.env("PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS", "false");
+    command = command.with_env("PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS", "false");
     run(command, root, args)
 }
 

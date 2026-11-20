@@ -1,10 +1,21 @@
 use pnpr_config::{
-    BackendConfig, Config, ConfigSource, FeatureOverrides, HostedStoreConfig, MaxUsers,
+    BackendConfig,
+    Config,
+    ConfigSource,
+    FeatureOverrides,
+    HostedStoreConfig,
+    MaxUsers,
     normalize_key_prefix,
 };
 use pnpr_package_name::Ecosystem;
-use pnpr_registry::{Registries, Registry};
-use std::path::{Path, PathBuf};
+use pnpr_registry::{
+    Registries,
+    Registry,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[derive(Debug)]
 pub struct RegistrySummary {

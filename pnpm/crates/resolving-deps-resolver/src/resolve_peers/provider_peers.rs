@@ -1,16 +1,26 @@
 //! The peers a package declares, checked against the versions an
-//! importer provides — so an optional peer provider taken from elsewhere
+//! importer provides, so an optional peer provider taken from elsewhere
 //! in the graph is not hoisted where its own peers would conflict.
 
 use super::context::ComparablePeerRange;
 use crate::{
     peer_provider::peer_shadowed_dependency_names,
     resolve_dependency_tree::WorkspaceTreeCtx,
-    resolved_tree::{PeerDep, PeerSet, ResolvedPackage},
+    resolved_tree::{
+        PeerDep,
+        PeerSet,
+        ResolvedPackage,
+    },
 };
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    cell::{OnceCell, RefCell},
+    cell::{
+        OnceCell,
+        RefCell,
+    },
     collections::BTreeMap,
 };
 
@@ -250,7 +260,8 @@ fn missing_peers<'a>(
 ) -> Vec<CandidatePeer> {
     peers
         .iter()
-        .filter(|peer| !peer.has_fallback_child && version_of(&peer.name).is_none())
+        .filter(|peer| !peer.has_fallback_child)
+        .filter(|peer| version_of(&peer.name).is_none())
         .cloned()
         .collect()
 }

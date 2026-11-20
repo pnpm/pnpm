@@ -1,7 +1,24 @@
 use super::{
-    Diagnostic, EnterKeyListener, OidcHttpOptions, OpenUrl, OtpChallenge, OtpError, OtpErrorBody,
-    PromptOtp, Reporter, Sleep, StdinIsTty, StdoutIsTty, ThrottledClient, Value, WebAuthClock,
-    WebAuthFetch, WebAuthFetchOptions, WebAuthRetryOptions, WithOtpError, with_otp_handling,
+    Diagnostic,
+    EnterKeyListener,
+    OidcHttpOptions,
+    OpenUrl,
+    OtpChallenge,
+    OtpError,
+    OtpErrorBody,
+    PromptOtp,
+    Reporter,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    ThrottledClient,
+    Value,
+    WebAuthClock,
+    WebAuthFetch,
+    WebAuthFetchOptions,
+    WebAuthRetryOptions,
+    WithOtpError,
+    with_otp_handling,
 };
 
 /// One completed publish response.
@@ -77,7 +94,7 @@ where
         fetch_options,
         // A plain `FnMut` returning an `async move` block (not an `AsyncFnMut`),
         // so the produced future is a concrete type with an ordinary `Send`
-        // obligation — see `with_otp_handling`'s `Operation` bound.
+        // obligation; see `with_otp_handling`'s `Operation` bound.
         move |challenge_otp: Option<String>| {
             // The web-auth-provided OTP (a fresh challenge) takes precedence
             // over any statically configured one.
@@ -162,7 +179,8 @@ fn www_authenticate_header(response: &reqwest::Response) -> Option<String> {
     response
         .headers()
         .get(reqwest::header::WWW_AUTHENTICATE)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .map(str::to_owned)
 }
 
@@ -173,7 +191,8 @@ pub(super) fn is_otp_challenge(www_authenticate: Option<&str>, body: &str) -> bo
     let header_lists_otp = www_authenticate.is_some_and(|value| {
         value
             .split(',')
-            .any(|token| token.trim().eq_ignore_ascii_case("otp"))
+            .map(str::trim)
+            .any(|trimmed| trimmed.eq_ignore_ascii_case("otp"))
     });
     header_lists_otp || body.to_lowercase().contains("one-time pass")
 }

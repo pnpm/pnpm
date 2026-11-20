@@ -1,18 +1,47 @@
 use super::{
-    Discovery, InstallOptions, Prepared, Reporter, manifest,
-    outdated::{PythonDependencyGroup, declared_dependencies_in_workspace},
+    Discovery,
+    InstallOptions,
+    Prepared,
+    Reporter,
+    manifest,
+    outdated::{
+        PythonDependencyGroup,
+        declared_dependencies_in_workspace,
+    },
     prepare,
     workspace::Workspace,
 };
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pep508_rs::{MarkerTree, PackageName, Requirement, VersionOrUrl};
-use pnpm_python_resolver::{LockIndex, Lockfile};
-use rewrite::{rewrite_pyproject, rewrite_pyproject_many};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
+use pep508_rs::{
+    MarkerTree,
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
+use pnpm_python_resolver::{
+    LockIndex,
+    Lockfile,
+};
+use rewrite::{
+    rewrite_pyproject,
+    rewrite_pyproject_many,
+};
 use specifiers::compute_saved_specifiers_for_pins;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 mod rewrite;

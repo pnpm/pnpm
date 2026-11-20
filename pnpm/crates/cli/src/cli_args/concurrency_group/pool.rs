@@ -1,13 +1,36 @@
 use super::{
-    GroupStatus, HolderLine, WaiterLine,
-    stamp::{elapsed_from_mtime, elapsed_since, parse_process_stamp, process_stamp},
+    GroupStatus,
+    HolderLine,
+    WaiterLine,
+    stamp::{
+        elapsed_from_mtime,
+        elapsed_since,
+        parse_process_stamp,
+        process_stamp,
+    },
 };
 use pnpm_fs::LockMode;
 use std::{
-    fs::{self, File, OpenOptions},
-    io::{self, Read, Seek, SeekFrom, Write},
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    fs::{
+        self,
+        File,
+        OpenOptions,
+    },
+    io::{
+        self,
+        Read,
+        Seek,
+        SeekFrom,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 const POLL: Duration = Duration::from_millis(100);
@@ -243,7 +266,9 @@ impl SlotPool {
         seq.read_to_end(&mut buf)?;
         let ticket = match std::str::from_utf8(&buf)
             .ok()
-            .and_then(|text| text.trim().parse().ok())
+            .map(str::trim)
+            .map(str::parse)
+            .and_then(Result::ok)
         {
             Some(ticket) => ticket,
             None => self
@@ -386,7 +411,8 @@ impl SlotPool {
         let priority = lines
             .next()
             .and_then(|line| line.strip_prefix("priority "))
-            .and_then(|value| value.parse().ok())
+            .map(str::parse)
+            .and_then(Result::ok)
             .unwrap_or(0);
         let second = lines.next().unwrap_or("");
         let (limit, rest) = match second.strip_prefix("limit ") {

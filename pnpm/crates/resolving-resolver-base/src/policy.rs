@@ -1,4 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Supply-chain trust policy applied to lockfile entries.
 ///
@@ -65,7 +68,10 @@ impl<'de> serde::Deserialize<'de> for LinkWorkspacePackages {
     where
         De: serde::Deserializer<'de>,
     {
-        use serde::de::{self, Visitor};
+        use serde::de::{
+            self,
+            Visitor,
+        };
         use std::fmt;
 
         struct V;
@@ -134,7 +140,10 @@ impl<'de> serde::Deserialize<'de> for SaveWorkspaceProtocol {
     where
         De: serde::Deserializer<'de>,
     {
-        use serde::de::{self, Visitor};
+        use serde::de::{
+            self,
+            Visitor,
+        };
         use std::fmt;
 
         struct V;

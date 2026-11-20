@@ -1,8 +1,23 @@
 use super::{
-    Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, NodeId, PkgResolutionId,
-    ResolvePeersOptions, ResolvedTree, package, resolve_peers, resolve_result, tree_node,
+    Arc,
+    BTreeMap,
+    DepPath,
+    DirectDep,
+    HashMap,
+    HashSet,
+    NodeId,
+    PkgResolutionId,
+    ResolvePeersOptions,
+    ResolvedTree,
+    package,
+    resolve_peers,
+    resolve_result,
+    tree_node,
 };
-use crate::resolved_tree::{ResolvedPackage, ResolvedPackageInput};
+use crate::resolved_tree::{
+    ResolvedPackage,
+    ResolvedPackageInput,
+};
 
 fn tarball_provider(id: &str, tarball: &str, version: &str) -> ResolvedPackage {
     let mut result = resolve_result("provider", version);

@@ -38,7 +38,8 @@ fn documentation_url_from_manifest(manifest: &PackageVersion) -> String {
         .get("homepage")
         .and_then(serde_json::Value::as_str)
         .filter(|homepage| is_http_url(homepage))
-        .map_or_else(|| format!("https://npmx.dev/package/{}", manifest.name), ToString::to_string)
+        .map(ToString::to_string)
+        .unwrap_or_else(|| format!("https://npmx.dev/package/{}", manifest.name))
 }
 
 fn is_http_url(value: &str) -> bool {

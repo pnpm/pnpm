@@ -6,7 +6,12 @@
 //! every other setting it declares do not apply when the outer workspace
 //! installs it.
 
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_workspace::WORKSPACE_MANIFEST_FILENAME;
 use std::path::Path;
 

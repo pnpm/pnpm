@@ -2,34 +2,70 @@ pub mod asynchronous {
     #[cfg(not(target_family = "wasm"))]
     pub use crate::native_command::AsyncCommand as Command;
     #[cfg(target_family = "wasm")]
-    pub use crate::{ChildStderr, ChildStdin, ChildStdout, child::AsyncChild as Child};
+    pub use crate::{
+        ChildStderr,
+        ChildStdin,
+        ChildStdout,
+        child::AsyncChild as Child,
+    };
     #[cfg(not(target_family = "wasm"))]
-    pub use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout};
+    pub use tokio::process::{
+        Child,
+        ChildStderr,
+        ChildStdin,
+        ChildStdout,
+    };
     #[cfg(target_family = "wasm")]
     pub type Command = crate::command::Command<crate::command::Async>;
 }
 
 #[cfg(target_family = "wasm")]
-pub use child::{Child, Output};
+pub use child::{
+    Child,
+    Output,
+};
 #[cfg(target_family = "wasm")]
 pub use command::Stdio;
 #[cfg(not(target_family = "wasm"))]
 pub use native_command::Command;
 #[cfg(target_family = "wasm")]
-pub use pipe::{ReadPipe as ChildStderr, ReadPipe as ChildStdout, WritePipe as ChildStdin};
+pub use pipe::{
+    ReadPipe as ChildStderr,
+    ReadPipe as ChildStdout,
+    WritePipe as ChildStdin,
+};
 #[cfg(target_family = "wasm")]
 pub use pnpm_wasm_host::process_id as id;
 #[cfg(target_family = "wasm")]
-pub use signals::{HostSignal, kill, next_signal, signal};
+pub use signals::{
+    HostSignal,
+    kill,
+    next_signal,
+    signal,
+};
 #[cfg(target_family = "wasm")]
 pub use status::ExitStatus;
 #[cfg(not(target_family = "wasm"))]
 pub use std::process::{
-    Child, ChildStderr, ChildStdin, ChildStdout, ExitStatus, Output, Stdio, id,
+    Child,
+    ChildStderr,
+    ChildStdin,
+    ChildStdout,
+    ExitStatus,
+    Output,
+    Stdio,
+    id,
 };
-pub use std::process::{ExitCode, abort, exit};
+pub use std::process::{
+    ExitCode,
+    abort,
+    exit,
+};
 
-use std::sync::{RwLock, RwLockWriteGuard};
+use std::sync::{
+    RwLock,
+    RwLockWriteGuard,
+};
 
 /// Held shared by every [`Command`] spawn and exclusively by the spawn of
 /// the executor's process-group watchdog.

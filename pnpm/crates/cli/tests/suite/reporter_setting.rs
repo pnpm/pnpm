@@ -1,11 +1,21 @@
-use crate::_utils::{has_pnpm_error_log, ndjson_records};
+use crate::_utils::{
+    has_pnpm_error_log,
+    ndjson_records,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pnpm(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")

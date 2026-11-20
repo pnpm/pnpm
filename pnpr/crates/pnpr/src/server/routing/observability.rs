@@ -1,21 +1,45 @@
-use std::{net::IpAddr, sync::Arc, time::Instant};
+use std::{
+    net::IpAddr,
+    sync::Arc,
+    time::Instant,
+};
 
 use axum::{
     Router,
-    extract::{ConnectInfo, Request, State},
-    http::{HeaderName, HeaderValue, Method, header},
+    extract::{
+        ConnectInfo,
+        Request,
+        State,
+    },
+    http::{
+        HeaderName,
+        HeaderValue,
+        Method,
+        header,
+    },
     middleware::Next,
     response::Response,
 };
 use tower_http::compression::{
     CompressionLayer,
-    predicate::{DefaultPredicate, NotForContentType, Predicate as _},
+    predicate::{
+        DefaultPredicate,
+        NotForContentType,
+        Predicate as _,
+    },
 };
 use tracing::Instrument;
 
 use crate::server::{
-    AppState, AuthedCaller, ClientIp, PeerAddr, RequestId, generate_request_id,
-    is_valid_request_id, loggable_uri, resolve_client_ip,
+    AppState,
+    AuthedCaller,
+    ClientIp,
+    PeerAddr,
+    RequestId,
+    generate_request_id,
+    is_valid_request_id,
+    loggable_uri,
+    resolve_client_ip,
 };
 
 pub(super) fn with_observability_layers(
@@ -93,7 +117,8 @@ fn prepare_request(request: &mut Request, state: &AppState) -> PreparedRequest {
     let user_agent = request
         .headers()
         .get(header::USER_AGENT)
-        .and_then(|val| val.to_str().ok())
+        .map(HeaderValue::to_str)
+        .and_then(Result::ok)
         .map(ToOwned::to_owned);
 
     let method = request.method().clone();
@@ -217,7 +242,9 @@ fn response_bytes_count(response: &Response) -> u64 {
     response
         .headers()
         .get(header::CONTENT_LENGTH)
-        .and_then(|val| val.to_str().ok())
-        .and_then(|len_str| len_str.parse::<u64>().ok())
+        .map(HeaderValue::to_str)
+        .and_then(Result::ok)
+        .map(str::parse::<u64>)
+        .and_then(Result::ok)
         .unwrap_or(0)
 }

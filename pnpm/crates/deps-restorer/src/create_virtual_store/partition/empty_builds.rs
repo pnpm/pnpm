@@ -1,6 +1,9 @@
 use pnpm_store_dir::SideEffectsOverlay;
 use pnpm_tarball::PrefetchResult;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// The overlays of the row at `cache_key`, with an overlay of the
 /// package's own files for each empty row when

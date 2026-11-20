@@ -166,7 +166,7 @@ export function detectOutdatedLockfileSettings (
     pnpmfileChecksum: checksums.pnpmfileChecksum,
   }
   let changedLockfileSettings: ChangedField[] = []
-  if (!opts.ignorePackageManifest) {
+  if (!opts.ignorePackageManifest && !opts.ignoreLockfileSettingsChecks) {
     changedLockfileSettings = getOutdatedLockfileSettings(ctx.wantedLockfile, {
       ...lockfileSettings,
       ignorePnpmfileChecksum: checksums.pnpmfileChecksumIgnored,

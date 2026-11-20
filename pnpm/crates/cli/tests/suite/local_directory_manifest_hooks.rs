@@ -4,10 +4,20 @@
 //! and in either lockfile layout.
 
 use crate::_utils::{
-    ManifestDeps, WorkspaceFixture, assert_success, ndjson_records, write_manifest_value,
+    ManifestDeps,
+    WorkspaceFixture,
+    assert_success,
+    ndjson_records,
+    write_manifest_value,
 };
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// A workspace whose `app` depends on `ext`, a `file:` directory outside the
 /// workspace patterns, so no project describes it.

@@ -1,10 +1,16 @@
 use std::{
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use crate::{error::VersioningError, intents::CHANGES_DIR};
+use crate::{
+    error::VersioningError,
+    intents::CHANGES_DIR,
+};
 
 /// Directory (under the workspace's `.changeset/`) holding the composed
 /// changelog sections of releases whose intents are not yet published. In
@@ -94,7 +100,7 @@ pub fn read_pending_changelog(
     }
 }
 
-/// Removes a parked section. A missing file is not an error — it may already
+/// Removes a parked section. A missing file is not an error; it may already
 /// have been collected.
 pub fn remove_pending_changelog(
     workspace_dir: &Path,

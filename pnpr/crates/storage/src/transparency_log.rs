@@ -27,15 +27,30 @@ mod reconcile;
 use crate::Storage;
 use checkpoint::CheckpointStatus;
 use pnpm_transparency_log::{
-    BundleRange, Hash, HashReader, NoteSigner, TILE_HEIGHT, TilePath, TreeHead, encode_bundle,
-    integrate, prove_inclusion,
+    BundleRange,
+    Hash,
+    HashReader,
+    NoteSigner,
+    TILE_HEIGHT,
+    TilePath,
+    TreeHead,
+    encode_bundle,
+    integrate,
+    prove_inclusion,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use std::{
     collections::HashMap,
     fmt,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{
+        Arc,
+        Mutex,
+        PoisonError,
+    },
 };
 use tlog_tiles::Tile;
 

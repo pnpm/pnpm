@@ -1,7 +1,9 @@
 #[cfg(any(unix, target_os = "wasi"))]
 pub use directory::grant_inherited_dir_mode;
 pub use directory::{
-    create_dir_all_inheriting_mode, inherited_dir_bits, nearest_existing_ancestor,
+    create_dir_all_inheriting_mode,
+    inherited_dir_bits,
+    nearest_existing_ancestor,
 };
 pub use pnpm_ffi_process::Umask;
 
@@ -10,7 +12,10 @@ mod directory;
 use directory::is_unchangeable;
 
 use pnpm_ffi_fs::FileMode;
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// The POSIX mode `metadata` carries, or `None` off Unix.
 #[must_use]

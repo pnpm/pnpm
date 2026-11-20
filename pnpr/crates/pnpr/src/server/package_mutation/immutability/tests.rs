@@ -1,4 +1,8 @@
-use super::{CanonicalPackageName, RegistryError, enforce_published_version_immutability};
+use super::{
+    CanonicalPackageName,
+    RegistryError,
+    enforce_published_version_immutability,
+};
 use serde_json::json;
 
 #[test]

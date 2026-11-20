@@ -1,11 +1,17 @@
 use super::{
-    InstallArgs, NodeLinkerArg, UpToDateFastPathCheck, install_already_up_to_date,
-    install_already_up_to_date_from_records, install_already_up_to_date_per_project,
-    read_root_manifest_json, warn_deprecated_override_version_references,
+    InstallArgs,
+    NodeLinkerArg,
+    UpToDateFastPathCheck,
+    install_already_up_to_date,
+    install_already_up_to_date_from_records,
+    install_already_up_to_date_per_project,
+    read_root_manifest_json,
+    warn_deprecated_override_version_references,
     warn_ignored_pnpm_manifest_fields,
 };
 use crate::cli_args::yarn_workspaces_field::{
-    converts_yarn_workspaces, warn_about_workspaces_field,
+    converts_yarn_workspaces,
+    warn_about_workspaces_field,
 };
 
 /// Which up-to-date attempt runs.
@@ -67,7 +73,8 @@ fn report_up_to_date_install(
         total: up_to_date.project_count,
         workspace_prefix: config.workspace_dir
             .as_deref()
-            .map(|dir| dir.to_string_lossy().into_owned()),
+            .map(std::path::Path::to_string_lossy)
+            .map(std::borrow::Cow::into_owned),
     }));
     let prefix = up_to_date.root.to_string_lossy().into_owned();
     emit(&pnpm_reporter::LogEvent::Pnpm(pnpm_reporter::PnpmLog {
@@ -94,7 +101,7 @@ impl InstallArgs {
     /// cannot change that answer
     /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
     ///
-    /// `false` means "not decided" — the caller proceeds with the full
+    /// `false` means "not decided", the caller proceeds with the full
     /// install path, which re-runs the same check cheaply and
     /// reproduces any error with its established shape. The
     /// `pacquet::install` trace says why the path was not taken.
@@ -164,8 +171,9 @@ impl InstallArgs {
         // pnpmfile declares custom fetchers, which may serve a directory that
         // changed with the lockfile unchanged. Asking means loading the hooks,
         // which is the install's job.
-        let node_linker =
-            self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        let node_linker = self.materialization.node_linker
+            .map(NodeLinkerArg::into_config)
+            .unwrap_or(config.node_linker);
         if node_linker == pnpm_config::NodeLinker::Hoisted && uses_pnpmfile(config, config_root) {
             return false;
         }
@@ -214,8 +222,9 @@ impl InstallArgs {
         }
         let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path.clone())
             .map_err(|_| "package.json cannot be parsed")?;
-        let node_linker =
-            self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        let node_linker = self.materialization.node_linker
+            .map(NodeLinkerArg::into_config)
+            .unwrap_or(config.node_linker);
         // Each project keeps its own lockfile and state, so each is decided
         // from its own record.
         let per_project = !config.shares_one_lockfile() && config.workspace_dir.is_some();

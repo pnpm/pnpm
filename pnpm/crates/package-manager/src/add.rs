@@ -1,8 +1,15 @@
 mod install;
-use install::{add_install, selected_add_seed, single_add_seed};
+use install::{
+    add_install,
+    selected_add_seed,
+    single_add_seed,
+};
 
 mod specifier;
-use specifier::{normalized_save_specifier, resolve_added_dependency};
+use specifier::{
+    normalized_save_specifier,
+    resolve_added_dependency,
+};
 
 mod alias;
 
@@ -22,20 +29,35 @@ mod types;
 mod aliasless;
 
 mod finish;
-use finish::{finish_selected_add, finish_single_add};
+use finish::{
+    finish_selected_add,
+    finish_single_add,
+};
 
 mod manifest;
 mod prepared_manifest;
-use manifest::{prepare_selected_add, prepare_single_add};
+use manifest::{
+    prepare_selected_add,
+    prepare_single_add,
+};
 
 mod source;
 
 use crate::{
-    CatalogVersionMismatchError, CommandLockfile, InstallError, ResolvedPackages, SelectedProjects,
-    catalog_cleanup::WriteWorkspaceCatalogsError, defer_ignored_builds,
-    resolve_latest::LatestPicker, selected_project_indices,
+    CatalogVersionMismatchError,
+    CommandLockfile,
+    InstallError,
+    ResolvedPackages,
+    SelectedProjects,
+    catalog_cleanup::WriteWorkspaceCatalogsError,
+    defer_ignored_builds,
+    resolve_latest::LatestPicker,
+    selected_project_indices,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
@@ -44,16 +66,26 @@ use pnpm_config::Config;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::NodeResolverError;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
 use pnpm_resolving_local_resolver::ResolveLocalError;
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, OfflineStoreView, PackumentFetchLocker, PickPackageError,
+    InMemoryPackageMetaCache,
+    OfflineStoreView,
+    PackumentFetchLocker,
+    PickPackageError,
     shared_packument_fetch_locker,
 };
-use pnpm_resolving_resolver_base::{GitResolveError, WorkspacePackages};
+use pnpm_resolving_resolver_base::{
+    GitResolveError,
+    WorkspacePackages,
+};
 use pnpm_tarball::MemCache;
 
 #[must_use]
@@ -150,7 +182,7 @@ pub enum AddError {
     #[diagnostic(transparent)]
     TarballResolve(#[error(source)] Box<pnpm_tarball::TarballError>),
 
-    /// Anything else the tarball resolver raised — a malformed URL, a
+    /// Anything else the tarball resolver raised, a malformed URL, a
     /// transport failure the fetcher doesn't classify.
     ///
     /// The cause is carried as already-redacted text rather than as an
@@ -305,7 +337,7 @@ pub struct AddResources<DependencyGroupList> {
     pub http_client_arc: std::sync::Arc<ThrottledClient>,
     /// The manifest groups the added packages are saved into. `None`
     /// means pnpm's default: an already-declared package is updated in
-    /// the group it occupies (`guessDependencyType` — checked in
+    /// the group it occupies (`guessDependencyType`, checked in
     /// `optionalDependencies`, `dependencies`, `devDependencies`,
     /// `peerDependencies` order, with a peer-only entry left untouched),
     /// and a new package lands in `dependencies`.

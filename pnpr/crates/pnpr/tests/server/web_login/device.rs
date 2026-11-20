@@ -2,8 +2,18 @@
 //! choice, and what happens when a code is submitted.
 
 use super::{
-    Body, Request, ServiceExt, StatusCode, TempDir, config_with_multiple_login_providers,
-    config_with_single_login_provider, config_without_oidc, header, html, router, start_login_at,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    config_with_multiple_login_providers,
+    config_with_single_login_provider,
+    config_without_oidc,
+    header,
+    html,
+    router,
+    start_login_at,
     submit_code,
 };
 

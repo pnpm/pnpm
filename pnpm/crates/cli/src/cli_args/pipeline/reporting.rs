@@ -1,11 +1,40 @@
 use super::{
-    Config, ExecutionStatus, GraphPkg, HashMap, HashSet, IndexMap, IntoDiagnostic, Mutex, Path,
-    PathBuf, PipelineInvocation, PipelineOutcome, PipelineResults, PipelineRun, ProjectGraph,
-    RunReport, SelectionMode, Status, TaskCache, TaskCompletion, TaskGraph, TaskKey, TaskNode,
-    Value, cache, format_task, is_output_cacheable, render_task_graph_dry_run, task_environment,
+    Config,
+    ExecutionStatus,
+    GraphPkg,
+    HashMap,
+    HashSet,
+    IndexMap,
+    IntoDiagnostic,
+    Mutex,
+    Path,
+    PathBuf,
+    PipelineInvocation,
+    PipelineOutcome,
+    PipelineResults,
+    PipelineRun,
+    ProjectGraph,
+    RunReport,
+    SelectionMode,
+    Status,
+    TaskCache,
+    TaskCompletion,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    Value,
+    cache,
+    format_task,
+    is_output_cacheable,
+    render_task_graph_dry_run,
+    task_environment,
     task_graph_to_json,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
 
 pub(super) struct StatusCounts {
     pub(super) failed: usize,
@@ -31,7 +60,7 @@ impl StatusCounts {
 
 /// The selection pre-pass: changed projects since the merge base, plus
 /// their transitive dependents. It is an optimization, not the
-/// correctness boundary — any doubt about attribution (the merge base
+/// correctness boundary, any doubt about attribution (the merge base
 /// cannot be resolved, or the diff touches the workspace root, whose
 /// files feed every project) falls through to the full graph.
 /// `--dry-run` prints the plan instead of running it.
@@ -80,9 +109,9 @@ impl PipelineRun<'_> {
 fn empty_selection_message(mode: SelectionMode, base: &str) -> String {
     match mode {
         SelectionMode::Affected => {
-            format!("No projects are affected since {base} — nothing to run.")
+            format!("No projects are affected since {base}. Nothing to run.")
         }
-        SelectionMode::Full => "No projects are selected — nothing to run.".to_string(),
+        SelectionMode::Full => "No projects are selected. Nothing to run.".to_string(),
     }
 }
 

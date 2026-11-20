@@ -1,9 +1,15 @@
 use super::BatchGroup;
 use crate::{
     parse_supported_registry_url,
-    staged_archives::{MAX_STAGED_ARCHIVES_PER_PUBLISH, StagedArchive},
+    staged_archives::{
+        MAX_STAGED_ARCHIVES_PER_PUBLISH,
+        StagedArchive,
+    },
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 fn staging_group(packages: usize) -> BatchGroup<'static> {
     BatchGroup {

@@ -1,4 +1,10 @@
-use super::{OidcState, USER_CODE_ALPHABET, WEB_LOGIN_TTL, WebLoginPoll, WebLoginState};
+use super::{
+    OidcState,
+    USER_CODE_ALPHABET,
+    WEB_LOGIN_TTL,
+    WebLoginPoll,
+    WebLoginState,
+};
 use jiff::Timestamp;
 
 fn oidc() -> OidcState {

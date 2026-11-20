@@ -1,6 +1,13 @@
-use crate::{ImporterDepVersion, ProjectSnapshot, ResolvedDependencyMap};
+use crate::{
+    ImporterDepVersion,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+};
 use pnpm_fs::lexical_normalize_posix;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use std::collections::HashMap;
 
 /// The lockfile-relative directory that `link:` references to the importer
@@ -9,7 +16,7 @@ use std::collections::HashMap;
 #[must_use]
 pub fn importer_link_target(importer_id: &str, importer: &ProjectSnapshot) -> String {
     match importer.publish_directory.as_deref() {
-        Some(publish_directory) if importer.link_directory != Some(false) => {
+        Some(publish_directory) if importer.link_directory.unwrap_or(true) => {
             normalize_dir(&format!("{importer_id}/{publish_directory}"))
         }
         _ => normalize_dir(importer_id),

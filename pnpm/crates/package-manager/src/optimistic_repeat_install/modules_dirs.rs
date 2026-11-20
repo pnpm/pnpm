@@ -3,20 +3,36 @@ pub(super) mod direct_links;
 pub(super) use direct_links::direct_dependency_link_dangling;
 
 use super::{
-    OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
+    OptimisticRepeatInstallCheck,
+    manifest_has_required_peers,
+    manifest_has_runtime_deps,
     manifest_string_field,
 };
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
+use pnpm_lockfile::{
+    MaybeLazyLockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
+};
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::WorkspaceState;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use workspace_deps::reached_workspace_project_dirs;
 

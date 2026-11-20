@@ -1,4 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Which hash the `integrity` of a package tarball entry names: the
 /// `lockfile.integrityTarget` setting, recorded as `settings.integrityTarget`.

@@ -1,7 +1,14 @@
-use super::{default_graph, seed_default_graph};
+use super::{
+    default_graph,
+    seed_default_graph,
+};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::Storage;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{
+    Ipv4Addr,
+    SocketAddr,
+    SocketAddrV4,
+};
 use tempfile::TempDir;
 
 fn storage_config(dir: &TempDir) -> pnpr_config::StorageConfig {

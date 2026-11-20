@@ -1,11 +1,22 @@
 use super::placement::{
     file_identity_matches,
-    symlinks::{imported_paths, is_symlink},
+    symlinks::{
+        imported_paths,
+        is_symlink,
+    },
 };
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Component, Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn directory_matches(

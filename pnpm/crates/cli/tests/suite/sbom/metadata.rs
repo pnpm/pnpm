@@ -1,6 +1,12 @@
 use super::{
-    copy_fixture, cyclonedx_component, pacquet, run_sbom_json, run_sbom_json_from_store,
-    set_dependency_author, set_root_author, spdx_package,
+    copy_fixture,
+    cyclonedx_component,
+    pacquet,
+    run_sbom_json,
+    run_sbom_json_from_store,
+    set_dependency_author,
+    set_root_author,
+    spdx_package,
 };
 
 #[test]

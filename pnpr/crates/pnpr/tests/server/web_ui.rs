@@ -1,6 +1,17 @@
 use super::{
-    Body, Config, GzDecoder, Ipv4Addr, Request, ServiceExt, SocketAddr, SocketAddrV4, StatusCode,
-    TempDir, body_bytes, header, router,
+    Body,
+    Config,
+    GzDecoder,
+    Ipv4Addr,
+    Request,
+    ServiceExt,
+    SocketAddr,
+    SocketAddrV4,
+    StatusCode,
+    TempDir,
+    body_bytes,
+    header,
+    router,
 };
 use pnpr_fixtures::MockConfigPresets;
 

@@ -1,9 +1,16 @@
 use pnpm_network::redact_and_sanitize;
-use pnpm_reporter::{FatalErrorLog, LogLevel, SkippedOptionalParent};
+use pnpm_reporter::{
+    FatalErrorLog,
+    LogLevel,
+    SkippedOptionalParent,
+};
 use pnpm_resolving_deps_resolver::DependencyResolutionError;
 use std::{
     path::Path,
-    sync::{Mutex, PoisonError},
+    sync::{
+        Mutex,
+        PoisonError,
+    },
 };
 
 static PREFIX: Mutex<String> = Mutex::new(String::new());

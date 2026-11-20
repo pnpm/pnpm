@@ -1,15 +1,34 @@
 use super::{
-    Action, CachedPackument, CanonicalPackageName, FetchOutcome, RegistryError, RegistrySource,
-    Upstream, VersionRequest, authorized_upstream,
-    cache::{DistOrigin, VersionTgz, version_manifest_tgz, version_tgz},
-    hosted_read_namespace, timed, upstream_cache_namespace,
+    Action,
+    CachedPackument,
+    CanonicalPackageName,
+    FetchOutcome,
+    RegistryError,
+    RegistrySource,
+    Upstream,
+    VersionRequest,
+    authorized_upstream,
+    cache::{
+        DistOrigin,
+        VersionTgz,
+        version_manifest_tgz,
+        version_tgz,
+    },
+    hosted_read_namespace,
+    timed,
+    upstream_cache_namespace,
 };
 use crate::server::{
-    authorize, read_source_packument, recover_stale_upstream_packument,
+    authorize,
+    read_source_packument,
+    recover_stale_upstream_packument,
     reload_source_packument_lacking_version,
 };
 use pnpr_storage::DocumentStamp;
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::Instant,
+};
 
 /// The largest upstream version manifest the route reads.
 const MAX_VERSION_MANIFEST_BYTES: usize = 8 * 1024 * 1024;

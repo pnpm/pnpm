@@ -1,13 +1,34 @@
 use super::{
     TufError,
     metadata::{
-        FileList, MetaFile, RoleMetadata, Root, Signed, Snapshot, Targets, Timestamp, parse,
+        FileList,
+        MetaFile,
+        RoleMetadata,
+        Root,
+        Signed,
+        Snapshot,
+        Targets,
+        Timestamp,
+        parse,
     },
-    role::{HashRequirement, check_file, verify_role},
+    role::{
+        HashRequirement,
+        check_file,
+        verify_role,
+    },
 };
-use serde::{Deserialize, Serialize};
-use sha2::{Digest as _, Sha256};
-use std::{collections::BTreeSet, fmt};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
+use std::{
+    collections::BTreeSet,
+    fmt,
+};
 
 /// The versions a client trusted last, persisted between runs so that a
 /// repository cannot roll metadata back.

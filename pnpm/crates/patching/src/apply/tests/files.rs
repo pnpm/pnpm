@@ -1,8 +1,22 @@
 use super::{
-    BINDING_GYP_DELETE_PATCH, BINDING_GYP_PATCH, IS_POSITIVE_INDEX_JS,
-    IS_POSITIVE_INDEX_JS_PATCHED, IS_POSITIVE_PATCH, MANIFEST, MANIFEST_PATCH,
-    MANIFEST_SECOND_PATCH, PatchApplyError, applied_hunk, apply_patch_to_dir, assert_eq, fs,
-    preview_patch, tempdir, text_block, text_block_fnl, write_patch,
+    BINDING_GYP_DELETE_PATCH,
+    BINDING_GYP_PATCH,
+    IS_POSITIVE_INDEX_JS,
+    IS_POSITIVE_INDEX_JS_PATCHED,
+    IS_POSITIVE_PATCH,
+    MANIFEST,
+    MANIFEST_PATCH,
+    MANIFEST_SECOND_PATCH,
+    PatchApplyError,
+    applied_hunk,
+    apply_patch_to_dir,
+    assert_eq,
+    fs,
+    preview_patch,
+    tempdir,
+    text_block,
+    text_block_fnl,
+    write_patch,
 };
 
 #[test]
@@ -337,7 +351,7 @@ new file mode 100644
     assert_eq!(after, "first line\nsecond line\n");
 }
 
-/// `..` in a patch path is rejected — a malicious or
+/// `..` in a patch path is rejected, a malicious or
 /// misconfigured patch must not be able to read/write/delete
 /// outside `patched_dir`.
 #[test]
@@ -532,7 +546,7 @@ fn create_with_unwritable_parent_path_errors() {
 ///
 /// The patch substitutes one line (`old` → `new`) so forward apply
 /// against the already-patched file fails to find the `-old` context
-/// line — the case that exercises the reverse-apply idempotency
+/// line, the case that exercises the reverse-apply idempotency
 /// branch. A purely additive patch wouldn't reach the reverse
 /// branch: diffy's fuzz matching shifts the insertion point and
 /// double-applies the addition, producing duplicate content.

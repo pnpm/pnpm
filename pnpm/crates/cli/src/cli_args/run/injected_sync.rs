@@ -1,13 +1,25 @@
 //! `syncInjectedDepsAfterScripts` around one script: publish injected
 //! copies while it runs, then hardlink-sync them after it succeeds.
 
-use super::{RunContext, Value};
+use super::{
+    RunContext,
+    Value,
+};
 use pnpm_config::Config;
 use pnpm_injected_deps_syncer::{
-    BinLinkSettings, CopyFiles, InjectedEditWatch, ProjectModulesDir, SyncInjectedDeps,
-    injected_edit_sources, sync_injected_deps, watch_injected_edits,
+    BinLinkSettings,
+    CopyFiles,
+    InjectedEditWatch,
+    ProjectModulesDir,
+    SyncInjectedDeps,
+    injected_edit_sources,
+    sync_injected_deps,
+    watch_injected_edits,
 };
-use pnpm_workspace::{FindWorkspaceProjectsOpts, find_workspace_projects};
+use pnpm_workspace::{
+    FindWorkspaceProjectsOpts,
+    find_workspace_projects,
+};
 
 pub(super) fn start_injected_edit_watch(
     ctx: &RunContext<'_>,

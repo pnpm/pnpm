@@ -1,4 +1,7 @@
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use std::collections::HashSet;
 
 /// The snapshots already checked. What a package and its descendants must
@@ -17,7 +20,8 @@ impl Visited {
             .iter()
             .flat_map(|packages| packages.values())
             .filter_map(|metadata| metadata.peer_dependencies.as_ref())
-            .flat_map(|peers| peers.keys().cloned())
+            .map(std::collections::HashMap::keys)
+            .flat_map(std::iter::Iterator::cloned)
             .collect();
         Visited { checked: HashSet::new(), recorded_peers }
     }
@@ -55,7 +59,8 @@ pub(super) fn importer_aliases(importer: &pnpm_lockfile::ProjectSnapshot) -> Ali
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
         .into_iter()
         .filter_map(|group| importer.get_map_by_group(group))
-        .flat_map(|dependencies| dependencies.keys().map(ToString::to_string))
+        .map(std::collections::HashMap::keys)
+        .flat_map(|keys| keys.map(ToString::to_string))
         .collect()
 }
 
@@ -65,7 +70,8 @@ pub(super) fn snapshot_aliases(
     [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
         .into_iter()
         .flatten()
-        .flat_map(|dependencies| dependencies.keys().map(ToString::to_string))
+        .map(std::collections::HashMap::keys)
+        .flat_map(|keys| keys.map(ToString::to_string))
 }
 
 fn declared_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str> {
@@ -74,5 +80,6 @@ fn declared_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str>
         .get("peerDependencies")
         .and_then(serde_json::Value::as_object)
         .into_iter()
-        .flat_map(|peers| peers.keys().map(String::as_str))
+        .map(serde_json::Map::keys)
+        .flat_map(|keys| keys.map(String::as_str))
 }

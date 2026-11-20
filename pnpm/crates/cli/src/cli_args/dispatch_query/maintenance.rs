@@ -1,19 +1,47 @@
 use super::{
     super::{
-        clean::{LockfileRemoval, run as clean_builtin},
-        dispatch_script, script_override,
+        clean::{
+            LockfileRemoval,
+            run as clean_builtin,
+        },
+        dispatch_script,
+        script_override,
     },
-    BinArgs, BugsArgs, CacheCommand, CatFileArgs, CatIndexArgs, CleanArgs, CommandFuture, Config,
-    ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand, DocsArgs, DoctorArgs,
-    DoctorOutcome, FindHashArgs, IgnoredBuildsArgs, NotImplementedError, PrefixArgs, RepoArgs,
-    RootArgs, RunCtx, SelfUpdateArgs, SetupArgs, ShimArgs, StoreCommand, TasksArgs, WithArgs,
+    BinArgs,
+    BugsArgs,
+    CacheCommand,
+    CatFileArgs,
+    CatIndexArgs,
+    CleanArgs,
+    CommandFuture,
+    Config,
+    ConfigArgs,
+    ConfigGetAliasArgs,
+    ConfigSetAliasArgs,
+    ConfigSubcommand,
+    DocsArgs,
+    DoctorArgs,
+    DoctorOutcome,
+    FindHashArgs,
+    IgnoredBuildsArgs,
+    NotImplementedError,
+    PrefixArgs,
+    RepoArgs,
+    RootArgs,
+    RunCtx,
+    SelfUpdateArgs,
+    SetupArgs,
+    ShimArgs,
+    StoreCommand,
+    TasksArgs,
+    WithArgs,
 };
 use crate::cli_args::reporter::CliReporter;
 
 // `doctor` reports on the installation and its environment, so it needs config
 // resolved but no lockfile or install pipeline. It returns the rendered report
 // rather than printing it, mirroring pnpm's handler → CLI print split, and the
-// exit lives here because a failing check must fail the command — that is what
+// exit lives here because a failing check must fail the command, that is what
 // lets the release pipeline gate a promotion on it.
 pub(in super::super) fn doctor<'a>(
     ctx: &RunCtx<'a>,
@@ -35,7 +63,9 @@ pub(in super::super) fn bin<'a>(
     ctx: &RunCtx<'a>,
     args: BinArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.locations.dir, (ctx.loaders.config)()?)?;
+    let config =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
+    args.run(ctx.locations.dir, config)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -58,7 +88,9 @@ pub(in super::super) fn root<'a>(
     ctx: &RunCtx<'a>,
     args: RootArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.locations.dir, (ctx.loaders.config)()?)?;
+    let config =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
+    args.run(ctx.locations.dir, config)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -66,7 +98,9 @@ pub(in super::super) fn prefix<'a>(
     ctx: &RunCtx<'a>,
     args: PrefixArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.locations.dir, (ctx.loaders.config)()?)?;
+    let config =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
+    args.run(ctx.locations.dir, config)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -87,7 +121,7 @@ pub(in super::super) fn shim<'a>(
     args: ShimArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     // Writes the global bin directory and the global `config.yaml`, so it
-    // reads the configuration anchored at the pnpm home — a project the
+    // reads the configuration anchored at the pnpm home, a project the
     // command happens to run in does not get to steer either.
     let config = (ctx.loaders.global_config)()?;
     Ok(Box::pin(async move {

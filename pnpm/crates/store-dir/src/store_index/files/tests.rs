@@ -1,10 +1,26 @@
-use super::{FilesIndex, INDEX_DIR, TEMP_FILE_PREFIX, encode_entry};
+use super::{
+    FilesIndex,
+    INDEX_DIR,
+    TEMP_FILE_PREFIX,
+    encode_entry,
+};
 use crate::{
-    StoreDir, StoreIndex, StoreIndexFormat, StoreIndexWriter,
-    store_index::{store_index_key, tests::sample_index},
+    StoreDir,
+    StoreIndex,
+    StoreIndexFormat,
+    StoreIndexWriter,
+    store_index::{
+        store_index_key,
+        tests::sample_index,
+    },
 };
 use pretty_assertions::assert_eq;
-use std::{collections::HashSet, fs, path::Path, sync::Arc};
+use std::{
+    collections::HashSet,
+    fs,
+    path::Path,
+    sync::Arc,
+};
 use tempfile::tempdir;
 
 fn files_store(root: &Path) -> StoreIndex {

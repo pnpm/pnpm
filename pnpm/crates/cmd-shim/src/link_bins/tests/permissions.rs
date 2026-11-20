@@ -1,12 +1,29 @@
 use super::{
-    FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
-    FsWalkFiles, FsWrite, Host, LinkBinsOptions, PackageBinSource, json, link_bins_of_packages,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    Host,
+    LinkBinsOptions,
+    PackageBinSource,
+    json,
+    link_bins_of_packages,
     tempdir,
 };
 use std::{
-    fs, io,
-    os::unix::fs::{PermissionsExt, symlink},
-    path::{Path, PathBuf},
+    fs,
+    io,
+    os::unix::fs::{
+        PermissionsExt,
+        symlink,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::Arc,
 };

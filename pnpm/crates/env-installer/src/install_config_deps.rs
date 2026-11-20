@@ -7,27 +7,55 @@
 //! level deep as siblings inside the parent's leaf `node_modules`.
 
 use crate::{
-    ConfigDepError, NormalizedConfigDep, NormalizedSubdep, options::ConfigDepsInstallOptions,
+    ConfigDepError,
+    NormalizedConfigDep,
+    NormalizedSubdep,
+    options::ConfigDepsInstallOptions,
     verify_env_lockfile::verify_env_lockfile,
 };
 use pnpm_graph_hasher::{
-    calc_global_virtual_store_path_with_subdeps, calc_leaf_global_virtual_store_path,
+    calc_global_virtual_store_path_with_subdeps,
+    calc_leaf_global_virtual_store_path,
     join_global_virtual_store_path,
 };
-use pnpm_lockfile::{EnvLockfile, LockfileResolution, TarballUrlOptions, npm_tarball_url};
-use pnpm_package_is_installable::{PackageInstallabilityManifest, check_package};
-use pnpm_package_manager::{ImportIndexedDirOpts, import_indexed_dir};
+use pnpm_lockfile::{
+    EnvLockfile,
+    LockfileResolution,
+    TarballUrlOptions,
+    npm_tarball_url,
+};
+use pnpm_package_is_installable::{
+    PackageInstallabilityManifest,
+    check_package,
+};
+use pnpm_package_manager::{
+    ImportIndexedDirOpts,
+    import_indexed_dir,
+};
 use pnpm_reporter::{
-    InstalledConfigDep, InstallingConfigDepsLog, InstallingConfigDepsStatus, LogEvent, LogLevel,
-    Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
+    InstalledConfigDep,
+    InstallingConfigDepsLog,
+    InstallingConfigDepsStatus,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
 };
 use pnpm_store_dir::SharedVerifiedFilesCache;
 use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::atomic::AtomicU8,
 };
 
@@ -237,7 +265,7 @@ impl StartedGate {
     }
 }
 
-/// `<name>@<version>:<integrity>` — the package-id shape the GVS hash
+/// `<name>@<version>:<integrity>`: the package-id shape the GVS hash
 /// incorporates.
 fn full_pkg_id(name: &str, version: &str, integrity: &Integrity) -> String {
     format!("{name}@{version}:{integrity}")
@@ -319,13 +347,15 @@ fn prune_unexpected_siblings<Reporter: self::Reporter>(
 /// Remove a stale `.pnpm-config` entry (or optional-subdep sibling).
 /// These are directory symlinks/junctions created by
 /// [`pnpm_fs::force_symlink_dir`], so they're unlinked via
-/// [`pnpm_fs::remove_symlink_dir`] rather than recursively deleted —
+/// [`pnpm_fs::remove_symlink_dir`] rather than recursively deleted,
 /// `remove_dir_all` is the wrong primitive for a link and behaves
 /// inconsistently across platforms. A real directory left by an older
 /// layout falls back to a recursive remove. A genuine failure (anything
 /// but "already gone") is logged rather than silently swallowed.
 fn prune_link(path: &Path) {
-    let is_link = fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink());
+    let is_link = fs::symlink_metadata(path)
+        .map(|meta| meta.file_type())
+        .is_ok_and(|file_type| file_type.is_symlink());
     let result = if is_link { pnpm_fs::remove_symlink_dir(path) } else { fs::remove_dir_all(path) };
     if let Err(error) = result
         && error.kind() != std::io::ErrorKind::NotFound
@@ -402,5 +432,7 @@ fn symlink_points_to(link_path: &Path, expected: &Path) -> bool {
 
 mod optional_dependencies;
 use optional_dependencies::{
-    install_optional_subdeps, normalize_from_lockfile, optional_subdeps_installed,
+    install_optional_subdeps,
+    normalize_from_lockfile,
+    optional_subdeps_installed,
 };

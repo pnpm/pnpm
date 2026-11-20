@@ -3,10 +3,26 @@ pub(crate) mod applied_policies;
 pub use applied_policies::AppliedPolicies;
 
 use super::{
-    BTreeMap, Deserialize, HashSet, IndexMap, Lockfile, PnprClient, PnprClientError,
-    ResolveOptions, ResolveOutcome, ResolveProjectsOptions, ResolvedPackage, Stats,
-    TarballRevision, WireViolation, build_verify_error, hash_object_nullable_with_prefix,
-    lockfile_format::{PNPM_LOCK_V9, expect_lockfile_format},
+    BTreeMap,
+    Deserialize,
+    HashSet,
+    IndexMap,
+    Lockfile,
+    PnprClient,
+    PnprClientError,
+    ResolveOptions,
+    ResolveOutcome,
+    ResolveProjectsOptions,
+    ResolvedPackage,
+    Stats,
+    TarballRevision,
+    WireViolation,
+    build_verify_error,
+    hash_object_nullable_with_prefix,
+    lockfile_format::{
+        PNPM_LOCK_V9,
+        expect_lockfile_format,
+    },
 };
 use applied_policies::assert_applied_policies;
 use futures_util::StreamExt as _;
@@ -262,7 +278,8 @@ fn assert_transform_metadata(
         .filter(|extensions| !extensions.is_empty())
     {
         let value = serde_json::to_value(package_extensions)
-            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+            .map_err(|err| err.to_string())
+            .map_err(PnprClientError::Protocol)?;
         let expected = hash_object_nullable_with_prefix(&value)
             .expect("a non-empty packageExtensions map has a checksum");
         if lockfile.package_extensions_checksum.as_deref() != Some(expected.as_str()) {
@@ -278,7 +295,7 @@ fn assert_transform_metadata(
 /// A project that publishes from a subdirectory must come back with that
 /// directory on its importer. The server rebuilds each project's manifest from
 /// the request, so a server that ignored `publishConfig` would have the caller
-/// link the project root — and install other code than a local install does.
+/// link the project root, and install other code than a local install does.
 fn assert_publish_directories(
     lockfile: &Lockfile,
     opts: &ResolveProjectsOptions,
@@ -316,7 +333,7 @@ fn equal_patch_hashes(
 }
 
 pub(super) fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
-    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+    serde_json::from_slice(line).map_err(|err| err.to_string()).map_err(PnprClientError::Protocol)
 }
 
 /// One NDJSON frame from resolve endpoint. `package` frames stream as the
@@ -379,8 +396,8 @@ impl PnprClient {
     }
 
     /// Resolve a single project, invoking `on_package` once per resolved
-    /// tarball as its `package` frame streams in — *before* the full
-    /// lockfile arrives — so the caller can begin fetching each tarball
+    /// tarball as its `package` frame streams in (*before* the full
+    /// lockfile arrives) so the caller can begin fetching each tarball
     /// while the server is still resolving. Returns the resolved lockfile
     /// from the terminal `done` frame.
     pub async fn resolve_streaming(

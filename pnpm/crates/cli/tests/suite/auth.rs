@@ -3,9 +3,16 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::CommandTempCwd,
     diagnostics::assert_diagnostic_contains,
-    fixtures::{minimal_tarball, sha512_integrity},
+    fixtures::{
+        minimal_tarball,
+        sha512_integrity,
+    },
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -250,7 +257,7 @@ fn metadata_authorization_failure_is_reported() {
 
 /// A registry configured with inline `user:pass@` basic-auth must not
 /// leak either half into the fetch error, and the report must still name
-/// the credential that was sent — `AuthHeaders` derives a `Basic` header
+/// the credential that was sent. `AuthHeaders` derives a `Basic` header
 /// from that userinfo, so a hint computed against the redacted URL would
 /// claim no header was set.
 #[test]
@@ -483,10 +490,10 @@ fn trusted_auth_env_warning_reaches_stderr() {
     for token in [None, Some(""), Some("dummy-token")] {
         let mut command = install_command(&workspace, root.path())
             .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
-            .with_args(["install", "--ignore-scripts", "--reporter=append-only"]);
-        command.env_remove("PNPM_TEST_AUTH_TOKEN");
+            .with_args(["install", "--ignore-scripts", "--reporter=append-only"])
+            .without_env("PNPM_TEST_AUTH_TOKEN");
         if let Some(token) = token {
-            command.env("PNPM_TEST_AUTH_TOKEN", token);
+            command = command.with_env("PNPM_TEST_AUTH_TOKEN", token);
         }
         let output = command.output().unwrap();
         assert!(!output.status.success());
@@ -511,8 +518,8 @@ fn config_warnings_reach_stderr_when_the_config_fails_to_load() {
         .expect("write auth file");
     let mut command = install_command(&workspace, root.path())
         .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
-        .with_args(["install", "--ignore-scripts"]);
-    command.env_remove("PNPM_TEST_AUTH");
+        .with_args(["install", "--ignore-scripts"])
+        .without_env("PNPM_TEST_AUTH");
 
     let output = command.output().expect("run pnpm install");
 
@@ -538,8 +545,8 @@ fn npmrc_warnings_reach_stderr_when_the_json_auth_setting_is_malformed() {
     let mut command = install_command(&workspace, root.path())
         .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
         .with_env("pnpm_config__auth", "{")
-        .with_args(["install", "--ignore-scripts"]);
-    command.env_remove("PNPM_TEST_AUTH_TOKEN");
+        .with_args(["install", "--ignore-scripts"])
+        .without_env("PNPM_TEST_AUTH_TOKEN");
 
     let output = command.output().expect("run pnpm install");
 

@@ -1,8 +1,15 @@
-use super::{RELAYED_INTERRUPTS, RelayEntry, visit_targets};
+use super::{
+    RELAYED_INTERRUPTS,
+    RelayEntry,
+    visit_targets,
+};
 use pnpm_process::HostSignal;
 use std::{
     io,
-    sync::{Once, atomic::Ordering},
+    sync::{
+        Once,
+        atomic::Ordering,
+    },
     thread,
 };
 

@@ -2,7 +2,10 @@ use super::AppState;
 use axum::{
     extract::State,
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
 

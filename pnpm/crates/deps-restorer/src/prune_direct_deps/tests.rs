@@ -1,13 +1,20 @@
 use super::prune_direct_deps_excluded_by_groups;
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    ComVer, Lockfile, LockfileVersion, ProjectSnapshot, ResolvedDependencyMap,
+    ComVer,
+    Lockfile,
+    LockfileVersion,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
     path::Path,
 };
@@ -147,7 +154,7 @@ fn removes_only_excluded_direct_dep_links_and_their_bins() {
 
 /// A `node_modules` that is itself a symlink resolving outside the
 /// workspace root fails the containment check, so nothing behind it is
-/// touched — the same refusal the purge applies.
+/// touched, the same refusal the purge applies.
 #[test]
 fn refuses_to_prune_through_a_modules_dir_escaping_the_workspace() {
     let dir = tempdir().unwrap();

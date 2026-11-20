@@ -1,12 +1,24 @@
 use super::validate_startup_config;
 use object_store::memory::InMemory;
 use pnpr_config::{
-    BackendConfig, Config, DatabaseBackend, HostedStoreConfig, LibsqlSettings, S3Settings,
+    BackendConfig,
+    Config,
+    DatabaseBackend,
+    HostedStoreConfig,
+    LibsqlSettings,
+    S3Settings,
     SqlBackendSettings,
 };
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };

@@ -1,12 +1,27 @@
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 use pnpm_reporter::SilentReporter;
-use pnpm_resolving_resolver_base::{ResolveError, ResolveResult, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    ResolveError,
+    ResolveResult,
+    WantedDependency,
+};
 use pnpm_store_dir::store_index_key;
-use pnpm_tarball::{PrefetchResult, ResolvedTarball, TarballResolutionFetch};
+use pnpm_tarball::{
+    PrefetchResult,
+    ResolvedTarball,
+    TarballResolutionFetch,
+};
 
 use super::TarballResolver;
-use crate::http_cache::{self, Freshness, TarballResolutionRecord};
+use crate::http_cache::{
+    self,
+    Freshness,
+    TarballResolutionRecord,
+};
 
 impl TarballResolver {
     /// Resolve from the persistent URL → integrity record when its archive

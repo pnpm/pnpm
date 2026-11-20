@@ -2,8 +2,15 @@
 //! `serverType: pnpr`, and what an undeclared pnpr gets instead.
 
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Ecosystem, declare_pnpr_registries, fs,
-    point_npmrc_registry_at, start_pnpr_registry, start_pnpr_registry_with,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    Ecosystem,
+    declare_pnpr_registries,
+    fs,
+    point_npmrc_registry_at,
+    start_pnpr_registry,
+    start_pnpr_registry_with,
 };
 use assert_cmd::assert::OutputAssertExt;
 use std::io::Write as _;

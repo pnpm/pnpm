@@ -1,5 +1,8 @@
 use super::importer_depends_on_unproven_project;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[test]
 fn unproven_workspace_root_does_not_mark_unrelated_child_project() {

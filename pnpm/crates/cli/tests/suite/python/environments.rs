@@ -1,12 +1,21 @@
 //! Where a project's environment generations live: in the store, with the
 //! project's `.venv` as its link to the generation it runs.
+use command_extra::CommandExtra;
 
-use super::{project, python, serve, wheel};
+use super::{
+    project,
+    python,
+    serve,
+    wheel,
+};
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The directory of every project the store under `root` holds
@@ -16,7 +25,10 @@ pub(super) fn project_directories(root: &Path) -> Vec<PathBuf> {
         return Vec::new();
     };
     let mut directories = projects
-        .map(|project| dunce::canonicalize(project.unwrap().path()).unwrap())
+        .map(Result::unwrap)
+        .map(|value| value.path())
+        .map(dunce::canonicalize)
+        .map(Result::unwrap)
         .collect::<Vec<_>>();
     directories.sort();
     directories
@@ -26,8 +38,10 @@ pub(super) fn project_directories(root: &Path) -> Vec<PathBuf> {
 pub(super) fn generations(root: &Path) -> Vec<PathBuf> {
     let mut generations = project_directories(root)
         .into_iter()
-        .flat_map(|project| fs::read_dir(project).unwrap())
-        .map(|generation| generation.unwrap().path())
+        .map(fs::read_dir)
+        .flat_map(Result::unwrap)
+        .map(Result::unwrap)
+        .map(|value| value.path())
         .collect::<Vec<_>>();
     generations.sort();
     generations
@@ -53,7 +67,7 @@ async fn generations_live_in_the_store_and_the_project_holds_only_its_link() {
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let first = environment(root.path());
@@ -65,12 +79,12 @@ async fn generations_live_in_the_store_and_the_project_holds_only_its_link() {
     assert_eq!(generations(root.path()), vec![first.clone()]);
     assert!(!root.path().join(".pnpm").exists(), "the project holds a generation directory");
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     let second = environment(root.path());
@@ -99,7 +113,7 @@ async fn sibling_projects_keep_their_generations_apart() {
         .unwrap();
     }
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let one = environment(&root.path().join("app-one"));
@@ -138,7 +152,7 @@ async fn a_moved_project_keeps_a_managed_environment() {
     )
     .unwrap();
     pacquet_in(&before)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let previous = environment(&before);
@@ -146,7 +160,7 @@ async fn a_moved_project_keeps_a_managed_environment() {
     fs::rename(&before, &after).unwrap();
     assert_eq!(environment(&after), previous, "the link survives the move");
     pacquet_in(&after)
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     let current = environment(&after);
@@ -158,7 +172,7 @@ async fn a_moved_project_keeps_a_managed_environment() {
     );
     assert!(previous.is_dir(), "the generation a running program may use was removed");
     python(&after)
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 }
@@ -175,7 +189,7 @@ async fn an_install_writes_nothing_into_the_project_pnpm_directory() {
     project(root.path(), &server.url(), &["alpha>=1"]);
     std::os::unix::fs::symlink(outside.path(), root.path().join(".pnpm")).unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
@@ -195,7 +209,7 @@ async fn an_environment_beside_the_project_is_replaced_by_one_in_the_store() {
     fs::write(beside.join("pyvenv.cfg"), "").unwrap();
     pnpm_fs::force_symlink_dir(&beside, &root.path().join(".venv")).unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let current = environment(root.path());
@@ -209,7 +223,7 @@ async fn an_environment_beside_the_project_is_replaced_by_one_in_the_store() {
         "the generation a running program may use was removed",
     );
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 }
@@ -227,7 +241,7 @@ async fn a_dangling_link_is_replaced() {
     pnpm_fs::force_symlink_dir(&gone, &root.path().join(".venv")).unwrap();
     fs::remove_dir_all(root.path().join("store")).unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let current = environment(root.path());
@@ -235,7 +249,7 @@ async fn a_dangling_link_is_replaced() {
     assert!(current.is_dir());
     assert_ne!(current, gone);
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 }
@@ -249,12 +263,12 @@ async fn a_frozen_store_keeps_generations_beside_the_project() {
     let _alpha = serve(&mut server, "alpha", &[("1.0", wheel("alpha", "1.0", "", &[]))]).await;
     project(root.path(), &server.url(), &["alpha>=1"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let in_store = environment(root.path());
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile", "--frozen-store"])
+        .with_args(["install", "--offline", "--frozen-lockfile", "--frozen-store"])
         .assert()
         .success();
     let beside = environment(root.path());
@@ -265,7 +279,7 @@ async fn a_frozen_store_keeps_generations_beside_the_project() {
     );
     assert_eq!(generations(root.path()), vec![in_store], "the frozen store was written");
     python(root.path())
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 }
@@ -337,7 +351,7 @@ async fn outdated_reports_divergent_platform_locked_versions() {
     )
     .unwrap();
     let output = pacquet_in(root.path())
-        .args(["outdated", "pypi:*", "--format", "json"])
+        .with_args(["outdated", "pypi:*", "--format", "json"])
         .output()
         .unwrap();
     assert_eq!(

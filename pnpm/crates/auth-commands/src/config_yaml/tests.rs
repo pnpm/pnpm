@@ -1,4 +1,9 @@
-use super::{ConfigYamlFields, Value, login_fields, logout_fields};
+use super::{
+    ConfigYamlFields,
+    Value,
+    login_fields,
+    logout_fields,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 

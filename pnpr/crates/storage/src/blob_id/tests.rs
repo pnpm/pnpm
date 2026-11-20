@@ -1,4 +1,7 @@
-use super::{BlobId, parse_blob_key};
+use super::{
+    BlobId,
+    parse_blob_key,
+};
 use pnpr_package_name::Ecosystem;
 
 #[test]

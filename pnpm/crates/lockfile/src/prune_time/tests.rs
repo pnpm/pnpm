@@ -1,6 +1,9 @@
 use super::prune_time;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 fn pruned(document: Value) -> Value {
     let mut document = document;

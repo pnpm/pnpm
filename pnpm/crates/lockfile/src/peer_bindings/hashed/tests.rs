@@ -1,4 +1,8 @@
-use super::{CombinationSearch, MAX_COMBINATIONS, PeerGroups};
+use super::{
+    CombinationSearch,
+    MAX_COMBINATIONS,
+    PeerGroups,
+};
 
 #[test]
 fn expanded_candidates_stop_at_the_search_budget() {

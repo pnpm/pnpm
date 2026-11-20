@@ -1,5 +1,11 @@
 use super::{
-    CacheMatch, FastProvider, FastProviderQuery, NodeId, ParentRefs, PeersCacheItem, TreeChildren,
+    CacheMatch,
+    FastProvider,
+    FastProviderQuery,
+    NodeId,
+    ParentRefs,
+    PeersCacheItem,
+    TreeChildren,
     Walker,
 };
 

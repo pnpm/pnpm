@@ -16,7 +16,8 @@ impl IpNetwork {
         };
         let (address, prefix) = raw
             .split_once('/')
-            .map_or((raw, None), |(address, prefix)| (address, Some(prefix)));
+            .map(|(address, prefix)| (address, Some(prefix)))
+            .unwrap_or((raw, None));
         let address: IpAddr = address.parse().map_err(|_| invalid())?;
         let address = address.to_canonical();
         let width = address_width(address);

@@ -1,10 +1,21 @@
 use pipe_trait::Pipe;
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+};
 use pnpm_resolving_resolver_base::ResolveOptions;
-use std::{fmt::Write, path::Path, sync::Arc};
+use std::{
+    fmt::Write,
+    path::Path,
+    sync::Arc,
+};
 
 use super::subtree_fully_reusable;
-use crate::resolve_dependency_tree::{TreeCtx, lock_recoverable, workspace_ctx::WorkspaceTreeCtx};
+use crate::resolve_dependency_tree::{
+    TreeCtx,
+    lock_recoverable,
+    workspace_ctx::WorkspaceTreeCtx,
+};
 
 /// `a` and `b` depend on each other, and `a` also depends on `c`.
 const CYCLE: &str = "lockfileVersion: '9.0'

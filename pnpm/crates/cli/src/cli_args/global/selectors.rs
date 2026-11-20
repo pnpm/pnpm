@@ -1,7 +1,19 @@
+pub(super) use crate::cli_args::package_spec::resolve_local_param;
+
 use super::{
-    AddRequest, Context, GlobalError, GlobalPackageInfo, IntoDiagnostic, Path, PathBuf, fs,
-    is_valid_old_npm_package_name, lexical_normalize, parse_wanted_dependency,
-    rust_toolchain_request, safe_read_package_json_from_dir, tool_install_selector,
+    AddRequest,
+    Context,
+    GlobalError,
+    GlobalPackageInfo,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    fs,
+    is_valid_old_npm_package_name,
+    parse_wanted_dependency,
+    rust_toolchain_request,
+    safe_read_package_json_from_dir,
+    tool_install_selector,
 };
 use pnpm_semver_include_prerelease::is_valid_semver_range;
 
@@ -20,7 +32,7 @@ impl SelectorGroup {
 }
 
 /// A tool name becomes the selector that installs the tool itself, which
-/// the ordinary pipeline then handles — so the result stays a normal global
+/// the ordinary pipeline then handles, so the result stays a normal global
 /// install that `pnpm ls -g` and `pnpm remove -g` see.
 ///
 /// A group a Package URL was rewritten into is left alone: a purl names a
@@ -135,7 +147,7 @@ pub(super) fn should_replace_existing_package(
             .any(|alias| pkg.has_alias(alias))
 }
 
-/// Whether `pkg` is a global group the pnpm CLI is installed in — the install
+/// Whether `pkg` is a global group the pnpm CLI is installed in, the install
 /// that `pnpm self-update` owns. `update -g` leaves the whole group alone:
 /// reinstalling it would relink pnpm's bin whatever else the group holds.
 pub fn has_pnpm_cli_dependency(pkg: &GlobalPackageInfo) -> bool {
@@ -170,7 +182,7 @@ pub fn selects_pnpm_cli<'a>(params: impl IntoIterator<Item = &'a String>) -> boo
 
 /// Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An
 /// `npm:` alias resolves to its target, so `foo` at `npm:pnpm@9` is the pnpm
-/// CLI under another name — the install still carries pnpm's own `pnpm` bin.
+/// CLI under another name, the install still carries pnpm's own `pnpm` bin.
 pub(super) fn is_pnpm_cli_dependency(alias: &str, spec: Option<&str>) -> bool {
     let name = npm_alias_target(spec);
     is_pnpm_cli_package_name(name.as_deref().unwrap_or(alias))
@@ -259,25 +271,6 @@ fn refers_to_existing_local_path(param: &str, base_dir: &Path) -> bool {
         base_dir.join(path_part)
     };
     resolved.exists()
-}
-
-/// Mirror the TypeScript `resolveLocalParam`: rewrite only *dot-relative*
-/// `file:`/`link:` selectors against `base_dir`. Bare names, home-relative
-/// (`~/`), and absolute selectors pass through unchanged so the local
-/// resolver's own `~` expansion and registry fallbacks still apply.
-pub(super) fn resolve_local_param(param: &str, base_dir: &Path) -> String {
-    for prefix in ["file:", "link:"] {
-        if let Some(rest) = param.strip_prefix(prefix) {
-            if rest.starts_with('.') {
-                return format!("{prefix}{}", lexical_normalize(&base_dir.join(rest)).display());
-            }
-            return param.to_string();
-        }
-    }
-    if param.starts_with('.') {
-        return lexical_normalize(&base_dir.join(param)).display().to_string();
-    }
-    param.to_string()
 }
 
 pub(super) fn infer_local_package_alias(selector: &str) -> miette::Result<String> {

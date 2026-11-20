@@ -1,13 +1,28 @@
 use super::{
-    AuditLevel, BTreeMap, Config, IndexMap, LogLevel, NodeLinker, Path, PathBuf, PmOnFail,
-    ProjectConfig, RemoteSideEffectsCacheSettings, ReporterType, RuntimeOnFail,
-    SupportedArchitectures, UNREPORTED_SETTINGS, UpdateConfig, WorkspaceSettings, assert_eq,
+    AuditLevel,
+    BTreeMap,
+    Config,
+    IndexMap,
+    LogLevel,
+    NodeLinker,
+    Path,
+    PathBuf,
+    PmOnFail,
+    ProjectConfig,
+    RemoteSideEffectsCacheSettings,
+    ReporterType,
+    RuntimeOnFail,
+    SupportedArchitectures,
+    UNREPORTED_SETTINGS,
+    UpdateConfig,
+    WorkspaceSettings,
+    assert_eq,
 };
 
 /// Every setting must report its resolved value, so that a hook reading the
 /// configuration sees what the install runs with. A key absent from the
 /// projection reads as `null`, which is indistinguishable from "explicitly
-/// unset" — so adding a setting to [`WorkspaceSettings`] or
+/// unset", so adding a setting to [`WorkspaceSettings`] or
 /// [`MachineSettings`](crate::MachineSettings) without teaching its
 /// `from_resolved` about it fails here.
 ///

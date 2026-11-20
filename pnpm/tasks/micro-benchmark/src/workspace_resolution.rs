@@ -1,8 +1,8 @@
 //! Multi-importer workspace resolution: the peer-hoist loop and the
 //! importer barrier around it.
 //!
-//! Two sizes of the same fixture — a layered dependency graph shared by
-//! many importers, peer hoisting enabled, no wanted lockfile — so the
+//! Two sizes of the same fixture (a layered dependency graph shared by
+//! many importers, peer hoisting enabled, no wanted lockfile) so the
 //! whole graph resolves:
 //!
 //! - [`Size::Ci`] is what the criterion group measures on every PR. It is
@@ -11,8 +11,8 @@
 //!   that scales with the workspace.
 //! - [`Size::Full`] is a large real workspace's scale: 331 importers over
 //!   5,000 packages. It is too slow and too memory-hungry for a
-//!   statistical harness — a regressed run can take minutes and several
-//!   GiB — so `--full-workspace-resolution` runs each shape once and
+//!   statistical harness (a regressed run can take minutes and several
+//!   GiB) so `--full-workspace-resolution` runs each shape once and
 //!   prints its timing instead.
 //!
 //! The [`Shape::PeersHoisted`] shape is the one that runs the hoist loop.
@@ -21,7 +21,10 @@
 
 use criterion::Criterion;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     hint::black_box,
     path::PathBuf,
     str::FromStr,
@@ -29,15 +32,37 @@ use std::{
     time::Instant,
 };
 
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, RegistryContext, TarballResolution};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    RegistryContext,
+    TarballResolution,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_deps_resolver::{
-    ResolveImporterOptions, UpdateDepth, UpdateReuseScope, UpdateTargets, WorkspaceImporter,
-    WorkspaceResolveOptions, resolve_workspace,
+    ResolveImporterOptions,
+    UpdateDepth,
+    UpdateReuseScope,
+    UpdateTargets,
+    WorkspaceImporter,
+    WorkspaceResolveOptions,
+    resolve_workspace,
 };
 use pnpm_resolving_resolver_base::{
-    LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    LatestQuery,
+    PkgResolutionId,
+    PreferredVersions,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 
 const PACKAGES_PER_LAYER: usize = 20;

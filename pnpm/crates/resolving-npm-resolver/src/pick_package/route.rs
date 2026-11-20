@@ -3,12 +3,20 @@
 //! check the mirror's content: whether it holds the version and whether its
 //! pick agrees.
 
-use jiff::{SignedDuration, Timestamp};
-use pnpm_resolving_resolver_base::{NetworkPolicy, TrustPolicy};
+use jiff::{
+    SignedDuration,
+    Timestamp,
+};
+use pnpm_resolving_resolver_base::{
+    NetworkPolicy,
+    TrustPolicy,
+};
 
 use super::PackumentSource;
 use crate::{
-    PackagePickPolicy, metadata_cache_policy::mirror_may_answer, mirror::MetaHeaders,
+    PackagePickPolicy,
+    metadata_cache_policy::mirror_may_answer,
+    mirror::MetaHeaders,
     pick_package_from_meta::RegistryPackageSpecType,
 };
 

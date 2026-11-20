@@ -1,6 +1,9 @@
 //! The `funding` manifest field, read the way npm's `libnpmfund` reads it.
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use url::Url;
 
 /// One funding source of a package.
@@ -58,7 +61,8 @@ pub fn is_valid_funding(funding: &Value) -> bool {
             !items.is_empty()
                 && items
                     .iter()
-                    .all(|item| source_of(item).is_some())
+                    .map(source_of)
+                    .all(|source_of| source_of.is_some())
         }
         item => source_of(item).is_some(),
     }

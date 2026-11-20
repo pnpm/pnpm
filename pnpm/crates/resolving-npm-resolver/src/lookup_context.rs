@@ -7,20 +7,26 @@
 //! `(registry, name, version)` triple (for the final published-at
 //! answer). The outer `tokio::sync::Mutex` guards the slot map; each
 //! slot is an [`Arc<tokio::sync::OnceCell<T>>`] so two verifier tasks
-//! that race for the same key share one in-flight fetch — the second
+//! that race for the same key share one in-flight fetch, the second
 //! caller awaits the same init future instead of starting a duplicate.
 //! This is a `Map<string, Promise<T>>` singleflight pattern;
 //! the outer mutex is dropped before the await so unrelated keys stay
 //! unblocked.
 //!
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use ssri::Integrity;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::{
+    Mutex,
+    OnceCell,
+};
 
 /// Per-version time map keyed by version string. The verifier only
 /// reads the publish timestamp for a specific version, so storing
-/// `String` per entry is enough — the rest of the package's `time`
+/// `String` per entry is enough, the rest of the package's `time`
 /// payload (`created`, `modified`, the reserved `unpublished` key)
 /// is irrelevant to the policy.
 pub(crate) type PublishedAtTimeMap = HashMap<String, String>;
@@ -31,7 +37,7 @@ pub(crate) type PublishedAtTimeMap = HashMap<String, String>;
 /// the abbreviated-modified shortcut checks; the values feed the
 /// tarball-URL binding. Projected off the abbreviated packument so the
 /// verifier can keep the rest of the document GC-able after the
-/// lookup — the full document runs to hundreds of KB per package and
+/// lookup, the full document runs to hundreds of KB per package and
 /// OOMs CI runners on multi-thousand entry installs; only the
 /// short tarball-URL strings are retained.
 #[derive(Debug, Default, Clone)]
@@ -107,7 +113,7 @@ pub(crate) struct PublishedAtLookupContext {
     pub local_meta: SingleflightMap<Option<Arc<PublishedAtTimeMap>>>,
     /// Package-level `Last-Modified` header from a packument `HEAD`
     /// probe, keyed per `(registry, name)`. `None` for a probe the
-    /// registry answered without the header (or not at all) — the
+    /// registry answered without the header (or not at all), the
     /// caller falls through to the metadata-backed layers.
     pub head_modified: SingleflightMap<Option<String>>,
 }
@@ -130,10 +136,9 @@ impl VerifierLookups {
     /// The context a verifier looks up through: the one `lookups` shares, or
     /// one of its own.
     pub(crate) fn context_or_new(lookups: Option<&Self>) -> Arc<PublishedAtLookupContext> {
-        lookups.map_or_else(
-            || Arc::new(PublishedAtLookupContext::new()),
-            |lookups| Arc::clone(&lookups.0),
-        )
+        lookups
+            .map(|lookups| Arc::clone(&lookups.0))
+            .unwrap_or_else(|| Arc::new(PublishedAtLookupContext::new()))
     }
 }
 

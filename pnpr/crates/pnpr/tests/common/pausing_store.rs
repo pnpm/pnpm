@@ -1,10 +1,24 @@
 use async_trait::async_trait;
 use futures_util::stream::BoxStream;
 use object_store::{
-    CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    PutMultipartOptions, PutOptions, PutPayload, PutResult, memory::InMemory, path::Path,
+    CopyOptions,
+    GetOptions,
+    GetResult,
+    ListResult,
+    MultipartUpload,
+    ObjectMeta,
+    ObjectStore,
+    PutMultipartOptions,
+    PutOptions,
+    PutPayload,
+    PutResult,
+    memory::InMemory,
+    path::Path,
 };
-use std::{fmt, sync::Mutex};
+use std::{
+    fmt,
+    sync::Mutex,
+};
 use tokio::sync::Notify;
 
 #[derive(Debug, Default)]

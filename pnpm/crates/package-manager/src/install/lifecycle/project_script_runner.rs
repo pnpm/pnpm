@@ -1,14 +1,29 @@
 use super::{
     super::{
-        Config, DependencyGroup, HashMap, HashSet, InstallError, NodeLinker, PackageManifest, Path,
-        PathBuf, Reporter, RunPostinstallHooks, project_requires_implicit_gyp_build,
+        Config,
+        DependencyGroup,
+        HashMap,
+        HashSet,
+        InstallError,
+        NodeLinker,
+        PackageManifest,
+        Path,
+        PathBuf,
+        Reporter,
+        RunPostinstallHooks,
+        project_requires_implicit_gyp_build,
         run_project_lifecycle_stages,
     },
     project_lifecycle_extra_env,
 };
 
 use pnpm_executor::LifecycleScriptError;
-use pnpm_injected_deps_syncer::{BinLinkSettings, CopyFiles, SyncInjectedDeps, sync_injected_deps};
+use pnpm_injected_deps_syncer::{
+    BinLinkSettings,
+    CopyFiles,
+    SyncInjectedDeps,
+    sync_injected_deps,
+};
 use pnpm_package_manifest::project_manifest_path;
 use std::sync::Mutex;
 

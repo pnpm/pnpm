@@ -1,11 +1,23 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 use crate::{
-    Manifest, ManifestTarget, UpdateWorkspaceManifestError, WorkspaceManifests, edit,
-    read_if_present, remove_manifest, write_atomic,
+    Manifest,
+    ManifestTarget,
+    UpdateWorkspaceManifestError,
+    WorkspaceManifests,
+    edit,
+    read_if_present,
+    remove_manifest,
+    write_atomic,
 };
 
 /// Set or delete an arbitrary top-level field in the YAML manifest at `path`
@@ -189,7 +201,7 @@ pub enum EditManifestFieldError {
 
 /// Set or delete a top-level field of the YAML document `original`, returning
 /// the text to write back rather than touching the filesystem, so a caller that
-/// owns its own I/O — `pnpm login` writing through its capability seam — can
+/// owns its own I/O (`pnpm login` writing through its capability seam) can
 /// reuse the format-preserving edit. [`update_manifest_field`] is this function
 /// plus the read and the atomic write.
 ///

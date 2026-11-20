@@ -1,7 +1,13 @@
 //! The SCIM discovery endpoints identity providers read before they
 //! provision: what pnpr supports, and the one resource type it serves.
 
-use super::{ScimClient, StatusCode, json, resources::USER_SCHEMA, scim_json};
+use super::{
+    ScimClient,
+    StatusCode,
+    json,
+    resources::USER_SCHEMA,
+    scim_json,
+};
 use axum::response::Response;
 
 /// `GET /ServiceProviderConfig`.

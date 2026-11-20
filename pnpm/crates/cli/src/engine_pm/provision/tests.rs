@@ -1,5 +1,8 @@
 use super::ProvisionedEngine;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 
 /// A bin named `name` in `bin_dir` that `which` accepts on this platform.
 fn write_bin(bin_dir: &std::path::Path, name: &str) -> PathBuf {

@@ -1,9 +1,19 @@
-use super::{FindWorkspaceInventoryError, IgnoredDirectories, is_ignorable_discovery_error};
-use cap_primitives::{ambient_authority, fs};
+use super::{
+    FindWorkspaceInventoryError,
+    IgnoredDirectories,
+    is_ignorable_discovery_error,
+};
+use cap_primitives::{
+    ambient_authority,
+    fs,
+};
 use std::{
     ffi::OsStr,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 struct OpenDirectory<'a> {

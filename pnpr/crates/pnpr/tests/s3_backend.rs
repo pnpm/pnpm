@@ -6,18 +6,47 @@
 use crate::npm;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use futures_util::StreamExt;
-use npm::{npm_tgz, publish_doc, sri_sha512};
-use object_store::{ObjectStore, memory::InMemory, path::Path as ObjectPath};
-use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
+use npm::{
+    npm_tgz,
+    publish_doc,
+    sri_sha512,
+};
+use object_store::{
+    ObjectStore,
+    memory::InMemory,
+    path::Path as ObjectPath,
+};
+use pnpr::{
+    Config,
+    HostedStoreConfig,
+    MaxUsers,
+    router,
+};
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;
@@ -228,7 +257,7 @@ async fn add_user_and_get_token(
 
 /// An embedder supplying its own store gives a prefix in the form a person
 /// writes it. `S3Store` concatenates the prefix onto the key, so a raw
-/// `packages` has to be normalized on the way in — otherwise every object
+/// `packages` has to be normalized on the way in; otherwise every object
 /// lands at `packagesdefault/...` and nothing that reads by prefix finds it.
 #[tokio::test]
 async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {

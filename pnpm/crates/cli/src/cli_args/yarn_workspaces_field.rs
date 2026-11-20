@@ -7,8 +7,14 @@
 //! field and the file that replaces it.
 
 use super::config_warnings::emit_config_warning;
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, WORKSPACE_MANIFEST_FILENAME};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    WORKSPACE_MANIFEST_FILENAME,
+};
 use serde_json::Value;
 use std::path::Path;
 
@@ -205,7 +211,8 @@ fn declares_settings(path: &Path, text: &str) -> miette::Result<bool> {
     };
     Ok(document
         .as_object()
-        .is_some_and(|keys| keys.keys().any(|key| key != "packages")))
+        .map(serde_json::Map::keys)
+        .is_some_and(|mut keys| keys.any(|key| key != "packages")))
 }
 
 /// A concurrent reader sees no file at `path` or the complete `text`.

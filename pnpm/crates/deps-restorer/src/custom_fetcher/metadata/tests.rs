@@ -1,14 +1,25 @@
-use super::{CustomFetchOutcome, CustomFetcherSession, LockfileResolution};
+use super::{
+    CustomFetchOutcome,
+    CustomFetcherSession,
+    LockfileResolution,
+};
 use pnpm_tarball::{
-    ArchiveFetchOptions, ArchiveStoreContext, ArchiveStoreProjection, IngestTarballToStore,
-    RetryOpts, TarballPackage,
+    ArchiveFetchOptions,
+    ArchiveStoreContext,
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+    RetryOpts,
+    TarballPackage,
 };
 use serde_json::Value;
 use std::{
     path::Path,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
 

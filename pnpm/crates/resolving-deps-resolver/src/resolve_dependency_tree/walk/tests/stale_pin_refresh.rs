@@ -2,10 +2,18 @@ use pnpm_lockfile::SnapshotEntry;
 use pnpm_resolving_resolver_base::ResolveOptions;
 use std::sync::Arc;
 
-use super::super::child_seeds::{ChildSeedScope, child_wanted};
+use super::super::child_seeds::{
+    ChildSeedScope,
+    child_wanted,
+};
 use crate::resolve_dependency_tree::{
-    DependencySpec, TreeCtx,
-    workspace_ctx::{DirectDepVersion, DirectDepVersions, WorkspaceTreeCtx},
+    DependencySpec,
+    TreeCtx,
+    workspace_ctx::{
+        DirectDepVersion,
+        DirectDepVersions,
+        WorkspaceTreeCtx,
+    },
 };
 
 const REGISTRY: &str = "https://registry.example.test/";

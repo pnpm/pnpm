@@ -1,23 +1,49 @@
 pub(crate) mod ecosystem;
 
-pub(crate) use client_ip::{ClientIp, resolve_client_ip};
+pub(crate) use client_ip::{
+    ClientIp,
+    resolve_client_ip,
+};
 pub(crate) use grant_directory::validate_for as validate_grant;
-pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
+pub use lifecycle::{
+    prepare_storage,
+    serve,
+    serve_listener,
+    serve_listener_with,
+};
 pub(crate) use local_registry::LocalRegistry;
-pub(crate) use metrics::{ServerMetrics, serve_metrics};
+pub(crate) use metrics::{
+    ServerMetrics,
+    serve_metrics,
+};
 pub(crate) use registry_graph::{
-    Credentials, DefaultGrants, FileReferences, HostedChange, RoutingSnapshot,
-    carry_pinned_routing, check_revision, graph_version, occupied_namespace_error, stored_document,
+    Credentials,
+    DefaultGrants,
+    FileReferences,
+    HostedChange,
+    RoutingSnapshot,
+    carry_pinned_routing,
+    check_revision,
+    graph_version,
+    occupied_namespace_error,
+    stored_document,
     with_stored_routing,
 };
 pub(crate) use request_access::compute_upstream_cache_namespace;
-pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
+pub(crate) use request_id::{
+    RequestId,
+    generate_request_id,
+    is_valid_request_id,
+};
 pub(crate) use routing::state_and_router;
 pub(crate) use tar_variants::NAMESPACE as TAR_VARIANT_CACHE_NAMESPACE;
 pub(crate) use tcp_listener::PeerAddr;
 
 pub(crate) use self::{
-    keyed_semaphores::{KeyedPermit, KeyedSemaphores},
+    keyed_semaphores::{
+        KeyedPermit,
+        KeyedSemaphores,
+    },
     routing::RequestDeadline,
     striped_locks::StripedLocks,
 };
@@ -33,62 +59,124 @@ use tcp_listener::NodelayTcpListener;
 
 mod pnpr_protocol;
 use pnpr_protocol::{
-    pnpr_protocols_disabled, serve_artifact_blob, serve_artifact_blob_size, serve_npm_handshake,
-    serve_pnpr_handshake, serve_publish_artifact, serve_resolve, serve_resolve_artifacts,
-    serve_upload_artifact_blob, serve_verify_lockfile,
+    pnpr_protocols_disabled,
+    serve_artifact_blob,
+    serve_artifact_blob_size,
+    serve_npm_handshake,
+    serve_pnpr_handshake,
+    serve_publish_artifact,
+    serve_resolve,
+    serve_resolve_artifacts,
+    serve_upload_artifact_blob,
+    serve_verify_lockfile,
 };
 
 mod pipeline_runs;
 use pipeline_runs::{
-    serve_get_pipeline_run, serve_list_pipeline_runs, serve_pipeline_ui, serve_publish_pipeline_run,
+    serve_get_pipeline_run,
+    serve_list_pipeline_runs,
+    serve_pipeline_ui,
+    serve_publish_pipeline_run,
 };
 
 mod organizations;
-use organizations::{get_org_teams, get_team_members, serve_org_packages};
+use organizations::{
+    get_org_teams,
+    get_team_members,
+    serve_org_packages,
+};
 
 mod package_search;
 use package_search::{
-    DiscoverySource, SearchPage, discovery_sources, hosted_search_names, serve_search,
+    DiscoverySource,
+    SearchPage,
+    discovery_sources,
+    hosted_search_names,
+    serve_search,
 };
 
 mod osv_filtering;
 use osv_filtering::{
-    ensure_osv_allowed, filter_osv_vulnerable_dist_tags, filter_osv_vulnerable_versions,
-    is_osv_vulnerable_packument_version, resolve_version_or_tag,
+    ensure_osv_allowed,
+    filter_osv_vulnerable_dist_tags,
+    filter_osv_vulnerable_versions,
+    is_osv_vulnerable_packument_version,
+    resolve_version_or_tag,
 };
 
 mod tar_registry;
 use tar_registry::{
-    DistView, describe_tar, describe_tars, dist_view, has_settled_tar_facts, is_tar_registry,
-    restore_tgz_integrities, split_package_identifier, tar_integrities_of, tgz_integrity_key,
+    DistView,
+    describe_tar,
+    describe_tars,
+    dist_view,
+    has_settled_tar_facts,
+    is_tar_registry,
+    restore_tgz_integrities,
+    split_package_identifier,
+    tar_integrities_of,
+    tgz_integrity_key,
 };
 
 mod tar_responses;
 use tar_responses::{
-    CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, stored_tar_response,
-    tar_decode_limit, tar_integrity_of, tar_integrity_within, tar_resource_integrity, tar_response,
+    CachedTgz,
+    MAX_CONCURRENT_TAR_DECODES,
+    TarSource,
+    TgzTrust,
+    stored_tar_response,
+    tar_decode_limit,
+    tar_integrity_of,
+    tar_integrity_within,
+    tar_resource_integrity,
+    tar_response,
 };
 
 mod version_tarballs;
-use version_tarballs::{VersionTgzCache, serve_package_tarball};
+use version_tarballs::{
+    VersionTgzCache,
+    serve_package_tarball,
+};
 
 mod tar_variants;
-use tar_variants::{TarCopy, TarVariantQueue, open_variant};
+use tar_variants::{
+    TarCopy,
+    TarVariantQueue,
+    open_variant,
+};
 
 mod conditional_requests;
 mod package_responses;
 mod split_packuments;
 use package_responses::{
-    DistBlock, PackumentDists, TarballDist, declared_tarball_integrity, expected_tarball_dist,
-    packument_bytes_response, packument_response, tarball_integrity_error, tarball_response,
-    tarball_stream_error, tarball_stream_error_for_package, with_generation,
+    DistBlock,
+    PackumentDists,
+    TarballDist,
+    declared_tarball_integrity,
+    expected_tarball_dist,
+    packument_bytes_response,
+    packument_response,
+    tarball_integrity_error,
+    tarball_response,
+    tarball_stream_error,
+    tarball_stream_error_for_package,
+    with_generation,
 };
 
 mod package_reads;
 use package_reads::{
-    HostedGate, RegistrySource, default_registry_target, hosted_gate, hosted_read_namespace,
-    resolve_ecosystem_source, resolve_registry_source, resolves_to_private_source,
-    serve_hosted_version_blob, serve_packument, serve_registry_tarball, serve_tarball,
+    HostedGate,
+    RegistrySource,
+    default_registry_target,
+    hosted_gate,
+    hosted_read_namespace,
+    resolve_ecosystem_source,
+    resolve_registry_source,
+    resolves_to_private_source,
+    serve_hosted_version_blob,
+    serve_packument,
+    serve_registry_tarball,
+    serve_tarball,
     serve_version_manifest,
 };
 
@@ -97,23 +185,40 @@ use revision_tarballs::serve_revision_tarball;
 
 mod upstream_tarballs;
 use upstream_tarballs::{
-    BackgroundTarScans, TarballOrigin, UpstreamTarball, cached_upstream_tarball,
-    serve_bound_upstream_tarball, serve_tarball_via_upstream, tarball_cache_name,
+    BackgroundTarScans,
+    TarballOrigin,
+    UpstreamTarball,
+    cached_upstream_tarball,
+    serve_bound_upstream_tarball,
+    serve_tarball_via_upstream,
+    tarball_cache_name,
 };
 
 mod upstream_integrity;
 mod upstream_packuments;
 use upstream_packuments::{
-    PackumentRefetches, load_packument_for_read, load_upstream_packument, read_source_packument,
-    recover_stale_upstream_packument, reload_source_packument_lacking_version,
-    reload_upstream_packument_lacking_version, serve_packument_via_upstream,
+    PackumentRefetches,
+    PackumentWriteOrder,
+    load_packument_for_read,
+    load_upstream_packument,
+    read_source_packument,
+    recover_stale_upstream_packument,
+    reload_source_packument_lacking_version,
+    reload_upstream_packument_lacking_version,
+    serve_packument_via_upstream,
 };
 
 mod request_access;
 use request_access::{
-    authorized_upstream, require_admin, require_artifact_caller, require_caller,
-    require_pipeline_caller, require_resolver_caller, revision_source_registry,
-    single_authorization_header, upstream_cache_namespace,
+    authorized_upstream,
+    require_admin,
+    require_artifact_caller,
+    require_caller,
+    require_pipeline_caller,
+    require_resolver_caller,
+    revision_source_registry,
+    single_authorization_header,
+    upstream_cache_namespace,
 };
 
 mod restrictions;
@@ -170,67 +275,143 @@ mod tests;
 
 use self::{
     authentication::{
-        Action, AuthedCaller, AuthorizationDecision, Ownership, allows_with_ownership,
-        authenticate, authorize, authorize_against_packument, authorize_package,
-        authorize_package_write, authorize_with_ownership, authorize_without_owners,
+        Action,
+        AuthedCaller,
+        AuthorizationDecision,
+        Ownership,
+        allows_with_ownership,
+        authenticate,
+        authorize,
+        authorize_against_packument,
+        authorize_package,
+        authorize_package_write,
+        authorize_with_ownership,
+        authorize_without_owners,
         needs_package_owners,
     },
-    ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
+    ecosystem::{
+        addressed_registry,
+        caller_scoped,
+        registry_endpoint,
+    },
     package_mutation::{
-        delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,
+        delete_package,
+        delete_tarball,
+        get_dist_tags,
+        remove_dist_tag,
+        set_dist_tag,
         update_packument,
     },
     publishing::{
-        PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
-        resolve_publish_target_for, routes_to_upstream, stage_publish, validate_publish_doc,
+        PublishTarget,
+        check_publish_tombstone,
+        commit_publishes,
+        publish_package,
+        resolve_publish_target_for,
+        routes_to_upstream,
+        stage_publish,
+        validate_publish_doc,
     },
-    routing::{metrics_listener_router, router_with_auth_and_osv},
+    routing::{
+        metrics_listener_router,
+        router_with_auth_and_osv,
+    },
 };
 
 use axum::{
     Router,
     body::Body,
     extract::{
-        FromRequestParts, Path, RawPathParams, Request, State, connect_info::Connected,
+        FromRequestParts,
+        Path,
+        RawPathParams,
+        Request,
+        State,
+        connect_info::Connected,
         rejection::RawPathParamsRejection,
     },
-    http::{HeaderMap, StatusCode, header, request::Parts},
+    http::{
+        HeaderMap,
+        StatusCode,
+        header,
+        request::Parts,
+    },
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
     serve::IncomingStream,
 };
 use indexmap::IndexMap;
-use pnpr_auth::{AuthState, UpsertOutcome};
-use pnpr_config::{Config, HostedConfig};
+use pnpr_auth::{
+    AuthState,
+    UpsertOutcome,
+};
+use pnpr_config::{
+    Config,
+    HostedConfig,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_registry::{ConcreteKind, Ecosystem, Registry, Resolved};
+use pnpr_registry::{
+    ConcreteKind,
+    Ecosystem,
+    Registry,
+    Resolved,
+};
 use pnpr_storage::{
     Storage,
-    publish::{iso_from_unix_millis, now_iso},
+    publish::{
+        iso_from_unix_millis,
+        now_iso,
+    },
     streaming,
 };
 
 use pnpr_upstream::{
-    CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-    extract_upstream_revision_integrity, extract_upstream_version_manifest,
-    extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
-    tarball_basename_for_package, version_route_tarball_version,
+    CacheValidators,
+    FetchOutcome,
+    PackumentFetch,
+    Upstream,
+    UpstreamTarballRoute,
+    abbreviate_packument,
+    extract_upstream_revision_integrity,
+    extract_upstream_version_manifest,
+    extract_version_manifest,
+    rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls,
+    tarball_basename_for_package,
 };
 use serde::{
-    Deserialize, Deserializer,
-    de::{IgnoredAny, MapAccess, Visitor},
+    Deserialize,
+    Deserializer,
+    de::{
+        IgnoredAny,
+        MapAccess,
+        Visitor,
+    },
 };
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use ssri::Integrity;
-use std::{collections::HashSet, fmt, net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    fmt,
+    net::SocketAddr,
+    sync::Arc,
+    time::Duration,
+};
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
 /// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when
-/// resolving for an install — see pacquet's
+/// resolving for an install; see pacquet's
 /// `resolving-npm-resolver::ACCEPT_ABBREVIATED_DOC`. Returning the
-/// full document instead bloats the wire by 2–10× on packuments with
+/// full document instead bloats the wire by 2-10× on packuments with
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
@@ -241,7 +422,7 @@ const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 const GENERATION_HEADER: &str = "pnpr-generation";
 
 /// Cap publish bodies at 100 MiB. The default axum body limit is
-/// 2 MiB, far too small for a real package — npm itself caps publish
+/// 2 MiB, far too small for a real package, npm itself caps publish
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
 /// [`axum::extract::DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling. The cap on a
@@ -251,7 +432,7 @@ const MAX_PUBLISH_BODY_BYTES: usize = 100 * 1024 * 1024;
 
 /// Cap adduser/login bodies far below the publish ceiling. The body is a
 /// small couchdb-user JSON document, and login is the one body-accepting
-/// endpoint reachable anonymously on every tier — letting it inherit the
+/// endpoint reachable anonymously on every tier, letting it inherit the
 /// 100 MiB publish limit would hand unauthenticated callers a cheap
 /// buffer-and-parse amplifier.
 const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
@@ -294,13 +475,13 @@ impl AppState {
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
-/// for tests and for callers that don't want disk-backed users —
+/// for tests and for callers that don't want disk-backed users,
 /// [`serve`] is the production entry point and goes through
 /// [`router_with_auth`] with an [`AuthState::load`]-ed bundle so a
 /// corrupted htpasswd file surfaces as a startup error.
 ///
 /// The 2- and 3-segment routes do dispatch inside the handler rather
-/// than registering overlapping parametric routes — matchit can't
+/// than registering overlapping parametric routes, matchit can't
 /// disambiguate `/{scope}/{name}` from `/{name}/{version}` at the
 /// router level, so we take both via one handler that branches on
 /// the `@` prefix and the literal-`-` segment.
@@ -361,14 +542,14 @@ fn loggable_uri(uri: &axum::http::Uri) -> String {
 }
 
 // --------------------------------------------------------------------
-// Account routes — adduser/login, whoami, profile, token list and
+// Account routes, adduser/login, whoami, profile, token list and
 // revocation, logout. Mounted on every tier (see the router construction
 // in `router_with_auth_and_osv`), each with a `/~<name>/`-addressed twin.
 // --------------------------------------------------------------------
 
 /// The registry a `~<name>` path segment addresses, or `None` for a segment
 /// that is not one. A bare `~` names no registry, so it reads as "not a
-/// registry prefix" rather than as an empty name — every caller then treats
+/// registry prefix" rather than as an empty name; every caller then treats
 /// it the way it treats `foo`.
 #[allow(dead_code, reason = "helper used across server tiers and in tests")]
 pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
@@ -380,8 +561,8 @@ pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
 /// The registry a request addressed through a leading `/~<name>/`, or `None`
 /// when it arrived on the path-less base.
 ///
-/// Every route that answers under a registry prefix is registered twice — once
-/// bare, once under `/~{registry}` — pointing at the same handler. This
+/// Every route that answers under a registry prefix is registered twice (once
+/// bare, once under `/~{registry}`) pointing at the same handler. This
 /// extractor is what tells the two apart, so a handler states once that it is
 /// prefix-aware instead of needing a near-identical twin.
 ///
@@ -404,7 +585,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
                 match err {
                     // The client sent a segment that percent-decodes to invalid
                     // UTF-8. It cannot be a registry name, so answer it the same
-                    // 404 every other malformed prefix gets rather than a 500 — a
+                    // 404 every other malformed prefix gets rather than a 500, a
                     // bad URL is not a server fault, and rendering it as one would
                     // also let a client fill the error log.
                     RawPathParamsRejection::InvalidUtf8InPathParam(_) => RegistryError::NotFound,
@@ -433,8 +614,8 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
 /// Await `fut`, emitting its duration as a `pnpr::serve_timing` debug event
 /// (`phase`, `package`, `elapsed_us`).
 ///
-/// Enabling that target — `RUST_LOG=pnpr::serve_timing=debug`, or a pnpr `log:`
-/// level of `debug`/`trace` — turns the upstream serve paths into a per-request
+/// Enabling that target, `RUST_LOG=pnpr::serve_timing=debug`, or a pnpr `log:`
+/// level of `debug`/`trace`, turns the upstream serve paths into a per-request
 /// profile of where time goes: the upstream packument/tarball fetch vs the
 /// on-disk cache read. Near zero-cost when the target is disabled: the
 /// only always-on work is one `Instant::now()`; the field values (including

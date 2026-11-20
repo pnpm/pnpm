@@ -52,18 +52,32 @@ mod virtual_terminal;
 mod with_current;
 
 use boolean_negations::with_boolean_negations;
-use clap::{CommandFactory, FromArgMatches};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
 use cli_args::{
     CliArgs,
-    pre_command::{EntryPoint, Invocation},
+    pre_command::{
+        EntryPoint,
+        Invocation,
+    },
 };
 use config_overrides::ConfigOverrides;
 use flag_relocation::relocate_pre_subcommand_flags;
 use miette::set_panic_hook;
-use pnpm_diagnostics::{enable_tracing_by_env, install_report_handler};
+use pnpm_diagnostics::{
+    enable_tracing_by_env,
+    install_report_handler,
+};
 use pnpm_package_manager::configure_rayon_pool;
 use state::State;
-use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
+use std::{
+    ffi::OsString,
+    future::Future,
+    path::Path,
+    process::ExitCode,
+};
 
 pub fn main() -> ExitCode {
     #[cfg(target_family = "wasm")]

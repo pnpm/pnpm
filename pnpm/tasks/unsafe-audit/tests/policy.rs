@@ -1,6 +1,9 @@
 //! The policy, as a test.
 
-use pnpm_unsafe_audit::{audit, workspace_root};
+use pnpm_unsafe_audit::{
+    audit,
+    workspace_root,
+};
 
 /// Every workspace member either is exempt from the `unsafe` policy and
 /// holds `unsafe` for the reason its exemption gives, or holds none.

@@ -1,14 +1,25 @@
 use super::{
-    DepPath, DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions,
-    ResolvePeersOptions, StubResolver, assert_eq, fake_manifest, fake_result,
-    resolve_dependency_tree, resolve_emotion_fixture, resolve_peers,
+    DepPath,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    ResolvePeersOptions,
+    StubResolver,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
+    resolve_emotion_fixture,
+    resolve_peers,
 };
 
 /// `p → q → p` is a cycle whose re-entry of `p` resolves against truncated
 /// children: with `q` dropped to break the cycle, that occurrence of `p`
 /// looks peer-free. It must not be cached as pure, or the sibling occurrence
 /// reached through `w` short-circuits and loses the optional transitive peer
-/// `e` that `q` declares — churning the lockfile by traversal order.
+/// `e` that `q` declares, churning the lockfile by traversal order.
 /// <https://github.com/pnpm/pnpm/issues/5108>
 #[tokio::test]
 async fn cycle_reentry_does_not_drop_sibling_occurrence_transitive_peers() {
@@ -185,7 +196,8 @@ async fn dedupe_peers_collapses_nested_peer_suffixes() {
     .await;
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(std::string::ToString::to_string)
         .collect();
     keys.sort();
     assert_eq!(
@@ -198,7 +210,7 @@ async fn dedupe_peers_collapses_nested_peer_suffixes() {
     );
 }
 
-/// Opposite of [`dedupe_peers_collapses_nested_peer_suffixes`] — the
+/// Opposite of [`dedupe_peers_collapses_nested_peer_suffixes`], the
 /// same fixture under `dedupePeers: false` keeps the nested peer
 /// suffix on `@emotion/styled`'s depPath, proving the dedupe
 /// branch is the only thing flipping the rendering.
@@ -207,7 +219,8 @@ async fn no_dedupe_peers_keeps_nested_peer_suffixes() {
     let result = resolve_emotion_fixture(ResolvePeersOptions::default()).await;
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(std::string::ToString::to_string)
         .collect();
     keys.sort();
     assert_eq!(
@@ -287,7 +300,8 @@ async fn dedupe_peers_propagates_transitive_peer_to_parent() {
     );
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(std::string::ToString::to_string)
         .collect();
     keys.sort();
     assert_eq!(
@@ -301,8 +315,8 @@ async fn dedupe_peers_propagates_transitive_peer_to_parent() {
 /// peer-depends `typescript`. `plugin` and `parser` live under
 /// `umbrella` (under `app`, which also brings `typescript@1.0.0`), while
 /// the importer also has a top-level `typescript@2.0.0` + `parser@1.0.0`.
-/// `plugin`'s `parser` must resolve `typescript@1.0.0` — the version
-/// `plugin` itself uses — not be shadowed by the top-level `parser` that
+/// `plugin`'s `parser` must resolve `typescript@1.0.0` (the version
+/// `plugin` itself uses) not be shadowed by the top-level `parser` that
 /// resolved `typescript@2.0.0`. Exercises the depPath suffix machinery.
 #[tokio::test]
 async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
@@ -392,7 +406,8 @@ async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(std::string::ToString::to_string)
         .collect();
     assert!(
         keys.contains(
@@ -413,7 +428,7 @@ async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
 /// `c`; its child `b` peer-depends on `a`. While `b`'s suffix is
 /// being built, `a` is mid-walk (in-progress) so its depPath isn't
 /// finalized yet. The post-walk [`build_final_dep_paths`] pass must
-/// resolve `a` to its full `a@1.0.0(c@1.0.0)` — not the collapsed
+/// resolve `a` to its full `a@1.0.0(c@1.0.0)`, not the collapsed
 /// `a@1.0.0` the cycle fallback would emit (pnpm only collapses
 /// genuine cycles, and `a→b→a` here resolves because `a` and `b`
 /// don't form a peer-graph SCC). Regression test for
@@ -472,7 +487,8 @@ async fn ancestor_peer_carries_its_own_suffix() {
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(std::string::ToString::to_string)
         .collect();
     keys.sort();
     assert_eq!(
@@ -484,7 +500,7 @@ async fn ancestor_peer_carries_its_own_suffix() {
         ],
     );
 
-    // `c` is `a`'s peer, not `b`'s — it must not leak into `b`'s
+    // `c` is `a`'s peer, not `b`'s; it must not leak into `b`'s
     // dependencies (only `b`'s own peer `a` is a child of `b`).
     let b_node = &result.graph[&DepPath::from("b@1.0.0(a@1.0.0(c@1.0.0))".to_string())];
     let b_children: Vec<&str> = b_node.edges.children
@@ -613,7 +629,7 @@ async fn cyclic_peer_dependencies_resolve_cleanly() {
         ),
     );
     let resolver = StubResolver { table, calls: Mutex::new(Vec::new()) };
-    // Importer carries `foo` (auto-install-peers off here — we
+    // Importer carries `foo` (auto-install-peers off here; we
     // exercise the peer matcher, not the hoister). With
     // auto-install-peers the qar/zoo/bar peers would get hoisted
     // to the importer level; for this test we accept the
@@ -651,7 +667,8 @@ async fn cyclic_peer_dependencies_resolve_cleanly() {
     // every depPath starts with the expected pkg id.
     let dep_paths: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(std::string::ToString::to_string)
         .collect();
     for (name, _) in &[("foo", ""), ("bar", ""), ("qar", ""), ("zoo", "")] {
         let prefix = format!("{name}@1.0.0");
@@ -739,7 +756,8 @@ async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
 
     let dep_paths: std::collections::HashSet<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(std::string::ToString::to_string)
         .collect();
 
     assert!(

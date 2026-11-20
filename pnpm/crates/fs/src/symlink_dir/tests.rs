@@ -9,10 +9,17 @@ use super::symlink_dir;
 #[cfg(windows)]
 use super::to_native_separators;
 use super::{
-    ForceSymlinkOutcome, TriedOnce, force_absolute_symlink_dir, force_symlink_dir, read_symlink_dir,
+    ForceSymlinkOutcome,
+    TriedOnce,
+    force_absolute_symlink_dir,
+    force_symlink_dir,
+    read_symlink_dir,
 };
 #[cfg(windows)]
-use super::{is_reparse_point, relative_target_for};
+use super::{
+    is_reparse_point,
+    relative_target_for,
+};
 use std::fs;
 use tempfile::tempdir;
 
@@ -178,7 +185,7 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     fs::write(&link, b"squatting on the link slot").expect("seed occupant file");
 
     let outcome = force_symlink_dir(&target, &link).expect("force_symlink_dir succeeds");
-    assert!(!outcome.reused, "we wrote a fresh link over an occupant — not a reuse");
+    assert!(!outcome.reused, "we wrote a fresh link over an occupant, not a reuse");
     assert!(outcome.warning.is_some(), "warning must be set when an occupant was moved aside");
     let warning = outcome.warning.unwrap();
     assert!(
@@ -240,7 +247,10 @@ fn remove_occupant_clears_files_directories_and_missing_paths() {
 
 #[test]
 fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinations() {
-    use std::io::{Error, ErrorKind};
+    use std::io::{
+        Error,
+        ErrorKind,
+    };
 
     for kind in
         [ErrorKind::AlreadyExists, ErrorKind::DirectoryNotEmpty, ErrorKind::PermissionDenied]
@@ -352,7 +362,7 @@ fn windows_native_path_is_borrowed_unchanged() {
 }
 
 /// Regression for the Windows failure where a symlink's parent slot is a
-/// dangling junction — the shape a tar-based CI cache restore leaves
+/// dangling junction, the shape a tar-based CI cache restore leaves
 /// behind (tar can't round-trip a Windows reparse point). The child link
 /// can't be created through the dangling junction, and `create_dir_all`
 /// can't rebuild the slot because the junction still occupies it (it
@@ -373,7 +383,7 @@ fn windows_force_symlink_dir_repairs_dangling_junction_parent() {
 
     // Build a slot `node_modules` that is a dangling junction: point it at
     // a directory, then delete that directory. Windows keeps the reparse
-    // point (with the directory attribute) but its target is now missing —
+    // point (with the directory attribute) but its target is now missing,
     // the state a cache restore leaves behind.
     let node_modules = root
         .path()
@@ -489,7 +499,8 @@ fn windows_failed_junction_leaves_no_staging_directory() {
     assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput, "{error}");
     let leftovers: Vec<_> = fs::read_dir(&parent)
         .expect("read link parent")
-        .map(|entry| entry.expect("read entry").file_name())
+        .map(|entry| entry.expect("read entry"))
+        .map(|entry| entry.file_name())
         .collect();
     assert!(leftovers.is_empty(), "no staging directory may remain: {leftovers:?}");
 }
@@ -561,8 +572,8 @@ fn windows_error_directory_falls_back_to_junctions() {
     assert!(!super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(123)));
 }
 
-/// `ERROR_PRIVILEGE_NOT_HELD` (1314) — symlink creation without
-/// Developer Mode or elevation — maps to `Uncategorized`, not
+/// `ERROR_PRIVILEGE_NOT_HELD` (1314) (symlink creation without
+/// Developer Mode or elevation) maps to `Uncategorized`, not
 /// `PermissionDenied`, so the fallback must match the raw os error
 /// ([pnpm/pnpm#13694](https://github.com/pnpm/pnpm/issues/13694)).
 #[cfg(windows)]
@@ -934,7 +945,10 @@ fn windows_read_junction_target_reads_only_junctions() {
 #[test]
 #[ignore = "needs a network share named by PNPM_TEST_NETWORK_SHARE_DIR"]
 fn windows_links_on_a_real_share_can_be_opened() {
-    use super::share_links::{ShareLinks, probe};
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
 
     use super::windows::IO_REPARSE_TAG_MOUNT_POINT;
 
@@ -998,7 +1012,10 @@ fn windows_links_on_a_real_share_can_be_opened() {
 #[cfg(windows)]
 #[test]
 fn windows_share_link_probe_finds_a_working_kind_and_cleans_up() {
-    use super::share_links::{ShareLinks, probe};
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
 
     let root = tempdir().expect("create temp dir");
 
@@ -1017,7 +1034,10 @@ fn windows_share_link_probe_finds_a_working_kind_and_cleans_up() {
 #[cfg(windows)]
 #[test]
 fn windows_share_link_probe_links_to_the_target_directory() {
-    use super::share_links::{ShareLinks, probe};
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
 
     let links = tempdir().expect("create temp dir for the links");
     let targets = tempdir().expect("create temp dir for the targets");
@@ -1039,7 +1059,10 @@ fn windows_share_link_probe_links_to_the_target_directory() {
 #[cfg(windows)]
 #[test]
 fn windows_share_link_probe_to_a_missing_target_is_unusable() {
-    use super::share_links::{ShareLinks, probe};
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
 
     let links = tempdir().expect("create temp dir for the links");
     let missing = links.path().join("missing");
@@ -1055,7 +1078,10 @@ fn windows_share_link_probe_to_a_missing_target_is_unusable() {
 #[cfg(windows)]
 #[test]
 fn windows_share_link_attempt_replaces_what_a_locked_attempt_left() {
-    use std::{cell::Cell, io};
+    use std::{
+        cell::Cell,
+        io,
+    };
 
     const ERROR_SHARING_VIOLATION: i32 = 32;
     let root = tempdir().expect("create temp dir");
@@ -1139,7 +1165,10 @@ fn windows_junction_target_resolves_a_relative_path() {
 #[cfg(windows)]
 #[test]
 fn windows_links_on_a_share_are_recognized() {
-    use crate::mapped_drive_path::{NetworkShare, network_share_cached};
+    use crate::mapped_drive_path::{
+        NetworkShare,
+        network_share_cached,
+    };
     use std::path::Path;
 
     let share = Some(NetworkShare::Unc(r"server\share".into()));

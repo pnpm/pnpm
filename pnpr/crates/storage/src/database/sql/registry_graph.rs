@@ -3,13 +3,24 @@
 //! restore until pruning drops them.
 
 use super::{
-    adapter::{Connection, Row},
+    adapter::{
+        Connection,
+        Row,
+    },
     batch::WriteTransaction,
-    cdn, to_column, to_generation,
+    cdn,
+    to_column,
+    to_generation,
     transactions::Freshness,
 };
-use crate::{Storage, publish::now_millis};
-use pnpr_error::{RegistryError, Result};
+use crate::{
+    Storage,
+    publish::now_millis,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
 

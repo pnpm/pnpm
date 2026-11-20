@@ -1,9 +1,19 @@
 use crate::{
-    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout,
-    safe_join_modules_dir::safe_join_modules_dir, symlink_package,
+    SkippedSnapshots,
+    SymlinkPackageError,
+    VirtualStoreLayout,
+    safe_join_modules_dir::safe_join_modules_dir,
+    symlink_package,
 };
-use pnpm_lockfile::{PkgName, SnapshotDepRef, join_package_root_link};
-use std::{collections::HashMap, path::Path};
+use pnpm_lockfile::{
+    PkgName,
+    SnapshotDepRef,
+    join_package_root_link,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 /// Create symlink layout of dependencies for a package in a virtual dir.
 ///
@@ -50,7 +60,7 @@ pub fn create_symlink_layout(
             // directory outside the virtual store, named relative to the
             // lockfile. The importer's own copy is installed by the
             // symlink-direct-dependencies stage, but a snapshot that
-            // depends on one still needs the link inside *its* slot —
+            // depends on one still needs the link inside *its* slot,
             // without it the dependency is absent, and Node only
             // finds it when the slot happens to sit under the importer's
             // `node_modules` and the upward walk reaches the importer's

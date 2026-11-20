@@ -12,16 +12,33 @@
 //! wrote, writes `dependencies` even when it is empty, and neither map holds a
 //! string or a `specifier`. In every other package a string is a reference.
 
-use super::super::{NamedBindings, NextFormatError, NextRef};
-use crate::{DeclaredSpecifiers, PkgName, SnapshotDepRef};
+use super::super::{
+    NamedBindings,
+    NextFormatError,
+    NextRef,
+};
+use crate::{
+    DeclaredSpecifiers,
+    PkgName,
+    SnapshotDepRef,
+};
 use pnpm_package_manifest::DependencyGroup;
 use serde::{
-    Deserialize, Deserializer, Serialize,
-    de::{self, MapAccess, Visitor},
+    Deserialize,
+    Deserializer,
+    Serialize,
+    de::{
+        self,
+        MapAccess,
+        Visitor,
+    },
 };
 use std::{
     borrow::Cow,
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
 };
 
 /// One entry of [`PackageDeps`]. The string form is parsed as a reference,
@@ -72,7 +89,8 @@ impl<'de> Deserialize<'de> for NextPackageDep {
                 map: Map,
             ) -> Result<NextPackageDep, Map::Error> {
                 NextPackageDepMap::deserialize(de::value::MapAccessDeserializer::new(map))
-                    .map(|map| NextPackageDep::Map(Box::new(map)))
+                    .map(Box::new)
+                    .map(NextPackageDep::Map)
             }
         }
 

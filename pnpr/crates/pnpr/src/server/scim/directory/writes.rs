@@ -1,12 +1,26 @@
 use super::{
-    ScimUser, fail_closed_on_unsynced_deactivation, lifecycle_for_active, sync_scim_state,
+    ScimUser,
+    fail_closed_on_unsynced_deactivation,
+    lifecycle_for_active,
+    sync_scim_state,
 };
 use crate::server::{
-    AppState, RegistryError, managed_state::WRITE_ATTEMPTS, scim::resources::apply_patch,
+    AppState,
+    RegistryError,
+    managed_state::WRITE_ATTEMPTS,
+    scim::resources::apply_patch,
     team_directory::remove_from_teams,
 };
-use pnpr_auth::{AccountLifecycle, AccountStatusOutcome};
-use pnpr_storage::database::{NewScimUser, ScimUserRemoval, ScimUserWrite, StoredScimUser};
+use pnpr_auth::{
+    AccountLifecycle,
+    AccountStatusOutcome,
+};
+use pnpr_storage::database::{
+    NewScimUser,
+    ScimUserRemoval,
+    ScimUserWrite,
+    StoredScimUser,
+};
 use serde_json::Value;
 
 pub(in super::super) async fn create_user(

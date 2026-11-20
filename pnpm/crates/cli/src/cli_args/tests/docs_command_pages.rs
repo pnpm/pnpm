@@ -16,12 +16,22 @@
 
 use super::CliArgs;
 use crate::config_overrides::ConfigOverrides;
-use clap::{Arg, Command, CommandFactory};
+use clap::{
+    Arg,
+    Command,
+    CommandFactory,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     ffi::OsString,
     fmt::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use walkdir::WalkDir;
 
@@ -39,7 +49,7 @@ const DOCUMENTED_UNKNOWN_FLAGS: &[&str] = &[];
 /// Commands with no page under `pnpm/docs/cli`.
 const COMMANDS_WITHOUT_A_PAGE: &[&str] = &[
     "restart", "stop", // Not implemented: each says to use npm.
-    "edit", "xmas",
+    "edit",
 ];
 
 /// Global flags with no heading anywhere under `pnpm/docs`.
@@ -109,7 +119,8 @@ fn heading_flags(heading: &str) -> Vec<String> {
         return Vec::new();
     }
     text.split(',')
-        .filter_map(|part| part.split_whitespace().next())
+        .map(str::split_whitespace)
+        .filter_map(|mut words| words.next())
         .map(|spelling| spelling.split_once('=').map_or(spelling, |(flag, _)| flag))
         .filter(|spelling| spelling.starts_with('-'))
         .flat_map(expand_negatable)
@@ -268,7 +279,8 @@ fn setting_names(flag: &str) -> Vec<String> {
 fn documented_everywhere() -> BTreeSet<String> {
     WalkDir::new(docs_dir())
         .into_iter()
-        .map(|entry| entry.expect("walk pnpm/docs").into_path())
+        .map(|entry| entry.expect("walk pnpm/docs"))
+        .map(walkdir::DirEntry::into_path)
         .filter(|path| {
             path.extension()
                 .is_some_and(|extension| extension == "md")
@@ -375,7 +387,8 @@ fn page_for(path: &[&str]) -> Option<String> {
             PAGE_NAMES
                 .iter()
                 .find(|(command, _)| command == name)
-                .map_or(*name, |(_, page)| *page)
+                .map(|(_, page)| *page)
+                .unwrap_or(*name)
         })
         .collect();
     (1..=names.len())
@@ -449,7 +462,8 @@ fn documented_unknown_flags(
         .collect();
     page.own
         .iter()
-        .filter(|flag| !accepted.contains(*flag) && !global.accepted.contains(*flag))
+        .filter(|flag| !accepted.contains(*flag))
+        .filter(|flag| !global.accepted.contains(*flag))
         .filter(|flag| !SHORTHAND_FLAGS.contains(&flag.as_str()))
         .filter(|flag| !commands.iter().any(|(path, _)| is_bare_setting_flag(path, flag)))
         .cloned()

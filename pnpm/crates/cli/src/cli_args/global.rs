@@ -10,92 +10,198 @@ pub mod rust;
 
 pub use builds::approve_global_builds;
 pub use legacy::migrate_legacy_global_packages;
-pub use remove::{handle_global_remove, remove_global_groups};
-pub use selectors::{has_pnpm_cli_dependency, selects_pnpm_cli};
+pub use remove::{
+    handle_global_remove,
+    remove_global_groups,
+};
+pub use selectors::{
+    has_pnpm_cli_dependency,
+    selects_pnpm_cli,
+};
 
 mod activation;
 
 use self::activation::{
-    ActivationBinSets, ArtifactCleanupError, FsRename,
-    activate_global_install_with_extra_bin_names, get_actual_bin_names, hash_linked_packages,
+    ActivationBinSets,
+    ArtifactCleanupError,
+    FsRename,
+    activate_global_install_with_extra_bin_names,
+    get_actual_bin_names,
+    hash_linked_packages,
     replace_global_bin_slots,
 };
 use crate::{
     State,
     cli_args::{
-        add::{AddGroups, AddRequest, add_packages, apply_allow_build},
+        add::{
+            AddGroups,
+            AddRequest,
+            add_packages,
+            apply_allow_build,
+        },
         approve_builds::{
-            ApprovalStore, ApproveBuildsArgs, GlobalPackagesStore, clear_decided_ignored_builds,
-            load_global_packages_config, load_legacy_global_settings,
+            ApprovalStore,
+            ApproveBuildsArgs,
+            GlobalPackagesStore,
+            clear_decided_ignored_builds,
+            load_global_packages_config,
+            load_legacy_global_settings,
             prompt_approve_install_builds,
         },
         global_bin_lock::acquire_global_bin_lock,
-        ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
+        ignored_builds::{
+            IgnoredBuildsScan,
+            get_automatically_ignored_builds,
+        },
         rebuild::run_rebuild,
         shim::{
-            record_package_manager_shims, virtual_shim_bins_to_restore, virtual_shim_owner,
+            record_package_manager_shims,
+            virtual_shim_bins_to_restore,
+            virtual_shim_owner,
             virtual_shim_restoration_owners,
         },
     },
-    engine_pm::selector::{rust_toolchain_request, tool_install_selector},
-    shim_dispatch::{ShimTarget, install_native_shim, migrate_legacy_shims, remove_native_shim},
+    engine_pm::selector::{
+        rust_toolchain_request,
+        tool_install_selector,
+    },
+    shim_dispatch::{
+        ShimTarget,
+        install_native_shim,
+        migrate_legacy_shims,
+        remove_native_shim,
+    },
 };
 
 use build_policy::{
-    apply_global_build_policy, global_approval_store, warn_about_legacy_global_settings,
+    apply_global_build_policy,
+    global_approval_store,
+    warn_about_legacy_global_settings,
 };
 use cleanup::discard_install_dir_on_error;
-use derive_more::{Display, Error};
-use install::{
-    GlobalInstallTarget, GroupActivation, GroupInstall, global_group_config, run_group_install,
+use derive_more::{
+    Display,
+    Error,
 };
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use install::{
+    GlobalInstallTarget,
+    GroupActivation,
+    GroupInstall,
+    global_group_config,
+    run_group_install,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use node_semver::Version;
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, choose_bins,
-    link_bins_of_packages_with_excludes, remove_bin as remove_cmd_shim,
+    Host as CmdShimHost,
+    LinkBinsOptions,
+    PackageBinSource,
+    choose_bins,
+    link_bins_of_packages_with_excludes,
+    remove_bin as remove_cmd_shim,
 };
-use pnpm_config::{CatalogMode, Config, GlobalShims, WorkspaceSettings, check_global_bin_dir};
-use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir, symlink_dir};
+use pnpm_config::{
+    CatalogMode,
+    Config,
+    GlobalShims,
+    WorkspaceSettings,
+    check_global_bin_dir,
+};
+use pnpm_fs::{
+    is_subdir,
+    remove_symlink_dir,
+    symlink_dir,
+};
 use pnpm_global::{
-    GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
-    create_global_cache_key, create_install_dir, find_global_package, get_hash_link,
-    get_installed_bin_names, installed_versions, is_global_install_subdir,
-    read_direct_dependencies, read_installed_packages, scan_global_packages,
+    GlobalPackageInfo,
+    check_global_bin_conflicts,
+    clean_orphaned_install_dirs,
+    create_global_cache_key,
+    create_install_dir,
+    find_global_package,
+    get_hash_link,
+    get_installed_bin_names,
+    installed_versions,
+    is_global_install_subdir,
+    read_direct_dependencies,
+    read_installed_packages,
+    scan_global_packages,
 };
 use pnpm_lockfile::Lockfile;
 use pnpm_package_is_installable::SupportedArchitectures;
-use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    safe_read_package_json_from_dir,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, PnpmLog, Reporter, SummaryLog};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+    SummaryLog,
+};
 use pnpm_resolving_local_resolver::local_file_path;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use remove::{
-    FsGlobalRemoval, GlobalPackageBinSnapshot, cleanup_replaced_global_installs,
-    collect_existing_global_installs, snapshot_global_package,
+    FsGlobalRemoval,
+    GlobalPackageBinSnapshot,
+    cleanup_replaced_global_installs,
+    collect_existing_global_installs,
+    snapshot_global_package,
 };
 use selectors::{
-    SelectorGroup, groups_matching_params, infer_local_package_alias, parse_npm_spec_body,
-    replacement_aliases, should_replace_existing_package, split_into_groups, take_rust_toolchains,
+    SelectorGroup,
+    groups_matching_params,
+    infer_local_package_alias,
+    parse_npm_spec_body,
+    replacement_aliases,
+    should_replace_existing_package,
+    split_into_groups,
+    take_rust_toolchains,
     tool_install_selectors,
 };
 use tag_selectors::tag_checked_selectors;
 use update_selectors::{
-    apply_pins, apply_runtime_range_bumps, is_registry_version_spec, missing_file_source_warning,
-    moves_past_declared_range, needs_runtime_range_bump, update_selectors,
+    apply_pins,
+    apply_runtime_range_bumps,
+    is_registry_version_spec,
+    missing_file_source_warning,
+    moves_past_declared_range,
+    needs_runtime_range_bump,
+    update_selectors,
 };
 
 use shims::{
-    ReplacedGlobalBinPlan, bin_names_of_other_groups, check_virtual_shim_conflicts,
-    link_global_bins, plan_replaced_global_bins, restore_virtual_shims, unprotected_bin_names,
+    ReplacedGlobalBinPlan,
+    bin_names_of_other_groups,
+    check_virtual_shim_conflicts,
+    link_global_bins,
+    plan_replaced_global_bins,
+    restore_virtual_shims,
+    unprotected_bin_names,
     virtual_shims_to_restore,
 };
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Errors specific to global package management, carrying the

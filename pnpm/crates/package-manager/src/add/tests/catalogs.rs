@@ -1,4 +1,9 @@
-use super::{super::selected_project_indices, dependency_specifier, project_with_foo, test_add};
+use super::{
+    super::selected_project_indices,
+    dependency_specifier,
+    project_with_foo,
+    test_add,
+};
 use crate::add::manifest::prepare_selected_manifests;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;

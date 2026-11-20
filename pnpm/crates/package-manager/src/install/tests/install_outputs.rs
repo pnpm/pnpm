@@ -1,20 +1,53 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
-    InstallDirs, PARTIAL_INSTALL_LOCKFILE,
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+    },
+    InstallDirs,
+    PARTIAL_INSTALL_LOCKFILE,
 };
 use crate::PolicyExcludes;
 use pipe_trait::Pipe;
-use pnpm_config::{Config, NodePackageMapMode, NodePackageMapType};
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, read_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_config::{
+    Config,
+    NodePackageMapMode,
+    NodePackageMapType,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    read_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::{
-    LogEvent, PackageManifestLog, PackageManifestMessage, ProgressLog, ProgressMessage, Reporter,
-    SilentReporter, Stage, StageLog, StatsLog, StatsMessage,
+    LogEvent,
+    PackageManifestLog,
+    PackageManifestMessage,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+    SilentReporter,
+    Stage,
+    StageLog,
+    StatsLog,
+    StatsMessage,
 };
 use pnpm_store_dir::STORE_VERSION;
 use pnpm_testing_utils::{
-    fs::{get_all_folders, is_symlink_or_junction},
+    fs::{
+        get_all_folders,
+        is_symlink_or_junction,
+    },
     registry::TestRegistry,
 };
 use std::sync::Mutex;
@@ -94,6 +127,7 @@ async fn should_install_dependencies() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -240,7 +274,7 @@ async fn should_install_dependencies() {
     // `@pnpm/xyz@1.0.0` has peer dependencies on `@pnpm/x`, `@pnpm/y`,
     // and `@pnpm/z`, so the resolver produces a peer-suffixed
     // depPath and the layout lands the slot at
-    // `@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0` —
+    // `@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0`,
     // matching the snapshot key shape `pnpm install` would write
     // to `pnpm-lock.yaml` and the slot the frozen-lockfile
     // path materialises into.
@@ -289,6 +323,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -383,6 +418,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -465,7 +501,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path.clone()).unwrap();
 
-    // No `@<version>` — should resolve to the `latest` tag.
+    // No `@<version>`, should resolve to the `latest` tag.
     manifest
         .add_dependency(
             "hello-world-alias",
@@ -487,6 +523,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -547,7 +584,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
     );
 
     // Virtual-store directory uses the real package name (version resolved
-    // at runtime from `latest` — just assert the real name prefix exists).
+    // at runtime from `latest`, just assert the real name prefix exists).
     let virtual_store_dir_path = dirs.project_root.join("node_modules/.pacquet");
     let has_real_name_dir = std::fs::read_dir(&virtual_store_dir_path)
         .unwrap()
@@ -602,6 +639,7 @@ pub(super) async fn install_writes_modules_yaml() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -697,7 +735,7 @@ pub(super) async fn install_writes_modules_yaml() {
 /// transitive `@pnpm.e2e/failing-postinstall@1.0.0` has a
 /// `postinstall` that exits non-zero. Pacquet's
 /// `frozen_lockfile=false` path stops at extraction (script execution
-/// lives behind `BuildModules` in the frozen-lockfile branch —
+/// lives behind `BuildModules` in the frozen-lockfile branch.
 /// `BuildModules` itself is unit-tested against the same fixture in
 /// `crate::build_modules::tests::do_not_fail_on_optional_dep_with_failing_postinstall`).
 /// This test pins the fetch + extract behavior on the optional edge:
@@ -732,6 +770,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -817,7 +856,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
     let dirs = InstallDirs::new();
 
     let manifest_path = dirs.path().join("package.json");
-    // Deliberately leave the `placeholder` dep out — same drift the
+    // Deliberately leave the `placeholder` dep out, same drift the
     // sibling test exercises. With `ignore_manifest_check: true` the
     // install must accept the drift and move on to materialization.
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
@@ -836,6 +875,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: true,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,

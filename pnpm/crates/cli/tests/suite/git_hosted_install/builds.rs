@@ -1,6 +1,17 @@
 use super::{
-    CommandExtra, CommandTempCwd, GitRepoFixture, Value, allow_builds, append_workspace_yaml_key,
-    assert_eq, assert_success, fs, importer_version, json, pnpm_at, read_lockfile,
+    CommandExtra,
+    CommandTempCwd,
+    GitRepoFixture,
+    Value,
+    allow_builds,
+    append_workspace_yaml_key,
+    assert_eq,
+    assert_success,
+    fs,
+    importer_version,
+    json,
+    pnpm_at,
+    read_lockfile,
     write_dependencies,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -395,7 +406,7 @@ fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
     // The provisioning runs in a child pnpm, outside this project, so the
     // registry to provision from travels in the environment. Every
     // directory the engine could land in is pinned into the test's own
-    // root, so the run cannot reach into the developer's — and so the
+    // root, so the run cannot reach into the developer's, and so the
     // engine it installs can be found below.
     let output = pnpm_at(&workspace)
         .with_args(["install"])

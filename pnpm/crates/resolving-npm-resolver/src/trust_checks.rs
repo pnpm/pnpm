@@ -5,25 +5,38 @@
 //! asking [`get_trust_evidence`] which "rank" of evidence each
 //! version exposes. The strongest rank seen across the prior history
 //! is the "baseline." If the current version's rank is lower than the
-//! baseline, that's a trust *downgrade* — supply-chain incident
-//! signal — and the verifier rejects the entry with
+//! baseline, that's a trust *downgrade* (supply-chain incident
+//! signal) and the verifier rejects the entry with
 //! [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`].
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use jiff::Timestamp;
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_registry::{
-    NpmUser, Package, PackageDistribution, PackageVersion, VersionPolicyFields,
+    NpmUser,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+    VersionPolicyFields,
     VersionTrustMetadata,
 };
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
-use pnpm_version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_version_policy::{
+    PackageVersionPolicy,
+    PolicyMatch,
+};
 
-use crate::pick_package::{SkippedTimeCheck, warn_missing_time_once};
+use crate::pick_package::{
+    SkippedTimeCheck,
+    warn_missing_time_once,
+};
 
 /// Rank of supply-chain evidence on a single version. Variants are
-/// declared weakest-first so the derived `Ord` matches `trust_rank`.
+/// declared weakest-first so the derived `Ord` matches the trust ranking.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TrustEvidence {
     /// `dist.attestations.provenance` is set.
@@ -35,7 +48,7 @@ pub enum TrustEvidence {
     /// shipped a provenance attestation.
     TrustedPublisher,
     /// `_npmUser.approver` is set. The version was published through a
-    /// staged publish requiring a 2FA approval — the strongest signal,
+    /// staged publish requiring a 2FA approval, the strongest signal,
     /// ranked above a trusted publisher.
     StagedPublish,
 }
@@ -59,7 +72,7 @@ pub enum TrustViolation {
     },
 
     /// Earlier versions had stronger trust evidence than the version
-    /// being verified — supply-chain incident signal, surfaced with
+    /// being verified, supply-chain incident signal, surfaced with
     /// the `TRUST_DOWNGRADE` code.
     #[display("High-risk trust downgrade for \"{name}@{version}\" (possible package takeover)")]
     #[diagnostic(
@@ -298,7 +311,7 @@ fn detect_strongest_trust_evidence_before(
         // Keep the highest-ranked evidence seen so far. Don't short-
         // circuit on a mid-rank hit: a later version may carry stronger
         // evidence, and missing it would let a real downgrade slip
-        // through. Only `StagedPublish` — the maximum rank — ends the
+        // through. Only `StagedPublish` (the maximum rank) ends the
         // walk early.
         if best.is_none_or(|current| trust_rank(evidence) > trust_rank(current)) {
             best = Some(evidence);

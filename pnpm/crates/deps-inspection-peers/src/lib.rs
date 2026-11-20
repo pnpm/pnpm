@@ -15,18 +15,33 @@
 //! resolution instead, which is the one place the two stacks compute
 //! the same verdict by different routes.
 
-pub use undeclared::{UndeclaredPeer, UndeclaredPeerInspector, WorkspaceRootScope};
+pub use undeclared::{
+    UndeclaredPeer,
+    UndeclaredPeerInspector,
+    WorkspaceRootScope,
+};
 
 pub use filter::filter_peer_issues;
 pub use render::{
-    BadPeerIssue, MissingPeerIssue, render_installed, render_peer_issues, render_wanted,
+    BadPeerIssue,
+    MissingPeerIssue,
+    render_installed,
+    render_peer_issues,
+    render_wanted,
 };
 
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     fmt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -35,13 +50,21 @@ use owo_colors::Stream;
 use serde::Serialize;
 
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, WantedDependency,
+    CatalogAnchor,
+    CatalogResolutionError,
+    CatalogResolutionResult,
+    WantedDependency,
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PeerDependencyRules;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencySpec,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -87,7 +110,7 @@ pub struct LockfilePeerCheck<'a> {
 
 /// The issues an install or `pnpm dedupe` acts on: everything left
 /// after `peerDependencyRules`, when any of it is worth acting on. A
-/// missing peer every parent marks optional is not — pnpm's
+/// missing peer every parent marks optional is not, pnpm's
 /// install-time gate ignores it, and so does `pnpm peers check`.
 pub struct PeerIssuesReport {
     issues: IssuesByProjects,
@@ -99,8 +122,8 @@ pub struct PeerIssuesReport {
 
 impl PeerIssuesReport {
     /// The listing `pnpm peers check` prints for the same issues. Empty
-    /// when every issue is one that listing leaves out — a missing peer no
-    /// parent conflicts over, say — so callers must handle an empty body.
+    /// when every issue is one that listing leaves out (a missing peer no
+    /// parent conflicts over, say) so callers must handle an empty body.
     #[must_use]
     pub fn render(&self) -> String {
         render_peer_issues(&self.issues)
@@ -114,7 +137,7 @@ impl PeerIssuesReport {
     }
 
     /// pnpm's `ERR_PNPM_PEER_DEP_ISSUES` body: the listing, then the
-    /// ways out of the failure — auto-installing the peers first when
+    /// ways out of the failure, auto-installing the peers first when
     /// any is absent, then switching the guard off.
     #[must_use]
     pub fn render_error(&self) -> String {
@@ -163,7 +186,8 @@ pub fn peer_issues_for_lockfile(
         .any(|project_issues| {
             project_issues.missing
                 .values()
-                .any(|entries| entries.iter().any(|entry| !entry.optional))
+                .map(|entries| entries.iter())
+                .any(|mut value| value.any(|entry| !entry.optional))
         });
     let has_issues = has_missing_peer
         || issues
@@ -200,7 +224,7 @@ pub fn check_peer_dependencies_from_lockfile(
 }
 
 /// Walk the named importers, collecting every peer a package requires
-/// but the recorded graph does not satisfy. Unfiltered — the caller
+/// but the recorded graph does not satisfy. Unfiltered, the caller
 /// applies [`filter_peer_issues`].
 pub fn check_peer_dependencies_of_importers(
     lockfile: &Lockfile,
@@ -407,7 +431,11 @@ impl LinkedDependency<'_> {
 
 mod snapshot;
 mod undeclared;
-use snapshot::{extract_peer_version, satisfies, walk_snapshot};
+use snapshot::{
+    extract_peer_version,
+    satisfies,
+    walk_snapshot,
+};
 
 #[cfg(test)]
 mod tests;
@@ -422,4 +450,9 @@ mod filter;
 use filter::merge_missing_peers;
 
 mod linked;
-use linked::{LinkRoots, LinkedPackagePeers, LinkedPackages, check_linked_package_peers};
+use linked::{
+    LinkRoots,
+    LinkedPackagePeers,
+    LinkedPackages,
+    check_linked_package_peers,
+};

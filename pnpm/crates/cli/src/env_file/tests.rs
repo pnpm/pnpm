@@ -1,5 +1,12 @@
-use super::{load, scan, strip_flags};
-use std::{ffi::OsString, path::PathBuf};
+use super::{
+    load,
+    scan,
+    strip_flags,
+};
+use std::{
+    ffi::OsString,
+    path::PathBuf,
+};
 
 /// Build an argv (with a leading program name) from string slices.
 fn argv(tokens: &[&str]) -> Vec<OsString> {
@@ -11,7 +18,8 @@ fn argv(tokens: &[&str]) -> Vec<OsString> {
 
 fn strings(argv: &[OsString]) -> Vec<String> {
     argv.iter()
-        .map(|token| token.to_string_lossy().into_owned())
+        .map(|token| token.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect()
 }
 

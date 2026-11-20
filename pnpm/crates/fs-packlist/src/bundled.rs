@@ -1,6 +1,16 @@
 use super::{
-    HashMap, HashSet, OsStr, PacklistError, Path, PathBuf, SelectedPackageFiles, Value, VecDeque,
-    collect_own_files, fs, safe_read_package_json_from_dir,
+    HashMap,
+    HashSet,
+    OsStr,
+    PacklistError,
+    Path,
+    PathBuf,
+    SelectedPackageFiles,
+    Value,
+    VecDeque,
+    collect_own_files,
+    fs,
+    safe_read_package_json_from_dir,
 };
 
 /// Cap on `bundleDependencies` closure depth. Real packages bundle
@@ -108,7 +118,8 @@ impl BundleWalk<'_> {
         let AdmittedBundle { dir, real_dir } = dependency;
         let dir = dir
             .strip_prefix(self.real_pkg_dir)
-            .map_or_else(|_| dir.clone(), |rel| self.pkg_dir.join(rel));
+            .map(|rel| self.pkg_dir.join(rel))
+            .unwrap_or_else(|_| dir.clone());
         let prefix = packed_dir(&packed);
         let manifest = safe_read_package_json_from_dir(&dir)
             .ok()
@@ -300,7 +311,7 @@ fn resolve_bundled_dependency(name: &str, from_dir: &Path, boundary: &Path) -> O
     }
 }
 
-/// True when `name` is a safe `bundleDependencies` entry — the join
+/// True when `name` is a safe `bundleDependencies` entry, the join
 /// `pkg_dir/node_modules/<name>` stays inside `pkg_dir/node_modules`.
 ///
 /// Rejects parent-dir components, root, and drive prefixes. Accepts
@@ -324,7 +335,7 @@ pub(super) fn is_safe_bundle_name(name: &str) -> bool {
             | std::path::Component::Prefix(_) => {
                 return false;
             }
-            // `.` components are stripped silently — `./foo` resolves
+            // `.` components are stripped silently, `./foo` resolves
             // the same as `foo` on every platform.
             std::path::Component::CurDir => {}
         }
@@ -365,7 +376,7 @@ fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
 /// ships its whole runtime closure, so these are followed regardless
 /// of whether the nested package declares its own `bundleDependencies`
 /// (already-bundled packages don't re-gate their deps). `peer`- and
-/// `dev`-dependencies are deliberately excluded — they are not part of
+/// `dev`-dependencies are deliberately excluded; they are not part of
 /// the published closure. Mirrors `npm-bundled`'s `getDeps`.
 fn dependency_names(manifest: &Value) -> Vec<String> {
     let mut names = Vec::new();

@@ -1,12 +1,19 @@
 use super::{
-    IndexFetcher, LockedEntry, MAX_INDEX_TOTAL_BYTES, StaleEntry, index_budget_has_room,
+    IndexFetcher,
+    LockedEntry,
+    MAX_INDEX_TOTAL_BYTES,
+    StaleEntry,
+    index_budget_has_room,
     over_index_budget,
 };
 use crate::server::StripedLocks;
 use std::{
     fs::File,
     io::Write,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 #[test]

@@ -1,6 +1,17 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, LinkProbe, OsString, Path, PathBuf,
-    assert_eq, io, tempdir, write_file,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    OsString,
+    Path,
+    PathBuf,
+    assert_eq,
+    io,
+    tempdir,
+    write_file,
 };
 
 /// Regression test for pnpm/pnpm#15530:

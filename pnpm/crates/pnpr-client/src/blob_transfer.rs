@@ -1,11 +1,23 @@
 //! Moving one blob between a file and a server without holding it whole.
 
-use super::{ArtifactPayload, BTreeMap, HashSet, PnprClientError, SignedArtifactEnvelope};
+use super::{
+    ArtifactPayload,
+    BTreeMap,
+    HashSet,
+    PnprClientError,
+    SignedArtifactEnvelope,
+};
 use futures_util::StreamExt as _;
 use pnpm_shared_artifact_protocol::verify_blob_digest;
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 use tokio::io::AsyncWriteExt as _;
@@ -31,8 +43,10 @@ impl ArtifactPublication {
     /// its manifest adds has exactly one source of the declared size.
     pub fn validate(&self) -> Result<ArtifactPayload, PnprClientError> {
         let protocol = |reason: String| PnprClientError::Protocol(reason);
-        let (payload, _) =
-            self.envelope.decode_payload().map_err(|err| protocol(err.to_string()))?;
+        let (payload, _) = self.envelope
+            .decode_payload()
+            .map_err(|err| err.to_string())
+            .map_err(protocol)?;
         if payload.input_key != self.key {
             return Err(
                 protocol("signed input key does not match the publication key".to_string()),
@@ -286,6 +300,7 @@ impl<'a> BlobCheck<'a> {
             )));
         }
         verify_blob_digest(self.integrity, &std::mem::take(&mut self.hasher).finalize())
-            .map_err(|err| PnprClientError::Protocol(err.to_string()))
+            .map_err(|err| err.to_string())
+            .map_err(PnprClientError::Protocol)
     }
 }

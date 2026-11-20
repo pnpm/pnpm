@@ -1,9 +1,21 @@
-use super::workspace_yaml::{allow_builds, append_workspace_yaml_key};
+use super::workspace_yaml::{
+    allow_builds,
+    append_workspace_yaml_key,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_modules_yaml::{Host, read_modules_manifest};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_modules_yaml::{
+    Host,
+    read_modules_manifest,
+};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn read_pending_builds(workspace: &Path) -> Vec<String> {
     read_modules_manifest::<Host>(&workspace.join("node_modules"))
@@ -46,7 +58,7 @@ fn ignore_scripts_records_the_project_and_its_deferred_dependency() {
 }
 
 /// A project without install-time scripts of its own contributes no
-/// importer entry — only the deferred dependency builds are recorded.
+/// importer entry, only the deferred dependency builds are recorded.
 #[test]
 fn a_project_without_install_scripts_records_only_dependencies() {
     let CommandTempCwd {
@@ -78,7 +90,7 @@ fn a_project_without_install_scripts_records_only_dependencies() {
 }
 
 /// An install that runs the build scripts owes nothing, so the list
-/// stays empty — this is what makes a populated list mean "deferred".
+/// stays empty; this is what makes a populated list mean "deferred".
 #[test]
 fn an_install_that_runs_the_scripts_records_nothing() {
     let CommandTempCwd {
@@ -208,7 +220,7 @@ fn rebuild_pending_runs_the_deferred_work_and_empties_the_list() {
     } = CommandTempCwd::init().add_mocked_registry();
     rebuild
         .with_current_dir(&workspace)
-        .arg("rebuild")
+        .with_arg("rebuild")
         .assert()
         .success();
 
@@ -233,7 +245,7 @@ fn rebuild_pending_runs_the_deferred_work_and_empties_the_list() {
 }
 
 /// A `rebuild --pending` that the `allowBuilds` policy still blocks
-/// runs nothing, so it must leave the debt in place — dropping it
+/// runs nothing, so it must leave the debt in place, dropping it
 /// would let a later `--pending` report success on a build that never
 /// ran.
 #[test]
@@ -261,7 +273,7 @@ fn rebuild_pending_keeps_a_dependency_the_policy_still_blocks() {
     assert_eq!(pending, ["@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"]);
 
     // No `allowBuilds` entry, so `rebuild --pending` cannot build it.
-    // Its exit code is beside the point — the assertion is that the
+    // Its exit code is beside the point, the assertion is that the
     // debt survives whether it exits 0 (warn) or 1 (strict).
     let CommandTempCwd {
         pacquet: rebuild,
@@ -280,7 +292,7 @@ fn rebuild_pending_keeps_a_dependency_the_policy_still_blocks() {
 }
 
 /// A project's scripts run after `.modules.yaml` is written, so its
-/// entry can only be cleared once they have actually succeeded —
+/// entry can only be cleared once they have actually succeeded;
 /// otherwise a failing script would lose the debt it just failed to
 /// discharge.
 #[test]
@@ -357,7 +369,7 @@ fn a_later_install_preserves_what_an_earlier_one_deferred() {
     fs::write(workspace.join("package.json"), package_json.to_string())
         .expect("write package.json");
     // Approved, so the second install's build phase reports nothing
-    // deferred — the entry can only survive by being carried over.
+    // deferred, the entry can only survive by being carried over.
     allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
 
     pacquet

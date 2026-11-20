@@ -1,4 +1,7 @@
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use pnpr_error::RegistryError;
 use serde_json::Value;
 use std::path::Path;

@@ -5,10 +5,23 @@
 //! [`pnpm_lockfile::PACKAGE_ROOT_LINK_BASE`]) and every linker resolves
 //! `<root>` against the declaring package's directory.
 
-use super::{Arc, LockfileResolution, Value, WantedDependency};
+use super::{
+    Arc,
+    LockfileResolution,
+    Value,
+    WantedDependency,
+};
 use pnpm_local_spec::is_tarball_filename;
-use pnpm_lockfile::{DirectoryResolution, PACKAGE_ROOT_LINK_BASE, package_root_link_target};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult, ResolvedPackageInfo};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    PACKAGE_ROOT_LINK_BASE,
+    package_root_link_target,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+    ResolvedPackageInfo,
+};
 
 /// Rewrite the relative `file:` dependencies of a package from a tarball or
 /// the registry that stay inside that package into `link:<root>/...`

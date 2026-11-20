@@ -1,13 +1,25 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{
-    body::{Bytes, to_bytes},
+    body::{
+        Bytes,
+        to_bytes,
+    },
     http::StatusCode,
 };
-use pnpr_config::{IpNetwork, PublicRoute};
+use pnpr_config::{
+    IpNetwork,
+    PublicRoute,
+};
 use pnpr_osv::OsvIndex;
 use pnpr_policy::Identity;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 use tokio::time::Instant;
 
@@ -15,15 +27,24 @@ use super::{
     super::{
         Resolver,
         dispatch::handle_resolve,
-        limits::{GRAPH_TOO_LARGE_CODE, RESOLVE_TIMEOUT_CODE},
+        limits::{
+            GRAPH_TOO_LARGE_CODE,
+            RESOLVE_TIMEOUT_CODE,
+        },
         protocol::ResolveRequest,
         verify_lockfile::handle_verify_lockfile,
         wire::{
-            MAX_NDJSON_FRAME_BYTES, frozen_package_frames_until, ndjson_frames_until,
-            osv_violations_for_lockfile_until, verify_done_frame, violations_frame,
+            MAX_NDJSON_FRAME_BYTES,
+            frozen_package_frames_until,
+            ndjson_frames_until,
+            osv_violations_for_lockfile_until,
+            verify_done_frame,
+            violations_frame,
         },
     },
-    cargo_done_frame, registry_config, tarball_router,
+    cargo_done_frame,
+    registry_config,
+    tarball_router,
 };
 
 fn caller(id: &str, name: &str) -> Identity {

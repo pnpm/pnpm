@@ -1,8 +1,20 @@
 use super::{
-    EnvVar, GetHomeDir, LoadWorkspaceYamlError, Path, UnresolvedPlaceholders,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, has_env_placeholder, join_fragment,
-    redact_registry_url, registries, substitute_json_string, substitute_optional_inner_string,
-    substitute_optional_string, substitute_optional_string_map, substitute_registry_entries,
+    EnvVar,
+    GetHomeDir,
+    LoadWorkspaceYamlError,
+    Path,
+    UnresolvedPlaceholders,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    has_env_placeholder,
+    join_fragment,
+    redact_registry_url,
+    registries,
+    substitute_json_string,
+    substitute_optional_inner_string,
+    substitute_optional_string,
+    substitute_optional_string_map,
+    substitute_registry_entries,
 };
 
 impl WorkspaceSettings {
@@ -115,9 +127,10 @@ impl WorkspaceSettings {
         }
         self.registries
             .as_ref()
-            .map_or(Ok(()), |registries| {
+            .map(|registries| {
                 registries::refuse_env_placeholder_entries(registries, has_env_placeholder)
             })
+            .unwrap_or(Ok(()))
     }
 
     fn drop_unexpanded_request_scalars(&mut self, dropped: &mut Vec<String>) {

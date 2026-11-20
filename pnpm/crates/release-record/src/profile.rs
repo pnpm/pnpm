@@ -1,8 +1,18 @@
 //! Interpretation profiles: the rules a record's metadata was derived under.
 
-use derive_more::{Display, Error, Into};
-use serde::{Deserialize, Serialize};
-use std::{fmt, str::FromStr};
+use derive_more::{
+    Display,
+    Error,
+    Into,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    fmt,
+    str::FromStr,
+};
 
 /// A profile, always `<name>/<version>` with each part in `[a-z0-9.-]+`, so
 /// it is two URL path segments and never needs encoding.

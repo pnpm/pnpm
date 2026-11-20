@@ -1,4 +1,7 @@
-use std::{fs::File, io};
+use std::{
+    fs::File,
+    io,
+};
 
 /// Flushes `file`'s data and metadata to the storage device, as
 /// [`File::sync_all`] does.

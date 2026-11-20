@@ -2,24 +2,49 @@ use std::{
     net::SocketAddr,
     sync::{
         Arc,
-        atomic::{AtomicU32, Ordering},
+        atomic::{
+            AtomicU32,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
 use reqwest::{
     StatusCode,
-    dns::{Addrs, Name, Resolve, Resolving},
+    dns::{
+        Addrs,
+        Name,
+        Resolve,
+        Resolving,
+    },
 };
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
     net::TcpStream,
 };
 
-use super::{RetryOpts, SecureAttemptError, get_secure_bytes, retry_async, should_retry_status};
+use super::{
+    RetryOpts,
+    SecureAttemptError,
+    get_secure_bytes,
+    retry_async,
+    should_retry_status,
+};
 use crate::{
-    AuthHeaders, GuardedDnsResolver, PerRegistryTls, ProxyConfig, SecureAuthResponse,
-    ThrottledClient, TlsConfig, is_permanent_error, is_public_address, nerf_dart,
+    AuthHeaders,
+    GuardedDnsResolver,
+    PerRegistryTls,
+    ProxyConfig,
+    SecureAuthResponse,
+    ThrottledClient,
+    TlsConfig,
+    is_permanent_error,
+    is_public_address,
+    nerf_dart,
     walk_reqwest_chain,
 };
 use pnpm_testing_utils::untrusted_tls_server::UntrustedTlsServer;
@@ -293,7 +318,10 @@ fn metadata_retry_diagnostics_do_not_include_response_body_or_url() {
 
 #[tokio::test]
 async fn metadata_retry_recovers_an_interrupted_response_body() {
-    use tokio::{io::AsyncWriteExt, net::TcpListener};
+    use tokio::{
+        io::AsyncWriteExt,
+        net::TcpListener,
+    };
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/metadata", listener.local_addr().unwrap());

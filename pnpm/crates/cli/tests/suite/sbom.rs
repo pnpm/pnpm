@@ -1,10 +1,19 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
-use std::{collections::HashSet, ffi::OsStr, fs, path::Path, process::Command};
+use std::{
+    collections::HashSet,
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn copy_fixture(name: &str) -> TempDir {
@@ -681,7 +690,7 @@ fn sbom_dev_flag_includes_only_dev() {
 }
 
 /// The names of the root components of a `--split` run's NDJSON lines, in
-/// output order — one per selected workspace importer.
+/// output order; one per selected workspace importer.
 fn split_root_names(stdout: &str) -> Vec<String> {
     stdout
         .lines()
@@ -800,9 +809,8 @@ fn sbom_root_repository_that_is_not_a_url_is_omitted() {
         !root
             .get("externalReferences")
             .and_then(serde_json::Value::as_array)
-            .is_some_and(|ext_refs| ext_refs
-                .iter()
-                .any(|ext_ref| ext_ref["type"] == "vcs")),
+            .map(|ext_refs| ext_refs.iter())
+            .is_some_and(|mut value| value.any(|ext_ref| ext_ref["type"] == "vcs")),
         "an email is not a repository URL and must not be published: {root}",
     );
 }

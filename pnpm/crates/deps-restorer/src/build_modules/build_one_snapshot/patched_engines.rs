@@ -1,10 +1,20 @@
 use super::{
     super::BuildModulesError,
-    BuildCandidate, BuildOneSnapshot, PackageKey,
-    linked_copies::{LinkTargets, unlink_children, unlink_project_links},
+    BuildCandidate,
+    BuildOneSnapshot,
+    PackageKey,
+    linked_copies::{
+        LinkTargets,
+        unlink_children,
+        unlink_project_links,
+    },
 };
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 

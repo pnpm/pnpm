@@ -10,7 +10,10 @@
 #![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
 
 #[cfg(windows)]
-pub use console::{enable_virtual_terminal_processing, stop_inheriting_standard_handles};
+pub use console::{
+    enable_virtual_terminal_processing,
+    stop_inheriting_standard_handles,
+};
 #[cfg(unix)]
 pub use width::terminal_columns;
 

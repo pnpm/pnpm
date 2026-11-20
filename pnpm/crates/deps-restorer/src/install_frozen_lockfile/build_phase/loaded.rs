@@ -1,4 +1,8 @@
-use super::{BuildPhaseError, BuildPhaseInputs, post_build_bins};
+use super::{
+    BuildPhaseError,
+    BuildPhaseInputs,
+    post_build_bins,
+};
 
 pub(super) fn finish_cas_bin_links(
     inputs: &BuildPhaseInputs<'_>,

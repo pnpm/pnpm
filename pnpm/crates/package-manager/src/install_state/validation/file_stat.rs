@@ -1,8 +1,14 @@
 //! A file's stat, and whether a recorded stat still stands for the file's
 //! content.
 
-use pnpm_workspace_state::{FileSignature, Validation};
-use std::{fs, path::Path};
+use pnpm_workspace_state::{
+    FileSignature,
+    Validation,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// A filesystem that keeps whole seconds may round an mtime down by up to
 /// this much (FAT rounds to two seconds).

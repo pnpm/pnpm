@@ -1,7 +1,16 @@
 use super::{
-    LoadWorkspaceStateError, NodeLinker, ProjectEntry, RuntimeOnFail, UpdateWorkspaceStateError,
-    WORKSPACE_STATE_FILENAME, WorkspaceState, WorkspaceStateSettings, get_file_path,
-    load_workspace_state, now_millis, update_workspace_state,
+    LoadWorkspaceStateError,
+    NodeLinker,
+    ProjectEntry,
+    RuntimeOnFail,
+    UpdateWorkspaceStateError,
+    WORKSPACE_STATE_FILENAME,
+    WorkspaceState,
+    WorkspaceStateSettings,
+    get_file_path,
+    load_workspace_state,
+    now_millis,
+    update_workspace_state,
 };
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
@@ -317,8 +326,8 @@ fn node_modules_entries(workspace_dir: &std::path::Path) -> Vec<String> {
 }
 
 /// The write survives another process holding the destination open
-/// without `FILE_SHARE_DELETE` — an antivirus scan or the search
-/// indexer — for as long as that handle lives
+/// without `FILE_SHARE_DELETE` (an antivirus scan or the search
+/// indexer) for as long as that handle lives
 /// ([#14550](https://github.com/pnpm/pnpm/issues/14550)). A single
 /// `MoveFileEx` fails such a rename with `ERROR_ACCESS_DENIED`, so
 /// without the retry this write reports

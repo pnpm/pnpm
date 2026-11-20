@@ -3,15 +3,28 @@
 //! and the npm-format views from which pnpr's facts are removed.
 
 use super::{
-    super::{describe_tar, has_settled_tar_facts},
-    DIST_FIELDS, PNPR_FIELDS,
+    super::{
+        describe_tar,
+        has_settled_tar_facts,
+    },
+    DIST_FIELDS,
+    PNPR_FIELDS,
 };
 use axum::{
-    http::{HeaderValue, header},
-    response::{IntoResponse, Response},
+    http::{
+        HeaderValue,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_storage::DerivedTar;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::collections::BTreeMap;
 
 /// A version document's address: `<version>+r<revision>` names one release
@@ -21,7 +34,8 @@ pub(in super::super) fn record_address(version_or_tag: &str) -> (&str, Option<u6
     version_or_tag
         .rsplit_once("+r")
         .and_then(|(version, revision)| Some((version, parse_revision(revision)?)))
-        .map_or((version_or_tag, None), |(version, revision)| (version, Some(revision)))
+        .map(|(version, revision)| (version, Some(revision)))
+        .unwrap_or((version_or_tag, None))
 }
 
 /// A revision number in its canonical form: digits without a leading zero.

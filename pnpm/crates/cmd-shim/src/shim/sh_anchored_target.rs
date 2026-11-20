@@ -118,7 +118,8 @@ impl<'a> ExecTargetScanner<'a> {
         } else if self.starts_shell_comment() {
             self.index = self.header[self.index..]
                 .find('\n')
-                .map_or(self.header.len(), |newline| self.index + newline);
+                .map(|newline| self.index + newline)
+                .unwrap_or(self.header.len());
         } else if matches!(byte, b'\'' | b'"' | b'`') {
             self.quote = Some(byte);
             self.index += 1;

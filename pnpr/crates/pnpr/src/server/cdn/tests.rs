@@ -1,4 +1,10 @@
-use super::{CdnInvalidation, CloudflareCdnConfig, purge, purge_tags, sha256_hex};
+use super::{
+    CdnInvalidation,
+    CloudflareCdnConfig,
+    purge,
+    purge_tags,
+    sha256_hex,
+};
 
 #[tokio::test]
 async fn purge_requires_a_successful_api_result() {
@@ -54,8 +60,16 @@ fn package_tags_match_the_worker_and_policy_purges_cover_every_package() {
 
 #[tokio::test]
 async fn cdn_public_tarballs_are_cacheable_and_private_responses_stay_private() {
-    use crate::server::{AppState, caller_scoped, state::AppInner, tarball_response};
-    use axum::{body::Body, http::header};
+    use crate::server::{
+        AppState,
+        caller_scoped,
+        state::AppInner,
+        tarball_response,
+    };
+    use axum::{
+        body::Body,
+        http::header,
+    };
     use pnpr_config::Config;
     use pnpr_fixtures::MockConfigPresets;
     use pnpr_registry::Ecosystem;
@@ -90,7 +104,11 @@ async fn cdn_public_tarballs_are_cacheable_and_private_responses_stay_private() 
 
 #[test]
 fn cdn_does_not_add_cache_permission_to_incomplete_json_records() {
-    use axum::{Json, http::header, response::IntoResponse};
+    use axum::{
+        Json,
+        http::header,
+        response::IntoResponse,
+    };
     let response =
         Json(serde_json::json!({ "name": "widget", "version": "1.0.0" })).into_response();
     let response = super::public_tarball_response(response);

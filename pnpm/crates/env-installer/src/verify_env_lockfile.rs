@@ -2,8 +2,14 @@
 //! alias/shape checks applied to config-dependency names and versions
 //! before the lockfile is written.
 
-use crate::{ConfigDepError, EnvLockfileOptions};
-use pnpm_lockfile::{EnvLockfile, PackageKey};
+use crate::{
+    ConfigDepError,
+    EnvLockfileOptions,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    PackageKey,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use std::path::Path;
 
@@ -22,7 +28,7 @@ pub fn write_verified_env_lockfile(
 
 /// Reject config-dependency and optional-subdep names/versions before they
 /// build store paths (`<name>/<version>/<hash>`): names must be valid npm
-/// package names, versions exact semver — otherwise a traversal-shaped value
+/// package names, versions exact semver; otherwise a traversal-shaped value
 /// would escape the install roots.
 pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepError> {
     let Some(importer) = env_lockfile.importers.get(EnvLockfile::ROOT_IMPORTER_KEY) else {

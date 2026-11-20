@@ -1,6 +1,21 @@
 use super::{
-    AccessList, AuthState, Body, Request, Router, ServiceExt, StatusCode, TempDir, Value,
-    body_bytes, digest_of, get, header, oci_config, pausing_store, push_blob, push_image,
+    AccessList,
+    AuthState,
+    Body,
+    Request,
+    Router,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    body_bytes,
+    digest_of,
+    get,
+    header,
+    oci_config,
+    pausing_store,
+    push_blob,
+    push_image,
     router_with_auth,
 };
 
@@ -19,7 +34,10 @@ async fn two_user_app(
     hosted_backend: pnpr::HostedStoreConfig,
     default_publish: Option<AccessList>,
 ) -> (Router, String, String) {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD,
+    };
 
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
     config.storage.hosted_backend = hosted_backend;
@@ -366,7 +384,10 @@ async fn claiming_repository_while_upload_body_streams_refuses_blob_promotion() 
 
 #[tokio::test]
 async fn ownership_change_during_s3_blob_promotion_prevents_mapping_across_replicas() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD,
+    };
 
     let tmp = TempDir::new().unwrap();
     let objects = std::sync::Arc::new(pausing_store::PausingStore::default());

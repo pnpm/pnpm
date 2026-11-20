@@ -1,15 +1,29 @@
 use crate::optimistic_repeat_install::{
-    CatalogAnchor, CatalogResolutionResult, Catalogs, OptimisticRepeatInstallCheck,
-    WantedDependency, manifest_string_field, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    Catalogs,
+    OptimisticRepeatInstallCheck,
+    WantedDependency,
+    manifest_string_field,
+    resolve_from_catalog,
 };
 use pnpm_fs::lexical_normalize;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use pnpm_workspace_state::WorkspaceState;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 struct WorkspaceProjectIndex<'a> {
@@ -140,10 +154,10 @@ pub(super) fn reached_workspace_project_dirs(
 ) -> HashSet<PathBuf> {
     let index = WorkspaceProjectIndex::from_check(check);
     let groups = [
-        (state.settings.production != Some(false)).then_some(DependencyGroup::Prod),
-        (state.settings.dev != Some(false)).then_some(DependencyGroup::Dev),
-        (state.settings.optional != Some(false)).then_some(DependencyGroup::Optional),
-        (check.config.auto_install_peers && state.settings.auto_install_peers != Some(false))
+        state.settings.production.unwrap_or(true).then_some(DependencyGroup::Prod),
+        state.settings.dev.unwrap_or(true).then_some(DependencyGroup::Dev),
+        state.settings.optional.unwrap_or(true).then_some(DependencyGroup::Optional),
+        (check.config.auto_install_peers && state.settings.auto_install_peers.unwrap_or(true))
             .then_some(DependencyGroup::Peer),
     ];
     let mut reached = HashSet::new();

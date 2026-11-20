@@ -11,15 +11,37 @@
 //! the same targets.
 
 use super::{
-    BuildCandidate, BuildModulesError, BuildOneSnapshot, LogEvent, LogLevel, PackageKey, Path,
-    Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
-    apply_patch_to_dir, dependency_bins, lifecycle_scripts,
-    patched_engines::{remove_linked_copies, skip_incompatible_optional_at},
+    BuildCandidate,
+    BuildModulesError,
+    BuildOneSnapshot,
+    LogEvent,
+    LogLevel,
+    PackageKey,
+    Path,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+    apply_patch_to_dir,
+    dependency_bins,
+    lifecycle_scripts,
+    patched_engines::{
+        remove_linked_copies,
+        skip_incompatible_optional_at,
+    },
     reject_frozen_store_build,
-    side_effects::{self, FrozenStoreWrites, SideEffectsUpload},
+    side_effects::{
+        self,
+        FrozenStoreWrites,
+        SideEffectsUpload,
+    },
     skip_incompatible_optional,
 };
-use std::{fs, io, path::PathBuf};
+use std::{
+    fs,
+    io,
+    path::PathBuf,
+};
 
 /// Whether `context` builds into global virtual store slots: the isolated
 /// linker with the global virtual store on. The hoisted linker builds in

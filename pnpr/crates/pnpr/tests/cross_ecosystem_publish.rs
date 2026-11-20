@@ -1,24 +1,56 @@
-//! Integration tests for `PUT /-/pnpr/v0/publish` — one publish transaction
+//! Integration tests for `PUT /-/pnpr/v0/publish`; one publish transaction
 //! carrying packages of more than one ecosystem. Static-mode (no upstream) to
 //! keep the tests hermetic.
 
 use crate::npm;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use npm::{npm_tgz, publishable_tgz, sri_sha512};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use npm::{
+    npm_tgz,
+    publishable_tgz,
+    sri_sha512,
+};
 use pnpr::{
-    AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRules,
-    Registries, Registry, router_with_auth,
+    AccessList,
+    AuthState,
+    Config,
+    Ecosystem,
+    HostedConfig,
+    MaxUsers,
+    PackagePattern,
+    PackageRules,
+    Registries,
+    Registry,
+    router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
+use serde_json::{
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
 };
 use tempfile::TempDir;
@@ -594,7 +626,8 @@ fn staged_files(root: &std::path::Path) -> Vec<PathBuf> {
             staged.extend(staged_files(&path));
         } else if path
             .file_name()
-            .is_some_and(|name| name.to_string_lossy().contains(".tmp."))
+            .map(std::ffi::OsStr::to_string_lossy)
+            .is_some_and(|text| text.contains(".tmp."))
         {
             staged.push(path);
         }
@@ -651,7 +684,10 @@ async fn another_file_of_a_published_python_version_takes_no_publish_time_note()
 #[cfg(feature = "backend-libsql")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_unsynced_libsql_replica_serves_cargo_and_pypi_archives_from_the_primary() {
-    use object_store::{ObjectStore, memory::InMemory};
+    use object_store::{
+        ObjectStore,
+        memory::InMemory,
+    };
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
 

@@ -1,4 +1,7 @@
-use super::{WorkspaceSpec, is_workspace_path_specifier};
+use super::{
+    WorkspaceSpec,
+    is_workspace_path_specifier,
+};
 
 fn ws(version: &str, alias: Option<&str>) -> WorkspaceSpec {
     WorkspaceSpec { alias: alias.map(str::to_string), version: version.to_string() }

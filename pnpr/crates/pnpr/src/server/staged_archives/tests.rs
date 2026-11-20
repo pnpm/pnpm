@@ -1,7 +1,14 @@
-use super::{MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL, StagedReferences, archive_blob_id};
+use super::{
+    MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL,
+    StagedReferences,
+    archive_blob_id,
+};
 use crate::server::KeyedSemaphores;
 use pnpr_config::HostedStoreConfig;
-use pnpr_storage::{StagedArchiveKey, Storage};
+use pnpr_storage::{
+    StagedArchiveKey,
+    Storage,
+};
 use std::time::Duration;
 
 #[test]
@@ -60,9 +67,17 @@ async fn every_reference_to_a_staged_archive_counts_against_one_request() {
     let thrice = vec![integrity.as_str(); 3];
     let too_many = vec![integrity.as_str(); 257];
     let refused = StagedReferences::check_within(&storage, "alice", too_many, u64::MAX).await;
-    assert!(refused.is_err_and(|err| err.to_string().contains("257 staged archives")));
+    assert!(
+        refused
+            .map_err(|err| err.to_string())
+            .is_err_and(|text| text.contains("257 staged archives")),
+    );
     let refused = StagedReferences::check_within(&storage, "alice", thrice, 20).await;
-    assert!(refused.is_err_and(|err| err.to_string().contains("30 bytes")));
+    assert!(
+        refused
+            .map_err(|err| err.to_string())
+            .is_err_and(|text| text.contains("30 bytes")),
+    );
 
     // The commit gives what it claimed back.
     let claimed = StagedReferences::check_within(&storage, "alice", twice, 20)

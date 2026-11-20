@@ -338,3 +338,78 @@ test('accepts the complete requested verification policy', async () => {
     trustLockfile: false,
   })
 })
+
+test('surfaces single-code server violations with their PnpmError code', async () => {
+  const server = http.createServer((_request, response) => {
+    response.end(`${JSON.stringify({
+      type: 'violations',
+      violations: [{
+        name: 'safe-pkg',
+        version: '1.0.0',
+        code: 'RESOLUTION_SHAPE_MISMATCH',
+        reason: 'a registry-style dependency path is backed by a non-registry resolution',
+      }],
+    })}\n`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject)
+      resolve()
+    })
+  })
+  try {
+    const { port } = server.address() as AddressInfo
+    await expect(resolveViaPnprServer({
+      registryUrl: `http://127.0.0.1:${port}/`,
+      dependencies: { 'safe-pkg': '1.0.0' },
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+      message: expect.stringContaining('safe-pkg@1.0.0'),
+    })
+  } finally {
+    await closeServer(server)
+  }
+})
+
+test('escalates mixed structural and policy server violations to LOCKFILE_RESOLUTION_VERIFICATION with structural hint', async () => {
+  const server = http.createServer((_request, response) => {
+    response.end(`${JSON.stringify({
+      type: 'violations',
+      violations: [
+        {
+          name: 'safe-pkg',
+          version: '1.0.0',
+          code: 'RESOLUTION_SHAPE_MISMATCH',
+          reason: 'a registry-style dependency path is backed by a non-registry resolution',
+        },
+        {
+          name: 'fresh-pkg',
+          version: '2.0.0',
+          code: 'MINIMUM_RELEASE_AGE_VIOLATION',
+          reason: 'was published 5 minutes ago',
+        },
+      ],
+    })}\n`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject)
+      resolve()
+    })
+  })
+  try {
+    const { port } = server.address() as AddressInfo
+    await expect(resolveViaPnprServer({
+      registryUrl: `http://127.0.0.1:${port}/`,
+      dependencies: { 'safe-pkg': '1.0.0', 'fresh-pkg': '2.0.0' },
+    })).rejects.toMatchObject({
+      code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
+      hint: expect.not.stringMatching(/relax the policy/),
+      message: expect.stringMatching(/fresh-pkg@2\.0\.0 \[MINIMUM_RELEASE_AGE_VIOLATION\][\s\S]*safe-pkg@1\.0\.0 \[RESOLUTION_SHAPE_MISMATCH\]/),
+    })
+  } finally {
+    await closeServer(server)
+  }
+})

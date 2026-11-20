@@ -7,12 +7,19 @@ use crate::_utils::set_minimum_release_age;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use pnpr_fixtures::RemovedVersionField;
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// Its tarball marks `peer-b` and `peer-c` as optional peers.
 const WITH_PEERS: &str = "@pnpm.e2e/abc-optional-peers";

@@ -1,12 +1,25 @@
 //! `enableModulesDir: false`: no `node_modules`, but a populated store.
 
-use super::super::{Install, ProjectMutation};
+use super::super::{
+    Install,
+    ProjectMutation,
+};
 use crate::PolicyExcludes;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    MaybeLazyLockfile,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
-use pnpm_store_dir::{StoreIndex, store_index_key};
+use pnpm_store_dir::{
+    StoreIndex,
+    store_index_key,
+};
 use pnpm_testing_utils::registry::TestRegistry;
 use std::path::Path;
 use tempfile::tempdir;
@@ -68,6 +81,7 @@ async fn install(
             frozen,
             prefer_frozen: Some(frozen),
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,

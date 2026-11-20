@@ -1,7 +1,14 @@
-use super::{Error, parse, scalar_aliases::paths::mapping_paths};
+use super::{
+    Error,
+    parse,
+    scalar_aliases::paths::mapping_paths,
+};
 use serde_json::Value;
 use std::collections::HashMap;
-use yamlpath::{Component, Route};
+use yamlpath::{
+    Component,
+    Route,
+};
 
 type KeyNames = HashMap<String, HashMap<String, String>>;
 
@@ -64,7 +71,7 @@ impl SourceKeys {
                     let canonical = self.canonical
                         .get(&route_id(&parent))
                         .and_then(|keys| keys.get(key.as_ref()));
-                    value.get(canonical.map_or_else(|| key.as_ref(), String::as_str))?
+                    value.get(canonical.map(String::as_str).unwrap_or_else(|| key.as_ref()))?
                 }
                 Component::Index(index) => value.get(*index)?,
             };

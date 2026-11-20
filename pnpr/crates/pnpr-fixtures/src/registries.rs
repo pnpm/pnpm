@@ -2,13 +2,29 @@
 //! `pnpr registries import` stores one, since pnpr reads its registries only
 //! from there.
 
-use pnpr_config::{Config, RegistryGraphDocument, RoutingConfig, RoutingOptions, StorageConfig};
+use pnpr_config::{
+    Config,
+    RegistryGraphDocument,
+    RoutingConfig,
+    RoutingOptions,
+    StorageConfig,
+};
 use pnpr_storage::{
     Storage,
-    database::{HostedNamespace, NewRegistryGraph, RegistryGraphWrite},
+    database::{
+        HostedNamespace,
+        NewRegistryGraph,
+        RegistryGraphWrite,
+    },
 };
-use serde_json::{Map, Value};
-use std::{net::SocketAddr, path::Path};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    net::SocketAddr,
+    path::Path,
+};
 
 /// The registry-mock registries `pnpr/.fixtures/registries.yaml` declares.
 pub const MOCK_REGISTRIES_YAML: &str = include_str!("../../../.fixtures/registries.yaml");

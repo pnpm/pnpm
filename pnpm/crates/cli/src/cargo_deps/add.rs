@@ -1,14 +1,24 @@
 use crate::{
-    cargo_deps, cargo_manifest, cargo_manifest::CargoDependencyKind,
-    ecosystem_install::InstallContext, package_specifier::RegistryPackageSpecifier,
+    cargo_deps,
+    cargo_manifest,
+    cargo_manifest::CargoDependencyKind,
+    ecosystem_install::InstallContext,
+    package_specifier::RegistryPackageSpecifier,
 };
-use futures_util::{StreamExt, TryStreamExt, stream};
+use futures_util::{
+    StreamExt,
+    TryStreamExt,
+    stream,
+};
 use miette::Result;
 use pnpm_config::Config;
 use pnpm_install_coordinator::InstallTask;
 use pnpm_network::ThrottledClient;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

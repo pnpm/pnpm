@@ -1,6 +1,9 @@
 use std::fmt::Write;
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Render `value` as a JSON5 string formatted with `indent`.
 pub(crate) fn stringify(value: &Value, indent: &str) -> String {

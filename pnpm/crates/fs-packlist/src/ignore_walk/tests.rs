@@ -1,5 +1,8 @@
 use super::{
-    default_rules::{DEFAULT_PATTERNS, may_match_default_rules},
+    default_rules::{
+        DEFAULT_PATTERNS,
+        may_match_default_rules,
+    },
     rule::IgnoreRule,
 };
 
@@ -283,6 +286,13 @@ fn default_rule_gate_is_a_superset_of_the_default_rules() {
     }
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::numeric_escape_for_visible_character,
+        reason = "the Kelvin sign reads as `K`, and clippy rejects it written out"
+    )
+)]
 #[test]
 fn default_rule_gate_rejects_ordinary_paths() {
     for path in [

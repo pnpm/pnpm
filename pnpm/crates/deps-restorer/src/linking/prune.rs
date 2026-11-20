@@ -1,9 +1,19 @@
 //! Reconcile what the previous install left in the importers' trees before
 //! the link passes write the new one.
 
-use super::{LinkPhaseError, LinkPhaseInputs, hoist_links::PlannedHoist};
+use super::{
+    LinkPhaseError,
+    LinkPhaseInputs,
+    hoist_links::PlannedHoist,
+};
 use crate::SkippedSnapshots;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    StatsLog,
+    StatsMessage,
+};
 
 pub(super) fn prune_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,

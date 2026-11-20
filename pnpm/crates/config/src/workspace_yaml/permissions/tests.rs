@@ -1,6 +1,15 @@
-use crate::{AllowBuild, Config, NAMED_UNRECOGNIZED_SETTINGS, SkillsPermission, WorkspaceSettings};
+use crate::{
+    AllowBuild,
+    Config,
+    NAMED_UNRECOGNIZED_SETTINGS,
+    SkillsPermission,
+    WorkspaceSettings,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 fn parse(yaml: &str) -> WorkspaceSettings {
     serde_saphyr::from_str(yaml).expect("parse pnpm-workspace.yaml")

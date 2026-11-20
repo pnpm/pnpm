@@ -1,6 +1,19 @@
-use super::{AddOptions, manifest, pin_to_locked_version};
-use pnpm_python_resolver::{Inputs, LockedPackage, LockedWheel, Lockfile, ToolMetadata};
-use std::{collections::BTreeMap, fs};
+use super::{
+    AddOptions,
+    manifest,
+    pin_to_locked_version,
+};
+use pnpm_python_resolver::{
+    Inputs,
+    LockedPackage,
+    LockedWheel,
+    Lockfile,
+    ToolMetadata,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 
 fn locked_wheel(name: &str, version: &str) -> LockedWheel {
     LockedWheel {

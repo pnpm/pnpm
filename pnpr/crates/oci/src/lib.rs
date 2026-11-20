@@ -5,20 +5,34 @@
 //! [`ImageDocument`] a hosted registry keeps per repository.
 //!
 //! A repository's blobs are content-addressed and immutable, so pushing one
-//! is not what makes a release visible — referencing it from a manifest is.
+//! is not what makes a release visible, referencing it from a manifest is.
 //! That is why the document records manifests and tags but not layers: the
 //! manifest write is the commit point, and a blob no manifest names is
 //! garbage for collection rather than a half-published release.
 
 pub mod media_type;
 
-pub use digest::{Digest, DigestError};
+pub use digest::{
+    Digest,
+    DigestError,
+};
 pub use document::{
-    IMAGE_DOCUMENT_FORMAT_VERSION, ImageDocument, ManifestEntry, ManifestRemoval, ReferrerMetadata,
+    IMAGE_DOCUMENT_FORMAT_VERSION,
+    ImageDocument,
+    ManifestEntry,
+    ManifestRemoval,
+    ReferrerMetadata,
     TagEntry,
 };
-pub use error_body::{ErrorBody, ErrorCode};
-pub use manifest::{Descriptor, Manifest, ManifestError};
+pub use error_body::{
+    ErrorBody,
+    ErrorCode,
+};
+pub use manifest::{
+    Descriptor,
+    Manifest,
+    ManifestError,
+};
 
 mod digest;
 mod document;

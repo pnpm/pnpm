@@ -5,20 +5,35 @@
 
 pub(crate) mod reader;
 
-pub(crate) use confirm::{ComposedNotes, registry_holds_notes};
-pub(crate) use reader::{NotesReader, UpgradeNotes};
-pub(crate) use render::{render_upgrade_notes, upgrade_notes_json};
+pub(crate) use confirm::{
+    ComposedNotes,
+    registry_holds_notes,
+};
+pub(crate) use reader::{
+    NotesReader,
+    UpgradeNotes,
+};
+pub(crate) use render::{
+    render_upgrade_notes,
+    upgrade_notes_json,
+};
 
 mod confirm;
 mod http;
 mod render;
 
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::RegistryServerType;
 use pnpm_network::normalize_registry_url;
 use pnpm_release_notes::normalize_line_endings;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// The text of the file a `--release-notes` value names, relative to `dir`,
 /// with its line endings normalized. A path that names no file is an error,

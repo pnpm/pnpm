@@ -1,6 +1,12 @@
 //! The walker's and the linker's options, read from the install inputs.
 
-use super::{BTreeSet, HoistedLinkerInputs, Lockfile, LockfileToHoistedDepGraphOptions, PathBuf};
+use super::{
+    BTreeSet,
+    HoistedLinkerInputs,
+    Lockfile,
+    LockfileToHoistedDepGraphOptions,
+    PathBuf,
+};
 
 pub(super) fn hoisted_walker_options<'a>(
     inputs: &HoistedLinkerInputs<'a>,
@@ -64,11 +70,13 @@ pub(super) fn previous_package_dirs(
     let lockfile_dir = inputs.projects.walker_lockfile_dir;
     let recorded = inputs.prior.current_hoisted_locations
         .into_iter()
-        .flat_map(|locations| locations.values().flatten())
+        .map(std::collections::BTreeMap::values)
+        .flat_map(std::iter::Iterator::flatten)
         .map(|location| lockfile_dir.join(location));
     walked.prev_graph
         .iter()
-        .flat_map(|graph| graph.keys().cloned())
+        .map(std::collections::BTreeMap::keys)
+        .flat_map(std::iter::Iterator::cloned)
         .chain(recorded)
         .collect()
 }

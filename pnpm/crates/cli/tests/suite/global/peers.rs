@@ -1,7 +1,13 @@
-use super::{global_command, prepare_global_home};
+use super::{
+    global_command,
+    prepare_global_home,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 
 #[test]
 fn global_install_and_update_recommend_global_peer_checks() {

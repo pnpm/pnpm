@@ -6,7 +6,10 @@ use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -561,7 +564,8 @@ fn add_rejects_web_otp_challenge_urls_with_control_chars() {
     assert!(
         !stderr
             .lines()
-            .any(|line| line.trim_start().starts_with("spoof")),
+            .map(str::trim_start)
+            .any(|trim_start| trim_start.starts_with("spoof")),
         "stderr:\n{stderr}",
     );
     drop((root, server));

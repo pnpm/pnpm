@@ -1,9 +1,30 @@
 use super::{
-    Candidate, Channel, Config, Display, GlobalShims, GlobalShimsSetting, Host,
-    LoadWorkspaceYamlError, MachineSettings, PACKAGE_MANAGER_ENVS_DIR_NAME, PackageManager, Path,
-    PathBuf, SettingsRead, ShimPolicy, TrustedSettings, Value, create_hex_hash,
-    create_hex_hash_bytes, default_config_dir, default_pnpm_home_dir, default_state_dir,
-    local_bin_identity, parse_node_specifier, resolve_configured_state_dir, trusted_runtime_config,
+    Candidate,
+    Channel,
+    Config,
+    Display,
+    GlobalShims,
+    GlobalShimsSetting,
+    Host,
+    LoadWorkspaceYamlError,
+    MachineSettings,
+    PACKAGE_MANAGER_ENVS_DIR_NAME,
+    PackageManager,
+    Path,
+    PathBuf,
+    SettingsRead,
+    ShimPolicy,
+    TrustedSettings,
+    Value,
+    create_hex_hash,
+    create_hex_hash_bytes,
+    default_config_dir,
+    default_pnpm_home_dir,
+    default_state_dir,
+    local_bin_identity,
+    parse_node_specifier,
+    resolve_configured_state_dir,
+    trusted_runtime_config,
     wanted_package_manager,
 };
 use node_semver::Range;
@@ -13,7 +34,7 @@ use std::collections::HashSet;
 /// effect immediately instead of waiting for the next global install to
 /// relink the shims. Layers merge key-wise over the built-in defaults in
 /// the order global `config.yaml`, the pnpm home's own
-/// `pnpm-workspace.yaml`, then the env override — never a project file
+/// `pnpm-workspace.yaml`, then the env override, never a project file
 /// and never a discovered ancestor of the pnpm home. (The env override
 /// is only as trustworthy as the environment itself; tools like direnv
 /// can scope it per directory.) The state directory comes from its default,
@@ -201,7 +222,7 @@ pub(super) fn manifest_package_manager_pin(
 /// Whether a package-manager pin may run without the trust gate.
 ///
 /// A package manager published to npm is verified against npm's own
-/// signature for its exact `name@version` before it executes — the same
+/// signature for its exact `name@version` before it executes, the same
 /// standard that lets pnpm switch itself to a project's pin without
 /// asking. Bun and Yarn 6 ship as release archives pinned by a publisher
 /// checksum, which authenticates the bytes but not the publisher, so they
@@ -241,7 +262,7 @@ pub(super) fn runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {
 }
 
 /// The runtime pin in `package.json`, with `devEngines.runtime` before
-/// `engines.runtime` — the same precedence as the pre-command runtime
+/// `engines.runtime`, the same precedence as the pre-command runtime
 /// check. The pin counts whatever its `onFail` policy says: the dispatcher
 /// only chooses which version to run, it does not modify the project.
 fn manifest_runtime_pin(dir: &Path, name: &str) -> Option<(String, String)> {

@@ -4,8 +4,8 @@
 //! workspace the way the npm ecosystem is resolved one module over: the
 //! client sends what only it has (its `cargo metadata` output and the
 //! sparse index it resolves against), and the server does the part that
-//! costs round trips — walking the index, wave by wave, until every
-//! candidate crate's metadata is in hand — then runs pacquet's Cargo
+//! costs round trips (walking the index, wave by wave, until every
+//! candidate crate's metadata is in hand) then runs pacquet's Cargo
 //! resolver and returns the rendered `Cargo.lock`.
 //!
 //! Index files are cached under the server's cache directory, namespaced
@@ -20,8 +20,8 @@
 //! frame alone, and the client fetches `.crate` archives from the
 //! lockfile as it does after a local resolve.
 //!
-//! The verification policies the npm surface applies — `minimumReleaseAge`,
-//! `trustPolicy`, the OSV advisory index — are npm advisory data and do not
+//! The verification policies the npm surface applies (`minimumReleaseAge`,
+//! `trustPolicy`, the OSV advisory index) are npm advisory data and do not
 //! reach this path; a Cargo resolve is held to the same rules a local one
 //! is.
 
@@ -29,28 +29,63 @@ pub(in crate::resolver) mod solve;
 
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+    path::{
+        Path,
+        PathBuf,
     },
-    time::{Duration, SystemTime},
+    sync::{
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
-use axum::{http::StatusCode, response::Response};
-use futures_util::{StreamExt, TryStreamExt, stream};
-use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
+use futures_util::{
+    StreamExt,
+    TryStreamExt,
+    stream,
+};
+use pnpm_network::{
+    AuthHeaders,
+    MetadataCacheScope,
+    RetryOpts,
+    ThrottledClient,
+};
 
 use pnpr_policy::Identity;
-use pnpr_route::{Footprint, url_has_inline_credentials};
+use pnpr_route::{
+    Footprint,
+    url_has_inline_credentials,
+};
 
 use crate::server::StripedLocks;
 use locked_entry::LockedEntry;
-use solve::{solve_cargo as run_solve_cargo, spawn_init_discovery, spawn_step_discovery};
+use solve::{
+    solve_cargo as run_solve_cargo,
+    spawn_init_discovery,
+    spawn_step_discovery,
+};
 
 use super::{
-    Resolver, json_error,
-    limits::{AdmittedResolve, CancelToken, ResolvePermit, request_timeout_response},
+    Resolver,
+    json_error,
+    limits::{
+        AdmittedResolve,
+        CancelToken,
+        ResolvePermit,
+        request_timeout_response,
+    },
     package_route::PackageRoute,
     parse_request,
     protocol::CargoResolveRequest,

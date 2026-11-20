@@ -4,11 +4,18 @@
 //! ecosystem's publish path sees it, so no ecosystem's format gains a field,
 //! and stored in the publish's own transaction.
 
-use super::{RegistryError, Value};
+use super::{
+    RegistryError,
+    Value,
+};
 use crate::server::AppState;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::database::{PublishNotes, VersionNote, validate_note};
+use pnpr_storage::database::{
+    PublishNotes,
+    VersionNote,
+    validate_note,
+};
 
 const NOTES: &str = "notes";
 

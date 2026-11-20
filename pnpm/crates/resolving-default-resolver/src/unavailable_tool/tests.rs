@@ -1,5 +1,9 @@
 use super::UnavailableToolResolver;
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
 
 #[tokio::test(flavor = "current_thread")]
 async fn rejects_tool_runtime_requests_before_local_path_resolution() {

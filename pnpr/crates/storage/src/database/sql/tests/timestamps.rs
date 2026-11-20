@@ -1,9 +1,23 @@
 //! Timestamp storage and the protocol representation at its boundaries.
 
-use super::{Db, npm, packument, read, storage, try_write, write};
+use super::{
+    Db,
+    npm,
+    packument,
+    read,
+    storage,
+    try_write,
+    write,
+};
 use crate::{
-    database::sql::adapter::{Connection, ReadSource},
-    publish::{iso_from_unix_millis, now_millis},
+    database::sql::adapter::{
+        Connection,
+        ReadSource,
+    },
+    publish::{
+        iso_from_unix_millis,
+        now_millis,
+    },
 };
 use serde_json::json;
 

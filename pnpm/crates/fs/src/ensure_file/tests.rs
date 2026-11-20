@@ -1,12 +1,27 @@
 use super::{
-    EnsureFileError, TempFile, create_exclusive_temp_file, ensure_file, ensure_file_atomically,
-    file_equals_bytes, strip_dash_suffix, temp_path_in,
+    EnsureFileError,
+    TempFile,
+    create_exclusive_temp_file,
+    ensure_file,
+    ensure_file_atomically,
+    file_equals_bytes,
+    strip_dash_suffix,
+    temp_path_in,
 };
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::tempdir;
 
 #[cfg(unix)]
-use super::{EMFILE, ENFILE, ensure_cas_file, retry_on_fd_pressure};
+use super::{
+    EMFILE,
+    ENFILE,
+    ensure_cas_file,
+    retry_on_fd_pressure,
+};
 #[cfg(unix)]
 use pnpm_ffi_fs::FileMode;
 
@@ -367,9 +382,15 @@ fn retry_on_fd_pressure_retries_emfile_and_enfile_until_success() {
 #[cfg(unix)]
 #[test]
 fn concurrent_writers_of_same_path_do_not_swap_the_inode() {
-    use std::os::unix::fs::MetadataExt;
-    use std::sync::{Arc, Barrier, Mutex};
-    use std::thread;
+    use std::{
+        os::unix::fs::MetadataExt,
+        sync::{
+            Arc,
+            Barrier,
+            Mutex,
+        },
+        thread,
+    };
 
     let tmp = tempdir().unwrap();
     let path = Arc::new(tmp.path().join("shared"));
@@ -425,7 +446,10 @@ fn retry_on_fd_pressure_propagates_non_fd_errors() {
 #[cfg(unix)]
 #[test]
 fn new_files_in_a_group_writable_directory_keep_group_write() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
 
     let tmp = tempdir().unwrap();
     fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
@@ -452,7 +476,10 @@ fn new_files_in_a_group_writable_directory_keep_group_write() {
 #[cfg(unix)]
 #[test]
 fn existing_file_keeps_its_mode_owner_and_inode() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
 
     let tmp = tempdir().unwrap();
     fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();

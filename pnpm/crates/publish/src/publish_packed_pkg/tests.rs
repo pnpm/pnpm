@@ -1,29 +1,71 @@
 use super::{
-    DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
-    PublishPackedPkgOptions, build_publish_document,
+    DistHashes,
+    PackedPkg,
+    PublishHttpError,
+    PublishNetwork,
+    PublishPackedPkgError,
+    PublishPackedPkgOptions,
+    build_publish_document,
     document::clean_version,
-    publish_packed_pkg, publish_with_otp_handling, registry_for_display,
-    request::{is_otp_challenge, parse_otp_challenge, put_publish},
+    publish_packed_pkg,
+    publish_with_otp_handling,
+    registry_for_display,
+    request::{
+        is_otp_challenge,
+        parse_otp_challenge,
+        put_publish,
+    },
     web_auth_fetch_options,
 };
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
-    provenance_gen::{ProvenanceGenError, SignProvenance, SignedProvenance},
-    publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
+    provenance_gen::{
+        ProvenanceGenError,
+        SignProvenance,
+        SignedProvenance,
+    },
+    publish_options::{
+        CreatePublishOptionsError,
+        PublishUnsupportedRegistryProtocolError,
+    },
     registry_config_keys::parse_supported_registry_url,
 };
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use base64::{
+    Engine,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_network_web_auth::{
-    Host as WebAuthHost, OtpChallenge, OtpError, WebAuthFetchOptions, WithOtpError,
+    Host as WebAuthHost,
+    OtpChallenge,
+    OtpError,
+    WebAuthFetchOptions,
+    WithOtpError,
 };
 use pnpm_network_web_auth_testing::{
-    InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake,
+    InputResponse,
+    SleepBehavior,
+    ok_202,
+    ok_token,
+    web_auth_fake,
 };
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::time::Duration;
 
 /// A `WebAuthFetchOptions` the success paths never reach: when the PUT
@@ -188,7 +230,7 @@ async fn put_publish_reports_a_non_success_status_without_erroring() {
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    // A 5xx is a completed response (`ok: false`), not a transport error — the
+    // A 5xx is a completed response (`ok: false`), not a transport error, the
     // caller inspects `ok` and raises `FailedToPublishError`, matching pnpm.
     let response = put_publish(&client, &url, None, "publish", body(), None, false)
         .await
@@ -650,7 +692,7 @@ fn publish_packed_pkg_error_wraps_option_and_otp_failures() {
 
 /// A host outside CI: no `NPM_ID_TOKEN`, not GitHub Actions, so the OIDC probe
 /// in `create_publish_options` resolves to "not applicable" without touching
-/// the network — and the token exchange (clock) and any registry fetch stay
+/// the network, and the token exchange (clock) and any registry fetch stay
 /// unreachable.
 struct OfflineSys;
 impl Clock for OfflineSys {
@@ -878,7 +920,7 @@ fn registry_for_display_strips_userinfo_and_leaves_a_plain_registry_untouched() 
 fn rejects_a_package_name_that_could_redirect_the_publish_url() {
     // A crafted tarball name that would parse as an absolute (or protocol-relative)
     // URL under `Url::join` must be rejected before it reaches the authenticated
-    // PUT URL — mirroring libnpmpublish's `npa.resolve` name validation.
+    // PUT URL, mirroring libnpmpublish's `npa.resolve` name validation.
     for bad in ["https://evil.com", r"\\evil.com\pkg", "pnpm:evil", "foo/bar", "//evil.com"] {
         let manifest = json!({ "name": bad, "version": "1.0.0" });
         let err = build_publish_document(&manifest, b"x", &registry(), None, "latest", &hashes())

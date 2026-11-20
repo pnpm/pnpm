@@ -1,6 +1,15 @@
 use super::{
-    CancelState, DirectDep, DirectDepBudget, HashMap, HashSet, NodeId, ParentRefs, PeerWalkAbort,
-    ScopedDiscoveryPaths, Walker, refresh::collect_reachable_dependents,
+    CancelState,
+    DirectDep,
+    DirectDepBudget,
+    HashMap,
+    HashSet,
+    NodeId,
+    ParentRefs,
+    PeerWalkAbort,
+    ScopedDiscoveryPaths,
+    Walker,
+    refresh::collect_reachable_dependents,
 };
 
 #[derive(Debug)]

@@ -1,14 +1,31 @@
 use super::{
-    AppState, CanonicalPackageName, ProjectFile, RegistryError, UpstreamCacheSubtree, not_found,
+    AppState,
+    CanonicalPackageName,
+    ProjectFile,
+    RegistryError,
+    UpstreamCacheSubtree,
+    not_found,
 };
 use axum::{
     http::header,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpm_python_resolver::metadata_url;
-use pnpr_pypi::{CoreMetadata, archive::MAX_METADATA_BYTES};
-use pnpr_upstream::{FetchOutcome, Upstream};
-use ssri::{Algorithm, Integrity};
+use pnpr_pypi::{
+    CoreMetadata,
+    archive::MAX_METADATA_BYTES,
+};
+use pnpr_upstream::{
+    FetchOutcome,
+    Upstream,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 
 pub(super) async fn serve(
     state: &AppState,
@@ -75,6 +92,7 @@ fn matches_metadata_digest(bytes: &[u8], metadata: &CoreMetadata) -> bool {
             algorithm
                 .parse::<Algorithm>()
                 .and_then(|algorithm| Integrity::from_hex(digest, algorithm))
-                .is_ok_and(|integrity| integrity.check(bytes).is_ok())
+                .map(|integrity| integrity.check(bytes))
+                .is_ok_and(|bytes| bytes.is_ok())
         })
 }

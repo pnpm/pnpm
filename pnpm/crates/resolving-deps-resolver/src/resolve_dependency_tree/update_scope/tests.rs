@@ -1,4 +1,7 @@
-use super::{UpdateTargets, VersionLine};
+use super::{
+    UpdateTargets,
+    VersionLine,
+};
 
 fn targets(entries: &[(&str, Option<&str>)]) -> UpdateTargets {
     entries

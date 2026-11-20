@@ -1,5 +1,15 @@
-use super::{name, offered, target, version};
-use crate::{Packages, WheelMetadata, locked_solution, validate_locked};
+use super::{
+    name,
+    offered,
+    target,
+    version,
+};
+use crate::{
+    Packages,
+    WheelMetadata,
+    locked_solution,
+    validate_locked,
+};
 use pep508_rs::Requirement;
 
 #[test]
@@ -8,7 +18,8 @@ fn locked_solutions_reject_sources_declared_only_by_inactive_requirements() {
     let requirements: Vec<Requirement> =
         ["demo".to_string(), format!("demo @ {source} ; sys_platform == 'never'")]
             .into_iter()
-            .map(|requirement| requirement.parse().unwrap())
+            .map(|requirement| requirement.parse())
+            .map(Result::unwrap)
             .collect();
     let error = locked_solution(&packages, &requirements, &target().environment).unwrap_err();
     assert!(error.to_string().contains("inactive source"), "{error}");
@@ -22,7 +33,8 @@ fn locked_solutions_accept_sources_declared_by_active_requirements() {
     let requirements: Vec<Requirement> =
         ["demo".to_string(), format!("demo @ {source} ; sys_platform == 'linux'")]
             .into_iter()
-            .map(|requirement| requirement.parse().unwrap())
+            .map(|requirement| requirement.parse())
+            .map(Result::unwrap)
             .collect();
     validate_locked(&packages, &requirements, &target().environment).unwrap();
 }

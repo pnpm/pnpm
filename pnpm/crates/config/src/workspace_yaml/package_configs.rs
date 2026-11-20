@@ -10,12 +10,22 @@
 use crate::Config;
 use indexmap::IndexMap;
 use serde::{
-    Deserialize, Deserializer, Serialize,
-    de::{MapAccess, SeqAccess, Visitor, value::SeqAccessDeserializer},
+    Deserialize,
+    Deserializer,
+    Serialize,
+    de::{
+        MapAccess,
+        SeqAccess,
+        Visitor,
+        value::SeqAccessDeserializer,
+    },
 };
 use std::{
     fmt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The settings one `packageConfigs` entry may set.
@@ -33,7 +43,7 @@ pub struct ProjectConfig {
     /// a top-level `hoist: false` does. `true` sets only the flag: the
     /// pattern a workspace-wide `hoist: false` already cleared is gone,
     /// so a project cannot opt back into hoisting a workspace turned
-    /// off — as in pnpm 11.
+    /// off, as in pnpm 11.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hoist: Option<bool>,
     /// `modulesDir`, resolved against the project's own directory the

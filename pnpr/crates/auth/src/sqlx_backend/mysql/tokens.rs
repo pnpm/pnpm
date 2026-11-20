@@ -1,9 +1,19 @@
-use super::{super::super::TokenRecord, MysqlDatabase, username_from_row};
+use super::{
+    super::super::TokenRecord,
+    MysqlDatabase,
+    username_from_row,
+};
 use crate::{
     TokenKind,
-    validation::{token_timestamp_from_sql, token_timestamp_to_sql},
+    validation::{
+        token_timestamp_from_sql,
+        token_timestamp_to_sql,
+    },
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use sqlx::Row;
 
 impl MysqlDatabase {

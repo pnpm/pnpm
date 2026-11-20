@@ -1,9 +1,16 @@
 use pipe_trait::Pipe;
 use pnpm_workspace_state::load_workspace_state;
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::TempDir;
 use walkdir::WalkDir;
@@ -79,7 +86,10 @@ pub fn symlink_file(original: &Path, link: &Path) -> io::Result<()> {
 #[cfg(unix)]
 #[must_use]
 pub fn is_path_executable(path: &Path) -> bool {
-    use std::{fs::File, os::unix::prelude::*};
+    use std::{
+        fs::File,
+        os::unix::prelude::*,
+    };
     let mode = File::open(path)
         .expect("open the file")
         .metadata()
@@ -172,15 +182,17 @@ pub fn mtime_ms(path: &Path) -> i64 {
         .unwrap_or_else(|error| panic!("stat {path:?}: {error}"));
     modified
         .duration_since(SystemTime::UNIX_EPOCH)
-        .map_or_else(
-            |error| panic!("mtime of {path:?} predates the Unix epoch: {error}"),
-            |elapsed| {
-                let millis = elapsed.as_millis();
-                millis.pipe(i64::try_from).unwrap_or_else(|_| {
-                panic!("mtime of {path:?} is {millis} ms past the epoch, beyond an i64 timestamp")
-            })
-            },
-        )
+        .map(|elapsed| {
+            let millis = elapsed.as_millis();
+            millis
+                .pipe(i64::try_from)
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "mtime of {path:?} is {millis} ms past the epoch, beyond an i64 timestamp",
+                    )
+                })
+        })
+        .unwrap_or_else(|error| panic!("mtime of {path:?} predates the Unix epoch: {error}"))
 }
 
 /// Set `path`'s mtime to `ms` milliseconds since the Unix epoch.
@@ -194,7 +206,7 @@ pub fn set_mtime_ms(path: &Path, ms: i64) {
 }
 
 /// Set `path`'s mtime to `modified`, keeping whatever sub-millisecond
-/// precision the filesystem stores — the granularity [`set_mtime_ms`]
+/// precision the filesystem stores, the granularity [`set_mtime_ms`]
 /// cannot express, and the one a same-millisecond mtime collision needs.
 pub fn set_mtime(path: &Path, modified: SystemTime) {
     fs::OpenOptions::new()
@@ -265,7 +277,8 @@ pub fn bump_mtime(path: &Path) {
 fn recorded_validation_timestamp(path: &Path) -> i64 {
     path.ancestors()
         .skip(1)
-        .find_map(|dir| load_workspace_state(dir).expect("read the workspace state"))
+        .map(load_workspace_state)
+        .find_map(|load_workspace_state| load_workspace_state.expect("read the workspace state"))
         .unwrap_or_else(|| panic!("no workspace state above {path:?} to bump the mtime past"))
         .last_validated_timestamp
 }

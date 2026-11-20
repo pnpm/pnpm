@@ -1,6 +1,16 @@
-use super::{PackageKey, ProviderConstraint, ProviderFinder, SnapshotDepRef, children};
+use super::{
+    PackageKey,
+    ProviderConstraint,
+    ProviderFinder,
+    SnapshotDepRef,
+    children,
+};
 use crate::next_format::tarjan;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{
+    HashMap,
+    HashSet,
+    VecDeque,
+};
 
 const MAX_CACHED_BINDINGS: usize = 8;
 

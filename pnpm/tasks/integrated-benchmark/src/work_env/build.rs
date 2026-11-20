@@ -1,10 +1,25 @@
-use super::{BenchId, PNPM_BUNDLE_PATHS, WorkEnv, sync_bench_repo};
-use crate::{cli_args::TargetKind, verify::executor};
+use super::{
+    BenchId,
+    PNPM_BUNDLE_PATHS,
+    WorkEnv,
+    sync_bench_repo,
+};
+use crate::{
+    cli_args::TargetKind,
+    verify::executor,
+};
+use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use std::{
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 impl WorkEnv {
@@ -28,12 +43,12 @@ impl WorkEnv {
     }
     pub(super) fn resolve_revision(repository: &Path, revision: &str) -> String {
         let output = Command::new("git")
-            .current_dir(repository)
-            .arg("rev-parse")
-            .arg(revision)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .with_current_dir(repository)
+            .with_arg("rev-parse")
+            .with_arg(revision)
+            .with_stdin(Stdio::null())
+            .with_stdout(Stdio::piped())
+            .with_stderr(Stdio::inherit())
             .output()
             .expect("git rev-parse");
         assert!(output.status.success());
@@ -65,7 +80,7 @@ impl WorkEnv {
         let pacquet = release.join("pacquet");
         if pacquet.is_file() { pacquet } else { pnpm }
     }
-    /// CLI bin name the revision's checkout declares — `pnpm` on current
+    /// CLI bin name the revision's checkout declares, `pnpm` on current
     /// revisions, `pacquet` on older ones. Read from the clone's CLI
     /// crate manifest (under either directory layout) so any revision
     /// builds with the right `--bin` flag. The probe is a line scan, not
@@ -142,7 +157,7 @@ impl WorkEnv {
 
         // Restored from the per-commit CI binary cache: nothing to build.
         if self.options.build.reuse_prebuilt_binaries && dest.is_file() {
-            eprintln!("Revision: {revision:?} (pacquet) — reusing prebuilt binary");
+            eprintln!("Revision: {revision:?} (pacquet), reusing prebuilt binary");
             return;
         }
 
@@ -172,11 +187,11 @@ impl WorkEnv {
         eprintln!("Building {revision:?}...");
         let bin = WorkEnv::cli_bin_name(&revision_repo);
         Command::new("cargo")
-            .current_dir(&revision_repo)
-            .arg("build")
-            .arg("--release")
-            .arg(format!("--bin={bin}"))
-            .pipe(executor("cargo build"));
+            .with_current_dir(&revision_repo)
+            .with_arg("build")
+            .with_arg("--release")
+            .with_arg(format!("--bin={bin}"))
+            .pipe_mut(executor("cargo build"));
         WorkEnv::remove_sibling_client_binary(&revision_repo, bin);
     }
     /// Reuse the client built by this revision's pnpr target, retaining its binary name.
@@ -188,7 +203,7 @@ impl WorkEnv {
             let from_pnpr = self.pnpr_pacquet_binary(revision);
             if from_pnpr.is_file() {
                 eprintln!(
-                    "Revision: {revision:?} (pacquet) — reusing the binary from the pnpr@{revision} build",
+                    "Revision: {revision:?} (pacquet), reusing the binary from the pnpr@{revision} build",
                 );
                 // Name the copy after the source so the copied binary keeps
                 // the bin name its revision declares.
@@ -220,7 +235,7 @@ impl WorkEnv {
             && self.pnpr_pacquet_binary(revision).is_file()
             && self.pnpr_server_binary(revision).is_file()
         {
-            eprintln!("Revision: {revision:?} (pnpr) — reusing prebuilt binaries");
+            eprintln!("Revision: {revision:?} (pnpr), reusing prebuilt binaries");
             return;
         }
 
@@ -237,12 +252,12 @@ impl WorkEnv {
         eprintln!("Building {revision:?} (client + pnpr)...");
         let bin = WorkEnv::cli_bin_name(&revision_repo);
         Command::new("cargo")
-            .current_dir(&revision_repo)
-            .arg("build")
-            .arg("--release")
-            .arg(format!("--bin={bin}"))
-            .arg("--bin=pnpr")
-            .pipe(executor("cargo build"));
+            .with_current_dir(&revision_repo)
+            .with_arg("build")
+            .with_arg("--release")
+            .with_arg(format!("--bin={bin}"))
+            .with_arg("--bin=pnpr")
+            .pipe_mut(executor("cargo build"));
         WorkEnv::remove_sibling_client_binary(&revision_repo, bin);
     }
     pub(super) fn build_pnpm(&self, revision: &str) {
@@ -252,7 +267,7 @@ impl WorkEnv {
                 .iter()
                 .any(|path| revision_repo.join(path).is_file())
         {
-            eprintln!("Revision: {revision:?} (pnpm) — reusing prebuilt bundle");
+            eprintln!("Revision: {revision:?} (pnpm), reusing prebuilt bundle");
             return;
         }
 
@@ -266,23 +281,23 @@ impl WorkEnv {
 
         eprintln!("Installing pnpm deps for {revision:?}...");
         Command::new("pnpm")
-            .current_dir(&revision_repo)
-            .arg("install")
-            .pipe(executor("pnpm install"));
+            .with_current_dir(&revision_repo)
+            .with_arg("install")
+            .pipe_mut(executor("pnpm install"));
 
         eprintln!("Compiling pnpm for {revision:?}...");
-        // `pnpm run compile-only` rather than `pnpm run compile` —
+        // `pnpm run compile-only` rather than `pnpm run compile`,
         // the root `compile` script also runs `update-manifests`,
         // which fires a second `pnpm install` and rewrites tracked
         // manifest files (a no-op for the benchmark). `compile-only` keeps
         // the workspace-manifest-reader / typecheck-only setup steps
         // *and* the final `pn -F=pnpm compile` that produces
-        // `pnpm/dist/pnpm.{mjs,cjs}` — i.e. everything the install
+        // `pnpm/dist/pnpm.{mjs,cjs}`, i.e. everything the install
         // script actually needs.
         Command::new("pnpm")
-            .current_dir(&revision_repo)
-            .arg("run")
-            .arg("compile-only")
-            .pipe(executor("pnpm run compile-only"));
+            .with_current_dir(&revision_repo)
+            .with_arg("run")
+            .with_arg("compile-only")
+            .pipe_mut(executor("pnpm run compile-only"));
     }
 }

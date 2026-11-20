@@ -1,7 +1,17 @@
 //! Vectors from Go's `golang.org/x/mod/sumdb/note` tests.
 
-use super::{Cosigner, KeyAlgorithm, KeyError, NoteSigner, VerifierKey, cosignature_message};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use super::{
+    Cosigner,
+    KeyAlgorithm,
+    KeyError,
+    NoteSigner,
+    VerifierKey,
+    cosignature_message,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD,
+};
 use ed25519_dalek::SigningKey;
 use pretty_assertions::assert_eq;
 use signed_note::Signer as _;

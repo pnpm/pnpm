@@ -1,9 +1,31 @@
 use super::{
-    AddArgs, Arc, BTreeMap, Config, Context, DedicatedProjectRuns, DeployArgs,
-    EcosystemPackageSpecifier, InstallFamily, InstallFamilyPlan, Path, PathBuf, RemoveArgs,
-    Reporter, RuntimePolicy, State, ThrottledClient, UpdateArgs, UpdateChangesetContext,
-    anchor_active_project, dedicated_project_name, ecosystem_add, ecosystem_install,
-    init_shared_state, prepare_root_config, select_install_family, select_install_family_plan,
+    AddArgs,
+    Arc,
+    BTreeMap,
+    Config,
+    Context,
+    DedicatedProjectRuns,
+    DeployArgs,
+    EcosystemPackageSpecifier,
+    InstallFamily,
+    InstallFamilyPlan,
+    Path,
+    PathBuf,
+    RemoveArgs,
+    Reporter,
+    RuntimePolicy,
+    State,
+    ThrottledClient,
+    UpdateArgs,
+    UpdateChangesetContext,
+    anchor_active_project,
+    dedicated_project_name,
+    ecosystem_add,
+    ecosystem_install,
+    init_shared_state,
+    prepare_root_config,
+    select_install_family,
+    select_install_family_plan,
 };
 use crate::cli_args::recursive::UnmatchedFilters;
 
@@ -215,7 +237,8 @@ fn unmatched_after_ecosystems(
 ) -> Option<miette::Report> {
     unmatched
         .filter(|_| ecosystem.python.selected == 0)
-        .map(|unmatched| unmatched.counting(ecosystem.python.discovered).report())
+        .map(|unmatched| unmatched.counting(ecosystem.python.discovered))
+        .map(UnmatchedFilters::report)
 }
 
 /// Anchor the dedicated-lockfile project the npm half of the add writes to,
@@ -292,8 +315,8 @@ impl UpdatePipeline {
             false,
             false,
         )?;
-        // An empty selection has nothing to update, and — like the shared
-        // path — must not generate a changeset.
+        // An empty selection has nothing to update, and (like the shared
+        // path) must not generate a changeset.
         match &plan {
             InstallFamilyPlan::PerProject(projects) if projects.is_empty() => {
                 return Ok(());

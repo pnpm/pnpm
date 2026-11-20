@@ -1,5 +1,12 @@
-use super::{BinInstall, StoreManifest, write_bins};
-use std::collections::{BTreeMap, HashMap};
+use super::{
+    BinInstall,
+    StoreManifest,
+    write_bins,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 #[test]
 fn stored_directories_bin_creates_commands_from_virtual_files() {

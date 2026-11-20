@@ -1,5 +1,8 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{
+        HashMap,
+        VecDeque,
+    },
     hash::Hash,
 };
 
@@ -30,6 +33,18 @@ impl<Key: Clone + Eq + Hash, Value> BoundedCache<Key, Value> {
     /// The value stored for `key`.
     pub fn get(&self, key: &Key) -> Option<&Value> {
         self.entries.get(key).map(|entry| &entry.value)
+    }
+
+    /// Number of entries currently retained.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Whether the cache retains no entries.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
     }
 
     /// Insert an entry no heavier than `budget`, evicting oldest entries to fit.

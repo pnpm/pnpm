@@ -1,18 +1,38 @@
 use super::PrefetchingResolver;
 use crate::PrefetchContext;
 use pnpm_config::Config;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+    TarballResolution,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::SilentReporter;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
+    LatestQuery,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
     WantedDependency,
 };
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndexWriter};
-use pnpm_tarball::{MemCache, SharedReportedProgressKeys, package_mem_cache_key};
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache,
+    StoreIndexWriter,
+};
+use pnpm_tarball::{
+    MemCache,
+    SharedReportedProgressKeys,
+    package_mem_cache_key,
+};
 use serde_json::json;
-use std::{io::Write, path::Path, sync::Arc};
+use std::{
+    io::Write,
+    path::Path,
+    sync::Arc,
+};
 use tempfile::tempdir;
 
 fn result_with_manifest(name: &str, manifest: serde_json::Value) -> ResolveResult {
@@ -499,7 +519,9 @@ fn manifestless_tarball_result_with_revision(
     result.resolution = LockfileResolution::Tarball(TarballResolution {
         integrity: Some(integrity.parse().expect("parse integrity")),
         tarball: tarball_url.to_string(),
-        revision: revision.map(|revision| revision.try_into().expect("build revision")),
+        revision: revision
+            .map(std::convert::TryInto::try_into)
+            .map(|into| into.expect("build revision")),
         git_hosted: None,
         path: None,
     });

@@ -1,4 +1,4 @@
-//! `pnpm env` — the deprecated Node.js front end to `pnpm runtime`.
+//! `pnpm env`: the deprecated Node.js front end to `pnpm runtime`.
 //!
 //! Only the paths that stop before the network are covered here; `env use`
 //! and `env list` reach the Node.js mirror, which the mocked registry does
@@ -361,13 +361,13 @@ fn env_list_use_and_remove_support_leading_v_and_prerelease_channels() {
     .unwrap();
     let _ = &npmrc_info;
 
+    let config_home = root.path().join("xdg-config");
     let run = |args: &[&str]| {
-        assert_cmd::Command::cargo_bin("pnpm")
-            .unwrap()
-            .current_dir(&workspace)
-            .env("PNPM_HOME", &pnpm_home)
-            .env("PATH", prepend_to_path(&global_bin))
-            .args(args)
+        crate::_utils::pacquet_in(&workspace)
+            .with_env("PNPM_HOME", &pnpm_home)
+            .with_env("XDG_CONFIG_HOME", &config_home)
+            .with_env("PATH", prepend_to_path(&global_bin))
+            .with_args(args)
             .output()
             .expect("run pacquet env")
     };

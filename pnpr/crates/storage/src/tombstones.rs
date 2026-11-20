@@ -1,5 +1,12 @@
-use super::{CanonicalPackageName, Result, Storage};
-use serde::{Deserialize, Serialize};
+use super::{
+    CanonicalPackageName,
+    Result,
+    Storage,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Record of an unpublished package, retaining its former maintainers and
 /// unpublished version numbers so deleted packages cannot be squatted and

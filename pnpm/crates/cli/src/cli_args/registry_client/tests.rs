@@ -1,5 +1,7 @@
 use super::{
-    build_registry_client_with_otp_guard, join_registry_endpoint, publish_network_settings,
+    build_registry_client_with_otp_guard,
+    join_registry_endpoint,
+    publish_network_settings,
     resolve_registries_with_override,
 };
 use pnpm_config::Config;

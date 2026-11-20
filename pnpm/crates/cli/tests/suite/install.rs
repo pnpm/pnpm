@@ -8,14 +8,28 @@ use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     diagnostics::assert_diagnostic_contains,
-    fixtures::{BIG_LOCKFILE, BIG_MANIFEST},
-    fs::{bump_mtime, get_all_files, get_all_folders, is_symlink_or_junction},
+    fixtures::{
+        BIG_LOCKFILE,
+        BIG_MANIFEST,
+    },
+    fs::{
+        bump_mtime,
+        get_all_files,
+        get_all_folders,
+        is_symlink_or_junction,
+    },
 };
 use std::{
     fmt::Write as _,
-    fs::{self, OpenOptions},
+    fs::{
+        self,
+        OpenOptions,
+    },
     io::Write,
     path::Path,
     process::Command,
@@ -117,7 +131,7 @@ fn store_files_without_materializations(store_dir: &Path) -> Vec<String> {
 }
 
 /// A project manifest that declares a dependency under a path-traversal
-/// name is rejected by the resolver on a fresh install — before any
+/// name is rejected by the resolver on a fresh install, before any
 /// resolution or fetch, and long before the name could become a
 /// `node_modules/<alias>` directory. This is the fresh-resolve
 /// counterpart to the frozen-lockfile name check. Surfaces
@@ -152,7 +166,7 @@ fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
     );
     // The fresh-resolve path forwards the resolver's diagnostic
     // transparently, so the rendered envelope carries the canonical
-    // `ERR_PNPM_INVALID_DEPENDENCY_NAME` code — matching the frozen path
+    // `ERR_PNPM_INVALID_DEPENDENCY_NAME` code, matching the frozen path
     // (see `lockfile_verification.rs`).
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_diagnostic_contains(&stderr, "ERR_PNPM_INVALID_DEPENDENCY_NAME");
@@ -160,7 +174,8 @@ fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
     assert!(
         !workspace
             .parent()
-            .is_some_and(|parent| parent.join("escaped-link").exists()),
+            .map(|parent| parent.join("escaped-link"))
+            .is_some_and(|joined| joined.exists()),
         "no link may be created outside the project",
     );
 
@@ -200,7 +215,11 @@ fn should_install_exec_files() {
     {
         use pnpm_testing_utils::fs::is_path_executable;
         use pretty_assertions::assert_eq;
-        use std::{fs::File, iter::repeat, os::unix::fs::MetadataExt};
+        use std::{
+            fs::File,
+            iter::repeat,
+            os::unix::fs::MetadataExt,
+        };
 
         eprintln!("All files that end with '-exec' are executable, others not");
         let (suffix_exec, suffix_other) = store_files
@@ -278,8 +297,8 @@ fn should_install_index_files() {
 }
 
 /// Regression test for the NDJSON `prefix` field. `--reporter=ndjson`
-/// must emit each bunyan envelope with the canonicalized install root
-/// — not the relative `"."` that `dir.join("package.json").parent()`
+/// must emit each bunyan envelope with the canonicalized install root,
+/// not the relative `"."` that `dir.join("package.json").parent()`
 /// produced when `--dir` defaulted to `.`. The downstream consumer
 /// (`@pnpm/cli.default-reporter` running in a separate process) compares
 /// every event's `prefix` to its own `process.cwd()` and prepends a
@@ -320,7 +339,8 @@ fn install_emits_canonical_prefix_in_ndjson_events() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
     let prefixes: Vec<String> = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .filter_map(|val| {
             val.get("prefix")
                 .and_then(|p| p.as_str())
@@ -538,7 +558,7 @@ fn install_surfaces_catalog_misconfiguration() {
 
 /// A well-formed range that the registry publishes nothing for is
 /// `ERR_PNPM_NO_MATCHING_VERSION`, not the chain's
-/// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` — the specifier is
+/// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`, the specifier is
 /// supported, the version doesn't exist (pnpm/pnpm#13319). The
 /// report also names the latest published release and how to list the
 /// rest, the way the TypeScript CLI does.
@@ -623,7 +643,7 @@ fn install_reports_an_unsupported_protocol() {
 
 /// A package the registry has never heard of is `ERR_PNPM_FETCH_404`
 /// with pnpm's "not in the npm registry, or you have no permission"
-/// hint — not a bare HTTP-client message (pnpm/pnpm#13319).
+/// hint, not a bare HTTP-client message (pnpm/pnpm#13319).
 #[test]
 fn install_reports_an_unknown_package_as_fetch_404() {
     let CommandTempCwd {
@@ -822,7 +842,7 @@ fn force_defeats_the_up_to_date_fast_path() {
     drop((root, mock_instance));
 }
 
-/// Covers <https://github.com/pnpm/pnpm/issues/3445> — repairing a store
+/// Covers <https://github.com/pnpm/pnpm/issues/3445>, repairing a store
 /// blob that was tampered with through a hard link must keep the blob's
 /// inode, so every other hard-linked copy (another project's
 /// `node_modules`) is healed by the same write. Replacing the blob by
@@ -995,7 +1015,8 @@ fn read_package_hook_applied(workspace: &Path) -> bool {
         .packages
         .expect("packages")
         .keys()
-        .any(|key| key.to_string().starts_with("is-positive@"))
+        .map(std::string::ToString::to_string)
+        .any(|text| text.starts_with("is-positive@"))
 }
 
 mod aliases;

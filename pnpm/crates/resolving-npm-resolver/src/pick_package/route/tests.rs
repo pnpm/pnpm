@@ -1,12 +1,27 @@
 use super::{
-    CacheHitCheck, DiskFirst, MirrorShortcuts, PackumentSource, RouteInputs, RouteRequest,
-    UNVALIDATED_MIRROR_MAX_AGE, fetch_failure_falls_back, unvalidated_mirror_is_fresh,
+    CacheHitCheck,
+    DiskFirst,
+    MirrorShortcuts,
+    PackumentSource,
+    RouteInputs,
+    RouteRequest,
+    UNVALIDATED_MIRROR_MAX_AGE,
+    fetch_failure_falls_back,
+    unvalidated_mirror_is_fresh,
 };
 use crate::{
-    PackagePickPolicy, mirror::MetaHeaders, pick_package_from_meta::RegistryPackageSpecType,
+    PackagePickPolicy,
+    mirror::MetaHeaders,
+    pick_package_from_meta::RegistryPackageSpecType,
 };
-use jiff::{SignedDuration, Timestamp};
-use pnpm_resolving_resolver_base::{NetworkPolicy, TrustPolicy};
+use jiff::{
+    SignedDuration,
+    Timestamp,
+};
+use pnpm_resolving_resolver_base::{
+    NetworkPolicy,
+    TrustPolicy,
+};
 use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 

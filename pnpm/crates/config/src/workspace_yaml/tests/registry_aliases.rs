@@ -1,9 +1,17 @@
 //! The `aliases` a pnpr request carries next to a registry's `prefix`.
 
 use super::{
-    LoadWorkspaceYamlError, RegistryDeclaration, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, fs,
+    LoadWorkspaceYamlError,
+    RegistryDeclaration,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    fs,
 };
-use crate::{Ecosystem, RegistryPrefixes, registries};
+use crate::{
+    Ecosystem,
+    RegistryPrefixes,
+    registries,
+};
 use indexmap::IndexMap;
 
 fn declaration(prefix: Option<&str>, aliases: &[&str]) -> RegistryDeclaration {

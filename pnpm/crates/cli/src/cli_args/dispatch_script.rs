@@ -1,7 +1,14 @@
 use super::{
     catalog::CatalogArgs,
-    dispatch::{CommandFuture, RunCtx, apply_update_config},
-    exec::{ExecArgs, ExecDirs},
+    dispatch::{
+        CommandFuture,
+        RunCtx,
+        apply_update_config,
+    },
+    exec::{
+        ExecArgs,
+        ExecDirs,
+    },
     init::InitArgs,
     pkg::PkgArgs,
     restart::RestartArgs,
@@ -11,8 +18,15 @@ use super::{
 };
 use crate::cli_args::reporter::selected_reporter;
 use miette::Context;
-use pnpm_config::{Config, InitType};
-use pnpm_package_manifest::{InitAuthor, InitOptions, PackageManifest};
+use pnpm_config::{
+    Config,
+    InitType,
+};
+use pnpm_package_manifest::{
+    InitAuthor,
+    InitOptions,
+    PackageManifest,
+};
 
 // `init` looks the version it pins up on the registry, so unlike the other
 // manifest-only commands here it dispatches a real future rather than a

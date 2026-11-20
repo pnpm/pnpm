@@ -1,4 +1,7 @@
-use clap::{Parser, ValueEnum};
+use clap::{
+    Parser,
+    ValueEnum,
+};
 use serde::Serialize;
 use std::path::PathBuf;
 

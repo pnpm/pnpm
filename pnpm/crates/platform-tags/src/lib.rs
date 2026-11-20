@@ -6,9 +6,20 @@
 
 mod tag;
 
-use derive_more::{Display, Error};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::{fmt, str::FromStr};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+    Serializer,
+};
+use std::{
+    fmt,
+    str::FromStr,
+};
 
 /// A C library a Linux platform links against.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

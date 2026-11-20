@@ -1,12 +1,21 @@
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_fs::{
-    relative_path, remove_dirent, resolve_path_with_symlinks, symlink_metadata_with_retry,
+    relative_path,
+    remove_dirent,
+    resolve_path_with_symlinks,
+    symlink_metadata_with_retry,
     to_native_separators,
 };
 use std::{
     fs::Metadata,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn resolve_configured_lockfile_dir(

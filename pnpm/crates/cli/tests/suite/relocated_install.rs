@@ -1,22 +1,42 @@
 #![cfg(unix)]
 
 use crate::{
-    _utils::{ManifestDeps, append_workspace_yaml_key, pacquet_in, write_project_manifest},
+    _utils::{
+        ManifestDeps,
+        append_workspace_yaml_key,
+        pacquet_in,
+        write_project_manifest,
+    },
     repeat_install::version_of,
 };
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::{MTIME_STEP_MS, set_mtime_ms},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fs::{
+        MTIME_STEP_MS,
+        set_mtime_ms,
+    },
 };
-use pnpm_workspace_state::{WORKSPACE_STATE_FILENAME, load_workspace_state};
+use pnpm_workspace_state::{
+    WORKSPACE_STATE_FILENAME,
+    load_workspace_state,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fs,
     os::unix::fs::MetadataExt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use walkdir::WalkDir;
@@ -102,9 +122,9 @@ fn copied_workspace_is_up_to_date_after_one_state_write() {
             .success();
         let copy = workspace.with_file_name("copy");
         Command::new("cp")
-            .arg("-Rp")
-            .arg(&workspace)
-            .arg(&copy)
+            .with_arg("-Rp")
+            .with_arg(&workspace)
+            .with_arg(&copy)
             .assert()
             .success();
         let bin = copy.join("node_modules/.bin/hello-world-js-bin");
@@ -221,9 +241,9 @@ fn transplanted_node_modules_is_not_up_to_date() {
         .success();
     let checkout = workspace.with_file_name("checkout");
     Command::new("cp")
-        .arg("-Rp")
-        .arg(&workspace)
-        .arg(&checkout)
+        .with_arg("-Rp")
+        .with_arg(&workspace)
+        .with_arg(&checkout)
         .assert()
         .success();
     fs::write(
@@ -285,9 +305,9 @@ fn a_moved_patched_workspace_is_up_to_date_until_its_patch_is_edited() {
 
     let copy = workspace.with_file_name("copy");
     Command::new("cp")
-        .arg("-R")
-        .arg(&workspace)
-        .arg(&copy)
+        .with_arg("-R")
+        .with_arg(&workspace)
+        .with_arg(&copy)
         .assert()
         .success();
     let first = pacquet_in(&copy)

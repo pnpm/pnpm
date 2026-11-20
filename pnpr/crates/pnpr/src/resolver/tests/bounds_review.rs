@@ -1,22 +1,37 @@
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
 use axum::{
-    body::{Bytes, to_bytes},
+    body::{
+        Bytes,
+        to_bytes,
+    },
     http::StatusCode,
     response::Response,
 };
-use pnpr_config::{IpNetwork, PublicRoute};
+use pnpr_config::{
+    IpNetwork,
+    PublicRoute,
+};
 use pnpr_policy::Identity;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    },
     net::TcpListener,
     sync::Notify,
     time::Instant,
@@ -26,11 +41,19 @@ use super::{
     super::{
         Resolver,
         dispatch::handle_resolve,
-        limits::{GRAPH_TOO_LARGE_CODE, RESOLVE_TIMEOUT_CODE, request_timeout_response},
-        streaming::{TerminalSender, send_before_deadline},
+        limits::{
+            GRAPH_TOO_LARGE_CODE,
+            RESOLVE_TIMEOUT_CODE,
+            request_timeout_response,
+        },
+        streaming::{
+            TerminalSender,
+            send_before_deadline,
+        },
         wire::MAX_NDJSON_FRAME_BYTES,
     },
-    cargo_done_frame, registry_config,
+    cargo_done_frame,
+    registry_config,
 };
 
 fn test_integrity() -> String {
@@ -66,7 +89,8 @@ async fn read_http_path(socket: &mut tokio::net::TcpStream) -> String {
     let head = String::from_utf8_lossy(&buf);
     head.lines()
         .next()
-        .and_then(|line| line.split_whitespace().nth(1))
+        .map(str::split_whitespace)
+        .and_then(|mut words| words.nth(1))
         .unwrap_or("/")
         .to_string()
 }
@@ -85,7 +109,8 @@ async fn collect_frames(response: Response) -> (StatusCode, Vec<Value>) {
     let frames = bytes
         .split(|&byte| byte == b'\n')
         .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_slice::<Value>(line).unwrap())
+        .map(serde_json::from_slice::<Value>)
+        .map(Result::unwrap)
         .collect();
     (status, frames)
 }

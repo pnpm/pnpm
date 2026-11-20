@@ -1,4 +1,10 @@
-use super::{AuditGraph, DepClass, HashMap, Include, PackageKey};
+use super::{
+    AuditGraph,
+    DepClass,
+    HashMap,
+    Include,
+    PackageKey,
+};
 use pnpm_workspace_task_scheduler::StronglyConnectedComponents;
 
 /// A component stays live while it has a pending target or a live dependency.

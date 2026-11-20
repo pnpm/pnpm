@@ -1,6 +1,12 @@
 use super::{
-    Features, Registry, RegistryError, RoutingConfig, namespace_collision_error, registry_err,
-    validate_namespace, validate_registry_key,
+    Features,
+    Registry,
+    RegistryError,
+    RoutingConfig,
+    namespace_collision_error,
+    registry_err,
+    validate_namespace,
+    validate_registry_key,
 };
 
 impl Features {
@@ -30,7 +36,7 @@ impl Features {
 impl RoutingConfig {
     /// Ready the registry graph for serving: fold every upstream into the graph
     /// as a pattern-less upstream registry, then apply every invariant YAML
-    /// loading enforces — URL-safe registry names, path-safe and collision-free
+    /// loading enforces, URL-safe registry names, path-safe and collision-free
     /// hosted `namespace` partitions, and the graph validation itself. This covers
     /// embedders that build [`Self::upstreams`], [`Self::hosted`], or
     /// [`Self::registries`] programmatically, so [`pnpr_registry::Registries::resolve`] is the
@@ -52,7 +58,7 @@ impl RoutingConfig {
     /// Every serving upstream is reachable in the graph under its own name.
     ///
     /// The fold never overwrites, so a graph entry already declared under this
-    /// name must actually be the upstream — otherwise two different origins
+    /// name must actually be the upstream; otherwise two different origins
     /// would share one `/~<name>/` identity, with the dormant upstream's
     /// credential still offered by the resolver. YAML loading rejects the same
     /// collision while building the graph.

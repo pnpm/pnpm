@@ -1,13 +1,25 @@
 #[cfg(unix)]
-use super::{super::ImportIndexedDirError, FORCE_KEEP};
 use super::{
-    super::{ImportIndexedDirOpts, SymlinkTargets, import_indexed_dir},
-    FORCE_SHARED, cas_map, write_source,
+    super::ImportIndexedDirError,
+    FORCE_KEEP,
+};
+use super::{
+    super::{
+        ImportIndexedDirOpts,
+        SymlinkTargets,
+        import_indexed_dir,
+    },
+    FORCE_SHARED,
+    cas_map,
+    write_source,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{fs, sync::atomic::AtomicU8};
+use std::{
+    fs,
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -421,7 +433,10 @@ fn force_import_replaces_a_dangling_directory_link() {
 #[cfg(unix)]
 #[test]
 fn internal_symlink_targets_keep_left_out_directory_links_in_fresh_staged_and_repaired_imports() {
-    use std::{os::unix::fs::symlink, path::Path};
+    use std::{
+        os::unix::fs::symlink,
+        path::Path,
+    };
 
     let tmp = tempdir().unwrap();
     let src = tmp.path().join("src");

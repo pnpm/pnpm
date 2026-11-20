@@ -1,18 +1,33 @@
 use super::{
     super::{
-        build::{self, Buildable, Contract},
+        build::{
+            self,
+            Buildable,
+            Contract,
+        },
         host,
         registry::Registry,
     },
     read_manifest,
 };
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep508_rs::PackageName;
-use pnpm_python_resolver::{Candidate, LockedVcs, parse_requirement};
+use pnpm_python_resolver::{
+    Candidate,
+    LockedVcs,
+    parse_requirement,
+};
 use pnpm_reporter::Reporter;
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl Registry<'_> {
@@ -61,7 +76,9 @@ impl Registry<'_> {
 }
 
 fn project_root(checkout: &Path, subdirectory: Option<&str>) -> Result<PathBuf> {
-    let root = subdirectory.map_or_else(|| checkout.to_path_buf(), |path| checkout.join(path));
+    let root = subdirectory
+        .map(|path| checkout.join(path))
+        .unwrap_or_else(|| checkout.to_path_buf());
     let canonical = dunce::canonicalize(&root).into_diagnostic()?;
     if !canonical.starts_with(dunce::canonicalize(checkout).into_diagnostic()?) {
         bail!("Python git subdirectory escapes its repository");

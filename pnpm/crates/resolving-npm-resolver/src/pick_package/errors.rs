@@ -2,10 +2,16 @@
 
 use std::path::PathBuf;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
-use crate::{FetchMetadataError, pick_package_from_meta::PickPackageFromMetaError};
+use crate::{
+    FetchMetadataError,
+    pick_package_from_meta::PickPackageFromMetaError,
+};
 
 /// Failure modes for [`crate::pick_package()`]. Distinguishes the pure-pick
 /// errors ([`PickPackageError::Pick`]) from the fetch / IO errors so
@@ -37,9 +43,9 @@ pub enum PickPackageError {
         #[help]
         hint: Option<String>,
     },
-    /// `ERR_PNPM_CORRUPT_METADATA_MIRROR`: a bypassing refetch — the
+    /// `ERR_PNPM_CORRUPT_METADATA_MIRROR`: a bypassing refetch (the
     /// last available remedy for a mirror fragment that fails to
-    /// decode — rewrote the mirror and the fragment is still
+    /// decode) rewrote the mirror and the fragment is still
     /// undecodable.
     #[display(
         "Metadata mirror for {spec_name}@{spec_fetch_spec} is still unreadable after a bypassing refetch ({pkg_mirror:?})"

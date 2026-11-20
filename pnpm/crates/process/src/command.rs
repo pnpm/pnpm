@@ -1,7 +1,21 @@
-use crate::{Child, ExitStatus, Output, child::AsyncChild, host};
-use serde_json::{Value, json};
+use crate::{
+    Child,
+    ExitStatus,
+    Output,
+    child::AsyncChild,
+    host,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::BTreeMap, ffi::OsStr, fs::File, io, marker::PhantomData, os::wasi::io::AsRawFd,
+    collections::BTreeMap,
+    ffi::OsStr,
+    fs::File,
+    io,
+    marker::PhantomData,
+    os::wasi::io::AsRawFd,
     path::Path,
 };
 

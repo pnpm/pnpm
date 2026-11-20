@@ -1,5 +1,10 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, append_workspace_yaml_key, fs, pacquet_cmd,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    append_workspace_yaml_key,
+    fs,
+    pacquet_cmd,
     write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;

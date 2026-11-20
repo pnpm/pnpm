@@ -1,10 +1,16 @@
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
 };
 use pretty_assertions::assert_eq;
 
-use super::{make_package, pick_stable_cached_range_version};
+use super::{
+    make_package,
+    pick_stable_cached_range_version,
+};
 
 fn lockfile_selector(weight: u32) -> VersionSelectorEntry {
     VersionSelectorEntry::Weighted(VersionSelectorWithWeight {

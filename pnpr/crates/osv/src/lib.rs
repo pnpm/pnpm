@@ -1,24 +1,41 @@
 mod cvss_v4;
 mod loader;
-use loader::{load_from_directory, load_from_zip};
+use loader::{
+    load_from_directory,
+    load_from_zip,
+};
 
 mod ranges;
 mod records;
-use records::{ingest_record_bytes, normalized_name};
+use records::{
+    ingest_record_bytes,
+    normalized_name,
+};
 mod severity;
 
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 use node_semver::Version;
 use pnpm_resolving_resolver_base::{
-    PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    PackageVersionGuardFuture,
 };
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use pnpr_config::Config;
 use pnpr_error::RegistryError;

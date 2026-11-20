@@ -1,6 +1,18 @@
 use super::{
-    Config, EnvVar, EnvVarOs, ExplicitPaths, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir,
-    HashMap, LinkProbe, LoadWorkspaceYamlError, NodeLinker, NpmrcAuth, Path, default_pnpm_home_dir,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    ExplicitPaths,
+    GLOBAL_LAYOUT_VERSION,
+    GetCurrentDir,
+    GetHomeDir,
+    HashMap,
+    LinkProbe,
+    LoadWorkspaceYamlError,
+    NodeLinker,
+    NpmrcAuth,
+    Path,
+    default_pnpm_home_dir,
     esm_node_path_loader,
 };
 
@@ -43,7 +55,7 @@ impl Config {
         }
         if hook_node_path.is_none()
             && cfg!(any(unix, target_os = "wasi"))
-            && self.prefer_symlinked_executables == Some(true)
+            && self.prefer_symlinked_executables.unwrap_or(false)
         {
             remove_node_paths(&mut self.extra_env, previous_node_path_dirs);
             let hidden_modules_dir =
@@ -120,11 +132,13 @@ impl Config {
         // resolution help moves to the environment: expose the virtual
         // store's hidden `node_modules` to every spawned child process.
         // `install_state_dir` is already anchored at the workspace root
-        // by the re-anchor above — pnpm builds this from
+        // by the re-anchor above, pnpm builds this from
         // `lockfileDir ?? dir` to the same effect
         // (pnpm/pnpm#13912). Unix only, like pnpm; and only an explicit
         // `true` fires.
-        if cfg!(any(unix, target_os = "wasi")) && self.prefer_symlinked_executables == Some(true) {
+        if cfg!(any(unix, target_os = "wasi"))
+            && self.prefer_symlinked_executables.unwrap_or(false)
+        {
             let hidden_modules_dir =
                 pnpm_fs::lexical_normalize(&self.install_state_dir.join("node_modules"));
             append_node_path(&mut self.extra_env, &hidden_modules_dir);
@@ -220,7 +234,7 @@ impl Config {
         // Build the per-URI auth-header lookup. Credentials were already
         // pinned to their source file's registry by `rescope_unscoped`,
         // so this is independent of the final `config.registry` (which
-        // yaml may have overridden) — the security boundary holds even
+        // yaml may have overridden), the security boundary holds even
         // when the workspace points the default registry elsewhere.
         std::mem::take(npmrc_auth).build_auth_headers(self)?;
 
@@ -229,6 +243,9 @@ impl Config {
         // `PNPM_CONFIG_STORE_DIR`) set it.
         if explicit.store_dir {
             self.store_dir_placement_skipped = false;
+        } else if self.cli.command_target == crate::CommandTarget::Dlx {
+            let store_anchor = self.cache_dir.clone();
+            self.resolve_default_store_dir::<Sys>(&store_anchor);
         } else {
             self.resolve_default_store_dir::<Sys>(start_dir);
         }
@@ -261,6 +278,9 @@ impl Config {
     }
 
     fn workspace_root_bin_paths(&self) -> Vec<std::path::PathBuf> {
+        if self.cli.command_target == crate::CommandTarget::Dlx {
+            return Vec::new();
+        }
         self.workspace_dir
             .as_deref()
             .map_or_else(Vec::new, |dir| {

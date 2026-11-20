@@ -1,4 +1,11 @@
-use super::{PackageManifestError, RawPackageManifest, assert_eq, json, read_to_string, tempdir};
+use super::{
+    PackageManifestError,
+    RawPackageManifest,
+    assert_eq,
+    json,
+    read_to_string,
+    tempdir,
+};
 
 #[test]
 fn raw_manifest_leaves_runtime_engines_unfolded_on_read_and_save() {

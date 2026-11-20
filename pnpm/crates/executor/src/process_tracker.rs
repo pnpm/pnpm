@@ -1,15 +1,24 @@
 use std::{
     collections::HashMap,
     io,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 #[cfg(unix)]
-use std::{path::Path, time::Duration};
+use std::{
+    path::Path,
+    time::Duration,
+};
 
 #[cfg(all(feature = "shell-emulator", not(target_family = "wasm")))]
 use tokio::sync::watch;
 
-use crate::process::{Child, Command};
+use crate::process::{
+    Child,
+    Command,
+};
 #[cfg(unix)]
 pub(crate) use grace::finish_cancellations;
 #[cfg(unix)]

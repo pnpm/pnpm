@@ -2,12 +2,21 @@
 //! the tarball by ids its manifest does not reveal: a tarball URL, or a
 //! git host's archive URL.
 
-use miette::{IntoDiagnostic, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    WrapErr,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
 use pnpm_store_dir::store_index_key;
 use rustc_hash::FxHashMap;
-use ssri::{Hash, Integrity};
+use ssri::{
+    Hash,
+    Integrity,
+};
 use std::path::Path;
 
 /// Every lockfile entry that pins an archive by integrity, indexed by each

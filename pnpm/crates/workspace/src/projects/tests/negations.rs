@@ -1,4 +1,9 @@
-use super::{TempDir, find_project_names, fs, make_project};
+use super::{
+    TempDir,
+    find_project_names,
+    fs,
+    make_project,
+};
 
 #[test]
 fn subtree_exclusions_preserve_directory_only_exclusions_and_explicit_hidden_includes() {
@@ -53,7 +58,10 @@ fn subtree_exclusions_follow_symlink_spelling_without_excluding_other_paths_to_t
 #[cfg(unix)]
 #[test]
 fn subtree_exclusions_do_not_read_excluded_directories() {
-    use super::{FindWorkspaceProjectsOpts, find_workspace_projects};
+    use super::{
+        FindWorkspaceProjectsOpts,
+        find_workspace_projects,
+    };
     use std::os::unix::fs::PermissionsExt;
     let root = TempDir::new().unwrap();
     make_project(root.path(), ".", "root");
@@ -123,7 +131,10 @@ fn recursive_globs_stop_at_ancestor_symlink_cycles() {
 #[cfg(target_os = "linux")]
 #[test]
 fn subtree_exclusions_do_not_confuse_non_unicode_roots_with_replacement_characters() {
-    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+    use std::{
+        ffi::OsString,
+        os::unix::ffi::OsStringExt,
+    };
     let root = TempDir::new().unwrap();
     let workspace = root
         .path()
@@ -131,7 +142,7 @@ fn subtree_exclusions_do_not_confuse_non_unicode_roots_with_replacement_characte
     fs::create_dir_all(&workspace).unwrap();
     make_project(&workspace, ".", "root");
     make_project(&workspace, "generated/child", "excluded");
-    make_project(root.path(), "work\u{fffd}space/generated/child", "keep");
+    make_project(root.path(), "work�space/generated/child", "keep");
     let mut names = find_project_names(&workspace, &["../**", "!generated/**"]);
     names.sort();
     assert_eq!(names, vec!["keep", "root"]);

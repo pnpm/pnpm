@@ -2,38 +2,83 @@ pub use output::StreamedScript;
 
 use crate::{
     extend_path::extend_path,
-    make_env::{EnvBuild, EnvOptions, build_env, is_path_key, path_value},
-    process::{Command, ExitStatus, Stdio},
-    process_tracker::{SpawnedChild, spawn_child},
+    make_env::{
+        EnvBuild,
+        EnvOptions,
+        build_env,
+        is_path_key,
+        path_value,
+    },
+    process::{
+        Command,
+        ExitStatus,
+        Stdio,
+    },
+    process_tracker::{
+        SpawnedChild,
+        spawn_child,
+    },
     script_exit::ScriptExit,
     script_working_dir::{
-        emulator_working_dir, is_refused_directory, script_working_dir, shorter_working_dirs,
+        emulator_working_dir,
+        is_refused_directory,
+        script_working_dir,
+        shorter_working_dirs,
     },
     shell::{
-        ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell,
+        ScriptShellError,
+        SelectedShell,
+        missing_script_shell,
+        script_body,
+        select_shell,
         use_shell_emulator,
     },
-    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
+    shell_emulator::{
+        EmulatedOutput,
+        ShellEmulatorError,
+        execute_emulated,
+    },
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_package_manifest::{
-    BINDING_GYP, PackageManifestError, manifest_opts_out_of_gyp_build,
+    BINDING_GYP,
+    PackageManifestError,
+    manifest_opts_out_of_gyp_build,
     safe_read_project_manifest_from_dir,
 };
-use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    LifecycleLog,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
     ffi::OsString,
     fs,
-    io::{self, BufRead, BufReader, Read},
+    io::{
+        self,
+        BufRead,
+        BufReader,
+        Read,
+    },
     path::Path,
     thread,
 };
-use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
+use tokio::io::{
+    AsyncBufReadExt,
+    AsyncRead,
+    BufReader as AsyncBufReader,
+};
 
 /// Error from running lifecycle scripts.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -85,7 +130,7 @@ pub enum LifecycleScriptError {
     ShellEmulator(#[error(source)] ShellEmulatorError),
 }
 
-/// Options for [`run_postinstall_hooks`] — the subset of lifecycle-hook
+/// Options for [`run_postinstall_hooks`], the subset of lifecycle-hook
 /// inputs the headless installer needs.
 pub struct RunPostinstallHooks<'a> {
     pub dep_path: &'a str,
@@ -99,7 +144,7 @@ pub struct RunPostinstallHooks<'a> {
     pub unsafe_perm: bool,
     /// Whether the dep is reachable only through optional edges
     /// (`snapshots[<key>].optional` in the v9 lockfile).
-    /// Does NOT affect failure handling — `BuildModules` consults the
+    /// Does NOT affect failure handling. `BuildModules` consults the
     /// same flag independently to decide whether to swallow a build
     /// failure (see [#397](https://github.com/pnpm/pacquet/issues/397) item 6).
     pub optional: bool,
@@ -135,8 +180,8 @@ pub const DEV_PREINSTALL_STAGE: &str = "pnpm:devPreinstall";
 /// Set by the TypeScript CLI when it delegates a *resolving* install to
 /// pacquet, to say it already ran the root project's
 /// [`DEV_PREINSTALL_STAGE`] script itself. That path passes no flags of
-/// its own — a frozen delegation is distinguishable by its
-/// `--ignore-manifest-check` — so without this marker the hook would run
+/// its own (a frozen delegation is distinguishable by its
+/// `--ignore-manifest-check`) so without this marker the hook would run
 /// once on each side of the handover.
 ///
 /// A private handshake between the two stacks for the lifetime of one
@@ -230,7 +275,7 @@ pub fn run_dev_preinstall_hook<Reporter: self::Reporter>(
 /// Read the manifest at `opts.pkg_root` and run each of `stages` whose
 /// script is present, in order.
 ///
-/// The `npx only-allow pnpm` guard script is skipped — it does nothing
+/// The `npx only-allow pnpm` guard script is skipped; it does nothing
 /// under pnpm/pacquet.
 fn run_lifecycle_stages<Reporter: self::Reporter>(
     opts: &RunPostinstallHooks<'_>,
@@ -348,7 +393,7 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         })?;
 
     // Drop any inherited PATH-like key (`Path` on Windows, `PATH`
-    // on POSIX) from the env map before spawning — otherwise on
+    // on POSIX) from the env map before spawning; otherwise on
     // Windows the spawn would see both that and the explicit `PATH`
     // we set below, and `Command::env` deduplicates them with an
     // unspecified winner.
@@ -423,8 +468,8 @@ fn prepare_lifecycle_path(
     if let Some(tmpdir) = &built.tmpdir {
         // `fs::create_dir_all` is idempotent for existing
         // directories (it returns `Ok(())`), so no `EEXIST` swallow is
-        // needed. Treat any error here — including `AlreadyExists`,
-        // which signals a *file* at that path — as a real spawn failure.
+        // needed. Treat any error here (including `AlreadyExists`,
+        // which signals a *file* at that path) as a real spawn failure.
         fs::create_dir_all(tmpdir)
             .map_err(|error| LifecycleScriptError::Spawn {
                 dep_path: opts.dep_path.to_string(),

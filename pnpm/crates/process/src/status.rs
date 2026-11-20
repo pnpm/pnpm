@@ -1,6 +1,9 @@
 use serde::Deserialize;
 use serde_json::Value;
-use std::{fmt, io};
+use std::{
+    fmt,
+    io,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExitStatus {

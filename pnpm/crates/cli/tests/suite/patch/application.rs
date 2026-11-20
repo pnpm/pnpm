@@ -1,10 +1,29 @@
 use super::{
-    AddMockedRegistry, BINDING_GYP_DELETION_HUNK, CommandTempCwd, GYPFILE_FALSE_REMOVAL_PATCH,
-    GitRepoFixture, IS_POSITIVE_BINDING_GYP_PATCH, IS_POSITIVE_HOOKS_FILE_PATCH,
-    IS_POSITIVE_POSTINSTALL_PATCH, MANIFEST_DELETION_PATCH, MARKER_PATCH, Path, Value,
-    append_workspace_yaml_key, assert_patch_apply_failure, assert_patch_install_scenario, fs,
-    is_positive_store_row, pacquet, patch_file_hash, read_installed_index, read_wanted_lockfile,
-    remove_dir_if_exists, setup_configured_patch, setup_configured_patch_with_yaml, snapshot_keys,
+    AddMockedRegistry,
+    BINDING_GYP_DELETION_HUNK,
+    CommandTempCwd,
+    GYPFILE_FALSE_REMOVAL_PATCH,
+    GitRepoFixture,
+    IS_POSITIVE_BINDING_GYP_PATCH,
+    IS_POSITIVE_HOOKS_FILE_PATCH,
+    IS_POSITIVE_POSTINSTALL_PATCH,
+    MANIFEST_DELETION_PATCH,
+    MARKER_PATCH,
+    Path,
+    Value,
+    append_workspace_yaml_key,
+    assert_patch_apply_failure,
+    assert_patch_install_scenario,
+    fs,
+    is_positive_store_row,
+    pacquet,
+    patch_file_hash,
+    read_installed_index,
+    read_wanted_lockfile,
+    remove_dir_if_exists,
+    setup_configured_patch,
+    setup_configured_patch_with_yaml,
+    snapshot_keys,
 };
 use assert_cmd::assert::OutputAssertExt;
 use pnpm_testing_utils::fs::bump_mtime;
@@ -54,7 +73,7 @@ fn install_level_patch_applies_when_scripts_are_ignored() {
 
 /// TS: `patch package when the package is not in allowBuilds list`
 /// (`patch.ts:386`). An empty `allowBuilds` forbids every build, but a
-/// patch is not a build — it still applies.
+/// patch is not a build; it still applies.
 #[test]
 fn install_level_patch_applies_when_the_package_is_not_in_allow_builds() {
     assert_patch_install_scenario(
@@ -398,7 +417,7 @@ fn install_level_patch_applies_to_a_package_reached_multiple_times() {
 
 /// The hoisted linker nests a second copy of a package under each
 /// consumer when a version conflict keeps it out of the root, and every
-/// copy has to carry the patch — the TypeScript CLI patches all of them.
+/// copy has to carry the patch, the TypeScript CLI patches all of them.
 /// `send` and `finalhandler` both need `debug@2.6.9` while the root pins
 /// `debug@4.3.4`, so `2.6.9` nests twice.
 ///

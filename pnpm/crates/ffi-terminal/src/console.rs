@@ -7,10 +7,22 @@
 
 use crate::Stream;
 use windows_sys::Win32::{
-    Foundation::{HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation},
+    Foundation::{
+        HANDLE,
+        HANDLE_FLAG_INHERIT,
+        INVALID_HANDLE_VALUE,
+        SetHandleInformation,
+    },
     System::Console::{
-        ENABLE_PROCESSED_OUTPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle,
-        STD_ERROR_HANDLE, STD_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, SetConsoleMode,
+        ENABLE_PROCESSED_OUTPUT,
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+        GetConsoleMode,
+        GetStdHandle,
+        STD_ERROR_HANDLE,
+        STD_HANDLE,
+        STD_INPUT_HANDLE,
+        STD_OUTPUT_HANDLE,
+        SetConsoleMode,
     },
 };
 

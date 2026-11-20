@@ -1,6 +1,12 @@
-use std::{collections::HashMap, io::Write};
+use std::{
+    collections::HashMap,
+    io::Write,
+};
 
-use crate::{Package, PackageVersion};
+use crate::{
+    Package,
+    PackageVersion,
+};
 
 fn parse_package(json: &str) -> Package {
     serde_json::from_str(json).expect("parse package")
@@ -376,7 +382,10 @@ fn failed_hydration_takes_precedence_over_cached_deprecation_probe() {
 
 #[test]
 fn file_backed_deprecation_probe_does_not_hydrate() {
-    use crate::{MirrorFile, PackageVersions};
+    use crate::{
+        MirrorFile,
+        PackageVersions,
+    };
     use std::io::Write;
 
     let json = r#"{"name":"foo","version":"1.0.0","deprecated":true,"dist":{"tarball":"https://r/foo.tgz"}}"#;
@@ -407,7 +416,10 @@ fn file_backed_deprecation_probe_does_not_hydrate() {
 
 #[test]
 fn unreadable_mirror_probe_does_not_cache_a_false_result() {
-    use crate::{MirrorFile, PackageVersions};
+    use crate::{
+        MirrorFile,
+        PackageVersions,
+    };
 
     let file = tempfile::NamedTempFile::new().unwrap();
     let write_only = std::fs::OpenOptions::new()

@@ -1,8 +1,18 @@
-use super::{CacheGcEffect, CacheReport, HashSet, Path, PathBuf, Result};
+use super::{
+    CacheGcEffect,
+    CacheReport,
+    HashSet,
+    Path,
+    PathBuf,
+    Result,
+};
 use pnpm_fs::OpenDir;
 use std::{
     ffi::OsStr,
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
 };
 
 pub(super) struct OrphanPruneOutcome {
@@ -37,7 +47,8 @@ pub(super) async fn prune_orphaned_namespaces(
         prune_orphaned_namespaces_sync(&root, &active, private_scopes, effect)
     })
     .await
-    .map_err(|err| io::Error::other(err.to_string()))?
+    .map_err(|err| err.to_string())
+    .map_err(io::Error::other)?
 }
 
 pub(super) async fn prune_private_resolver_scopes_only(
@@ -63,7 +74,8 @@ pub(super) async fn prune_private_resolver_scopes_only(
         Ok(outcome.private_scopes_clean)
     })
     .await
-    .map_err(|err| io::Error::other(err.to_string()))?
+    .map_err(|err| err.to_string())
+    .map_err(io::Error::other)?
 }
 
 fn prune_orphaned_namespaces_sync(

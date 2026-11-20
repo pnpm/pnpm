@@ -6,7 +6,7 @@ use serde_json::Value;
 /// (`application/vnd.npm.install-v1+json`) form.
 pub(super) const ABBREVIATED_TOP_FIELDS: &[&str] = &["name", "dist-tags"];
 
-/// Per-version fields preserved in the abbreviated form — a subset of
+/// Per-version fields preserved in the abbreviated form, a subset of
 /// the npm spec's abbreviated version object.
 pub(super) const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
     "name",
@@ -69,7 +69,8 @@ pub(super) fn abbreviate_versions(versions: &serde_json::Map<String, Value>) -> 
 pub fn abbreviate_version(manifest: &Value) -> Value {
     manifest
         .as_object()
-        .map_or(Value::Null, |version_obj| Value::Object(abbreviate_version_object(version_obj)))
+        .map(abbreviate_version_object)
+        .map_or(Value::Null, Value::Object)
 }
 
 fn abbreviate_version_object(

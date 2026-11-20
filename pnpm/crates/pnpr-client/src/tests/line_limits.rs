@@ -2,16 +2,25 @@ use std::time::Duration;
 
 use serde_json::json;
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    },
     net::TcpListener,
 };
 
 use super::{
     super::{
         VerifyLockfileOptions,
-        resolve::{NdjsonLimits, read_ndjson_frames},
+        resolve::{
+            NdjsonLimits,
+            read_ndjson_frames,
+        },
     },
-    PnprClient, PnprClientError, matching_applied_policies, matching_transform_lockfile,
+    PnprClient,
+    PnprClientError,
+    matching_applied_policies,
+    matching_transform_lockfile,
     resolve_projects_options,
 };
 

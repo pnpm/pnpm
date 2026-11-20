@@ -1,6 +1,14 @@
-use super::{RunContext, ScriptExit, ScriptOutput};
+use super::{
+    RunContext,
+    ScriptExit,
+    ScriptOutput,
+};
 use crate::cli_args::reporter::default_reporter_selected;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
 
 /// Report the `[ELIFECYCLE]` line for a `stage` that failed with `status`.
 ///

@@ -1,8 +1,20 @@
 use crate::{
-    features::{DependencyOptions, dependencies_from_parts},
-    model::{CargoMetadata, FeatureSelection, MetadataPackage, RegistryDependency},
+    features::{
+        DependencyOptions,
+        dependencies_from_parts,
+    },
+    model::{
+        CargoMetadata,
+        FeatureSelection,
+        MetadataPackage,
+        RegistryDependency,
+    },
 };
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use std::collections::BTreeMap;
 
 pub(crate) fn parse_metadata(metadata: &str) -> Result<CargoMetadata> {
@@ -43,8 +55,8 @@ const DEPENDENCY_KEYS: [&str; 8] =
 /// The document a workspace produces describes the machine it was produced
 /// on: `manifest_path`, `workspace_root`, every target's `src_path`, and the
 /// package ids that embed those paths. None of it takes part in resolution,
-/// so a document that leaves the machine — to a pnpr server resolving on the
-/// client's behalf — carries the dependency graph alone.
+/// so a document that leaves the machine (to a pnpr server resolving on the
+/// client's behalf) carries the dependency graph alone.
 pub fn resolve_inputs(metadata: &str) -> Result<String> {
     let document: serde_json::Value =
         serde_json::from_str(metadata).into_diagnostic().wrap_err("parse cargo metadata")?;

@@ -1,4 +1,10 @@
-use super::{MetadataRecord, RegistryError, Result, Storage, validated_record_name};
+use super::{
+    MetadataRecord,
+    RegistryError,
+    Result,
+    Storage,
+    validated_record_name,
+};
 
 /// Reserved directory (fs) / key segment (S3) holding staged publishes.
 pub(crate) const STAGED_DIR: &str = ".staged";
@@ -81,7 +87,7 @@ impl Storage {
         self.root.remove_record(STAGED_DIR, &staged_body_object(stage_id)?).await
     }
 
-    /// Remove a staged record — the metadata first, so a concurrent list
+    /// Remove a staged record, the metadata first, so a concurrent list
     /// never surfaces a record whose body is already gone. `Ok(false)` when
     /// no metadata existed. A body-removal failure is logged rather than
     /// propagated: once the metadata is gone the record is deleted for every
@@ -111,7 +117,7 @@ impl Storage {
     }
 
     /// Record a run, reporting `false` when that workspace already has one
-    /// under this id — a run record is written once and never rewritten.
+    /// under this id, a run record is written once and never rewritten.
     pub async fn create_pipeline_run(
         &self,
         key: &PipelineRunKey<'_>,

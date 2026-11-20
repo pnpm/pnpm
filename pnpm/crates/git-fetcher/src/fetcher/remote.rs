@@ -1,6 +1,11 @@
 use std::path::Path;
 
-use super::{CheckoutOptions, GitFetcherError, exec_git_with, exec_git_with_config};
+use super::{
+    CheckoutOptions,
+    GitFetcherError,
+    exec_git_with,
+    exec_git_with_config,
+};
 
 /// Bring `opts.commit` into `opts.dest` from the remote: a shallow fetch for
 /// the hosts [`should_use_shallow`] admits, a full clone otherwise. Only these

@@ -1,5 +1,7 @@
 use crate::{
-    LockfilePeerCheck, ProjectManifests, check_peer_dependencies_from_lockfile,
+    LockfilePeerCheck,
+    ProjectManifests,
+    check_peer_dependencies_from_lockfile,
     peer_issues_for_lockfile,
 };
 use pnpm_config::PeerDependencyRules;

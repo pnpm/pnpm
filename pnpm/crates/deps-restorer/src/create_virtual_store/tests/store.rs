@@ -1,20 +1,44 @@
 use super::{
-    super::CreateVirtualStore, DUMMY_SHA512, SeededStoreInstall, directory_metadata,
-    git_hosted_tarball_metadata, git_metadata, gvs_layout, key, metadata_with_integrity, name,
-    slot_link, snapshot_with_dep, tarball_metadata_without_integrity,
+    super::CreateVirtualStore,
+    DUMMY_SHA512,
+    SeededStoreInstall,
+    directory_metadata,
+    git_hosted_tarball_metadata,
+    git_metadata,
+    gvs_layout,
+    key,
+    metadata_with_integrity,
+    name,
+    slot_link,
+    snapshot_with_dep,
+    tarball_metadata_without_integrity,
 };
 use crate::{
-    CheckVerdict, ConcurrentCheck, create_virtual_store::cache_keys::snapshot_cache_key,
+    CheckVerdict,
+    ConcurrentCheck,
+    create_virtual_store::cache_keys::snapshot_cache_key,
     install_package_by_snapshot::host_platform_selector,
 };
-use pnpm_lockfile::{LockfileEntries, PackageKey, PkgName, SnapshotEntry};
+use pnpm_lockfile::{
+    LockfileEntries,
+    PackageKey,
+    PkgName,
+    SnapshotEntry,
+};
 use pnpm_reporter::SilentReporter;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicU8,
+            Ordering,
+        },
     },
 };
 
@@ -31,8 +55,16 @@ struct ColdMemCacheBatch {
 
 impl ColdMemCacheBatch {
     fn new(package_count: usize) -> Self {
-        use pnpm_config::{Config, PackageImportMethod};
-        use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
+        use pnpm_config::{
+            Config,
+            PackageImportMethod,
+        };
+        use pnpm_tarball::{
+            CacheValue,
+            CachedTarball,
+            MemCache,
+            package_mem_cache_key,
+        };
 
         let root = tempfile::tempdir().expect("create temp dir");
         let workspace_root = root.path().join("workspace");
@@ -118,7 +150,11 @@ impl ColdMemCacheBatch {
         probe: &crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe,
         check: Option<ConcurrentCheck<'_>>,
     ) -> Result<super::super::CreateVirtualStoreOutput, super::super::CreateVirtualStoreError> {
-        use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+        use crate::{
+            AllowBuildPolicy,
+            SkippedSnapshots,
+            VirtualStoreLayout,
+        };
         use pnpm_config::NodeLinker;
         use pnpm_store_dir::StoreIndexWriter;
         use pnpm_tarball::SharedReportedProgressKeys;
@@ -390,16 +426,28 @@ async fn skipped_warm_slot_with_a_side_effects_row_is_still_checked() {
 }
 /// Under the global virtual store, peer variants hashing to one slot
 /// directory must produce one link task through the whole
-/// [`CreateVirtualStore::run`] pass — the probe's lifetime counter
+/// [`CreateVirtualStore::run`] pass, the probe's lifetime counter
 /// distinguishes a real dedup from duplicates that happened to
 /// serialize.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn gvs_link_pass_materializes_shared_slot_once() {
-    use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
-    use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+    use crate::{
+        AllowBuildPolicy,
+        SkippedSnapshots,
+        VirtualStoreLayout,
+    };
+    use pnpm_config::{
+        Config,
+        NodeLinker,
+        PackageImportMethod,
+    };
     use pnpm_store_dir::StoreIndexWriter;
     use pnpm_tarball::{
-        CacheValue, CachedTarball, MemCache, SharedReportedProgressKeys, package_mem_cache_key,
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        SharedReportedProgressKeys,
+        package_mem_cache_key,
     };
 
     let root = tempfile::tempdir().expect("create temp dir");
@@ -445,7 +493,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
         );
     }
     // Two variants of `shared`, one bare and one peer-suffixed, with
-    // identical dependency sets — the collision the fix is about.
+    // identical dependency sets, the collision the fix is about.
     snapshots.insert(key("shared", "1.0.0"), SnapshotEntry::default());
     snapshots.insert(key("shared", "1.0.0(peer@1.0.0)"), SnapshotEntry::default());
     snapshots.insert(key("solo", "1.0.0"), SnapshotEntry::default());
@@ -552,7 +600,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
 /// `Git` resolutions go through the warm batch under a
 /// `gitHostedStoreIndexKey`-shaped key (`pkg_id\tbuilt|not-built`),
 /// not under the integrity-based key. This is the read-side mirror
-/// of what both fetchers write at install time — a drift between
+/// of what both fetchers write at install time, a drift between
 /// the two would silently degrade every git-hosted re-install to
 /// the cold path.
 #[test]
@@ -657,7 +705,7 @@ fn group_slots_by_dir_keeps_diverging_peer_variants_apart() {
     let mut snapshots = HashMap::new();
     snapshots.insert(plain.clone(), SnapshotEntry::default());
     // The peered variant resolves an extra child, so its recursive
-    // hash — and therefore its slot — must diverge from the plain one.
+    // hash (and therefore its slot) must diverge from the plain one.
     snapshots.insert(peered.clone(), snapshot_with_dep("leaf", "1.0.0"));
     snapshots.insert(child.clone(), SnapshotEntry::default());
     let mut packages = HashMap::new();

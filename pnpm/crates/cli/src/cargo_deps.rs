@@ -1,55 +1,138 @@
 pub(crate) mod add;
 pub(crate) mod toolchain;
 
-pub(crate) use lockfile::{canonical_cargo_path, workspace_metadata, workspace_root};
-pub(crate) use sparse_registry::{
-    cargo_auth_headers, fetch_crate_index_file, latest_version, resolve_target_version,
+pub(crate) use lockfile::{
+    canonical_cargo_path,
+    workspace_metadata,
+    workspace_root,
 };
-pub(crate) use toolchain::{installs_toolchains, provision as provision_toolchain};
+pub(crate) use sparse_registry::{
+    cargo_auth_headers,
+    fetch_crate_index_file,
+    latest_version,
+    resolve_target_version,
+};
+pub(crate) use toolchain::{
+    installs_toolchains,
+    provision as provision_toolchain,
+};
 
 use crate::{
-    cargo_deps::git::{GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitPackage, GitSource},
-    ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext},
+    cargo_deps::git::{
+        GIT_SOURCE_DIRECTORY,
+        GIT_SOURCE_NAME,
+        GitPackage,
+        GitSource,
+    },
+    ecosystem_install::{
+        EcosystemManifest,
+        EcosystemWorkspaceInventory,
+        InstallContext,
+    },
     process::Command,
 };
 use cargo_util_schemas::index::RegistryConfig;
-use futures_util::{StreamExt, TryStreamExt, stream};
+use futures_util::{
+    StreamExt,
+    TryStreamExt,
+    stream,
+};
 
 use lockfile::{
-    LockedCrate, discover_workspace_roots, parse_lockfile, read_or_resolve_lockfile,
-    validate_package_field, verify_existing_lockfile,
+    LockedCrate,
+    discover_workspace_roots,
+    parse_lockfile,
+    read_or_resolve_lockfile,
+    validate_package_field,
+    verify_existing_lockfile,
 };
-use materialize::{DownloadOptions, add_cargo_checksum, download_crates, slot_is_complete};
-use miette::{IntoDiagnostic, Result, WrapErr};
+use materialize::{
+    DownloadOptions,
+    add_cargo_checksum,
+    download_crates,
+    slot_is_complete,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_cargo_resolver::is_crates_io;
 use pnpm_config::Config;
-use pnpm_deps_restorer::{CARGO_CHECKSUM_FILE, ImportIndexedDirOpts, import_indexed_dir};
-use pnpm_install_coordinator::{InstallTask, PreparedInstall};
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_pnpr_client::{CargoResolveOptions, PnprClient};
+use pnpm_deps_restorer::{
+    CARGO_CHECKSUM_FILE,
+    ImportIndexedDirOpts,
+    import_indexed_dir,
+};
+use pnpm_install_coordinator::{
+    InstallTask,
+    PreparedInstall,
+};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_pnpr_client::{
+    CargoResolveOptions,
+    PnprClient,
+};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
-    CafsFileInfo, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    CafsFileInfo,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
     StoreIndexWriter,
 };
-use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore};
-use serde::{Deserialize, Serialize};
+use pnpm_tarball::{
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use sparse_registry::{fetch_sparse_index, registry_download_config};
-use ssri::{Algorithm, Integrity};
+use sparse_registry::{
+    fetch_sparse_index,
+    registry_download_config,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     str::FromStr,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 use workspace_directory::{
-    ManagedDirectory, ensure_workspace_directory, force_workspace_symlink, read_workspace_file,
+    ManagedDirectory,
+    ensure_workspace_directory,
+    force_workspace_symlink,
+    read_workspace_file,
     write_workspace_file,
 };
 
-use sources::{link_workspace, write_cargo_config, write_sources_config};
+use sources::{
+    link_workspace,
+    write_cargo_config,
+    write_sources_config,
+};
 
 mod build_std;
 mod checksum_cache;

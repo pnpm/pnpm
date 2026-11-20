@@ -402,6 +402,7 @@ async function getWorkspaceDir (
 
 /** `--location`, which only config commands accept, takes precedence over `--global`. */
 function isGlobalScope (parsedOpts: Record<string, unknown>): boolean {
-  if (parsedOpts['location'] != null) return parsedOpts['location'] === 'global'
-  return Boolean(parsedOpts['global'])
+  const location = parsedOpts['location'] ?? parsedOpts['config.location']
+  if (location != null) return location === 'global'
+  return Boolean(parsedOpts['global'] ?? parsedOpts['config.global'])
 }

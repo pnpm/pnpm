@@ -1,8 +1,15 @@
 //! The scripts a `/pattern/` selector matches in one package run
 //! concurrently when the run's concurrency allows it, as they do in
-//! pnpm 11 — <https://github.com/pnpm/pnpm/issues/14933>.
+//! pnpm 11, <https://github.com/pnpm/pnpm/issues/14933>.
 
-use super::{CommandExtra, CommandTempCwd, Duration, fs, json, write_workspace};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    Duration,
+    fs,
+    json,
+    write_workspace,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 /// A pair of scripts that record whether they ever ran simultaneously:
@@ -46,8 +53,8 @@ fn overlapping_scripts() -> serde_json::Value {
     })
 }
 
-/// `--parallel` implies `--recursive`, so this bare invocation — the one
-/// the issue reported — is a recursive run.
+/// `--parallel` implies `--recursive`, so this bare invocation (the one
+/// the issue reported) is a recursive run.
 #[test]
 fn parallel_run_runs_regexp_scripts_of_one_package_concurrently() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -280,10 +287,12 @@ fn recursive_run_keeps_the_matched_scripts_within_workspace_concurrency() {
 
     let peaks: Vec<usize> = fs::read_dir(workspace.join(PEAK_DIR))
         .expect("read the peak-probe directory")
-        .map(|entry| entry.expect("read a peak-probe entry").path())
+        .map(|entry| entry.expect("read a peak-probe entry"))
+        .map(|value| value.path())
         .filter(|path| {
             path.file_name()
-                .is_some_and(|name| name.to_string_lossy().starts_with("peak-"))
+                .map(std::ffi::OsStr::to_string_lossy)
+                .is_some_and(|text| text.starts_with("peak-"))
         })
         .map(|path| {
             fs::read_to_string(&path)

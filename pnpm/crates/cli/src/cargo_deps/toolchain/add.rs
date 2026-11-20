@@ -2,18 +2,47 @@
 //! toolchain in its rustup toolchain file, and install it where the Cargo
 //! integration is enabled.
 
-use super::{installs_toolchains, leave_to_rustup, link, managed_request};
-use crate::{cargo_deps::checkout, ecosystem_install::InstallContext};
-use miette::{IntoDiagnostic, Result, WrapErr};
-use pnpm_install_coordinator::{InstallTask, PreparedInstall};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use super::{
+    installs_toolchains,
+    leave_to_rustup,
+    link,
+    managed_request,
+};
+use crate::{
+    cargo_deps::checkout,
+    ecosystem_install::InstallContext,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use pnpm_install_coordinator::{
+    InstallTask,
+    PreparedInstall,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_rust_toolchain::{
-    Channel, InstalledToolchain, RustToolchainError, TOOLCHAIN_LINK, find_toolchain_file,
-    install_toolchain, with_channel,
+    Channel,
+    InstalledToolchain,
+    RustToolchainError,
+    TOOLCHAIN_LINK,
+    find_toolchain_file,
+    install_toolchain,
+    with_channel,
 };
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The toolchain file a project at `root` is governed by: the nearest one

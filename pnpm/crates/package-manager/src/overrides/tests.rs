@@ -3,11 +3,21 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::parse_overrides_iter;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_projects_graph::{
-    BaseProject, DependencyGroups, DependencyRewriter, GraphProject,
+    BaseProject,
+    DependencyGroups,
+    DependencyRewriter,
+    GraphProject,
 };
-use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use serde_json::{
+    Value,
+    json,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
+mod catalog_references;
 mod specificity;
 
 fn parsed(map: &[(&str, &str)]) -> Vec<pnpm_config_parse_overrides::VersionOverride> {

@@ -3,35 +3,90 @@
 //! [`pnpm_network_web_auth`], and turn the registry's response into a
 //! [`PublishSummary`].
 
-pub(crate) use document::{DistHashes, build_publish_document, clean_version};
+pub(crate) use document::{
+    DistHashes,
+    build_publish_document,
+    clean_version,
+};
 pub use request::PublishHttpError;
-pub(crate) use request::{PublishResponse, publish_with_otp_handling, web_auth_fetch_options};
+pub(crate) use request::{
+    PublishResponse,
+    publish_with_otp_handling,
+    web_auth_fetch_options,
+};
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{AuthHeaders, ThrottledClient, escaped_package_name};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    escaped_package_name,
+};
 use pnpm_network_web_auth::{
-    Clock as WebAuthClock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError,
-    OtpErrorBody, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
-    WebAuthRetryOptions, WithOtpError, with_otp_handling,
+    Clock as WebAuthClock,
+    EnterKeyListener,
+    Host as WebAuthHost,
+    OpenUrl,
+    OtpChallenge,
+    OtpError,
+    OtpErrorBody,
+    PromptOtp,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    WebAuthFetch,
+    WebAuthFetchOptions,
+    WebAuthRetryOptions,
+    WithOtpError,
+    with_otp_handling,
 };
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_reporter::Reporter;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 use crate::{
     PublishFailure,
-    capabilities::{Clock, EnvVar, OidcFetch},
-    failed_to_publish_error::FailedToPublishError,
-    global_log::{global_info, global_warn},
-    oidc::OidcHttpOptions,
-    provenance_gen::{ProvenanceGenError, SignProvenance, generate_provenance},
-    publish_options::{
-        Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
     },
-    publish_summary::{PackedPkgInfo, PublishSummary, create_publish_summary},
-    publish_wait::{PublishWaitError, wait_for_published_packages},
+    failed_to_publish_error::FailedToPublishError,
+    global_log::{
+        global_info,
+        global_warn,
+    },
+    oidc::OidcHttpOptions,
+    provenance_gen::{
+        ProvenanceGenError,
+        SignProvenance,
+        generate_provenance,
+    },
+    publish_options::{
+        Access,
+        CreatePublishOptionsError,
+        CreatePublishOptionsInput,
+        create_publish_options,
+    },
+    publish_summary::{
+        PackedPkgInfo,
+        PublishSummary,
+        create_publish_summary,
+    },
+    publish_wait::{
+        PublishWaitError,
+        wait_for_published_packages,
+    },
     registry_config_keys::NormalizedRegistryUrl,
     release_notes::ReleaseNotesTarget,
 };
@@ -217,7 +272,7 @@ where
     )?;
     opts.release_notes.attach_version_notes(&mut document, pkg.notes, &resolved.registry);
 
-    if resolved.provenance == Some(true) {
+    if resolved.provenance.unwrap_or(false) {
         attach_provenance::<Sys, Reporter>(&mut document, name, version, pkg, &opts.registry.http)
             .await?;
     }

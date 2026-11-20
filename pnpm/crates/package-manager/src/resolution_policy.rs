@@ -6,8 +6,14 @@ use jiff::Timestamp;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_config::Tool;
 use pnpm_config::{
-    Config, NeedsFullMetadataFor, ResolutionMode,
-    version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
+    Config,
+    NeedsFullMetadataFor,
+    ResolutionMode,
+    version_policy::{
+        PackageVersionPolicy,
+        VersionPolicyError,
+        create_package_version_policy,
+    },
 };
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
@@ -20,9 +26,16 @@ use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    OfflineStoreView, PackumentFetchLocker, PickPackageContext, merge_named_registries,
-    shared_packument_fetch_locker, shared_picked_manifest_cache,
+    InMemoryPackageMetaCache,
+    MergeNamedRegistriesError,
+    NamedRegistryResolver,
+    NpmResolver,
+    OfflineStoreView,
+    PackumentFetchLocker,
+    PickPackageContext,
+    merge_named_registries,
+    shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
 use std::sync::Arc;
@@ -110,7 +123,7 @@ impl PickPolicy {
         let time_based = config.resolution_mode == ResolutionMode::TimeBased;
         let pick_lowest_direct = config.resolution_mode.picks_lowest_direct();
         let full_metadata = config.requires_full_metadata_for_resolution();
-        // On overflow we leave the policy inactive for this run — better
+        // On overflow we leave the policy inactive for this run, better
         // than silently producing a cutoff in the wrong direction.
         let published_by = config
             .resolved_minimum_release_age()

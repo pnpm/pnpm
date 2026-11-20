@@ -1,10 +1,26 @@
 use super::{
-    AsyncBufReadExt, AsyncBufReader, AsyncRead, BufRead, BufReader, ExitStatus, LifecycleLog,
-    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Read, io, thread,
+    AsyncBufReadExt,
+    AsyncBufReader,
+    AsyncRead,
+    BufRead,
+    BufReader,
+    ExitStatus,
+    LifecycleLog,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+    Read,
+    io,
+    thread,
 };
 use crate::process_tracker::SpawnedChild;
 use std::{
-    sync::{Arc, Mutex, mpsc},
+    sync::{
+        Arc,
+        Mutex,
+        mpsc,
+    },
     time::Duration,
 };
 
@@ -61,9 +77,9 @@ impl StreamedScript<'_> {
     }
 
     /// Drain `child`'s piped stdout and stderr into one event per line,
-    /// then wait for it. The pumps get `OUTPUT_DRAIN_AFTER_EXIT` after
+    /// then wait for it. The pumps get a short grace period after
     /// the child exits to reach the end of its output, so every line the
-    /// child wrote is emitted before the caller's [`Self::finished`] — the
+    /// child wrote is emitted before the caller's [`Self::finished`], the
     /// ordering pnpm's reporter renders against. Whatever reaches the pipes
     /// later is dropped.
     ///
@@ -115,7 +131,7 @@ impl StreamedScript<'_> {
     ///
     /// Read as bytes and decoded lossily rather than through
     /// [`BufRead::lines`], whose `Err` on non-UTF-8 would stop the drain
-    /// while the child is still writing — the child then blocks on a
+    /// while the child is still writing, the child then blocks on a
     /// full pipe and the caller's `wait` never returns. pnpm decodes the
     /// same output lossily.
     pub(super) fn pump_stream(
@@ -209,7 +225,7 @@ impl PumpLink {
 /// Read one stream to EOF, emitting a log line per newline or per full
 /// chunk, until `link`'s gate closes.
 ///
-/// An `EBADF` or `EPIPE` means the child closed the stream. Not fatal — the
+/// An `EBADF` or `EPIPE` means the child closed the stream. Not fatal, the
 /// caller's `wait` surfaces a non-zero exit code if the child failed over it.
 fn pump_lines(
     target: &StreamedScript<'_>,
@@ -247,7 +263,8 @@ fn streamed_chunk_len(buffered: &[u8], accumulated: usize) -> usize {
     let through_newline = buffered
         .iter()
         .position(|byte| *byte == b'\n')
-        .map_or(buffered.len(), |i| i + 1);
+        .map(|i| i + 1)
+        .unwrap_or(buffered.len());
     through_newline.min(STREAMED_OUTPUT_CHUNK_BYTES - accumulated)
 }
 

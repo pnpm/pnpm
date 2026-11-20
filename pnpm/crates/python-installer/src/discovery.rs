@@ -2,18 +2,41 @@
 //! the workspace selection and the install itself see the same manifests.
 
 use super::{
-    environment::{EnvironmentLink, EnvironmentStore},
-    manifest::{Manifest, RequirementScope},
+    environment::{
+        EnvironmentLink,
+        EnvironmentStore,
+    },
+    manifest::{
+        Manifest,
+        RequirementScope,
+    },
     requirements,
-    workspace::{Workspace, members::DeclaredWorkspaces},
+    workspace::{
+        Workspace,
+        members::DeclaredWorkspaces,
+    },
 };
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pep508_rs::PackageName;
-use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    ProjectGraph,
+    ProjectGraphNode,
+};
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -253,7 +276,7 @@ async fn read_pyprojects(
     for path in paths {
         let root = path.parent().expect("manifest has a parent");
         let declared_membership = declared.contains(root);
-        let workspace_declaration_only = declared_membership == Some(false)
+        let workspace_declaration_only = !declared_membership.unwrap_or(true)
             || declared_membership.is_none() && is_ignored_by_default(root, workspace_root);
         let Some(manifest) = read_pyproject(path, workspace_declaration_only).await? else {
             continue;

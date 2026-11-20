@@ -1,6 +1,9 @@
 //! Whether a descriptor is passed on across an `exec`.
 
-use std::os::fd::{AsRawFd as _, BorrowedFd};
+use std::os::fd::{
+    AsRawFd as _,
+    BorrowedFd,
+};
 
 /// Let `descriptor` be inherited across an `exec`, by clearing its
 /// close-on-exec flag.

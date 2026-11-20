@@ -1,7 +1,23 @@
-use super::{
-    CanonicalPackageName, Integrity, MAX_TARBALL_REVISION, TarballRevision, Value,
-    has_complete_sha512_digest, is_revision_registry_tarball_url, revision_registry_tarball_url,
+pub use routes::{
+    revision_route_tarball_version,
+    tarball_basename,
+    tarball_basename_for_package,
+    version_route_tarball_version,
 };
+
+mod routes;
+
+use super::{
+    CanonicalPackageName,
+    Integrity,
+    MAX_TARBALL_REVISION,
+    TarballRevision,
+    Value,
+    has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
+    revision_registry_tarball_url,
+};
+use routes::is_addressable_version;
 
 /// Rewrite every `dist.tarball` in `value` to a URL served by *this*
 /// registry instead of whatever URL the source put there. When the version
@@ -51,7 +67,7 @@ pub(super) fn rewrite_dist_tarball(
     public_url: &str,
 ) {
     // Every string `dist.tarball` must be rewritten to a route on *this*
-    // server, where integrity and OSV are enforced — never passed through.
+    // server, where integrity and OSV are enforced, never passed through.
     let version = value
         .get("version")
         .and_then(Value::as_str)
@@ -103,48 +119,6 @@ fn rewritten_tarball_url(
         .or_else(|| version.map(|version| pkg.tarball_name_for_version(version)))
         .unwrap_or_default();
     format!("{public_url}/{}/-/{filename}", pkg.as_str())
-}
-
-fn is_addressable_version(version: &str) -> bool {
-    pnpr_package_name::is_safe_path_segment(version)
-        && !version
-            .split_once('+')
-            .and_then(|(_, build)| build.strip_prefix('r'))
-            .is_some_and(|digits| {
-                !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
-            })
-}
-
-/// The `<version>` segment when `url` ends on `{pkg}@{version}`, with any
-/// `?query`/`#fragment` stripped, when `<version>` is a safe non-revision
-/// version segment.
-#[must_use]
-pub fn version_route_tarball_version<'a>(
-    url: &'a str,
-    pkg: &CanonicalPackageName,
-) -> Option<&'a str> {
-    let path = url
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(url);
-    let (prefix, version) = path.rsplit_once('@')?;
-    ((prefix.ends_with(&format!("/{}", pkg.as_str())) || prefix == pkg.as_str())
-        && is_addressable_version(version))
-    .then_some(version)
-}
-
-/// The tarball filename a `dist.tarball` URL addresses for `pkg`: the canonical
-/// `<basename>-<version>.tgz` when `url` is a `{pkg}@{version}` route, or
-/// [`tarball_basename`] otherwise.
-#[must_use]
-pub fn tarball_basename_for_package<'a>(
-    url: &'a str,
-    pkg: &CanonicalPackageName,
-) -> Option<std::borrow::Cow<'a, str>> {
-    if let Some(version) = version_route_tarball_version(url, pkg) {
-        return Some(std::borrow::Cow::Owned(pkg.tarball_name_for_version(version)));
-    }
-    tarball_basename(url).map(std::borrow::Cow::Borrowed)
 }
 
 fn rewrite_dist_attestations(
@@ -204,7 +178,8 @@ pub(super) fn unique_revision_url(
                 && entry
                     .get("integrity")
                     .and_then(Value::as_str)
-                    .and_then(|integrity| integrity.parse::<Integrity>().ok())
+                    .map(str::parse::<Integrity>)
+                    .and_then(Result::ok)
                     .is_some_and(|candidate| candidate == integrity)
                 && entry.get("tarball").and_then(Value::as_str) == Some(revision_url.as_str())
         })
@@ -252,7 +227,8 @@ pub(super) fn rewrite_revision_tarball(
     let has_sha512 = revision
         .get("integrity")
         .and_then(Value::as_str)
-        .and_then(|integrity| integrity.parse::<Integrity>().ok())
+        .map(str::parse::<Integrity>)
+        .and_then(Result::ok)
         .is_some_and(|integrity| has_complete_sha512_digest(&integrity));
     if !has_sha512 {
         return false;
@@ -272,24 +248,6 @@ pub(super) fn rewrite_revision_tarball(
     };
     revision.insert("tarball".to_string(), Value::String(tarball));
     true
-}
-
-/// The tarball filename a `dist.tarball` URL points at: the final path
-/// segment, with any `?query`/`#fragment` stripped. This basename is the
-/// trust key shared by the rewritten public URL ([`rewrite_tarball_urls`])
-/// and the serve-time version match (`expected_tarball_dist`), so both
-/// must derive it identically — including for query-bearing URLs (signed
-/// CDN links), where the query is not part of the route path a client
-/// later requests. Returns `None` for a URL whose path ends in `/`.
-#[must_use]
-pub fn tarball_basename(url: &str) -> Option<&str> {
-    let path = url
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(url);
-    path.rsplit('/')
-        .next()
-        .filter(|segment| !segment.is_empty())
 }
 
 /// Look up the version manifest for `version_or_tag` inside a parsed

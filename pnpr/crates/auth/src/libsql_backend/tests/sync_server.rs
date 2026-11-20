@@ -1,10 +1,23 @@
 //! The auth database on a local primary that serves libsql's newer sync
 //! protocol, as Turso Cloud does, read directly or through an embedded replica.
 
-use super::{Builder, LibsqlAuth, MaxUsers, TokenBackend, UpsertOutcome, UserBackend, UserRemoval};
+use super::{
+    Builder,
+    LibsqlAuth,
+    MaxUsers,
+    TokenBackend,
+    UpsertOutcome,
+    UserBackend,
+    UserRemoval,
+};
 use pnpr_config::LibsqlSettings;
 use pnpr_libsql::testing::serve_primary;
-use std::{net::SocketAddr, path::PathBuf, sync::atomic::Ordering, time::Duration};
+use std::{
+    net::SocketAddr,
+    path::PathBuf,
+    sync::atomic::Ordering,
+    time::Duration,
+};
 
 fn replica_settings(
     address: SocketAddr,

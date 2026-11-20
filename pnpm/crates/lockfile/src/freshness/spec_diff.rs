@@ -70,7 +70,7 @@ fn noun_verb_for(n: usize) -> (&'static str, &'static str) {
     }
 }
 
-/// `true` when the flat-record diff is empty in all three buckets —
+/// `true` when the flat-record diff is empty in all three buckets,
 /// the manifest and the lockfile agree on the set of specifiers.
 impl SpecDiff {
     #[must_use]

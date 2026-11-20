@@ -1,9 +1,24 @@
 use super::{
-    Cow, EnvVar, NpmrcAuth, NpmrcRoutes, Path, apply_creds_field, apply_tls_field,
-    env_replace_lossy, expand_inline_pem, is_auth_value_key, parse_bool, redact_npm_auth_key,
-    resolve_cafile, split_ini_creds_key, split_ssl_key,
+    Cow,
+    EnvVar,
+    NpmrcAuth,
+    NpmrcRoutes,
+    Path,
+    apply_creds_field,
+    apply_tls_field,
+    env_replace_lossy,
+    expand_inline_pem,
+    is_auth_value_key,
+    parse_bool,
+    redact_npm_auth_key,
+    resolve_cafile,
+    split_ini_creds_key,
+    split_ssl_key,
 };
-use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
+use pnpm_network::{
+    canonicalize_npm_registry_url,
+    normalize_registry_url,
+};
 
 #[derive(Clone, Copy)]
 struct ParseOptions {
@@ -56,7 +71,9 @@ fn decode_ini_value(value: &str) -> Cow<'_, str> {
                 .unwrap_or(""),
         )
     } else if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
-        serde_json::from_str::<String>(value).map_or(Cow::Borrowed(value), Cow::Owned)
+        serde_json::from_str::<String>(value)
+            .map(Cow::Owned)
+            .unwrap_or(Cow::Borrowed(value))
     } else {
         Cow::Borrowed(value)
     }
@@ -76,7 +93,9 @@ fn is_registry_key(key: &str) -> bool {
 
 fn scoped_registry_key(key: &str) -> Option<&str> {
     key.strip_suffix(":registry")
-        .filter(|scope| scope.starts_with('@') && scope.len() > 1 && !scope.contains('/'))
+        .filter(|scope| scope.starts_with('@'))
+        .filter(|scope| scope.len() > 1)
+        .filter(|scope| !scope.contains('/'))
 }
 
 fn has_env_placeholder(value: &str) -> bool {
@@ -103,7 +122,7 @@ impl NpmrcAuth {
     /// and values are resolved via the [`EnvVar`] capability; unresolved
     /// placeholders (no env value and no `${VAR:-default}` fallback) are
     /// substituted with `""` and surfaced as warnings. Leaving the literal
-    /// `${VAR}` in an auth value would otherwise be sent verbatim — most
+    /// `${VAR}` in an auth value would otherwise be sent verbatim, most
     /// damagingly as a bearer auth token under OIDC trusted publishing
     /// (<https://github.com/pnpm/pnpm/issues/11513>).
     ///
@@ -292,7 +311,7 @@ impl NpmrcAuth {
             "http-proxy" => self.proxy.http = Some(value.to_string()),
             "proxy" => self.proxy.legacy = Some(value.to_string()),
             "no-proxy" | "noproxy" => self.proxy.bypass = Some(value.to_string()),
-            // Repeated `ca=` lines accumulate — multiple values arrive as
+            // Repeated `ca=` lines accumulate, multiple values arrive as
             // repeated keys in INI.
             "ca" => self.tls.ca.push(value.to_string()),
             "cafile" => self.tls.cafile = Some(resolve_cafile(value.to_string(), npmrc_dir)),

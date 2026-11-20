@@ -1,13 +1,39 @@
-use super::{build_zip, fast_retry_opts, gzipped_tar, store_paths, tempdir_with_leaked_path};
-use crate::{ArchiveStoreProjection, IngestTarballToStore, IngestZipArchiveToStore, TarballError};
+use super::{
+    build_zip,
+    fast_retry_opts,
+    gzipped_tar,
+    store_paths,
+    tempdir_with_leaked_path,
+};
+use crate::{
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+    IngestZipArchiveToStore,
+    TarballError,
+};
 use pnpm_fs::EnsureFileError;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
-use pnpm_store_dir::{StoreIndex, StoreIndexWriter, WriteCasFileError};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
+use pnpm_store_dir::{
+    StoreIndex,
+    StoreIndexWriter,
+    WriteCasFileError,
+};
 use ssri::Integrity;
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 #[tokio::test]
@@ -581,7 +607,10 @@ async fn zip_download_limits_cover_content_lengths_and_chunked_bodies() {
 
 #[tokio::test]
 async fn request_archive_quick_retries_transient_connection_reset() {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    };
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();

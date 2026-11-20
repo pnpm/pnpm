@@ -14,23 +14,54 @@ use std::collections::HashMap;
 use axum::{
     Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, State},
+    extract::{
+        DefaultBodyLimit,
+        State,
+    },
     http::HeaderMap,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
     routing::post,
 };
 use indexmap::IndexMap;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_policy::Identity;
-use pnpr_upstream::{FetchOutcome, Upstream};
-use reqwest::{StatusCode, header};
-use serde_json::{Map, Value};
+use pnpr_upstream::{
+    FetchOutcome,
+    Upstream,
+};
+use reqwest::{
+    StatusCode,
+    header,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, RegistryError, RegistrySource, TargetRegistry,
-    addressed_registry, authorize, authorized_upstream,
-    ecosystem::{hosted_sources, upstream_sources},
-    hosted_gate, not_found, resolve_registry_source,
+    Action,
+    AppState,
+    AuthedCaller,
+    HostedGate,
+    RegistryError,
+    RegistrySource,
+    TargetRegistry,
+    addressed_registry,
+    authorize,
+    authorized_upstream,
+    ecosystem::{
+        hosted_sources,
+        upstream_sources,
+    },
+    hosted_gate,
+    not_found,
+    resolve_registry_source,
 };
 
 const MAX_AUDIT_BODY_BYTES: usize = 16 * 1024 * 1024;

@@ -1,7 +1,21 @@
-use super::{AppState, CanonicalPackageName, Upstream, complete_missing_tarball_integrities};
-use pnpr_storage::{BoundedCache, DocumentStamp};
-use std::{collections::HashMap, sync::Mutex};
-use tokio::sync::{Semaphore, watch};
+use super::{
+    AppState,
+    CanonicalPackageName,
+    Upstream,
+    complete_missing_tarball_integrities,
+};
+use pnpr_storage::{
+    BoundedCache,
+    DocumentStamp,
+};
+use std::{
+    collections::HashMap,
+    sync::Mutex,
+};
+use tokio::sync::{
+    Semaphore,
+    watch,
+};
 
 const MAX_ACTIVE_PACKUMENTS: usize = 8;
 const MAX_OUTSTANDING_PACKUMENTS: usize = 256;

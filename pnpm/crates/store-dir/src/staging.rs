@@ -3,9 +3,13 @@
 
 use std::{
     ffi::OsStr,
-    fs, io,
+    fs,
+    io,
     path::Path,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// The name of an install's staging directory beside a slot's package

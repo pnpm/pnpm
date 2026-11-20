@@ -14,14 +14,29 @@
 //! publication note, or of the version note when the publication has one
 //! member, since that publication has nothing else in it.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use crate::{
-    changelog::{compose_changelog_section, format_list_item, release_bump_for, section_title},
+    changelog::{
+        compose_changelog_section,
+        format_list_item,
+        release_bump_for,
+        section_title,
+    },
     intents::ChangeIntent,
     parked_publication::ParkedPublication,
-    plan::{PlannedRelease, ProjectRefIndex, ReleasePlan},
-    settings::{ReleaseBumpType, VersioningSettings},
+    plan::{
+        PlannedRelease,
+        ProjectRefIndex,
+        ReleasePlan,
+    },
+    settings::{
+        ReleaseBumpType,
+        VersioningSettings,
+    },
 };
 
 /// The notes composed for the members of a publication.
@@ -108,9 +123,7 @@ impl<'a> IntentPlacement<'a> {
 
     /// The members whose release lists `intent` under a bump.
     fn members_of(&self, intent: &ChangeIntent) -> &[&'a PlannedRelease] {
-        self.applies_to
-            .get(intent.id.as_str())
-            .map_or(&[], Vec::as_slice)
+        self.applies_to.get(intent.id.as_str()).map_or_default(Vec::as_slice)
     }
 
     fn names_an_outsider(&self, intent: &ChangeIntent) -> bool {
@@ -222,7 +235,8 @@ fn publication_name(
     }
     let groups: Vec<&PlannedRelease> = settings.fixed
         .iter()
-        .filter_map(|group| group.iter().find_map(|reference| released(reference)))
+        .map(|group| group.iter())
+        .filter_map(|mut references| references.find_map(|reference| released(reference)))
         .collect();
     match groups.as_slice() {
         [group] if leads.is_empty() => Some(format!("v{}", group.version.next)),

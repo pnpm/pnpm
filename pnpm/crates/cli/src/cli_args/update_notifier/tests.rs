@@ -1,8 +1,21 @@
-use super::{checked_recently, read_state, settle, to_utc_string, write_state};
-use serde_json::{Map, Value, json};
+use super::{
+    checked_recently,
+    read_state,
+    settle,
+    to_utc_string,
+    write_state,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 use tempfile::tempdir;
 

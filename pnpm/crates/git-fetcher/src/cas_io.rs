@@ -4,13 +4,24 @@
 
 use crate::error::GitFetcherError;
 use pnpm_fs::file_mode::{
-    cas_path_is_executable, file_mode_of, is_executable, restore_exec_bit_from_cas_suffix,
+    cas_path_is_executable,
+    file_mode_of,
+    is_executable,
+    restore_exec_bit_from_cas_suffix,
 };
-use pnpm_store_dir::{CafsFileInfo, StoreDir};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    StoreDir,
+};
 use std::{
     collections::HashMap,
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// Result of [`import_into_cas`]. The dispatcher uses `cas_paths` to

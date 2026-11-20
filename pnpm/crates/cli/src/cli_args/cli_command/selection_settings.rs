@@ -1,9 +1,19 @@
 use crate::{
     cli_args::grammar,
-    flag_relocation::{ArgTable, attached_short_option_prefix, inline_long_option_name},
-    parse_boundary::{option_width, passthrough_from},
+    flag_relocation::{
+        ArgTable,
+        attached_short_option_prefix,
+        inline_long_option_name,
+    },
+    parse_boundary::{
+        option_width,
+        passthrough_from,
+    },
 };
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// The selection flags that override a `pnpm-workspace.yaml` setting,
 /// each with a `--no-` form that turns the setting back off.
@@ -83,7 +93,8 @@ fn matched_arity_table(command: &clap::Command, matches: &clap::ArgMatches) -> A
     matches
         .subcommand_name()
         .and_then(|name| command.find_subcommand(name))
-        .map_or_else(|| ArgTable::top_level(command), |sub| ArgTable::for_subcommand(command, sub))
+        .map(|sub| ArgTable::for_subcommand(command, sub))
+        .unwrap_or_else(|| ArgTable::top_level(command))
 }
 
 fn classify_filter_token(token: &OsStr, arity: &ArgTable) -> Option<pnpm_config::FilterSource> {

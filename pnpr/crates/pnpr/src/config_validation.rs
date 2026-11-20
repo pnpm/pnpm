@@ -1,12 +1,25 @@
 use pnpr_config::{
-    BackendConfig, CACHE_SECRET_MARKER, Config, DatabaseBackend, HostedStoreConfig, LibsqlSettings,
-    SqlBackendSettings, cache_secret_fingerprint, default_osv_path,
+    BackendConfig,
+    CACHE_SECRET_MARKER,
+    Config,
+    DatabaseBackend,
+    HostedStoreConfig,
+    LibsqlSettings,
+    SqlBackendSettings,
+    cache_secret_fingerprint,
+    default_osv_path,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     ffi::OsStr,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use url::Url;
 

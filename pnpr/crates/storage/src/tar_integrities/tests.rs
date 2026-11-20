@@ -1,8 +1,16 @@
-use super::{CanonicalPackageName, DerivedTar, TarIntegrityCache, is_tar_entry_recorded};
+use super::{
+    CanonicalPackageName,
+    DerivedTar,
+    TarIntegrityCache,
+    is_tar_entry_recorded,
+};
 use std::{
     collections::BTreeMap,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[test]

@@ -1,7 +1,16 @@
 use super::{
-    AssembleReleasePlanOptions, DependencyUpdate, Ledger, ReleaseBumpType, assemble,
-    assemble_release_plan, assert_eq, make_intent, make_project, materialize_workspace_range,
-    release, release_names,
+    AssembleReleasePlanOptions,
+    DependencyUpdate,
+    Ledger,
+    ReleaseBumpType,
+    assemble,
+    assemble_release_plan,
+    assert_eq,
+    make_intent,
+    make_project,
+    materialize_workspace_range,
+    release,
+    release_names,
 };
 
 #[test]
@@ -90,13 +99,10 @@ fn an_npm_alias_colliding_with_a_workspace_package_name_is_not_an_internal_depen
 #[test]
 fn non_ascii_workspace_aliases_do_not_panic() {
     assert_eq!(
-        materialize_workspace_range("workspace:\u{e9}dition@^", "1.2.3").as_deref(),
+        materialize_workspace_range("workspace:édition@^", "1.2.3").as_deref(),
         Some("^1.2.3"),
     );
-    assert_eq!(
-        materialize_workspace_range("workspace:\u{e9}@1.0.0", "1.2.3").as_deref(),
-        Some("1.0.0"),
-    );
+    assert_eq!(materialize_workspace_range("workspace:é@1.0.0", "1.2.3").as_deref(), Some("1.0.0"));
 }
 
 #[test]

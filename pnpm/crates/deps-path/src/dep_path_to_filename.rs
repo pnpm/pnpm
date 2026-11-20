@@ -1,4 +1,7 @@
-use pnpm_crypto_hash::{hash_suffix_virtual_store_name, shorten_virtual_store_name};
+use pnpm_crypto_hash::{
+    hash_suffix_virtual_store_name,
+    shorten_virtual_store_name,
+};
 
 /// Turn a depPath into a filesystem-safe directory name.
 #[must_use]

@@ -1,7 +1,15 @@
-use super::{DistTagArgs, DistTagContext, registry::registry_for_package};
+use super::{
+    DistTagArgs,
+    DistTagContext,
+    registry::registry_for_package,
+};
 use mockito::Matcher;
 use pnpm_config::Config;
-use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
+use pnpm_network_web_auth_testing::{
+    InputResponse,
+    ok_token,
+    web_auth_fake,
+};
 use serde_json::json;
 use std::collections::HashMap;
 

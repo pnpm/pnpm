@@ -1,9 +1,14 @@
 use crate::overrides::VersionsOverrider;
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::ParseOverridesError;
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_workspace_projects_graph::{DependencyGroups, DependencyRewriter, GraphProject};
+use pnpm_workspace_projects_graph::{
+    DependencyGroups,
+    DependencyRewriter,
+    GraphProject,
+};
 use serde_json::Value;
 use std::path::Path;
 
@@ -21,13 +26,50 @@ pub fn overrides_dependency_rewriter(
     catalogs: &Catalogs,
     workspace_dir: &Path,
 ) -> Result<Option<VersionsOverrider>, ParseOverridesError> {
+    build_overrides_rewriter(config, catalogs, workspace_dir, CatalogValues::Dereference)
+}
+
+/// [`overrides_dependency_rewriter`], except that an override whose value
+/// is a `catalog:` reference writes that reference, so the rewritten
+/// dependencies name the catalog entries they resolve through. A
+/// convergence override still writes the entry's version.
+pub fn overrides_catalog_reference_rewriter(
+    config: &Config,
+    catalogs: &Catalogs,
+    workspace_dir: &Path,
+) -> Result<Option<VersionsOverrider>, ParseOverridesError> {
+    build_overrides_rewriter(config, catalogs, workspace_dir, CatalogValues::Keep)
+}
+
+#[derive(Clone, Copy)]
+enum CatalogValues {
+    Dereference,
+    Keep,
+}
+
+fn build_overrides_rewriter(
+    config: &Config,
+    catalogs: &Catalogs,
+    workspace_dir: &Path,
+    catalog_values: CatalogValues,
+) -> Result<Option<VersionsOverrider>, ParseOverridesError> {
     let Some(map) = config.overrides
         .as_ref()
         .filter(|map| !map.is_empty())
     else {
         return Ok(None);
     };
-    let parsed = pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)?;
+    let mut parsed = pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)?;
+    match catalog_values {
+        CatalogValues::Dereference => {}
+        CatalogValues::Keep => {
+            for (entry, raw_value) in parsed.iter_mut().zip(map.values()) {
+                if !entry.converge && parse_catalog_protocol(raw_value).is_some() {
+                    entry.new_bare_specifier.clone_from(raw_value);
+                }
+            }
+        }
+    }
     let root_dir = config.root_project_manifest_dir(workspace_dir);
     Ok(Some(VersionsOverrider::new(&parsed, root_dir).with_catalogs(catalogs)))
 }

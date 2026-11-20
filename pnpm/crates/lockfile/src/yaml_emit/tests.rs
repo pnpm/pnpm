@@ -1,7 +1,10 @@
 use super::{
     implicit::resolves_float,
     scalars::is_plain_safe,
-    style::CollectionStyle::{Block, Flow},
+    style::CollectionStyle::{
+        Block,
+        Flow,
+    },
     to_string,
 };
 use serde_json::json;
@@ -102,7 +105,7 @@ fn key_at_simple_key_limit_renders_inline() {
 // astral characters are 513 Rust chars but 1026 code units.
 #[test]
 fn key_length_is_measured_in_utf16_code_units() {
-    let key = "\u{1F600}".repeat(513);
+    let key = "😀".repeat(513);
     let yaml = to_string(json!({ &key: { "b": "c" } }));
     assert_eq!(yaml, format!("? {key}\n: b: c\n"));
 }

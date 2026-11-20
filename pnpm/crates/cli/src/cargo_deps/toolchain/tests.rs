@@ -1,5 +1,8 @@
 use super::program;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 
 #[test]
 fn a_toolchain_the_checkout_committed_is_not_run() {

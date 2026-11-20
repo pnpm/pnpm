@@ -1,13 +1,26 @@
 use super::{
-    IndexDiscovery, git_dependency_sources, latest_version, missing_index_names, resolve_inputs,
-    resolve_lockfile, resolve_lockfile_with_preferences, serves_registry, verify_lockfile,
+    IndexDiscovery,
+    git_dependency_sources,
+    latest_version,
+    missing_index_names,
+    resolve_inputs,
+    resolve_lockfile,
+    resolve_lockfile_with_preferences,
+    serves_registry,
+    verify_lockfile,
 };
 use crate::{
     preferences::parse as parse_preferred_versions,
-    registry::{CRATES_IO_SOURCE, Registry},
+    registry::{
+        CRATES_IO_SOURCE,
+        Registry,
+    },
 };
 use cargo_lock::Lockfile;
-use std::{collections::BTreeMap, str::FromStr};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+};
 
 const METADATA: &str = r#"{
   "packages": [{
@@ -951,7 +964,8 @@ fn assigns_root_features_to_the_preferred_compatibility_line() {
     let dependencies = |version: semver::Version| {
         lockfile.packages
             .iter()
-            .find(|package| package.name.as_str() == "foo" && package.version == version)
+            .filter(|package| package.name.as_str() == "foo")
+            .find(|package| package.version == version)
             .map(|package| {
                 package.dependencies
                     .iter()
@@ -1014,7 +1028,8 @@ fn keeps_requested_features_on_the_line_that_asked_for_them() {
     let dependencies = |version: semver::Version| {
         lockfile.packages
             .iter()
-            .find(|package| package.name.as_str() == "foo" && package.version == version)
+            .filter(|package| package.name.as_str() == "foo")
+            .find(|package| package.version == version)
             .map(|package| {
                 package.dependencies
                     .iter()

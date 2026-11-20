@@ -1,21 +1,45 @@
 use super::{
-    BaseCasPaths, artifact_platform, artifact_store_options, decoded_trusted_keys,
-    dependency_package, insert_side_effects_map, non_empty, planning::CandidateGroup,
-    quarantine_remote_side_effects, store_holds,
+    BaseCasPaths,
+    artifact_platform,
+    artifact_store_options,
+    decoded_trusted_keys,
+    dependency_package,
+    insert_side_effects_map,
+    non_empty,
+    planning::CandidateGroup,
+    quarantine_remote_side_effects,
+    store_holds,
 };
-use crate::{RemoteSideEffectsQuarantineBySnapshot, SideEffectsMapsBySnapshot};
+use crate::{
+    RemoteSideEffectsQuarantineBySnapshot,
+    SideEffectsMapsBySnapshot,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::ProjectSnapshot;
 use pnpm_pnpr_client::{
-    ArtifactBlobRequest, ArtifactFile, ArtifactStore, OwnerScope, PnprClientError,
-    RejectedArtifact, ResolveArtifactsOptions, blob_id,
+    ArtifactBlobRequest,
+    ArtifactFile,
+    ArtifactStore,
+    OwnerScope,
+    PnprClientError,
+    RejectedArtifact,
+    ResolveArtifactsOptions,
+    blob_id,
 };
 use pnpm_store_dir::{
-    CafsFileInfo, RemoteSideEffectsOrigin, SideEffectsDiff, SideEffectsOverlay, StoreIndexWriter,
+    CafsFileInfo,
+    RemoteSideEffectsOrigin,
+    SideEffectsDiff,
+    SideEffectsOverlay,
+    StoreIndexWriter,
     side_effects_overlay,
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 

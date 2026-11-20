@@ -1,5 +1,8 @@
 use super::snapshot_is_patched;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 
 fn key(raw: &str) -> PackageKey {
     raw.parse().expect("parse package key")

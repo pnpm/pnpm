@@ -1,4 +1,11 @@
-use super::{ByteSize, Deserialize, Interval, RegistryError, parse_byte_size, parse_interval};
+use super::{
+    ByteSize,
+    Deserialize,
+    Interval,
+    RegistryError,
+    parse_byte_size,
+    parse_interval,
+};
 use std::time::Duration;
 
 /// How pnpr serves its own package document,

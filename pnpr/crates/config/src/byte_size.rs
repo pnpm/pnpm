@@ -1,5 +1,8 @@
 use pnpr_error::RegistryError;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// A byte size representation parsed from YAML or string input.
 ///

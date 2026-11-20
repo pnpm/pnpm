@@ -7,7 +7,11 @@
 //! stdout of a probe that pnpm reads to EOF, such as `node --version`, pnpm
 //! waits for the long-lived child and the child waits for pnpm.
 
-use std::{io, mem::size_of, process::Command};
+use std::{
+    io,
+    mem::size_of,
+    process::Command,
+};
 
 /// Room for the descriptors the process opens between sizing the list and
 /// forking. The list is allocated before the fork, because the child

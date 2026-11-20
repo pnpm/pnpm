@@ -1,14 +1,31 @@
-use super::super::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
+use super::super::{
+    ImporterUpdateSeedPolicy,
+    UpdateSeedPolicy,
+};
+use crate::fast_update_catalogs::{
+    FastCatalogUpdate,
+    try_fast_update_catalogs,
+};
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_preferred_versions::DirectSpecs;
-use pnpm_resolving_deps_resolver::{ManifestHook, UpdateTargets};
-use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, VersionSelectorType};
+use pnpm_resolving_deps_resolver::{
+    ManifestHook,
+    UpdateTargets,
+};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    ResolveOptions,
+    VersionSelectorType,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     sync::Arc,
 };
 
@@ -90,7 +107,9 @@ fn apply_importer_lockfile_pins(
     for (importer_id, pins) in pins_by_importer {
         let mut seed = by_importer
             .get(importer_id)
-            .map_or_else(|| workspace_seed.clone(), |seed| seed.as_ref().clone());
+            .map(std::convert::AsRef::as_ref)
+            .cloned()
+            .unwrap_or_else(|| workspace_seed.clone());
         replace_version_pins(&mut seed, pins);
         by_importer.insert(importer_id.clone(), Arc::new(seed));
     }
@@ -179,7 +198,8 @@ pub(in super::super) fn stale_override_targets(
     locked_overrides
         .keys()
         .filter(|selector| !overrides.is_some_and(|overrides| overrides.contains_key(*selector)))
-        .filter_map(|selector| parse_pkg_and_parent_selector(selector).ok())
+        .map(|selector| parse_pkg_and_parent_selector(selector))
+        .filter_map(Result::ok)
         .filter(|(parent, target)| {
             parent.is_none()
                 && target.bare_specifier.is_none()
@@ -278,7 +298,7 @@ impl ReuseSeedInputs<'_> {
 ///
 /// A changed `catalogs` or `pnpm.overrides` block normally withholds the
 /// seed entirely. Two shapes are cheap enough to rewrite in place
-/// instead — a catalog edit and an exact generic registry override — and
+/// instead (a catalog edit and an exact generic registry override) and
 /// each yields a dependency-shape-verified seed. They compose: the
 /// catalog rewrite settles first and the override rewrite replays onto
 /// its result, the order a resolution applies the two in. Every other
@@ -286,8 +306,6 @@ impl ReuseSeedInputs<'_> {
 pub(in super::super) async fn lockfile_reuse_seed(
     inputs: ReuseSeedInputs<'_>,
 ) -> Option<Arc<Lockfile>> {
-    use crate::fast_update_catalogs::{FastCatalogUpdate, try_fast_update_catalogs};
-
     let overrides_use_catalogs = overrides_use_catalogs(inputs.config);
     let (catalogs_match, fast_catalog_seed) =
         match inputs.lockfile.wanted.map_or(FastCatalogUpdate::Unchanged, |lockfile| {
@@ -310,8 +328,8 @@ pub(in super::super) async fn lockfile_reuse_seed(
         inputs.hooks.overrides_hook.clone(),
     );
     // A catalog move can change the effective value of an override whose
-    // configured value is a `catalog:` reference — an effect no catalog
-    // rewrite can express — so catalog drift under such an override goes to
+    // configured value is a `catalog:` reference (an effect no catalog
+    // rewrite can express) so catalog drift under such an override goes to
     // the resolver. The override rewrite itself is safe under one: it runs
     // only once the catalogs are settled, and override values are compared
     // catalog-resolved, so a settled `catalog:` override shows no drift and
@@ -346,14 +364,19 @@ pub(super) async fn reuse_or_rewrite_overrides(
     override_settings_match: bool,
     rewrite_manifest_hook: Option<&pnpm_resolving_deps_resolver::ManifestHook>,
 ) -> Option<Arc<Lockfile>> {
-    use crate::fast_update_overrides::{FastOverrideOptions, try_fast_update_overrides};
+    use crate::fast_update_overrides::{
+        FastOverrideOptions,
+        try_fast_update_overrides,
+    };
     if override_settings_match {
         return Some(match catalog_rewrite {
             Some(rewritten) => Arc::new(rewritten),
             // `lockfile` is `wanted_lockfile` narrowed by the filter
             // above, so the loader's handle to it reuses the parsed
             // document verbatim.
-            None => inputs.lockfile.shared.map_or_else(|| Arc::new(lockfile.clone()), Arc::clone),
+            None => {
+                inputs.lockfile.shared.map(Arc::clone).unwrap_or_else(|| Arc::new(lockfile.clone()))
+            }
         });
     }
     if !inputs.fast_override_eligible {

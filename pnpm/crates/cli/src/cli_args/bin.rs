@@ -1,6 +1,9 @@
 use super::global::GlobalError;
 use clap::Args;
-use pnpm_config::{Config, check_global_bin_dir};
+use pnpm_config::{
+    Config,
+    check_global_bin_dir,
+};
 use std::path::Path;
 
 /// Print the directory where pnpm installs executables.

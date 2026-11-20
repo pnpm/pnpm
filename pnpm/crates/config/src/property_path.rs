@@ -2,7 +2,7 @@
 //!
 //! Implements the read half: the tokenizer (`tokenize`), the parser
 //! ([`parse_property_path`]), and [`get_object_value_by_property_path`]. The
-//! mutating `set`/`delete` halves are not implemented — the config command
+//! mutating `set`/`delete` halves are not implemented, the config command
 //! only reads through a property path and uses [`parse_property_path`] to
 //! classify a key as simple vs. deep.
 //!
@@ -10,7 +10,10 @@
 //! `foo.bar.baz`, `.foo.bar`, `foo.bar["baz"]`, `foo['bar'].baz`,
 //! `["foo"].bar`, `foo[123]`.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use serde_json::Value;
 
 /// One parsed property-path segment. A numeric literal keeps its numeric
@@ -91,7 +94,10 @@ fn parse_token(source: &str) -> Result<(Token, &str), ParsePropertyPathError> {
     // Unexpected: a single (char-boundary-safe) unit.
     let mut indices = source.char_indices();
     indices.next();
-    let split = indices.next().map_or(source.len(), |(i, _)| i);
+    let split = indices
+        .next()
+        .map(|(i, _)| i)
+        .unwrap_or(source.len());
     let (head, tail) = source.split_at(split);
     Ok((Token::Unexpected(head.to_string()), tail))
 }

@@ -1,7 +1,10 @@
 use crate::{
     State,
     cli_args::{
-        install::{resolve_bool_override, workspace_install_selection},
+        install::{
+            resolve_bool_override,
+            workspace_install_selection,
+        },
         pipelines::InstallFamilySelection,
     },
 };

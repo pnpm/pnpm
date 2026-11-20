@@ -1,4 +1,8 @@
-use derive_more::{Display, Error, From};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 use pnpm_lockfile_verification::VerifyError;
 
 #[derive(Debug, Display, Error, From)]

@@ -16,20 +16,38 @@
 pub(crate) use manifest::auto_installed_peer_deps;
 pub use manifest::satisfies_package_manifest;
 pub use recorded_settings::{
-    auto_install_peers_changed, exclude_links_from_lockfile_changed,
-    recorded_add_missing_peer_types, recorded_dedupe_peers, recorded_inject_workspace_packages,
-    recorded_peers_suffix_max_length, recorded_project_scoped_optional_peers,
+    auto_install_peers_changed,
+    exclude_links_from_lockfile_changed,
+    recorded_add_missing_peer_types,
+    recorded_dedupe_peers,
+    recorded_inject_workspace_packages,
+    recorded_peers_suffix_max_length,
+    recorded_project_scoped_optional_peers,
 };
 pub use spec_diff::SpecDiff;
 
 use crate::{
-    Lockfile, ProjectSnapshot, RegistryContext, ResolvedDependencyMap, ResolvedDependencySpec,
+    Lockfile,
+    ProjectSnapshot,
+    RegistryContext,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
 #[derive(Clone, Copy)]
 pub struct LockfileSettingsCheck<'a> {
@@ -65,7 +83,7 @@ pub struct ResolutionSettingsCheck<'a> {
 /// The value is not a plain config read: pnpm records a checksum only
 /// when a loaded pnpmfile exports a `hooks` object, so computing it can
 /// mean evaluating the pnpmfile. Callers that already know the
-/// pnpmfiles are unchanged — or that have no pnpmfile to speak of —
+/// pnpmfiles are unchanged (or that have no pnpmfile to speak of)
 /// say so with [`PnpmfileChecksumCheck::Skip`] instead of inventing a
 /// value, since passing `Current(None)` would fail every install in a
 /// project whose lockfile legitimately records one.
@@ -89,7 +107,7 @@ pub enum StalenessReason {
     /// A catalog entry recorded in the lockfile's `catalogs:` snapshot
     /// no longer matches the current workspace catalog config. This is
     /// the first drift branch checked, surfaced when
-    /// `all_catalogs_are_up_to_date` fails.
+    /// the catalog check fails.
     #[display("`catalogs` in the lockfile don't match the current config")]
     CatalogsChanged { lockfile: Option<crate::CatalogSnapshots>, config: Catalogs },
 
@@ -240,7 +258,7 @@ pub enum StalenessReason {
 
     /// The lockfile's `(patch_hash=...)` depPath suffixes disagree with its
     /// own `patchedDependencies` map. Unlike every other reason here this
-    /// one is not drift against the config — it is the lockfile
+    /// one is not drift against the config; it is the lockfile
     /// contradicting itself, which only a hand edit or an incorrectly
     /// resolved merge conflict produces. See
     /// [`check_patched_dep_paths`](crate::check_patched_dep_paths).
@@ -615,5 +633,7 @@ mod spec_diff;
 
 use manifest::dependency_specifiers_equal;
 use recorded_settings::{
-    check_integrity_target, check_project_scoped_optional_peers, check_recorded_settings,
+    check_integrity_target,
+    check_project_scoped_optional_peers,
+    check_recorded_settings,
 };

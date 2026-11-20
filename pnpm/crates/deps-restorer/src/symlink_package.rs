@@ -1,10 +1,19 @@
 use crate::safe_join_modules_dir::InvalidDependencyAliasError;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_fs::{ForceSymlinkOutcome, force_symlink_dir};
+use pnpm_fs::{
+    ForceSymlinkOutcome,
+    force_symlink_dir,
+};
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Error type for [`symlink_package`].
@@ -48,7 +57,7 @@ pub enum SymlinkPackageError {
 ///   `<parent>/.ignored_<basename>` and the symlink is created.
 ///
 /// Returns the [`ForceSymlinkOutcome`], so callers can mirror pnpm's
-/// `if ((await symlinkDependency(...)).reused) return` — the direct-dependency
+/// `if ((await symlinkDependency(...)).reused) return`, the direct-dependency
 /// linker only emits a `pnpm:root added` event for symlinks it actually
 /// created, not for ones already pointing at the target.
 pub fn symlink_package(

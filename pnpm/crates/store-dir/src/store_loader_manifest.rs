@@ -1,5 +1,11 @@
-use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, path::PathBuf};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+};
 
 pub const CAS_MANIFEST_FILENAME: &str = ".store-manifest.json";
 pub const CAS_LOADER_FILENAME: &str = ".store-loader.mjs";

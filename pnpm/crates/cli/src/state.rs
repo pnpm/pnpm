@@ -1,21 +1,45 @@
-pub(crate) use project_installability::{ProjectHost, host_requirements};
+pub(crate) use project_installability::{
+    ProjectHost,
+    host_requirements,
+};
 
-use derive_more::{Display, Error};
-use miette::Diagnostic;
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    WrapErr,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
-use pnpm_network::{ForInstallsError, ThrottledClient};
+use pnpm_lockfile::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_network::{
+    ForInstallsError,
+    ThrottledClient,
+};
 use pnpm_package_is_installable::InstallabilityError;
 use pnpm_package_manager::{
-    CommandLockfile, DedicatedProjectInstall, ResolvedPackages, SharedInstallCaches,
+    CommandLockfile,
+    DedicatedProjectInstall,
+    ResolvedPackages,
+    SharedInstallCaches,
     WorkspaceDependenciesInstalled,
 };
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_reporter::LogEvent;
 use pnpm_tarball::MemCache;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -72,9 +96,7 @@ pub(crate) fn command_lockfile<'a>(
     path: &'a Path,
 ) -> miette::Result<CommandLockfile<'a>> {
     let source = MaybeLazyLockfile::Lazy(lockfile);
-    let document = source
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    let document = source.get().wrap_err("load the lockfile")?;
     Ok(CommandLockfile { document, source, path: Some(path) })
 }
 
@@ -161,8 +183,8 @@ impl State {
     }
 
     /// The lazy wanted lockfile [`Self::init`] would build. Split out
-    /// so a caller with work between here and the install — project
-    /// discovery above all — can build it first and start its
+    /// so a caller with work between here and the install (project
+    /// discovery above all) can build it first and start its
     /// [`LazyLockfile::prefetch`] over that work, handing the result to
     /// [`Self::init_with_lockfile`].
     #[must_use]
@@ -202,7 +224,8 @@ impl State {
             &config.tls_by_uri,
             &config.network_settings(),
         )
-        .map(|client| Arc::new(client.with_max_sockets_per_host(config.max_sockets)))
+        .map(|client| client.with_max_sockets_per_host(config.max_sockets))
+        .map(Arc::new)
         .map_err(InitStateError::Network)
     }
 
@@ -226,7 +249,7 @@ impl State {
         })
     }
 
-    /// The directory of the project the command runs in — where its
+    /// The directory of the project the command runs in, where its
     /// `package.json` lives.
     pub fn project_dir(&self) -> &Path {
         self.manifest

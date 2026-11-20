@@ -1,7 +1,15 @@
-use super::{Fingerprint, LOCAL_TIMESTAMP_STABILITY, verified_local_file};
+use super::{
+    Fingerprint,
+    LOCAL_TIMESTAMP_STABILITY,
+    verified_local_file,
+};
 use crate::BlobId;
 use pnpr_package_name::Ecosystem;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{
+    Duration,
+    Instant,
+    SystemTime,
+};
 use tempfile::TempDir;
 use tokio::fs;
 

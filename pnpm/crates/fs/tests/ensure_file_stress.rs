@@ -9,9 +9,19 @@
 //! ([`concurrent_writers_of_same_path_do_not_swap_the_inode`])
 //! exercises the lock; this suite exercises the unprotected
 //! filesystem-only path.
+use command_extra::CommandExtra;
 
-use sha2::{Digest, Sha512};
-use std::{fs, path::Path, process::Command, sync::Arc, thread};
+use sha2::{
+    Digest,
+    Sha512,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+    sync::Arc,
+    thread,
+};
 use tempfile::tempdir;
 
 /// Number of worker processes per test.
@@ -44,8 +54,8 @@ fn run_workers(content_path: &Path, target_path: &Path) -> Vec<std::process::Exi
             let target_path = Arc::clone(&target_path);
             thread::spawn(move || {
                 Command::new(WORKER_BIN)
-                    .arg(&*content_path)
-                    .arg(&*target_path)
+                    .with_arg(&*content_path)
+                    .with_arg(&*target_path)
                     .status()
                     .expect("spawn cafs_stress_worker")
             })
@@ -113,7 +123,7 @@ fn multi_process_recovery_from_pre_seeded_corrupt_file() {
     // as the real content (so the size short-circuit doesn't fire)
     // but every byte inverted, so the byte-comparison in
     // `verify_or_rewrite` rejects it and `write_atomic` rewrites
-    // the blob. `0xAA` is the bit-inverse of nothing in particular —
+    // the blob. `0xAA` is the bit-inverse of nothing in particular,
     // just a non-zero pattern that won't accidentally match the real
     // content even for trivial inputs.
     let corrupt = vec![0xAA_u8; CONTENT_SIZE];

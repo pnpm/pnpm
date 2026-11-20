@@ -1,4 +1,8 @@
-use crate::render::{QuoteStyle, detect_quote_style, render_value_with_quotes};
+use crate::render::{
+    QuoteStyle,
+    detect_quote_style,
+    render_value_with_quotes,
+};
 
 #[test]
 fn detect_quote_style_defaults_to_single_when_empty_or_unquoted() {

@@ -1,14 +1,26 @@
 use super::{
     CacheGcEffect,
-    inventory::{cas_digest_of_store_file, is_cache_tmp_file, is_managed_sqlite_file},
+    inventory::{
+        cas_digest_of_store_file,
+        inventory_cache_dir,
+        is_cache_tmp_file,
+        is_managed_sqlite_file,
+    },
     is_abandoned_tmp_age,
-    orphans::{PrivateScopePolicy, count_dir_contents, prune_orphaned_namespaces},
+    orphans::{
+        PrivateScopePolicy,
+        count_dir_contents,
+        prune_orphaned_namespaces,
+    },
 };
 use crate::server::ecosystem::UpstreamCacheSubtree;
 use pnpm_fs::OpenDir;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 
@@ -181,6 +193,22 @@ fn count_dir_contents_counts_regular_files_only() {
         assert_eq!(count, 2);
         assert_eq!(bytes, 11);
     }
+}
+
+#[tokio::test]
+async fn inventory_protects_purged_upstream_markers_from_eviction() {
+    let tmp = tempfile::tempdir().unwrap();
+    let purged_dir = tmp.path().join(pnpr_storage::PURGED_UPSTREAM_DIR);
+    std::fs::create_dir_all(&purged_dir).unwrap();
+    std::fs::write(purged_dir.join("marker.json"), b"{\"package\":\"example\"}").unwrap();
+    let evictable_dir = tmp.path().join("~public/npm/packages/@/other");
+    std::fs::create_dir_all(&evictable_dir).unwrap();
+    std::fs::write(evictable_dir.join("document.json"), b"{}").unwrap();
+
+    let inv = inventory_cache_dir(tmp.path(), &HashSet::new()).await.unwrap().unwrap();
+    assert_eq!(inv.non_evictable_bytes, 21);
+    assert_eq!(inv.files.len(), 1);
+    assert!(inv.files[0].path.ends_with("document.json"));
 }
 
 #[cfg(windows)]

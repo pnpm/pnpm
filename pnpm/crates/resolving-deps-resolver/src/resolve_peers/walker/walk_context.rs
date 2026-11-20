@@ -1,10 +1,25 @@
 use super::{
-    Arc, BTreeMap, ChildEdge, DepPath, DepPathRecording, DirectDep, HashMap, HashSet, NodeId,
-    ParentPkgInfo, ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain,
-    SubtreePaths, UndoRealize, Walker,
+    Arc,
+    BTreeMap,
+    ChildEdge,
+    DepPath,
+    DepPathRecording,
+    DirectDep,
+    HashMap,
+    HashSet,
+    NodeId,
+    ParentPkgInfo,
+    ParentRefs,
+    PeerProviderChildren,
+    ResolvedPackage,
+    ResolvedTree,
+    SharedChain,
+    SubtreePaths,
+    UndoRealize,
+    Walker,
 };
 
-/// Output of [`Walker::resolve_node`] — the per-node result the parent
+/// Output of [`Walker::resolve_node`], the per-node result the parent
 /// folds into its own state.
 pub(in super::super) struct NodeOutput {
     pub(in super::super) dep_path: DepPath,
@@ -333,7 +348,7 @@ pub(super) struct NodePeers {
     /// The node's own `peerDependencies`, resolved.
     pub(super) own_resolved: HashMap<String, NodeId>,
     /// The above folded with what the subtree resolved against
-    /// ancestors, minus the node's own name — the set `dep_path`'s
+    /// ancestors, minus the node's own name, the set `dep_path`'s
     /// suffix renders.
     pub(super) all_resolved: HashMap<String, NodeId>,
     pub(super) all_missing: HashMap<String, MissingPeerInfo>,

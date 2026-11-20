@@ -10,7 +10,11 @@ use mockito::Matcher;
 use pnpm_release_notes::note_digest;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const PUBLICATION_NOTE: &str =
     "### Minor Changes\n\n- Shared by a and b.\n\n  Packages: `a@1.1.0`, `b@1.1.0`\n";
@@ -145,7 +149,8 @@ fn versioning_composes_sends_and_collects_release_notes() {
         !parked
             .join("publications")
             .read_dir()
-            .is_ok_and(|mut dir| dir.next().is_some()),
+            .map(|mut dir| dir.next())
+            .is_ok_and(|next| next.is_some()),
     );
     drop(root);
 }

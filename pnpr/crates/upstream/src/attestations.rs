@@ -1,10 +1,18 @@
 use reqwest::{
     StatusCode,
-    header::{self, HeaderValue},
+    header::{
+        self,
+        HeaderValue,
+    },
 };
 
 use super::{
-    FetchOutcome, RegistryError, Result, UNPRIORITIZED, UPSTREAM_DISCOVERY_BODY_LIMIT, Upstream,
+    FetchOutcome,
+    RegistryError,
+    Result,
+    UNPRIORITIZED,
+    UPSTREAM_DISCOVERY_BODY_LIMIT,
+    Upstream,
     read_limited_body,
 };
 

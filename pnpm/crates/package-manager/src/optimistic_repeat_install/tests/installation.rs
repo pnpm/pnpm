@@ -1,24 +1,45 @@
 use super::{
     super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
+        Decision,
+        OptimisticRepeatInstallCheck,
+        check_optimistic_repeat_install,
         deps_status::install_args_from_state,
     },
-    assert_deps_status_converges_after_collision, backdate_validated_files, check,
-    check_with_lockfile, content_check_decision, isolated_included, setup_content_check_project,
-    setup_fresh_install, setup_fresh_install_with_config, validate_existing_files,
-    write_empty_lockfile, write_registry_lockfile, write_state,
+    assert_deps_status_converges_after_collision,
+    backdate_validated_files,
+    check,
+    check_with_lockfile,
+    content_check_decision,
+    isolated_included,
+    setup_content_check_project,
+    setup_fresh_install,
+    setup_fresh_install_with_config,
+    validate_existing_files,
+    write_empty_lockfile,
+    write_registry_lockfile,
+    write_state,
 };
 use crate::install_state::{
     settings::current_settings,
-    timestamps::{FileMtime, modified_at_or_after},
+    timestamps::{
+        FileMtime,
+        modified_at_or_after,
+    },
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState, WorkspaceStateSettings};
-use std::{collections::BTreeMap, fs};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WorkspaceState,
+    WorkspaceStateSettings,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 /// Happy path: state is fresh, manifest hasn't been touched since
@@ -220,7 +241,7 @@ fn returns_skipped_when_a_package_extension_injects_a_local_file_dependency() {
 }
 /// A local file dependency injected via a packageExtension's
 /// optionalDependencies does not bail when optionals are excluded from
-/// the install — they aren't installed, so their contents can't be stale.
+/// the install; they aren't installed, so their contents can't be stale.
 #[test]
 fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded() {
     let (dir, config, manifest) = setup_fresh_install_with_config(
@@ -278,7 +299,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
     assert_eq!(decision, Decision::UpToDate);
 }
 /// Specs the git, remote-tarball, and registry resolvers claim must not
-/// bail — matching them would disable the fast path for every project
+/// bail, matching them would disable the fast path for every project
 /// with git dependencies.
 #[test]
 fn returns_up_to_date_when_specs_are_not_local_paths() {
@@ -288,7 +309,7 @@ fn returns_up_to_date_when_specs_are_not_local_paths() {
         "1.0.0",
         concat!(
             r#""dependencies":{"foo":"user/repo","bar":"github:user/repo","#,
-            // `quux` is a git shorthand whose committish ends in .tgz — it
+            // `quux` is a git shorthand whose committish ends in .tgz; it
             // must not be mistaken for a local tarball.
             r#""baz":"https://example.com/pkg.tgz","qux":"~1.2.3","quux":"user/repo#release.tgz"}"#,
         ),
@@ -317,7 +338,7 @@ fn returns_skipped_when_config_disabled() {
     let config = config.leak();
 
     // Even though the state file is missing (would also skip), the
-    // disabled-config branch is checked first — that's the reason
+    // disabled-config branch is checked first; that's the reason
     // string we assert on.
     let decision = check(
         workspace_root,
@@ -762,7 +783,7 @@ fn returns_skipped_when_package_extensions_drift() {
 }
 /// Drift in `dedupeDirectDeps` invalidates the cached state. The
 /// setting steers which symlinks each non-root workspace project's
-/// `node_modules/` ends up with — flipping it changes the on-disk
+/// `node_modules/` ends up with, flipping it changes the on-disk
 /// shape, so the fast path can't reuse the previous install.
 #[test]
 fn returns_skipped_when_dedupe_direct_deps_drifts() {
@@ -810,7 +831,7 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
 /// consume during install (e.g. `packageExtensions`,
 /// `excludeLinksFromLockfile`) does NOT trip the settings-drift gate.
 /// Pacquet ignores those fields because its install pipeline
-/// doesn't react to them — invalidating the fast path on a value
+/// doesn't react to them, invalidating the fast path on a value
 /// pacquet can't actually consume would force a redundant reinstall
 /// every time a user runs `pacquet install` after `pnpm install` in
 /// the same project, which is the scenario the vlt benchmark
@@ -937,7 +958,10 @@ fn install_args_reproduce_the_recorded_dependency_groups() {
 
 #[test]
 fn install_already_up_to_date_bails_before_walking_projects_when_workspace_state_is_missing() {
-    use crate::{UpToDateFastPathCheck, install_already_up_to_date};
+    use crate::{
+        UpToDateFastPathCheck,
+        install_already_up_to_date,
+    };
     use pnpm_package_manifest::DependencyGroup;
 
     let dir = tempdir().unwrap();

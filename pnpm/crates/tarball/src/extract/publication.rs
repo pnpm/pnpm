@@ -9,10 +9,24 @@
 //! [`MAX_PUBLICATION_ARCHIVE_ENTRIES`], or file paths longer in total than
 //! [`MAX_PUBLICATION_PATH_BYTES`]. The caller bounds the decoded size.
 
-use super::{archive_entry_segments, check_trailer, clean_archive_entry_path};
-use derive_more::{Display, Error};
-use ssri::{Algorithm, Integrity, IntegrityOpts};
-use std::{collections::BTreeSet, io::Read};
+use super::{
+    archive_entry_segments,
+    check_trailer,
+    clean_archive_entry_path,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityOpts,
+};
+use std::{
+    collections::BTreeSet,
+    io::Read,
+};
 
 /// The most entries a published archive may hold.
 pub const MAX_PUBLICATION_ARCHIVE_ENTRIES: u64 = 200_000;
@@ -108,7 +122,8 @@ fn read_publication_archive_within(
     // An installer refuses data after the end-of-archive marker, so the
     // archive is refused here too.
     check_trailer(archive.into_inner())
-        .map_err(|err| PublicationArchiveError::Unreadable(err.to_string()))?;
+        .map_err(|err| err.to_string())
+        .map_err(PublicationArchiveError::Unreadable)?;
     scan.finish()
 }
 

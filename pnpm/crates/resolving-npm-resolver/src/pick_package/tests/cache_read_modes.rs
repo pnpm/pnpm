@@ -1,11 +1,35 @@
 use super::{
-    ABBREVIATED_BODY, ABBREVIATED_META_DIR, Arc, AuthHeaders, EXISTING_VERSION_SELECTOR_WEIGHT,
-    FULL_FILTERED_META_DIR, FULL_META_DIR, InMemoryPackageMetaCache, MetadataCacheScope,
-    PACKAGE_BODY, PackumentSource, PickPackageContext, PickPackageError, RetryOpts,
-    STALE_PACKAGE_BODY, TempDir, ThrottledClient, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors, assert_eq, default_opts,
-    get_legacy_pkg_mirror_paths, get_pkg_mirror_path, metadata_cache_key, persist_meta_to_mirror,
-    pick_package, range_spec, shared_packument_fetch_locker, version_spec,
+    ABBREVIATED_BODY,
+    ABBREVIATED_META_DIR,
+    Arc,
+    AuthHeaders,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    FULL_FILTERED_META_DIR,
+    FULL_META_DIR,
+    InMemoryPackageMetaCache,
+    MetadataCacheScope,
+    PACKAGE_BODY,
+    PackumentSource,
+    PickPackageContext,
+    PickPackageError,
+    RetryOpts,
+    STALE_PACKAGE_BODY,
+    TempDir,
+    ThrottledClient,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
+    assert_eq,
+    default_opts,
+    get_legacy_pkg_mirror_paths,
+    get_pkg_mirror_path,
+    metadata_cache_key,
+    persist_meta_to_mirror,
+    pick_package,
+    range_spec,
+    shared_packument_fetch_locker,
+    version_spec,
 };
 use crate::pick_package::metadata_cache::PackageMetaCache;
 
@@ -426,7 +450,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
 /// satisfy `^1.1.0`, so the second resolve must fall back to the
 /// registry instead of failing the pick. The fetch replaces the entry
 /// with a verified one, so the third resolve short-circuits on the
-/// cache — `expect(1)` fails if it fetched again.
+/// cache, `expect(1)` fails if it fetched again.
 #[tokio::test]
 async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline() {
     let mut server = mockito::Server::new_async().await;
@@ -656,7 +680,7 @@ async fn dry_run_skips_in_memory_cache() {
 }
 
 /// The in-memory cache must be keyed by `(registry, name)`, not by
-/// name alone — otherwise a packument fetched from one registry
+/// name alone; otherwise a packument fetched from one registry
 /// would satisfy a later resolve against a different registry, and
 /// the second resolve could return a version that doesn't exist
 /// at the second registry.

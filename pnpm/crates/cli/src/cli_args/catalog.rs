@@ -1,25 +1,51 @@
 use crate::{
     cli_args::{
-        catalogs::{configured_catalogs, workspace_manifest_catalogs},
+        catalogs::{
+            configured_catalogs,
+            workspace_manifest_catalogs,
+        },
         recursive::discover_workspace_projects,
         reporter::CliReporter,
     },
-    config_deps::{apply_config_dependency_settings, update_config_hook_catalogs},
+    config_deps::{
+        apply_config_dependency_settings,
+        update_config_hook_catalogs,
+    },
 };
-use clap::{Args, Subcommand};
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use clap::{
+    Args,
+    Subcommand,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
-use pnpm_catalogs_types::{Catalog, Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+    DEFAULT_CATALOG_NAME,
+};
 use pnpm_config::Config;
 use pnpm_package_manager::stays_out_of_catalogs;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_text_sanitize::sanitize_inline;
 use pnpm_workspace::Project;
-use pnpm_workspace_manifest_writer::{UpdateWorkspaceManifestOptions, update_workspace_manifest};
+use pnpm_workspace_manifest_writer::{
+    UpdateWorkspaceManifestOptions,
+    update_workspace_manifest,
+};
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt,
     path::Path,
 };

@@ -3,7 +3,11 @@
 //! Each answer here is a `bool`: whether the pinned pnpm took the
 //! command, in which case it has already run and this process is done.
 
-use super::{ConfigOverrides, block_on_runtime, cli_args};
+use super::{
+    ConfigOverrides,
+    block_on_runtime,
+    cli_args,
+};
 use std::ffi::OsString;
 
 /// Whether the pinned pnpm answered `--version` for this one.

@@ -1,19 +1,45 @@
-use super::{Host, PackError, PackOptions, PackResult, format_pack_output, to_pack_result_json};
+use super::{
+    Host,
+    PackError,
+    PackOptions,
+    PackResult,
+    format_pack_output,
+    to_pack_result_json,
+};
 use crate::{
-    capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile},
+    capabilities::{
+        FsAtomicWrite,
+        FsCreateDirAll,
+        FsFileLen,
+        FsIsExecutable,
+        FsReadFile,
+    },
     manifest_entry::is_manifest_entry,
 };
 use flate2::read::GzDecoder;
 use pnpm_config::NodeLinker;
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
-use serde_json::{Value, json};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     io,
     path::Path,
     sync::Mutex,
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// Minimal single-project fixture: a `package.json` plus whatever extra
 /// files the caller writes. `ignore_scripts` defaults to `true` so the
@@ -255,13 +281,16 @@ fn en_collator_matches_javascript_locale_compare() {
 #[test]
 fn en_collator_matches_full_compiled_en_collation() {
     use super::collation::en_collator;
-    use icu_collator::{CollatorBorrowed, options::CollatorOptions};
+    use icu_collator::{
+        CollatorBorrowed,
+        options::CollatorOptions,
+    };
     use icu_locale_core::locale;
 
     let full = CollatorBorrowed::try_new(locale!("en").into(), CollatorOptions::default()).unwrap();
     let en = en_collator();
     let root = en.as_borrowed();
-    let mut by_full: Vec<String> = ('\u{20}'..='\u{24FF}')
+    let mut by_full: Vec<String> = ('\u{20}'..='⓿')
         .flat_map(|char| [char.to_string(), format!("{char}\u{301}")])
         .collect();
     let mut by_root = by_full.clone();
@@ -330,7 +359,7 @@ fn on_disk_executable_file_is_packed_executable() {
 }
 
 /// A `publishConfig.name` rename has to reach the tarball filename and the
-/// packed manifest together — the registry derives the published package from
+/// packed manifest together, the registry derives the published package from
 /// the manifest, so a filename naming the workspace package would name a
 /// different artifact than the one inside it.
 #[test]
@@ -836,8 +865,8 @@ fn workspace_license_is_injected_into_a_sub_package() {
 }
 
 /// A symlinked workspace-root `LICENSE` must not be injected: following
-/// it would leak the target's bytes — potentially a file outside the
-/// workspace — into the published tarball.
+/// it would leak the target's bytes (potentially a file outside the
+/// workspace) into the published tarball.
 #[cfg(unix)]
 #[test]
 fn symlinked_workspace_license_is_not_injected() {

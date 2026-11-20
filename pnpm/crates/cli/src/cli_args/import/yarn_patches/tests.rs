@@ -1,4 +1,7 @@
-use super::{RecordedPatch, YarnPatchSpecifier};
+use super::{
+    RecordedPatch,
+    YarnPatchSpecifier,
+};
 use pretty_assertions::assert_eq;
 
 fn parse(specifier: &str) -> (String, String, Vec<String>) {

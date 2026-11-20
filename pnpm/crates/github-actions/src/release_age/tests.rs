@@ -1,16 +1,23 @@
-use super::{GitTagDates, TagDateReader};
-use std::{path::Path, process::Command};
+use super::{
+    GitTagDates,
+    TagDateReader,
+};
+use command_extra::CommandExtra;
+use std::{
+    path::Path,
+    process::Command,
+};
 
 fn git(dir: &Path, args: &[&str], date: &str) {
     // The user's own git config may sign tags or commits.
     let status = Command::new("git")
-        .current_dir(dir)
-        .env("GIT_CONFIG_GLOBAL", dir.join(".no-global-config"))
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .args(["-c", "user.name=pnpm", "-c", "user.email=pnpm@example.com"])
-        .args(args)
-        .env("GIT_AUTHOR_DATE", date)
-        .env("GIT_COMMITTER_DATE", date)
+        .with_current_dir(dir)
+        .with_env("GIT_CONFIG_GLOBAL", dir.join(".no-global-config"))
+        .with_env("GIT_CONFIG_NOSYSTEM", "1")
+        .with_args(["-c", "user.name=pnpm", "-c", "user.email=pnpm@example.com"])
+        .with_args(args)
+        .with_env("GIT_AUTHOR_DATE", date)
+        .with_env("GIT_COMMITTER_DATE", date)
         .status()
         .expect("git");
     assert!(status.success(), "git {args:?}");

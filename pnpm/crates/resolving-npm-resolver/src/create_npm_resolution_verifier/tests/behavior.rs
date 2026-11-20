@@ -1,9 +1,27 @@
 use super::{
-    FAKE_INTEGRITY, HashMap, LockfileResolution, PkgName, REVISION_ONE_DIGEST, REVISION_TWO_DIGEST,
-    REVISION_ZERO_DIGEST, RegistryResolution, ResolutionVerification, TarballResolution,
-    TarballRevision, TrustPolicy, abbreviated_packument_json, assert_eq,
-    create_npm_resolution_verifier, create_package_version_policy, ctx, default_opts,
-    fake_integrity, min_age_packument_json, now_at, registry_resolution, revision_integrity,
+    FAKE_INTEGRITY,
+    HashMap,
+    LockfileResolution,
+    PkgName,
+    REVISION_ONE_DIGEST,
+    REVISION_TWO_DIGEST,
+    REVISION_ZERO_DIGEST,
+    RegistryResolution,
+    ResolutionVerification,
+    TarballResolution,
+    TarballRevision,
+    TrustPolicy,
+    abbreviated_packument_json,
+    assert_eq,
+    create_npm_resolution_verifier,
+    create_package_version_policy,
+    ctx,
+    default_opts,
+    fake_integrity,
+    min_age_packument_json,
+    now_at,
+    registry_resolution,
+    revision_integrity,
     tarball_resolution,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
@@ -212,7 +230,7 @@ async fn verify_short_circuits_non_registry_resolution() {
 }
 
 /// Git-host archive URLs pin a full commit SHA, and pnpm never
-/// recorded an integrity for them, so they stay exempt — recognized
+/// recorded an integrity for them, so they stay exempt, recognized
 /// from the URL even on a lockfile that omits the `gitHosted` marker.
 #[tokio::test]
 async fn git_hosted_archive_url_stays_exempt_without_the_flag() {
@@ -301,7 +319,7 @@ async fn verify_routes_via_named_registry_prefix() {
 
     let mut named = HashMap::new();
     named.insert("internal".to_string(), format!("{server_url}/"));
-    // Default registry is bogus — if the named-registry routing
+    // Default registry is bogus, if the named-registry routing
     // breaks, the request would target the bogus URL and the test
     // would fail with a connection error instead of finding the mock.
     let mut opts = default_opts("http://nonexistent.example.invalid/");
@@ -353,7 +371,8 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     assert_eq!(
         min_age_excludes
             .iter()
-            .filter_map(|value| value.as_str().map(str::to_string))
+            .map(serde_json::Value::as_str)
+            .filter_map(|text| text.map(str::to_string))
             .collect::<Vec<_>>(),
         vec!["acme".to_string(), "lodash".to_string()],
         "sorted + deduped",
@@ -370,7 +389,7 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
 }
 
 /// Concurrent verifications of the same `(registry, name, version)`
-/// share one in-flight fetch — the lookup-context caches store
+/// share one in-flight fetch, the lookup-context caches store
 /// `Arc<OnceCell<…>>`, so 16 racing callers issue at most one
 /// abbreviated GET. Without the singleflight property the verifier
 /// regressed to N fetches per fan-out batch, which mockito's

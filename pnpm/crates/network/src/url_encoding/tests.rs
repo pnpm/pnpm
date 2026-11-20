@@ -1,5 +1,7 @@
 use super::{
-    canonicalize_npm_registry_url, encode_package_name, escaped_package_name,
+    canonicalize_npm_registry_url,
+    encode_package_name,
+    escaped_package_name,
     normalize_registry_url,
 };
 

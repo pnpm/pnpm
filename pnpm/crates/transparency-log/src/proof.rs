@@ -1,10 +1,23 @@
 //! RFC 6962 inclusion and consistency proofs, and following a log from one
 //! checkpoint to the next.
 
-use crate::{checkpoint::TreeHead, integrate::read_checked};
-use derive_more::{Display, Error};
+use crate::{
+    checkpoint::TreeHead,
+    integrate::read_checked,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use tlog_tiles::{
-    EMPTY_HASH, Hash, HashReader, check_record, check_tree, prove_record, prove_tree, record_hash,
+    EMPTY_HASH,
+    Hash,
+    HashReader,
+    check_record,
+    check_tree,
+    prove_record,
+    prove_tree,
+    record_hash,
 };
 
 /// The longest proof a tree of up to 2⁶⁴ entries needs.

@@ -1,8 +1,24 @@
 use super::{
-    ANY_VERSION_RANGE, CreateProjectsGraphOptions, GraphPkg, HashMap, HashSet, PackageManifest,
-    PathBuf, Project, ProjectGraph, StageApprovalItem, StageContext, StageError, Value, Version,
-    create_projects_graph, fetch_stage_tarball, is_any_version_range, is_valid_semver_range,
-    read_tarball_manifest, sequence_graph,
+    ANY_VERSION_RANGE,
+    CreateProjectsGraphOptions,
+    GraphPkg,
+    HashMap,
+    HashSet,
+    PackageManifest,
+    PathBuf,
+    Project,
+    ProjectGraph,
+    StageApprovalItem,
+    StageContext,
+    StageError,
+    Value,
+    Version,
+    create_projects_graph,
+    fetch_stage_tarball,
+    is_any_version_range,
+    is_valid_semver_range,
+    read_tarball_manifest,
+    sequence_graph,
 };
 
 /// The dependency order derived from the exact tarballs being approved.
@@ -87,7 +103,8 @@ fn approval_order(graph: &ProjectGraph<GraphPkg<'_>>) -> StageApprovalOrder {
             stage_id.clone(),
             graph[&root_dir].dependencies
                 .iter()
-                .map(|dependency| dependency.to_string_lossy().into_owned())
+                .map(|dependency| dependency.to_string_lossy())
+                .map(std::borrow::Cow::into_owned)
                 .collect(),
         );
         if let Some(package_name) = graph[&root_dir].package.project.manifest

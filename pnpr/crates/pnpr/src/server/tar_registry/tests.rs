@@ -1,4 +1,9 @@
-use super::{BTreeMap, DerivedTar, restore_tgz_integrities, tgz_integrity_key};
+use super::{
+    BTreeMap,
+    DerivedTar,
+    restore_tgz_integrities,
+    tgz_integrity_key,
+};
 use serde_json::json;
 
 const TAR_INTEGRITY: &str = "sha512-tar";

@@ -5,7 +5,11 @@
 //! process, which is what a caller gets by holding its test to a file of its
 //! own; a second caller in the same process overwrites the first's record.
 
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicI32,
+    Ordering,
+};
 
 /// What the handler a test installed was called with, once the handler that
 /// replaced it forwarded the delivery on.

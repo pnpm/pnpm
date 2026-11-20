@@ -2,10 +2,16 @@
 
 use super::{
     funding::funding_sources,
-    report::{FundedDependencies, FundingReport},
+    report::{
+        FundedDependencies,
+        FundingReport,
+    },
 };
 use crate::cli_args::sanitize::sanitize_inline;
-use owo_colors::{OwoColorize, Stream};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 

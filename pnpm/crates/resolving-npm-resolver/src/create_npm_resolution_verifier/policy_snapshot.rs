@@ -1,7 +1,18 @@
 use super::{
-    BTreeMap, Digest, HashMap, JsonValue, Pipe, ReleaseAgeCheck, Sha256, Timestamp, TrustCheck,
-    TrustPolicy, VerificationMetadataClient, VerificationRegistryRoutes,
-    VerificationReleaseAgeOptions, normalized_registry_key,
+    BTreeMap,
+    Digest,
+    HashMap,
+    JsonValue,
+    Pipe,
+    ReleaseAgeCheck,
+    Sha256,
+    Timestamp,
+    TrustCheck,
+    TrustPolicy,
+    VerificationMetadataClient,
+    VerificationRegistryRoutes,
+    VerificationReleaseAgeOptions,
+    normalized_registry_key,
 };
 
 pub(super) fn sorted_unique(values: &[String]) -> Vec<String> {
@@ -146,7 +157,8 @@ pub(super) fn cached_policy_patterns(
         .map(|values| {
             values
                 .iter()
-                .filter_map(|value| value.as_str().map(str::to_string))
+                .map(JsonValue::as_str)
+                .filter_map(|text| text.map(str::to_string))
                 .collect()
         })
         .unwrap_or_default()
@@ -156,7 +168,8 @@ pub(super) fn policy_patterns_json(patterns: &[String]) -> JsonValue {
     JsonValue::Array(
         patterns
             .iter()
-            .map(|spec| JsonValue::String(spec.clone()))
+            .cloned()
+            .map(JsonValue::String)
             .collect(),
     )
 }

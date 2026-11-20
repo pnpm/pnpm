@@ -1,10 +1,18 @@
-use super::{AppState, CAPACITY, CanonicalPackageName, PackumentRefetches};
+use super::{
+    AppState,
+    CAPACITY,
+    CanonicalPackageName,
+    PackumentRefetches,
+};
 use pnpr_config::Config;
 use pnpr_fixtures::MockConfigPresets;
 use std::{
     path::Path,
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::TempDir;
 
@@ -58,7 +66,11 @@ async fn a_packument_refetched_since_the_read_is_returned_without_a_fetch() {
 /// must wait for its result rather than give up.
 #[tokio::test]
 async fn a_request_during_a_refetch_gets_its_result() {
-    use axum::{Json, Router, routing::get};
+    use axum::{
+        Json,
+        Router,
+        routing::get,
+    };
 
     let release = Arc::new(tokio::sync::Notify::new());
     let held = Arc::clone(&release);

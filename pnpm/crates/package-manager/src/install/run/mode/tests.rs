@@ -1,4 +1,7 @@
-use super::{InstallExecution, fetches_into_store};
+use super::{
+    InstallExecution,
+    fetches_into_store,
+};
 
 fn execution(lockfile_only: bool, dry_run: bool) -> InstallExecution {
     InstallExecution {

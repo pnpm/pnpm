@@ -1,13 +1,27 @@
 use super::{
-    Arc, DirectDep, HashMap, HashSet, ImporterPeerInput, NodeId, PeerCycleShape,
-    ResolvePeersOptions, ResolvedTree, TreeChildren, WorkspacePeerSettings, order_test_shape,
-    package, peer_cycle_fixture, peer_cycle_graph_keys, resolve_peers, resolve_peers_workspace,
+    Arc,
+    DirectDep,
+    HashMap,
+    HashSet,
+    ImporterPeerInput,
+    NodeId,
+    PeerCycleShape,
+    ResolvePeersOptions,
+    ResolvedTree,
+    TreeChildren,
+    WorkspacePeerSettings,
+    order_test_shape,
+    package,
+    peer_cycle_fixture,
+    peer_cycle_graph_keys,
+    resolve_peers,
+    resolve_peers_workspace,
 };
 
 /// End-to-end shape of a cycle package under canonical cycle-breaking:
 /// the ring's one back-edge (`ring03 → ring00`) is cut identically at
 /// every occurrence, so `ring00` has exactly two deterministic
-/// variants — the position under the entry that walks the ring from
+/// variants, the position under the entry that walks the ring from
 /// its canonical root (whose subtree reaches the `w` consumers), and
 /// the shared back-edge occurrence resolved at importer context, where
 /// no `w` is provided.
@@ -81,7 +95,7 @@ fn cycle_re_walks_collapse_instead_of_multiplying_occurrences() {
 }
 
 /// Importers are walked in id order, so reordering them cannot change
-/// which context first realizes a shared back-edge occurrence — even
+/// which context first realizes a shared back-edge occurrence, even
 /// when their overlays provide conflicting versions (pnpm/pnpm#13846).
 #[test]
 fn backedge_bindings_do_not_depend_on_importer_order() {
@@ -163,7 +177,8 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
         );
         let mut keys: Vec<String> = result.graph
             .keys()
-            .map(|path| path.as_str().to_string())
+            .map(crate::DepPath::as_str)
+            .map(std::string::ToString::to_string)
             .collect();
         keys.sort_unstable();
         keys
@@ -202,7 +217,8 @@ fn walk_order_cannot_change_the_graph() {
     assert!(
         !first_order
             .iter()
-            .any(|key| key.starts_with("ring02") && key.contains("(w@")),
+            .filter(|key| key.starts_with("ring02"))
+            .any(|key| key.contains("(w@")),
         "ring02's canonical subtree ends at the back-edge and reaches no w consumer;          got {first_order:#?}",
     );
     assert_eq!(first_order, second_order, "the graph must not depend on the entries' walk order");

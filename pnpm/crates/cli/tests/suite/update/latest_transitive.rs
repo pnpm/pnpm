@@ -1,6 +1,14 @@
 use super::{
-    DEP, FOO, PARENT, add_workspace_package, assert_eq, dep_spec, lockfile_package_keys, pacquet,
-    setup_with_own_registry, write_manifest,
+    DEP,
+    FOO,
+    PARENT,
+    add_workspace_package,
+    assert_eq,
+    dep_spec,
+    lockfile_package_keys,
+    pacquet,
+    setup_with_own_registry,
+    write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
 use std::path::Path;

@@ -1,4 +1,7 @@
-use yaml_serde::{Mapping, Value};
+use yaml_serde::{
+    Mapping,
+    Value,
+};
 
 /// Merge the local sources into the root manifest's settings.
 ///

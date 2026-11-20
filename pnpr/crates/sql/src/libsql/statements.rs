@@ -2,9 +2,19 @@
 //! batches.
 
 use super::timed_out;
-use crate::adapter::{Connection, Param, Query, Row, Value, reject_nul};
+use crate::adapter::{
+    Connection,
+    Param,
+    Query,
+    Row,
+    Value,
+    reject_nul,
+};
 use pnpr_error::Result;
-use std::cell::{Cell, RefCell};
+use std::cell::{
+    Cell,
+    RefCell,
+};
 use tokio::runtime::Handle;
 
 /// What happened to a primary connection's Hrana stream during an operation.

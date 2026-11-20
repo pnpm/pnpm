@@ -4,15 +4,24 @@
 //! `pnpm11/installing/deps-installer/src/install/`.
 
 use crate::_utils::{
-    append_workspace_yaml_key, enable_gvs_in_workspace_yaml, flatten_report, pacquet_in,
+    append_workspace_yaml_key,
+    enable_gvs_in_workspace_yaml,
+    flatten_report,
+    pacquet_in,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]
@@ -140,6 +149,40 @@ fn add_refuses_a_modules_dir_installed_with_another_node_linker() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn install_warns_why_it_recreates_the_modules_dir() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
+    install_is_positive(&workspace);
+    let yaml = workspace.join("pnpm-workspace.yaml");
+    let switched = fs::read_to_string(&yaml)
+        .expect("read pnpm-workspace.yaml")
+        .replace("nodeLinker: hoisted", "nodeLinker: isolated");
+    fs::write(&yaml, switched).expect("write pnpm-workspace.yaml");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = output.get_output();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_report_contains(
+        &report,
+        &[
+            "has to be recreated. This modules directory was created using a different node-linker value.",
+        ],
+    );
+    assert!(!report.contains(r#"Run "pnpm install" to recreate"#), "{report}");
+
+    drop((root, mock_instance));
+}
+
 /// A filtered install refuses a layout drift. Purging the shared modules
 /// directory would break the projects it skips, which it does not relink.
 #[test]
@@ -203,6 +246,40 @@ fn a_filtered_install_keeps_the_records_of_a_tree_linked_from_the_v3_store() {
     assert!(
         hoisted.contains(r#""@pnpm.e2e/dep-of-pkg-with-1-dep@"#),
         ".modules.yaml dropped project-2's hoisted dependency: {hoisted}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The refusal accepts a tree linked from the sibling `v3` store, but a plain
+/// install still recreates it, so the warning needs a reason of its own.
+#[test]
+fn install_warns_why_it_recreates_a_tree_linked_from_the_v3_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_is_positive(&workspace);
+    // The repeat-install fast path never reads `.modules.yaml`.
+    append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
+    let modules_path = workspace.join("node_modules/.modules.yaml");
+    let mut modules = read_json(&modules_path);
+    let v3_store = recorded_path(&modules, "storeDir").with_file_name("v3");
+    modules["storeDir"] = v3_store.display().to_string().into();
+    fs::write(&modules_path, modules.to_string()).expect("write .modules.yaml");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = output.get_output();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_report_contains(
+        &report,
+        &["has to be recreated. Its recorded layout differs from the current settings."],
     );
 
     drop((root, mock_instance));
@@ -331,7 +408,8 @@ fn read_json(path: &Path) -> serde_json::Value {
 fn recorded_path(record: &serde_json::Value, field: &str) -> PathBuf {
     record[field]
         .as_str()
-        .map(|raw| pnpm_fs::lexical_normalize(Path::new(raw)))
+        .map(Path::new)
+        .map(pnpm_fs::lexical_normalize)
         .unwrap_or_else(|| panic!("{field} is recorded"))
 }
 

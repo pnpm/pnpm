@@ -1,8 +1,20 @@
-use crate::_utils::{ManifestDeps, WorkspaceFixture, append_workspace_yaml_key, read_lockfile};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+    append_workspace_yaml_key,
+    read_lockfile,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 // <https://github.com/pnpm/pnpm/issues/11800>
 #[test]

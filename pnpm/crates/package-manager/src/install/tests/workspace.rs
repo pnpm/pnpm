@@ -1,23 +1,46 @@
 use super::{
     super::{
-        Install, PROJECT_LIFECYCLE_STAGES, PROJECT_POST_UNINSTALL_STAGES,
-        PROJECT_PRE_UNINSTALL_STAGES, ProjectMutation, configured_or_discovered_workspace_dir,
-        load_workspace_projects, project_requires_lifecycle_scripts,
+        Install,
+        PROJECT_LIFECYCLE_STAGES,
+        PROJECT_POST_UNINSTALL_STAGES,
+        PROJECT_PRE_UNINSTALL_STAGES,
+        ProjectMutation,
+        configured_or_discovered_workspace_dir,
+        load_workspace_projects,
+        project_requires_lifecycle_scripts,
     },
-    InstallDirs, empty_test_lockfile, install_with_pnpmfile,
+    InstallDirs,
+    empty_test_lockfile,
+    install_with_pnpmfile,
     install_workspace_member_with_pnpmfile,
 };
 use crate::PolicyExcludes;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_modules_yaml::Modules;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_testing_utils::registry::TestRegistry;
 use pnpm_workspace_state::{
-    self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
+    self as workspace_state,
+    NodeLinker as WorkspaceStateNodeLinker,
+    load_workspace_state,
 };
-use std::{fs, sync::Mutex, time::Duration};
+use std::{
+    fs,
+    sync::Mutex,
+    time::Duration,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -120,7 +143,7 @@ fn workspace_without_packages_field_enumerates_root_only() {
 
     assert_eq!(names, vec!["root"]);
 }
-/// Loose-mode counterpart of the strict test above —
+/// Loose-mode counterpart of the strict test above,
 /// [pnpm/pnpm#13687](https://github.com/pnpm/pnpm/issues/13687).
 #[tokio::test]
 async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_manifest() {
@@ -147,6 +170,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
             frozen: false,
             prefer_frozen: Some(false),
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -213,7 +237,7 @@ async fn fresh_install_persists_loose_minimum_release_age_picks_to_workspace_man
 /// moment `<workspaceDir>/node_modules/.pnpm-workspace-state-v1.json`
 /// is missing. Pacquet must write it on every install so pnpm can
 /// fast-path the check after pacquet has materialized the modules
-/// tree — that's the gap behind the
+/// tree; that's the gap behind the
 /// `pnpm_config_verify_deps_before_run: false` workaround in pnpm's
 /// own CI.
 #[tokio::test]
@@ -249,6 +273,7 @@ async fn install_writes_workspace_state() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -442,7 +467,8 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ignored_builds: Some(
             [retained, shared, stale_selected]
                 .into_iter()
-                .map(|value| pnpm_modules_yaml::DepPath::from(value.to_string()))
+                .map(std::string::ToString::to_string)
+                .map(pnpm_modules_yaml::DepPath::from)
                 .collect(),
         ),
         skipped: vec![retained.to_string(), shared.to_string(), stale_selected.to_string()],
@@ -548,7 +574,7 @@ fn filtered_modules_metadata_keeps_empty_optional_maps_omitted() {
 ///    writes `pnpm-lock.yaml` next to the manifest, lays out
 ///    `node_modules`, and records `.pnpm-workspace-state-v1.json`.
 /// 2. A second [`Install::run`] against the same manifest must hit
-///    the optimistic fast path — emit `Already up to date` and skip
+///    the optimistic fast path, emit `Already up to date` and skip
 ///    every install-setup event (`pnpm:context`, `pnpm:stage`,
 ///    `pnpm:lockfile-verification`).
 ///
@@ -585,6 +611,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -665,6 +692,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -692,7 +720,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
             config,
             manifest: &manifest,
             emit_initial_manifest: true,
-            // Don't pass the in-memory lockfile — the optimistic check
+            // Don't pass the in-memory lockfile, the optimistic check
             // doesn't need it, and we want to prove the fast path runs
             // *before* the lockfile is even loaded. (Matching pnpm's
             // dispatch ordering: `checkDepsStatus` runs before any
@@ -992,6 +1020,7 @@ async fn install_succeeds_even_when_workspace_state_write_fails() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,

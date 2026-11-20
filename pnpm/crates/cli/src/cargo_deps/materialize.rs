@@ -1,9 +1,35 @@
 use super::{
-    Algorithm, Arc, ArchiveStoreProjection, AtomicU8, AuthHeaders, BTreeMap, CARGO_CHECKSUM_FILE,
-    CafsFileInfo, Config, Deserialize, ImportIndexedDirOpts, IngestTarballToStore, Integrity,
-    IntoDiagnostic, LockedCrate, Path, PathBuf, Reporter, Result, RetryOpts, Serialize,
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
-    StreamExt, ThrottledClient, checksum_cache, import_indexed_dir, registry_download_config,
+    Algorithm,
+    Arc,
+    ArchiveStoreProjection,
+    AtomicU8,
+    AuthHeaders,
+    BTreeMap,
+    CARGO_CHECKSUM_FILE,
+    CafsFileInfo,
+    Config,
+    Deserialize,
+    ImportIndexedDirOpts,
+    IngestTarballToStore,
+    Integrity,
+    IntoDiagnostic,
+    LockedCrate,
+    Path,
+    PathBuf,
+    Reporter,
+    Result,
+    RetryOpts,
+    Serialize,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+    StreamExt,
+    ThrottledClient,
+    checksum_cache,
+    import_indexed_dir,
+    registry_download_config,
     stream,
 };
 use miette::WrapErr;
@@ -13,7 +39,7 @@ use rayon::prelude::*;
 struct CargoChecksum<'a> {
     files: BTreeMap<String, String>,
     /// The registry checksum of the `.crate` archive the files came from.
-    /// Null for a package vendored from a git checkout, which has none —
+    /// Null for a package vendored from a git checkout, which has none,
     /// the same value `cargo vendor` writes for one.
     package: Option<&'a str>,
 }

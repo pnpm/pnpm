@@ -1,6 +1,14 @@
 use pnpm_config::PackageImportMethod;
-use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreDir, StoreIndexWriter};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    StoreDir,
+    StoreIndexWriter,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// Default npm registry used when neither the config nor a scope entry
 /// names one.
@@ -29,7 +37,7 @@ pub struct ConfigDepsInstallOptions<'a> {
     pub platform: pnpm_package_is_installable::InstallabilityOptions<'a>,
     pub store: crate::ConfigDependencyStore,
     pub store_index: ConfigDependencyStoreIndex,
-    /// `lockfileDir` — where `pnpm-lock.yaml` and
+    /// `lockfileDir`: where `pnpm-lock.yaml` and
     /// `node_modules/.pnpm-config` live.
     pub root_dir: &'a Path,
     pub lockfile: EnvLockfileOptions<'a>,
@@ -97,7 +105,7 @@ impl ConfigDependencyVerification<'_> {
 
 impl ConfigDepsInstallOptions<'_> {
     /// The `prefix`/`requester` string pnpm threads into fetch + log
-    /// payloads — the install root.
+    /// payloads, the install root.
     pub(crate) fn requester(&self) -> String {
         self.root_dir.to_string_lossy().into_owned()
     }

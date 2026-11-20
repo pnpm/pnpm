@@ -1,4 +1,8 @@
-use super::{current_disposition, interrupt_of, signal_number};
+use super::{
+    current_disposition,
+    interrupt_of,
+    signal_number,
+};
 use crate::Interrupt;
 
 /// Pins that the three interrupts map to the signal numbers the slot table

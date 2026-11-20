@@ -2,13 +2,29 @@
 //! TypeScript `renderDependentsTree` / `renderDependentsJson` /
 //! `renderDependentsParseable`.
 
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 use crate::{
-    dependents::{DependentNode, DependentsTree},
+    dependents::{
+        DependentNode,
+        DependentsTree,
+    },
     render::{
-        LongPkgInfo, PeerVariants, TreeNode, bold_styled, circular_label, deduped_label, dim,
-        name_at_version, peer_hash_suffix, plain, read_long_pkg_info, render_archy,
+        LongPkgInfo,
+        PeerVariants,
+        TreeNode,
+        bold_styled,
+        circular_label,
+        deduped_label,
+        dim,
+        name_at_version,
+        peer_hash_suffix,
+        plain,
+        read_long_pkg_info,
+        render_archy,
     },
 };
 
@@ -312,7 +328,7 @@ impl ParseableWalk<'_> {
                     for root_segment in self.root_segments(dep) {
                         let mut full_path = vec![root_segment];
                         full_path.extend(new_path.iter().cloned());
-                        // Leaf (importer or depth-limited) — reversed so the
+                        // Leaf (importer or depth-limited), reversed so the
                         // importer comes first.
                         full_path.reverse();
                         self.lines.push(full_path.join(" > "));

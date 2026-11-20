@@ -1,6 +1,14 @@
 use super::{
-    super::{InstallError, Reporter, mutated_project_dirs, run_pre_uninstall_scripts},
-    settled::{Settled, SettledProjects},
+    super::{
+        InstallError,
+        Reporter,
+        mutated_project_dirs,
+        run_pre_uninstall_scripts,
+    },
+    settled::{
+        Settled,
+        SettledProjects,
+    },
 };
 
 /// Runs before the lockfile and `node_modules` are touched, so a failing

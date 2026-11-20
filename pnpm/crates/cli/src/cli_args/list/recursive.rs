@@ -1,8 +1,20 @@
-use super::{ListArgs, RecursionLimit, ReportAs, render};
-use crate::cli_args::recursive::{AutoExcludeRoot, RecursiveSelection, select_recursive_projects};
+use super::{
+    ListArgs,
+    RecursionLimit,
+    ReportAs,
+    render,
+};
+use crate::cli_args::recursive::{
+    AutoExcludeRoot,
+    RecursiveSelection,
+    select_recursive_projects,
+};
 use pnpm_config::Config;
 use pnpm_workspace_projects_graph::BaseProject;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 impl ListArgs {
     pub(super) async fn run_recursive(

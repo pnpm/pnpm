@@ -1,5 +1,8 @@
 use super::super::local_file_tarball_install_url;
-use crate::install_package_by_snapshot::runtime::{archive_filter_for, node_extras_filter};
+use crate::install_package_by_snapshot::runtime::{
+    archive_filter_for,
+    node_extras_filter,
+};
 use pnpm_lockfile::PackageKey;
 use pretty_assertions::assert_eq;
 use std::borrow::Cow;
@@ -15,7 +18,7 @@ fn local_file_tarball_install_url_resolves_relative_specs_against_workspace_root
     assert_eq!(actual.as_ref(), format!("file:{}", expected.display()));
 }
 /// Pin each branch of the alternation, including the negative
-/// cases the regex deliberately doesn't match — a regression
+/// cases the regex deliberately doesn't match, a regression
 /// (e.g. matching `lib/node_modules/yarn/...` because someone
 /// forgot the `npm|corepack` alternation) would slip past tests
 /// that only checked positive matches.

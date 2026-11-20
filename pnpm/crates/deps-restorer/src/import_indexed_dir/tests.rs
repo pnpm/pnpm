@@ -16,7 +16,10 @@ mod links;
 use super::ImportIndexedDirOpts;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn write_source(dir: &Path, rel: &str, contents: &[u8]) -> PathBuf {

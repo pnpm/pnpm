@@ -1,14 +1,25 @@
 use super::{
-    BadGhActionsEnvFileValue, append_gh_actions_env_files, validate_gh_actions_env_file_values,
+    BadGhActionsEnvFileValue,
+    append_gh_actions_env_files,
+    validate_gh_actions_env_file_values,
     write_gh_actions_env_files,
 };
 use pnpm_config::EnvVarOs;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+    SilentReporter,
+};
 use pretty_assertions::assert_eq;
 use std::{
     ffi::OsString,
     path::PathBuf,
-    sync::{Mutex, OnceLock},
+    sync::{
+        Mutex,
+        OnceLock,
+    },
 };
 
 struct NoEnv;

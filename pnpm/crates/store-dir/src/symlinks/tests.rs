@@ -1,6 +1,11 @@
 use super::normalize_symlink_target;
 use crate::{
-    CafsFileInfo, PackageFilesIndex, SYMLINK_MODE, SideEffectsDiff, SideEffectsOverlay, StoreDir,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SYMLINK_MODE,
+    SideEffectsDiff,
+    SideEffectsOverlay,
+    StoreDir,
     build_file_maps_from_index,
 };
 use pretty_assertions::assert_eq;

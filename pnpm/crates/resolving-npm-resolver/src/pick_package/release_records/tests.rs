@@ -1,15 +1,38 @@
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
-use pnpm_lockfile::{RegistryOptions, RegistryServerType};
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_registry::{InstallV2Entry, PackageVersion};
+use pnpm_lockfile::{
+    RegistryOptions,
+    RegistryServerType,
+};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_registry::{
+    InstallV2Entry,
+    PackageVersion,
+};
 use pnpm_resolving_resolver_base::NetworkPolicy;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
-use super::{record_revision, with_release_record};
+use super::{
+    record_revision,
+    with_release_record,
+};
 use crate::{
-    InMemoryPackageMetaCache, PackumentFetchLocker, RegistryRevisionSelector,
-    pick_package::PickPackageContext, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    PackumentFetchLocker,
+    RegistryRevisionSelector,
+    pick_package::PickPackageContext,
+    shared_packument_fetch_locker,
 };
 
 const INTEGRITY: &str = "sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==";
@@ -336,8 +359,10 @@ async fn the_record_address_decides_the_revision() {
 
 #[tokio::test]
 async fn local_release_records_retry_transient_statuses_but_not_denials() {
-    use std::sync::atomic::Ordering;
-    use std::time::Duration;
+    use std::{
+        sync::atomic::Ordering,
+        time::Duration,
+    };
 
     for status in [503, 403] {
         let mut server = mockito::Server::new_async().await;

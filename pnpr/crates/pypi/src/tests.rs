@@ -1,12 +1,29 @@
 use super::{
-    DistributionKind, PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument, ProjectFile, UploadError,
-    Yanked, escape_html,
-    multipart::{FormPart, tests::encode_form},
-    normalize_name, normalize_version, parse_distribution_filename, parse_upload,
-    render_project_list_html, render_project_list_json, wants_json, wants_versioned_html,
+    DistributionKind,
+    PROJECT_DOCUMENT_FORMAT_VERSION,
+    ProjectDocument,
+    ProjectFile,
+    UploadError,
+    Yanked,
+    escape_html,
+    multipart::{
+        FormPart,
+        tests::encode_form,
+    },
+    normalize_name,
+    normalize_version,
+    parse_distribution_filename,
+    parse_upload,
+    render_project_list_html,
+    render_project_list_json,
+    wants_json,
+    wants_versioned_html,
 };
 use serde_json::json;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 #[test]
 fn project_names_normalize_the_pep_503_way() {

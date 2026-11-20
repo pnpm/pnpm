@@ -1,4 +1,7 @@
-use super::{Deserialize, Serialize};
+use super::{
+    Deserialize,
+    Serialize,
+};
 
 /// How `pnpm add` / `pnpm update` reconcile a directly-specified version
 /// against a `catalog:` entry for the same package.
@@ -23,8 +26,8 @@ pub enum CatalogMode {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PackageImportMethod {
-    /// Try the platform's cheap link tiers in order — hardlink first on
-    /// Linux and Windows, clone first elsewhere — and fall back to copying
+    /// Try the platform's cheap link tiers in order (hardlink first on
+    /// Linux and Windows, clone first elsewhere) and fall back to copying
     /// when none is possible. `deps-restorer::link_file::next_auto_tier`
     /// implements the ladder and carries the rationale.
     #[default]

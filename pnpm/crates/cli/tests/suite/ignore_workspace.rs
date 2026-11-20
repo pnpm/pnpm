@@ -3,9 +3,16 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_workspace(workspace: &Path, packages: &[&str], names: &[&str]) {
     let patterns = packages
@@ -210,7 +217,7 @@ fn a_configured_ignore_workspace_still_installs_the_workspace() {
         .expect("spawn pacquet");
     assert!(output.status.success(), "install failed: {output:?}");
 
-    // The lockfile exists either way — a standalone install at the
+    // The lockfile exists either way, a standalone install at the
     // workspace root writes one too. What separates the two is whether the
     // sibling project is an importer of it.
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
@@ -225,7 +232,7 @@ fn a_configured_ignore_workspace_still_installs_the_workspace() {
 /// The pre-command pass that reconciles the `packageManager` pin loads a
 /// configuration of its own, before the install does. Anchored on the
 /// ignored workspace it reads that workspace's `pnpm-workspace.yaml`, whose
-/// unrecognized keys fail the command outright under a satisfied pin — so
+/// unrecognized keys fail the command outright under a satisfied pin, so
 /// the flag has to reach this loader too, not only the install's.
 #[test]
 fn ignore_workspace_keeps_the_pre_command_pass_off_the_workspace_manifest() {

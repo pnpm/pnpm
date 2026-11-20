@@ -2,24 +2,36 @@
 //!
 //! Two free functions:
 //!
-//! - [`replace_workspace_protocol`] — the regular-dependency form.
+//! - [`replace_workspace_protocol`], the regular-dependency form.
 //!   Resolves `workspace:` specs against the dependency's already-
 //!   installed `package.json` in `node_modules`.
-//! - [`replace_workspace_protocol_peer_dependency`] — the
+//! - [`replace_workspace_protocol_peer_dependency`], the
 //!   peer-dependency form. Accepts the broader `>=`/`<=`/`>`/`<`
 //!   comparators allowed in peer specs and rewrites every
 //!   `workspace:` segment in place so a compound `a || workspace:>=`
 //!   round-trips correctly.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fmt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{
+    PackageManifestError,
+    safe_read_package_json_from_dir,
+};
 use pnpm_workspace_spec::WorkspaceSpec;
 use serde_json::Value;
 
@@ -197,7 +209,9 @@ fn parsed_peer_spec(dep_spec: &str) -> Option<ParsedPeer> {
 /// The directory a workspace dependency is installed under: the caller's, or
 /// the project's own `node_modules`.
 fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
-    modules_dir.map_or_else(|| dir.join("node_modules"), Path::to_path_buf)
+    modules_dir
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| dir.join("node_modules"))
 }
 
 /// The specifier a published manifest records for a workspace dependency: the
@@ -220,7 +234,7 @@ fn aliased_peer_spec(alias: &str, version: &str) -> String {
 
 /// Read `<dependency_dir>/package.json` and verify the `name` / `version`
 /// fields are present, falling back to the workspace package named
-/// `target_pkg_name` — or starting from it, when the lookup prefers the
+/// `target_pkg_name`, or starting from it, when the lookup prefers the
 /// workspace manifests. Surfaces the
 /// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` error when the
 /// dependency hasn't been installed yet or its manifest is incomplete.
@@ -313,7 +327,7 @@ pub struct WorkspacePackageManifest {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct WorkspacePackageLookup<'a> {
     /// Workspace packages by manifest name, consulted when the dependency
-    /// is not installed — or first, when [`Self::prefer_workspace_for`]
+    /// is not installed, or first, when [`Self::prefer_workspace_for`]
     /// names it.
     pub packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
     /// Resolve from the workspace manifests before the installed copies,
@@ -432,7 +446,7 @@ fn parse_peer_range_comparator(bytes: &[u8], pos: usize) -> usize {
 }
 
 /// Consume `(\d+|[xX*])(\.(\d+|[xX*])){0,2}` starting at `pos`. Returns
-/// the byte offset one past the consumed region — or `pos` when the
+/// the byte offset one past the consumed region, or `pos` when the
 /// first character isn't a valid part.
 fn parse_peer_version(bytes: &[u8], pos: usize) -> usize {
     let Some(end) = parse_peer_version_part(bytes, pos) else {

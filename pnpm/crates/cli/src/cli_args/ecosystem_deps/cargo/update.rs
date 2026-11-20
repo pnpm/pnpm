@@ -1,15 +1,24 @@
 use super::{
     super::cargo_manifest_ops::{
-        DeclaredCargoDep, declared_cargo_deps, find_cargo_workspace_root, same_declared_dep,
+        DeclaredCargoDep,
+        declared_cargo_deps,
+        find_cargo_workspace_root,
+        same_declared_dep,
     },
-    CargoUpdateOptions, Reporter as CargoReporter, SelectedCargoDep, execute_cargo_update,
+    CargoUpdateOptions,
+    Reporter as CargoReporter,
+    SelectedCargoDep,
+    execute_cargo_update,
     select_cargo_deps_to_update,
 };
 use crate::ecosystem_install::InstallContext;
 use miette::Result;
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 struct CargoWorkspaceSelection {

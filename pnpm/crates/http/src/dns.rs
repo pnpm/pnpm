@@ -1,4 +1,9 @@
-use std::{future::Future, net::SocketAddr, pin::Pin, str::FromStr};
+use std::{
+    future::Future,
+    net::SocketAddr,
+    pin::Pin,
+    str::FromStr,
+};
 
 pub type Addrs = Box<dyn Iterator<Item = SocketAddr> + Send>;
 pub type Resolving =

@@ -1,5 +1,8 @@
 use crate::{
-    attribution::{Attribution, Entry},
+    attribution::{
+        Attribution,
+        Entry,
+    },
     cli_args::Lto,
     install_timing::InstallTimings,
     sections::Section,
@@ -45,15 +48,10 @@ impl Measurement {
     fn summary_row(&self) -> String {
         let (cold, warm) = self.install
             .as_ref()
-            .map_or_else(
-                || ("-".to_string(), "-".to_string()),
-                |timings| {
-                    (
-                        format!("{} ms", timings.cold_store_ms),
-                        format!("{} ms", timings.warm_store_ms),
-                    )
-                },
-            );
+            .map(|timings| {
+                (format!("{} ms", timings.cold_store_ms), format!("{} ms", timings.warm_store_ms))
+            })
+            .unwrap_or_else(|| ("-".to_string(), "-".to_string()));
         format!(
             "| {} | {} | {} | {} | {cold} | {warm} |\n",
             self.lto.as_str(),

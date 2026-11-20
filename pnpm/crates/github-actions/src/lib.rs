@@ -1,28 +1,72 @@
 //! Inspect GitHub Actions dependencies and update their commit pins while preserving workflow formatting.
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 pub(crate) use pnpm_process as process;
 
 pub use release_age::ReleaseAge;
-pub use selectors::{is_selector, normalize_selector, selector_matcher};
+pub use selectors::{
+    is_selector,
+    normalize_selector,
+    selector_matcher,
+};
 
-use edits::{apply_workflow_edits, planned_edits};
-use futures_util::{StreamExt, stream};
-use node_semver::{Range as SemverRange, Version};
+use edits::{
+    apply_workflow_edits,
+    planned_edits,
+};
+use futures_util::{
+    StreamExt,
+    stream,
+};
+use node_semver::{
+    Range as SemverRange,
+    Version,
+};
 use pnpm_matcher::Matcher;
-use pnpm_network::{redact_and_sanitize, redact_url_for_display};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
-use release_age::{GitTagDates, ReleaseAgeCheck, ReleaseDates};
+use pnpm_network::{
+    redact_and_sanitize,
+    redact_url_for_display,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_resolving_git_resolver::{
+    GitCommandRunner,
+    RealGitRunner,
+    get_repo_refs,
+};
+use release_age::{
+    GitTagDates,
+    ReleaseAgeCheck,
+    ReleaseDates,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     ops::Range,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tokio::fs;
-use versions::{find_current, parse_comment_version, replaces_comment_version, repo_versions};
+use versions::{
+    find_current,
+    parse_comment_version,
+    replaces_comment_version,
+    repo_versions,
+};
 use workflow::discover;
-use yaml_serde::Value;
-use yamlpath::{Component, Document, QueryError, Route};
+use yamlpath::QueryError;
 
 #[derive(Clone)]
 pub struct OutdatedGitHubAction {
@@ -49,6 +93,7 @@ struct WorkflowValue {
     indentation: String,
     original_value: String,
     range: Range<usize>,
+    scalar_len: usize,
 }
 
 #[derive(Clone)]
@@ -274,7 +319,7 @@ fn to_outdated(
 
 /// Resolves the effective GitHub server base URL: the
 /// `update.githubActionsServer` setting, the `GITHUB_SERVER_URL`
-/// environment variable, or <https://github.com> — first non-empty wins.
+/// environment variable, or <https://github.com>, first non-empty wins.
 fn resolve_server_url(server_url: Option<&str>) -> miette::Result<String> {
     let url = server_url
         .filter(|url| !url.is_empty())

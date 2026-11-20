@@ -4,10 +4,20 @@
 //! package's snapshots apart: `name: {version, with: {peer: version}}`.
 //! No reference carries a peer or patch group.
 
-use crate::{PkgName, PkgNameVerPeer, SnapshotDepRef};
+use crate::{
+    PkgName,
+    PkgNameVerPeer,
+    SnapshotDepRef,
+};
 use serde::{
-    Deserialize, Deserializer, Serialize,
-    de::{self, MapAccess, Visitor},
+    Deserialize,
+    Deserializer,
+    Serialize,
+    de::{
+        self,
+        MapAccess,
+        Visitor,
+    },
 };
 use std::collections::BTreeMap;
 

@@ -2,13 +2,24 @@
 //! token via the npm OIDC token-exchange endpoint.
 
 use pipe_trait::Pipe;
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{escaped_package_name, normalize_registry_url, redact_url_credentials};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_network::{
+    escaped_package_name,
+    normalize_registry_url,
+    redact_url_credentials,
+};
 use serde_json::Value;
 use url::Url;
 
 use crate::{
-    capabilities::{OidcFetch, OidcMethod, OidcRequest},
+    capabilities::{
+        OidcFetch,
+        OidcMethod,
+        OidcRequest,
+    },
     oidc::OidcHttpOptions,
 };
 

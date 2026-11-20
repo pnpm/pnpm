@@ -1,7 +1,22 @@
 use super::{
-    Body, Duration, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, config_for,
-    foo_packument, json, public_cache_blobs, public_cache_pkg, router, sha1_hex_of,
-    sha512_integrity, tarball_cache_entries, to_bytes,
+    Body,
+    Duration,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    body_bytes,
+    config_for,
+    foo_packument,
+    json,
+    public_cache_blobs,
+    public_cache_pkg,
+    router,
+    sha1_hex_of,
+    sha512_integrity,
+    tarball_cache_entries,
+    to_bytes,
 };
 
 #[tokio::test]
@@ -822,6 +837,7 @@ fn has_integrity(version: &Value) -> bool {
     version
         .pointer("/dist/integrity")
         .and_then(Value::as_str)
-        .and_then(|value| value.parse::<ssri::Integrity>().ok())
+        .map(str::parse::<ssri::Integrity>)
+        .and_then(Result::ok)
         .is_some_and(|integrity| !integrity.hashes.is_empty())
 }

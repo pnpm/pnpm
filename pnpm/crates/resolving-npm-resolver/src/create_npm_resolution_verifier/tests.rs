@@ -13,26 +13,48 @@ mod artifact_binding;
 mod pnpr_documents;
 
 use super::{
-    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+    CreateNpmResolutionVerifierOptions,
+    create_npm_resolution_verifier,
+    observed_dist_stats_sink,
 };
 use crate::{
-    mirror::{ABBREVIATED_META_DIR, get_pkg_mirror_path, load_meta},
+    mirror::{
+        ABBREVIATED_META_DIR,
+        get_pkg_mirror_path,
+        load_meta,
+    },
     persist_meta_to_mirror,
 };
 use jiff::Timestamp;
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, PlatformAssetResolution, RegistryResolution, TarballResolution,
-    TarballRevision, VariationsResolution,
+    LockfileResolution,
+    PkgName,
+    PlatformAssetResolution,
+    RegistryResolution,
+    TarballResolution,
+    TarballRevision,
+    VariationsResolution,
 };
 use pnpm_network::{
-    AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
+    AuthHeaders,
+    MetadataCacheScope,
+    RetryOpts,
+    ThrottledClient,
+    UpstreamRouteHook,
 };
 use pnpm_registry::Package;
-use pnpm_resolving_resolver_base::{ResolutionVerification, TrustPolicy, VerifyCtx};
+use pnpm_resolving_resolver_base::{
+    ResolutionVerification,
+    TrustPolicy,
+    VerifyCtx,
+};
 use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 use tempfile::TempDir;
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -100,6 +122,8 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
             observed_stats: None,
             canonical_fetches: None,
             lookups: None,
+            published_tarball_mapper: None,
+            reverse_routed_tarball_url: None,
         },
     }
 }
@@ -142,8 +166,8 @@ fn min_age_packument_json(name: &str, version: &str, published_at: &str) -> serd
 
 /// Packument with two versions: earlier (`prior_version`) has both
 /// `_npmUser.trustedPublisher` *and* `dist.attestations.provenance`
-/// — `get_trust_evidence` only ranks the publisher flag as the
-/// strongest evidence when the version also ships an attestation —
+/// (`get_trust_evidence` only ranks the publisher flag as the
+/// strongest evidence when the version also ships an attestation)
 /// while current has only `dist.attestations.provenance`. This is the
 /// canonical "trusted-publisher → provenance" downgrade.
 fn trust_downgrade_packument(name: &str) -> serde_json::Value {
@@ -181,7 +205,7 @@ fn trust_downgrade_packument(name: &str) -> serde_json::Value {
 }
 
 /// Packument where every published version carries the same
-/// (provenance) evidence — verifying any of them must NOT raise
+/// (provenance) evidence, verifying any of them must NOT raise
 /// a trust downgrade.
 fn stable_trust_packument(name: &str) -> serde_json::Value {
     serde_json::json!({

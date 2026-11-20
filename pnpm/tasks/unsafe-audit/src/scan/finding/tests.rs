@@ -1,4 +1,8 @@
-use super::{Finding, Kind, Occurrence};
+use super::{
+    Finding,
+    Kind,
+    Occurrence,
+};
 use text_block_macros::text_block;
 
 fn occurrence() -> Occurrence {

@@ -1,7 +1,14 @@
 use super::{
-    CanonicalPackageName, TarballRevision, abbreviate_packument,
-    extract_upstream_revision_integrity, extract_version_manifest, json, now, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, tarball_basename,
+    CanonicalPackageName,
+    TarballRevision,
+    abbreviate_packument,
+    extract_upstream_revision_integrity,
+    extract_version_manifest,
+    json,
+    now,
+    rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls,
+    tarball_basename,
 };
 
 #[test]
@@ -240,7 +247,7 @@ fn extract_upstream_revision_integrity_requires_matching_version_and_valid_revis
 #[test]
 fn rewrites_verdaccio_form_tarball_for_scoped() {
     // Verdaccio publishes scoped tarball URLs like
-    // `/@scope/name/-/@scope/name-1.0.0.tgz` — the scope is
+    // `/@scope/name/-/@scope/name-1.0.0.tgz`, the scope is
     // present twice. We only care about the basename.
     let mut doc = json!({
         "versions": {
@@ -655,4 +662,35 @@ fn preserves_exact_timestamps_for_same_day_releases_so_trust_order_survives() {
     assert_eq!(time["1.0.1"], "2024-01-10T18:00:00.000Z");
     assert_eq!(time["2.0.0"], "2024-02-16");
     assert_eq!(time["modified"], "2024-03-02");
+}
+
+#[test]
+fn revision_route_tarball_version_recognizes_clean_canonical_revisions() {
+    use crate::revision_route_tarball_version;
+
+    let unscoped = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let scoped =
+        CanonicalPackageName::parse("@corp/foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+
+    assert_eq!(
+        revision_route_tarball_version("https://pnpr.test/npm/foo@1.0.0+r0", &unscoped),
+        Some("1.0.0+r0"),
+    );
+    assert_eq!(
+        revision_route_tarball_version("https://pnpr.test/npm/@corp/foo@1.0.0+r3", &scoped),
+        Some("1.0.0+r3"),
+    );
+    assert_eq!(revision_route_tarball_version("/npm/foo@1.0.0+r0", &unscoped), Some("1.0.0+r0"));
+    assert_eq!(revision_route_tarball_version("foo@1.0.0+r0", &unscoped), Some("1.0.0+r0"));
+    for invalid in [
+        "https://pnpr.test/npm/foo@1.0.0+r02",
+        "https://pnpr.test/npm/evil/../foo@1.0.0+r3",
+        "../foo@1.0.0+r3",
+        "./foo@1.0.0+r3",
+        "https://pnpr.test/npm/foo@1.0.0+r3?sig=secret",
+        "https://pnpr.test/npm/foo@1.0.0+build.1",
+        "https://pnpr.test/npm/foo/-/foo-1.0.0.tgz",
+    ] {
+        assert_eq!(revision_route_tarball_version(invalid, &unscoped), None, "{invalid}");
+    }
 }

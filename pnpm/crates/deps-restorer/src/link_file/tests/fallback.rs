@@ -3,19 +3,39 @@
 
 use super::{
     super::{
-        AUTO_FIRST_TIER, ImportState, LINK_STATE_CLONE, LINK_STATE_COPY, LINK_STATE_HARDLINK,
-        LOG_FLAG_CLONE, LOG_FLAG_COPY, LOG_FLAG_HARDLINK, next_auto_tier,
+        AUTO_FIRST_TIER,
+        ImportState,
+        LINK_STATE_CLONE,
+        LINK_STATE_COPY,
+        LINK_STATE_HARDLINK,
+        LOG_FLAG_CLONE,
+        LOG_FLAG_COPY,
+        LOG_FLAG_HARDLINK,
+        next_auto_tier,
     },
-    Faults, Faulty, STORE_ENTRY, write_source,
+    Faults,
+    Faulty,
+    STORE_ENTRY,
+    write_source,
 };
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{LinkFailure, StoreFile};
-use pnpm_reporter::{PackageImportMethod as WireImportMethod, SilentReporter};
+use pnpm_fs::{
+    LinkFailure,
+    StoreFile,
+};
+use pnpm_reporter::{
+    PackageImportMethod as WireImportMethod,
+    SilentReporter,
+};
 use pretty_assertions::assert_eq;
 use std::{
-    fs, io,
+    fs,
+    io,
     path::Path,
-    sync::atomic::{AtomicU8, Ordering},
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 use tempfile::tempdir;
 

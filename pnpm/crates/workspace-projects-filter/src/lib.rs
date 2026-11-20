@@ -20,15 +20,33 @@
 pub(crate) use pnpm_process as process;
 
 pub use filter::{
-    FilterError, FilterProjectsOptions, FilterWorkspaceProjectsOptions, FilteredGraphProjects,
-    FilteredProjects, WorkspaceFilter, filter_projects, filter_projects_by_selector_objects,
-    filter_workspace_projects, filter_workspace_projects_with_prod_graph,
+    FilterError,
+    FilterProjectsOptions,
+    FilterWorkspaceProjectsOptions,
+    FilteredGraphProjects,
+    FilteredProjects,
+    WorkspaceFilter,
+    filter_projects,
+    filter_projects_by_selector_objects,
+    filter_workspace_projects,
+    filter_workspace_projects_with_prod_graph,
 };
-pub use get_changed_projects::{ChangedProjects, GetChangedProjectsOptions, get_changed_projects};
+pub use get_changed_projects::{
+    ChangedProjects,
+    GetChangedProjectsOptions,
+    ProjectDependencies,
+    get_changed_projects,
+};
 pub use parse_project_selector::{
-    ProjectSelector, parse_project_selector, rebase_project_selector,
+    ProjectSelector,
+    parse_project_selector,
+    rebase_project_selector,
 };
-pub use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
+pub use pnpm_workspace_projects_graph::{
+    BaseProject,
+    ProjectGraph,
+    ProjectGraphNode,
+};
 
 mod filter;
 mod get_changed_projects;

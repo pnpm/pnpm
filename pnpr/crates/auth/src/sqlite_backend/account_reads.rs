@@ -1,6 +1,18 @@
-use crate::{AccountLogin, AccountStatus, AccountStatusRevision, UserAccount};
-use pnpr_error::{RegistryError, Result};
-use pnpr_sql::adapter::{Connection, Param, Row};
+use crate::{
+    AccountLogin,
+    AccountStatus,
+    AccountStatusRevision,
+    UserAccount,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_sql::adapter::{
+    Connection,
+    Param,
+    Row,
+};
 use std::collections::HashMap;
 
 pub(super) fn list_accounts(connection: &dyn Connection) -> Result<Vec<UserAccount>> {

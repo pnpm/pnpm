@@ -1,4 +1,10 @@
-use super::{Kind, has_safety_comment, kind, opens_unsafe, opts_out};
+use super::{
+    Kind,
+    has_safety_comment,
+    kind,
+    opens_unsafe,
+    opts_out,
+};
 use text_block_macros::text_block_fnl;
 
 /// Drive [`super::occurrences`] over `source`, written to a scratch file.

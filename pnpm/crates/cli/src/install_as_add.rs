@@ -12,14 +12,18 @@
 //! `install` declares already sits after the subcommand and cannot be
 //! mistaken for the package name. One only `add` declares, such as `-D`
 //! in `pnpm -D install foo`, is relocated once the token names `add`. The
-//! settings extraction ahead of both resolves the command the same way —
+//! settings extraction ahead of both resolves the command the same way;
 //! see [`subcommand_option_names`].
 //!
 //! [`relocate_pre_subcommand_flags`]: crate::flag_relocation::relocate_pre_subcommand_flags
 //! [`subcommand_option_names`]: crate::parse_boundary::subcommand_option_names
 
 use crate::flag_relocation::{
-    ArgTable, PositionalScan, find_positional, relocate_pre_subcommand_flags, scan_for_positional,
+    ArgTable,
+    PositionalScan,
+    find_positional,
+    relocate_pre_subcommand_flags,
+    scan_for_positional,
 };
 use clap::Command;
 use std::ffi::OsString;

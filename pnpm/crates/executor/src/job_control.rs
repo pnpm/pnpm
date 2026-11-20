@@ -40,7 +40,11 @@ use crate::process::Child;
 #[cfg(windows)]
 use pnpm_ffi_process::Job;
 #[cfg(windows)]
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{
+    Arc,
+    Mutex,
+    PoisonError,
+};
 
 /// The armed job, until the cleanup is released. Tests read it to see whether
 /// a path released the cleanup.

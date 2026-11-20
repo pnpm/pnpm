@@ -1,8 +1,16 @@
 use std::{
     future::Future,
     sync::Arc,
-    task::{Context, Poll, Wake, Waker},
-    thread::{self, Thread},
+    task::{
+        Context,
+        Poll,
+        Wake,
+        Waker,
+    },
+    thread::{
+        self,
+        Thread,
+    },
 };
 
 /// Polls a host future on a guest worker without entering a Tokio runtime.

@@ -4,19 +4,30 @@ pub(super) mod manifest;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) use directory_deps::{
-    NestedDirectoryPackage, ProjectManifestsByDir, RecordedPeerChildren,
-    dependency_manifests_by_dir, is_declared_local_directory, project_manifests_by_dir,
+    NestedDirectoryPackage,
+    ProjectManifestsByDir,
+    RecordedPeerChildren,
+    dependency_manifests_by_dir,
+    is_declared_local_directory,
+    project_manifests_by_dir,
     spec_target_and_range,
 };
-pub(crate) use directory_manifests::{DirectoryManifests, hooked_importer_directory_manifests};
+pub(crate) use directory_manifests::{
+    DirectoryManifests,
+    hooked_importer_directory_manifests,
+};
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
-    ImporterSatisfactionCheck, OptionalDependencyExclusions, WorkspaceProjects,
+    ImporterSatisfactionCheck,
+    OptionalDependencyExclusions,
+    WorkspaceProjects,
     check_importer_satisfies,
 };
 pub(crate) use settings::{
-    CheckLockfileSettingsDriftOptions, check_lockfile_settings_drift, parse_config_overrides,
+    CheckLockfileSettingsDriftOptions,
+    check_lockfile_settings_drift,
+    parse_config_overrides,
 };
 
 mod directory_manifests;
@@ -24,8 +35,16 @@ mod directory_manifests;
 use rayon::prelude::*;
 
 use super::{
-    Arc, Catalogs, Config, Lockfile, PackageManifest, Path, PathBuf, StalenessReason,
-    build_project_manifests_list, configured_or_discovered_workspace_dir,
+    Arc,
+    Catalogs,
+    Config,
+    Lockfile,
+    PackageManifest,
+    Path,
+    PathBuf,
+    StalenessReason,
+    build_project_manifests_list,
+    configured_or_discovered_workspace_dir,
 };
 
 /// Inputs for [`wanted_lockfile_satisfies_workspace`].
@@ -42,7 +61,7 @@ pub struct WantedLockfileSatisfactionCheck<'a> {
 }
 
 /// Whether an unfiltered install could materialize `node_modules` from
-/// `lockfile` as-is — the same settings-drift and per-importer
+/// `lockfile` as-is, the same settings-drift and per-importer
 /// specifier gates the explicit `--frozen-lockfile` dispatch runs, so a
 /// `true` verdict guarantees a subsequent frozen [`super::Install`] run
 /// over the same lockfile passes its freshness check instead of
@@ -51,7 +70,7 @@ pub struct WantedLockfileSatisfactionCheck<'a> {
 /// Built for the pnpr client, which uses the verdict to skip the
 /// server resolve exchange when there is nothing to resolve
 /// ([pnpm/pnpm#13904](https://github.com/pnpm/pnpm/issues/13904)).
-/// Conservative on every input it cannot cheaply reason about — an
+/// Conservative on every input it cannot cheaply reason about, an
 /// empty lockfile, config dependencies, a workspace pnpmfile (whose
 /// hooks could rewrite manifests or force a re-resolve), or a failed
 /// workspace discovery all report `false`, sending the caller down its
@@ -78,7 +97,7 @@ pub async fn wanted_lockfile_satisfies_workspace(
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     // The importer ids below name projects relative to the directory the
     // check.lockfile sits in, which `lockfileDir` can move away from the
-    // workspace root — deriving them from the workspace instead would
+    // workspace root, deriving them from the workspace instead would
     // classify every importer the check.lockfile records as missing.
     let lockfile_root =
         super::lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
@@ -131,10 +150,8 @@ async fn workspace_manifests_satisfy(
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
                 allow_missing_dependency_free_importers: true,
-                frozen_lockfile: false,
                 prune_stale_importers: true,
-                patches_only: false,
-                locked_registries: None,
+                ..FreshnessScope::default()
             },
         },
     )
@@ -213,7 +230,7 @@ pub(super) struct FastUpdateLockfileOptions<'a, 'manifest> {
 }
 
 /// Rewrite the loaded lockfile in place of a full resolution for the
-/// drift the lockfile itself proves is safe to absorb — see
+/// drift the lockfile itself proves is safe to absorb; see
 /// [`crate::fast_update_compose::try_compose_fast_updates`] for the
 /// handlers and their composition order. The candidate only replaces
 /// the loaded lockfile once it passes every freshness gate, so a
@@ -227,7 +244,7 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
     // guard inside the pipeline, and the report below all need the same
     // snapshot, and reading the patch files is the only I/O any of them do.
     // `Err` is a patch file that cannot be read or hashed, which the
-    // resolver reports — not the same as having none configured.
+    // resolver reports, not the same as having none configured.
     let Ok(patch_hashes) = opts.freshness.config.patched_dependency_hashes() else {
         return None;
     };
@@ -260,10 +277,12 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
 
 /// Which importers a freshness check may reason about, and how
 /// strictly. See [`check_lockfile_freshness`] for what each one admits.
-#[derive(Clone, Copy)]
+#[derive(Default, Clone, Copy)]
 pub(crate) struct FreshnessScope<'a> {
     /// Skip the per-importer specifier gate entirely.
     pub(crate) ignore_manifest_check: bool,
+    /// See [`crate::InstallLockfilePolicy::ignore_settings_check`].
+    pub(crate) ignore_settings_check: bool,
     /// Treat a project with no importer entry and no dependencies as
     /// satisfied rather than missing.
     pub(crate) allow_missing_dependency_free_importers: bool,
@@ -309,7 +328,8 @@ fn unclaimed_importer_id<'a>(
     lockfile.importers
         .keys()
         .map(String::as_str)
-        .find(|importer_id| !manifest_ids.contains(importer_id) && matches(importer_id))
+        .filter(|importer_id| !manifest_ids.contains(importer_id))
+        .find(|importer_id| matches(importer_id))
 }
 
 /// Fail on an importer no project claims whose directory exists but holds no
@@ -505,7 +525,8 @@ fn check_single_importer(
     let prefix = manifest
         .path()
         .parent()
-        .map(|project_dir| project_dir.display().to_string())
+        .map(Path::display)
+        .map(|shown| shown.to_string())
         .unwrap_or_default();
     Ok(skipped
         .into_iter()

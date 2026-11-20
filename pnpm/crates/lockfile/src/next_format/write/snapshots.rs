@@ -2,26 +2,54 @@
 //! sections built from them.
 
 use super::{
-    importers::{importer_dependencies, next_importer, non_empty},
-    peers::{
-        KeyNamedPeer, ProviderConstraint, ProviderFinder, all_groups_named, own_peer_names,
-        provider_segments, transitive_named_in_key,
+    super::{
+        NamedBindings,
+        NextFormatError,
+        NextRef,
+        NextSections,
+        NextSnapshotEntry,
+        NextSnapshots,
+        read,
+        without_groups,
     },
-    {
-        super::{
-            NamedBindings, NextFormatError, NextRef, NextSections, NextSnapshotEntry,
-            NextSnapshots, read, without_groups,
-        },
-        Explicit, children,
+    Explicit,
+    children,
+    importers::{
+        importer_dependencies,
+        next_importer,
+        non_empty,
+    },
+    peers::{
+        KeyNamedPeer,
+        ProviderConstraint,
+        ProviderFinder,
+        all_groups_named,
+        own_peer_names,
+        provider_segments,
+        transitive_named_in_key,
     },
 };
 use crate::{
-    BoundProviders, Lockfile, LockfileEntries, PackageKey, PackageMetadata, PkgName,
-    SnapshotDepRef, SnapshotEntry,
+    BoundProviders,
+    Lockfile,
+    LockfileEntries,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
-use naming::{BindingVariation, NamingBudget, binding_components, varying_bindings};
+use naming::{
+    BindingVariation,
+    NamingBudget,
+    binding_components,
+    varying_bindings,
+};
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 mod naming;
 
@@ -314,7 +342,8 @@ impl<'a> Snapshots<'a> {
                 .filter(|name| {
                     bindings
                         .get(&name.to_string())
-                        .is_some_and(|reference| reference.peers().is_some())
+                        .map(NextRef::peers)
+                        .is_some_and(|peers| peers.is_some())
                 })
             {
                 explicit.mark_snapshot_reference(snapshot.key, name);

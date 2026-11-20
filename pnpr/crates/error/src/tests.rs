@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use axum::{body::to_bytes, http::StatusCode, response::IntoResponse};
+use axum::{
+    body::to_bytes,
+    http::StatusCode,
+    response::IntoResponse,
+};
 use tokio::net::TcpListener;
 
 use super::RegistryError;
@@ -278,8 +282,8 @@ fn is_transient_upstream_error_only_for_availability_failures() {
     };
     assert!(circuit_open.is_transient_upstream_error());
 
-    // Every 4xx is an authoritative response about this request — including
-    // 429 (throttle) and 408 (timeout) — and must NOT be masked (e.g. by
+    // Every 4xx is an authoritative response about this request (including
+    // 429 (throttle) and 408 (timeout)) and must NOT be masked (e.g. by
     // serving a stale cache entry).
     for status in [400, 401, 403, 408, 410, 429, 451] {
         let err = RegistryError::UpstreamStatus {
@@ -438,4 +442,24 @@ async fn unavailable_registries_answer_503_with_a_stable_code() {
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["code"], "ERR_PNPR_REGISTRIES_UNAVAILABLE");
+}
+
+#[test]
+fn log_message_redacts_presigned_signature_and_credential_query_parameters() {
+    let error = RegistryError::UpstreamStatus {
+        url: "https://cdn.example.test/pkg.tgz?X-Amz-Signature=EXAMPLE_AMZ_SIG&X-Amz-Security-Token=EXAMPLE_STS_TOK&X-Goog-Signature=EXAMPLE_GOOG_SIG&signature=EXAMPLE_PLAIN_SIG&sig=EXAMPLE_SAS_SIG&expires=300".to_string(),
+        status: 403,
+        body: String::new(),
+    };
+    let message = error.log_message();
+    for secret in [
+        "EXAMPLE_AMZ_SIG",
+        "EXAMPLE_STS_TOK",
+        "EXAMPLE_GOOG_SIG",
+        "EXAMPLE_PLAIN_SIG",
+        "EXAMPLE_SAS_SIG",
+    ] {
+        assert!(!message.contains(secret), "{secret} leaked in {message}");
+    }
+    assert!(message.contains("expires=300"), "{message}");
 }

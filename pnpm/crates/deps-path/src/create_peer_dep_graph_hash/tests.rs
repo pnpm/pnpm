@@ -1,4 +1,7 @@
-use super::{PeerId, create_peer_dep_graph_hash};
+use super::{
+    PeerId,
+    create_peer_dep_graph_hash,
+};
 
 fn pair(name: &str, version: &str) -> PeerId {
     PeerId::Pair { name: name.to_string(), version: version.to_string() }

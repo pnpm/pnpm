@@ -3,10 +3,11 @@ import path from 'node:path'
 
 import { PnpmError } from '@pnpm/error'
 import { isSubdir } from 'is-subdir'
-import YAML, { isMap, isNode, isScalar, isSeq, type Node, type Scalar, type YAMLMap } from 'yaml'
+import YAML, { type Scalar } from 'yaml'
 
 import { getCommentVersionToken } from './commentVersion.js'
 import { isErrorCode, workflowError } from './errors.js'
+import { findUsesScalars } from './findUsesScalars.js'
 import type { ActionFile, ActionReference } from './types.js'
 
 interface ScanContext {
@@ -71,11 +72,11 @@ async function readRealPath (filePath: string): Promise<string> {
 }
 
 function collectWorkflowReferences (realFilePath: string, source: string): WorkflowReferences {
-  const document = YAML.parseDocument(source)
+  const document = YAML.parseDocument(source, { merge: true })
   if (document.errors.length > 0) throw workflowError('PARSE', realFilePath, document.errors[0])
   const file = { path: realFilePath }
   const references: WorkflowReferences = { actions: [], localReferences: [] }
-  for (const node of findUsesScalars(document.contents)) {
+  for (const node of findUsesScalars(document, document.contents, source)) {
     const localReference = parseLocalReference(node.value)
     if (localReference != null) {
       references.localReferences.push(localReference)
@@ -104,52 +105,8 @@ function createActionReference ({ file, node, parsed, source }: {
     indentation: getIndentation(source, node.range[0]),
     originalValue: source.slice(node.range[0], end),
     range: [node.range[0], end],
+    scalarLength: node.range[1] - node.range[0],
   }
-}
-
-function findUsesScalars (node: Node | null | undefined): Array<Scalar<string>> {
-  if (!isMap(node)) return []
-  const found: Array<Scalar<string>> = []
-  const jobs = findMapValue(node, 'jobs')
-  if (isMap(jobs)) {
-    found.push(...findJobsUses(jobs))
-  }
-  const runs = findMapValue(node, 'runs')
-  if (isMap(runs)) {
-    found.push(...findStepUses(findMapValue(runs, 'steps')))
-  }
-  return found
-}
-
-function findJobsUses (jobs: YAMLMap): Array<Scalar<string>> {
-  const found: Array<Scalar<string>> = []
-  for (const job of jobs.items) {
-    if (!isMap(job.value)) continue
-    const jobUses = findStringScalar(job.value, 'uses')
-    if (jobUses != null) found.push(jobUses)
-    found.push(...findStepUses(findMapValue(job.value, 'steps')))
-  }
-  return found
-}
-
-function findStepUses (node: Node | null): Array<Scalar<string>> {
-  if (!isSeq(node)) return []
-  return node.items.flatMap((item) => {
-    if (!isMap(item)) return []
-    const uses = findStringScalar(item, 'uses')
-    return uses == null ? [] : [uses]
-  })
-}
-
-function findMapValue (node: Node, key: string): Node | null {
-  if (!isMap(node)) return null
-  const value = node.items.find((pair) => isScalar(pair.key) && pair.key.value === key)?.value
-  return isNode(value) ? value : null
-}
-
-function findStringScalar (node: Node, key: string): Scalar<string> | null {
-  const value = findMapValue(node, key)
-  return isScalar(value) && typeof value.value === 'string' ? value as Scalar<string> : null
 }
 
 /**
@@ -191,13 +148,21 @@ async function existingPath (candidate: string): Promise<string | null> {
 }
 
 function parseActionReference (value: string): Pick<ActionReference, 'name' | 'ref' | 'repo'> | null {
-  if (value.startsWith('docker://')) return null
+  if (value.startsWith('docker://') || hasControlCharacters(value)) return null
   const at = value.lastIndexOf('@')
   if (at <= 0 || at === value.length - 1) return null
   const name = value.slice(0, at)
   const parts = name.split('/')
   if (parts.length < 2 || parts[0] === '' || parts[1] === '') return null
   return { name, ref: value.slice(at + 1), repo: `${parts[0]}/${parts[1]}` }
+}
+
+function hasControlCharacters (value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index)
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) return true
+  }
+  return false
 }
 
 function getCommentVersion (node: Scalar<string>): string | undefined {

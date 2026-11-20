@@ -1,4 +1,9 @@
-use super::{EnvArgs, EnvError, EnvSubcommand, remove::remove_matching_global_node};
+use super::{
+    EnvArgs,
+    EnvError,
+    EnvSubcommand,
+    remove::remove_matching_global_node,
+};
 use pnpm_config::Config;
 use pnpm_reporter::SilentReporter;
 use std::path::PathBuf;

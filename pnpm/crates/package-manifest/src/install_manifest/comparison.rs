@@ -1,7 +1,14 @@
 //! Comparing a submitted manifest with the archive's.
 
-use super::{INSTALL_MANIFEST_FIELDS, InstallManifest, NODE_GYP_REBUILD};
-use serde_json::{Map, Value};
+use super::{
+    INSTALL_MANIFEST_FIELDS,
+    InstallManifest,
+    NODE_GYP_REBUILD,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Fields both sides derive from the archive alone, or from fields that are
 /// compared themselves, so a difference in them is never news.

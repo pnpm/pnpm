@@ -1,4 +1,10 @@
-use super::{BTreeMap, Offered, Target, WheelMetadata, candidates_from_page};
+use super::{
+    BTreeMap,
+    Offered,
+    Target,
+    WheelMetadata,
+    candidates_from_page,
+};
 use pnpm_python_resolver::matches_published_digest;
 
 /// What a project page offers, refusing a page that is not one. The
@@ -45,8 +51,8 @@ pub(super) fn project_page_url(index: &url::Url, canonical_name: &str) -> Result
 /// page's links resolve against where it landed, not where it was asked
 /// for.
 ///
-/// The body is text, which is what both cached documents are — a Simple
-/// API page and a `METADATA` file — and what keeps the cache entry the
+/// The body is text, which is what both cached documents are (a Simple
+/// API page and a `METADATA` file) and what keeps the cache entry the
 /// size of the document rather than the decimal array JSON would make of
 /// its bytes.
 #[derive(serde::Serialize, serde::Deserialize)]

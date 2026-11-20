@@ -6,7 +6,12 @@ use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 
-use super::{clear_ci, public_pkg, write_registry_npmrc, write_workspace};
+use super::{
+    clear_ci,
+    public_pkg,
+    write_registry_npmrc,
+    write_workspace,
+};
 
 #[test]
 fn recursive_publish_skips_manifests_with_empty_name_or_empty_version() {

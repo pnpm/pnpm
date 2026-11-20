@@ -1,14 +1,30 @@
 //! Configuration for authoritative storage and disposable proxy cache.
 
 use crate::{
-    ConfigFile, Deserialize, HostedStoreConfig, LibsqlSettings, RegistryError,
+    ConfigFile,
+    Deserialize,
+    HostedStoreConfig,
+    LibsqlSettings,
+    RegistryError,
     backend_config::build_libsql_settings,
-    byte_size::{ByteSize, parse_byte_size},
-    config_file::{CacheFile, LibsqlFile},
-    upstream::{Interval, parse_interval},
+    byte_size::{
+        ByteSize,
+        parse_byte_size,
+    },
+    config_file::{
+        CacheFile,
+        LibsqlFile,
+    },
+    upstream::{
+        Interval,
+        parse_interval,
+    },
 };
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 
@@ -149,7 +165,8 @@ impl<'de> serde::de::Visitor<'de> for StorageFileVisitor {
         map: Map,
     ) -> Result<StorageFile, Map::Error> {
         StorageSettingsFile::deserialize(serde::de::value::MapAccessDeserializer::new(map))
-            .map(|settings| StorageFile::Settings(Box::new(settings)))
+            .map(Box::new)
+            .map(StorageFile::Settings)
     }
 }
 

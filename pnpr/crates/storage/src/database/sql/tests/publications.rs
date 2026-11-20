@@ -1,20 +1,45 @@
 //! Atomic publications, their recorded outcomes, and publication lookups.
 
-use super::{Db, npm, packument, read, schema::execute, storage, write};
+use super::{
+    Db,
+    npm,
+    packument,
+    read,
+    schema::execute,
+    storage,
+    write,
+};
 use crate::{
     database::{
-        ArtifactMember, BatchDocument, PublicationCommit, PublicationRequest, PublishNotes,
-        ReleaseRecords, SqlDatabase,
-        sql::{adapter::ReadSource, schema},
+        ArtifactMember,
+        BatchDocument,
+        PublicationCommit,
+        PublicationRequest,
+        PublishNotes,
+        ReleaseRecords,
+        SqlDatabase,
+        sql::{
+            adapter::ReadSource,
+            schema,
+        },
     },
     publish::now_millis,
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use serde_json::{Value, json};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 fn document(name: &str, document: &Value) -> BatchDocument {

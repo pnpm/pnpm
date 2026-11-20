@@ -1,7 +1,17 @@
 use super::{
-    AuthHeaders, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL, FetchTarballForResolution,
-    HttpStatusError, SilentReporter, TarballError, ThrottledClient, assert_eq,
-    auth_header_for_package_download, fast_retry_opts, fetch_and_extract_with_retry, integrity,
+    AuthHeaders,
+    FASTIFY_ERROR_INTEGRITY,
+    FASTIFY_ERROR_TARBALL,
+    FetchTarballForResolution,
+    HttpStatusError,
+    SilentReporter,
+    TarballError,
+    ThrottledClient,
+    assert_eq,
+    auth_header_for_package_download,
+    fast_retry_opts,
+    fetch_and_extract_with_retry,
+    integrity,
     tempdir_with_leaked_path,
 };
 
@@ -79,7 +89,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
 }
 
 /// When [`AuthHeaders`] resolves a credential for the tarball URL,
-/// the GET request must carry the `Authorization` header — including
+/// the GET request must carry the `Authorization` header, including
 /// for tarball hosts that differ from the metadata host.
 /// `mockito::Matcher::Exact` rejects the request unless the header
 /// matches verbatim, so a missing or wrong header would 501 the
@@ -244,8 +254,8 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     drop(store_dir_keep);
 }
 
-/// A tarball URL can carry inline `user:pass@` credentials — typed on the
-/// command line for `pnpm add <url>`, or declared in a manifest — and every
+/// A tarball URL can carry inline `user:pass@` credentials (typed on the
+/// command line for `pnpm add <url>`, or declared in a manifest) and every
 /// error rendering the URL lands in terminal scrollback and CI logs.
 #[test]
 fn url_bearing_errors_redact_inline_credentials() {

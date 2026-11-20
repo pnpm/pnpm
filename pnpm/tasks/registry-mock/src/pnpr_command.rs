@@ -1,11 +1,27 @@
-use crate::{port_to_url::port_to_url, seed_storage::seed_runtime_storage, workspace_root};
+use crate::{
+    port_to_url::port_to_url,
+    seed_storage::seed_runtime_storage,
+    workspace_root,
+};
+use command_extra::CommandExtra;
 use std::{
-    env, fs,
-    hash::{DefaultHasher, Hash, Hasher},
+    env,
+    fs,
+    hash::{
+        DefaultHasher,
+        Hash,
+        Hasher,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 // The tests stand in for `pnpr` with a shell script.
@@ -24,12 +40,12 @@ mod tests;
 /// var is unset and `cargo_bin` aborts. We resolve the path
 /// ourselves:
 ///
-/// 1. Honor `CARGO_BIN_EXE_pnpr` if set — this is the case
+/// 1. Honor `CARGO_BIN_EXE_pnpr` if set; this is the case
 ///    inside pnpr's own integration tests.
 /// 2. Prefer the release binary if one exists at
 ///    `$CARGO_TARGET_DIR/release/pnpr`. Critical for the
 ///    integrated benchmark: comparing a debug-Rust mock to a
-///    JIT-optimized verdaccio is apples to oranges — the install
+///    JIT-optimized verdaccio is apples to oranges, the install
 ///    measures 20%+ slower purely from unoptimized JSON parse +
 ///    serialize on every request. Tests don't need the release
 ///    binary, but having a release build override the debug one is
@@ -41,7 +57,8 @@ fn pnpr_binary() -> PathBuf {
         return PathBuf::from(path);
     }
     let target_dir = env::var_os("CARGO_TARGET_DIR")
-        .map_or_else(|| workspace_root().join("target"), PathBuf::from);
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace_root().join("target"));
     let exe = format!("pnpr{}", env::consts::EXE_SUFFIX);
     let release = target_dir.join("release").join(&exe);
     if release.is_file() {
@@ -62,7 +79,7 @@ fn pnpr_binary() -> PathBuf {
 /// packuments authoritative across a test run: their on-disk
 /// mtime is whenever the npm tarball was built, which is far older
 /// than any sane TTL, so a short TTL would mark them stale and try
-/// to refetch from npm — where the fixtures don't exist — and 404.
+/// to refetch from npm (where the fixtures don't exist) and 404.
 ///
 /// `pnpr` is a workspace crate; run
 /// `cargo build -p pnpr` once before invoking the mock if
@@ -80,7 +97,7 @@ pub fn pnpr_command(port: u16, public_url: Option<&str>) -> Command {
 /// Like [`pnpr_command`] but runs an explicit `pnpr` binary instead of the
 /// one resolved from the workspace `target/` dir, so the integrated benchmark
 /// can front each compared revision with a mock built from its own `pnpr`.
-/// All revisions share the one runtime storage — serving a warm cache is
+/// All revisions share the one runtime storage, serving a warm cache is
 /// read-only, so concurrent mocks don't contend.
 #[must_use]
 pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>) -> Command {
@@ -118,7 +135,7 @@ pub fn pnpr_command_with_home(
 ) -> Command {
     assert!(
         bin.is_file(),
-        "pnpr binary not found at {bin:?} — \
+        "pnpr binary not found at {bin:?}, \
          run `cargo build -p pnpr` before invoking the mock",
     );
     let seeded = seed_runtime_storage()
@@ -126,8 +143,7 @@ pub fn pnpr_command_with_home(
     if seeded > 0 {
         eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
     }
-    let public_url = public_url.map_or_else(|| port_to_url(port), str::to_string);
-    let mut cmd = command_without_pnpr_env(bin);
+    let public_url = public_url.map(str::to_string).unwrap_or_else(|| port_to_url(port));
     // Front pnpr with the registry-mock config from `pnpr/.fixtures/config.yaml`
     // (the fixture namespace served from local hosted storage, everything else
     // proxied through the pattern-less npmjs upstream). We pin the runtime bits
@@ -140,18 +156,19 @@ pub fn pnpr_command_with_home(
     let registries = config.and_then(|config| config.registries);
     let config = runtime_mock_config(database.as_deref(), yaml)
         .unwrap_or_else(|err| panic!("write the registry-mock config into runtime storage: {err}"));
-    cmd.arg("--config")
-        .arg(config)
-        .arg("--storage")
-        .arg(storage)
-        .arg("--cache")
-        .arg(crate::runtime_cache())
-        .arg("--packument-ttl")
-        .arg("31536000")
-        .arg("--listen")
-        .arg(format!("127.0.0.1:{port}"))
-        .arg("--public-url")
-        .arg(public_url.trim_end_matches('/'));
+    let cmd = command_without_pnpr_env(bin)
+        .with_arg("--config")
+        .with_arg(config)
+        .with_arg("--storage")
+        .with_arg(storage)
+        .with_arg("--cache")
+        .with_arg(crate::runtime_cache())
+        .with_arg("--packument-ttl")
+        .with_arg("31536000")
+        .with_arg("--listen")
+        .with_arg(format!("127.0.0.1:{port}"))
+        .with_arg("--public-url")
+        .with_arg(public_url.trim_end_matches('/'));
     if let Some(registries) = registries {
         import_registries(&cmd, registries);
     }
@@ -181,21 +198,21 @@ pub fn import_registries(serve: &Command, document: &Path) {
 
 /// Run `pnpr <kind> import <file>` the way `serve` runs `pnpr`.
 fn import(serve: &Command, kind: &str, file: &Path) {
-    let mut import = Command::new(serve.get_program());
-    for (name, value) in serve.get_envs() {
-        match value {
-            Some(value) => import.env(name, value),
-            None => import.env_remove(name),
-        };
-    }
-    if let Some(dir) = serve.get_current_dir() {
-        import.current_dir(dir);
-    }
+    let import = serve
+        .get_envs()
+        .fold(Command::new(serve.get_program()), |import, (name, value)| match value {
+            Some(value) => import.with_env(name, value),
+            None => import.without_env(name),
+        });
+    let import = match serve.get_current_dir() {
+        Some(dir) => import.with_current_dir(dir),
+        None => import,
+    };
     let output = import
-        .args(serve.get_args())
-        .arg(kind)
-        .arg("import")
-        .arg(file)
+        .with_args(serve.get_args())
+        .with_arg(kind)
+        .with_arg("import")
+        .with_arg(file)
         .output()
         .unwrap_or_else(|err| panic!("spawn `pnpr {kind} import` for {file:?}: {err}"));
     assert!(
@@ -208,19 +225,19 @@ fn import(serve: &Command, kind: &str, file: &Path) {
 }
 
 /// A [`Command`] of `bin` without the ambient `PNPR_*` variables. pnpr binds
-/// each of its options to the variable named after it, so an ambient one — a
-/// developer's `PNPR_CONFIG`, a stray `PNPR_DISABLE_REGISTRY` — would quietly
+/// each of its options to the variable named after it, so an ambient one (a
+/// developer's `PNPR_CONFIG`, a stray `PNPR_DISABLE_REGISTRY`) would quietly
 /// reconfigure the mock. The arguments the caller adds are the only thing
 /// allowed to.
 fn command_without_pnpr_env(bin: &Path) -> Command {
-    let mut cmd = Command::new(bin);
-    for (name, _) in env::vars_os() {
-        let key = name.to_string_lossy().to_ascii_uppercase();
-        if key.starts_with("PNPR_") {
-            cmd.env_remove(&name);
-        }
-    }
-    cmd
+    env::vars_os()
+        .map(|(name, _)| name)
+        .filter(|name| {
+            name.to_string_lossy()
+                .to_ascii_uppercase()
+                .starts_with("PNPR_")
+        })
+        .fold(Command::new(bin), CommandExtra::without_env)
 }
 
 /// Pin the database beside the fixture build's hosted store.

@@ -1,14 +1,29 @@
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 #[cfg(unix)]
 use std::io::Read as _;
 use std::{
-    ffi::{OsStr, OsString},
-    fs, io,
-    path::{Component, Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(any(unix, windows))]
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 #[cfg(any(unix, windows))]
 static TEMPORARY_FILE_ID: AtomicU64 = AtomicU64::new(0);
@@ -176,8 +191,10 @@ fn write_file(
     contents: &[u8],
     mode: u32,
 ) -> io::Result<()> {
-    use std::io::Write as _;
-    use std::os::unix::fs::PermissionsExt as _;
+    use std::{
+        io::Write as _,
+        os::unix::fs::PermissionsExt as _,
+    };
 
     let (temporary, mut file) = create_temporary_file(parent, name)?;
     let result = (|| {

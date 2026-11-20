@@ -16,7 +16,7 @@
 //!
 //! Everything here reads the lockfile and the already-materialized
 //! `node_modules`; nothing resolves or fetches. `--find-by` finders, which
-//! run JavaScript out of a `.pnpmfile.cjs`, stay in the CLI — this crate
+//! run JavaScript out of a `.pnpmfile.cjs`, stay in the CLI; this crate
 //! only consumes the verdicts they record (see [`search::Searcher`]).
 
 pub mod build;
@@ -29,7 +29,10 @@ pub mod pkg_info;
 pub mod render;
 pub mod search;
 
-use pnpm_lockfile::{PackageMetadata, PkgNameVerPeer};
+use pnpm_lockfile::{
+    PackageMetadata,
+    PkgNameVerPeer,
+};
 
 /// Cap on every recursive walk over the dependency graph. The cycle
 /// guards bound the *output*, not the recursion depth, so a hostile
@@ -69,7 +72,7 @@ impl TreeNodeId {
     }
 }
 
-/// One materialized node of the forward dependency tree — the shape the
+/// One materialized node of the forward dependency tree, the shape the
 /// `list` renderers consume. Counterpart of the TypeScript
 /// [`DependencyNode`].
 #[derive(Debug, Default, Clone)]

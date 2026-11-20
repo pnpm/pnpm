@@ -1,8 +1,21 @@
-use super::self_update::{install_pnpm::is_release_installable, version_lt};
+use super::self_update::{
+    install_pnpm::is_release_installable,
+    version_lt,
+};
 use crate::config_deps;
-use clap::{Args, ValueEnum};
-use pnpm_config::{Config, InitType, PNPM_VERSION};
-use std::{path::Path, time::Duration};
+use clap::{
+    Args,
+    ValueEnum,
+};
+use pnpm_config::{
+    Config,
+    InitType,
+    PNPM_VERSION,
+};
+use std::{
+    path::Path,
+    time::Duration,
+};
 
 /// How long the `latest` lookup may take before `pnpm init` gives up on it.
 /// Much shorter than the resolver's usual timeout: the version is a nicety,
@@ -47,7 +60,7 @@ impl InitArgs {
 
     /// `--init-type` layered over the `initType` setting.
     pub(crate) fn effective_init_type(&self, config: &Config) -> InitType {
-        self.init_type.map_or(config.init_type, InitTypeArg::into_config)
+        self.init_type.map(InitTypeArg::into_config).unwrap_or(config.init_type)
     }
 
     /// Whether `pnpm init` records a package-manager pin in the manifest it
@@ -69,7 +82,7 @@ impl InitArgs {
 /// does not inherit that staleness through its own pin.
 ///
 /// Falls back to the running version whenever `latest` cannot be
-/// established, and never lets `latest` move the pin backwards — the tag can
+/// established, and never lets `latest` move the pin backwards, the tag can
 /// lag the running version when a new major has shipped without being
 /// tagged. Scaffolding a `package.json` must not fail, hang, or wait on a
 /// registry that is unreachable, so every failure degrades to the running

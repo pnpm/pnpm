@@ -17,32 +17,51 @@
 //! chain claims them.
 pub use release_policy::detect_min_release_age_violation;
 pub use resolution_result::normalize_tarball_url;
-pub(crate) use resolution_result::{RegistryResolutionSource, ResolvedSpecifier, dist_integrity};
+pub(crate) use resolution_result::{
+    RegistryResolutionSource,
+    ResolvedSpecifier,
+    dist_integrity,
+};
 
 pub(crate) use package_revision::validate_revision_selector;
 
 pub(crate) use guarded_pick::{
-    PickFromRegistryOptions, PickedFromRegistry, RegistryPick, pick_from_registry_with_guard,
+    PickFromRegistryOptions,
+    PickedFromRegistry,
+    RegistryPick,
+    pick_from_registry_with_guard,
     warn_once_on_trust_downgrade_fallback,
 };
 
-pub(crate) use workspace_pick::{no_matching_version, swallowed_as_no_latest};
+pub(crate) use workspace_pick::{
+    no_matching_version,
+    swallowed_as_no_latest,
+};
 
 mod release_policy;
 mod resolution_result;
 use release_policy::latest_allowed_by_policy;
 use resolution_result::{
-    calculated_specifier, is_not_found_error, registry_response_status, trust_check_for_pick,
+    calculated_specifier,
+    is_not_found_error,
+    registry_response_status,
+    trust_check_for_pick,
 };
 
 mod package_revision;
-use package_revision::{select_package_revision, tarball_revision};
+use package_revision::{
+    select_package_revision,
+    tarball_revision,
+};
 
 mod guarded_pick;
 
 mod workspace_pick;
 use workspace_pick::{
-    resolve_workspace_protocol, wanted_spec, workspace_packages_active, workspace_shadow_pick,
+    resolve_workspace_protocol,
+    wanted_spec,
+    workspace_packages_active,
+    workspace_shadow_pick,
 };
 
 mod store_peek;
@@ -52,23 +71,41 @@ mod registry_dependency;
 use crate::{
     OfflineStoreView,
     errors::{
-        AllVersionsBlockedError, GuardRepickLimitError, InvalidRevisionSpecifierError,
-        InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
-        MalformedRevisionHistoryError, MissingTarballUrlError, NoMatchingRevisionError,
+        AllVersionsBlockedError,
+        GuardRepickLimitError,
+        InvalidRevisionSpecifierError,
+        InvalidTarballIntegrityError,
+        InvalidTarballRevisionMetadataError,
+        MalformedRevisionHistoryError,
+        MissingTarballUrlError,
+        NoMatchingRevisionError,
     },
     named_registry::pick_registry_for_package,
-    parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
+    parse_bare_specifier::{
+        parse_bare_specifier,
+        parse_jsr_specifier_to_registry_package_spec,
+    },
     pick_package::{
-        PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, pick_package,
+        PackageMetaCache,
+        PickPackageContext,
+        PickPackageError,
+        PickPackageOptions,
+        pick_package,
     },
     pick_package_from_meta::{
-        RegistryPackageSpec, RegistryPackageSpecType, RegistryRevisionSelector,
+        RegistryPackageSpec,
+        RegistryPackageSpecType,
+        RegistryRevisionSelector,
     },
     registry_url::to_registry_url,
     resolve_from_workspace::{
-        ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, SavedSpecifierOptions,
-        pick_matching_local_version_or_null, resolve_from_local_package,
-        try_resolve_from_workspace, try_resolve_from_workspace_packages,
+        ResolveFromWorkspaceError,
+        ResolveFromWorkspaceOptions,
+        SavedSpecifierOptions,
+        pick_matching_local_version_or_null,
+        resolve_from_local_package,
+        try_resolve_from_workspace,
+        try_resolve_from_workspace_packages,
     },
     trust_checks::TrustCheckOptions,
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
@@ -76,26 +113,69 @@ use crate::{
 use jiff::Timestamp;
 use node_semver::Version;
 use pnpm_lockfile::{
-    DeclaredRegistryPrefixes, LockfileResolution, PkgName, PkgNameVer, RegistryOptions,
-    RegistryServerType, TarballResolution, TarballRevision, TarballUrlOptions,
-    has_complete_sha512_digest, is_on_revision_tarball_route, is_revision_registry_tarball_url,
-    npm_tarball_url, registry_server_type,
+    DeclaredRegistryPrefixes,
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    RegistryOptions,
+    RegistryServerType,
+    TarballResolution,
+    TarballRevision,
+    TarballUrlOptions,
+    has_complete_sha512_digest,
+    is_on_revision_tarball_route,
+    is_revision_registry_tarball_url,
+    npm_tarball_url,
+    registry_server_type,
 };
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
-use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+    redact_and_sanitize,
+};
+use pnpm_registry::{
+    Package,
+    PackageDistribution,
+    PackageVersion,
+    RangeSpecStyle,
+};
 use pnpm_resolving_resolver_base::{
-    DEFAULT_JSR_REGISTRY, GuardExhaustionPolicy, LatestInfo, LatestQuery, NeedsFullMetadataFor,
-    NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId, RegistryResponseError,
-    RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, TrustPolicy, UpdateBehavior,
-    WantedDependency, WorkspacePackages, parse_packument_timestamp,
+    DEFAULT_JSR_REGISTRY,
+    GuardExhaustionPolicy,
+    LatestInfo,
+    LatestQuery,
+    NeedsFullMetadataFor,
+    NoMatchingVersionError,
+    PackageVersionGuardDecision,
+    PkgResolutionId,
+    RegistryResponseError,
+    RegistryResponseErrorOptions,
+    ResolutionPolicyViolation,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    TrustPolicy,
+    UpdateBehavior,
+    WantedDependency,
+    WorkspacePackages,
+    parse_packument_timestamp,
 };
 use pnpm_version_policy::PackageVersionPolicy;
 use registry_dependency::ResolvedRegistry;
-use ssri::{Algorithm, Integrity};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::PathBuf,
     sync::Arc,
 };
@@ -148,7 +228,7 @@ pub struct RegistryMetadataClient<Cache: PackageMetaCache> {
     /// via [`crate::shared_picked_manifest_cache`] once per install.
     pub picked_manifest_cache: crate::PickedManifestCache,
     /// Root of the on-disk metadata mirror. `None` disables every
-    /// disk read/write — the picker goes straight to the network on
+    /// disk read/write, the picker goes straight to the network on
     /// each cache miss.
     pub cache_dir: Option<PathBuf>,
     /// Retry budget threaded through to

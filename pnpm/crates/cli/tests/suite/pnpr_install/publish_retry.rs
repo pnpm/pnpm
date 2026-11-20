@@ -2,11 +2,18 @@
 //! the version's release record and dist-tags, and reports it as published
 //! only when they are the release the retry would have made.
 
-use super::{hosted::start_hosted_pnpr, pacquet_at};
+use super::{
+    hosted::start_hosted_pnpr,
+    pacquet_at,
+};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::{fs, path::Path, process::Output};
+use std::{
+    fs,
+    path::Path,
+    process::Output,
+};
 
 /// A package `@acme/cli@1.0.0`, set up to publish to `registry` with `token`.
 fn write_package(workspace: &Path, registry: &str, token: &str) {

@@ -1,20 +1,32 @@
 use super::{
-    CargoResolveOptions, Deserialize, NdjsonLimits, PnprClient, PnprClientError,
-    PypiResolveOptions, RenderedViolation, VerifyError, VerifyLockfileOptions,
-    lockfile_format::{CARGO_LOCK, PYLOCK, expect_sole_lockfile_format},
-    read_ndjson_frames, response_body_bounded,
+    CargoResolveOptions,
+    Deserialize,
+    NdjsonLimits,
+    PnprClient,
+    PnprClientError,
+    PypiResolveOptions,
+    RenderedViolation,
+    VerifyError,
+    VerifyLockfileOptions,
+    lockfile_format::{
+        CARGO_LOCK,
+        PYLOCK,
+        expect_sole_lockfile_format,
+    },
+    read_ndjson_frames,
+    response_body_bounded,
 };
 
 fn parse_pypi_frame(line: &[u8]) -> Result<PypiFrame, PnprClientError> {
-    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+    serde_json::from_slice(line).map_err(|err| err.to_string()).map_err(PnprClientError::Protocol)
 }
 
 fn parse_cargo_frame(line: &[u8]) -> Result<CargoFrame, PnprClientError> {
-    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+    serde_json::from_slice(line).map_err(|err| err.to_string()).map_err(PnprClientError::Protocol)
 }
 
 fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {
-    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+    serde_json::from_slice(line).map_err(|err| err.to_string()).map_err(PnprClientError::Protocol)
 }
 
 /// The Cargo ecosystem's name in a resolve request body and in the

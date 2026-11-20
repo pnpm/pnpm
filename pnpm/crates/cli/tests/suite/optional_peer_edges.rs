@@ -4,7 +4,12 @@
 //! `@pnpm.e2e/abc-optional-peers` has a required peer `@pnpm.e2e/peer-a` and
 //! optional peers `@pnpm.e2e/peer-b` and `@pnpm.e2e/peer-c`.
 
-use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, read_lockfile};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+    assert_success,
+    read_lockfile,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -12,8 +17,14 @@ use pnpm_lockfile::Lockfile;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+    },
 };
 
 const ABC: &str = "@pnpm.e2e/abc-optional-peers";

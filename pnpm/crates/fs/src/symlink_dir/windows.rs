@@ -1,12 +1,28 @@
-use super::share_links::{ShareLinks, UnusableShareLinksError, open_through};
-use derive_more::{Display, Error};
+use super::share_links::{
+    ShareLinks,
+    UnusableShareLinksError,
+    open_through,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use std::{
     borrow::Cow,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        Mutex, PoisonError,
-        atomic::{AtomicU8, AtomicU64, Ordering},
+        Mutex,
+        PoisonError,
+        atomic::{
+            AtomicU8,
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 
@@ -159,7 +175,10 @@ pub(super) const IO_REPARSE_TAG_SYMLINK: u32 = 0xA000_000C;
 pub(super) fn read_junction_target(link: &Path) -> io::Result<PathBuf> {
     use std::{
         ffi::OsString,
-        os::windows::ffi::{OsStrExt as _, OsStringExt as _},
+        os::windows::ffi::{
+            OsStrExt as _,
+            OsStringExt as _,
+        },
     };
 
     let target = junction::get_target(link)?;
@@ -239,8 +258,14 @@ pub(super) fn create_junction(original: &Path, link: &Path) -> io::Result<()> {
 pub(super) fn junction_target(original: &Path) -> Cow<'_, Path> {
     use std::{
         ffi::OsString,
-        os::windows::ffi::{OsStrExt as _, OsStringExt as _},
-        path::{Component, Prefix},
+        os::windows::ffi::{
+            OsStrExt as _,
+            OsStringExt as _,
+        },
+        path::{
+            Component,
+            Prefix,
+        },
     };
 
     if original.is_relative()

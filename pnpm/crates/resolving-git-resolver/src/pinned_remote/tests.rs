@@ -1,7 +1,18 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
 
-use pnpm_network::{GuardedDnsResolver, is_public_address};
-use reqwest::dns::{Addrs, Name, Resolve, Resolving};
+use pnpm_network::{
+    GuardedDnsResolver,
+    is_public_address,
+};
+use reqwest::dns::{
+    Addrs,
+    Name,
+    Resolve,
+    Resolving,
+};
 
 use super::pin_with;
 
@@ -19,7 +30,8 @@ fn public_only(addresses: &[&str]) -> GuardedDnsResolver {
         Arc::new(FixedResolver(
             addresses
                 .iter()
-                .map(|address| address.parse().unwrap())
+                .map(|address| address.parse())
+                .map(Result::unwrap)
                 .collect(),
         )),
         Arc::new(|_, address| is_public_address(address)),

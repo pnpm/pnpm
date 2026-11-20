@@ -6,10 +6,22 @@ use std::env::temp_dir;
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::{
-    fs::{self, File},
-    io::{self, Read},
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        self,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 const MAX_DIFF_OUTPUT_BYTES: u64 = 128 * 1024 * 1024;
 pub(super) struct DiffTempFile {

@@ -1,14 +1,24 @@
 use std::{
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use derive_more::Display;
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use crate::{error::VersioningError, human_id::random_human_id, settings::ReleaseBumpType};
+use crate::{
+    error::VersioningError,
+    human_id::random_human_id,
+    settings::ReleaseBumpType,
+};
 
 /// The directory holding change-intent files, shared with changesets.
 pub const CHANGES_DIR: &str = ".changeset";

@@ -1,7 +1,10 @@
 use pnpm_ffi_fs::FileMode;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// `create_dir_all` that, on Unix, gives each directory it creates the

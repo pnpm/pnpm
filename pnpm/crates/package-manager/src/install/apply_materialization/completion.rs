@@ -1,10 +1,30 @@
 use super::super::{
-    BTreeSet, Config, GlobalLog, HashSet, Host, InstallError, Lockfile, LogEvent, LogLevel,
-    NodeLinker, PackageManifest, Path, PathBuf, ProjectScriptsInputs, Reporter, SummaryLog,
-    drain_settled_projects, project_lifecycle_graph, project_script_stages,
-    projects_running_own_scripts, run_projects_lifecycle_scripts,
+    BTreeSet,
+    Config,
+    GlobalLog,
+    HashSet,
+    Host,
+    InstallError,
+    Lockfile,
+    LogEvent,
+    LogLevel,
+    NodeLinker,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectScriptsInputs,
+    Reporter,
+    SummaryLog,
+    drain_settled_projects,
+    project_lifecycle_graph,
+    project_script_stages,
+    projects_running_own_scripts,
+    run_projects_lifecycle_scripts,
 };
-use crate::peer_dependency_issues::{PeerReportWorkspace, report_peer_dependency_issues};
+use crate::peer_dependency_issues::{
+    PeerReportWorkspace,
+    report_peer_dependency_issues,
+};
 use pnpm_store_dir::VerifiedFileIntegrity;
 use std::time::Duration;
 
@@ -126,7 +146,7 @@ pub(super) struct ReportInstallCompletionInputs<'a> {
     pub(super) ignored_builds: Vec<String>,
     pub(super) verified_file_integrity_baseline: VerifiedFileIntegrity,
     /// The lockfile this install resolved, or `None` when it skipped
-    /// resolution — which is what decides whether peer-dependency
+    /// resolution, which is what decides whether peer-dependency
     /// issues are reported at all.
     pub(super) resolved_lockfile: Option<&'a Lockfile>,
     pub(super) peer_issue_importer_ids: &'a HashSet<String>,
@@ -209,18 +229,18 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
 /// healthy store needs, so the install owns up to the time.
 pub(super) const VERIFIED_FILE_INTEGRITY_SLOW: Duration = Duration::from_secs(1);
 /// Re-hashing this many files says something keeps invalidating the
-/// store even when the hashing itself was quick — worth telling the
+/// store even when the hashing itself was quick, worth telling the
 /// user about before the store grows and the same churn does cost them
 /// time.
 pub(super) const VERIFIED_FILE_INTEGRITY_MANY: u64 = 1000;
 /// Tell the user when store verification re-hashed files: how much time
 /// it cost, or failing that, that it happened at all on a scale a
 /// healthy store never reaches. The two are separate claims, so they
-/// are separate messages, and the timed one wins when both hold — it
+/// are separate messages, and the timed one wins when both hold; it
 /// carries the file count anyway.
 ///
 /// `verified` covers this install alone, and its `duration` is summed
-/// across the threads that did the hashing — see
+/// across the threads that did the hashing; see
 /// [`pnpm_store_dir::VerifiedFileIntegrity`].
 ///
 /// The seconds are rounded to tenths in integer arithmetic rather than

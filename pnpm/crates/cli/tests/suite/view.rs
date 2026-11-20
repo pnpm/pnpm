@@ -7,7 +7,7 @@
 //! rendered output. An empty `--npmrc-auth-file` replaces the developer's real
 //! `~/.npmrc` so a token or `registry=` already on the machine can't influence
 //! the test. Output is captured through a pipe, so `supports-color` is off and
-//! the assertions match plain (un-colored) text — the CLI omits styling when
+//! the assertions match plain (un-colored) text, the CLI omits styling when
 //! stdout is not a TTY.
 
 use assert_cmd::prelude::*;
@@ -16,7 +16,10 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -59,7 +62,7 @@ fn stdout_of(output: &std::process::Output) -> String {
 
 /// A full-metadata packument for `is-negative` with two live versions, a
 /// licence, description, maintainer, dist block, and per-version publish
-/// times — enough to exercise every summary section.
+/// times, enough to exercise every summary section.
 fn is_negative_body() -> String {
     serde_json::json!({
         "name": "is-negative",

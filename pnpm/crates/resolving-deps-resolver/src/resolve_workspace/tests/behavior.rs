@@ -1,7 +1,21 @@
 use super::{
-    BTreeMap, DependencyGroup, HashMap, Mutex, OverlapRecordingResolver, RecordingResolver,
-    WarmupProbeResolver, WorkspaceImporter, assert_eq, caret_entry, deps, fake_manifest,
-    fake_result, graph_versions_of, importer_opts, resolve_single_importer, resolve_workspace,
+    BTreeMap,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    OverlapRecordingResolver,
+    RecordingResolver,
+    WarmupProbeResolver,
+    WorkspaceImporter,
+    assert_eq,
+    caret_entry,
+    deps,
+    fake_manifest,
+    fake_result,
+    graph_versions_of,
+    importer_opts,
+    resolve_single_importer,
+    resolve_workspace,
     workspace_opts,
 };
 
@@ -45,7 +59,7 @@ async fn lowest_direct_applies_no_publish_cutoff() {
 
 /// The reverse of the sharing case above: when the first importer's
 /// walk could NOT satisfy the optional peer either (it only hoisted it
-/// later), the miss stays visible to every importer — each hoists its
+/// later), the miss stays visible to every importer; each hoists its
 /// own copy, so the shared subtree carries the peer suffix under both
 /// (pnpm 11.6.0 behaviour for e.g. `clipanion`'s `typanion` under
 /// importers that share `@yarnpkg/*` chains with the root).

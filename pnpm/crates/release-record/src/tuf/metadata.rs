@@ -1,7 +1,10 @@
 //! The TUF metadata fields this client reads.
 
 use super::TufError;
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{
+    Deserialize,
+    de::DeserializeOwned,
+};
 use serde_json::Value;
 use std::collections::BTreeMap;
 

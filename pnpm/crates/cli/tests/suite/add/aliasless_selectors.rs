@@ -1,10 +1,21 @@
-use super::{Path, prod_spec, write_json};
-use crate::_utils::{append_workspace_yaml_key, pacquet_in, read_lockfile};
+use super::{
+    Path,
+    prod_spec,
+    write_json,
+};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    pacquet_in,
+    read_lockfile,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::PkgName;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fixtures::tarball_with_manifest,
 };
 use pretty_assertions::assert_eq;
@@ -22,7 +33,7 @@ fn write_local_package(workspace: &Path) {
 }
 
 /// A bare relative path is a directory dependency, so it saves as
-/// `link:` — the protocol the local resolver normalizes an
+/// `link:`, the protocol the local resolver normalizes an
 /// un-injected directory to.
 #[test]
 fn a_relative_directory_path_saves_as_a_link() {
@@ -129,8 +140,10 @@ fn add_local_package_with_a_peer(selector: &str) -> Vec<String> {
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
     let warnings = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .filter(|event| event["name"] == "pnpm" && event["level"] == "warn")
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
+        .filter(|event| event["name"] == "pnpm")
+        .filter(|event| event["level"] == "warn")
         .filter_map(|event| event["message"].as_str().map(str::to_string))
         .collect();
 
@@ -177,7 +190,7 @@ fn a_local_tarball_path_saves_as_a_file_spec() {
 ///
 /// The URL points at the mocked registry through `localhost` while it
 /// is configured as `127.0.0.1`, so the prefix doesn't match and the
-/// tarball resolver — not the npm resolver — claims it (see
+/// tarball resolver (not the npm resolver) claims it (see
 /// `tarball_url_dependency.rs`).
 #[test]
 fn a_remote_tarball_url_is_saved_verbatim() {
@@ -283,7 +296,7 @@ fn assert_unnamed_tarball_replacement(new_version: &str) {
 
 /// A catalog measures a relative path from `pnpm-workspace.yaml`'s own
 /// directory, not from the project that declares the dependency, so
-/// `catalogMode` has to leave a local specifier direct — cataloging it
+/// `catalogMode` has to leave a local specifier direct, cataloging it
 /// would point it somewhere else than where `pnpm add` was run.
 #[test]
 fn a_local_directory_is_not_auto_cataloged() {
@@ -315,7 +328,7 @@ fn a_local_directory_is_not_auto_cataloged() {
 
 /// The name keys the manifest entry and names the `node_modules`
 /// directory the package is linked into, so a directory that declares
-/// none is refused instead of guessed at — and the project is left
+/// none is refused instead of guessed at, and the project is left
 /// untouched.
 #[test]
 fn a_directory_declaring_no_name_is_refused() {

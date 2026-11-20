@@ -1,9 +1,59 @@
 //! Sending a request to an upstream and checking its response status.
 
 use super::{
-    HeadError, HeaderMap, Instant, RegistryError, Result, ThrottledClientGuard, Upstream,
+    CanonicalPackageName,
+    HeadError,
+    HeaderMap,
+    Instant,
+    RedirectGuard,
+    RegistryError,
+    Result,
+    ThrottledClient,
+    ThrottledClientGuard,
+    Upstream,
     http::read_upstream_error_body,
+    redact_url_for_display,
+    version_route_tarball_version,
 };
+
+/// Where an upstream packument's `dist.tarball` points for a version.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpstreamTarballRoute {
+    /// A relative `pnpr` `{pkg}@{version}` route on the upstream's base URL.
+    Version(String),
+    /// An absolute HTTP(S) `dist.tarball` URL (same-origin or split-domain CDN).
+    Url(String),
+    /// A relative or missing `dist.tarball`, fetched at `{base}/{pkg}/-/{filename}`.
+    Archive,
+}
+
+impl UpstreamTarballRoute {
+    #[must_use]
+    pub fn from_dist_tarball(url: Option<&str>, pkg: &CanonicalPackageName) -> Self {
+        let Some(url) = url else {
+            return Self::Archive;
+        };
+        if is_http_tarball_url(url) {
+            return Self::Url(url.to_string());
+        }
+        if !url.contains(['?', '#'])
+            && let Some(version) = version_route_tarball_version(url, pkg)
+        {
+            return Self::Version(version.to_string());
+        }
+        Self::Archive
+    }
+}
+
+fn is_http_tarball_url(url: &str) -> bool {
+    let bytes = url.as_bytes();
+    bytes
+        .get(..8)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"https://"))
+        || bytes
+            .get(..7)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"http://"))
+}
 
 impl Upstream {
     /// Send a built request, mapping a transport error to
@@ -18,8 +68,17 @@ impl Upstream {
             .send()
             .await
             .map_err(|source| {
+                if pnpm_network::is_blocked_redirect(&source) {
+                    return RegistryError::UpstreamResponse {
+                        url: redact_url_for_display(url),
+                        reason: "URL is not allowed by the fetch allowlist".to_string(),
+                    };
+                }
                 self.breaker.record_failure();
-                RegistryError::Upstream { url: url.to_string(), source }
+                RegistryError::Upstream {
+                    url: redact_url_for_display(url),
+                    source: source.without_url(),
+                }
             })
     }
 
@@ -36,7 +95,35 @@ impl Upstream {
         headers: &HeaderMap,
         deadline: Deadline,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>)> {
-        self.ensure_allowed_url(url)?;
+        self.get_using_client(
+            &self.http.client,
+            self.http.fetch_guard.as_ref(),
+            url,
+            headers,
+            deadline,
+        )
+        .await
+    }
+
+    pub(crate) async fn get_tarball_with_scoped_headers(
+        &self,
+        url: &str,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>)> {
+        let client = self.http.declared_tarball_client.as_ref().unwrap_or(&self.http.client);
+        let guard =
+            self.http.declared_tarball_guard.as_ref().or(self.http.fetch_guard.as_ref());
+        self.get_using_client(client, guard, url, &HeaderMap::new(), Deadline::Head).await
+    }
+
+    async fn get_using_client<'a>(
+        &'a self,
+        client: &'a ThrottledClient,
+        guard: Option<&RedirectGuard>,
+        url: &str,
+        headers: &HeaderMap,
+        deadline: Deadline,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'a>)> {
+        self.ensure_url_passes_guard(url, guard)?;
         let started = Instant::now();
         let configure = |request: reqwest::RequestBuilder, destination: &str| {
             let request = request
@@ -50,23 +137,33 @@ impl Upstream {
             }
         };
         let response = match deadline {
-            Deadline::Whole => self.http.client
-                .get_response_with_scoped_headers(url, configure)
-                .await
-                .map_err(HeadError::Request),
+            Deadline::Whole => {
+                client.get_response_with_scoped_headers_guarded(url, guard, configure).await
+            }
             Deadline::Head => {
-                self.http.client.get_response_head_within(url, self.http.timeout, configure).await
+                client.get_response_head_within_guarded(url, self.http.timeout, guard, configure)
+                    .await
             }
         };
-        response.map_err(|error| {
-            self.breaker.record_failure();
-            match error {
-                HeadError::Request(source) => {
-                    RegistryError::Upstream { url: url.to_string(), source }
-                }
-                HeadError::TimedOut => RegistryError::UpstreamTimeout { url: url.to_string() },
+        response.map_err(|error| self.map_head_error(url, error))
+    }
+
+    fn map_head_error(&self, url: &str, error: HeadError) -> RegistryError {
+        let url = redact_url_for_display(url);
+        match error {
+            HeadError::BlockedUrl(_) => RegistryError::UpstreamResponse {
+                url,
+                reason: "URL is not allowed by the fetch allowlist".to_string(),
+            },
+            HeadError::Request(source) => {
+                self.breaker.record_failure();
+                RegistryError::Upstream { url, source: source.without_url() }
             }
-        })
+            HeadError::TimedOut => {
+                self.breaker.record_failure();
+                RegistryError::UpstreamTimeout { url }
+            }
+        }
     }
 
     /// Wait for `response` until `deadline`. Used for a body pnpr streams:
@@ -82,17 +179,21 @@ impl Upstream {
         tokio::time::timeout(remaining, response).await
             .unwrap_or_else(|_| {
                 self.breaker.record_failure();
-                Err(RegistryError::UpstreamTimeout { url: url.to_string() })
+                Err(RegistryError::UpstreamTimeout { url: redact_url_for_display(url) })
             })
     }
 
     pub(crate) fn ensure_allowed_url(&self, url: &str) -> Result<()> {
+        self.ensure_url_passes_guard(url, self.http.fetch_guard.as_ref())
+    }
+
+    fn ensure_url_passes_guard(&self, url: &str, guard: Option<&RedirectGuard>) -> Result<()> {
         self.ensure_may_fetch()?;
-        if let Some(guard) = &self.http.fetch_guard
+        if let Some(guard) = guard
             && !reqwest::Url::parse(url).is_ok_and(|url| guard(&url))
         {
             return Err(RegistryError::UpstreamResponse {
-                url: url.to_string(),
+                url: redact_url_for_display(url),
                 reason: "URL is not allowed by the fetch allowlist".to_string(),
             });
         }
@@ -101,7 +202,7 @@ impl Upstream {
 
     /// Pass a successful response through; map any non-success status to
     /// [`RegistryError::UpstreamStatus`]. Only a `5xx` counts against the
-    /// breaker — a non-404 `4xx` is an authoritative client error (auth,
+    /// breaker, a non-404 `4xx` is an authoritative client error (auth,
     /// rate-limit, bad request), not an availability signal, so it leaves
     /// the breaker untouched rather than opening the circuit and masking
     /// the real status behind a `503`. The `404`/`304` paths are handled
@@ -124,7 +225,11 @@ impl Upstream {
         let body = tokio::time::timeout(self.http.timeout, read_upstream_error_body(response))
             .await
             .unwrap_or_default();
-        Err(RegistryError::UpstreamStatus { url: url.to_string(), status: status.as_u16(), body })
+        Err(RegistryError::UpstreamStatus {
+            url: redact_url_for_display(url),
+            status: status.as_u16(),
+            body,
+        })
     }
 }
 

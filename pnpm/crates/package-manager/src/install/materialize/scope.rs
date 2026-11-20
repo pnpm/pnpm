@@ -1,7 +1,22 @@
 use super::super::{
-    Arc, BTreeMap, Config, HashSet, InstallError, Lockfile, LogEvent, LogLevel, PackageManifest,
-    Path, PathBuf, PnpmLog, RebuildOptions, Reporter, ResolutionVerifier,
-    map_frozen_lockfile_error, record_lockfile_verified, verify_lockfile_eagerly,
+    Arc,
+    BTreeMap,
+    Config,
+    HashSet,
+    InstallError,
+    Lockfile,
+    LogEvent,
+    LogLevel,
+    PackageManifest,
+    Path,
+    PathBuf,
+    PnpmLog,
+    RebuildOptions,
+    Reporter,
+    ResolutionVerifier,
+    map_frozen_lockfile_error,
+    record_lockfile_verified,
+    verify_lockfile_eagerly,
 };
 
 /// Whether `allowBuilds` moved since the previous install in a way the
@@ -42,7 +57,8 @@ pub(super) fn prior_unbuilt_builds(
             modules.ignored_builds
                 .iter()
                 .flatten()
-                .map(|dep_path| dep_path.as_str().to_string()),
+                .map(pnpm_modules_yaml::DepPath::as_str)
+                .map(str::to_string),
         );
     }
     unbuilt
@@ -184,8 +200,8 @@ pub(in crate::install) fn initial_materialization_ids(
             .collect(),
     }
 }
-/// pnpm's headless installer announces itself whenever it is entered — also
-/// on a cold `node_modules` and on subset (`--filter`) installs — not only
+/// pnpm's headless installer announces itself whenever it is entered (also
+/// on a cold `node_modules` and on subset (`--filter`) installs) not only
 /// when nothing needs to be materialized.
 ///
 /// `importing_only` gets upstream's `ignorePackageManifest` wording instead;

@@ -4,7 +4,10 @@ use mockito::Matcher;
 use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
 use serde_json::json;
 
-use super::{publish, write_project};
+use super::{
+    publish,
+    write_project,
+};
 
 #[test]
 fn publish_rejects_publish_config_directory_escaping_project_root() {

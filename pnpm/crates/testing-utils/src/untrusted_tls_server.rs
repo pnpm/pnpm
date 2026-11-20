@@ -4,7 +4,10 @@ use std::{
     net::TcpListener,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };

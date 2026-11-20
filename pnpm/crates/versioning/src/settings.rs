@@ -1,6 +1,9 @@
 use derive_more::Display;
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// A bump a release can apply. Ordered: `patch < minor < major`.
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -99,7 +102,7 @@ pub struct VersioningSettings {
 }
 
 impl VersioningSettings {
-    /// Whether nothing is configured — the state in which the `versioning`
+    /// Whether nothing is configured, the state in which the `versioning`
     /// key is removed from pnpm-workspace.yaml instead of written empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {

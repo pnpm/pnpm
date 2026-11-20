@@ -51,7 +51,7 @@ impl Colors {
     paint!(green, green);
     paint!(red, red);
     paint!(yellow, yellow);
-    // chalk's `grey`/`gray` — ANSI bright-black.
+    // chalk's `grey`/`gray`, ANSI bright-black.
     paint!(grey, bright_black);
     paint!(magenta, magenta);
     paint!(magenta_bright, bright_magenta);

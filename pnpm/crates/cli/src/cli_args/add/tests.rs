@@ -1,13 +1,25 @@
 use super::{
-    AddArgs, AddDependencyOptions, AddError, AllowBuildSelector, apply_allow_build,
-    parse_allow_build_selectors, workspace_selectors,
+    AddArgs,
+    AddDependencyOptions,
+    AddError,
+    AllowBuildSelector,
+    apply_allow_build,
+    parse_allow_build_selectors,
+    workspace_selectors,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
     cargo_manifest::CargoDependencyKind,
-    cli_args::{CliArgs, approve_builds::ApprovalStore, cli_command::CliCommand},
+    cli_args::{
+        CliArgs,
+        approve_builds::ApprovalStore,
+        cli_command::CliCommand,
+    },
 };
-use clap::{CommandFactory, Parser};
+use clap::{
+    CommandFactory,
+    Parser,
+};
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
@@ -198,7 +210,12 @@ fn add_help_lists_only_the_long_options() {
 
 #[test]
 fn dependency_options_to_dependency_groups() {
-    use DependencyGroup::{Dev, Optional, Peer, Prod};
+    use DependencyGroup::{
+        Dev,
+        Optional,
+        Peer,
+        Prod,
+    };
     let create_list = |opts: AddDependencyOptions| opts.dependency_groups().collect::<Vec<_>>();
 
     assert_eq!(
@@ -441,6 +458,11 @@ fn allow_build_keeps_a_value_with_a_url_key_whole() {
         "!foo@git+https://example.com/org/repo,variant.git",
         "foo@https://example.com/foo.tgz?a=1,2",
         "esbuild,foo@git+ssh://git@example.com/org/foo.git",
+        "foo@git+ssh://git@example.com/org/foo.git#a,b",
+        "foo@file:./dir,with,comma",
+        "foo@link:../a,b",
+        "foo@npm:other@1,sharp",
+        "esbuild,local@file:./packages/local",
     ] {
         let (name, _) = parsed_allow_build(&[value])
             .into_iter()

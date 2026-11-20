@@ -1,14 +1,33 @@
 //! Read a directory tree into an [`InodeMap`].
 
-use super::{FileId, InodeMap, PatchError, Value};
+use super::{
+    FileId,
+    InodeMap,
+    PatchError,
+    Value,
+};
 use pnpm_directory_fetcher::CopyFiles;
-use pnpm_fs::{SymlinkPlacement, SymlinkPlacementContext, SymlinkTargets};
+use pnpm_fs::{
+    SymlinkPlacement,
+    SymlinkPlacementContext,
+    SymlinkTargets,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
-    hash::{DefaultHasher, Hash, Hasher},
+    hash::{
+        DefaultHasher,
+        Hash,
+        Hasher,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::SystemTime,
 };
 

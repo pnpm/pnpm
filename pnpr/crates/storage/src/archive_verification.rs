@@ -1,10 +1,26 @@
-use crate::{BlobId, BoundedCache, parse_blob_key};
-use pnpr_error::{RegistryError, Result};
+use crate::{
+    BlobId,
+    BoundedCache,
+    parse_blob_key,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use std::{
-    io::{Seek, SeekFrom},
-    sync::{Mutex, OnceLock},
-    time::{Duration, SystemTime},
+    io::{
+        Seek,
+        SeekFrom,
+    },
+    sync::{
+        Mutex,
+        OnceLock,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tokio::fs;
 

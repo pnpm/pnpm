@@ -8,11 +8,21 @@
 //! version nobody released. The lines added here say which it was.
 
 use super::Package;
-use crate::{Packages, packages::NAMED_RELEASES};
+use crate::{
+    Packages,
+    packages::NAMED_RELEASES,
+};
 use pep440_rs::Version;
 use pep508_rs::PackageName;
-use pubgrub::{DerivationTree, External, Ranges};
-use std::{collections::BTreeSet, fmt::Write as _};
+use pubgrub::{
+    DerivationTree,
+    External,
+    Ranges,
+};
+use std::{
+    collections::BTreeSet,
+    fmt::Write as _,
+};
 
 /// What a failed resolution adds to pubgrub's report: one line per
 /// distribution it was left with no version of.

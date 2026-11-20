@@ -6,18 +6,42 @@
 //! record of the channel next to them, which the dispatcher reads.
 
 use crate::{
-    cli_args::shim::{add_shims, check_shims_addable, remove_shims},
+    cli_args::shim::{
+        add_shims,
+        check_shims_addable,
+        remove_shims,
+    },
     shim_dispatch::rust_toolchain::{
-        RUST_SHIM_BINS, RUST_SHIM_PACKAGE, expire_for_shims, global_toolchain, install_for_shims,
-        installed_release_for_shims, record_global_toolchain,
+        RUST_SHIM_BINS,
+        RUST_SHIM_PACKAGE,
+        expire_for_shims,
+        global_toolchain,
+        install_for_shims,
+        installed_release_for_shims,
+        record_global_toolchain,
     },
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_global::{GlobalTool, ListReportAs};
+use pnpm_global::{
+    GlobalTool,
+    ListReportAs,
+};
 use pnpm_matcher::WildcardMatcher;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_rust_toolchain::{Channel, Profile, ToolchainRequest};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_rust_toolchain::{
+    Channel,
+    Profile,
+    ToolchainRequest,
+};
 use std::path::Path;
 
 /// The name `pnpm remove -g` and `pnpm update -g` take for the toolchain.

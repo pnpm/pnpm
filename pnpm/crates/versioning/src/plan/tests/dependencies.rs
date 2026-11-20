@@ -1,8 +1,26 @@
 use super::{
-    AssembleReleasePlanOptions, IndexMap, Ledger, Path, PathBuf, ReleaseBumpType,
-    VersioningInvariantCode, VersioningSettings, WorkspaceProject, assemble, assemble_release_plan,
-    assemble_with_unpublished, assert_eq, check_versioning_invariants, epic, ledger, make_intent,
-    make_project, on_lane, project_at, release, release_names,
+    AssembleReleasePlanOptions,
+    IndexMap,
+    Ledger,
+    Path,
+    PathBuf,
+    ReleaseBumpType,
+    VersioningInvariantCode,
+    VersioningSettings,
+    WorkspaceProject,
+    assemble,
+    assemble_release_plan,
+    assemble_with_unpublished,
+    assert_eq,
+    check_versioning_invariants,
+    epic,
+    ledger,
+    make_intent,
+    make_project,
+    on_lane,
+    project_at,
+    release,
+    release_names,
 };
 
 #[test]
@@ -245,7 +263,7 @@ fn epic_selectors_are_order_dependent_a_later_include_overrides_an_earlier_negat
         project_at("@scope/b", "1100.0.0", "pkgs/b"),
     ];
     let intents = [make_intent("one", &[("pnpm", "major")])];
-    // "!./pkgs/b" first, then "./pkgs/**" — the later include wins, so b is a member.
+    // "!./pkgs/b" first, then "./pkgs/**", the later include wins, so b is a member.
     let versioning = VersioningSettings {
         epics: vec![epic("./pnpm", &["!./pkgs/b", "./pkgs/**"])],
         ..VersioningSettings::default()

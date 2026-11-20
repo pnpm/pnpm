@@ -9,15 +9,33 @@
 
 use super::PrefetchingResolver;
 use pnpm_deps_restorer::{
-    CustomFetcherSession, ResolvedTarballMetadata, local_file_tarball_install_url,
+    CustomFetcherSession,
+    ResolvedTarballMetadata,
+    local_file_tarball_install_url,
 };
-use pnpm_lockfile::{IntegrityTarget, LockfileResolution, is_git_hosted_tarball_url};
-use pnpm_reporter::{Reporter, SilentReporter};
-use pnpm_resolving_resolver_base::{ResolveError, ResolveResult};
+use pnpm_lockfile::{
+    IntegrityTarget,
+    LockfileResolution,
+    is_git_hosted_tarball_url,
+};
+use pnpm_reporter::{
+    Reporter,
+    SilentReporter,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveError,
+    ResolveResult,
+};
 use pnpm_tarball::{
-    FetchTarballForResolution, IntegrityKind, alias_available_cache_entry, package_mem_cache_key,
+    FetchTarballForResolution,
+    IntegrityKind,
+    alias_available_cache_entry,
+    package_mem_cache_key,
 };
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// Fill in whichever of a resolution's integrity and manifest the

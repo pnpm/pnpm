@@ -1,6 +1,9 @@
 use super::PACKAGE_MAP_FILENAME;
 use pnpm_config::Config;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub fn make_node_package_map_option(package_map_path: &Path, node_options: Option<&str>) -> String {
     let node_options = node_options
@@ -37,7 +40,8 @@ pub fn package_map_path_for_execution(config: &Config, dir: &Path) -> Option<Pat
     let modules_dir_name = config.modules_dir_name();
     let workspace_path = config.workspace_dir
         .as_ref()
-        .map(|dir| dir.join(modules_dir_name).join(PACKAGE_MAP_FILENAME));
+        .map(|dir| dir.join(modules_dir_name))
+        .map(|modules_dir_name| modules_dir_name.join(PACKAGE_MAP_FILENAME));
     if let Some(path) = workspace_path
         && path.exists()
     {
@@ -74,7 +78,7 @@ pub(super) fn split_node_options(node_options: &str) -> Vec<String> {
     tokenizer.finish()
 }
 /// Node's `NODE_OPTIONS` tokenizer: whitespace separates tokens, `'`
-/// and `"` quote, and `\` escapes the next character anywhere — so an
+/// and `"` quote, and `\` escapes the next character anywhere, so an
 /// escaped quote does not end a token. The literal text (backslash
 /// included) is preserved so retained tokens round-trip verbatim.
 #[derive(Default)]

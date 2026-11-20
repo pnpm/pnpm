@@ -1,25 +1,50 @@
 pub(crate) use super::package_spec::PackageSpec;
 pub(crate) use registry::{
-    auth_header_for_registry, fetch_package_meta, package_url, registry_for_package,
-    registry_operation_error, registry_operation_failed, registry_write_error,
+    auth_header_for_registry,
+    fetch_package_meta,
+    package_url,
+    registry_for_package,
+    registry_operation_error,
+    registry_operation_failed,
+    registry_write_error,
     write_error_for_status,
 };
 
 use super::sanitize;
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Range;
 use pnpm_config::Config;
 use pnpm_network::{
-    LimitedBody, RetryOpts, ThrottledClient, read_limited_body, redact_url_credentials,
-    retry_async, send_with_retry,
+    LimitedBody,
+    RetryOpts,
+    ThrottledClient,
+    read_limited_body,
+    redact_url_credentials,
+    retry_async,
+    send_with_retry,
 };
-use registry::{PackageMeta, put_package_meta};
+use registry::{
+    PackageMeta,
+    put_package_meta,
+};
 
-use reqwest::{Response, StatusCode};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use reqwest::{
+    Response,
+    StatusCode,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 pub(crate) const DEPRECATION_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
@@ -254,7 +279,7 @@ pub(crate) async fn update_deprecation(
 /// command named none.
 ///
 /// Mirrors the TypeScript CLI's `semver.satisfies`, which treats an
-/// unparsable range as matching nothing — the caller reports that as
+/// unparsable range as matching nothing, the caller reports that as
 /// `NoMatchingVersions` rather than a distinct "invalid spec" error.
 fn versions_matching(package_meta: &PackageMeta, version_range: Option<&str>) -> Vec<String> {
     let Some(range_str) = version_range else {

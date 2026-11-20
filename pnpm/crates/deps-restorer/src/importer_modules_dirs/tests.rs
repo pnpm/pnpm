@@ -1,5 +1,8 @@
 use super::ImporterModulesDirs;
-use std::{ffi::OsStr, path::Path};
+use std::{
+    ffi::OsStr,
+    path::Path,
+};
 
 #[test]
 fn the_root_gets_the_configured_modules_dir() {

@@ -1,14 +1,37 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fs,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, PoisonError},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        PoisonError,
+    },
 };
 
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pep440_rs::Version;
-use pep508_rs::{MarkerTree, PackageName, Requirement, VersionOrUrl};
-use pnpm_python_resolver::{WheelFilename, parse_requirement, source_version};
+use pep508_rs::{
+    MarkerTree,
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
+use pnpm_python_resolver::{
+    WheelFilename,
+    parse_requirement,
+    source_version,
+};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

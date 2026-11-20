@@ -1,6 +1,12 @@
 use super::{
-    HoistInputs, build_hoist_graph, create_matcher, get_hoisted_dependencies, kinds_for,
-    make_lockfile_data, pats, root_direct_deps,
+    HoistInputs,
+    build_hoist_graph,
+    create_matcher,
+    get_hoisted_dependencies,
+    kinds_for,
+    make_lockfile_data,
+    pats,
+    root_direct_deps,
 };
 use pnpm_modules_yaml::HoistKind;
 use pretty_assertions::assert_eq;

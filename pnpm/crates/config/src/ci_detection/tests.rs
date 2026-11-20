@@ -1,6 +1,12 @@
-use super::{EnvVar, detect_ci};
+use super::{
+    EnvVar,
+    detect_ci,
+};
 use serde_json::Value;
-use std::{cell::RefCell, collections::HashMap};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+};
 
 thread_local! {
     static ENV: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
@@ -84,7 +90,8 @@ fn vendor_envs(spec: &Value) -> Vec<Vec<(String, String)>> {
             vec![
                 specs
                     .iter()
-                    .flat_map(|spec| vendor_envs(spec).swap_remove(0))
+                    .map(vendor_envs)
+                    .flat_map(|mut vendor_envs| vendor_envs.swap_remove(0))
                     .collect(),
             ]
         }

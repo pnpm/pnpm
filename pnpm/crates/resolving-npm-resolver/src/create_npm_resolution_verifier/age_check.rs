@@ -1,7 +1,18 @@
 use super::{
-    Arc, MINIMUM_RELEASE_AGE_VIOLATION_CODE, NpmResolutionVerifier, OnceCell, PkgName,
-    ResolutionVerification, SkippedTimeCheck, Timestamp, package_key, parse_packument_timestamp,
-    to_registry_url, uncheckable, version_key, warn_missing_time_once,
+    Arc,
+    MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+    NpmResolutionVerifier,
+    OnceCell,
+    PkgName,
+    ResolutionVerification,
+    SkippedTimeCheck,
+    Timestamp,
+    package_key,
+    parse_packument_timestamp,
+    to_registry_url,
+    uncheckable,
+    version_key,
+    warn_missing_time_once,
 };
 
 impl NpmResolutionVerifier {
@@ -36,7 +47,7 @@ impl NpmResolutionVerifier {
         // Cheapest layer: for an entry whose canonical tarball this
         // install fetches (existence fail-closed by the fetch itself),
         // a package-level `Last-Modified` older than the cutoff bounds
-        // every version's publish time — no metadata body needed. The
+        // every version's publish time, no metadata body needed. The
         // evidence cell is consulted before the probe so installs that
         // never fill it (no materialization, or a resolver alongside)
         // send no extra request.
@@ -82,10 +93,10 @@ impl NpmResolutionVerifier {
     /// reports is older than `cutoff` by more than the header's own
     /// one-second resolution. HTTP dates carry whole seconds, and a
     /// registry that truncates a fractional `time.modified` understates
-    /// it by up to 999ms — the guard band keeps the comparison an upper
+    /// it by up to 999ms, the guard band keeps the comparison an upper
     /// bound regardless of how the server rounds. `false` when the
     /// probe fails, the header is missing or unparsable, or the
-    /// registry is unreachable — the caller falls through to the
+    /// registry is unreachable, the caller falls through to the
     /// metadata-backed layers, so the probe can only ever *save* a
     /// body, never widen what passes. Trust-wise the header is the same
     /// statement as the packument body's `time.modified`, served by the
@@ -112,8 +123,10 @@ impl NpmResolutionVerifier {
         let modified = cell.get_or_init(|| self.fetch_head_modified(registry, name)).await;
         modified
             .as_deref()
-            .and_then(|value| httpdate::parse_http_date(value).ok())
-            .and_then(|time| Timestamp::try_from(time).ok())
+            .map(httpdate::parse_http_date)
+            .and_then(Result::ok)
+            .map(Timestamp::try_from)
+            .and_then(Result::ok)
             .and_then(|parsed| {
                 parsed
                     .checked_add(jiff::SignedDuration::from_secs(1))
@@ -148,7 +161,8 @@ impl NpmResolutionVerifier {
         response
             .headers()
             .get("last-modified")
-            .and_then(|value| value.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
             .map(str::to_string)
     }
 
@@ -178,7 +192,7 @@ impl NpmResolutionVerifier {
     /// 1. **Abbreviated-`modified` shortcut.** Abbreviated metadata is
     ///    a small per-name document the resolver typically already
     ///    holds. Its package-level `modified` is an upper bound on
-    ///    every version's publish time — if it's older than the
+    ///    every version's publish time, if it's older than the
     ///    cutoff *and* the pinned version is still listed in
     ///    `versions`, the gate is satisfied without per-version
     ///    timestamps. Costs at most one abbreviated GET per name on
@@ -223,7 +237,7 @@ impl NpmResolutionVerifier {
     }
 
     /// Returns the package's `modified` timestamp *iff* it proves the
-    /// gate would pass — i.e. it's strictly older than the policy
+    /// gate would pass, i.e. it's strictly older than the policy
     /// cutoff *and* the pinned version is still listed in the
     /// package's current versions map.
     ///

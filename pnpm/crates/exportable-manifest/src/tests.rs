@@ -4,7 +4,11 @@
 //! `tempfile::TempDir` so they exercise `replace_workspace_protocol`
 //! and `replace_workspace_protocol_peer_dependency` in isolation.
 
-use std::{collections::HashSet, fs, path::Path};
+use std::{
+    collections::HashSet,
+    fs,
+    path::Path,
+};
 
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
@@ -12,9 +16,14 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 use super::{
-    CannotResolveReason, CannotResolveWorkspaceProtocolError, CreateExportableManifestOptions,
-    ReplaceWorkspaceProtocolError, WorkspacePackageManifest, create_exportable_manifest,
-    replace_workspace_protocol, replace_workspace_protocol_peer_dependency,
+    CannotResolveReason,
+    CannotResolveWorkspaceProtocolError,
+    CreateExportableManifestOptions,
+    ReplaceWorkspaceProtocolError,
+    WorkspacePackageManifest,
+    create_exportable_manifest,
+    replace_workspace_protocol,
+    replace_workspace_protocol_peer_dependency,
 };
 
 /// Materialize the install tree the workspace-protocol rewrite case

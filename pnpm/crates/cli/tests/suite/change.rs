@@ -7,8 +7,15 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    diagnostics::assert_diagnostic_contains,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// A `pnpm` command that actually probes the registry (no assume-published
 /// seam), for the first-release tests that run against the mock registry.
@@ -151,7 +158,7 @@ fn private_release_commits_its_changelog_and_collects_its_intent() {
 }
 
 /// A project renamed by `publishConfig.name` is only on the registry under the
-/// published name — the workspace name is either absent or, as with `pacquet`,
+/// published name, the workspace name is either absent or, as with `pacquet`,
 /// someone else's package. Probing the workspace name would read as unpublished
 /// and debut the release at its manifest version, republishing a version that
 /// is already out.

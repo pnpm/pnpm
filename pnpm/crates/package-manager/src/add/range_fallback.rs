@@ -1,11 +1,19 @@
 use super::{
-    AddError, AddOptions, AddResolveInputs,
+    AddError,
+    AddOptions,
+    AddResolveInputs,
     protocol_selector::ProtocolSelector,
-    registry::{package_registry, parse_explicit_registry_spec},
+    registry::{
+        package_registry,
+        parse_explicit_registry_spec,
+    },
     specifier::listing_catalog_name,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use serde_json::Value;
 use std::path::Path;
@@ -51,7 +59,11 @@ impl VersionlessSelector {
         };
         match ProtocolSelector::parse(&specifier).ok().flatten()? {
             ProtocolSelector::Npm { name, spec } if spec.as_deref().is_none_or(str::is_empty) => {
-                Some(parsed.alias.map_or(Self::Registry(name), Self::NpmAlias))
+                Some(
+                    parsed.alias
+                        .map(Self::NpmAlias)
+                        .unwrap_or(Self::Registry(name)),
+                )
             }
             _ => None,
         }
@@ -98,7 +110,8 @@ fn override_specifier(
     };
     let parsed =
         pnpm_config_parse_overrides::parse_overrides_iter(overrides.iter(), inputs.catalogs)
-            .map_err(|error| AddError::Install(crate::InstallError::InvalidOverrides(error)))?;
+            .map_err(crate::InstallError::InvalidOverrides)
+            .map_err(AddError::Install)?;
     let project_dir = manifest
         .path()
         .parent()

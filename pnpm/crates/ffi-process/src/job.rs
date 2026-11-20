@@ -1,15 +1,26 @@
 //! Windows Job Objects, which give a process tree the cleanup that Unix
 //! gets from process groups and signals.
 
-use std::os::windows::io::{AsRawHandle as _, BorrowedHandle, FromRawHandle as _, OwnedHandle};
+use std::os::windows::io::{
+    AsRawHandle as _,
+    BorrowedHandle,
+    FromRawHandle as _,
+    OwnedHandle,
+};
 use windows_sys::Win32::{
     Foundation::HANDLE,
     System::{
         JobObjects::{
-            AssignProcessToJobObject, CreateJobObjectW, IsProcessInJob,
-            JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-            JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-            JobObjectExtendedLimitInformation, QueryInformationJobObject, SetInformationJobObject,
+            AssignProcessToJobObject,
+            CreateJobObjectW,
+            IsProcessInJob,
+            JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JobObjectExtendedLimitInformation,
+            QueryInformationJobObject,
+            SetInformationJobObject,
             TerminateJobObject,
         },
         Threading::GetCurrentProcess,

@@ -2,7 +2,10 @@
 
 use crate::{
     ComVer,
-    json_document::{is_json_document, json_lockfile_version},
+    json_document::{
+        is_json_document,
+        json_lockfile_version,
+    },
 };
 
 /// Which shape a lockfile document's sections have.
@@ -27,7 +30,8 @@ pub(crate) fn declares_next_format(document: &str) -> bool {
         document.lines().find_map(yaml_version_value)
     };
     version
-        .and_then(|value| value.parse::<ComVer>().ok())
+        .map(str::parse::<ComVer>)
+        .and_then(Result::ok)
         .is_some_and(|version| version.major == crate::NEXT_LOCKFILE_MAJOR)
 }
 

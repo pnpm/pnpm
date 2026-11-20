@@ -39,7 +39,8 @@ pub fn has_valid_personal_token_checksum(raw: &str) -> bool {
     if !payload
         .iter()
         .copied()
-        .all(|byte| decode_base62_digit(byte).is_some())
+        .map(decode_base62_digit)
+        .all(|decode_base62_digit| decode_base62_digit.is_some())
     {
         return false;
     }

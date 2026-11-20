@@ -3,17 +3,21 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
 fn pacquet_at(workspace: &Path) -> Command {
-    let mut cmd = Command::cargo_bin("pnpm").expect("find the pnpm binary");
-    cmd = cmd.with_current_dir(workspace);
-    cmd.env("PNPM_CONFIG_FETCH_RETRIES", "0");
+    let mut cmd = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .with_env("PNPM_CONFIG_FETCH_RETRIES", "0");
     // The developer's own pnpm config directory holds credentials that
     // would satisfy the registry the test expects to be unauthorized for.
-    cmd.env("XDG_CONFIG_HOME", workspace.join(".isolated-config"));
+    cmd = cmd.with_env("XDG_CONFIG_HOME", workspace.join(".isolated-config"));
     cmd
 }
 

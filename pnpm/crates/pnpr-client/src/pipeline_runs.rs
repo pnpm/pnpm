@@ -1,6 +1,11 @@
 //! Recording `pnpm pipeline` runs on a pnpr server.
 
-use super::{Client, PnprClient, PnprClientError, Serialize};
+use super::{
+    Client,
+    PnprClient,
+    PnprClientError,
+    Serialize,
+};
 
 /// One `pnpm pipeline` run as `PUT /-/pnpr/v0/pipeline/runs` carries it:
 /// the workspace and run identifiers plus the run's summary document and

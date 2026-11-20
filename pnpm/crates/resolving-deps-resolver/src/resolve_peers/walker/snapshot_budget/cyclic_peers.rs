@@ -1,6 +1,16 @@
-use super::{Arc, HashMap, HashSet, NodeId, PeerWalkAbort, Walker};
+use super::{
+    Arc,
+    HashMap,
+    HashSet,
+    NodeId,
+    PeerWalkAbort,
+    Walker,
+};
 use crate::strongly_connected_components::SccPass;
-use std::{cell::Cell, collections::VecDeque};
+use std::{
+    cell::Cell,
+    collections::VecDeque,
+};
 
 impl Walker<'_> {
     pub(super) fn update_cyclic_peer_sccs(

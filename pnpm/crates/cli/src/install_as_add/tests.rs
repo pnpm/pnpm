@@ -3,17 +3,26 @@ use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{
         CliArgs,
-        add::{AddArgs, AddRequest},
+        add::{
+            AddArgs,
+            AddRequest,
+        },
         cli_command::CliCommand,
     },
     config_overrides::ConfigOverrides,
     flag_relocation::relocate_pre_subcommand_flags,
 };
-use clap::{CommandFactory, FromArgMatches};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
-use std::{ffi::OsString, path::Path};
+use std::{
+    ffi::OsString,
+    path::Path,
+};
 
 fn selectors(add: &AddArgs) -> Vec<&str> {
     add.package_names
@@ -33,7 +42,8 @@ fn rewritten(tokens: &[&str]) -> Vec<String> {
     );
     rewrite(&cmd, argv)
         .into_iter()
-        .map(|token| token.into_string().expect("test tokens are UTF-8"))
+        .map(OsString::into_string)
+        .map(|text| text.expect("test tokens are UTF-8"))
         .collect()
 }
 

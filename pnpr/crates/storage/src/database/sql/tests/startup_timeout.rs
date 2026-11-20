@@ -1,6 +1,15 @@
-use super::{Adapter, Db};
-use crate::database::sql::{SqlDatabase, adapter::ReadSource};
-use std::{sync::Arc, time::Duration};
+use super::{
+    Adapter,
+    Db,
+};
+use crate::database::sql::{
+    SqlDatabase,
+    adapter::ReadSource,
+};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 async fn schema_waits_longer_than_the_request_timeout(mut db: Db) {
     let Adapter::Network(settings) = &mut db.adapter else { unreachable!() };
@@ -130,7 +139,10 @@ mod on_postgres {
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore = "requires PNPR_TEST_POSTGRES_URL"]
     async fn a_pending_lock_query_does_not_add_a_cleanup_timeout() {
-        use super::{Adapter, Duration};
+        use super::{
+            Adapter,
+            Duration,
+        };
         let mut db = super::Db::network("PNPR_TEST_POSTGRES_URL").await;
         let Adapter::Network(settings) = &mut db.adapter else { unreachable!() };
         settings.startup_timeout = Duration::from_millis(500);

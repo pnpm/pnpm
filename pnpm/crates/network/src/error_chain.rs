@@ -2,7 +2,7 @@ use crate::address_guard::BlockedAddress;
 
 /// Reqwest's own [`std::fmt::Display`] stops at the outermost stage:
 /// `error sending request for url (URL)` or `error decoding response
-/// body`, dropping the reason underneath — including `operation timed
+/// body`, dropping the reason underneath, including `operation timed
 /// out` when `fetchTimeout` fired, which leaves the user unable to tell a
 /// stalled registry from any other failure.
 ///
@@ -17,7 +17,7 @@ pub fn walk_reqwest_chain(error: &reqwest::Error) -> String {
     let mut error: &dyn std::error::Error = error;
     while let Some(src) = error.source() {
         let frame = src.to_string();
-        // Skip empty or duplicate frames — hyper occasionally repeats
+        // Skip empty or duplicate frames, hyper occasionally repeats
         // the same message across two layers, and reqwest sometimes
         // already includes the inner string in its top-level Display.
         if !frame.is_empty() && !out.ends_with(&frame) {

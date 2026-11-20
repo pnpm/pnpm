@@ -3,18 +3,28 @@
 //!
 //! Pacquet does not yet realpath the start dir (used for
 //! case-insensitive filesystems on Windows / macOS). Tracked as a known
-//! divergence — typical workspace installs on those platforms still
+//! divergence, typical workspace installs on those platforms still
 //! resolve correctly because the upward walk operates on canonical path
 //! components. Revisit if a regression turns up.
 
 use crate::{
-    FindWorkspaceProjectsError, ReadWorkspaceManifestError,
+    FindWorkspaceProjectsError,
+    ReadWorkspaceManifestError,
     api::EnvVarOs,
-    manifest::{WORKSPACE_MANIFEST_FILENAME, read_workspace_manifest},
+    manifest::{
+        WORKSPACE_MANIFEST_FILENAME,
+        read_workspace_manifest,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Misnamed `pnpm-workspace.yaml` variants that are rejected rather
 /// than silently treated as "no workspace manifest".
@@ -79,7 +89,7 @@ pub fn find_workspace_dir(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspaceDi
 }
 
 /// [`crate::projects::belongs_to_workspace`], with `packages:` read from the
-/// workspace manifest the walk just found — and only when the answer turns on
+/// workspace manifest the walk just found, and only when the answer turns on
 /// it, since every command run inside a workspace passes through here.
 fn belongs_to_workspace(workspace_dir: &Path, dir: &Path) -> Result<bool, FindWorkspaceDirError> {
     if !crate::projects::needs_package_patterns(workspace_dir, dir) {
@@ -124,7 +134,9 @@ where
 {
     WORKSPACE_DIR_ENV_VARS
         .iter()
-        .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))
+        .copied()
+        .map(Sys::var_os)
+        .find_map(|variable| variable.filter(|value| !value.is_empty()))
         .map(PathBuf::from)
 }
 
@@ -140,7 +152,7 @@ fn find_workspace_dir_by_walk(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspa
         // [`findUp`]). The first hit at a given level wins, but a
         // misnamed hit raises rather than being silently treated as
         // "no workspace". Check the variants only after confirming the
-        // correct file isn't here — otherwise a project with
+        // correct file isn't here; otherwise a project with
         // `pnpm-workspace.yaml` alongside an accidental `.yml` copy
         // would error instead of working.
         //

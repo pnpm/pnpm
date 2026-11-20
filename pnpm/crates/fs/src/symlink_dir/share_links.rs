@@ -11,19 +11,38 @@
 //! and keeps the kind that can be opened.
 
 use crate::{
-    mapped_drive_path::{NetworkShare, network_share_cached},
+    mapped_drive_path::{
+        NetworkShare,
+        network_share_cached,
+    },
     retry::{
-        ERROR_DELETE_PENDING, ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, retry_fs_operation,
+        ERROR_DELETE_PENDING,
+        ERROR_LOCK_VIOLATION,
+        ERROR_SHARING_VIOLATION,
+        retry_fs_operation,
     },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use std::{
     ffi::OsString,
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
     sync::{
-        Mutex, PoisonError, RwLock,
-        atomic::{AtomicU64, Ordering},
+        Mutex,
+        PoisonError,
+        RwLock,
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 

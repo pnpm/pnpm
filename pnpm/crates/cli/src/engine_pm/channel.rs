@@ -19,7 +19,7 @@ const NPM_PACKAGES: [&str; 1] = ["npm"];
 const YARN_CLASSIC_PACKAGES: [&str; 1] = ["yarn"];
 const YARN_BERRY_PACKAGES: [&str; 1] = ["@yarnpkg/cli-dist"];
 
-/// A package manager pnpm can provision — for a project that pins one, or
+/// A package manager pnpm can provision, for a project that pins one, or
 /// for a git-hosted dependency that has to be installed with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PackageManager {
@@ -45,7 +45,7 @@ pub(crate) enum Channel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BinaryChannel {
-    /// `oven-sh/bun` release archives — the source the managed Bun
+    /// `oven-sh/bun` release archives, the source the managed Bun
     /// runtime already installs from.
     Bun,
     /// `yarnpkg/zpm` release archives, Yarn 6 and above.
@@ -152,7 +152,7 @@ fn yarn_channel(version_spec: &str) -> Channel {
 }
 
 /// The lowest major a specifier admits, or `None` when it admits any
-/// version — a dist-tag, a wildcard, or something unparsable. Yarn's
+/// version, a dist-tag, a wildcard, or something unparsable. Yarn's
 /// channels are split by major, so a specifier that does not commit to one
 /// falls through to the current line rather than to Yarn 1.
 fn committed_major(version_spec: &str) -> Option<u64> {

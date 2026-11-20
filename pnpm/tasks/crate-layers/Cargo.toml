@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { workspace = true }
+command-extra = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }
 

@@ -19,14 +19,29 @@
 //! ends the children when pnpm does.
 
 use std::{
-    io::{self, Write},
-    process::{Child, ChildStdin, Stdio},
-    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
+    io::{
+        self,
+        Write,
+    },
+    process::{
+        Child,
+        ChildStdin,
+        Stdio,
+    },
+    sync::{
+        Mutex,
+        MutexGuard,
+        RwLock,
+        RwLockReadGuard,
+    },
 };
 
 use crate::process::Command;
 #[cfg(target_os = "linux")]
-use pnpm_ffi_signal::{Reaping, Waiting};
+use pnpm_ffi_signal::{
+    Reaping,
+    Waiting,
+};
 
 /// What the watchdog runs. A line `+<pgid>` on standard input starts a
 /// watch over a group and `-<pgid>` ends one; end of input kills every

@@ -1,9 +1,24 @@
 use super::{
-    FrozenScope, HashSet, InstallError, InstallFrozenLockfile, Lockfile, LockfileEntries,
-    MaterializationInputs, MaterializationOutput, MaterializationWorkspace, Materialized, Reporter,
-    allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
-    frozen_project_anchor_ids, initial_materialization_ids, map_frozen_lockfile_error,
-    previously_skipped, prior_unbuilt_builds, settle_frozen_verification,
+    FrozenScope,
+    HashSet,
+    InstallError,
+    InstallFrozenLockfile,
+    Lockfile,
+    LockfileEntries,
+    MaterializationInputs,
+    MaterializationOutput,
+    MaterializationWorkspace,
+    Materialized,
+    Reporter,
+    allow_builds_changed_since,
+    anchored_project_manifests,
+    announce_headless_install,
+    frozen_project_anchor_ids,
+    initial_materialization_ids,
+    map_frozen_lockfile_error,
+    previously_skipped,
+    prior_unbuilt_builds,
+    settle_frozen_verification,
 };
 
 impl<'a> MaterializationInputs<'a, '_> {
@@ -26,10 +41,9 @@ impl<'a> MaterializationInputs<'a, '_> {
             path: self.lockfiles.verification.derived_lockfile_path.as_deref(),
             current: self.lockfiles.current,
             current_entries: LockfileEntries::of_previous_install(self.lockfiles.current),
-            resolution_verifiers: self.workspace.requested_importer_ids.map_or(
-                self.lockfiles.verification.resolution_verifiers.as_slice(),
-                |_| &[][..],
-            ),
+            resolution_verifiers: self.workspace.requested_importer_ids
+                .map(|_| &[][..])
+                .unwrap_or(self.lockfiles.verification.resolution_verifiers.as_slice()),
             planned_canonical_fetches: Some(&self.lockfiles.verification.planned_canonical_fetches),
         }
     }
@@ -142,7 +156,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             .await
             // Surface a verification failure as the same top-level
             // `LockfileVerification` variant the eager paths use, rather
-            // than nesting it under `FrozenLockfile` — the concurrent gate
+            // than nesting it under `FrozenLockfile`, the concurrent gate
             // is the same gate, run alongside the fetch.
             .map_err(map_frozen_lockfile_error)?;
         Ok(MaterializationOutput::from_frozen(frozen_result, scope.groups))

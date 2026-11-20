@@ -1,9 +1,25 @@
-use crate::{async_process::Command, process::Stdio};
+use crate::{
+    async_process::Command,
+    process::Stdio,
+};
 
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pnpm_python_resolver::Target;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use std::{collections::BTreeMap, ffi::OsStr, path::PathBuf};
+use serde::{
+    Deserialize,
+    Serialize,
+    de::DeserializeOwned,
+};
+use std::{
+    collections::BTreeMap,
+    ffi::OsStr,
+    path::PathBuf,
+};
 use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Serialize, Deserialize)]

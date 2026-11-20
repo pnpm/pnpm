@@ -1,13 +1,24 @@
 //! The notes between an installed version and the one an upgrade offers.
 
-use super::http::{NotesHttp, VersionNoteResponse, publication_url};
+use super::http::{
+    NotesHttp,
+    VersionNoteResponse,
+    publication_url,
+};
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_release_notes::{NoteEntry, NotesList, is_in_upgrade_range};
+use pnpm_release_notes::{
+    NoteEntry,
+    NotesList,
+    is_in_upgrade_range,
+};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tokio::sync::OnceCell;
 
@@ -135,7 +146,8 @@ impl<'a> NotesReader<'a> {
         .map_err(miette::Report::new)?;
         let mut versions: Vec<Version> = package.versions
             .keys()
-            .filter_map(|key| key.parse::<Version>().ok())
+            .map(|key| key.parse::<Version>())
+            .filter_map(Result::ok)
             .filter(|version| is_in_upgrade_range(version, installed, target))
             .filter(|version| {
                 oldest_listed

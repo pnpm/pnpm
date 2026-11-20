@@ -1,7 +1,14 @@
 use pnpm_config::HoistingLimits;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+};
 use pnpm_real_hoist::percent_encode_path;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 
 /// Translate the user-facing [`HoistingLimits`] mode into the
 /// `@yarnpkg/nm` hoister's per-locator border map (the shape
@@ -24,7 +31,7 @@ pub fn get_hoisting_limits(
 
     // The root border accumulates the root's own direct deps plus
     // every (encoded) non-root importer id, regardless of iteration
-    // order — `BTreeSet` makes the result deterministic even though
+    // order, `BTreeSet` makes the result deterministic even though
     // `importers` is a `HashMap`. Always stored under `.@` to provide
     // the synthetic root node's hoisting boundary, matching upstream.
     let mut root_border: BTreeSet<String> = BTreeSet::new();

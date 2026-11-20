@@ -7,13 +7,25 @@
 //! repository whose projects genuinely conflict to split into separate
 //! workspaces; per-project resolution needs no such split.
 
-use super::{Manifest, Workspace};
+use super::{
+    Manifest,
+    Workspace,
+};
 use crate::manifest::UvWorkspace;
-use miette::{Result, bail};
+use miette::{
+    Result,
+    bail,
+};
 use pep508_rs::PackageName;
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use wax::Program as _;
@@ -286,7 +298,8 @@ pub fn in_declared_workspace(workspace: &Path, project: &Path) -> bool {
     canonical(project)
         .ancestors()
         .take_while(|ancestor| ancestor.starts_with(&stop))
-        .any(|ancestor| workspace_declaration(ancestor).is_some())
+        .map(workspace_declaration)
+        .any(|workspace_declaration| workspace_declaration.is_some())
 }
 
 /// The manifest of the nearest enclosing `[tool.uv.workspace]` up to

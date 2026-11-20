@@ -5,13 +5,23 @@ mod directory;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
     diagnostics::assert_diagnostic_contains,
-    fixtures::{minimal_tarball, sha512_integrity},
+    fixtures::{
+        minimal_tarball,
+        sha512_integrity,
+    },
     git_repo::GitRepoFixture,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
@@ -321,8 +331,8 @@ fn a_configured_pnpmfile_that_is_missing_names_itself() {
 
 /// A configured path that names no module extension is checked with `.cjs`
 /// appended, the way pnpm's `pnpmFileExistsSync` does. Such a path is present,
-/// so whatever happens next is an execution failure — `require` resolves
-/// `.js`/`.json`/`.node` but not `.cjs` — and reporting it as a missing file
+/// so whatever happens next is an execution failure (`require` resolves
+/// `.js`/`.json`/`.node` but not `.cjs`) and reporting it as a missing file
 /// would blame the setting for a pnpmfile that is right there on disk.
 #[test]
 fn an_extensionless_configured_pnpmfile_is_not_reported_as_missing() {
@@ -891,7 +901,11 @@ enum NativeGitFetcher {
 fn assert_native_git_fetcher_ignores_a_hook_supplied_store_index_key(
     fetcher_kind: NativeGitFetcher,
 ) {
-    use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
+    use pnpm_store_dir::{
+        StoreDir,
+        StoreIndex,
+        store_index_key,
+    };
     use pnpm_testing_utils::git_repo::GitRepoFixture;
 
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

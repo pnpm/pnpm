@@ -1,5 +1,14 @@
-use crate::{FsRemoveDirent, FsRename, copy_dirent, cross_device::is_cross_device};
-use std::{fs, io, path::Path};
+use crate::{
+    FsRemoveDirent,
+    FsRename,
+    copy_dirent,
+    cross_device::is_cross_device,
+};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// Move `src` onto `dst`, falling back to a copy when the kernel
 /// refuses the rename as cross-device.
@@ -59,7 +68,7 @@ where
 ///
 /// The copy below would otherwise materialize the whole of `src` only
 /// for the rename to refuse the destination and the caller to move
-/// `src` somewhere else instead — two full copies of a tree that can be
+/// `src` somewhere else instead, two full copies of a tree that can be
 /// a package's entire dependency set.
 fn refuse_occupied_directory(src: &Path, dst: &Path) -> io::Result<()> {
     if !is_directory(src)? || !is_directory(dst)? {

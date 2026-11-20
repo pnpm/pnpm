@@ -1,10 +1,24 @@
-use super::{DependenciesGraph, HoistedDepGraphError, walk::WalkState};
-use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
+use super::{
+    DependenciesGraph,
+    HoistedDepGraphError,
+    walk::WalkState,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+};
 use pnpm_package_is_installable::{
-    InstallabilityOptions, InstallabilityVerdict, PackageInstallabilityManifest, WantedEngine,
+    InstallabilityOptions,
+    InstallabilityVerdict,
+    PackageInstallabilityManifest,
+    WantedEngine,
     package_is_installable,
 };
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Whether a previous install left this package at `dir`, reached from
 /// `modules` without traversing a link: a real directory holding a
@@ -120,7 +134,7 @@ pub(super) fn lookup_package_metadata<'a>(
     // `packages:` keys are peer-stripped (`react-dom@19.2.7`), while a
     // hoister reference carries the full peer suffix
     // (`react-dom@19.2.7(react@19.2.7)`). Try the exact key first
-    // (peerless references — the common case — hit immediately), then
+    // (peerless references (the common case) hit immediately), then
     // fall back to the stripped key so peered snapshots resolve their
     // metadata instead of being silently dropped from the graph along
     // with their whole subtree.
@@ -159,15 +173,14 @@ pub(super) fn manifest_for_installability(
 /// Returns an empty string when `dir == lockfile_dir`.
 ///
 /// Backslashes are normalized to forward slashes so the value is
-/// portable across platforms — `.modules.yaml.hoistedLocations`
+/// portable across platforms, `.modules.yaml.hoistedLocations`
 /// is read on whatever OS the next install runs on, and
 /// `pnpm-lock.yaml` already uses forward slashes for the same
 /// reason. pacquet normalizes here for cross-platform consistency
 /// with the rest of pnpm's serialised formats.
 pub(super) fn path_relative_to_lockfile_dir(dir: &Path, lockfile_dir: &Path) -> String {
     dir.strip_prefix(lockfile_dir)
-        .map_or_else(
-            |_| dir.to_string_lossy().replace('\\', "/"),
-            |rel| rel.to_string_lossy().replace('\\', "/"),
-        )
+        .map(Path::to_string_lossy)
+        .map(|replace| replace.replace('\\', "/"))
+        .unwrap_or_else(|_| dir.to_string_lossy().replace('\\', "/"))
 }

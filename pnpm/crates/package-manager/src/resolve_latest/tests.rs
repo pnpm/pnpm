@@ -1,4 +1,7 @@
-use super::{LatestPicker, ResolveLatestError};
+use super::{
+    LatestPicker,
+    ResolveLatestError,
+};
 use crate::resolution_policy::PickPolicy;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
@@ -7,8 +10,8 @@ use std::sync::Arc;
 use tempfile::tempdir;
 
 /// A packument that lists `latest` and serves it an unreadable manifest.
-/// `dist.integrity` decodes strictly — a tarball hash pnpm cannot read
-/// is one it cannot verify — so the version is listed yet unhydratable,
+/// `dist.integrity` decodes strictly (a tarball hash pnpm cannot read
+/// is one it cannot verify) so the version is listed yet unhydratable,
 /// which is exactly the state a dangling tag is indistinguishable from.
 fn undecodable_latest_packument(latest: &str) -> String {
     format!(

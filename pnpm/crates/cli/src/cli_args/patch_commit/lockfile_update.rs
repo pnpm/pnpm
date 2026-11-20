@@ -1,5 +1,8 @@
 use crate::state::State;
-use pnpm_lockfile::{Lockfile, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    SnapshotEntry,
+};
 use pnpm_package_manifest::PackageManifest;
 use serde_json::Value;
 

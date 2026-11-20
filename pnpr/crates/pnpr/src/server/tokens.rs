@@ -5,19 +5,35 @@ use payload::CredentialLimits;
 use std::net::IpAddr;
 
 use axum::{
-    extract::{Path, State},
+    extract::{
+        Path,
+        State,
+    },
     http::HeaderMap,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_auth::TokenRecord;
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::{
-    AppState, AuthedCaller, StatusCode, TargetRegistry, iso_from_unix_millis, json_response,
-    not_found, private_no_cache, require_caller,
+    AppState,
+    AuthedCaller,
+    StatusCode,
+    TargetRegistry,
+    iso_from_unix_millis,
+    json_response,
+    not_found,
+    private_no_cache,
+    require_caller,
 };
 
 #[derive(Deserialize)]

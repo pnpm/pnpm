@@ -1,22 +1,40 @@
 use super::{
-    OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
-    render_recursive_json, render_recursive_table, sort_outdated, workspace::DependentProject,
+    OutdatedDependencyOptions,
+    OutdatedInWorkspace,
+    OutdatedPackage,
+    render_json,
+    render_recursive_json,
+    render_recursive_table,
+    sort_outdated,
+    workspace::DependentProject,
 };
 use crate::cli_args::{
     outdated::{
         OutdatedFormat,
         notes::with_notes,
         query::current_versions_from_importer,
-        render::{Change, DEPENDENTS_COLUMN_WIDTH, classify, render_dependents, render_latest},
+        render::{
+            Change,
+            DEPENDENTS_COLUMN_WIDTH,
+            classify,
+            render_dependents,
+            render_latest,
+        },
     },
-    release_notes::{UpgradeNotes, reader::VersionNote},
+    release_notes::{
+        UpgradeNotes,
+        reader::VersionNote,
+    },
 };
 use node_semver::Version;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::DependencyGroup;
 use std::path::PathBuf;
 #[cfg(unix)]
-use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+use std::{
+    ffi::OsString,
+    os::unix::ffi::OsStringExt,
+};
 use text_block_macros::text_block;
 
 fn v(text: &str) -> Version {
@@ -214,8 +232,8 @@ fn assert_borders_aligned(table: &str) {
 // Enabling `tabled`'s `ansi` feature makes it size a colored cell by its
 // visible glyphs, not its escape bytes; without it the columns and borders
 // drift apart. Feed a modern-style table the kind of ANSI-colored cells the
-// `outdated` renderers emit — a highlighted version segment, a dim group
-// label, bright-blue headers — and confirm every vertical border lands on the
+// `outdated` renderers emit (a highlighted version segment, a dim group
+// label, bright-blue headers) and confirm every vertical border lands on the
 // same column. Coloring the cells directly (`owo_colors` unconditional
 // styling) rather than forcing the global color override keeps the test free
 // of process-global state, so it can't leak into or be perturbed by other
@@ -223,7 +241,10 @@ fn assert_borders_aligned(table: &str) {
 #[test]
 fn colored_table_borders_stay_aligned() {
     use owo_colors::OwoColorize;
-    use tabled::{builder::Builder, settings::Style};
+    use tabled::{
+        builder::Builder,
+        settings::Style,
+    };
 
     let header = ["Package", "Current", "Latest"].map(|name| name.bright_blue().to_string());
     let rows = [

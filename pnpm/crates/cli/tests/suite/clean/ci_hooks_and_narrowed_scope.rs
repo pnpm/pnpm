@@ -1,8 +1,15 @@
-use super::{CommandTempCwd, seed_package};
+use super::{
+    CommandTempCwd,
+    seed_package,
+};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn run_pnpm(cwd: &Path, args: &[&str]) -> std::process::Output {
     Command::cargo_bin("pnpm")
@@ -400,8 +407,8 @@ fn ci_dedicated_workspace_carries_verified_lockfile_into_install() {
         .expect("find pnpm binary")
         .with_current_dir(&workspace)
         .without_ambient_pnpm_config()
-        .env("TAMPER_LOCK", "1")
-        .arg("ci")
+        .with_env("TAMPER_LOCK", "1")
+        .with_arg("ci")
         .output()
         .expect("run pnpm ci");
     assert!(ci_out.status.success(), "{ci_out:?}");

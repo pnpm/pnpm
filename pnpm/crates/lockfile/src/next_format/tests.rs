@@ -1,6 +1,9 @@
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
-use std::{fmt::Write as _, path::Path};
+use std::{
+    fmt::Write as _,
+    path::Path,
+};
 
 fn parse(yaml: &str) -> Lockfile {
     Lockfile::parse(yaml, Path::new("pnpm-lock.yaml"))
@@ -775,7 +778,7 @@ fn json_document_with_todays_version_is_todays_format() {
 /// multi-byte character, is rejected rather than sliced through.
 #[test]
 fn catalog_entry_with_an_odd_npm_alias_is_rejected() {
-    for specifier in ["npm:", "npm:\u{e9}"] {
+    for specifier in ["npm:", "npm:é"] {
         let text = format!(
             r#"{{"lockfileVersion": "13.0", "settings": {{"catalogs": {{"default": {{"renamed": "{specifier}"}}}}}}, "projects": {{".": {{}}}}}}"#,
         );
@@ -1789,5 +1792,49 @@ snapshots:
     );
     for _ in 0..32 {
         written_and_read(&parse(&yaml));
+    }
+}
+
+#[test]
+fn ordinary_alias_of_a_peer_provider_round_trips() {
+    for alias_version in ["1.0.0", "2.0.0"] {
+        let lockfile = parse(&format!(
+            r"lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      provider:
+        specifier: 1.0.0
+        version: 1.0.0
+      wrapper:
+        specifier: 1.0.0
+        version: 1.0.0(provider@1.0.0)
+packages:
+  provider@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  provider@2.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+  consumer@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+    peerDependencies:
+      provider: '*'
+  wrapper@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+snapshots:
+  provider@1.0.0: {{}}
+  provider@2.0.0: {{}}
+  consumer@1.0.0(provider@1.0.0):
+    dependencies:
+      provider: 1.0.0
+      provider-copy: provider@{alias_version}
+  wrapper@1.0.0(provider@1.0.0):
+    dependencies:
+      consumer: 1.0.0(provider@1.0.0)
+      provider-copy: provider@{alias_version}
+    transitivePeerDependencies:
+      - provider
+",
+        ));
+        written_and_read(&lockfile);
     }
 }

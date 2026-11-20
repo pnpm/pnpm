@@ -1,6 +1,10 @@
+use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::LazyLock,
 };
@@ -10,9 +14,9 @@ pub fn workspace_root() -> &'static Path {
     static WORKSPACE_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
         let output = env!("CARGO")
             .pipe(Command::new)
-            .arg("locate-project")
-            .arg("--workspace")
-            .arg("--message-format=plain")
+            .with_arg("locate-project")
+            .with_arg("--workspace")
+            .with_arg("--message-format=plain")
             .output()
             .expect("cargo locate-project");
         assert!(
@@ -32,8 +36,8 @@ pub fn workspace_root() -> &'static Path {
 }
 
 /// The verdaccio-shaped storage built from the in-repo package fixtures
-/// (`pnpr/.fixtures/packages`) — the same storage pacquet's tests serve.
-/// We don't serve directly from here — see [`runtime_storage`] for why — but
+/// (`pnpr/.fixtures/packages`), the same storage pacquet's tests serve.
+/// We don't serve directly from here (see [`runtime_storage`] for why) but
 /// we seed [`runtime_storage`] from it on every launch.
 #[must_use]
 pub fn registry_mock_storage() -> &'static Path {

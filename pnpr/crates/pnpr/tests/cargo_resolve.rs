@@ -8,14 +8,32 @@
 
 use crate::tokens::issue_token;
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{AuthState, Config, PublicRoute, router_with_auth};
+use pnpr::{
+    AuthState,
+    Config,
+    PublicRoute,
+    router_with_auth,
+};
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
     time::Duration,
 };
@@ -121,7 +139,8 @@ async fn frames(body: Body) -> Vec<Value> {
     String::from_utf8_lossy(&bytes)
         .lines()
         .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_str(line).expect("frame is JSON"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("frame is JSON"))
         .collect()
 }
 

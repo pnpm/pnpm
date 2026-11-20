@@ -1,6 +1,10 @@
 //! Tests for [`check_engine`].
 
-use crate::{Engine, WantedEngine, check_engine};
+use crate::{
+    Engine,
+    WantedEngine,
+    check_engine,
+};
 
 const PACKAGE_ID: &str = "registry.npmjs.org/foo/1.0.0";
 

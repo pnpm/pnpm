@@ -1,8 +1,18 @@
 use pnpm_resolving_resolver_base::parse_strict_semver_range;
 
 use super::{
-    DepPath, NodeId, Path, PathBuf, PeerId, Range, ResolvePeersOptions, ResolveResult, Version,
-    get_peer_version_range, index_of_dep_path_suffix, pkg_name,
+    DepPath,
+    NodeId,
+    Path,
+    PathBuf,
+    PeerId,
+    Range,
+    ResolvePeersOptions,
+    ResolveResult,
+    Version,
+    get_peer_version_range,
+    index_of_dep_path_suffix,
+    pkg_name,
 };
 
 pub(super) fn version_gte(left: &str, right: &str) -> bool {
@@ -64,12 +74,12 @@ pub(in super::super) fn importer_relative_link_dep_path(
 ///
 /// Returns `None` when:
 ///
-/// - the dep isn't a `link:` directory resolution — an injected
+/// - the dep isn't a `link:` directory resolution, an injected
 ///   (`file:`) one is a real package in the graph and keeps its own
 ///   node id;
 /// - the setting is off or the lockfile / modules dirs are missing;
 /// - the link target lives under `lockfile_dir` (workspace-internal
-///   link — already stable across machines, no remap needed).
+///   link, already stable across machines, no remap needed).
 ///
 /// On `Some`, the remap encodes `<modules_dir>/<alias>` as a path
 /// relative to `lockfile_dir`, prefixed with `link:`.
@@ -123,7 +133,8 @@ pub(in super::super) fn peer_id_pair(result: &ResolveResult) -> PeerId {
     let name = pkg_name(result);
     let version = result.package.name_ver
         .as_ref()
-        .map_or_else(|| result.id.as_str().to_string(), |name_ver| name_ver.suffix.to_string());
+        .map(|name_ver| name_ver.suffix.to_string())
+        .unwrap_or_else(|| result.id.as_str().to_string());
     let Some(registry_name) = named_registry_of(result) else {
         return PeerId::Pair { name, version };
     };
@@ -146,7 +157,8 @@ pub(in super::super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<Str
     let segments = pnpm_lockfile::split_peer_suffix_segments(&raw[peers_index..])?;
     segments
         .iter()
-        .map(|segment| peer_segment_name(segment).map(str::to_string))
+        .map(|segment| peer_segment_name(segment))
+        .map(|peer_segment_name| peer_segment_name.map(str::to_string))
         .collect()
 }
 
@@ -156,7 +168,7 @@ pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
 }
 
 /// Range-satisfaction check that tolerates prereleases the way
-/// `@yarnpkg/core/semverUtils.satisfiesWithPrereleases` does — falls
+/// `@yarnpkg/core/semverUtils.satisfiesWithPrereleases` does, falls
 /// back to a literal-equality check when the range can't be parsed,
 /// which lets non-semver peer ranges (`*`, git refs, etc.) still
 /// match.
@@ -166,7 +178,7 @@ pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
 /// Yarn's `satisfiesWithPrereleases` explicitly allows that pairing.
 /// We approximate it by retrying with the prerelease tag stripped: if
 /// `version` is a prerelease and the straight check fails, see whether
-/// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
+/// the base `MAJOR.MINOR.PATCH` satisfies the range, without pulling
 /// in Yarn's full per-comparator algorithm.
 pub(crate) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
     let parsed_range = parse_strict_semver_range(range);

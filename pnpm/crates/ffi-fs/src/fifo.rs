@@ -6,7 +6,12 @@
 //! without `O_NONBLOCK` hangs on.
 
 use super::FileMode;
-use std::{ffi::CString, io, os::unix::ffi::OsStrExt as _, path::Path};
+use std::{
+    ffi::CString,
+    io,
+    os::unix::ffi::OsStrExt as _,
+    path::Path,
+};
 
 /// Create a FIFO at `path` with `mode`, before the umask is applied to it.
 pub fn create_fifo(path: &Path, mode: FileMode) -> io::Result<()> {

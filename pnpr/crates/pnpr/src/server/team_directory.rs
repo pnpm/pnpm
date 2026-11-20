@@ -1,14 +1,27 @@
 //! This replica's copy of the instance's teams, which the database holds.
 
-use super::{AppState, Identity, RegistryError, managed_state::read_with_deadline};
+use super::{
+    AppState,
+    Identity,
+    RegistryError,
+    managed_state::read_with_deadline,
+};
 use indexmap::IndexMap;
 use pnpr_auth::oidc::SessionUser;
 use pnpr_storage::database::StoredTeams;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     sync::{
-        Arc, PoisonError, RwLock,
-        atomic::{AtomicBool, Ordering},
+        Arc,
+        PoisonError,
+        RwLock,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 
@@ -73,9 +86,7 @@ impl Teams {
     }
 
     fn of_member(&self, user_id: &str) -> &[String] {
-        self.by_member
-            .get(user_id)
-            .map_or(&[], Vec::as_slice)
+        self.by_member.get(user_id).map_or_default(Vec::as_slice)
     }
 }
 

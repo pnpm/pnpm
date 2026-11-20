@@ -3,13 +3,30 @@
 //! the package's own, beside the range they satisfy, and those a dependency
 //! below needs, marked `below: true`.
 
-use super::super::{NamedBindings, NextFormatError, NextRef};
-use crate::{PeerDependencyMeta, PkgName, SnapshotDepRef};
-use serde::{
-    Deserialize, Deserializer, Serialize,
-    de::{self, MapAccess, Visitor},
+use super::super::{
+    NamedBindings,
+    NextFormatError,
+    NextRef,
 };
-use std::collections::{BTreeMap, HashMap};
+use crate::{
+    PeerDependencyMeta,
+    PkgName,
+    SnapshotDepRef,
+};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+    de::{
+        self,
+        MapAccess,
+        Visitor,
+    },
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// One entry of `peerDependencies`: the declared range alone, or a map of
 /// what there is to say about the peer.
@@ -43,7 +60,8 @@ impl<'de> Deserialize<'de> for PeerEntry {
 
             fn visit_map<Map: MapAccess<'de>>(self, map: Map) -> Result<PeerEntry, Map::Error> {
                 PeerDetails::deserialize(de::value::MapAccessDeserializer::new(map))
-                    .map(|details| PeerEntry::Detailed(Box::new(details)))
+                    .map(Box::new)
+                    .map(PeerEntry::Detailed)
             }
         }
 
@@ -149,7 +167,7 @@ impl Bindings {
 
     fn add(&mut self, name: PkgName, details: &PeerDetails) {
         let Some(binding) = details.binding() else { return };
-        let map = if details.below == Some(true) { &mut self.below } else { &mut self.own };
+        let map = if details.below.unwrap_or(false) { &mut self.below } else { &mut self.own };
         map.get_or_insert_default().insert(name, binding);
     }
 }

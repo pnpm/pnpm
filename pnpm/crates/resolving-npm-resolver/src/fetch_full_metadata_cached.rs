@@ -13,26 +13,55 @@
 //! only the version fragments a pick consults.
 
 use std::{
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 
-use pnpm_network::{ThrottledClientGuard, redact_url_credentials, retry_async};
+use pnpm_network::{
+    ThrottledClientGuard,
+    redact_url_credentials,
+    retry_async,
+};
 use pnpm_registry::Package;
-use reqwest::{Response, StatusCode};
+use reqwest::{
+    Response,
+    StatusCode,
+};
 
 use crate::{
     FetchMetadataError,
     errors::legacy_mirror_hint,
     fetch_full_metadata::{
-        ACCEPT_PNPR_DOC, MetadataRequestOptions, MetadataResponse, decode_metadata_response,
+        ACCEPT_PNPR_DOC,
+        MetadataRequestOptions,
+        MetadataResponse,
+        decode_metadata_response,
         send_metadata_request,
     },
-    metadata_cache_policy::{DocumentKind, MirrorWrite},
+    metadata_cache_policy::{
+        DocumentKind,
+        MirrorWrite,
+    },
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, PNPR_META_DIR,
-        clear_meta, find_legacy_pkg_mirror, get_pkg_mirror_path, load_meta, load_meta_async,
-        load_meta_headers_async, save_meta_indexed_with_headers, save_meta_ndjson_with_headers,
+        ABBREVIATED_META_DIR,
+        FULL_FILTERED_META_DIR,
+        FULL_META_DIR,
+        MetaHeaders,
+        PNPR_META_DIR,
+        clear_meta,
+        find_legacy_pkg_mirror,
+        get_pkg_mirror_path,
+        load_meta,
+        load_meta_async,
+        load_meta_headers_async,
+        save_meta_indexed_with_headers,
+        save_meta_ndjson_with_headers,
         scoped_meta_dir,
     },
     registry_url::to_registry_url,
@@ -467,9 +496,9 @@ enum NotModifiedRecovery<'a> {
 ///
 /// Serves the mirror body when it is still present. When the mirror vanished
 /// after the conditional request (concurrent store cleanup, antivirus, ...)
-/// the 304 validates nothing, so re-request once as a cold cache would —
-/// flipping `cache_bypass` so the retrying [`retry_async`] loop stays bypassed
-/// too — which the registry can only answer with a body or an error, never
+/// the 304 validates nothing, so re-request once as a cold cache would
+/// (flipping `cache_bypass` so the retrying [`retry_async`] loop stays bypassed
+/// too) which the registry can only answer with a body or an error, never
 /// another 304. A 304 with no mirror at all is `META_NOT_MODIFIED_WITHOUT_CACHE`.
 async fn recover_from_not_modified<'a>(
     client: ThrottledClientGuard<'a>,
@@ -481,7 +510,7 @@ async fn recover_from_not_modified<'a>(
         cache_bypass,
         renew_mirror,
     } = recovery;
-    // No body to stream — release the connection and its network-concurrency
+    // No body to stream, release the connection and its network-concurrency
     // permit before the mirror disk read.
     drop(client);
     let Some(path) = mirror_path else {
@@ -515,7 +544,7 @@ async fn recover_from_not_modified<'a>(
 /// The publishedBy mtime shortcut in [`crate::pick_package()`] treats
 /// a mirror younger than the maturity cutoff as authoritative. A 304
 /// proves the cached packument equals the registry's current one, so
-/// the validation clock legitimately restarts here — without the
+/// the validation clock legitimately restarts here, without the
 /// touch, a mirror older than `minimumReleaseAge` re-validates every
 /// package on every subsequent install, because a 304 never rewrites
 /// the file.

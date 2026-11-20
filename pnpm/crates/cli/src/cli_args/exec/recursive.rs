@@ -1,4 +1,4 @@
-//! Recursive `pacquet exec` — run a command across the `--filter`-selected
+//! Recursive `pacquet exec`, run a command across the `--filter`-selected
 //! workspace projects, scheduled over the project dependency graph.
 //!
 //! Reuses the shared graph / summary machinery in
@@ -6,43 +6,86 @@
 //!
 //! `exec` runs one command per project, so its task graph is one task per
 //! selected project over the project dependency edges: it gets the
-//! dependency-order scheduling, while `tasks` declarations — which name
-//! scripts — do not apply to it. `--no-sort` drops the ordering,
+//! dependency-order scheduling, while `tasks` declarations (which name
+//! scripts) do not apply to it. `--no-sort` drops the ordering,
 //! `--reverse` runs the reverse graph, and `--parallel` starts every
 //! project concurrently.
 
-use super::{ExecArgs, ExecDirs, ExecError, prepare_command, spawn_in_dir};
+use super::{
+    ExecArgs,
+    ExecDirs,
+    ExecError,
+    prepare_command,
+    spawn_in_dir,
+};
 use crate::cli_args::{
     recursive::{
-        AutoExcludeRoot, ExecutionStatus, Status, check_workspace_requirements, count_failures,
-        discover_workspace_projects, filtered_projects_dependencies, find_resume_root,
-        print_no_projects_matched, projects_to_verify, select_recursive_projects,
+        AutoExcludeRoot,
+        ExecutionStatus,
+        Status,
+        check_workspace_requirements,
+        count_failures,
+        discover_workspace_projects,
+        filtered_projects_dependencies,
+        find_resume_root,
+        print_no_projects_matched,
+        projects_to_verify,
+        select_recursive_projects,
         write_recursive_summary,
     },
-    reporter::{ReporterType, reporter_emit},
-    task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
+    reporter::{
+        ReporterType,
+        reporter_emit,
+    },
+    task_run_state::{
+        TaskRunExecutionSettings,
+        TaskRunStateContext,
+        task_run_execution_settings,
+    },
     verify_deps::verify_deps_before_recursive_run,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_executor::{ProcessTracker, ScriptOutput};
+use pnpm_executor::{
+    ProcessTracker,
+    ScriptOutput,
+};
 use pnpm_reporter::LogEvent;
 use pnpm_workspace_task_scheduler::{
-    ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode,
-    is_serial_task_graph, resume_task_graph_from, reverse_task_graph, schedule_tasks,
+    ScheduleTasksOptions,
+    SequenceTasksOptions,
+    TaskCompletion,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    is_serial_task_graph,
+    resume_task_graph_from,
+    reverse_task_graph,
+    schedule_tasks,
     sequence_tasks,
 };
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
     time::Instant,
 };
 use tasks::{
-    ExecTaskContext, build_exec_task_graph, exec_concurrency, project_dep_path, project_output,
-    report_recursive_outcome, run_exec_task,
+    ExecTaskContext,
+    build_exec_task_graph,
+    exec_concurrency,
+    project_dep_path,
+    project_output,
+    report_recursive_outcome,
+    run_exec_task,
 };
 
 /// Errors surfaced by a recursive exec. Codes mirror pnpm's so log
@@ -91,7 +134,7 @@ pub async fn exec_recursive(
 
     let (projects, patterns) = discover_workspace_projects(workspace_root, config)?;
     // Empty workspace errors; an empty `--filter` selection (below) is a
-    // no-op — so this guard is on the discovered set, not the filtered.
+    // no-op, so this guard is on the discovered set, not the filtered.
     if projects.is_empty() {
         return Err(RecursiveExecError::NoPackage.into());
     }
@@ -211,9 +254,9 @@ impl ExecRun<'_> {
             },
             output: crate::cli_args::exec::recursive::tasks::ExecTaskOutput {
                 // Unlike `run`'s `--stream`, `exec` prefixes its output only when
-                // the user turned the hiding off explicitly — pnpm gates on
+                // the user turned the hiding off explicitly, pnpm gates on
                 // `reporterHidePrefix === false`, not on its falsiness.
-                show_prefix: self.config.reporter_hide_prefix == Some(false),
+                show_prefix: !self.config.reporter_hide_prefix.unwrap_or(true),
                 emit: self.emit,
             },
         };

@@ -1,5 +1,13 @@
-use super::{super::WatchdogProcess, Command, GroupWatchdog, registered};
-use std::{io::Read, process::Stdio};
+use super::{
+    super::WatchdogProcess,
+    Command,
+    GroupWatchdog,
+    registered,
+};
+use std::{
+    io::Read,
+    process::Stdio,
+};
 
 #[test]
 fn failed_exec_releases_the_group_registered_before_exec() {
@@ -68,9 +76,15 @@ fn recorded(watchdog: GroupWatchdog) -> String {
 
 #[test]
 fn releasing_a_group_does_not_wait_for_another_child_to_exec() {
-    use crate::process_tracker::group_watchdog::{release, spawn};
+    use crate::process_tracker::group_watchdog::{
+        release,
+        spawn,
+    };
     use std::{
-        io::{self, Write},
+        io::{
+            self,
+            Write,
+        },
         os::fd::AsRawFd,
         sync::mpsc,
         thread,
@@ -112,9 +126,16 @@ fn releasing_a_group_does_not_wait_for_another_child_to_exec() {
 
 #[test]
 fn concurrent_registered_spawns_do_not_hold_each_others_exec_pipe() {
-    use crate::process_tracker::group_watchdog::{release, spawn};
+    use crate::process_tracker::group_watchdog::{
+        release,
+        spawn,
+    };
     use std::{
-        sync::{Arc, Barrier, mpsc},
+        sync::{
+            Arc,
+            Barrier,
+            mpsc,
+        },
         thread,
         time::Duration,
     };

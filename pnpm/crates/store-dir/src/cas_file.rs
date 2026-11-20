@@ -1,17 +1,44 @@
-use crate::{CafsFileInfo, FileHash, StoreDir};
-use derive_more::{Display, Error};
+use crate::{
+    CafsFileInfo,
+    FileHash,
+    StoreDir,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_fs::{
-    EnsureFileError, FileMode, StoreFile, TempFile, cas_write_lock, create_exclusive_temp_file,
-    ensure_cas_file, ensure_parent_dir,
-    file_mode::{EXEC_MODE, is_executable},
-    overwrite_file_in_place, rename_with_retry,
+    EnsureFileError,
+    FileMode,
+    StoreFile,
+    TempFile,
+    cas_write_lock,
+    create_exclusive_temp_file,
+    ensure_cas_file,
+    ensure_parent_dir,
+    file_mode::{
+        EXEC_MODE,
+        is_executable,
+    },
+    overwrite_file_in_place,
+    rename_with_retry,
 };
-use sha2::{Digest, Sha512};
+use sha2::{
+    Digest,
+    Sha512,
+};
 use std::{
     fs,
-    io::{self, Read, Write},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        Read,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl StoreDir {

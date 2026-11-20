@@ -1,4 +1,7 @@
-use crate::{members, workspace_root};
+use crate::{
+    members,
+    workspace_root,
+};
 use text_block_macros::text_block_fnl;
 
 /// Pins that the member walk finds the crates the workspace actually has,

@@ -2,8 +2,14 @@ use super::resolve_version_references;
 use crate::workspace_yaml::LoadWorkspaceYamlError;
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
-use tempfile::{TempDir, tempdir};
+use std::{
+    fs,
+    path::Path,
+};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 fn root_with_manifest(manifest: &serde_json::Value) -> TempDir {
     let root = tempdir().expect("create a temporary workspace root");
@@ -41,7 +47,7 @@ fn a_reference_resolves_to_the_specifier_of_a_direct_dependency() {
     );
 }
 
-/// The selector a reference is attached to is irrelevant — `$name`
+/// The selector a reference is attached to is irrelevant, `$name`
 /// names the dependency to copy the specifier from, not the dependency
 /// being overridden.
 #[test]

@@ -1,12 +1,26 @@
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::{
-    LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 
 use super::{
-    ResolveDependencyTreeError, ResolveDependencyTreeOptions, override_reframe,
+    ResolveDependencyTreeError,
+    ResolveDependencyTreeOptions,
+    override_reframe,
     resolve_dependency_tree,
 };
 

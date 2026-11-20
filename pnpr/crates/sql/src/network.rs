@@ -1,21 +1,43 @@
 //! Network SQL connections used from the blocking pool.
 
-use super::adapter::{Adapter, Connection, Param, Query, ReadSource, Row, Value};
-use crate::{Checkout, StartupConnection};
+use super::adapter::{
+    Adapter,
+    Connection,
+    Param,
+    Query,
+    ReadSource,
+    Row,
+    Value,
+};
+use crate::{
+    Checkout,
+    StartupConnection,
+};
 #[cfg(feature = "backend-mysql")]
 pub use migration::ensure_mysql_schema;
 #[cfg(feature = "backend-postgres")]
 pub use migration::ensure_postgres_schema;
 use pnpr_config::SqlBackendSettings;
-use pnpr_error::{RegistryError, Result};
-use sqlx::{TypeInfo, ValueRef};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use sqlx::{
+    TypeInfo,
+    ValueRef,
+};
 use std::{
-    cell::{Cell, RefCell},
+    cell::{
+        Cell,
+        RefCell,
+    },
     sync::Arc,
     time::Duration,
 };
 
 mod dialect;
+#[macro_use]
+mod connection;
 #[macro_use]
 mod driver;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]

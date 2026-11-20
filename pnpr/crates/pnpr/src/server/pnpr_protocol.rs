@@ -1,8 +1,20 @@
 use super::{
-    AppState, AuthedCaller, Body, CallerOwners, Ecosystem, Response, State, StatusCode, header,
+    AppState,
+    AuthedCaller,
+    Body,
+    CallerOwners,
+    Ecosystem,
+    Response,
+    State,
+    StatusCode,
+    header,
     private_no_cache,
 };
-use axum::{extract::Path, http::HeaderMap, response::IntoResponse};
+use axum::{
+    extract::Path,
+    http::HeaderMap,
+    response::IntoResponse,
+};
 use pnpm_shared_artifact_protocol::OwnerScope;
 use pnpr_error::RegistryError;
 

@@ -6,7 +6,11 @@ mod scan;
 
 use escape::DoubleQuoteScope;
 use scan::TokenPosition;
-use std::{cell::Cell, collections::HashMap, ops::ControlFlow};
+use std::{
+    cell::Cell,
+    collections::HashMap,
+    ops::ControlFlow,
+};
 
 /// Rewrite the POSIX `${...}` parameter expansions and backslash escapes (`\\`
 /// and unquoted `\'`) that the bundled shell parser does not recognize into

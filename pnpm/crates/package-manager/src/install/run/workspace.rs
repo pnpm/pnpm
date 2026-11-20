@@ -1,12 +1,29 @@
 use super::{
     super::{
-        InstallError, InstallRunOptions, LogEvent, LogLevel, PackageManifest, Path, PathBuf,
-        ProjectManifestsByDir, Reporter, ScopeLog, build_project_manifests_list,
-        build_root_importer_project_manifests_list, build_selected_project_manifests_list,
-        build_workspace_packages_map, configured_or_discovered_workspace_dir,
-        dependency_manifests_by_dir, get_catalogs_from_workspace_manifest, lockfile_root_dir,
+        InstallError,
+        InstallRunOptions,
+        LogEvent,
+        LogLevel,
+        PackageManifest,
+        Path,
+        PathBuf,
+        ProjectManifestsByDir,
+        Reporter,
+        ScopeLog,
+        build_project_manifests_list,
+        build_root_importer_project_manifests_list,
+        build_selected_project_manifests_list,
+        build_workspace_packages_map,
+        configured_or_discovered_workspace_dir,
+        dependency_manifests_by_dir,
+        get_catalogs_from_workspace_manifest,
+        lockfile_root_dir,
     },
-    InstallOwned, InstallView, RepeatInstallVerdict, RunMode, UpToDateCheck,
+    InstallOwned,
+    InstallView,
+    RepeatInstallVerdict,
+    RunMode,
+    UpToDateCheck,
     importer_selection::ImporterSelection,
     repeat_install_verdict,
 };
@@ -34,7 +51,7 @@ impl<'a> WorkspaceDirs<'a> {
     // Project root for the [bunyan]-envelope `prefix`. This is
     // emitted as `lockfileDir`, the directory containing
     // `pnpm-lock.yaml`. With workspace support that equals the
-    // workspace root — pacquet finds it via [`find_workspace_dir`].
+    // workspace root, pacquet finds it via [`find_workspace_dir`].
     // Falls back to the manifest's parent dir when no
     // `pnpm-workspace.yaml` exists in any ancestor (the
     // single-project case). Closes pnpm/pacquet#357.
@@ -129,7 +146,7 @@ impl<'a> InstallWorkspace<'a> {
             // Use `to_string_lossy` rather than `to_str().expect(...)` so a
             // valid filesystem path with non-UTF-8 bytes (possible on Unix)
             // doesn't panic the installer. `prefix` is used only for
-            // reporter envelopes, so a lossy conversion is acceptable —
+            // reporter envelopes, so a lossy conversion is acceptable,
             // the rest of the install path uses the same pattern for
             // paths threaded into log events.
             prefix: dirs.workspace_root.to_string_lossy().into_owned(),
@@ -169,7 +186,8 @@ pub(super) fn report_discovered_scope<Reporter: self::Reporter>(
 ) {
     let workspace_projects = options.selection
         .as_ref()
-        .map_or_else(|| loaded_workspace_projects, |selection| Some(selection.all_projects));
+        .map(|selection| Some(selection.all_projects))
+        .unwrap_or_else(|| loaded_workspace_projects);
     if options.selection.is_none() {
         emit_scope_log::<Reporter>(
             install.context.config,
@@ -353,7 +371,9 @@ pub(super) fn emit_scope_log<Reporter: self::Reporter>(
         level: LogLevel::Debug,
         selected: workspace_wide.map_or(1, <[_]>::len),
         total: workspace_wide.map(<[_]>::len),
-        workspace_prefix: workspace_dir.map(|dir| dir.to_string_lossy().into_owned()),
+        workspace_prefix: workspace_dir
+            .map(Path::to_string_lossy)
+            .map(std::borrow::Cow::into_owned),
     }));
 }
 /// What decides which projects this install records as importers.
@@ -410,7 +430,7 @@ pub(super) struct StaleImporterPrune<'a> {
 /// list, so only it may conclude that an importer the lockfile records belongs
 /// to a project that is gone. This is pnpm's `pruneLockfileImporters`, which
 /// its recursive install defaults to the same condition (`pkgs.length ===
-/// allProjects.length`) — outside a workspace there is no project list to
+/// allProjects.length`), outside a workspace there is no project list to
 /// compare against. A `NodeApiProject[]` handed in by an API consumer carries
 /// no promise of listing every workspace project, so it cannot stand in for
 /// the project list either.
@@ -421,8 +441,8 @@ pub(super) fn may_prune_stale_importers(prune: &StaleImporterPrune<'_>) -> bool 
         && !prune.workspace_projects_are_overridden
         && prune.config.shares_one_lockfile()
 }
-/// Report the projects this install covers depending on each other in a cycle
-/// — after the repeat-install short-circuit, because pnpm returns from
+/// Report the projects this install covers depending on each other in a cycle,
+/// after the repeat-install short-circuit, because pnpm returns from
 /// "Already up to date" before reaching its own check, and before any
 /// resolution, because a `disallowWorkspaceCycles` failure must not be paid
 /// for.

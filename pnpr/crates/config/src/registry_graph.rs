@@ -1,6 +1,10 @@
 pub(super) use namespace::{
-    ecosystem_package_keys, namespace_collision_error, validate_artifact_owner_name,
-    validate_namespace, validate_registry_key, validate_registry_name,
+    ecosystem_package_keys,
+    namespace_collision_error,
+    validate_artifact_owner_name,
+    validate_namespace,
+    validate_registry_key,
+    validate_registry_name,
 };
 
 mod namespace;
@@ -11,9 +15,23 @@ use std::collections::BTreeSet;
 use rules::claimed;
 
 use super::{
-    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, PackagePattern,
-    Registries, Registry, RegistryConfigError, RegistryError, RegistryFile, TarballFormat,
-    UpstreamConfig, UpstreamConfigFile, UpstreamFile, resolve_upstream_config,
+    DefaultRegistryFile,
+    Ecosystem,
+    EnvVar,
+    HostedConfig,
+    HostedFile,
+    IndexMap,
+    PackagePattern,
+    Registries,
+    Registry,
+    RegistryConfigError,
+    RegistryError,
+    RegistryFile,
+    TarballFormat,
+    UpstreamConfig,
+    UpstreamConfigFile,
+    UpstreamFile,
+    resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
@@ -31,7 +49,7 @@ pub(super) fn registry_err(err: &RegistryConfigError) -> RegistryError {
 ///
 /// With `resolve_upstreams` false (the registry surface is disabled), an
 /// upstream registry still joins the graph for validation but its credentials
-/// and serving config are not resolved — a resolver-only tier must not fail
+/// and serving config are not resolved, a resolver-only tier must not fail
 /// on (or carry) upstream secrets it never uses.
 pub(super) fn build_registries<Sys: EnvVar>(
     upstreams: &mut IndexMap<String, UpstreamConfig>,
@@ -149,12 +167,14 @@ fn check_hosted_tar_sources(
 ) -> Result<(), RegistryError> {
     let tgz_routers = registries
         .names()
-        .filter(|name| registries.is_router(name) && !tar_registries.contains(*name));
+        .filter(|name| registries.is_router(name))
+        .filter(|name| !tar_registries.contains(*name));
     for router in tgz_routers {
         let tar_source = registries
             .sources(router, Ecosystem::Npm)
             .into_iter()
-            .find(|source| hosted.contains_key(*source) && tar_registries.contains(*source));
+            .filter(|source| hosted.contains_key(*source))
+            .find(|source| tar_registries.contains(*source));
         if let Some(source) = tar_source {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(

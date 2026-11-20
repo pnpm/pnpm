@@ -1,5 +1,14 @@
 use super::{
-    Body, Request, ServiceExt, StatusCode, TempDir, body_bytes, body_json, config_for, json, router,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_bytes,
+    body_json,
+    config_for,
+    json,
+    router,
 };
 
 #[tokio::test]

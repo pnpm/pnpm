@@ -1,12 +1,23 @@
 use super::{
-    RepoArgs, get_repo_url_from_current_project, get_repo_url_from_registry, pick_repo_url,
+    RepoArgs,
+    get_repo_url_from_current_project,
+    get_repo_url_from_registry,
+    pick_repo_url,
     repository_to_web_url,
 };
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient, redact_url_for_display};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+    redact_url_for_display,
+};
 use pnpm_network_web_auth::OpenUrlAndWait;
 use pnpm_reporter::SilentReporter;
-use std::{collections::HashMap, io, sync::Mutex};
+use std::{
+    collections::HashMap,
+    io,
+    sync::Mutex,
+};
 
 #[test]
 fn current_project_repo_uses_manifest_precedence() {

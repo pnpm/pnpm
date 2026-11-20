@@ -1,16 +1,34 @@
 use crate::{
-    DepHierarchy, DependenciesGraph, ImporterModulesDirs, LinkHoistedModulesOpts,
+    DepHierarchy,
+    DependenciesGraph,
+    ImporterModulesDirs,
+    LinkHoistedModulesOpts,
     link_hoisted_modules,
 };
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::PackageImportMethod;
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter, StatsMessage};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+    StatsMessage,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
     ffi::OsStr,
     fs,
-    path::{Path, PathBuf},
-    sync::{Mutex, atomic::AtomicU8},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Mutex,
+        atomic::AtomicU8,
+    },
 };
 
 fn write_package(dir: &Path) {

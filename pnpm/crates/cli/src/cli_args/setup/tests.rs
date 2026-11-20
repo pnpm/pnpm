@@ -1,15 +1,30 @@
 //! Unit tests for the pure summary rendering and the alias-script writer.
 //! The full `setup` flow installs the CLI globally and edits the user's
 //! shell config, so it is exercised on a real host rather than here.
+#[cfg(unix)]
+use command_extra::CommandExtra;
 
 use super::{
-    ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, ManualSetupShell, PNPM_VERSION,
-    PathExtenderError, PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims,
-    render_env_path_outcome, render_setup_output, render_unmodified_path_output,
-    standalone_manifest, write_windows_alias_wrapper,
+    ConfigFileChangeType,
+    ConfigReport,
+    LEGACY_HOME_DIR_SHIM_NAMES,
+    ManualSetupShell,
+    PNPM_VERSION,
+    PathExtenderError,
+    PathExtenderReport,
+    create_alias_scripts,
+    remove_legacy_homedir_shims,
+    render_env_path_outcome,
+    render_setup_output,
+    render_unmodified_path_output,
+    standalone_manifest,
+    write_windows_alias_wrapper,
 };
 use pretty_assertions::assert_eq;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn report(change_type: ConfigFileChangeType, old: &str, new: &str) -> PathExtenderReport {
     PathExtenderReport {
@@ -203,7 +218,7 @@ fn registry_write_failure_prints_powershell_instructions() {
 
 #[test]
 fn powershell_instructions_quote_pnpm_home_as_a_literal() {
-    for quote in ['\'', '\u{2018}', '\u{2019}', '\u{201a}', '\u{201b}'] {
+    for quote in ['\'', '‘', '’', '‚', '‛'] {
         let output = render_env_path_outcome(
             Err(PathExtenderError::RegRead),
             Path::new(&format!(r"C:\Users\o{quote}neil\$(Write-Error injected)")),
@@ -356,8 +371,8 @@ fn alias_scripts_run_the_pnpm_beside_them() {
 
     for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
         let output = std::process::Command::new(bin_dir.join(name))
-            .args(["add", "foo"])
-            .env("PATH", format!("{}:/usr/bin:/bin", decoy_dir.display()))
+            .with_args(["add", "foo"])
+            .with_env("PATH", format!("{}:/usr/bin:/bin", decoy_dir.display()))
             .output()
             .expect("run the alias script");
 
@@ -398,8 +413,8 @@ fn alias_scripts_follow_a_symlink_when_the_default_path_lacks_readlink() {
         std::os::unix::fs::symlink(&alias, link_dir.join(name)).expect("link the alias");
 
         let output = std::process::Command::new(link_dir.join(name))
-            .args(["add", "foo"])
-            .env("PATH", "/usr/bin:/bin")
+            .with_args(["add", "foo"])
+            .with_env("PATH", "/usr/bin:/bin")
             .output()
             .expect("run the alias script");
 
@@ -414,7 +429,11 @@ fn alias_scripts_follow_a_symlink_when_the_default_path_lacks_readlink() {
 /// reach.
 #[cfg(windows)]
 mod windows_alias_scripts {
-    use super::{Path, create_alias_scripts};
+    use super::{
+        Path,
+        create_alias_scripts,
+    };
+    use command_extra::CommandExtra;
 
     /// `cmd.exe` needs `System32` for its own startup. It follows the decoy on the
     /// `PATH` handed to the child, and the decoy coming first is what this test
@@ -451,10 +470,10 @@ mod windows_alias_scripts {
 
         for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
             let output = std::process::Command::new("cmd")
-                .arg("/c")
-                .arg(bin_dir.join(format!("{name}.cmd")))
-                .args(["add", "foo"])
-                .env("PATH", format!("{};{SYSTEM32}", decoy_dir.display()))
+                .with_arg("/c")
+                .with_arg(bin_dir.join(format!("{name}.cmd")))
+                .with_args(["add", "foo"])
+                .with_env("PATH", format!("{};{SYSTEM32}", decoy_dir.display()))
                 .output()
                 .expect("run the alias wrapper");
 
@@ -477,8 +496,15 @@ mod windows_alias_scripts {
     /// copy of `node.exe` running a script that prints its arguments.
     #[test]
     fn cmd_wrappers_pass_arguments_and_exit_code_through_a_batchless_shim() {
-        use pnpm_cmd_shim::{CmdShimBatch, ScriptRuntime, generate_cmd_shim};
-        use std::{fs, process::Command};
+        use pnpm_cmd_shim::{
+            CmdShimBatch,
+            ScriptRuntime,
+            generate_cmd_shim,
+        };
+        use std::{
+            fs,
+            process::Command,
+        };
 
         let dir = tempfile::tempdir().expect("create temp dir");
         let bin_dir = dir.path().join("bin");
@@ -488,7 +514,7 @@ mod windows_alias_scripts {
         // The interpreter itself: a launcher found on `PATH` may dispatch on its
         // own file name, which the copy below changes.
         let exec_path = Command::new("node")
-            .args(["-p", "process.execPath"])
+            .with_args(["-p", "process.execPath"])
             .output()
             .expect("run node");
         let node = String::from_utf8(exec_path.stdout).expect("node output is UTF-8");

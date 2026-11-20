@@ -4,11 +4,18 @@
 
 use crate::{
     item::Namespace,
-    modules::{CrateModules, ModulePath, Scope},
+    modules::{
+        CrateModules,
+        ModulePath,
+        Scope,
+    },
     surface::Exposure,
     use_tree::UsePath,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// Every module of a crate, inline modules included, by path.
 pub fn scopes(modules: &CrateModules) -> BTreeMap<ModulePath, Scope<'_>> {

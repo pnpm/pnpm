@@ -1,11 +1,24 @@
-use super::{assert_failure_contains, pacquet_in, project, wheel};
+use super::{
+    assert_failure_contains,
+    pacquet_in,
+    project,
+    wheel,
+};
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use serde_json::json;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
     fs,
     io::Write,
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        Arc,
+        Condvar,
+        Mutex,
+    },
     time::Duration,
 };
 
@@ -96,7 +109,7 @@ async fn resolution_reads_the_metadata_file_instead_of_the_wheel() {
     project(root.path(), &server.url(), &["alpha"]);
 
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
 
@@ -125,7 +138,7 @@ async fn a_metadata_file_that_does_not_match_its_published_digest_is_refused() {
     project(root.path(), &server.url(), &["beta"]);
 
     assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--lockfile-only"]),
+        &mut pacquet_in(root.path()).with_args(["install", "--lockfile-only"]),
         "does not match the SHA-256 the index published",
     );
 }
@@ -156,7 +169,7 @@ async fn a_metadata_file_the_index_does_not_serve_is_read_from_the_wheel() {
     project(root.path(), &server.url(), &["beta"]);
 
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
     wheel_download.assert_async().await;
@@ -189,7 +202,7 @@ async fn a_metadata_file_without_a_sha256_is_read_from_the_wheel() {
     project(root.path(), &server.url(), &["beta"]);
 
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
     metadata.assert_async().await;
@@ -230,7 +243,7 @@ async fn an_install_refuses_a_wheel_that_requires_more_than_its_metadata_file() 
     project(root.path(), &server.url(), &["alpha"]);
 
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "Python lockfile does not satisfy the project",
     );
 }
@@ -269,7 +282,7 @@ async fn an_unreadable_page_read_ahead_fails_with_its_own_error() {
         project(root.path(), &server.url(), &[slow, unreadable]);
 
         assert_failure_contains(
-            pacquet_in(root.path()).args(["install", "--lockfile-only"]),
+            &mut pacquet_in(root.path()).with_args(["install", "--lockfile-only"]),
             "Python index must support the Simple JSON API",
         );
     }
@@ -287,7 +300,7 @@ async fn an_offline_resolution_reads_cached_metadata_files() {
     }
     project(root.path(), &server.url(), &["alpha"]);
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
     for mock in mocks {
@@ -298,7 +311,7 @@ async fn an_offline_resolution_reads_cached_metadata_files() {
     fs::remove_file(root.path().join("pylock.toml")).unwrap();
 
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only", "--offline"])
+        .with_args(["install", "--lockfile-only", "--offline"])
         .assert()
         .success();
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
@@ -345,7 +358,7 @@ async fn index_pages_and_metadata_files_are_read_concurrently() {
     project(root.path(), &server.url(), &["alpha", "beta", "gamma"]);
 
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
     for mock in mocks {

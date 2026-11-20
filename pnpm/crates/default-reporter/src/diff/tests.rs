@@ -66,7 +66,7 @@ fn inline_diff_skipped_for_ansi_lines() {
 fn inline_diff_skipped_for_short_common_affix() {
     let mut diff = Diff::new(120);
     // Same length, but the unchanged prefix + suffix is only 4 chars
-    // (left=2, right=2) — at the `left + right <= 4` threshold, an inline
+    // (left=2, right=2), at the `left + right <= 4` threshold, an inline
     // diff isn't worth it, so the whole line is rewritten.
     diff.update("AB0000000000CD\n");
     let output = diff.update("AB1111111111CD\n");

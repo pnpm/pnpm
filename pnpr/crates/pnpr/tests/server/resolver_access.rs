@@ -1,8 +1,31 @@
 use super::{
-    AuthState, Body, Bytes, Duration, HeaderValue, Infallible, IpNetwork, MaxUsers, Ordering,
-    PublicRoute, Request, ServiceExt, StatusCode, TempDir, body_bytes, body_json, config_for,
-    drain_resolve_response, git_resolve_request, header, json, router, router_with_auth,
-    spawn_counting_server, spawn_git_probe, stream, verify_lockfile_request,
+    AuthState,
+    Body,
+    Bytes,
+    Duration,
+    HeaderValue,
+    Infallible,
+    IpNetwork,
+    MaxUsers,
+    Ordering,
+    PublicRoute,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_bytes,
+    body_json,
+    config_for,
+    drain_resolve_response,
+    git_resolve_request,
+    header,
+    json,
+    router,
+    router_with_auth,
+    spawn_counting_server,
+    spawn_git_probe,
+    stream,
+    verify_lockfile_request,
 };
 use crate::tokens::issue_token;
 
@@ -186,7 +209,7 @@ async fn authenticated_resolve_preserves_git_dependencies() {
 }
 
 /// Mirrors the YAML rule at the programmatic layer: an upstream reachable
-/// without an `access:` gate may not send custom headers — any header can
+/// without an `access:` gate may not send custom headers, any header can
 /// carry a credential, and an ungated `/~<name>/` would let every caller
 /// spend it.
 #[tokio::test]
@@ -210,7 +233,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
 
     // The resolver surface stays reachable. `/-/ping` and the capability
     // handshake answer 200; `/-/pnpr/v0/verify-lockfile` is mounted and gated,
-    // so an anonymous request is a 401 rather than a 404 (route absent) — that
+    // so an anonymous request is a 401 rather than a 404 (route absent), that
     // distinction is the point of the assertion.
     let ping = app
         .clone()
@@ -361,7 +384,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         .as_str()
         .unwrap()
         .to_string();
-    // The `/~<prefix>/`-addressed twins answer too — they must not depend on
+    // The `/~<prefix>/`-addressed twins answer too; they must not depend on
     // the (absent) registry segment routes.
     for path in [
         "/-/whoami",
@@ -448,8 +471,8 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         .unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
 
-    // The registry tier has a pnpr protocol of its own — the cross-ecosystem
-    // publish transaction — so the handshake answers, and reports no resolver.
+    // The registry tier has a pnpr protocol of its own (the cross-ecosystem
+    // publish transaction) so the handshake answers, and reports no resolver.
     let handshake = app
         .clone()
         .oneshot(
@@ -628,7 +651,9 @@ async fn allowlisted_registry_egress(
     });
     config.routing.route_policy.allowed_private_networks = allowed_private_networks
         .iter()
-        .map(|network| IpNetwork::parse(network).unwrap())
+        .copied()
+        .map(IpNetwork::parse)
+        .map(Result::unwrap)
         .collect();
     let body = json!({
         "dependencies": { "carrier": "1.0.0" },

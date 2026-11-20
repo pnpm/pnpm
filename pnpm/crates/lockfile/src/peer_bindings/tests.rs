@@ -1,7 +1,16 @@
-use super::{BoundProviders, PeerBindings};
-use crate::{Lockfile, PkgNameVerPeer};
+use super::{
+    BoundProviders,
+    PeerBindings,
+};
+use crate::{
+    Lockfile,
+    PkgNameVerPeer,
+};
 use pretty_assertions::assert_eq;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn key(text: &str) -> PkgNameVerPeer {
     text.parse().expect("parse key")

@@ -1,20 +1,47 @@
 use super::{
-    FAKE_INTEGRITY, dependencies_graph_to_lockfile, make_named_registry_node, make_node,
-    make_node_with_optional, make_resolve_result, single_importer_opts, write_manifest,
+    FAKE_INTEGRITY,
+    dependencies_graph_to_lockfile,
+    make_named_registry_node,
+    make_node,
+    make_node_with_optional,
+    make_resolve_result,
+    single_importer_opts,
+    write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
-    ImporterDepVersion, LockfileResolution, PackageKey, PkgName, TarballResolution,
+    ImporterDepVersion,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    TarballResolution,
 };
 use pnpm_resolving_deps_resolver::{
-    ChildEdge, DependenciesGraph, DependenciesGraphNode, DependenciesTreeNode, DirectDep, NodeId,
-    PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedPackageInput, ResolvedTree,
-    TreeChildren, resolve_peers,
+    ChildEdge,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    DependenciesTreeNode,
+    DirectDep,
+    NodeId,
+    PeerDep,
+    ResolvePeersOptions,
+    ResolvedPackage,
+    ResolvedPackageInput,
+    ResolvedTree,
+    TreeChildren,
+    resolve_peers,
 };
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use serde_json::json;
 use ssri::Integrity;
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::Arc,
+};
 
 #[test]
 fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {

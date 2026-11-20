@@ -1,7 +1,10 @@
 use derive_more::Display;
 use pnpm_reporter::Reporter;
 
-use crate::{generate_qr_code::generate_qr_code, global_log::global_warn};
+use crate::{
+    generate_qr_code::generate_qr_code,
+    global_log::global_warn,
+};
 
 #[cfg(test)]
 mod tests;

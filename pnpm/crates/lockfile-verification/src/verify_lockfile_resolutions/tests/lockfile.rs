@@ -1,6 +1,14 @@
 use super::{
-    Arc, CapturingVerifier, Mutex, ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter,
-    TWO_PKG_LOCKFILE, VerifyError, VerifyLockfileResolutionsOptions, parse,
+    Arc,
+    CapturingVerifier,
+    Mutex,
+    ResolutionVerifier,
+    SINGLE_PKG_LOCKFILE,
+    SilentReporter,
+    TWO_PKG_LOCKFILE,
+    VerifyError,
+    VerifyLockfileResolutionsOptions,
+    parse,
     verify_lockfile_resolutions,
 };
 
@@ -193,7 +201,7 @@ async fn rejects_invalid_importer_alias_even_with_no_verifiers() {
 #[test]
 fn verify_lockfile_dependency_names_rejects_a_packages_less_lockfile() {
     // A lockfile with only `link:` deps has no `packages:` section, so
-    // the resolution fan-out short-circuits — but the offline name check
+    // the resolution fan-out short-circuits, but the offline name check
     // must still reject a traversal importer alias.
     let lockfile = parse(
         "lockfileVersion: '9.0'

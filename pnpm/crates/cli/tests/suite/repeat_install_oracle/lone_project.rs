@@ -3,20 +3,38 @@
 //! workspace, such as a version bump, change nothing here.
 
 use super::{
-    CURRENT_DRIVER, Driver, Layout, ProjectLockfileEntry, TreeView, WorkspaceFixture, copy_sources,
-    driver_command_at, lockfile_entries, pnpm_at, run_across_drivers, took_install_fast_path,
-    workspace_bins, workspace_lockfiles, workspace_modules_manifests,
+    CURRENT_DRIVER,
+    Driver,
+    Layout,
+    ProjectLockfileEntry,
+    TreeView,
+    WorkspaceFixture,
+    copy_sources,
+    driver_command_at,
+    lockfile_entries,
+    pnpm_at,
+    run_across_drivers,
+    took_install_fast_path,
+    workspace_bins,
+    workspace_lockfiles,
+    workspace_modules_manifests,
 };
 
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Output,
 };
 
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// What an install leaves behind that a user can observe.
 #[derive(Debug, PartialEq, Eq)]

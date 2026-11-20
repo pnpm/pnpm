@@ -3,8 +3,13 @@
 //! inference drives.
 
 use crate::{
-    ArchitectureAxes, InstallabilityOptions, InstallabilityVerdict, PackageInstallabilityManifest,
-    SupportedArchitectures, WantedPlatform, infer_platform_from_package_name,
+    ArchitectureAxes,
+    InstallabilityOptions,
+    InstallabilityVerdict,
+    PackageInstallabilityManifest,
+    SupportedArchitectures,
+    WantedPlatform,
+    infer_platform_from_package_name,
     package_is_installable,
 };
 use pretty_assertions::assert_eq;

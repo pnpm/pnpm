@@ -15,7 +15,12 @@
 pub mod fs;
 
 #[cfg(target_family = "wasm")]
-pub use request::{HostError, Request, close_resource, request};
+pub use request::{
+    HostError,
+    Request,
+    close_resource,
+    request,
+};
 
 #[cfg(target_family = "wasm")]
 mod request;

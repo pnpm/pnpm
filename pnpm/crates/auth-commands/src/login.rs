@@ -5,7 +5,7 @@
 //! and, when the registry doesn't support it (HTTP 404 / 405), falls back to
 //! classic username / password / email authentication (`PUT
 //! -/user/org.couchdb.user:<name>`). Either path may raise a two-factor (OTP)
-//! challenge, which is satisfied through [`pnpm_network_web_auth`] — a
+//! challenge, which is satisfied through [`pnpm_network_web_auth`], a
 //! browser round-trip when the registry offers web auth, or a prompted
 //! one-time password otherwise.
 //!
@@ -14,31 +14,67 @@
 //! pnpm injects every side effect the flow touches as a bag of closures on a
 //! `context` object. This port threads them through the project's capability
 //! seam instead, composed on the single `Sys` type parameter. The registry
-//! requests go over the shared [`ThrottledClient`] — a real fixture
-//! (`mockito`) in tests — so only the effects a fixture can't stage portably
+//! requests go over the shared [`ThrottledClient`] (a real fixture
+//! (`mockito`) in tests) so only the effects a fixture can't stage portably
 //! sit behind the `Sys` seam. See the "Dependency injection for tests" section
 //! of `pnpm/CODE_STYLE_GUIDE.md`.
 
 pub use classic_login::ClassicLoginOpError;
 pub use error::LoginError;
 pub use host::Host;
-pub use prompt::{PromptInput, PromptPassword};
-
-use std::{io, path::Path};
-
-use pnpm_config::{is_json_auth_scope, validate_json_auth_registry};
-use pnpm_network::{ThrottledClient, nerf_dart, redact_and_sanitize};
-use pnpm_network_web_auth::{
-    Clock, EnterKeyListener, OpenUrl, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
-    WebAuthFetchOptions, WebAuthRetryOptions,
+pub use prompt::{
+    PromptInput,
+    PromptPassword,
 };
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_workspace_manifest_writer::{ManifestEdit, edit_manifest_field};
+
+use std::{
+    io,
+    path::Path,
+};
+
+use pnpm_config::{
+    is_json_auth_scope,
+    validate_json_auth_registry,
+};
+use pnpm_network::{
+    ThrottledClient,
+    nerf_dart,
+    redact_and_sanitize,
+};
+use pnpm_network_web_auth::{
+    Clock,
+    EnterKeyListener,
+    OpenUrl,
+    PromptOtp,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    WebAuthFetch,
+    WebAuthFetchOptions,
+    WebAuthRetryOptions,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_workspace_manifest_writer::{
+    ManifestEdit,
+    edit_manifest_field,
+};
 
 use crate::{
-    config_yaml::{self, GLOBAL_CONFIG_YAML_FILENAME},
+    config_yaml::{
+        self,
+        GLOBAL_CONFIG_YAML_FILENAME,
+    },
     ini::IniSettings,
-    logout::{DEFAULT_REGISTRY, FsReadToString, FsWrite},
+    logout::{
+        DEFAULT_REGISTRY,
+        FsReadToString,
+        FsWrite,
+    },
     registry_url::normalize_registry_url,
 };
 
@@ -49,7 +85,10 @@ mod prompt;
 mod web_login;
 
 use classic_login::classic_login;
-use web_login::{WebLoginFlowError, web_login};
+use web_login::{
+    WebLoginFlowError,
+    web_login,
+};
 
 /// Inputs to [`login`]. The retry / timeout knobs come from pnpm's
 /// `fetchRetries` / `fetchTimeout` config and drive the web-auth poll.
@@ -71,7 +110,7 @@ pub struct LoginOptions<'a> {
 /// The full capability set [`login`] requires from its host. The blanket impl
 /// covers every type that implements all of them, so the production [`Host`]
 /// and the test fakes satisfy it automatically. Bundling the bound lets a
-/// caller that re-dispatches into [`login`] — the CLI adapter — name one trait
+/// caller that re-dispatches into [`login`] (the CLI adapter) name one trait
 /// instead of restating the list.
 pub trait LoginHost:
     Clock
@@ -114,7 +153,7 @@ impl<Sys> LoginHost for Sys where
 /// probe with HTTP 404 or 405. Either path may satisfy a two-factor challenge
 /// before returning.
 ///
-/// The web-based flow runs without an interactive terminal — it prints the
+/// The web-based flow runs without an interactive terminal; it prints the
 /// authentication URL and polls the registry until the browser approval
 /// completes. Only the classic flow's credential prompts require a TTY.
 pub async fn login<Sys, Reporter>(

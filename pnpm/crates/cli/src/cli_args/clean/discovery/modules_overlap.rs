@@ -2,22 +2,48 @@ use super::{
     super::{
         super::recursive::discover_workspace_projects,
         removal::{
-            configured_modules_leaf, configured_virtual_store_dir, modules_leaf_for_project,
+            configured_modules_leaf,
+            configured_virtual_store_dir,
+            modules_leaf_for_project,
         },
     },
-    pattern_reachability::{literal_pattern_subpaths, patterns_entering_root_dir},
+    pattern_reachability::{
+        literal_pattern_subpaths,
+        patterns_entering_root_dir,
+    },
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_fs::{is_symlink_metadata, lexical_normalize};
-use pnpm_modules_yaml::{Host, ReadModulesError, read_modules_manifest};
+use pnpm_fs::{
+    is_symlink_metadata,
+    lexical_normalize,
+};
+use pnpm_modules_yaml::{
+    Host,
+    ReadModulesError,
+    read_modules_manifest,
+};
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts, Project, find_workspace_projects, read_workspace_manifest,
+    FindWorkspaceProjectsOpts,
+    Project,
+    find_workspace_projects,
+    read_workspace_manifest,
     workspace_package_patterns,
 };
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    path::{Component, Path, PathBuf},
+    collections::{
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn discover_workspace_for_clean(
@@ -173,7 +199,8 @@ fn hoisted_dirs_under_root(
         .into_values()
         .flatten()
         .map(|loc| lexical_normalize(&workspace_dir.join(loc)))
-        .filter(|dir| dir.starts_with(&root_norm) && dir != &root_norm)
+        .filter(|dir| dir.starts_with(&root_norm))
+        .filter(|dir| dir != &root_norm)
         .collect())
 }
 
@@ -219,7 +246,8 @@ pub(super) fn relative_subpath_posix(raw: &Path) -> Option<String> {
 pub(super) fn escape_wax_path(posix: &str) -> String {
     posix
         .split('/')
-        .map(|seg| wax::escape(seg).into_owned())
+        .map(wax::escape)
+        .map(std::borrow::Cow::into_owned)
         .collect::<Vec<_>>()
         .join("/")
 }

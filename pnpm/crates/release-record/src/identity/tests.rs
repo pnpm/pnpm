@@ -1,9 +1,22 @@
 use super::{
-    Authority, CacheKey, Conflict, ConflictMonitor, LogEntry, LogEntryError, RecordIdentity,
+    Authority,
+    CacheKey,
+    Conflict,
+    ConflictMonitor,
+    LogEntry,
+    LogEntryError,
+    RecordIdentity,
     RecordKey,
 };
-use crate::{digest::RecordDigest, profile::Profile, purl::Purl};
-use pretty_assertions::{assert_eq, assert_ne};
+use crate::{
+    digest::RecordDigest,
+    profile::Profile,
+    purl::Purl,
+};
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
 
 fn npm_key(revision: u64) -> RecordKey {
     RecordKey {

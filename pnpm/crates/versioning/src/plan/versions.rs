@@ -1,8 +1,18 @@
 use pnpm_semver_include_prerelease::parse_strict_semver_range;
 
 use super::{
-    BTreeMap, BumpState, Identifier, IntentBumpType, Participant, PlannedRelease, ReleaseBumpType,
-    ResolvedEpic, Version, VersioningError, VersioningSettings, parse_workspace_spec_alias,
+    BTreeMap,
+    BumpState,
+    Identifier,
+    IntentBumpType,
+    Participant,
+    PlannedRelease,
+    ReleaseBumpType,
+    ResolvedEpic,
+    Version,
+    VersioningError,
+    VersioningSettings,
+    parse_workspace_spec_alias,
 };
 
 pub(super) fn bump_release_order(bump_type: IntentBumpType) -> u8 {
@@ -278,7 +288,7 @@ pub(super) fn apply_epic_band_versions(
 
 /// The band of member majors an epic permits, `[lead_major*100,
 /// lead_major*100+99]`, where `lead_major` is the major the plan establishes
-/// for the lead — its re-based major when the lead crosses to a new stable
+/// for the lead; its re-based major when the lead crosses to a new stable
 /// major, otherwise the lead's current major (a prerelease lead does not open
 /// the next band).
 pub(super) struct EpicBand {
@@ -311,7 +321,7 @@ pub(super) fn epic_band(
 
 /// Enforces that every released member's new major stays inside its epic's
 /// band. The re-base already keeps members in band when the lead moves; this
-/// guards the other direction — an ordinary `major` intent that would carry a
+/// guards the other direction, an ordinary `major` intent that would carry a
 /// member over the band ceiling (`1199.x` -> `1200.0.0` while the lead is
 /// still on 11) is rejected rather than silently landing in the next band.
 pub(super) fn enforce_epic_bands(

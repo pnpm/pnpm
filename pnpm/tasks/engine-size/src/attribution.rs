@@ -8,9 +8,18 @@
 //! `serde` unless the visitor type itself lives in pnpm. These are
 //! symbol-based estimates, not independently removable bytes.
 
-use object::{Object, ObjectSection, ObjectSymbol, SectionIndex, SymbolKind};
+use object::{
+    Object,
+    ObjectSection,
+    ObjectSymbol,
+    SectionIndex,
+    SymbolKind,
+};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// The bucket for symbols that are not Rust, such as C libraries.
 const NON_RUST: &str = "[non-Rust]";

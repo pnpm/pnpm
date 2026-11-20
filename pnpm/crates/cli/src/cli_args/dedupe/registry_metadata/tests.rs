@@ -1,4 +1,7 @@
-use super::{differs_only_in_registry_metadata, take_rehashed_integrity};
+use super::{
+    differs_only_in_registry_metadata,
+    take_rehashed_integrity,
+};
 use pnpm_lockfile::Lockfile;
 use ssri::Integrity;
 use std::path::Path;

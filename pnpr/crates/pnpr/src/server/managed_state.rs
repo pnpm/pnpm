@@ -1,20 +1,42 @@
 use super::{
-    AppState, Config, RegistryError,
-    grant_directory::{GrantState, reload_grants},
-    registry_graph::{GraphState, reload_graph},
-    scim::{ScimState, reload_directory},
-    team_directory::{TeamState, reload_teams},
+    AppState,
+    Config,
+    RegistryError,
+    grant_directory::{
+        GrantState,
+        reload_grants,
+    },
+    registry_graph::{
+        GraphState,
+        reload_graph,
+    },
+    scim::{
+        ScimState,
+        reload_directory,
+    },
+    team_directory::{
+        TeamState,
+        reload_teams,
+    },
 };
 use pnpr_config::GraphSource;
 use std::{
     future::Future,
     sync::{
-        Arc, Mutex, PoisonError,
-        atomic::{AtomicU64, Ordering},
+        Arc,
+        Mutex,
+        PoisonError,
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
     time::Duration,
 };
-use tokio::{sync::OwnedMutexGuard, time::Instant};
+use tokio::{
+    sync::OwnedMutexGuard,
+    time::Instant,
+};
 
 const READ_DEADLINE: Duration = Duration::from_secs(5);
 

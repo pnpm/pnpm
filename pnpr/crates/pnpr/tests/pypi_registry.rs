@@ -1,16 +1,44 @@
 //! The Python package index surface: the legacy upload API, the Simple API
 //! in both renderings, file downloads, and proxying an upstream index.
 
-use crate::{ecosystem as common, tokens::issue_token};
+use crate::{
+    ecosystem as common,
+    tokens::issue_token,
+};
 use axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use common::{HostedSource, PUBLIC_URL, body_bytes, find_file, mixed_router_config, sha256_hex};
-use pnpr::{AuthState, Config, Ecosystem, router_with_auth};
-use pnpr_storage::layout::{blob_segment, write_local_layout_marker};
-use serde_json::{Value, json};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
+use common::{
+    HostedSource,
+    PUBLIC_URL,
+    body_bytes,
+    find_file,
+    mixed_router_config,
+    sha256_hex,
+};
+use pnpr::{
+    AuthState,
+    Config,
+    Ecosystem,
+    router_with_auth,
+};
+use pnpr_storage::layout::{
+    blob_segment,
+    write_local_layout_marker,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::path::PathBuf;
 use tempfile::TempDir;
 use tower::ServiceExt;

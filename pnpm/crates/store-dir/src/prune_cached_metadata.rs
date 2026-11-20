@@ -1,10 +1,19 @@
-use crate::{PruneError, StoreDir};
+use crate::{
+    PruneError,
+    StoreDir,
+};
 use pipe_trait::Pipe;
 use pnpm_fs::OpenDir;
 use std::{
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
     iter,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl StoreDir {
@@ -97,7 +106,8 @@ fn child_names(dir: &OpenDir) -> Result<Vec<String>, PruneError> {
     let names = dir.entry_names().map_err(|error| read_error(dir.path(), error))?;
     names
         .into_iter()
-        .filter_map(|name| name.into_string().ok())
+        .map(std::ffi::OsString::into_string)
+        .filter_map(Result::ok)
         .collect::<Vec<_>>()
         .pipe(Ok)
 }

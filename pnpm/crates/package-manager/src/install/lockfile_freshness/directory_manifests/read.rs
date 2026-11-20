@@ -1,11 +1,22 @@
-use super::{DirectoryDep, DirectoryManifests, DirectoryWalk, FreshnessCheckError, Visit};
+use super::{
+    DirectoryDep,
+    DirectoryManifests,
+    DirectoryWalk,
+    FreshnessCheckError,
+    Visit,
+};
 use crate::install::lockfile_freshness::directory_deps::{
-    InjectedDirectory, overridden_unhooked_manifest, unhooked_manifest,
+    InjectedDirectory,
+    overridden_unhooked_manifest,
+    unhooked_manifest,
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::directory_package_dir;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 

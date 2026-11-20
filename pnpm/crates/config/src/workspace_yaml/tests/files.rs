@@ -1,6 +1,14 @@
 use super::{
-    ColorMode, Config, NodeLinker, Path, SideEffectsCacheSetting, StoreDir,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
+    ColorMode,
+    Config,
+    NodeLinker,
+    Path,
+    SideEffectsCacheSetting,
+    StoreDir,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    assert_eq,
+    fs,
 };
 use pnpm_testing_utils::env_guard::EnvGuard;
 

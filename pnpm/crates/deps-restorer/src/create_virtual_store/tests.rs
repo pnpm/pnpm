@@ -18,11 +18,24 @@ mod loaded_prefetch;
 
 use super::CreateVirtualStore;
 use pnpm_lockfile::{
-    GitResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    PkgVerPeer, RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
+    GitResolution,
+    LockfileEntries,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgVerPeer,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TarballResolution,
 };
 use pnpm_reporter::SilentReporter;
-use std::{collections::HashMap, fs, sync::atomic::AtomicU8};
+use std::{
+    collections::HashMap,
+    fs,
+    sync::atomic::AtomicU8,
+};
 
 thread_local! {
     static PREFETCH_STARTS: std::cell::RefCell<Vec<Vec<String>>> =
@@ -116,9 +129,16 @@ impl SeededStoreInstall {
     /// dep-state cache key. `None` seeds a row without a side-effects
     /// cache.
     fn new(build_output: Option<&[u8]>) -> Self {
-        use pnpm_config::{Config, PackageImportMethod};
+        use pnpm_config::{
+            Config,
+            PackageImportMethod,
+        };
         use pnpm_store_dir::{
-            CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreIndex, store_index_key,
+            CafsFileInfo,
+            PackageFilesIndex,
+            SideEffectsDiff,
+            StoreIndex,
+            store_index_key,
         };
 
         let root = tempfile::tempdir().expect("create temp dir");
@@ -209,7 +229,11 @@ impl SeededStoreInstall {
     }
 
     async fn run(&self) -> Result<super::CreateVirtualStoreOutput, super::CreateVirtualStoreError> {
-        use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+        use crate::{
+            AllowBuildPolicy,
+            SkippedSnapshots,
+            VirtualStoreLayout,
+        };
         use pnpm_config::NodeLinker;
         use pnpm_store_dir::StoreIndexWriter;
         use pnpm_tarball::SharedReportedProgressKeys;

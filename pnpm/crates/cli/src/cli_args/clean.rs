@@ -4,15 +4,23 @@ mod planned;
 mod removal;
 
 use super::{
-    dispatch::RunCtx, lockfile_dir::LockfileDirArg, pipelines::InstallFamilyPlan,
+    dispatch::RunCtx,
+    lockfile_dir::LockfileDirArg,
+    pipelines::InstallFamilyPlan,
     recursive::selectors_narrow_the_run,
 };
-use discovery::{ci_clean_targets, select_clean_targets};
+use discovery::{
+    ci_clean_targets,
+    select_clean_targets,
+};
 use planned::PlannedClean;
 use pnpm_config::Config;
 use pnpm_package_manager::FrozenVirtualStoreClean;
 use removal::CleanRun;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// `pnpm clean` / `pnpm purge`: safely remove the `node_modules`
 /// directories of the current project (or the selected workspace projects)

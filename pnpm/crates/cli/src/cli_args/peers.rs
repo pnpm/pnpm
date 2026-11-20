@@ -1,20 +1,47 @@
 use crate::cli_args::{
-    catalogs::configured_catalogs, global::GlobalError, listed_projects::listed_projects,
+    catalogs::configured_catalogs,
+    global::GlobalError,
+    listed_projects::listed_projects,
 };
-use clap::{Args, CommandFactory};
-use miette::{Context, IntoDiagnostic};
+use clap::{
+    Args,
+    CommandFactory,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::{
-    IssuesByProjects, LinkedLockfileLoader, LockfilePeerCheck,
-    check_peer_dependencies_from_lockfile, filter_peer_issues,
+    IssuesByProjects,
+    LinkedLockfileLoader,
+    LockfilePeerCheck,
+    check_peer_dependencies_from_lockfile,
+    filter_peer_issues,
 };
-use pnpm_global::{GlobalPackageInfo, scan_global_packages};
-use pnpm_lockfile::{Lockfile, WantedLockfileSelection};
-use report::{UndeclaredWarnings, report_issues, undeclared_warnings};
+use pnpm_global::{
+    GlobalPackageInfo,
+    scan_global_packages,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    WantedLockfileSelection,
+};
+use report::{
+    UndeclaredWarnings,
+    report_issues,
+    undeclared_warnings,
+};
 use std::{
-    collections::{BTreeSet, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

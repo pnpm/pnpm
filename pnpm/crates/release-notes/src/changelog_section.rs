@@ -15,7 +15,8 @@ pub fn find_changelog_section(changelog: &str, version: &str) -> Option<String> 
     let end = headings[position + 1..]
         .iter()
         .find(|(_, next_level)| next_level <= level)
-        .map_or(lines.len(), |(line, _)| *line);
+        .map(|(line, _)| *line)
+        .unwrap_or(lines.len());
     let body = lines[start + 1..end].join("\n");
     let body = body.trim_matches('\n').trim_end();
     (!body.trim().is_empty()).then(|| format!("{body}\n"))

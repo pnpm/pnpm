@@ -2,18 +2,29 @@
 //!
 //! Bun's release assets share one `SHASUMS256.txt` at
 //! `https://github.com/oven-sh/bun/releases/download/bun-v<version>/SHASUMS256.txt`.
-//! Each row covers one platform variant — pacquet decodes them in one
+//! Each row covers one platform variant, pacquet decodes them in one
 //! pass, sorts the result by URL, and emits
 //! [`PlatformAssetResolution`] entries
 //! the lockfile records.
 
 use std::sync::Arc;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_crypto_shasums_file::{FetchShasumsFileError, ShasumsFileItem, fetch_shasums_file};
+use pnpm_crypto_shasums_file::{
+    FetchShasumsFileError,
+    ShasumsFileItem,
+    fetch_shasums_file,
+};
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PlatformAssetResolution,
     PlatformAssetTarget,
 };
 use pnpm_network::ThrottledClient;

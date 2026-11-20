@@ -3,23 +3,39 @@
 //! manifest reaches drops the mapping.
 
 use super::{
-    PackageKey, SqlDatabase,
-    adapter::{Connection, Query},
+    PackageKey,
+    SqlDatabase,
+    adapter::{
+        Connection,
+        Query,
+    },
     batch::WriteTransaction,
-    blobs::{id_from, json_array},
-    commit::{package_row_from, package_row_query},
+    blobs::{
+        id_from,
+        json_array,
+    },
+    commit::{
+        package_row_from,
+        package_row_query,
+    },
     fence::FenceRead,
     to_generation,
     transactions::Freshness,
 };
 use crate::{
     BlobId,
-    database::{ArtifactBlob, BlobFence},
+    database::{
+        ArtifactBlob,
+        BlobFence,
+    },
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
-use std::{sync::Arc, time::SystemTime};
+use std::{
+    sync::Arc,
+    time::SystemTime,
+};
 
 /// A file of a package mapped to a blob.
 #[derive(Debug, Clone, PartialEq, Eq)]

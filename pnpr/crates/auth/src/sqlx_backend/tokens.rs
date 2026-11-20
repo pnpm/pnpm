@@ -1,6 +1,16 @@
 use super::{
-    super::{NewToken, TokenBackend, TokenRecord, sha256_hex, token_store::mint_token},
-    AuthSqlBackend, Result, SqlAuth, unix_millis, with_auth_timeout,
+    super::{
+        NewToken,
+        TokenBackend,
+        TokenRecord,
+        sha256_hex,
+        token_store::mint_token,
+    },
+    AuthSqlBackend,
+    Result,
+    SqlAuth,
+    unix_millis,
+    with_auth_timeout,
 };
 use async_trait::async_trait;
 

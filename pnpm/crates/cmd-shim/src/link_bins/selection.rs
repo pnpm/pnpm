@@ -1,5 +1,14 @@
-use super::{Command, ExcludedBins, FsWalkFiles, PackageBinSource, pick_winner};
-use std::collections::{HashMap, HashSet};
+use super::{
+    Command,
+    ExcludedBins,
+    FsWalkFiles,
+    PackageBinSource,
+    pick_winner,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// The bins `packages` provide, minus `exclude_bins`, each paired with the
 /// package providing it. A name several packages provide goes to the one

@@ -1,4 +1,7 @@
-use super::{current_fields, recorded_fields};
+use super::{
+    current_fields,
+    recorded_fields,
+};
 use pnpm_workspace_state::ManifestFile;
 use serde_json::json;
 

@@ -1,12 +1,22 @@
 use super::{
-    adapter::{Adapter, ReadSource},
+    adapter::{
+        Adapter,
+        ReadSource,
+    },
     schema,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     sync::{
         OnceLock,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicU64,
+            Ordering,
+        },
     },
     time::Instant,
 };

@@ -31,7 +31,12 @@ mod sweep;
 
 use crate::{
     BlobId,
-    database::{StagedEntry, StagedId, StagedRecord, StagedState},
+    database::{
+        StagedEntry,
+        StagedId,
+        StagedRecord,
+        StagedState,
+    },
 };
 use std::time::Duration;
 

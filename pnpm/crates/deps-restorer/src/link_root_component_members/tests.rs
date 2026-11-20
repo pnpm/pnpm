@@ -1,12 +1,29 @@
-use super::{HOISTING_LIMITS_WORKSPACES, injected_member_key, link_root_component_members};
-use crate::{SkippedSnapshots, VirtualStoreLayout};
+use super::{
+    HOISTING_LIMITS_WORKSPACES,
+    injected_member_key,
+    link_root_component_members,
+};
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 use pnpm_lockfile::{
-    ImporterDepVersion, PackageKey, PkgName, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ImporterDepVersion,
+    PackageKey,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_testing_utils::fs::is_symlink_or_junction;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 /// Bit stamps `installConfig.hoistingLimits: "workspaces"` on the
@@ -19,7 +36,7 @@ fn hoisting_limits_workspaces_constant() {
 
 /// Injected members are detected in both lockfile shapes: the scoped
 /// `@scope/name@file:<path>(peers)` form (which parses to `Alias`
-/// because it leads with the package name — the shape Bit actually
+/// because it leads with the package name, the shape Bit actually
 /// writes) and a bare `file:<path>`. Registry, `link:`, and npm-alias
 /// deps are never members.
 #[test]
@@ -87,8 +104,8 @@ fn member_slot_modules_dir(
     layout.slot_dir(&key).join("node_modules")
 }
 
-/// Materialize a member's own package directory — including a
-/// `package.json` declaring `sibling_deps` plus a shared `react` — and a
+/// Materialize a member's own package directory (including a
+/// `package.json` declaring `sibling_deps` plus a shared `react`) and a
 /// `react` dependency dir, inside its slot. `link_declared_siblings`
 /// reads that manifest to decide which siblings to link.
 fn create_member_slot(slot_modules_dir: &Path, name: &str, sibling_deps: &[&str]) {
@@ -107,7 +124,7 @@ fn create_member_slot(slot_modules_dir: &Path, name: &str, sibling_deps: &[&str]
 }
 
 /// A flagged root importer's injected members each gain symlinks only to
-/// the siblings *they declare* — matching pnpm's per-package child
+/// the siblings *they declare*, matching pnpm's per-package child
 /// linking. The `comp3 → comp2 → comp1` chain (`a → b → c`) resolves
 /// transitively through each member's own slot, not an all-to-all clique.
 #[test]
@@ -173,13 +190,13 @@ fn injected_members_link_declared_siblings() {
             && !is_symlink_or_junction(&a_slot.join("@scope/a")).unwrap(),
     );
 
-    // `a` links its declared sibling `b`, but NOT `c` — it doesn't
+    // `a` links its declared sibling `b`, but NOT `c`; it doesn't
     // declare `c` directly (that edge lives on `b`).
     assert!(
         is_symlink_or_junction(&a_slot.join("@scope/b")).unwrap(),
         "a must link declared sibling b",
     );
-    assert!(!a_slot.join("@scope/c").exists(), "a must not link c — not directly declared");
+    assert!(!a_slot.join("@scope/c").exists(), "a must not link c, not directly declared");
     assert_eq!(
         fs::canonicalize(a_slot.join("@scope/b")).unwrap(),
         fs::canonicalize(b_slot.join("@scope/b")).unwrap(),
@@ -191,7 +208,7 @@ fn injected_members_link_declared_siblings() {
         is_symlink_or_junction(&b_slot.join("@scope/c")).unwrap(),
         "b must link declared sibling c",
     );
-    assert!(!b_slot.join("@scope/a").exists(), "b must not link a — not declared");
+    assert!(!b_slot.join("@scope/a").exists(), "b must not link a, not declared");
     assert_eq!(
         fs::canonicalize(b_slot.join("@scope/c")).unwrap(),
         fs::canonicalize(c_slot.join("@scope/c")).unwrap(),
@@ -284,7 +301,7 @@ fn member_without_manifest_or_snapshot_links_all_root_siblings() {
 }
 
 /// A member with no slot `package.json` whose lockfile snapshot is
-/// available gets only the siblings that snapshot declares — not the
+/// available gets only the siblings that snapshot declares, not the
 /// all-to-all clique. This is the Bit-workspace shape at scale: the
 /// snapshot of the member's exact peer variant carries its sibling
 /// `file:` edges, so the clique (one symlink per member pair) is never
@@ -342,7 +359,7 @@ fn member_without_manifest_links_snapshot_declared_siblings() {
                 [
                     sibling_edge("@scope/b", "b"),
                     // A registry reference whose alias collides with the
-                    // member name `@scope/c` — it resolves to a different
+                    // member name `@scope/c`; it resolves to a different
                     // key than c's slot, so it must not be linked as c.
                     (
                         "@scope/c".parse::<PkgName>().unwrap(),
@@ -400,7 +417,7 @@ fn member_without_manifest_links_snapshot_declared_siblings() {
 }
 
 /// A slot `package.json` that exists but cannot be parsed is still a
-/// hard error — only a *missing* manifest triggers the clique fallback.
+/// hard error, only a *missing* manifest triggers the clique fallback.
 #[test]
 fn malformed_member_manifest_still_errors() {
     let dir = tempdir().unwrap();
@@ -441,7 +458,7 @@ fn malformed_member_manifest_still_errors() {
 }
 
 /// An importer that is NOT flagged as a root component keeps its
-/// injected members isolated — the pass never fires for ordinary
+/// injected members isolated, the pass never fires for ordinary
 /// installs.
 #[test]
 fn non_root_component_importer_is_untouched() {

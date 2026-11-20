@@ -1,12 +1,27 @@
-use super::{Config, State, is_registry_version_spec, warn_global};
-use derive_more::{Display, Error};
+use super::{
+    Config,
+    State,
+    is_registry_version_spec,
+    warn_global,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use futures_util::future::try_join_all;
 use miette::Diagnostic;
-use pnpm_package_manager::{PickPolicy, create_configured_registry_resolver};
+use pnpm_package_manager::{
+    PickPolicy,
+    create_configured_registry_resolver,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, NoMatchingVersionError, ResolveError, ResolveOptions, WantedDependency,
+    LatestQuery,
+    NoMatchingVersionError,
+    ResolveError,
+    ResolveOptions,
+    WantedDependency,
 };
 
 /// Resolving whether a dependency publishes the `--tag` dist-tag failed.

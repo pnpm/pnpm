@@ -1,14 +1,35 @@
 use super::{
-    super::{BuildModules, BuildModulesError, slots::virtual_store_dir_for_key},
-    TEST_LOGGED_METHODS, gvs_layout, key, policy_from_specs, root_importers,
+    super::{
+        BuildModules,
+        BuildModulesError,
+        slots::virtual_store_dir_for_key,
+    },
+    TEST_LOGGED_METHODS,
+    gvs_layout,
+    key,
+    policy_from_specs,
+    root_importers,
 };
-use crate::{SkippedSnapshots, VirtualStoreLayout};
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 use pnpm_config::PackageImportMethod;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use pnpm_patching::ExtendedPatchInfo;
 use pnpm_reporter::SilentReporter;
-use std::{collections::HashMap, fs, path::PathBuf};
-use tempfile::{TempDir, tempdir};
+use std::{
+    collections::HashMap,
+    fs,
+    path::PathBuf,
+};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 #[test]
 fn a_staged_package_is_built_and_renamed_into_its_slot() {

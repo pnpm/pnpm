@@ -1,9 +1,15 @@
 use super::{
-    ResolvePeersOptions, WorkspacePeerSettings, build_projects, resolve_with_cache_oracle,
+    ResolvePeersOptions,
+    WorkspacePeerSettings,
+    build_projects,
+    resolve_with_cache_oracle,
 };
 use crate::PeerDependentsDedupe;
 use rustc_hash::FxHashSet as HashSet;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 const ORDERS: [[usize; 3]; 6] = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
 
@@ -124,7 +130,9 @@ fn project_dependencies(
 #[test]
 fn full_walk_keeps_peer_cycle_handling() {
     use crate::resolve_peers::{
-        ImporterPeerInput, resolve_peers_workspace, test_support::PeerCacheMode,
+        ImporterPeerInput,
+        resolve_peers_workspace,
+        test_support::PeerCacheMode,
         tests::cyclic_alias_peer_tree,
     };
 

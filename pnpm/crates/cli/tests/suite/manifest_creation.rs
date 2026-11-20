@@ -1,13 +1,22 @@
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use command_extra::CommandExtra;
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use serde_json::Value;
-use std::{env, fs, path::Path, process::Command};
+use std::{
+    env,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn fixture() -> CommandTempCwd<()> {
     let mut fixture = CommandTempCwd::init();
-    fixture.pacquet
-        .env("PNPM_CONFIG_STORE_DIR", fixture.root.path().join("store"))
-        .env("PNPM_CONFIG_CACHE_DIR", fixture.root.path().join("cache"));
+    fixture.pacquet = fixture.pacquet
+        .with_env("PNPM_CONFIG_STORE_DIR", fixture.root.path().join("store"))
+        .with_env("PNPM_CONFIG_CACHE_DIR", fixture.root.path().join("cache"));
     fixture
 }
 
@@ -16,8 +25,11 @@ const LOCKFILE: &str = "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: t
 #[test]
 fn queries_do_not_create_a_manifest() {
     for args in [&["why", "foo"][..], &["outdated"]] {
-        let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
-        pacquet.args(args).assert().success();
+        let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
+        pacquet
+            .with_args(args)
+            .assert()
+            .success();
         assert!(!workspace.join("package.json").exists(), "{args:?} created a manifest");
         drop(root);
     }
@@ -40,9 +52,9 @@ fn rejected_commands_do_not_create_a_manifest() {
         (&["remove", "foo"], "ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS"),
     ];
     for (args, error) in cases {
-        let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+        let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
         let output = pacquet
-            .args(*args)
+            .with_args(*args)
             .assert()
             .failure()
             .get_output()
@@ -57,9 +69,9 @@ fn rejected_commands_do_not_create_a_manifest() {
 
 #[test]
 fn dedupe_check_does_not_create_a_manifest() {
-    let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+    let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
     let output = pacquet
-        .args(["dedupe", "--check", "--offline"])
+        .with_args(["dedupe", "--check", "--offline"])
         .assert()
         .failure()
         .get_output()
@@ -75,13 +87,13 @@ fn dedupe_check_does_not_create_a_manifest() {
 #[test]
 fn missing_link_target_does_not_create_a_manifest() {
     for in_workspace in [false, true] {
-        let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+        let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
         if in_workspace {
             fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
                 .expect("write rootless workspace");
         }
         let output = pacquet
-            .args(["link", "./missing"])
+            .with_args(["link", "./missing"])
             .assert()
             .failure()
             .get_output()
@@ -96,10 +108,10 @@ fn missing_link_target_does_not_create_a_manifest() {
 
 #[test]
 fn fetch_from_a_lockfile_does_not_create_a_manifest() {
-    let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+    let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
     fs::write(workspace.join("pnpm-lock.yaml"), LOCKFILE).expect("write lockfile");
     pacquet
-        .args(["fetch", "--offline"])
+        .with_args(["fetch", "--offline"])
         .assert()
         .success();
     assert!(!workspace.join("package.json").exists(), "fetch created a manifest");
@@ -108,10 +120,10 @@ fn fetch_from_a_lockfile_does_not_create_a_manifest() {
 
 #[test]
 fn sbom_from_a_lockfile_does_not_invent_manifest_metadata() {
-    let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+    let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
     fs::write(workspace.join("pnpm-lock.yaml"), LOCKFILE).expect("write lockfile");
     let output = pacquet
-        .args(["sbom", "--sbom-format", "cyclonedx"])
+        .with_args(["sbom", "--sbom-format", "cyclonedx"])
         .assert()
         .success()
         .get_output()
@@ -134,9 +146,9 @@ fn install_without_a_manifest_fails() {
         &["ci", "--offline"],
         &["install-test", "--offline"],
     ] {
-        let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+        let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
         let output = pacquet
-            .args(args)
+            .with_args(args)
             .assert()
             .failure()
             .get_output()
@@ -153,12 +165,12 @@ fn install_without_a_manifest_fails() {
 
 #[test]
 fn ci_without_a_manifest_keeps_node_modules() {
-    let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+    let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
     let installed = workspace.join("node_modules/example-pkg/index.js");
     fs::create_dir_all(installed.parent().expect("parent")).expect("create node_modules");
     fs::write(&installed, "").expect("write installed file");
     pacquet
-        .args(["ci", "--offline"])
+        .with_args(["ci", "--offline"])
         .assert()
         .failure();
     assert!(installed.exists(), "ci removed node_modules before failing");
@@ -172,10 +184,10 @@ fn queries_preserve_existing_manifest_formats() {
         ("package.json5", "{name: 'existing', private: true}\n"),
         ("package.yaml", "name: existing\nprivate: true\n"),
     ] {
-        let CommandTempCwd { mut pacquet, workspace, root, .. } = fixture();
+        let CommandTempCwd { pacquet, workspace, root, .. } = fixture();
         fs::write(workspace.join(name), contents).expect("write manifest");
         pacquet
-            .args(["why", "foo"])
+            .with_args(["why", "foo"])
             .assert()
             .success();
         assert_eq!(fs::read_to_string(workspace.join(name)).unwrap(), contents);
@@ -228,14 +240,14 @@ fn native_fixture(exit_code: i32) -> CommandTempCwd<()> {
         std::iter::once(bin).chain(env::split_paths(&env::var_os("PATH").unwrap_or_default())),
     )
     .expect("join PATH");
-    fixture.pacquet.env("PATH", path);
+    fixture.pacquet = fixture.pacquet.with_env("PATH", path);
     fs::write(fixture.workspace.join("binding.gyp"), "{}").expect("write binding.gyp");
     fs::write(fixture.workspace.join("pnpm-lock.yaml"), LOCKFILE).expect("write lockfile");
     fixture
 }
 
 fn assert_native_build(args: &[&str], exit_code: i32, existing: bool, after_resolution: bool) {
-    let CommandTempCwd { mut pacquet, workspace, root, .. } = native_fixture(exit_code);
+    let CommandTempCwd { pacquet, workspace, root, .. } = native_fixture(exit_code);
     if existing {
         fs::write(workspace.join("package.json"), r#"{"version":"2.0.0"}"#)
             .expect("write existing manifest");
@@ -248,7 +260,7 @@ fn assert_native_build(args: &[&str], exit_code: i32, existing: bool, after_reso
         )
         .expect("write native trigger hook");
     }
-    let result = pacquet.args(args).assert();
+    let result = pacquet.with_args(args).assert();
     if exit_code == 0 {
         result.success();
     } else {
@@ -324,11 +336,11 @@ fn native_build_runs_after_resolution_creates_trigger() {
 #[test]
 fn native_build_respects_ignore_scripts() {
     for args in NATIVE_COMMANDS {
-        let CommandTempCwd { mut pacquet, workspace, root, .. } = native_fixture(17);
+        let CommandTempCwd { pacquet, workspace, root, .. } = native_fixture(17);
         let leaves_no_manifest = prepare_manifest(args, &workspace);
         pacquet
-            .arg("--ignore-scripts")
-            .args(*args)
+            .with_arg("--ignore-scripts")
+            .with_args(*args)
             .assert()
             .success();
         assert!(!workspace.join("native-marker").exists(), "{args:?} ran a native build");
@@ -342,10 +354,13 @@ fn native_build_respects_ignore_scripts() {
 #[test]
 fn native_build_keeps_rootless_workspace_behavior() {
     for args in NATIVE_COMMANDS {
-        let CommandTempCwd { mut pacquet, workspace, root, .. } = native_fixture(17);
+        let CommandTempCwd { pacquet, workspace, root, .. } = native_fixture(17);
         fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
             .expect("write rootless workspace");
-        pacquet.args(*args).assert().success();
+        pacquet
+            .with_args(*args)
+            .assert()
+            .success();
         assert!(!workspace.join("native-marker").exists(), "{args:?} ran a native build");
         assert!(!workspace.join("package.json").exists(), "{args:?} created a manifest");
         drop(root);
@@ -365,9 +380,9 @@ fn native_build_is_skipped_when_not_materializing() {
         &["dedupe", "--offline", "--lockfile-only"],
         &["dedupe", "--offline", "--check"],
     ] {
-        let CommandTempCwd { mut pacquet, workspace, root, .. } = native_fixture(17);
+        let CommandTempCwd { pacquet, workspace, root, .. } = native_fixture(17);
         let leaves_no_manifest = prepare_manifest(args, &workspace);
-        let result = pacquet.args(args).assert();
+        let result = pacquet.with_args(args).assert();
         if args.contains(&"--check") {
             let result = result.failure();
             let stdout = String::from_utf8_lossy(&result.get_output().stdout);
@@ -387,14 +402,14 @@ fn native_build_is_skipped_when_not_materializing() {
 fn pending_native_build_recovers_after_ignored_scripts() {
     for prepare in ["dedupe", "prune"] {
         for exit_code in [0, 17] {
-            let CommandTempCwd { mut pacquet, workspace, root, .. } = native_fixture(exit_code);
+            let CommandTempCwd { pacquet, workspace, root, .. } = native_fixture(exit_code);
             Command::cargo_bin("pnpm")
                 .expect("find pnpm binary")
                 .without_ambient_pnpm_config()
-                .current_dir(&workspace)
-                .env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
-                .env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
-                .args([prepare, "--offline", "--ignore-scripts"])
+                .with_current_dir(&workspace)
+                .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
+                .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
+                .with_args([prepare, "--offline", "--ignore-scripts"])
                 .assert()
                 .success();
             assert!(!workspace.join("package.json").exists(), "{prepare} created a manifest");
@@ -408,7 +423,7 @@ fn pending_native_build_recovers_after_ignored_scripts() {
             };
             assert_eq!(pending(), ["."], "{prepare} must record the pending project");
             let result = pacquet
-                .args(["rebuild", "--pending"])
+                .with_args(["rebuild", "--pending"])
                 .assert();
             if exit_code == 0 {
                 result.success();

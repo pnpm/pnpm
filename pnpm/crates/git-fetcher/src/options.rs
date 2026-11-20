@@ -1,6 +1,12 @@
 use crate::GitSourceCache;
-use pnpm_store_dir::{StoreDir, StoreIndexWriter};
-use std::{path::Path, sync::Arc};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndexWriter,
+};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 #[derive(Clone, Copy)]
 pub struct PrepareScriptOptions<'a> {
@@ -35,10 +41,10 @@ pub struct GitStoreContext<'a> {
     /// after import so a future install's warm prefetch finds the
     /// snapshot in `index.db` and skips the clone/checkout/prepare/
     /// packlist re-run. Passing `None` (e.g., from tests) silently
-    /// skips the write — the install is still correct, just slower
+    /// skips the write, the install is still correct, just slower
     /// on the next run.
     pub index_writer: Option<&'a Arc<StoreIndexWriter>>,
-    /// Cache key the row lands at — for git resolutions this is always
+    /// Cache key the row lands at, for git resolutions this is always
     /// the git-hosted store-index-key form (`pkg_id\t{built|not-built}`).
     /// The dispatcher computes it once and threads it in.
     pub files_index_file: &'a str,

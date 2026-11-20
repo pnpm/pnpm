@@ -1,14 +1,24 @@
 pub(crate) use update::{
-    PythonUpdateTargets, resolve_python_update_targets, update_python_projects,
+    PythonUpdateTargets,
+    resolve_python_update_targets,
+    update_python_projects,
     validate_explicit_python_requests,
 };
 
 mod update;
 
-use super::{EcosystemUpdateStepOptions, selectors::PythonUpdateSelector};
+use super::{
+    EcosystemUpdateStepOptions,
+    selectors::PythonUpdateSelector,
+};
 use crate::cli_args::outdated::{
-    OutdatedPackage, OutdatedQuery, TargetVersion,
-    query::{OutdatedDisplayVersions, OutdatedMetadata},
+    OutdatedPackage,
+    OutdatedQuery,
+    TargetVersion,
+    query::{
+        OutdatedDisplayVersions,
+        OutdatedMetadata,
+    },
 };
 use miette::Result;
 use pep440_rs::Version as Pep440Version;
@@ -17,11 +27,20 @@ use pnpm_matcher::Matcher;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_python_installer::{
-    DeclaredPythonDep, LockedPythonPackages, PackageName, PythonDependencyGroup, PythonIndexCache,
-    declared_dependencies, lockfile_dir_for, project_name,
+    DeclaredPythonDep,
+    LockedPythonPackages,
+    PackageName,
+    PythonDependencyGroup,
+    PythonIndexCache,
+    declared_dependencies,
+    lockfile_dir_for,
+    project_name,
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::Path,
 };
 

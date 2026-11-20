@@ -1,6 +1,17 @@
-use assert_cmd::{assert::Assert, prelude::*};
-use pnpm_testing_utils::{command_env::CommandTestExt, git_repo::GitRepoFixture};
-use std::{fs, path::Path, process::Command};
+use assert_cmd::{
+    assert::Assert,
+    prelude::*,
+};
+use command_extra::CommandExtra;
+use pnpm_testing_utils::{
+    command_env::CommandTestExt,
+    git_repo::GitRepoFixture,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const ROOT_MANIFEST: &str = r#"{"name":"root","version":"1.0.0","scripts":{"build":"echo root"}}"#;
 
@@ -8,11 +19,11 @@ fn pipeline(project: &Path, config_home: &Path, args: &[&str]) -> Assert {
     Command::cargo_bin("pnpm")
         .unwrap()
         .without_ambient_pnpm_config()
-        .current_dir(project)
-        .env("XDG_CONFIG_HOME", config_home)
-        .env("XDG_CACHE_HOME", config_home.join("cache"))
-        .arg("pipeline")
-        .args(args)
+        .with_current_dir(project)
+        .with_env("XDG_CONFIG_HOME", config_home)
+        .with_env("XDG_CACHE_HOME", config_home.join("cache"))
+        .with_arg("pipeline")
+        .with_args(args)
         .assert()
         .success()
 }
@@ -152,7 +163,7 @@ fn an_empty_full_selection_reports_no_selected_projects() {
     .unwrap();
     let result = pipeline(project.path(), &project.path().join("config"), &["--full", "--dry-run"]);
     let output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
-    assert!(output.contains("No projects are selected — nothing to run."), "{output}");
+    assert!(output.contains("No projects are selected. Nothing to run."), "{output}");
 }
 
 #[test]
@@ -186,4 +197,41 @@ fn pipeline_dry_run_json_routes_selection_warnings_to_stderr() {
     let base_doc: serde_json::Value =
         serde_json::from_slice(&missing_base.get_output().stdout).expect("valid dry-run JSON");
     assert_eq!(base_doc["tasks"][0]["project"], "pkg");
+}
+
+#[test]
+fn affected_selection_follows_overrides_to_a_changed_catalog_entry() {
+    let root = tempfile::tempdir().unwrap();
+    let fixture = GitRepoFixture::init(root.path(), "demo");
+    let workspace_manifest = |lib: &str| {
+        format!(
+            "packages: [app, other]\npipelines:\n  default: [build]\nchangedFilesIgnorePattern: [pnpm-workspace.yaml]\noverrides:\n  lib: 'catalog:local'\ncatalogs:\n  local:\n    lib: {lib}\n",
+        )
+    };
+    fixture.write_file("package.json", ROOT_MANIFEST);
+    fixture.write_file("pnpm-workspace.yaml", &workspace_manifest("^1.0.0"));
+    fixture.write_file(
+        "app/package.json",
+        r#"{"name":"app","version":"1.0.0","scripts":{"build":"echo app"},"dependencies":{"lib":"^1.0.0"}}"#,
+    );
+    fixture.write_file(
+        "other/package.json",
+        r#"{"name":"other","version":"1.0.0","scripts":{"build":"echo other"}}"#,
+    );
+    let base = fixture.commit("initial");
+    fixture.write_file("pnpm-workspace.yaml", &workspace_manifest("^1.1.0"));
+
+    let result = pipeline(
+        &root.path().join("demo-src"),
+        &root.path().join("config"),
+        &["--base", &base, "--dry-run", "--json"],
+    );
+    let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
+    let projects: Vec<&str> = document["tasks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|task| task["project"].as_str())
+        .collect();
+    assert_eq!(projects, ["app"], "{document}");
 }

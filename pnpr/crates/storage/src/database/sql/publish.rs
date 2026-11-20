@@ -2,18 +2,39 @@
 //! of its namespace, with the request's outcome.
 
 use super::{
-    Expected, PackageKey,
-    adapter::{Connection, Query, Row},
-    batch::{Batch, Retired},
+    Expected,
+    PackageKey,
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
+    batch::{
+        Batch,
+        Retired,
+    },
     commit::StoredPackage,
-    fence::{FenceCheck, FenceRead},
-    notes, publications,
+    fence::{
+        FenceCheck,
+        FenceRead,
+    },
+    notes,
+    publications,
 };
 use crate::database::{
-    ArtifactMember, BatchDocument, BlobFence, Generation, PublicationCommit, PublicationRequest,
-    PublishNotes, RecordedOutcome,
+    ArtifactMember,
+    BatchDocument,
+    BlobFence,
+    Generation,
+    PublicationCommit,
+    PublicationRequest,
+    PublishNotes,
+    RecordedOutcome,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_sql::Dialect;
 
 /// What a publication request commits.

@@ -49,8 +49,8 @@ async function editWorkflowFile (file: ActionFile, replacements: WorkflowEdit[])
   if (!replacements.every(({ originalValue, range }) => isUnchanged(source, range, originalValue))) {
     throw new PnpmError('GITHUB_ACTIONS_WORKFLOW_CHANGED', `GitHub Actions workflow ${file.path} changed while resolving updates; retry the command`)
   }
-  replacements.sort((left, right) => right.range[0] - left.range[0])
-  for (const replacement of replacements) {
+  const uniqueReplacements = dedupeReplacements(replacements, file.path)
+  for (const replacement of uniqueReplacements) {
     source = source.slice(0, replacement.range[0]) + replacement.value + source.slice(replacement.range[1])
   }
   try {
@@ -64,28 +64,55 @@ function isUnchanged (source: string, [start, end]: readonly [number, number], o
   return start >= 0 && start <= end && end <= source.length && source.slice(start, end) === originalValue
 }
 
+function dedupeReplacements (replacements: WorkflowEdit[], filePath: string): WorkflowEdit[] {
+  const sorted = [...replacements].sort((left, right) => right.range[0] - left.range[0] || right.range[1] - left.range[1])
+  const unique: WorkflowEdit[] = []
+  for (const edit of sorted) {
+    const previous = unique[unique.length - 1]
+    if (previous != null && previous.range[0] === edit.range[0] && previous.range[1] === edit.range[1] && previous.value === edit.value) {
+      continue
+    }
+    if (previous != null && ((previous.range[0] === edit.range[0] && previous.range[1] === edit.range[1]) || edit.range[1] > previous.range[0])) {
+      throw new PnpmError('GITHUB_ACTIONS_OVERLAPPING_EDITS', `GitHub Actions workflow ${filePath} has conflicting overlapping edits`)
+    }
+    unique.push(edit)
+  }
+  return unique
+}
+
 function renderTargetValue (action: ActionReference, currentVersion: semver.SemVer, target: RepoVersion): string {
-  const oldReference = `${action.name}@${action.ref}`
   const newReference = `${action.name}@${target.commit}`
-  const value = action.originalValue.replace(oldReference, () => newReference)
-  const referenceIndex = value.indexOf(newReference)
-  const searchStart = referenceIndex === -1 ? 0 : referenceIndex + newReference.length
-  const commentOffset = value.indexOf('#', searchStart)
+  const rawScalar = action.originalValue.slice(0, action.scalarLength)
+  const trailing = action.originalValue.slice(action.scalarLength)
+  const renderedScalar = renderScalar(rawScalar, newReference)
+  const commentOffset = trailing.indexOf('#')
   if (commentOffset !== -1) {
-    const prefix = value.slice(0, commentOffset)
-    const commentBody = value.slice(commentOffset + 1).trimStart()
+    const whitespaceBeforeComment = trailing.slice(0, commentOffset)
+    const commentBody = trailing.slice(commentOffset + 1).trimStart()
     if (
       action.commentVersion != null &&
       shouldReplaceCommentVersion(action.commentVersion, currentVersion) &&
       commentBody.startsWith(action.commentVersion)
     ) {
-      return `${prefix}# ${target.tag}${commentBody.slice(action.commentVersion.length)}`
+      return `${renderedScalar}${whitespaceBeforeComment}# ${target.tag}${commentBody.slice(action.commentVersion.length)}`
     }
     return commentBody.length === 0
-      ? `${prefix}# ${target.tag}`
-      : `${prefix}# ${target.tag} ${commentBody}`
+      ? `${renderedScalar}${whitespaceBeforeComment}# ${target.tag}`
+      : `${renderedScalar}${whitespaceBeforeComment}# ${target.tag} ${commentBody}`
   }
   return action.flowStyle
-    ? `${value.trimEnd()} # ${target.tag}\n${action.indentation}`
-    : `${value} # ${target.tag}`
+    ? `${renderedScalar} # ${target.tag}\n${action.indentation}`
+    : `${renderedScalar} # ${target.tag}`
+}
+
+function renderScalar (rawScalar: string, newReference: string): string {
+  if (rawScalar.startsWith("'")) {
+    return `'${newReference.replace(/'/g, "''")}'`
+  }
+  if (rawScalar.startsWith('"')) {
+    return JSON.stringify(newReference)
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029')
+  }
+  return newReference
 }

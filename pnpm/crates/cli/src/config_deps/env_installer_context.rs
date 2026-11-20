@@ -4,17 +4,35 @@
 //! configuration.
 
 use super::network::EnvironmentNetwork;
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_config::Config;
 use pnpm_env_installer::{
-    ConfigDependencyVerification, ConfigDepsInstallMode, ConfigDepsInstallOptions,
+    ConfigDependencyVerification,
+    ConfigDepsInstallMode,
+    ConfigDepsInstallOptions,
 };
-use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{
+    detect_node_version,
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_lockfile::EnvDocumentFormat;
 use pnpm_network::ThrottledClient;
-use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
+use pnpm_resolving_npm_resolver::{
+    InMemoryPackageMetaCache,
+    NpmResolver,
+};
 use pnpm_resolving_resolver_base::ResolutionPolicyOptions;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 pub(super) struct EnvInstallerContext {
     pub(super) node_version: String,

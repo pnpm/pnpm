@@ -1,13 +1,25 @@
 use super::{
-    calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
-    calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
+    calc_global_virtual_store_path_with_subdeps,
+    calc_graph_node_hash,
+    calc_leaf_global_virtual_store_path,
+    format_global_virtual_store_path,
     join_global_virtual_store_path,
 };
-use crate::{build_required_dep_paths, dep_state::DepsGraphNode};
+use crate::{
+    build_required_dep_paths,
+    dep_state::DepsGraphNode,
+};
 use indexmap::IndexMap;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{MAIN_SEPARATOR, Path},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        MAIN_SEPARATOR,
+        Path,
+    },
 };
 
 #[test]
@@ -33,7 +45,7 @@ fn join_expands_suffix_into_native_components() {
     // The four suffix segments plus `base` become five components.
     assert_eq!(joined.components().count(), 5, "{joined:?}");
 
-    // The portion appended after `base` must carry no `/` on any OS —
+    // The portion appended after `base` must carry no `/` on any OS,
     // on Windows that would otherwise survive into the symlink syscall.
     let tail = joined.strip_prefix("base").unwrap();
     assert!(

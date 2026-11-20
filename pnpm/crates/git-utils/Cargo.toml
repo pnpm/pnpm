@@ -17,6 +17,7 @@ pnpm-process = { path = "../process" }
 libc = { workspace = true }
 
 [dev-dependencies]
+command-extra = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]

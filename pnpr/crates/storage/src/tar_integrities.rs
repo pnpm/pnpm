@@ -1,10 +1,28 @@
-use super::{CanonicalPackageName, DocumentWrite, RegistryError, Result, Storage};
+use super::{
+    CanonicalPackageName,
+    DocumentWrite,
+    RegistryError,
+    Result,
+    Storage,
+};
 use pnpm_package_manifest::PackageBin;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The tar integrity, build-trigger verdict, unpacked file statistics, and

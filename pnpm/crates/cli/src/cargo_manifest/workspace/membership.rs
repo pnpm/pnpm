@@ -1,12 +1,20 @@
 use super::{
-    ConfiguredWorkspace, configured_workspace_state, lookup_inherited_workspace_entry,
+    ConfiguredWorkspace,
+    configured_workspace_state,
+    lookup_inherited_workspace_entry,
     resolve_local_path,
 };
 use pnpm_matcher::WildcardMatcher;
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{
+        HashSet,
+        VecDeque,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(crate) fn workspace_includes_member(workspace_dir: &Path, member_dir: &Path) -> bool {
@@ -205,7 +213,10 @@ fn extract_paths_from_dep_table(
         };
         if let Some(rel_path) = dep.get("path").and_then(toml::Value::as_str) {
             out.push(resolve_local_path(&pkg_dir.join(rel_path)));
-        } else if dep.get("workspace").and_then(toml::Value::as_bool) == Some(true)
+        } else if dep
+            .get("workspace")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(false)
             && let Some(ws_path) = resolve_workspace_dep_path(ws_dir, root_doc, key, dep)
         {
             out.push(ws_path);
@@ -252,7 +263,8 @@ fn cargo_glob_matches(pattern: &str, path: &str) -> bool {
         .trim_start_matches("./")
         .trim_matches('/')
         .split('/')
-        .filter(|seg| !seg.is_empty() && *seg != ".")
+        .filter(|seg| !seg.is_empty())
+        .filter(|seg| *seg != ".")
         .collect();
     let path_segs: Vec<&str> = path
         .split('/')

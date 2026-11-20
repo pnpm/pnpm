@@ -1,6 +1,9 @@
 use std::cmp::Ordering;
 
-use super::{Version, fmt};
+use super::{
+    Version,
+    fmt,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Bound<Value> {
@@ -34,8 +37,8 @@ impl Interval {
 /// The bound as a user reads it, without the trailing `-0`.
 ///
 /// For a bound [`derived_upper`] built, the suffix is an implementation
-/// detail of prerelease matching. For one the user wrote out it is not
-/// — but pnpm drops it too (`semver-range-intersect` renders
+/// detail of prerelease matching. For one the user wrote out it is not,
+/// but pnpm drops it too (`semver-range-intersect` renders
 /// `intersect("<2.0.0-0", ">=1.0.0")` as `>=1.0.0 <2.0.0`), so telling
 /// the two apart here would diverge rather than converge. Only the
 /// rendering loses it: matching compares the parsed version, where the
@@ -169,7 +172,8 @@ pub(super) fn normalize_version_str(version_raw: &str) -> String {
         .collect();
     if !numeric
         .iter()
-        .all(|part| part.chars().all(|character| character.is_ascii_digit()))
+        .map(|part| part.chars())
+        .all(|mut chars| chars.all(|character| character.is_ascii_digit()))
     {
         return version_raw.to_string();
     }
@@ -188,8 +192,8 @@ pub(super) fn normalize_version_str(version_raw: &str) -> String {
 
 /// How many of `major.minor.patch` a range's version actually pins.
 /// `1` and `1.x` pin one, `1.2` pins two, `1.2.3` pins three. npm's
-/// comparators widen to the next unpinned level — `~1` reaches `2.0.0`,
-/// not `1.1.0` — so the count has to survive the padding
+/// comparators widen to the next unpinned level (`~1` reaches `2.0.0`,
+/// not `1.1.0`) so the count has to survive the padding
 /// [`normalize_version_str`] applies.
 fn version_specificity(version_raw: &str) -> usize {
     let mut specificity = 0;
@@ -221,7 +225,7 @@ pub(super) fn at(major: u64, minor: u64, patch: u64) -> Version {
 /// `^1.2.3` desugars to `<2.0.0-0`, not `<2.0.0`, so that no prerelease
 /// of 2.0.0 slips in. A bound the user spelled in full (`<2.0.0`) keeps
 /// its plain form and does admit `2.0.0-rc.1`. The suffix is dropped
-/// again when the interval is rendered — see [`Interval`]'s `Display`.
+/// again when the interval is rendered; see [`Interval`]'s `Display`.
 fn derived_upper(version: Version) -> Version {
     Version { pre_release: vec![node_semver::Identifier::Numeric(0)], ..version }
 }

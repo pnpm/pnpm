@@ -1,6 +1,10 @@
 //! Pinning a process so a signal reaches that process or none.
 
-use std::os::fd::{AsRawFd as _, FromRawFd as _, OwnedFd};
+use std::os::fd::{
+    AsRawFd as _,
+    FromRawFd as _,
+    OwnedFd,
+};
 
 /// A process held by a handle rather than named by its id.
 ///

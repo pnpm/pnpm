@@ -1,11 +1,27 @@
 use crate::{
-    Certificate, Error, Identity, Method, Proxy, Request, RequestBuilder, Response, Result,
+    Certificate,
+    Error,
+    Identity,
+    Method,
+    Proxy,
+    Request,
+    RequestBuilder,
+    Response,
+    Result,
     dns::Resolve,
     error::Kind,
-    header::{HeaderMap, HeaderValue, USER_AGENT},
+    header::{
+        HeaderMap,
+        HeaderValue,
+        USER_AGENT,
+    },
     redirect::Policy,
 };
-use std::{net::IpAddr, sync::Arc, time::Duration};
+use std::{
+    net::IpAddr,
+    sync::Arc,
+    time::Duration,
+};
 
 #[derive(Clone, Debug)]
 pub struct Client {

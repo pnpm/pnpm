@@ -2,8 +2,14 @@
 //! at `tile/<L>/<N>[.p/<W>]` and entry bundles at
 //! `tile/entries/<N>[.p/<W>]`, relative to the log's URL prefix.
 
-use derive_more::{Display, Error};
-use std::{fmt, str::FromStr};
+use derive_more::{
+    Display,
+    Error,
+};
+use std::{
+    fmt,
+    str::FromStr,
+};
 use tlog_tiles::Tile;
 
 /// The height of every tile: a full tile holds 2⁸ hashes or entries.

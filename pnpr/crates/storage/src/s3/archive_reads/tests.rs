@@ -1,10 +1,17 @@
 mod get_admission;
 
 use super::{
-    SCRATCH_UNIT_BYTES, SCRATCH_UNITS, STAGING_WAIT, acquire_staging_permit, reserve_scratch_space,
+    SCRATCH_UNIT_BYTES,
+    SCRATCH_UNITS,
+    STAGING_WAIT,
+    acquire_staging_permit,
+    reserve_scratch_space,
     retain_download_permit,
 };
-use axum::body::{Body, to_bytes};
+use axum::body::{
+    Body,
+    to_bytes,
+};
 use tokio::sync::Semaphore;
 
 #[tokio::test]

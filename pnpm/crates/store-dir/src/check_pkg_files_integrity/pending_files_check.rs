@@ -1,5 +1,11 @@
 use super::{
-    CafsFileInfo, FilesMap, HashMap, SideEffectsOverlay, StoreDir, VerifiedFilesCache, verify_file,
+    CafsFileInfo,
+    FilesMap,
+    HashMap,
+    SideEffectsOverlay,
+    StoreDir,
+    VerifiedFilesCache,
+    verify_file,
 };
 use rayon::prelude::*;
 use std::path::Path;

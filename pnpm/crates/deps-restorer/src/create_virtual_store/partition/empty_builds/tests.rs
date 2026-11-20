@@ -1,11 +1,21 @@
 use super::restorable_overlays;
 use crate::{
     AllowBuildPolicy,
-    create_virtual_store::partition::{EmptyBuilds, Rebuilds},
+    create_virtual_store::partition::{
+        EmptyBuilds,
+        Rebuilds,
+    },
 };
-use pnpm_store_dir::{SideEffectsDiff, SideEffectsOverlay};
+use pnpm_store_dir::{
+    SideEffectsDiff,
+    SideEffectsOverlay,
+};
 use pnpm_tarball::PrefetchResult;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 fn prefetch() -> PrefetchResult {
     let files = HashMap::from([(

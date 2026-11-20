@@ -1,11 +1,33 @@
 use super::{
-    HashMap, LockfileResolution, NoMatchingVersionError, Package, PackageVersion,
-    PickedFromRegistry, RegistryPackageSpec, RegistryPackageSpecType, RegistryPick, ResolveError,
-    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, ResolveOptions, ResolveResult,
-    SavedSpecifierOptions, TrustPolicy, UpdateBehavior, Version, WantedDependency,
-    WorkspacePackages, is_not_found_error, latest_allowed_by_policy, parse_bare_specifier,
-    pick_matching_local_version_or_null, pick_registry_for_package, redact_and_sanitize,
-    resolve_from_local_package, try_resolve_from_workspace, try_resolve_from_workspace_packages,
+    HashMap,
+    LockfileResolution,
+    NoMatchingVersionError,
+    Package,
+    PackageVersion,
+    PickedFromRegistry,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    RegistryPick,
+    ResolveError,
+    ResolveFromWorkspaceError,
+    ResolveFromWorkspaceOptions,
+    ResolveOptions,
+    ResolveResult,
+    SavedSpecifierOptions,
+    TrustPolicy,
+    UpdateBehavior,
+    Version,
+    WantedDependency,
+    WorkspacePackages,
+    is_not_found_error,
+    latest_allowed_by_policy,
+    parse_bare_specifier,
+    pick_matching_local_version_or_null,
+    pick_registry_for_package,
+    redact_and_sanitize,
+    resolve_from_local_package,
+    try_resolve_from_workspace,
+    try_resolve_from_workspace_packages,
 };
 
 /// Retry a failed registry pick against the workspace. `prefer_workspace_error`
@@ -61,7 +83,7 @@ pub(super) fn workspace_shadow_pick(
 /// matches.
 ///
 /// A store-manifest peek, once pacquet grows one, has to run before this fast
-/// path — the TypeScript counterpart
+/// path, the TypeScript counterpart
 /// (`pnpm11/resolving/npm-resolver/src/index.ts`) documents why.
 pub(super) fn prefer_workspace_pick(
     workspace_packages: Option<&std::sync::Arc<WorkspacePackages>>,
@@ -120,7 +142,7 @@ pub(super) fn wanted_spec(
 
 /// Whether a latest-version lookup should report "no latest" instead of
 /// failing. `minimumReleaseAge` filters the packument before the pick, so
-/// every published version can be too young to match — a policy outcome the
+/// every published version can be too young to match, a policy outcome the
 /// caller renders as "nothing to update to", not an error.
 pub(crate) fn swallowed_as_no_latest(err: &ResolveError, opts: &ResolveOptions) -> bool {
     opts.policy.published_by.is_some() && err.is::<NoMatchingVersionError>()

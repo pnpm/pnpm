@@ -1,13 +1,21 @@
 use super::{
-    OptimisticRepeatInstallCheck, current_lockfile::CurrentLockfile,
-    manifest_agreement::LinkedPackagesContext, manifest_string_field,
+    OptimisticRepeatInstallCheck,
+    current_lockfile::CurrentLockfile,
+    manifest_agreement::LinkedPackagesContext,
+    manifest_string_field,
 };
-use pnpm_config::{Config, LinkWorkspacePackages};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Restore a missing `pnpm-lock.yaml` from the current lockfile before

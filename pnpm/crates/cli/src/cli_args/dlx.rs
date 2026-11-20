@@ -3,45 +3,97 @@ pub(crate) use clean::clean_expired_dlx_cache;
 use crate::{
     State,
     cli_args::{
-        add::add_package, catalogs::configured_catalogs, exec::set_package_manager_env,
+        add::add_package,
+        catalogs::configured_catalogs,
+        exec::set_package_manager_env,
+        package_spec::resolve_local_package_spec,
         supported_architectures::SupportedArchitecturesArgs,
     },
-    engine_pm::{channel::PackageManager, provision::provision},
-    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    engine_pm::{
+        channel::PackageManager,
+        provision::provision,
+    },
+    path_env::{
+        BadPathDir,
+        prepend_dirs_to_path,
+        set_command_path,
+    },
     process::Command,
     shim_dispatch::materialize_runtime,
 };
 
-use cache::{read_json, resolve_catalog_specs};
+use cache::{
+    read_json,
+    resolve_catalog_specs,
+};
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency as CatalogWantedDependency,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency as CatalogWantedDependency,
     resolve_from_catalog,
 };
-use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    get_bins_from_package_manifest,
+};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
-use pnpm_fs::{force_symlink_dir, remove_dirent};
+use pnpm_fs::{
+    force_symlink_dir,
+    remove_dirent,
+};
 use pnpm_package_manifest::{
-    DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias,
-    package_manager_spec::{is_version_request, split_spec},
+    DependencyGroup,
+    convert_engines_runtime_to_dependencies,
+    is_runtime_alias,
+    package_manager_spec::{
+        is_version_request,
+        split_spec,
+    },
     parse_manifest,
 };
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use provision::{ProvisionedTool, provisioned_tool, run_package_manager, run_runtime};
+use provision::{
+    ProvisionedTool,
+    provisioned_tool,
+    run_package_manager,
+    run_runtime,
+};
 use rust::run_rust;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     ffi::OsStr,
-    fs, io,
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// Run a package in a temporary environment.
@@ -187,8 +239,15 @@ impl DlxArgs {
 
         // With `--package`, the command names the bin to run; otherwise the
         // command is also the package.
-        let pkgs: Vec<String> =
-            if self.package.is_empty() { vec![bin_command.clone()] } else { self.package.clone() };
+        let raw_pkgs = if self.package.is_empty() {
+            std::slice::from_ref(bin_command)
+        } else {
+            self.package.as_slice()
+        };
+        let pkgs: Vec<String> = raw_pkgs
+            .iter()
+            .map(|pkg| resolve_local_package_spec(pkg, dir))
+            .collect();
         // Resolved here rather than in the install below so the catalog's
         // version also feeds the cache key: two callers whose catalogs pin
         // different versions of the same package must not share a cache
@@ -305,14 +364,14 @@ enum DlxProgram<'a> {
     Named(&'a str),
     /// A provisioned engine's own executable, run by path rather than by
     /// name: an engine's directory can hold another executable named the
-    /// way a user would type it — Yarn 6's archive ships a `yarn` launcher
+    /// way a user would type it, Yarn 6's archive ships a `yarn` launcher
     /// beside the `yarn-bin` that is the engine itself.
     Provisioned { command: &'a str, executable: &'a Path },
 }
 
 impl DlxProgram<'_> {
-    /// The word a shell runs the command by — both forms are reachable
-    /// through the prepended directories — or `None` when there is no
+    /// The word a shell runs the command by (both forms are reachable
+    /// through the prepended directories) or `None` when there is no
     /// word a shell could carry, which only a provisioned executable
     /// whose file name is not valid UTF-8 can produce.
     fn shell_word(&self) -> Option<&str> {
@@ -423,14 +482,15 @@ fn get_pkg_name(cached_dir: &Path) -> Result<String, DlxError> {
     let mut manifest = read_json(&cached_dir.join("package.json"))?;
     // The manifest writer records a `runtime:` dependency (e.g.
     // `pnpm dlx node@runtime:26.4.0`) as `engines.runtime` on disk;
-    // reify it back into the dependency map — the same conversion the
-    // manifest reader applies — so the runtime is discoverable here.
+    // reify it back into the dependency map (the same conversion the
+    // manifest reader applies) so the runtime is discoverable here.
     convert_engines_runtime_to_dependencies(&mut manifest, "devEngines", "devDependencies");
     convert_engines_runtime_to_dependencies(&mut manifest, "engines", "dependencies");
     manifest
         .get("dependencies")
         .and_then(Value::as_object)
-        .and_then(|deps| deps.keys().next())
+        .map(serde_json::Map::keys)
+        .and_then(|mut keys| keys.next())
         .cloned()
         .ok_or(DlxError::NoDep)
 }

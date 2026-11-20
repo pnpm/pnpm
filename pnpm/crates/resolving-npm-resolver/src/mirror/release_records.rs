@@ -2,9 +2,16 @@
 //! (`<registry><name>/<version>+r<revision>`), which never change, so they are
 //! kept with no expiry.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use super::{EncodeRegistryError, encode_pkg_name, get_registry_name};
+use super::{
+    EncodeRegistryError,
+    encode_pkg_name,
+    get_registry_name,
+};
 
 /// Mirror directory for release records, read from registries declared
 /// `serverType: pnpr`.

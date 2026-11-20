@@ -1,5 +1,10 @@
 use super::{
-    LogEvent, LogLevel, MAX_THROUGHPUT_PRIORITY, ProgressLog, ProgressMessage, Reporter,
+    LogEvent,
+    LogLevel,
+    MAX_THROUGHPUT_PRIORITY,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
     SharedReportedProgressKeys,
 };
 

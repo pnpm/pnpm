@@ -1,15 +1,32 @@
 use std::{
-    fmt::{self, Write as _},
+    fmt::{
+        self,
+        Write as _,
+    },
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 use tracing::{
-    Event, Level, Metadata, Subscriber,
-    field::{Field, Visit},
-    span::{Attributes, Id, Record},
+    Event,
+    Level,
+    Metadata,
+    Subscriber,
+    field::{
+        Field,
+        Visit,
+    },
+    span::{
+        Attributes,
+        Id,
+        Record,
+    },
 };
 
 #[derive(Clone)]

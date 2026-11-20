@@ -1,8 +1,14 @@
 use super::{
-    ExtractManifestError, extract_manifest_from_packed, extract_publish_manifest_from_packed,
-    is_tarball_path, normalize_entry_path,
+    ExtractManifestError,
+    extract_manifest_from_packed,
+    extract_publish_manifest_from_packed,
+    is_tarball_path,
+    normalize_entry_path,
 };
-use flate2::{Compression, write::GzEncoder};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
 use pretty_assertions::assert_eq;
 use std::io::Write;
 use tempfile::TempDir;
@@ -283,7 +289,7 @@ fn publish_manifest_replaces_invalid_utf8_in_the_readme() {
         ],
     );
     let manifest = extract_publish_manifest_from_packed(&path).unwrap();
-    assert_eq!(manifest["readme"], "text\u{FFFD}");
+    assert_eq!(manifest["readme"], "text�");
 }
 
 #[test]

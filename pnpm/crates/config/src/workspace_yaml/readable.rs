@@ -1,8 +1,25 @@
-use super::{Deserialize, Deserializer, IgnoredAny, IndexMap};
-use crate::{PIN_DECISION_SETTINGS, SettingsRead};
-use serde::de::{MapAccess, Visitor};
+use super::{
+    Deserialize,
+    Deserializer,
+    IgnoredAny,
+    IndexMap,
+};
+use crate::{
+    PIN_DECISION_SETTINGS,
+    SettingsRead,
+};
+use serde::de::{
+    MapAccess,
+    Visitor,
+};
 use serde_saphyr::Spanned;
-use std::{borrow::Cow, fmt, fmt::Write as _, marker::PhantomData, ops::Range};
+use std::{
+    borrow::Cow,
+    fmt,
+    fmt::Write as _,
+    marker::PhantomData,
+    ops::Range,
+};
 
 /// `text` with only the top-level settings `settings_read` reads.
 ///

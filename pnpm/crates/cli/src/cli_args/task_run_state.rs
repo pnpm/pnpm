@@ -1,21 +1,54 @@
-use journal::{current_generation, remove_state_file, validate_real_directory};
-use miette::{IntoDiagnostic, WrapErr as _};
+use journal::{
+    current_generation,
+    remove_state_file,
+    validate_real_directory,
+};
+use miette::{
+    IntoDiagnostic,
+    WrapErr as _,
+};
 use pnpm_crypto_hash::create_hex_hash;
-use pnpm_workspace_task_scheduler::{TaskGraph, TaskKey, TaskNode};
-use serde::{Deserialize, Serialize};
+use pnpm_workspace_task_scheduler::{
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    ffi::{OsStr, OsString},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
-    fs::{File, OpenOptions},
+    fs::{
+        File,
+        OpenOptions,
+    },
     io,
     io::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 const STATE_VERSION: u8 = 1;
@@ -97,7 +130,8 @@ pub struct TaskRunExecutionSettings<'a> {
 pub fn task_run_execution_settings(opts: &TaskRunExecutionSettings<'_>) -> Vec<String> {
     let extra_bin_paths: Vec<String> = opts.extra_bin_paths
         .iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect();
     let mut extra_env: Vec<(&String, &String)> = opts.extra_env.iter().collect();
     extra_env.sort_by_key(|(key, _)| *key);

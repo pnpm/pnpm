@@ -2,8 +2,16 @@
 //! dependency that is not installed.
 
 use crate::cli_args::config_warnings::emit_config_warning;
-use pnpm_config::{Config, naming_cases::to_camel_case};
-use pnpm_workspace::{IncludeSource, SettingOwner, SettingSlot, canonical_setting_name};
+use pnpm_config::{
+    Config,
+    naming_cases::to_camel_case,
+};
+use pnpm_workspace::{
+    IncludeSource,
+    SettingOwner,
+    SettingSlot,
+    canonical_setting_name,
+};
 
 /// Warn when what `pnpm config get <key>` (or `pnpm config list`, when `key`
 /// is `None`) prints may lack a setting of a config dependency that is not

@@ -6,7 +6,10 @@ use pnpr_error::RegistryError;
 use pnpr_registry::Ecosystem;
 use serde::Serialize;
 
-use super::{RegistryFile, RegistryGraphDocument};
+use super::{
+    RegistryFile,
+    RegistryGraphDocument,
+};
 
 /// The registries a document change adds, removes, and changes, by name.
 /// `changed` also names `defaultRegistry` and `routes` when they change.
@@ -63,7 +66,8 @@ impl RegistryGraphDocument {
     pub fn registry_entry(&self, name: &str) -> Option<serde_json::Value> {
         self.registries
             .get(name)
-            .and_then(|entry| serde_json::to_value(entry).ok())
+            .map(serde_json::to_value)
+            .and_then(Result::ok)
     }
 
     /// Add `entry` under `name`, or replace the entry already there in place.

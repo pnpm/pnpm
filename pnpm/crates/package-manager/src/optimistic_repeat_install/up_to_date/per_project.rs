@@ -3,13 +3,31 @@
 //! workspace state, with the configuration anchored to it.
 
 use super::{
-    Catalogs, Config, CoveredProjects, FastPathContext, FastPathProjects, Path, PathBuf,
-    UpToDateFastPathCheck, UpToDateWorkspace, WorkspaceState, check_fast_path_repeat_install,
-    configured_or_discovered_workspace_dir, fast_path_workspace_context, lazy_wanted_lockfile,
-    load_fast_path_state, register_fast_path_workspace,
+    Catalogs,
+    Config,
+    CoveredProjects,
+    FastPathContext,
+    FastPathProjects,
+    Path,
+    PathBuf,
+    UpToDateFastPathCheck,
+    UpToDateWorkspace,
+    WorkspaceState,
+    check_fast_path_repeat_install,
+    configured_or_discovered_workspace_dir,
+    fast_path_workspace_context,
+    lazy_wanted_lockfile,
+    load_fast_path_state,
+    register_fast_path_workspace,
 };
-use crate::install_state::validation::{dedicated_bin_projects, manifest_stand_ins};
-use pnpm_workspace::{Project, ProjectManifestPaths};
+use crate::install_state::validation::{
+    dedicated_bin_projects,
+    manifest_stand_ins,
+};
+use pnpm_workspace::{
+    Project,
+    ProjectManifestPaths,
+};
 use rayon::prelude::*;
 use std::collections::HashMap;
 

@@ -3,7 +3,11 @@ mod tests;
 
 use super::Host;
 use pnpm_fs::CopyPermissions as Permissions;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 pub(super) trait FsSetPermissions {
     fn set_permissions(path: &Path, permissions: Permissions) -> io::Result<()>;
@@ -42,7 +46,8 @@ pub(super) fn ensure_executable_bits<Sys: FsSetPermissions>(
         });
     if !in_node_modules
         && !installed_modules_dir
-            .and_then(|dir| fs::canonicalize(dir).ok())
+            .map(fs::canonicalize)
+            .and_then(Result::ok)
             .is_some_and(|dir| target.starts_with(dir))
     {
         return Ok(());

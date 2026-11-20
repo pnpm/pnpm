@@ -1,6 +1,10 @@
 use super::super::tarball_url_and_integrity;
 use pnpm_config::Config;
-use pnpm_lockfile::{LockfileResolution, PackageKey, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+    TarballResolution,
+};
 use pretty_assertions::assert_eq;
 
 /// A lockfile written before pnpm pinned a hash for git-host archives

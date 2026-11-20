@@ -1,10 +1,16 @@
 //! What the run has settled before it dispatches.
 
 use super::{
-    InstallOwned, InstallView, RunMode, Verification,
+    InstallOwned,
+    InstallView,
+    RunMode,
+    Verification,
     lockfile_load::Loaded,
     wanted::Lockfiles,
-    workspace::{InstallScope, InstallWorkspace},
+    workspace::{
+        InstallScope,
+        InstallWorkspace,
+    },
 };
 use pnpm_package_manifest::PackageManifest;
 use std::path::PathBuf;

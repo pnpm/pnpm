@@ -1,4 +1,12 @@
-use super::{Config, HostNoHome, assert_eq, fs, load_with_project_and_user, tempdir, write_file};
+use super::{
+    Config,
+    HostNoHome,
+    assert_eq,
+    fs,
+    load_with_project_and_user,
+    tempdir,
+    write_file,
+};
 
 #[test]
 pub fn user_username_password_pins_to_its_own_file_registry() {
@@ -56,7 +64,7 @@ pub fn virtual_store_dir_max_length_matches_pnpm_default() {
     assert_eq!(config.virtual_store_dir_max_length, expected);
 }
 
-/// One file may carry both spellings — the canonical one wins, and the
+/// One file may carry both spellings, the canonical one wins, and the
 /// pair is not a duplicate key that fails the whole parse.
 #[test]
 pub fn max_sockets_takes_the_canonical_spelling_when_a_file_has_both() {

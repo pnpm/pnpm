@@ -6,7 +6,11 @@
 //! be picked up by future processes. Switching the console to code page
 //! 65001 makes `reg` emit UTF-8 so non-ASCII values survive the round-trip.
 
-use super::{AddDirToEnvPathOpts, AddingPosition, PathExtenderError};
+use super::{
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    PathExtenderError,
+};
 use crate::process::Command;
 use std::path::Path;
 
@@ -194,7 +198,7 @@ fn get_registry_output() -> Result<String, PathExtenderError> {
 }
 
 /// Run a command and capture stdout, returning an error if it cannot be
-/// spawned or exits non-zero — rather than silently continuing with empty
+/// spawned or exits non-zero, rather than silently continuing with empty
 /// output. `mode` reports its errors on stdout, so a failure without stderr
 /// is reported with stdout instead.
 fn run_capture(program: &str, args: &[&str]) -> Result<String, PathExtenderError> {

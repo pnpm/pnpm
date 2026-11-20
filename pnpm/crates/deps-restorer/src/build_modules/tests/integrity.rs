@@ -1,4 +1,7 @@
-use super::{super::allow_build_policy::AllowBuildPolicy, policy_from_specs};
+use super::{
+    super::allow_build_policy::AllowBuildPolicy,
+    policy_from_specs,
+};
 use pretty_assertions::assert_eq;
 
 // Policy-logic tests below drive `AllowBuildPolicy::new` directly with

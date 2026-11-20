@@ -1,6 +1,12 @@
 use crate::{
-    BinLinkSettings, CopyFiles, ProjectModulesDir, SyncInjectedDeps, injected_edit_sources,
-    injected_source_dirs, sync_injected_deps, sync_injected_deps_of_modules_dir,
+    BinLinkSettings,
+    CopyFiles,
+    ProjectModulesDir,
+    SyncInjectedDeps,
+    injected_edit_sources,
+    injected_source_dirs,
+    sync_injected_deps,
+    sync_injected_deps_of_modules_dir,
     watch_injected_edits,
 };
 use pretty_assertions::assert_eq;
@@ -10,7 +16,10 @@ use std::{
     fs,
     path::Path,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::TempDir;
 

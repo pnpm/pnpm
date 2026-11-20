@@ -1,10 +1,20 @@
 use super::{
-    Host, NodeLinker, SilentReporter, api, fixture, install_module, json, tarball_entry_content,
+    Host,
+    NodeLinker,
+    SilentReporter,
+    api,
+    fixture,
+    install_module,
+    json,
+    tarball_entry_content,
 };
 use pnpm_fs::symlink_dir;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// `pack` bundles dependencies listed in `bundleDependencies`.

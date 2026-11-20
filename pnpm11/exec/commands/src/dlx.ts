@@ -1,8 +1,6 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
-import { getAutomaticallyIgnoredBuilds } from '@pnpm/building.commands'
 import {
   type CatalogResolver,
   resolveFromCatalog,
@@ -17,15 +15,14 @@ import { isError, PnpmError } from '@pnpm/error'
 import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
-import { logger } from '@pnpm/logger'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { PackageManifest, PnpmSettings } from '@pnpm/types'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
-import { symlinkDir } from 'symlink-dir'
 
-import { createCacheKey, type DlxCache, findCache, getValidCacheDir, resolveDlxOverrides } from './dlxCache.js'
+import { createCacheKey, type DlxCache, findCache, resolveDlxOverrides } from './dlxCache.js'
+import { getOrPrepareDlxCache } from './dlxInstall.js'
 import { makeEnv } from './makeEnv.js'
 import { trackedExeca, waitForTracked } from './trackedExeca.js'
 
@@ -35,14 +32,6 @@ export const skipPackageManagerCheck = true
 
 export const commandNames = ['dlx']
 
-/**
- * Test-only env var. When set, the dlx ignored-builds recovery path bypasses
- * the TTY check and forwards `all: true` so `approve-builds` skips its
- * multiselect and confirm prompts. Mirrors the same env var honored by
- * `promptApproveGlobalBuilds` for global installs. Not for production use.
- */
-const AUTO_APPROVE_FOR_TESTS_ENV = 'PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS'
-
 export const shorthands: Record<string, string> = {
   c: '--shell-mode',
 }
@@ -51,6 +40,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'cpu',
+      'ignore-scripts',
       'libc',
       'os',
     ], types),
@@ -110,34 +100,33 @@ export async function handler (
     }
     throw new PnpmError('DLX_MISSING_COMMAND', "'pnpm dlx' requires a command to run")
   }
+  const invocationDir = (opts.cliOptions?.dir as string | undefined) ?? process.cwd()
   const allowBuildSelectors = add.parseAllowBuildSelectors({ allowBuild: opts.allowBuild })
   const resolvedOverrides = resolveDlxOverrides(opts.overrides, opts.catalogs)
-  const { resolvedPkgs, resolvedPkgAliases } = await resolveDlxPackages(opts, opts.package ?? [command])
+  const { resolvedPkgs, resolvedPkgAliases } = await resolveDlxPackages(
+    opts,
+    (opts.package ?? [command]).map((pkg) => add.resolveLocalPackageSpec(pkg, invocationDir))
+  )
   const enableGlobalVirtualStore = opts.enableGlobalVirtualStore ?? true
   const cache = findDlxCache(opts, resolvedPkgs, resolvedOverrides)
   const allowBuilds = add.applyAllowBuildSelectors(
     Object.fromEntries(resolvedPkgAliases.map(pkg => [pkg, true])),
     allowBuildSelectors
   )
-  let cachedDir = cache.cachedDir
-  if (!cache.cacheExists) {
-    cachedDir = await installIntoDlxCache({
-      opts,
-      commands,
-      allowBuilds,
-      resolvedPkgs,
-      resolvedOverrides,
-      enableGlobalVirtualStore,
-    }, cache)
-  } else {
-    await promptApproveDlxBuilds({ cachedDir, allowBuilds, inheritedOpts: opts }, commands)
-  }
+  const cachedDir = await getOrPrepareDlxCache({
+    opts,
+    commands,
+    allowBuilds,
+    resolvedPkgs,
+    resolvedOverrides,
+    enableGlobalVirtualStore,
+  }, cache)
   const env = createDlxEnv(opts, cachedDir, enableGlobalVirtualStore)
   const binName = opts.package
     ? command
     : await getBinName(cachedDir, opts)
   return runDlxBin(binName, args, {
-    cwd: (opts.cliOptions?.dir as string | undefined) ?? process.cwd(),
+    cwd: invocationDir,
     env,
     shellMode: opts.shellMode,
   })
@@ -167,6 +156,7 @@ function findDlxCache (
     trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
     trustLockfile: opts.trustLockfile,
     blockExoticSubdeps: opts.blockExoticSubdeps,
+    ignoreScripts: opts.ignoreScripts,
   })
 }
 
@@ -187,6 +177,9 @@ async function resolveDlxPackages (
       ? resolveCatalogProtocol(catalogResolver, alias, bareSpecifier)
       : bareSpecifier
     resolvedPkgAliases.push(alias)
+    if (resolvedBareSpecifier != null && add.isLocalFilesystemSpecifier(resolvedBareSpecifier)) {
+      return `${alias}@${resolvedBareSpecifier}`
+    }
     const resolved = await resolve({ alias, bareSpecifier: resolvedBareSpecifier }, {
       lockfileDir: opts.lockfileDir ?? opts.dir,
       preferredVersions: {},
@@ -232,103 +225,6 @@ function createDlxResolver (opts: DlxCommandOptions): DlxResolve {
     (Boolean(opts.minimumReleaseAge) && opts.minimumReleaseAgeStrict === true) ||
     opts.trustPolicy === 'no-downgrade'
   return strictResolution ? makeResolutionStrict(baseResolve) : baseResolve
-}
-
-interface DlxInstallContext {
-  opts: DlxCommandOptions
-  commands?: CommandHandlerMap
-  allowBuilds: Record<string, boolean | string>
-  resolvedPkgs: string[]
-  resolvedOverrides?: Record<string, string>
-  enableGlobalVirtualStore: boolean
-}
-
-/**
- * Installs the packages into the prepare dir of the cache and links it as the
- * current cache entry. Returns the directory the packages are installed in.
- */
-async function installIntoDlxCache (ctx: DlxInstallContext, cache: DlxCache): Promise<string> {
-  const { cachedDir, cacheLink } = cache
-  try {
-    fs.mkdirSync(cachedDir, { recursive: true })
-    await add.handler(createDlxAddOptions(ctx, cachedDir), ctx.resolvedPkgs)
-    await promptApproveDlxBuilds({ cachedDir, allowBuilds: ctx.allowBuilds, inheritedOpts: ctx.opts }, ctx.commands)
-    await linkDlxCache(cachedDir, cacheLink)
-  } catch (err) {
-    // When parallel dlx processes install the same package, the shared global
-    // virtual store can cause spurious failures (e.g. ENOENT from concurrent
-    // directory swaps).  If another process completed the cache in the meantime,
-    // use that instead of failing.
-    const completedDir = getValidCacheDir(cacheLink, ctx.opts.dlxCacheMaxAge)
-    if (completedDir != null) return completedDir
-    await removePartialDlxCache(cachedDir)
-    throw err
-  }
-  return cachedDir
-}
-
-function createDlxAddOptions (ctx: DlxInstallContext, cachedDir: string): add.AddCommandOptions {
-  return {
-    ...ctx.opts,
-    allowBuild: undefined,
-    overrides: ctx.resolvedOverrides,
-    // Mirror the global install flow: dlx prompts via `approve-builds`
-    // when transitive deps have skipped build scripts, so it must not let
-    // strictDepBuilds (the v11 default) turn that into a hard error.
-    // Without this, `pnpm dlx <pkg>` cannot launch packages whose bin
-    // depends on a postinstall step (e.g. native modules).
-    strictDepBuilds: false,
-    useLockfile: true,
-    enableGlobalVirtualStore: ctx.enableGlobalVirtualStore,
-    bin: path.join(cachedDir, 'node_modules/.bin'),
-    dir: cachedDir,
-    lockfileDir: cachedDir,
-    allowBuilds: ctx.allowBuilds,
-    rootProjectManifestDir: cachedDir,
-    saveProd: true, // dlx will be looking for the package in the "dependencies" field.
-    saveDev: false,
-    saveOptional: false,
-    savePeer: false,
-    symlink: true,
-    workspaceDir: undefined,
-  }
-}
-
-async function linkDlxCache (cachedDir: string, cacheLink: string): Promise<void> {
-  try {
-    await symlinkDir(cachedDir, cacheLink, { overwrite: true })
-  } catch (error) {
-    // EBUSY/EEXIST/EPERM means that there is another dlx process running in parallel that has acquired the cache link first.
-    // EPERM can happen on Windows when another process has the symlink open while this process tries to unlink it.
-    // The link created by the other process is just as up-to-date as the link the current process was attempting
-    // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
-    // the other link stay. The current process should yield.
-    if (!isError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST' && error.code !== 'EPERM')) {
-      throw error
-    }
-  }
-}
-
-/**
- * Drops the partially-populated cache so a subsequent dlx run starts
- * clean instead of reusing a broken install. This is best-effort: on
- * Windows the just-run install scripts (or antivirus) can briefly hold
- * handles on freshly written files, so retry with backoff. A cleanup
- * failure must never mask the original install error, which is the one
- * worth surfacing, so it is only logged. A leftover prepare dir is
- * harmless: it has a unique name and findCache only trusts the `pkg`
- * symlink.
- */
-async function removePartialDlxCache (cachedDir: string): Promise<void> {
-  try {
-    await fs.promises.rm(cachedDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
-  } catch (cleanupErr) {
-    logger.warn({
-      error: cleanupErr as Error,
-      message: `Failed to clean up the dlx cache directory at "${cachedDir}"`,
-      prefix: cachedDir,
-    })
-  }
 }
 
 function createDlxEnv (opts: DlxCommandOptions, cachedDir: string, enableGlobalVirtualStore: boolean): NodeJS.ProcessEnv {
@@ -422,54 +318,6 @@ function scopeless (pkgName: string): string {
     return pkgName.split('/')[1]
   }
   return pkgName
-}
-
-/**
- * After a dlx install with `strictDepBuilds: false`, check whether any
- * transitive dependencies had their build scripts skipped and, if so, run
- * the same `approve-builds` flow that `pnpm add -g` uses. Mirrors
- * `promptApproveGlobalBuilds` in @pnpm/global.commands.
- *
- * In non-interactive mode (no TTY, no commands map) this is a no-op and
- * the install is persisted to the dlx cache with builds skipped — same
- * behavior as `pnpm add -g` in CI. Users who need the skipped scripts
- * to run can re-invoke dlx with `--allow-build=<pkg>`, which produces a
- * different cache key and forces a fresh install.
- */
-async function promptApproveDlxBuilds (
-  opts: {
-    cachedDir: string
-    allowBuilds: Record<string, boolean | string>
-    inheritedOpts: object
-  },
-  commands?: CommandHandlerMap
-): Promise<void> {
-  if (!commands?.['approve-builds']) return
-  const autoApproveForTests = process.env[AUTO_APPROVE_FOR_TESTS_ENV] === '1'
-  const inCi = (opts.inheritedOpts as { ci?: boolean }).ci
-  if (!autoApproveForTests && (inCi || !process.stdin.isTTY)) return
-  const { automaticallyIgnoredBuilds } = await getAutomaticallyIgnoredBuilds({
-    dir: opts.cachedDir,
-    lockfileDir: opts.cachedDir,
-  })
-  const pendingBuilds = automaticallyIgnoredBuilds?.filter((pkg) => opts.allowBuilds[pkg] !== false)
-  if (!pendingBuilds?.length) return
-  await commands['approve-builds']({
-    ...opts.inheritedOpts,
-    dir: opts.cachedDir,
-    lockfileDir: opts.cachedDir,
-    rootProjectManifestDir: opts.cachedDir,
-    modulesDir: undefined,
-    workspaceDir: undefined,
-    allProjects: undefined,
-    selectedProjectsGraph: undefined,
-    workspacePackagePatterns: undefined,
-    rootProjectManifest: undefined,
-    global: false,
-    pending: false,
-    allowBuilds: opts.allowBuilds,
-    all: autoApproveForTests ? true : undefined,
-  }, [], commands)
 }
 
 function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, bareSpecifier: string): string {

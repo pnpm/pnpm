@@ -1,5 +1,12 @@
-use clap::{Args, builder::BoolishValueParser};
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use clap::{
+    Args,
+    builder::BoolishValueParser,
+};
+use std::{
+    net::SocketAddr,
+    path::PathBuf,
+    time::Duration,
+};
 
 pub fn parse_cli_interval(raw: &str) -> std::result::Result<Duration, String> {
     pnpr_config::parse_interval(raw)

@@ -1,4 +1,7 @@
-use super::{WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace};
+use super::{
+    WantedLockfileSatisfactionCheck,
+    wanted_lockfile_satisfies_workspace,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -42,6 +45,7 @@ pub(crate) async fn check_frozen_fixture(
             pnpmfile_hook: None,
             scope: super::FreshnessScope {
                 ignore_manifest_check: false,
+                ignore_settings_check: false,
                 allow_missing_dependency_free_importers: false,
                 frozen_lockfile: true,
                 prune_stale_importers: true,

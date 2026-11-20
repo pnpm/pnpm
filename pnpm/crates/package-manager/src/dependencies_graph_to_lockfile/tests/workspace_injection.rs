@@ -1,12 +1,18 @@
 use super::{
-    super::ImporterLockfileInput, dependencies_graph_to_lockfile, make_node, single_importer_opts,
+    super::ImporterLockfileInput,
+    dependencies_graph_to_lockfile,
+    make_node,
+    single_importer_opts,
     write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::PkgName;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::DependenciesGraph;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use serde_json::json;
 use std::collections::BTreeMap;
 use tempfile::TempDir;

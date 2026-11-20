@@ -1,6 +1,9 @@
 mod inheritance;
 
-use super::{CargoDependencyKind, upsert_dependency_in_dir};
+use super::{
+    CargoDependencyKind,
+    upsert_dependency_in_dir,
+};
 use miette::Result;
 
 fn upsert_dependency(

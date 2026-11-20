@@ -1,5 +1,12 @@
-use super::{CheckboxPrompt, Key, KeyOutcome};
-use crate::checkbox_prompt::{CheckboxChoice, CheckboxItem};
+use super::{
+    CheckboxPrompt,
+    Key,
+    KeyOutcome,
+};
+use crate::checkbox_prompt::{
+    CheckboxChoice,
+    CheckboxItem,
+};
 
 fn prompt() -> CheckboxPrompt<usize> {
     CheckboxPrompt::new(

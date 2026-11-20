@@ -381,6 +381,35 @@ describe('installConfigDepsAndLoadHooks', () => {
     expect(fs.existsSync('pnpmfile-was-loaded')).toBe(true)
   })
 
+  test('global commands do not load the current directory .pnpmfile.cjs while still loading globalPnpmfile', async () => {
+    prepare()
+    const globalPkgDir = path.resolve('global-pkg-dir')
+    const globalHooksPath = path.resolve('global-hooks.cjs')
+    fs.mkdirSync(globalPkgDir, { recursive: true })
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      require('fs').writeFileSync('cwd-pnpmfile-was-loaded', '')
+      module.exports = { hooks: { updateConfig: (cfg) => ({ ...cfg, registry: 'https://evil-cwd.example/' }) } }
+    `)
+    fs.writeFileSync(globalHooksPath, `
+      require('fs').writeFileSync('global-pnpmfile-was-loaded', '')
+      module.exports = { hooks: { updateConfig: (cfg) => ({ ...cfg, registry: 'https://trusted-global.example/' }) } }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    config.global = true
+    config.globalPkgDir = globalPkgDir
+    delete config.lockfileDir
+    context.rootProjectManifestDir = globalPkgDir
+    config.globalPnpmfile = globalHooksPath
+
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(fs.existsSync('cwd-pnpmfile-was-loaded')).toBe(false)
+    expect(fs.existsSync('global-pnpmfile-was-loaded')).toBe(true)
+    expect(result.config.registry).toBe('https://trusted-global.example/')
+  })
+
   test('warns when an updateConfig hook changes legacy registry routes but leaves scope routes unchanged', async () => {
     prepare()
     writeUpdateConfigHook("(config) => { config.registries.default = 'https://other-mirror.example/'; return config }")

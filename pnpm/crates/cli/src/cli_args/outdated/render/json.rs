@@ -1,5 +1,8 @@
 use super::{
-    super::{OutdatedInWorkspace, OutdatedPackage},
+    super::{
+        OutdatedInWorkspace,
+        OutdatedPackage,
+    },
     dependency_type_label,
 };
 use std::collections::HashMap;

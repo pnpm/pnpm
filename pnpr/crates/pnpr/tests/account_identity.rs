@@ -1,9 +1,21 @@
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{AuthState, router_with_auth};
-use serde_json::{Value, json};
+use pnpr::{
+    AuthState,
+    router_with_auth,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 use tower::ServiceExt as _;
 
@@ -81,7 +93,7 @@ async fn send(
     if !token.is_empty() {
         request = request.header("authorization", format!("Bearer {token}"));
     }
-    let body = body.map_or_else(Body::empty, |body| Body::from(body.to_string()));
+    let body = body.map(|body| body.to_string()).map_or_else(Body::empty, Body::from);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())

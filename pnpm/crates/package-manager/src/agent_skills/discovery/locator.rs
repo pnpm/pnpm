@@ -1,14 +1,21 @@
 use crate::importer_root_dir;
 use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::{
-    ImporterModulesDirs, is_local_directory_version, link_target_dir, normalize_build_dep_path,
-    parse_dep_path_name_version, validate_importer_id,
+    ImporterModulesDirs,
+    is_local_directory_version,
+    link_target_dir,
+    normalize_build_dep_path,
+    parse_dep_path_name_version,
+    validate_importer_id,
 };
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use super::SyncAgentSkills;
@@ -101,7 +108,8 @@ impl Locator {
             .replace('\\', "/");
         let direct_slot = Path::new(importer_id)
             .ancestors()
-            .map(|dir| dir.to_string_lossy().replace('\\', "/"))
+            .map(Path::to_string_lossy)
+            .map(|text| text.replace('\\', "/"))
             .map(|dir| match dir.as_str() {
                 "" | "." => format!("{root_modules_dir}/{alias}"),
                 dir => format!("{dir}/node_modules/{alias}"),

@@ -1,8 +1,17 @@
-use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_catalogs_types::{
+    Catalogs,
+    DEFAULT_CATALOG_NAME,
+};
 use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 
-use super::{Manifest, edit::CatalogReferences};
+use super::{
+    Manifest,
+    edit::CatalogReferences,
+};
 
 /// What the `catalogPrune` pass counts as a reference to a catalog entry.
 #[derive(Default, Clone, Copy)]

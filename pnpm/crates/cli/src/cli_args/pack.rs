@@ -1,4 +1,4 @@
-//! `pacquet pack` — create a tarball from a package.
+//! `pacquet pack`: create a tarball from a package.
 //!
 //! The single-project work lives in [`pnpm_pack::api`]; this module
 //! maps the resolved [`Config`] and CLI flags onto
@@ -12,30 +12,58 @@ use crate::cli_args::{
     catalogs::configured_catalogs,
     install::resolve_bool_override,
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
+        AutoExcludeRoot,
+        discover_workspace_projects,
+        filtered_projects_dependencies,
         select_recursive_projects,
     },
 };
-use clap::{Args, ValueHint};
+use clap::{
+    Args,
+    ValueHint,
+};
 use miette::Context;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
-    Host, PackError, PackOptions, PackOutputLocks, PackResultJson, WorkspacePackageManifest, api,
-    canonicalize_pack_dir, format_pack_output, pack_output_parts, to_pack_result_json,
+    Host,
+    PackError,
+    PackOptions,
+    PackOutputLocks,
+    PackResultJson,
+    WorkspacePackageManifest,
+    api,
+    canonicalize_pack_dir,
+    format_pack_output,
+    pack_output_parts,
+    to_pack_result_json,
 };
-use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
+use pnpm_reporter::{
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    Reporter,
+};
 use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
+    ScheduleGraphAsyncOptions,
+    TaskCompletion,
+    graph_sequencer,
+    schedule_graph_async,
 };
 use recursive::RecursivePack;
 use std::{
     collections::HashMap,
     io,
     io::Write,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 /// The `wrap_err` framing `pack` and `publish` attach to a failed pack.
@@ -95,7 +123,7 @@ pub struct PackArgs {
     #[clap(long, value_hint = ValueHint::FilePath)]
     pub out: Option<String>,
 
-    /// gzip compression level (`0`–`9`) for the tarball.
+    /// gzip compression level (`0`-`9`) for the tarball.
     #[clap(long = "pack-gzip-level", value_parser = clap::value_parser!(u32).range(0..=9))]
     pub pack_gzip_level: Option<u32>,
 

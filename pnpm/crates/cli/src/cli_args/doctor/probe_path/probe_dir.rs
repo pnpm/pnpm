@@ -1,8 +1,17 @@
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
-    io::{self, Write as _},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        Write as _,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(in crate::cli_args::doctor) fn random_probe_entry_name(prefix: &str) -> OsString {
@@ -207,7 +216,10 @@ fn open_windows_pin_file(
 
 #[cfg(unix)]
 fn open_verified_unix_child_dir(safe_ancestor: &Path, child_name: &OsStr) -> io::Result<fs::File> {
-    use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _};
+    use std::os::unix::fs::{
+        MetadataExt as _,
+        OpenOptionsExt as _,
+    };
 
     let parent = fs::OpenOptions::new()
         .read(true)

@@ -1,20 +1,42 @@
 use super::{
-    super::DependenciesGraphToLockfileError, dependencies_graph_to_lockfile,
-    error_from_single_node_graph, make_file_node, make_named_registry_node, make_node,
-    make_node_with_optional, named_registries_with, single_importer_opts, write_manifest,
+    super::DependenciesGraphToLockfileError,
+    dependencies_graph_to_lockfile,
+    error_from_single_node_graph,
+    make_file_node,
+    make_named_registry_node,
+    make_node,
+    make_node_with_optional,
+    named_registries_with,
+    single_importer_opts,
+    write_manifest,
 };
-use crate::dependencies_graph_to_lockfile::packages::{read_engines, read_string_or_list};
+use crate::dependencies_graph_to_lockfile::packages::{
+    read_engines,
+    read_string_or_list,
+};
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
-    ImporterDepVersion, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    RegistryResolution, SnapshotDepRef,
+    ImporterDepVersion,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    RegistryResolution,
+    SnapshotDepRef,
 };
-use pnpm_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode};
+use pnpm_resolving_deps_resolver::{
+    DependenciesGraph,
+    DependenciesGraphNode,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::json;
 use ssri::Integrity;
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::Arc,
+};
 
 /// An install that resolved no publish dates leaves the section out
 /// rather than writing an empty map.
@@ -236,7 +258,7 @@ fn duplicate_manifest_alias_uses_pnpm_dependency_field_precedence() {
 /// A resolver that hands back no package name leaves a bare
 /// `file:<path>` depPath, which keys neither `packages:` nor
 /// `snapshots:`. Dropping it would write a lockfile whose importer
-/// points at a package neither map describes — see
+/// points at a package neither map describes; see
 /// <https://github.com/pnpm/pnpm/issues/13410>.
 #[test]
 fn nameless_dep_path_returns_structured_error() {
@@ -529,7 +551,7 @@ fn file_dep_child_renders_as_bare_file_ref() {
     assert_eq!(dbg!(child_ref).to_string(), "file:child");
 }
 /// An injected workspace dep whose alias equals its package name must
-/// serialize as the plain `file:<path>(peers)` ref, matching pnpm v11 —
+/// serialize as the plain `file:<path>(peers)` ref, matching pnpm v11,
 /// the `<name>@<ref>` alias form is reserved for renamed deps, and
 /// consumers compose `alias@version` into a snapshot key, so a
 /// self-aliased ref would double-prefix that key.
@@ -591,8 +613,8 @@ fn same_name_injected_dep_serializes_as_plain_file_ref() {
         "renamed aliases must keep the <name>@<ref> form: {renamed:?}",
     );
 }
-/// A canonical named-registry tarball drops its URL — it is rebuilt from
-/// the alias on read — and its presence stamps lockfile format 12.0.
+/// A canonical named-registry tarball drops its URL (it is rebuilt from
+/// the alias on read) and its presence stamps lockfile format 12.0.
 #[test]
 fn named_registry_package_keeps_the_format_and_drops_a_canonical_tarball() {
     let (_tmp, manifest) = write_manifest(json!({

@@ -3,12 +3,24 @@
 //! failed. A bail stopping the tasks still running is the second place pnpm
 //! differs on purpose.
 
-use super::{Leftover, launcher_args, surviving, write_fixture};
+use super::{
+    Leftover,
+    launcher_args,
+    surviving,
+    write_fixture,
+};
 use crate::_utils::wait_for_child;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Stdio};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Stdio,
+};
 
 const LEFTOVERS: [Leftover; 2] = [Leftover::Detached, Leftover::Attached];
 
@@ -49,8 +61,8 @@ fn leftovers_of_a_finished_script_survive_a_recursive_run() {
 
     let mut run = pacquet
         .with_args(["--workspace-concurrency=1", "--no-sort", "-r", "run", "build"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child(&mut run);
@@ -81,8 +93,8 @@ fn leftovers_of_the_script_a_bail_follows_survive_it() {
 
     let mut run = pacquet
         .with_args(["--workspace-concurrency=2", "--no-sort", "-r", "run", "build"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child(&mut run);
@@ -118,8 +130,12 @@ fn recursive_run_bail_stops_running_scripts_gracefully_then_kills_them() {
     let mut run = pacquet
         .with_env("TRACE", "pacquet::process_tracker=debug")
         .with_args(["--workspace-concurrency=3", "--no-sort", "-r", "run", "build"])
-        .stdout(log.try_clone().expect("share the pnpm log"))
-        .stderr(log)
+        .with_stdout(
+            log.try_clone()
+                .expect("share the pnpm log")
+                .into(),
+        )
+        .with_stderr(log.into())
         .spawn()
         .expect("spawn pacquet");
     let report = || bail_report(&workspace, &log_path);
@@ -213,7 +229,7 @@ fn bail_report(workspace: &Path, log_path: &Path) -> String {
         .collect();
     let log = fs::read_to_string(log_path).unwrap_or_else(|error| format!("<{error}>"));
     let processes = std::process::Command::new("ps")
-        .args(["-A", "-o", "pid,ppid,pgid,stat,command"])
+        .with_args(["-A", "-o", "pid,ppid,pgid,stat,command"])
         .output()
         .map(|output| {
             String::from_utf8_lossy(&output.stdout)
@@ -272,8 +288,8 @@ fn recursive_run_bail_ends_a_detached_grandchild_of_a_running_script() {
 
     let mut run = pacquet
         .with_args(["--workspace-concurrency=2", "--no-sort", "-r", "run", "build"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .spawn()
         .expect("spawn pacquet");
     let connection = super::killed::accept_detached_connection(&listener, &mut run);

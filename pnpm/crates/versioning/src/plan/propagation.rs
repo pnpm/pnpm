@@ -1,9 +1,28 @@
 use super::{
-    AssembleContext, BTreeMap, BTreeSet, BumpState, ChangeIntent, DependencyUpdate, HashMap,
-    HashSet, IntentBumpType, InternalDep, PackageConsumption, Participant, PlannedRelease,
-    ReleaseBumpType, ReleaseCause, VersioningError, apply_epic_band_versions,
-    apply_fixed_group_versions, compute_new_version, epic_rebase_floor,
-    materialize_workspace_range, max_bump_type, max_bump_type_of, range_accepts,
+    AssembleContext,
+    BTreeMap,
+    BTreeSet,
+    BumpState,
+    ChangeIntent,
+    DependencyUpdate,
+    HashMap,
+    HashSet,
+    IntentBumpType,
+    InternalDep,
+    PackageConsumption,
+    Participant,
+    PlannedRelease,
+    ReleaseBumpType,
+    ReleaseCause,
+    VersioningError,
+    apply_epic_band_versions,
+    apply_fixed_group_versions,
+    compute_new_version,
+    epic_rebase_floor,
+    materialize_workspace_range,
+    max_bump_type,
+    max_bump_type_of,
+    range_accepts,
 };
 
 /// The intents bearing on each participant: those still pending, and those
@@ -266,7 +285,7 @@ fn changelog_intents(
 }
 
 /// A published `package@version` identifies exactly one artifact, so two
-/// projects that share a name cannot both release the same version — the
+/// projects that share a name cannot both release the same version, the
 /// registry would reject the second publish, and the name-keyed ledger entry
 /// would collide. Caught here, before any manifest is written, naming both
 /// directories.

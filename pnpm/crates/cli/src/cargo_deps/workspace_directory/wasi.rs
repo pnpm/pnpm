@@ -1,4 +1,8 @@
-use super::{ManagedDirectory, Path, io};
+use super::{
+    ManagedDirectory,
+    Path,
+    io,
+};
 
 pub(super) fn unsupported<T>() -> io::Result<T> {
     Err(io::Error::new(

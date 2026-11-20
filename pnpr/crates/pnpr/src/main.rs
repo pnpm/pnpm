@@ -1,12 +1,37 @@
-use clap::{ArgMatches, CommandFactory as _, FromArgMatches as _, Parser, parser::ValueSource};
+use clap::{
+    ArgMatches,
+    CommandFactory as _,
+    FromArgMatches as _,
+    Parser,
+    parser::ValueSource,
+};
 use pnpm_diagnostics::println;
 use pnpr::{
-    Command, Config, ConfigSource, ConfigSubcommand, LogConfig, RegistryError, ServerArgs,
-    default_cache_dir, logging::log_subscriber, run_command, serve,
+    Command,
+    Config,
+    ConfigSource,
+    ConfigSubcommand,
+    LogConfig,
+    RegistryError,
+    ServerArgs,
+    default_cache_dir,
+    logging::log_subscriber,
+    run_command,
+    serve,
 };
-use pnpr_config::{BackendConfig, DatabaseBackend, default_database_path};
-use std::{io::IsTerminal, path::PathBuf};
-use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
+use pnpr_config::{
+    BackendConfig,
+    DatabaseBackend,
+    default_database_path,
+};
+use std::{
+    io::IsTerminal,
+    path::PathBuf,
+};
+use tracing_subscriber::{
+    EnvFilter,
+    util::SubscriberInitExt as _,
+};
 
 // Rendering a packument makes large, short-lived allocations on many threads.
 // glibc malloc keeps that memory after the requests finish, so the resident
@@ -53,7 +78,7 @@ struct StorageArgs {
     #[arg(long, env = "PNPR_STORAGE", global = true)]
     storage: Option<PathBuf>,
 
-    /// Override the proxy-cache path — the disposable mirror of
+    /// Override the proxy-cache path, the disposable mirror of
     /// upstream registries plus the resolver's cache. Point
     /// it at separate, ephemeral disk to keep published packages and
     /// cached upstream content on different volumes.
@@ -208,13 +233,13 @@ fn redacted_report(err: &RegistryError) -> miette::Report {
 
 /// Install the `tracing-subscriber` for this process based on the
 /// resolved log config. `RUST_LOG` always wins over the YAML/CLI
-/// level — same precedence Node ecosystem tools use for their
+/// level, same precedence Node ecosystem tools use for their
 /// `LOG_LEVEL`/`DEBUG` env vars, and what existing pnpr
 /// operators will already expect.
 fn init_logging(logs: &LogConfig) {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(logs.level.as_filter_directive()));
-    // Emit ANSI colors only to an interactive terminal — never when stdout is
+    // Emit ANSI colors only to an interactive terminal, never when stdout is
     // redirected to a file or pipe (e.g. the benchmark's mock logs), where the
     // escape codes are just noise that breaks downstream log parsing. The
     // writer is pinned to stdout explicitly so the `is_terminal` probe always

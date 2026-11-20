@@ -1,12 +1,37 @@
 use crate::cli_args::{
-    registry_client::{apply_auth_and_otp, join_registry_endpoint, join_registry_url},
-    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
-    token::{TOKEN_BODY_LIMIT, TokenError, redact_token_argument},
+    registry_client::{
+        apply_auth_and_otp,
+        join_registry_endpoint,
+        join_registry_url,
+    },
+    sanitize::{
+        DEFAULT_ERROR_BODY_LIMIT,
+        read_sanitized_error_body,
+    },
+    token::{
+        TOKEN_BODY_LIMIT,
+        TokenError,
+        redact_token_argument,
+    },
 };
-use miette::{Context, IntoDiagnostic};
-use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-use pnpm_network::{RetryOpts, ThrottledClient, read_limited_body, send_with_retry};
-use serde::{Deserialize, Serialize};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use percent_encoding::{
+    NON_ALPHANUMERIC,
+    utf8_percent_encode,
+};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+    read_limited_body,
+    send_with_retry,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Bounds the `urls.next` chain of `GET /-/npm/v1/tokens`, so a registry that
 /// keeps returning a next page cannot hold the command forever.

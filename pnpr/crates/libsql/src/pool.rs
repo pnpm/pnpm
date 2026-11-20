@@ -1,16 +1,36 @@
 //! The connections a libSQL database's operations run on.
 
-use crate::{is_stale_stream, with_deadline};
-use libsql::{Connection, Database, Error as LibsqlError, Row};
-use pnpr_error::{RegistryError, Result};
+use crate::{
+    is_stale_stream,
+    with_deadline,
+};
+use libsql::{
+    Connection,
+    Database,
+    Error as LibsqlError,
+    Row,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     future::Future,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tokio::{
     runtime::Handle,
-    sync::{OwnedSemaphorePermit, Semaphore},
+    sync::{
+        OwnedSemaphorePermit,
+        Semaphore,
+    },
 };
 
 /// `read` applied to the first of `rows`, which are then read to their end.
@@ -46,7 +66,7 @@ const IDLE_EXPIRY: Duration = Duration::from_secs(5);
 /// still inside a transaction would pull the next operation into it. A
 /// connection therefore returns to the pool only after its operation succeeded
 /// outside a transaction; any other is closed, and a later checkout opens a
-/// fresh one. A connection idle for `IDLE_EXPIRY` is closed as well.
+/// fresh one. A connection idle past the expiry is closed as well.
 ///
 /// A stream can still be gone when its connection is checked out, such as
 /// after the server restarted. The server rejects the stream's request

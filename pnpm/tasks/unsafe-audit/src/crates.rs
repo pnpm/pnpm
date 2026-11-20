@@ -1,7 +1,10 @@
 //! The workspace's members and the source files each one owns.
 
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One workspace member: what it is called, where it is, and which files
 /// are the roots of its compilation units.

@@ -1,8 +1,16 @@
 //! The `.modules.yaml` files that list the injected copies of a package.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use crate::{SyncInjectedDeps, SyncInjectedDepsError, hoisted_bin_path, read_workspace_modules};
+use crate::{
+    SyncInjectedDeps,
+    SyncInjectedDepsError,
+    hoisted_bin_path,
+    read_workspace_modules,
+};
 
 /// A project with its own lockfile, and the modules directory that holds
 /// its `.modules.yaml`.

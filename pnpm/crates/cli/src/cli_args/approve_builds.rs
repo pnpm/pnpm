@@ -1,11 +1,20 @@
 pub(crate) use prompt::disambiguated_labels;
 #[cfg(not(target_family = "wasm"))]
-pub(crate) use prompt::{confirm, prompt_for_choices};
+pub(crate) use prompt::{
+    confirm,
+    prompt_for_choices,
+};
 pub(crate) use store::{
-    ApprovalStore, GlobalPackagesStore, load_global_packages_config, load_legacy_global_settings,
+    ApprovalStore,
+    GlobalPackagesStore,
+    load_global_packages_config,
+    load_legacy_global_settings,
 };
 #[cfg(target_family = "wasm")]
-pub(crate) use wasm::{confirm, prompt_for_choices};
+pub(crate) use wasm::{
+    confirm,
+    prompt_for_choices,
+};
 
 mod prompt;
 mod store;
@@ -14,21 +23,45 @@ mod wasm;
 
 use crate::{
     State,
-    cli_args::ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
+    cli_args::ignored_builds::{
+        IgnoredBuildsScan,
+        get_automatically_ignored_builds,
+    },
     confirm_prompt::PromptAvailability,
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::Config;
-use pnpm_modules_yaml::{Host, write_modules_manifest};
-use pnpm_package_manager::{
-    allow_build_key_from_ignored_build, parse_allow_build_selector, parse_dep_path_name_version,
+use derive_more::{
+    Display,
+    Error,
 };
-use pnpm_reporter::{Reporter, emit_global_warning};
-use prompt::{confirm_builds_prompt, prompt_for_builds};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::Config;
+use pnpm_modules_yaml::{
+    Host,
+    write_modules_manifest,
+};
+use pnpm_package_manager::{
+    allow_build_key_from_ignored_build,
+    parse_allow_build_selector,
+    parse_dep_path_name_version,
+};
+use pnpm_reporter::{
+    Reporter,
+    emit_global_warning,
+};
+use prompt::{
+    confirm_builds_prompt,
+    prompt_for_builds,
+};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     path::Path,
 };
 
@@ -262,7 +295,7 @@ fn named_decisions(approved: &[String], denied: &[String]) -> BTreeMap<String, b
 }
 
 /// Whether the interactive run may proceed. An empty selection needs no
-/// confirmation — it denies every pending package.
+/// confirmation; it denies every pending package.
 fn confirm_selected_builds(build_packages: &[String], pending: &[String]) -> miette::Result<bool> {
     if build_packages.is_empty() {
         pnpm_diagnostics::println!("All packages were added to allowBuilds with value false.");
@@ -401,7 +434,12 @@ mod tests;
 
 pub(crate) fn exclude_disallowed_builds(scan: &mut IgnoredBuildsScan, config: &Config) {
     if let Some(names) = scan.names.as_mut() {
-        names.retain(|name| config.allow_builds.get(name) != Some(&false));
+        names.retain(|name| {
+            config.allow_builds
+                .get(name)
+                .copied()
+                .unwrap_or(true)
+        });
     }
 }
 

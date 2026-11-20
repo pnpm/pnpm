@@ -4,11 +4,19 @@
 //! from or where the lockfile is pinned.
 
 use crate::_utils::{
-    ManifestDeps, append_workspace_yaml_key, pacquet_in, read_manifest, write_project_manifest,
+    ManifestDeps,
+    append_workspace_yaml_key,
+    pacquet_in,
+    read_manifest,
+    write_project_manifest,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, fixtures::minimal_tarball, fs::bump_mtime};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    fixtures::minimal_tarball,
+    fs::bump_mtime,
+};
 use std::fs;
 
 #[test]

@@ -1,14 +1,31 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation, project_lifecycle_graph},
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+        project_lifecycle_graph,
+    },
     InstallDirs,
 };
-use crate::{PolicyExcludes, ResolvedPackages};
+use crate::{
+    PolicyExcludes,
+    ResolvedPackages,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_testing_utils::registry::TestRegistry;
-use std::{fs, sync::Arc};
+use std::{
+    fs,
+    sync::Arc,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -70,7 +87,7 @@ fn lifecycle_graph_normalizes_paths_and_recovers_from_incomplete_explicit_graph(
 /// `Display` form (`name@version(peers)`), and ordering is handled by
 /// `write_modules_manifest`'s sort-on-write.
 ///
-/// An empty set produces an empty list — covers the fresh-install
+/// An empty set produces an empty list, covers the fresh-install
 /// case while pinning that the field is always present on the
 /// manifest.
 ///
@@ -115,7 +132,7 @@ fn build_modules_manifest_serializes_skipped_set() {
         "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
     );
 
-    // Compare as sets — `build_modules_manifest` does not sort.
+    // Compare as sets, `build_modules_manifest` does not sort.
     // Sort-on-write happens later inside `write_modules_manifest`;
     // the read-after-write order is covered by the integration
     // test on the full install path.
@@ -127,8 +144,8 @@ fn build_modules_manifest_serializes_skipped_set() {
     assert_eq!(actual, expected);
 }
 /// Empty `SkippedSnapshots` produces an empty `Modules.skipped`. The
-/// common case — most installs have no platform-mismatched optional
-/// deps — must keep the field present-but-empty so the on-disk
+/// common case (most installs have no platform-mismatched optional
+/// deps) must keep the field present-but-empty so the on-disk
 /// shape stays uniform.
 #[test]
 fn build_modules_manifest_skipped_is_empty_on_empty_set() {
@@ -184,6 +201,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -257,8 +275,8 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
 /// `unapproved_recorded_ignored_builds` surfaces a malformed
 /// `allowBuilds` spec as `Err` (here `ERR_PNPM_INVALID_VERSION_UNION`)
 /// instead of swallowing it into `None`, so the strict up-to-date fast
-/// paths fall through to the full install — which reports the real error
-/// — rather than short-circuiting to success and hiding it.
+/// paths fall through to the full install (which reports the real error)
+/// rather than short-circuiting to success and hiding it.
 #[test]
 fn unapproved_recorded_ignored_builds_surfaces_invalid_allow_builds() {
     let modules = pnpm_modules_yaml::ModulesLayout {

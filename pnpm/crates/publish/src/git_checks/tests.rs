@@ -1,6 +1,16 @@
-use super::{GitCheckError, run_git_checks};
-use crate::capabilities::{CommandOutput, ConfirmPrompt, RunCommand};
-use std::{io, path::Path};
+use super::{
+    GitCheckError,
+    run_git_checks,
+};
+use crate::capabilities::{
+    CommandOutput,
+    ConfirmPrompt,
+    RunCommand,
+};
+use std::{
+    io,
+    path::Path,
+};
 use tempfile::TempDir;
 
 /// Create a scratch directory holding a `.git/HEAD` with the given contents.

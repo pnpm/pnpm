@@ -1,18 +1,39 @@
 use std::{
-    cell::{Cell, RefCell},
-    future::{self, Future},
+    cell::{
+        Cell,
+        RefCell,
+    },
+    future::{
+        self,
+        Future,
+    },
     io,
     pin::Pin,
     sync::Mutex,
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
 };
 
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pretty_assertions::assert_eq;
-use tokio::{sync::oneshot, task::LocalSet};
+use tokio::{
+    sync::oneshot,
+    task::LocalSet,
+};
 
 use super::prompt_browser_open;
-use crate::capabilities::{EnterKeyListener, OpenUrl, StdinIsTty};
+use crate::capabilities::{
+    EnterKeyListener,
+    OpenUrl,
+    StdinIsTty,
+};
 
 #[derive(Clone, Copy)]
 enum Outcome {
@@ -21,8 +42,8 @@ enum Outcome {
 }
 
 // Per-test fake for stdin-tty / browser-open / enter-key, plus a recording
-// reporter. Its state is fn-local — thread-locals for the inputs and a `static
-// Mutex<Vec<LogEvent>>` for the captured log events — so each `#[test]` gets
+// reporter. Its state is fn-local (thread-locals for the inputs and a `static
+// Mutex<Vec<LogEvent>>` for the captured log events) so each `#[test]` gets
 // independent storage and concurrent tests never share it. Each test names the
 // optional helpers it drives, so every emitted helper is used and none needs a
 // `dead_code` allow.
@@ -164,7 +185,7 @@ macro_rules! browser_fake {
     };
 }
 
-// The `Global`-log messages at `level`, in emit order — the projection that
+// The `Global`-log messages at `level`, in emit order, the projection that
 // the fake's `infos` and `warns` accessors share.
 fn global_messages_at(events: &[LogEvent], level: LogLevel) -> Vec<String> {
     events

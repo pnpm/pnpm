@@ -1,6 +1,12 @@
 use axum::http::HeaderMap;
-use pnpr_config::{IpNetwork, TrustedProxyHeader};
-use std::net::{IpAddr, SocketAddr};
+use pnpr_config::{
+    IpNetwork,
+    TrustedProxyHeader,
+};
+use std::net::{
+    IpAddr,
+    SocketAddr,
+};
 
 /// Client IP address resolved for the current request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

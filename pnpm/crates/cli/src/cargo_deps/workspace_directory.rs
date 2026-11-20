@@ -3,11 +3,20 @@ pub(super) use windows::ensure_workspace_directory_windows;
 
 #[cfg(any(unix, windows))]
 use super::fs;
-use super::{IntoDiagnostic, Path, PathBuf, Result, io};
+use super::{
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    Result,
+    io,
+};
 #[cfg(any(unix, windows))]
 use miette::WrapErr;
 #[cfg(unix)]
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 #[cfg(unix)]
 static MANAGED_TEMP_ID: AtomicU64 = AtomicU64::new(0);
@@ -149,8 +158,10 @@ pub(super) fn write_workspace_file(
     bytes: &[u8],
     mode: Option<u32>,
 ) -> io::Result<()> {
-    use std::io::Write as _;
-    use std::os::unix::fs::PermissionsExt as _;
+    use std::{
+        io::Write as _,
+        os::unix::fs::PermissionsExt as _,
+    };
 
     let (temporary, mut file) = create_workspace_temporary(directory, name, mode)?;
     let result = (|| {
@@ -281,4 +292,8 @@ mod windows;
 #[cfg(target_os = "wasi")]
 mod wasi;
 #[cfg(target_os = "wasi")]
-pub(super) use wasi::{force_workspace_symlink, read_workspace_file, write_workspace_file};
+pub(super) use wasi::{
+    force_workspace_symlink,
+    read_workspace_file,
+    write_workspace_file,
+};

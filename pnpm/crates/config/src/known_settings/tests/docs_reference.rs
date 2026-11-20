@@ -10,7 +10,10 @@ use super::super::settings_field_keys;
 use std::{
     collections::BTreeSet,
     fmt::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 // Each list below holds today's gaps of one kind, one name per gap. A gap
@@ -183,7 +186,8 @@ fn slugify(text: &str) -> String {
 /// separated by `,` or `/`. Prose and CLI flags name none.
 fn setting_names(text: &str) -> Vec<String> {
     text.split([',', '/'])
-        .map(|part| part.trim().trim_start_matches("[no-]"))
+        .map(str::trim)
+        .map(|trimmed| trimmed.trim_start_matches("[no-]"))
         .filter(|part| is_setting_name(part))
         .map(str::to_string)
         .collect()
@@ -208,7 +212,8 @@ fn index_links(settings_md: &str) -> Vec<IndexLink> {
     let has_index = lines.any(|line| line == "## Settings");
     assert!(has_index, "settings.md has no `## Settings` section");
     lines
-        .filter_map(|line| line.trim_start().strip_prefix("* "))
+        .map(str::trim_start)
+        .filter_map(|trim_start| trim_start.strip_prefix("* "))
         .flat_map(links_in)
         .collect()
 }
@@ -274,7 +279,8 @@ fn names_documented_by(link: &IndexLink) -> Vec<String> {
 fn settings_pages() -> Vec<PathBuf> {
     let mut pages: Vec<PathBuf> = std::fs::read_dir(docs_dir().join("settings"))
         .expect("read pnpm/docs/settings")
-        .map(|entry| entry.expect("read pnpm/docs/settings entry").path())
+        .map(|entry| entry.expect("read pnpm/docs/settings entry"))
+        .map(|value| value.path())
         .filter(|path| {
             path.extension()
                 .is_some_and(|extension| extension == "md")

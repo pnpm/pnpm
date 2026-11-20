@@ -1,9 +1,27 @@
 use super::{
-    Command, CommandExtra, CommandTempCwd, DependencyGroup, HERMETIC_STORE_YAML, Lockfile,
-    PackageManifest, Pipe, PkgName, TempDir, add_in, assert_eq, linking_settings, prod_spec,
-    saved_spec, workspace_with_lib, write_json, write_workspace_with_local_fixtures,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    DependencyGroup,
+    HERMETIC_STORE_YAML,
+    Lockfile,
+    PackageManifest,
+    Pipe,
+    PkgName,
+    TempDir,
+    add_in,
+    assert_eq,
+    linking_settings,
+    prod_spec,
+    saved_spec,
+    workspace_with_lib,
+    write_json,
+    write_workspace_with_local_fixtures,
 };
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 #[test]
 fn add_to_multi_pattern_workspace_root_requires_workspace_root_flag() {
@@ -388,7 +406,8 @@ fn add_lockfile_only_from_workspace_subdir_prints_manifest_summary() {
     assert!(output.status.success(), "add failed\nstderr:\n{stderr}");
     let records = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .collect::<Vec<_>>();
     let initial_manifest_count = records
         .iter()
@@ -505,7 +524,7 @@ fn a_workspace_add_at_a_dist_tag_keeps_the_local_package_over_a_matching_catalog
 }
 
 /// `workspace:<target>@<range>` installs `<target>` under the name the
-/// selector gave, so the saved specifier has to keep naming the target —
+/// selector gave, so the saved specifier has to keep naming the target,
 /// dropping it would leave a `workspace:` entry pointing at the install
 /// name, which resolves to nothing.
 ///
@@ -549,7 +568,7 @@ fn the_pinned_form_picks_the_highest_workspace_version_by_semver() {
 }
 
 /// The setting is readable from `PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL`
-/// too, not only `pnpm-workspace.yaml` — pnpm exposes every setting
+/// too, not only `pnpm-workspace.yaml`, pnpm exposes every setting
 /// through its env pass.
 #[test]
 fn the_env_var_drives_the_saved_workspace_range() {
@@ -566,7 +585,7 @@ fn the_env_var_drives_the_saved_workspace_range() {
             .expect("find the pnpm binary")
             .with_current_dir(&app_dir)
             .with_args(["add", &format!("{LIB}@workspace:^1.0.0"), "--lockfile-only"])
-            .env("PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL", value)
+            .with_env("PNPM_CONFIG_SAVE_WORKSPACE_PROTOCOL", value)
             .assert()
             .success();
 

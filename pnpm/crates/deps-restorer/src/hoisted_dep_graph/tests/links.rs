@@ -1,13 +1,27 @@
 use super::{
     super::{
-        HoistedDepGraphError, LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph,
+        HoistedDepGraphError,
+        LockfileToHoistedDepGraphOptions,
+        lockfile_to_hoisted_dep_graph,
     },
-    dep_key, host_aware_opts, lockfile_with, metadata_stub, pkg_name, resolved_dep,
+    dep_key,
+    host_aware_opts,
+    lockfile_with,
+    metadata_stub,
+    pkg_name,
+    resolved_dep,
 };
-use pnpm_lockfile::{Lockfile, ResolvedDependencyMap, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    ResolvedDependencyMap,
+    SnapshotEntry,
+};
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     path::PathBuf,
 };
 

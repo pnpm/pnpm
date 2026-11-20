@@ -1,9 +1,15 @@
 use super::{
-    super::super::{AppState, routing::state_and_router},
+    super::super::{
+        AppState,
+        routing::state_and_router,
+    },
     build_snapshot,
 };
 use pnpr_auth::AuthState;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_upstream::CacheValidators;
 use std::time::Duration;
 

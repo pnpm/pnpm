@@ -1,7 +1,15 @@
 use super::{
-    NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig, bundled_root_certs,
+    NetworkSettings,
+    PerRegistryTls,
+    ProxyConfig,
+    ThrottledClient,
+    TlsConfig,
+    bundled_root_certs,
 };
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+use tokio::io::{
+    AsyncReadExt as _,
+    AsyncWriteExt as _,
+};
 
 #[test]
 fn for_installs_with_empty_proxy_config_builds() {
@@ -101,7 +109,7 @@ async fn https_target_uses_configured_proxy() {
 #[test]
 fn for_installs_honors_custom_network_settings() {
     // Custom concurrency, timeout, warning thresholds, and user-agent must thread through
-    // without error — the settings reach the semaphore and the reqwest
+    // without error, the settings reach the semaphore and the reqwest
     // builder rather than being ignored.
     let settings = NetworkSettings {
         network_concurrency: 4,

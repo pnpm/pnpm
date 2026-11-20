@@ -1,15 +1,35 @@
 //! The [`PackageMetadata`] of one `(namespace, ecosystem)` slice.
 
 use super::{
-    Expected, PackageKey, SqlDatabase, batch::Retired, blobs::LookupRead, commit, removed, render,
-    tags, transactions::Freshness,
+    Expected,
+    PackageKey,
+    SqlDatabase,
+    batch::Retired,
+    blobs::LookupRead,
+    commit,
+    removed,
+    render,
+    tags,
+    transactions::Freshness,
 };
 use crate::{
-    DocumentWrite, HostedDocumentForUpdate, HostedDocumentVersion,
-    database::{BlobLookup, HostedLookup, PackageView, PublishBase, TagChange, TagUpdate},
+    DocumentWrite,
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+    database::{
+        BlobLookup,
+        HostedLookup,
+        PackageView,
+        PublishBase,
+        TagChange,
+        TagUpdate,
+    },
 };
 use pnpr_error::Result;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use std::sync::Arc;
 
 /// The metadata of one `(namespace, ecosystem)` slice: what the registry's

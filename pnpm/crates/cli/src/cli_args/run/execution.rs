@@ -1,15 +1,43 @@
 use super::{
-    Config, ExecDirs, HashMap, IndexMap, IntoDiagnostic, Mutex, PackageManifest, Path,
-    ProcessTracker, RunArgs, RunError, RunScript, ScheduleGraphOptions, ScriptExit, ScriptOutput,
-    ScriptSelector, TaskCompletion, Value, env, exec_fallback, exit_like,
-    injected_sync::{start_injected_edit_watch, sync_injected_deps_after},
+    Config,
+    ExecDirs,
+    HashMap,
+    IndexMap,
+    IntoDiagnostic,
+    Mutex,
+    PackageManifest,
+    Path,
+    ProcessTracker,
+    RunArgs,
+    RunError,
+    RunScript,
+    ScheduleGraphOptions,
+    ScriptExit,
+    ScriptOutput,
+    ScriptSelector,
+    TaskCompletion,
+    Value,
+    env,
+    exec_fallback,
+    exit_like,
+    injected_sync::{
+        start_injected_edit_watch,
+        sync_injected_deps_after,
+    },
     interrupt_count,
     lifecycle_failure::report_lifecycle_failure,
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
-    pnp_path_for_execution, run_script, schedule_graph, throw_or_filter_hidden_scripts,
+    make_node_package_map_option,
+    make_node_require_option,
+    package_map_path_for_execution,
+    pnp_path_for_execution,
+    run_script,
+    schedule_graph,
+    throw_or_filter_hidden_scripts,
 };
 use crate::cli_args::concurrency_group::{
-    SlotOutcome, acquire_concurrency_group_slot, with_held_group,
+    SlotOutcome,
+    acquire_concurrency_group_slot,
+    with_held_group,
 };
 use pnpm_reporter::LogEvent;
 
@@ -87,7 +115,7 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
 /// fallback, so the `pre`/`post` substring guard runs against the
 /// resolved `main_body` here.
 /// Run the matched scripts, in parallel when the run allows it. One
-/// script — or a sequential run — needs no scheduler; running it inline
+/// script (or a sequential run) needs no scheduler; running it inline
 /// keeps its output attached to this process.
 pub(super) fn run_selected_scripts(
     ctx: &RunContext<'_>,
@@ -436,7 +464,7 @@ fn get_run_script_stages(
 /// no-op guards apply (empty body, or `npx only-allow pnpm` with no
 /// args), so the caller can record "didn't actually run" without
 /// inventing a synthetic exit. A non-success status is
-/// returned to the caller — single-project `RunArgs::run` exits with
+/// returned to the caller, single-project `RunArgs::run` exits with
 /// the code; recursive `run_recursive` records `Failure` and decides
 /// whether to bail.
 pub(in super::super) fn run_stage(

@@ -1,9 +1,28 @@
 use super::{
-    CWD, ExecutionTimeLog, LogEvent, LogLevel, MaxLogLevel, Output, ReporterOptions, Stage,
-    fetching_in_progress, fetching_started, interleaved_lifecycle_events, lifecycle_stdio_events,
-    pnpm_log, progress, progress_at, render, stage_at, state, state_with_options,
+    CWD,
+    ExecutionTimeLog,
+    LogEvent,
+    LogLevel,
+    MaxLogLevel,
+    Output,
+    ReporterOptions,
+    Stage,
+    fetching_in_progress,
+    fetching_started,
+    interleaved_lifecycle_events,
+    lifecycle_stdio_events,
+    pnpm_log,
+    progress,
+    progress_at,
+    render,
+    stage_at,
+    state,
+    state_with_options,
 };
-use pnpm_reporter::{LifecycleLog, LifecycleMessage};
+use pnpm_reporter::{
+    LifecycleLog,
+    LifecycleMessage,
+};
 
 #[test]
 fn prints_progress_on_first_download() {
@@ -167,7 +186,7 @@ fn append_only_streams_each_lifecycle_output_line() {
 }
 
 /// `hideLifecycleOutput` keeps the script's output in its collapsed block
-/// rather than streaming it, even under append-only rendering — pnpm's
+/// rather than streaming it, even under append-only rendering, pnpm's
 /// behavior for an embedder that owns the surrounding terminal output.
 #[test]
 fn hide_lifecycle_output_stops_the_streaming_even_under_append_only() {

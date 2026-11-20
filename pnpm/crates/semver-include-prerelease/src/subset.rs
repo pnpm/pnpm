@@ -9,9 +9,15 @@
 
 use std::collections::BTreeMap;
 
-use node_semver::{Identifier, Range};
+use node_semver::{
+    Identifier,
+    Range,
+};
 
-use crate::{glue_operators_to_versions, npm_upper_bound};
+use crate::{
+    glue_operators_to_versions,
+    npm_upper_bound,
+};
 
 type ReleaseTuple = (u64, u64, u64);
 type ReleasePoint = (u64, u64, u128);

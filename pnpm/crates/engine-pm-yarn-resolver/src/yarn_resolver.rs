@@ -2,18 +2,41 @@
 
 use std::sync::Arc;
 
-use derive_more::{Display, Error};
-use miette::Diagnostic;
-use pnpm_lockfile::{LockfileResolution, VariationsResolution};
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
-use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+use derive_more::{
+    Display,
+    Error,
 };
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
+use miette::Diagnostic;
+use pnpm_lockfile::{
+    LockfileResolution,
+    VariationsResolution,
+};
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
+};
+use pnpm_resolving_resolver_base::{
+    LatestInfo,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
+};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
+};
 
 use crate::read_yarn_releases::{
-    ReadYarnReleasesError, YarnRelease, asset_variants, fetch_yarn_releases,
+    ReadYarnReleasesError,
+    YarnRelease,
+    asset_variants,
+    fetch_yarn_releases,
 };
 
 const RESOLVED_VIA: &str = "github.com/yarnpkg/zpm";
@@ -42,8 +65,8 @@ pub struct YarnResolver {
     /// GitHub would take the setting somewhere it was never pointed.
     pub authenticate: bool,
     /// The release list, fetched at most once per resolver. One command
-    /// can resolve Yarn more than once — a resolve and a latest probe, or
-    /// several importers pinning it — and the list is one unconditional
+    /// can resolve Yarn more than once (a resolve and a latest probe, or
+    /// several importers pinning it) and the list is one unconditional
     /// GitHub API request, which is rate-limited for an unauthenticated
     /// caller.
     releases: tokio::sync::OnceCell<Arc<Vec<YarnRelease>>>,
@@ -100,7 +123,7 @@ impl YarnResolver {
         let release = pick_release(releases, lookup_spec)
             .ok_or_else(|| {
                 // The specifier comes from a manifest, so it can carry
-                // credentials — the message a user sees must not.
+                // credentials, the message a user sees must not.
                 let spec = redact_and_sanitize(version_spec);
                 Box::new(YarnResolverError::ResolutionFailure { spec }) as ResolveError
             })?;
@@ -204,7 +227,7 @@ pub async fn resolve_yarn_version(
 /// matches nothing under semver's prerelease rule. Rather than refuse to
 /// install the only Yarn 6 that exists, an unsatisfied range is retried
 /// against each candidate's release version with its prerelease tag
-/// dropped — the same allowance the `packageManager` version check makes.
+/// dropped, the same allowance the `packageManager` version check makes.
 pub(crate) fn pick_release<'a>(
     releases: &'a [YarnRelease],
     version_spec: &str,

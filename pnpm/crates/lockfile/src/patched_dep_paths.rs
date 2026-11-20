@@ -1,17 +1,33 @@
 use crate::{
-    ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PkgName, PkgVerPeer, SnapshotDepRef,
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgVerPeer,
+    SnapshotDepRef,
 };
 use pnpm_patching_config::{
-    PatchGroup, PatchGroupRecord, PatchInput, get_patch_info, group_patched_dependencies, parse_key,
+    PatchGroup,
+    PatchGroupRecord,
+    PatchInput,
+    get_patch_info,
+    group_patched_dependencies,
+    parse_key,
 };
 use segments::split_suffix;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+    HashSet,
+};
 
 /// The version a patch was matched against, when the lockfile records one.
 ///
 /// The version slot of a key only holds a bare semver for a registry package;
 /// a git / tarball / `file:` one holds its resolution there instead, and the
-/// version it resolved to is what `packages:` records — so that entry wins
+/// version it resolved to is what `packages:` records, so that entry wins
 /// when there is one. A registry-qualified key
 /// (`<name>@<registryName>:<version>`) gets no such entry, because its slot
 /// already carries the semver behind the registry alias.
@@ -137,27 +153,38 @@ struct Checker<'a> {
     indeterminate: bool,
 }
 
+/// The recorded patch keys that group on their own, and the package names
+/// of the ones that do not.
+fn group_recorded_patches(lockfile: &Lockfile) -> (PatchGroupRecord, HashSet<String>) {
+    let mut usable = Vec::new();
+    let mut unusable = HashSet::new();
+    for (key, hash) in lockfile.patched_dependencies.iter().flatten() {
+        let entry = (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None });
+        if group_patched_dependencies([entry.clone()]).is_ok() {
+            usable.push(entry);
+        } else {
+            unusable.insert(parse_key(key).name.unwrap_or(key).to_string());
+        }
+    }
+    let groups = group_patched_dependencies(usable)
+        .expect("every key was grouped on its own without an error");
+    (groups, unusable)
+}
+
 impl<'a> Checker<'a> {
     fn new(lockfile: &'a Lockfile) -> Self {
-        let mut usable = Vec::new();
-        let mut unusable = HashSet::new();
-        for (key, hash) in lockfile.patched_dependencies.iter().flatten() {
-            let entry = (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None });
-            if group_patched_dependencies([entry.clone()]).is_ok() {
-                usable.push(entry);
-            } else {
-                unusable.insert(parse_key(key).name.unwrap_or(key).to_string());
-            }
-        }
-        let groups = group_patched_dependencies(usable)
-            .expect("every key was grouped on its own without an error");
+        let (groups, unusable) = group_recorded_patches(lockfile);
         let patched_names = groups
             .keys()
             .chain(&unusable)
-            .filter_map(|name| PkgName::parse(name.as_str()).ok())
+            .map(String::as_str)
+            .map(PkgName::parse)
+            .filter_map(Result::ok)
             .collect();
-        let peers_are_deduped =
-            lockfile.settings.as_ref().and_then(|settings| settings.dedupe_peers) == Some(true);
+        let peers_are_deduped = lockfile.settings
+            .as_ref()
+            .and_then(|settings| settings.dedupe_peers)
+            .unwrap_or(false);
         let patched_peer_markers = if peers_are_deduped {
             Vec::new()
         } else {

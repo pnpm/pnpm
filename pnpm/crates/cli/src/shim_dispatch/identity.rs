@@ -1,9 +1,16 @@
 //! Candidate identity: which package provides a bin, and the
 //! fingerprint a trust approval is bound to.
 
-use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
+use pnpm_crypto_hash::{
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub(super) const MAX_HASHED_BIN_SIZE: u64 = 1024 * 1024;
 

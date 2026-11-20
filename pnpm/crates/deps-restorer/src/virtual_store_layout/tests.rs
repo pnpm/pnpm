@@ -11,11 +11,19 @@ mod slot_identity;
 use super::VirtualStoreLayout;
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, RegistryResolution, SnapshotDepRef,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    RegistryResolution,
+    SnapshotDepRef,
     SnapshotEntry,
 };
 use serde::Deserialize;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 /// Build a `Config` test-double with the GVS-relevant fields
 /// wired explicitly. `gvs_dir` populates `global_virtual_store_dir`
@@ -93,7 +101,7 @@ fn cyclic_slot_suffixes() -> Vec<(String, String)> {
     );
     let (snapshots, packages) = cyclic_snapshots();
     // An empty policy allows no builds, which makes every snapshot hash
-    // engine-agnostically — the digests below then hold on any host.
+    // engine-agnostically, the digests below then hold on any host.
     let policy = crate::AllowBuildPolicy::default();
     let layout = VirtualStoreLayout::new(
         &config,

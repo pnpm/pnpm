@@ -1,10 +1,16 @@
 use super::{
-    Decision, RunDepsStatus, content_check_decision, setup_content_check_project,
+    Decision,
+    RunDepsStatus,
+    content_check_decision,
+    setup_content_check_project,
     workspace_deps_status,
 };
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{load_workspace_state, update_workspace_state};
+use pnpm_workspace_state::{
+    load_workspace_state,
+    update_workspace_state,
+};
 use std::fs;
 
 #[test]

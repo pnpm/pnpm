@@ -1,16 +1,29 @@
 use std::path::Path;
 
-use pnpm_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting, base64_encode};
+use pnpm_network::{
+    DEFAULT_REGISTRY_SCOPE,
+    NoProxySetting,
+    base64_encode,
+};
 use pretty_assertions::assert_eq;
 
 use super::{
-    BasicAuth, DeclaredRegistries, EnvVar, NpmrcAuth, RawCreds, RegistryCreds, base64_encode_bytes,
+    BasicAuth,
+    DeclaredRegistries,
+    EnvVar,
+    NpmrcAuth,
+    RawCreds,
+    RegistryCreds,
+    base64_encode_bytes,
     credentials::base64_decode,
 };
-use crate::{Config, workspace_yaml::LoadWorkspaceYamlError};
+use crate::{
+    Config,
+    workspace_yaml::LoadWorkspaceYamlError,
+};
 
 /// Generate a per-test unit struct implementing [`EnvVar`] from a
-/// `&[(&str, &str)]` literal — saves each cascade test from spelling
+/// `&[(&str, &str)]` literal, saves each cascade test from spelling
 /// out an `impl EnvVar` block. Avoids touching the real process
 /// environment so cascade tests don't need
 /// [`pnpm_testing_utils::env_guard::EnvGuard`]'s global lock.
@@ -59,7 +72,7 @@ fn scoped_auth_token<'a>(auth: &'a NpmrcAuth, uri: &str, scope: &str) -> Option<
 const TEST_CA_PEM: &str = include_str!("../../../network/tests/fixtures/test-ca.pem");
 
 /// Like [`static_env!`] but also overrides [`EnvVar::vars`] so the fake
-/// can be enumerated — required by [`NpmrcAuth::from_url_scoped_env`],
+/// can be enumerated, required by [`NpmrcAuth::from_url_scoped_env`],
 /// which matches `npm_config_//…` / `pnpm_config_//…` vars by prefix.
 macro_rules! static_env_with_vars {
     ($name:ident, $entries:expr) => {

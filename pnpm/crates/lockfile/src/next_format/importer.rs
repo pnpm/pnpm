@@ -11,15 +11,33 @@
 //! specifier through the injected package's `name@file:<path>` entry in
 //! `packages`, or through the `name` the linked project's importer records.
 
-use super::{NamedBindings, NextFormatError, linked::LinkedImporters};
+use super::{
+    NamedBindings,
+    NextFormatError,
+    linked::LinkedImporters,
+};
 use crate::{
-    CatalogSnapshots, ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencyMap,
+    CatalogSnapshots,
+    ImporterDepVersion,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
-    implied_version::{InjectedPaths, implied_version, link_path},
+    implied_version::{
+        InjectedPaths,
+        implied_version,
+        link_path,
+    },
 };
 use serde::{
-    Deserialize, Deserializer, Serialize,
-    de::{self, MapAccess, Visitor},
+    Deserialize,
+    Deserializer,
+    Serialize,
+    de::{
+        self,
+        MapAccess,
+        Visitor,
+    },
 };
 use std::collections::HashMap;
 

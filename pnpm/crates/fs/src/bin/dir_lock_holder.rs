@@ -8,7 +8,11 @@
 
 use pnpm_fs::DirLock;
 use std::{
-    io::{self, Read as _, Write as _},
+    io::{
+        self,
+        Read as _,
+        Write as _,
+    },
     path::PathBuf,
     process::ExitCode,
     time::Duration,

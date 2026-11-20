@@ -1,7 +1,15 @@
 //! The project manifest the content check compares with the lockfile.
 
-use super::{ManifestStat, OptimisticRepeatInstallCheck, PackageManifest, Path};
-use std::{borrow::Cow, sync::Arc};
+use super::{
+    ManifestStat,
+    OptimisticRepeatInstallCheck,
+    PackageManifest,
+    Path,
+};
+use std::{
+    borrow::Cow,
+    sync::Arc,
+};
 
 /// The transforms the resolver applies to a project manifest:
 /// `packageExtensions`, the pnpmfile's `readPackage`, then the overrides.
@@ -112,14 +120,7 @@ impl ManifestTransforms {
             config: check.config,
             catalogs: check.catalogs,
             pnpmfile_hook: self.hook.as_ref(),
-            scope: crate::install::FreshnessScope {
-                ignore_manifest_check: false,
-                allow_missing_dependency_free_importers: false,
-                frozen_lockfile: false,
-                prune_stale_importers: false,
-                patches_only: false,
-                locked_registries: None,
-            },
+            scope: crate::install::FreshnessScope::default(),
         };
         block_on_hooks(crate::install::hooked_importer_directory_manifests(
             wanted,

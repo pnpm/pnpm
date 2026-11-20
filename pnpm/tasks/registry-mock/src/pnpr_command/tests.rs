@@ -1,8 +1,12 @@
 use super::import_registries;
+use command_extra::CommandExtra;
 use std::{
     fs,
     os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -26,10 +30,9 @@ fn recording_binary(dir: &Path, status: u8) -> PathBuf {
 #[test]
 fn import_runs_the_serve_command_with_the_registries_subcommand() {
     let dir = tempfile::tempdir().unwrap();
-    let mut serve = Command::new(recording_binary(dir.path(), 0));
-    serve
-        .args(["--config", "pnpr.yaml", "--storage", "storage", "--public-url", "http://h:1"])
-        .env("PNPR_BENCHMARK_PROBE", "kept");
+    let serve = Command::new(recording_binary(dir.path(), 0))
+        .with_args(["--config", "pnpr.yaml", "--storage", "storage", "--public-url", "http://h:1"])
+        .with_env("PNPR_BENCHMARK_PROBE", "kept");
     import_registries(&serve, Path::new("registries.yaml"));
     let record = fs::read_to_string(dir.path().join("record")).unwrap();
     assert_eq!(

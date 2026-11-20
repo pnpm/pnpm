@@ -1,12 +1,27 @@
 use super::{
-    super::{LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph},
-    dep_key, host_aware_opts, lockfile_with, metadata_stub, metadata_with_os, pkg_name,
+    super::{
+        LockfileToHoistedDepGraphOptions,
+        lockfile_to_hoisted_dep_graph,
+    },
+    dep_key,
+    host_aware_opts,
+    lockfile_with,
+    metadata_stub,
+    metadata_with_os,
+    pkg_name,
     resolved_dep,
 };
-use pnpm_lockfile::{Lockfile, ResolvedDependencyMap, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    ResolvedDependencyMap,
+    SnapshotEntry,
+};
 use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 #[test]
 fn walker_single_root_dep_emits_one_node() {
@@ -47,7 +62,7 @@ fn walker_single_root_dep_emits_one_node() {
     );
 }
 /// Required (non-optional) package on an unsupported platform
-/// proceeds with a warning rather than erroring — for the
+/// proceeds with a warning rather than erroring, for the
 /// required-incompatible case `package_is_installable` returns
 /// `true` (only `engineStrict + engine mismatch` and
 /// `InvalidNodeVersion` actually throw). The
@@ -62,7 +77,7 @@ fn walker_emits_required_dep_with_unsupported_platform_as_warning() {
     packages.insert(dep_key("a", "1.0.0"), metadata_with_os("darwin"));
 
     let mut snapshots = HashMap::new();
-    // optional: false — `package_is_installable`
+    // optional: false, `package_is_installable`
     // returns `true` (warn but proceed) rather than `false`.
     snapshots.insert(dep_key("a", "1.0.0"), SnapshotEntry::default());
 

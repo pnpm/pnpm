@@ -1,5 +1,14 @@
-use super::{account_router, load_config, send};
-use pnpr::{AuthState, SqliteAuth, TokenBackend, UserBackend};
+use super::{
+    account_router,
+    load_config,
+    send,
+};
+use pnpr::{
+    AuthState,
+    SqliteAuth,
+    TokenBackend,
+    UserBackend,
+};
 use serde_json::json;
 use std::sync::Arc;
 use tempfile::TempDir;

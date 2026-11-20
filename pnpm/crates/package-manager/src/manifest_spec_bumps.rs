@@ -2,28 +2,49 @@
 
 #[cfg(feature = "runtime-provisioning")]
 use crate::runtime_specifier::node_runtime_version_spec;
-use crate::{OverriddenDependencyMatcher, VersionsOverrider};
+use crate::{
+    OverriddenDependencyMatcher,
+    VersionsOverrider,
+};
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::{
-    normalize_node_runtime_version_specifier, parse_node_specifier,
+    normalize_node_runtime_version_specifier,
+    parse_node_specifier,
 };
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_package_manifest::is_runtime_alias;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::calc_version_range;
-use pnpm_resolving_resolver_base::{VersionSelectorType, is_valid_semver_range};
+use pnpm_resolving_resolver_base::{
+    VersionSelectorType,
+    is_valid_semver_range,
+};
 #[cfg(feature = "runtime-provisioning")]
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
+};
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     sync::Mutex,
 };
 
@@ -35,7 +56,7 @@ use std::{
 /// declare, on the overrides, and on the peer graph. So the update names the
 /// direct dependencies it targets, the fresh-resolve path rewrites their
 /// entries in the lockfile it is about to write, and reports each new range
-/// back here for the update to write into `package.json` — or into the
+/// back here for the update to write into `package.json`, or into the
 /// catalog entry the dependency points at.
 pub struct ManifestSpecBumps {
     /// Per importer id, the direct-dependency declarations whose ranges may
@@ -93,8 +114,8 @@ impl<'a> OverriddenDeclarations<'a> {
     }
 }
 
-/// Rewrite the targeted ranges in `lockfile` — which this run built and has
-/// not written yet — around the versions it records, and report them into
+/// Rewrite the targeted ranges in `lockfile` (which this run built and has
+/// not written yet) around the versions it records, and report them into
 /// [`ManifestSpecBumps::applied`].
 ///
 /// Rewriting the lockfile's own copy of each range here is what keeps it
@@ -208,7 +229,7 @@ enum SpecBump {
 }
 
 fn spec_bump(target: &SpecBumpTarget<'_>) -> SpecBump {
-    // An override — or another manifest hook — governs this entry, so
+    // An override (or another manifest hook) governs this entry, so
     // the version the run resolved answers the override rather than
     // the declaration. Leaving the lockfile entry and `package.json`
     // alone keeps the two agreeing and keeps the declaration, a
@@ -340,7 +361,7 @@ fn render_aliases<Bumped, Rendered>(
 /// The range that pins `version` for the dependency `alias` currently declares
 /// as `declared`, or `None` when the declaration is not a range this may move.
 ///
-/// The range text is [`calc_version_range`]'s decision — the same one the
+/// The range text is [`calc_version_range`]'s decision, the same one the
 /// npm resolver's `calc_specifier` makes for a version it has just picked. A
 /// node `runtime:` declaration is [`normalize_node_runtime_version_specifier`]'s
 /// instead, the rule the node resolver saves its own picks through.
@@ -424,7 +445,7 @@ fn bumped_runtime_range(
 /// A declared specifier split into the `npm:<name>@` or `jsr:<name>@`
 /// prefix it keeps and the range behind it. A declaration naming only the
 /// package (`jsr:@scope/pkg`, `npm:foo`) keeps the whole name as its prefix
-/// and declares an empty range. `None` for any other protocol — a
+/// and declares an empty range. `None` for any other protocol, a
 /// `workspace:`, `link:`, `file:`, git, tarball or named-registry
 /// dependency declares no registry range to move.
 pub(crate) fn split_registry_alias(declared: &str) -> Option<(Cow<'_, str>, &str)> {

@@ -1,5 +1,12 @@
-use super::{LockMode, lock_file, try_lock_file};
-use std::fs::{File, TryLockError};
+use super::{
+    LockMode,
+    lock_file,
+    try_lock_file,
+};
+use std::fs::{
+    File,
+    TryLockError,
+};
 use tempfile::NamedTempFile;
 
 fn open(path: &NamedTempFile) -> File {

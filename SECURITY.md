@@ -15,12 +15,12 @@ Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
 
 **We do not operate a bounty program.**
 
-### pacquet and pnpr
+### pnpr
 
-The Rust port (`pnpm/`) and the resolver server (`pnpr/`) are **not
-production ready** and are under active development. Do not report security
-issues in them through the security advisory process — open a
-[regular issue](https://github.com/pnpm/pnpm/issues) in this repository instead.
+The resolver server (`pnpr/`) is **not production ready** and is under active
+development. Do not report security issues in it through the security advisory
+process — open a [regular issue](https://github.com/pnpm/pnpm/issues) in this
+repository instead.
 
 ## Threat Model and Scope
 

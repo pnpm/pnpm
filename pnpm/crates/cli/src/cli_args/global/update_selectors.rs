@@ -1,5 +1,10 @@
 use super::{
-    GlobalPackageInfo, GlobalUpdateMode, HashMap, RangeSpecStyle, Version, local_file_path,
+    GlobalPackageInfo,
+    GlobalUpdateMode,
+    HashMap,
+    RangeSpecStyle,
+    Version,
+    local_file_path,
     parse_npm_spec_body,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;

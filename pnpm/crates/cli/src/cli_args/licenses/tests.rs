@@ -1,9 +1,23 @@
 use super::{
-    BelongsTo, Config, Include, LicenseInfo, LicensedDependency, LicensesArgs,
-    LicensesDependencyOptions, collect_dependencies, compare_package_names, extract_license_author,
-    extract_license_homepage, record_license, render_package_name, select_newer_version,
+    BelongsTo,
+    Config,
+    Include,
+    LicenseInfo,
+    LicensedDependency,
+    LicensesArgs,
+    LicensesDependencyOptions,
+    collect_dependencies,
+    compare_package_names,
+    extract_license_author,
+    extract_license_homepage,
+    record_license,
+    render_package_name,
+    select_newer_version,
 };
-use pnpm_lockfile::{Lockfile, PeerEdgeOptions};
+use pnpm_lockfile::{
+    Lockfile,
+    PeerEdgeOptions,
+};
 use pnpm_package_is_installable::InstallabilityOptions;
 use serde_json::json;
 use tempfile::TempDir;

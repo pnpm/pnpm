@@ -1,5 +1,8 @@
 use super::FileMode;
-use std::{fs::Permissions, os::unix::fs::PermissionsExt as _};
+use std::{
+    fs::Permissions,
+    os::unix::fs::PermissionsExt as _,
+};
 
 /// A `stat` mode carries the file's type, and a call that sets a mode
 /// wants the permission bits alone. This is the whole reason the type

@@ -1,7 +1,10 @@
 //! A file's permission bits, told apart from the file type a mode carries.
 
 #[cfg(unix)]
-use std::{fs::Permissions, os::unix::fs::PermissionsExt as _};
+use std::{
+    fs::Permissions,
+    os::unix::fs::PermissionsExt as _,
+};
 
 /// The bits a mode holds below its file type: a permission triple for each
 /// class, and the setuid, setgid and sticky bits above them.

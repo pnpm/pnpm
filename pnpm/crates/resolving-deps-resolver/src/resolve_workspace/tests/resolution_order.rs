@@ -1,7 +1,19 @@
 use super::{
-    BTreeMap, DependencyGroup, HashMap, Mutex, RecordingResolver, WorkspaceImporter, assert_eq,
-    fake_manifest, fake_result, graph_versions_of, importer_opts, importer_scoped_update_lockfile,
-    resolve_importer_scoped_update_direct, resolve_workspace, workspace_opts,
+    BTreeMap,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    RecordingResolver,
+    WorkspaceImporter,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    graph_versions_of,
+    importer_opts,
+    importer_scoped_update_lockfile,
+    resolve_importer_scoped_update_direct,
+    resolve_workspace,
+    workspace_opts,
 };
 
 #[tokio::test]

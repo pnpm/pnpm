@@ -1,4 +1,8 @@
-use super::{Deserialize, PnprClientError, ResolveProjectsOptions};
+use super::{
+    Deserialize,
+    PnprClientError,
+    ResolveProjectsOptions,
+};
 
 /// The policies the server applied to a resolution, echoed in the `done`
 /// frame so the client can verify that requested verification and resolution

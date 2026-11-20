@@ -1,12 +1,23 @@
 use super::{
-    GitResolution, LockfileFormError, LockfileResolution, REVISION_SHA512, RegistryResolution,
-    TarballResolution, TarballRevision, assert_eq, integrity, is_on_revision_tarball_route,
-    is_revision_registry_tarball_url, render_resolution, revision_registry_tarball_url, text_block,
+    GitResolution,
+    LockfileFormError,
+    LockfileResolution,
+    REVISION_SHA512,
+    RegistryResolution,
+    TarballResolution,
+    TarballRevision,
+    assert_eq,
+    integrity,
+    is_on_revision_tarball_route,
+    is_revision_registry_tarball_url,
+    render_resolution,
+    revision_registry_tarball_url,
+    text_block,
     undeclared_form,
 };
 
-/// An `integrity: ''` entry — what an edited lockfile carries when the hash
-/// is emptied instead of deleted — parses into an SRI with zero hashes. It
+/// An `integrity: ''` entry (what an edited lockfile carries when the hash
+/// is emptied instead of deleted) parses into an SRI with zero hashes. It
 /// pins nothing, so `checkable_integrity` reports it as absent while the raw
 /// accessor still shows what the lockfile said.
 #[test]

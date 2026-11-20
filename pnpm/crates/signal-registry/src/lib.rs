@@ -27,7 +27,10 @@
 #![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
 
 pub use list::SignalList;
-pub use registry::{Registration, SignalRegistry};
+pub use registry::{
+    Registration,
+    SignalRegistry,
+};
 
 mod list;
 mod registry;

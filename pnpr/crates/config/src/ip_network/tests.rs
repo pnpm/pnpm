@@ -1,4 +1,7 @@
-use super::{IpNetwork, IpNetworkSet};
+use super::{
+    IpNetwork,
+    IpNetworkSet,
+};
 use std::net::IpAddr;
 
 fn address(raw: &str) -> IpAddr {

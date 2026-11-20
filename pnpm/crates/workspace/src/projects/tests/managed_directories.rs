@@ -1,11 +1,18 @@
 use super::{
-    super::{FindWorkspaceProjectsOpts, find_workspace_projects, is_workspace_project_dir},
+    super::{
+        FindWorkspaceProjectsOpts,
+        find_workspace_projects,
+        is_workspace_project_dir,
+    },
     make_project,
 };
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 

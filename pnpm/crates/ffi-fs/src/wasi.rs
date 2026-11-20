@@ -6,7 +6,14 @@
 //! answer on WASI goes through
 //! [`pnpm-ffi-webcontainer`](../ffi-webcontainer) instead.
 
-use std::{ffi::CString, fs::File, io, mem::MaybeUninit, os::fd::AsRawFd as _, path::Path};
+use std::{
+    ffi::CString,
+    fs::File,
+    io,
+    mem::MaybeUninit,
+    os::fd::AsRawFd as _,
+    path::Path,
+};
 
 /// What identifies a file on its filesystem: the device it is on and its
 /// inode number there.
@@ -62,7 +69,10 @@ pub fn file_link_count(file: &File) -> io::Result<u64> {
 ///
 /// The file is not created: a missing path fails rather than appearing.
 pub fn open_for_overwrite(path: &Path) -> io::Result<File> {
-    use std::os::fd::{FromRawFd as _, OwnedFd};
+    use std::os::fd::{
+        FromRawFd as _,
+        OwnedFd,
+    };
 
     let path = path_name(path)?;
     // SAFETY: `path` is NUL-terminated and borrowed for the whole call. The

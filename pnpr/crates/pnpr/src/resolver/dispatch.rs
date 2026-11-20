@@ -1,24 +1,63 @@
-use axum::{body::Bytes, http::StatusCode, response::Response};
+use axum::{
+    body::Bytes,
+    http::StatusCode,
+    response::Response,
+};
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
-use pnpr_route::{Footprint, RouteContext};
-use std::sync::{Arc, Mutex};
+use pnpr_route::{
+    Footprint,
+    RouteContext,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 use super::{
-    ObservedDistStats, PacquetConfig, ResolveRequest, Resolver, StreamedResolveInputs,
-    cached_resolution, cargo, json_error,
-    limits::{AdmittedResolve, reject_oversized_graph, request_timeout_response},
-    protocol::{self, EcosystemProbe},
-    pypi, request_tarball_router,
-    request_validation::{
-        parse_request, reject_incompatible_lockfile_format, reject_inline_url_auth,
-        reject_invalid_patch_hashes, reject_invalid_registries, reject_local_dependency_specs,
-        reject_off_allowlist_fetches, reject_unsafe_publish_directories,
+    ObservedDistStats,
+    PacquetConfig,
+    ResolveRequest,
+    Resolver,
+    StreamedResolveInputs,
+    cached_resolution,
+    cargo,
+    json_error,
+    limits::{
+        AdmittedResolve,
+        reject_oversized_graph,
+        request_timeout_response,
     },
-    resolution_cache_key, resolve, stream_resolve_response, verify_request_lockfile,
+    protocol::{
+        self,
+        EcosystemProbe,
+    },
+    pypi,
+    request_tarball_router,
+    request_validation::{
+        parse_request,
+        reject_incompatible_lockfile_format,
+        reject_inline_url_auth,
+        reject_invalid_lockfile_dependency_names,
+        reject_invalid_patch_hashes,
+        reject_invalid_registries,
+        reject_local_dependency_specs,
+        reject_off_allowlist_fetches,
+        reject_unsafe_publish_directories,
+    },
+    resolution_cache_key,
+    resolve,
+    stream_resolve_response,
+    verify_request_lockfile,
     wire::{
-        TarballRouter, frozen_package_frames_until, ndjson_frames_until, ndjson_single_frame,
-        osv_violations_for_lockfile_until, try_done_frame_until, violations_frame,
+        LockfileOrigin,
+        TarballRouter,
+        frozen_package_frames_until,
+        ndjson_frames_until,
+        ndjson_single_frame,
+        osv_violations_for_lockfile_until,
+        try_done_frame_until,
+        violations_frame,
     },
 };
 
@@ -131,7 +170,7 @@ async fn resolve_npm_request(
             Ok(inputs) => inputs,
             Err(response) => return response,
         };
-    let verified_dist_stats = match verify_request_lockfile(runtime, &inputs).await {
+    let verified_dist_stats = match verify_request_lockfile(runtime, &identity, &inputs).await {
         Ok(stats) => stats,
         Err(response) => return response,
     };
@@ -162,12 +201,17 @@ fn short_circuit_npm_resolve(
     ) {
         return Some(within_deadline(response, inputs.deadline));
     }
-    inputs.cache_key =
-        resolution_cache_key(&inputs.request).map(|key| runtime.graph_cache_key(&key));
+    let generation = match inputs.cache_scope {
+        super::streaming::CacheScope::Pending(generation) => generation,
+        super::streaming::CacheScope::Key(_) => runtime.cache_generation(),
+    };
+    let key = resolution_cache_key(&inputs.request)
+        .map(|raw_key| runtime.scoped_cache_key(generation, &raw_key));
+    inputs.cache_scope = super::streaming::CacheScope::Key(key);
     cached_resolution_response(
         runtime,
         identity,
-        inputs.cache_key.as_ref(),
+        inputs.cache_scope.key(),
         &inputs.request,
         inputs.deadline,
     )
@@ -198,6 +242,7 @@ async fn prepare_npm_resolve(
     // forwarded from the client. Every metadata/tarball fetch the
     // resolve+verify performs records its route into `footprint`, which
     // then decides whether the resolution may populate the shared cache.
+    let cache_scope = super::streaming::CacheScope::Pending(runtime.cache_generation());
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, identity, &footprint);
     let tarball_router = request_tarball_router(runtime, identity, &config);
@@ -207,7 +252,7 @@ async fn prepare_npm_resolve(
         request_auth,
         tarball_router,
         footprint,
-        cache_key: None,
+        cache_scope,
         permit: Arc::new(permit),
         deadline,
     })
@@ -227,11 +272,12 @@ pub(super) fn reject_unusable_resolve(
         .or_else(|| reject_local_dependency_specs(request))
         .or_else(|| reject_off_allowlist_fetches(request, context))
         .or_else(|| reject_incompatible_lockfile_format(request))
+        .or_else(|| reject_invalid_lockfile_dependency_names(request))
 }
 
 /// A verified frozen lockfile is the whole answer: no incremental tree walk
 /// runs. Its tarballs are still announced as `package` frames when the
-/// verification fan-out just fetched their metadata — the sizes let the client
+/// verification fan-out just fetched their metadata, the sizes let the client
 /// start the largest downloads first. On a verdict-cache hit no metadata was
 /// fetched, so there is nothing to add and the response is the bare `done`
 /// frame.
@@ -274,10 +320,9 @@ fn prepare_frozen_lockfile(
     should_cancel: &dyn Fn() -> bool,
 ) -> Option<Result<pnpm_lockfile::Lockfile, Response>> {
     let lockfile = resolve::fresh_frozen_input_lockfile(config, request)?;
-    let verified = tarball_router.verification_lockfile(&lockfile);
     Some(
         tarball_router
-            .route_lockfile_until(config, &verified, should_cancel)
+            .route_lockfile_until(config, &lockfile, LockfileOrigin::Input, should_cancel)
             .ok_or_else(request_timeout_response),
     )
 }
@@ -323,7 +368,7 @@ fn serialize_frozen_frames(
 /// A stored lockfile this caller may reuse.
 ///
 /// The OSV index is immutable for this resolver instance and a lockfile is only
-/// stored after passing the OSV check, so a cache hit is already OSV-clean — no
+/// stored after passing the OSV check, so a cache hit is already OSV-clean, no
 /// per-package re-scan is needed on this warm path.
 fn cached_resolution_response(
     runtime: &Resolver,

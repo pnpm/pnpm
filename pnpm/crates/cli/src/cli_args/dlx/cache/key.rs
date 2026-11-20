@@ -1,9 +1,16 @@
 use crate::cli_args::add::AllowBuildSelector;
 use indexmap::IndexMap;
-use pnpm_config::{Config, PackageExtension, TrustPolicy};
+use pnpm_config::{
+    Config,
+    PackageExtension,
+    TrustPolicy,
+};
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_package_is_installable::SupportedArchitectures;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::collections::BTreeMap;
 
 /// Inputs that determine which cached `dlx` install directory an invocation
@@ -28,6 +35,7 @@ pub(in crate::cli_args::dlx) struct CachePolicyInputs<'a> {
     pub trust_policy: Option<TrustPolicyInput<'a>>,
     pub trust_lockfile: bool,
     pub block_exotic_subdeps: bool,
+    pub ignore_scripts: bool,
 }
 
 impl Default for CachePolicyInputs<'_> {
@@ -39,12 +47,13 @@ impl Default for CachePolicyInputs<'_> {
             trust_policy: None,
             trust_lockfile: false,
             block_exotic_subdeps: true,
+            ignore_scripts: false,
         }
     }
 }
 
 impl<'a> CachePolicyInputs<'a> {
-    pub(super) fn from_config(config: &'a Config) -> Self {
+    pub(in crate::cli_args::dlx) fn from_config(config: &'a Config) -> Self {
         let overrides = config.overrides
             .as_ref()
             .filter(|overrides| !overrides.is_empty());
@@ -77,6 +86,7 @@ impl<'a> CachePolicyInputs<'a> {
             trust_policy,
             trust_lockfile: config.trust_lockfile,
             block_exotic_subdeps: config.block_exotic_subdeps,
+            ignore_scripts: config.ignore_scripts,
         }
     }
 }
@@ -176,6 +186,9 @@ fn policy_key_inputs(policy: &CachePolicyInputs<'_>) -> Vec<Value> {
     }
     if !policy.block_exotic_subdeps {
         items.push(json!({ "blockExoticSubdeps": false }));
+    }
+    if policy.ignore_scripts {
+        items.push(json!({ "ignoreScripts": true }));
     }
     items
 }

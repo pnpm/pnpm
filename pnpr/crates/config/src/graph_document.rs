@@ -1,14 +1,30 @@
 //! The registry graph as one document: the `registries`, `defaultRegistry`,
 //! and `routes.public` keys the database stores.
 
-pub use edits::{HostedStorage, RegistryGraphChanges, RegistryKind};
+pub use edits::{
+    HostedStorage,
+    RegistryGraphChanges,
+    RegistryKind,
+};
 
 pub(crate) use credentials::is_env_name;
 
 use super::{
-    DefaultRegistryFile, Deserialize, EnvVar, IndexMap, IpNetwork, PublicRoute, PublicRouteFile,
-    RegistryError, RegistryFile, RoutePolicy, RoutingConfig, Serialize, SystemEnv,
-    null_default::deserialize_null_default, resolve_file_registries,
+    DefaultRegistryFile,
+    Deserialize,
+    EnvVar,
+    IndexMap,
+    IpNetwork,
+    PublicRoute,
+    PublicRouteFile,
+    RegistryError,
+    RegistryFile,
+    RoutePolicy,
+    RoutingConfig,
+    Serialize,
+    SystemEnv,
+    null_default::deserialize_null_default,
+    resolve_file_registries,
 };
 
 mod credentials;

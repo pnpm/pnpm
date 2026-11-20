@@ -1,7 +1,10 @@
 use crate::rename_with_retry;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const MAX_ATTEMPTS: usize = 100;

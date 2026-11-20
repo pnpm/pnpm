@@ -10,20 +10,40 @@
 //! program of its name on `PATH`, such as a rustup proxy.
 
 use super::{
-    Candidate, ShimInvocation,
-    run_program::{exec_program_with_bin_dirs, exec_program_with_env},
+    Candidate,
+    ShimInvocation,
+    run_program::{
+        exec_program_with_bin_dirs,
+        exec_program_with_env,
+    },
 };
 use pnpm_config::Config;
 use pnpm_crypto_hash::create_hex_hash_bytes;
-use pnpm_reporter::{LogEvent, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+};
 use pnpm_rust_toolchain::{
-    Channel, InstalledToolchain, ToolchainRequest, expire_resolution, find_toolchain_file,
-    install_toolchain, installed_release, installed_toolchain, read_toolchain_file,
+    Channel,
+    InstalledToolchain,
+    ToolchainRequest,
+    expire_resolution,
+    find_toolchain_file,
+    install_toolchain,
+    installed_release,
+    installed_toolchain,
+    read_toolchain_file,
 };
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The package `pnpm shim add` takes for the Rust tools, and the key of

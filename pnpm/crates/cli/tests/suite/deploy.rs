@@ -2,16 +2,29 @@ use crate::_utils::append_workspace_yaml_key;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PackageKey, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
 };
 use std::{
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+    },
 };
 
 #[test]
@@ -112,7 +125,8 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
     assert!(
         !virtual_store_entries
             .iter()
-            .any(|entry| entry.starts_with('@') && !entry.contains('+')),
+            .filter(|entry| entry.starts_with('@'))
+            .any(|entry| !entry.contains('+')),
         "deploy virtual store should hold one copy of each package: {virtual_store_entries:#?}",
     );
 
@@ -449,7 +463,7 @@ fn deploy_from_shared_lockfile_follows_a_pinned_lockfile_dir() {
 
 /// A pin that does not contain the workspace gives every project an
 /// importer id that climbs out of the lockfile dir, and deploy resolves
-/// each of them by joining onto that dir — paths it refuses on principle.
+/// each of them by joining onto that dir, paths it refuses on principle.
 /// The shared path cannot describe the layout, so it hands over to the
 /// legacy installer rather than failing the command.
 #[test]
@@ -656,7 +670,7 @@ fn write_ambiguous_peer_workspace(workspace: &Path) {
 }
 
 /// `lib`'s peer is satisfied in the workspace by its own devDependencies, which
-/// a production deploy leaves behind — so the deployed snapshot reaches the
+/// a production deploy leaves behind, so the deployed snapshot reaches the
 /// binding step with that peer still unresolved.
 fn write_peer_workspace(workspace: &Path) {
     let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
@@ -791,7 +805,8 @@ fn assert_ignored_broken_source_lockfile(output: &Output, lockfile_dir: &Path) {
     assert!(
         combined
             .lines()
-            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .map(serde_json::from_str::<serde_json::Value>)
+            .filter_map(Result::ok)
             .any(|event| {
                 event["name"] == "pnpm"
                     && event["level"] == "warn"

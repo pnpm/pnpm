@@ -1,4 +1,9 @@
-use super::{json, packlist, tempdir, touch};
+use super::{
+    json,
+    packlist,
+    tempdir,
+    touch,
+};
 
 #[test]
 fn files_field_does_not_force_include_changelog_files() {

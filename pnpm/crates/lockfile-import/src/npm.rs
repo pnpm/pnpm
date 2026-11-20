@@ -1,9 +1,16 @@
 //! Version extraction from npm's lockfile formats.
 
 use pnpm_resolving_resolver_base::is_valid_semver_range;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
-use crate::{VersionsByPackageName, add_version, split_descriptor};
+use crate::{
+    VersionsByPackageName,
+    add_version,
+    split_descriptor,
+};
 
 const NODE_MODULES_PREFIX: &str = "node_modules/";
 

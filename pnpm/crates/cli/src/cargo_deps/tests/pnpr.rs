@@ -1,4 +1,7 @@
-use super::{CRATES_IO_SPARSE_INDEX, Config};
+use super::{
+    CRATES_IO_SPARSE_INDEX,
+    Config,
+};
 use crate::cargo_deps::lockfile::resolve_via_pnpr_with_preferences;
 use std::collections::BTreeMap;
 
@@ -166,7 +169,8 @@ async fn an_unterminated_pnpr_response_does_not_grow_without_bound() {
     assert!(
         error
             .chain()
-            .any(|cause| cause.to_string().contains("exceeds the")),
+            .map(std::string::ToString::to_string)
+            .any(|text| text.contains("exceeds the")),
         "the oversized body is refused by its size, not by parsing: {error:?}",
     );
     handshake.assert_async().await;
@@ -199,7 +203,8 @@ async fn a_second_terminal_frame_fails_the_resolve() {
     assert!(
         error
             .chain()
-            .any(|cause| cause.to_string().contains("more than one terminal frame")),
+            .map(std::string::ToString::to_string)
+            .any(|text| text.contains("more than one terminal frame")),
         "a response that also reports a failure is not a lockfile to write: {error:?}",
     );
     handshake.assert_async().await;

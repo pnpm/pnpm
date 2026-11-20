@@ -1,6 +1,12 @@
 use super::relocate_pre_subcommand_flags;
-use crate::{boolean_negations::with_boolean_negations, cli_args::CliArgs};
-use clap::{CommandFactory, FromArgMatches};
+use crate::{
+    boolean_negations::with_boolean_negations,
+    cli_args::CliArgs,
+};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
 use pretty_assertions::assert_eq;
 use std::ffi::OsString;
 
@@ -14,7 +20,8 @@ fn relocate(tokens: &[&str]) -> Vec<String> {
             .collect(),
     )
     .into_iter()
-    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .map(OsString::into_string)
+    .map(|text| text.expect("test tokens are UTF-8"))
     .collect()
 }
 

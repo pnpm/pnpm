@@ -1,7 +1,14 @@
 pub(super) mod revisions;
 
-pub(super) use dist_tags::{get_dist_tags, remove_dist_tag, set_dist_tag};
-pub(super) use unpublish::{delete_package, delete_tarball};
+pub(super) use dist_tags::{
+    get_dist_tags,
+    remove_dist_tag,
+    set_dist_tag,
+};
+pub(super) use unpublish::{
+    delete_package,
+    delete_tarball,
+};
 
 mod dist_tags;
 mod immutability;
@@ -11,24 +18,43 @@ mod version_removal;
 
 use axum::{
     body::Body,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use serde_json::Value;
 
-use immutability::{enforce_published_version_immutability, submitted_packument};
+use immutability::{
+    enforce_published_version_immutability,
+    submitted_packument,
+};
 use maintainers::update_package_maintainers;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_storage::{
-    DOCUMENT_WRITE_RETRIES, DocumentWrite, HostedDocumentVersion,
-    database::validate_document_dist_tags, wait_after_document_write_conflict,
+    DOCUMENT_WRITE_RETRIES,
+    DocumentWrite,
+    HostedDocumentVersion,
+    database::validate_document_dist_tags,
+    wait_after_document_write_conflict,
 };
 
 use super::{
-    Action, AppState, RegistrySource, WriteTarget, authorize_against_packument, authorize_package,
-    hosted_storage, parse_json_body, resolve_write_target,
+    Action,
+    AppState,
+    RegistrySource,
+    WriteTarget,
+    authorize_against_packument,
+    authorize_package,
+    hosted_storage,
+    parse_json_body,
+    resolve_write_target,
 };
 
 /// Apply a partial unpublish based on its revision, or an owner update.
@@ -130,7 +156,8 @@ async fn try_rewrite_packument(
     let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
     let removed = prepare_packument_rewrite(hosted, &tar_integrities, name, &mut packument)?;
     let bytes = serde_json::to_vec_pretty(&packument)
-        .map_err(|err| RegistryError::Json(err).into_response())?;
+        .map_err(RegistryError::Json)
+        .map_err(axum::response::IntoResponse::into_response)?;
     let unpublished = unpublished_blobs(&storage, name, &removed).await;
     match storage
         .write_hosted_document_if_current(name, &bytes, Some(&version), identity.user_id())

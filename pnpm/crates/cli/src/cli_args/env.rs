@@ -1,16 +1,31 @@
-//! `pacquet env` — the deprecated Node.js-only front end to
+//! `pacquet env`: the deprecated Node.js-only front end to
 //! [`super::runtime`], kept because pnpm still ships it.
 
-use super::{add::AddRequest, global::handle_global_add, registry_client::build_registry_client};
+use super::{
+    add::AddRequest,
+    global::handle_global_add,
+    registry_client::build_registry_client,
+};
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_config::{Config, Tool};
+use pnpm_config::{
+    Config,
+    Tool,
+};
 use pnpm_engine_runtime_node_resolver::{
-    get_node_mirror, parse_node_specifier, resolve_node_versions_with_auth,
+    get_node_mirror,
+    parse_node_specifier,
+    resolve_node_versions_with_auth,
 };
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{Reporter, emit_global_warning};
+use pnpm_reporter::{
+    Reporter,
+    emit_global_warning,
+};
 use std::path::Path;
 
 /// Manage Node.js versions.
@@ -84,8 +99,8 @@ pub enum EnvError {
 
 /// What [`EnvArgs`] resolved its parameters to.
 ///
-/// The subcommands need different resources — the global config and
-/// the install pipeline versus a registry client — so parsing is split
+/// The subcommands need different resources (the global config and
+/// the install pipeline versus a registry client) so parsing is split
 /// from running and the dispatcher picks the path.
 #[derive(Debug)]
 pub enum EnvSubcommand {
@@ -116,7 +131,8 @@ impl EnvArgs {
         let versions: Vec<String> = self.params
             .iter()
             .skip(1)
-            .map(|version| version.trim().to_string())
+            .map(|version| version.trim())
+            .map(std::string::ToString::to_string)
             .filter(|version| !version.is_empty())
             .collect();
         if versions.is_empty() {
@@ -173,7 +189,7 @@ impl EnvArgs {
     /// Oldest first, so the newest version ends up next to the prompt.
     ///
     /// An absent selector reads as the empty one, which the mirror
-    /// resolver treats as `latest` — a bare `pnpm env list` prints the
+    /// resolver treats as `latest`, a bare `pnpm env list` prints the
     /// newest version alone, not the whole index. Verified against the
     /// TypeScript CLI, which passes `''` rather than `undefined`.
     pub async fn run_list(version_spec: Option<String>, config: &Config) -> miette::Result<String> {

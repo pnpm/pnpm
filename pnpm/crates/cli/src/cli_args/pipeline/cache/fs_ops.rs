@@ -1,4 +1,8 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// Remove an existing output file, clearing the Windows read-only attribute
 /// first when present, and refusing directories.

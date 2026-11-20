@@ -1,14 +1,31 @@
 use super::{
-    AppState, Identity, RegistryError, Response, StatusCode, json,
+    AppState,
+    Identity,
+    RegistryError,
+    Response,
+    StatusCode,
+    json,
     organizations::team_registry,
     parse_json_body,
     request_access::require_access_admin,
     require_caller,
-    team_directory::{reload_written_teams, team_id},
+    team_directory::{
+        reload_written_teams,
+        team_id,
+    },
 };
-use axum::{body::Bytes, response::IntoResponse};
-use pnpr_config::{validate_member_name, validate_team_name};
-use pnpr_storage::database::{TeamCreation, TeamRemoval};
+use axum::{
+    body::Bytes,
+    response::IntoResponse,
+};
+use pnpr_config::{
+    validate_member_name,
+    validate_team_name,
+};
+use pnpr_storage::database::{
+    TeamCreation,
+    TeamRemoval,
+};
 use serde::Deserialize;
 
 /// The registry and scope a team request addresses. Teams belong to the

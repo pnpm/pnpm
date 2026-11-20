@@ -1,8 +1,8 @@
 //! The on-disk shape of a context-aware global shim.
 //!
-//! A shim is the pnpm executable published under the bin's own name —
-//! `<bin dir>/<name>` (`<name>.exe` on Windows), a hard link or copy of the
-//! executable that wrote it — with the target it stands for recorded in
+//! A shim is the pnpm executable published under the bin's own name
+//! (`<bin dir>/<name>` (`<name>.exe` on Windows), a hard link or copy of the
+//! executable that wrote it) with the target it stands for recorded in
 //! the sidecar `<bin dir>/.pnpm-shim-v1-<name>-target`. A launch under a
 //! bin name reads the sidecar and dispatches; there is no shell between
 //! the caller and the target, so the target inherits the caller's
@@ -16,16 +16,29 @@
 //! that dispatcher slot continues to serve the protocol and migrates the bin
 //! directory before dispatching the target.
 
-use super::{dispatch_target, trusted_shim_settings};
+use super::{
+    dispatch_target,
+    trusted_shim_settings,
+};
 use crate::cli_args::global_bin_lock::try_acquire_global_bin_lock;
-use miette::{Context as _, IntoDiagnostic as _};
+use miette::{
+    Context as _,
+    IntoDiagnostic as _,
+};
 use pnpm_cmd_shim::is_safe_bin_name;
 use pnpm_package_name::is_valid_old_npm_package_name;
 use std::{
-    ffi::{OsStr, OsString},
-    fs, io,
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    fs,
+    io,
     io::Read as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const TARGET_FILE_PREFIX: &str = ".pnpm-shim-v1-";

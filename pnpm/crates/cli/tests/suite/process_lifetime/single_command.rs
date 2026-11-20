@@ -2,11 +2,21 @@
 //! running outlives pnpm exactly as it outlives the command run without
 //! pnpm, whichever way pnpm runs the command.
 
-use super::{Leftover, launcher_args, launcher_directly, surviving, write_fixture};
+use super::{
+    Leftover,
+    launcher_args,
+    launcher_directly,
+    surviving,
+    write_fixture,
+};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// How pnpm runs the launcher.
 #[derive(Debug, Clone, Copy)]

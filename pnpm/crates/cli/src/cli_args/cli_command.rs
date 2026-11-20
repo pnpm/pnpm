@@ -1,7 +1,10 @@
 pub(super) mod options;
 
 pub use commands::CliCommand;
-pub use selection_settings::{SelectionSettingArgs, extract_filter_order};
+pub use selection_settings::{
+    SelectionSettingArgs,
+    extract_filter_order,
+};
 
 use super::{
     access::AccessArgs,
@@ -17,8 +20,15 @@ use super::{
     change::ChangeArgs,
     ci::CiArgs,
     clean::CleanArgs,
-    completion::{CompletionArgs, CompletionServerArgs},
-    config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs},
+    completion::{
+        CompletionArgs,
+        CompletionServerArgs,
+    },
+    config::{
+        ConfigArgs,
+        ConfigGetAliasArgs,
+        ConfigSetAliasArgs,
+    },
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -52,7 +62,10 @@ use super::{
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
     peers::PeersArgs,
-    permissions::{ApproveArgs, PermissionsArgs},
+    permissions::{
+        ApproveArgs,
+        PermissionsArgs,
+    },
     ping::PingArgs,
     pipeline::PipelineArgs,
     pkg::PkgArgs,
@@ -63,7 +76,10 @@ use super::{
     rebuild::RebuildArgs,
     remove::RemoveArgs,
     repo::RepoArgs,
-    reporter::{LogLevelSetting, ReporterType},
+    reporter::{
+        LogLevelSetting,
+        ReporterType,
+    },
     restart::RestartArgs,
     root::RootArgs,
     run::RunArgs,
@@ -93,9 +109,18 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
-use clap::{CommandFactory, Parser, Subcommand, ValueHint, error::ErrorKind};
+use clap::{
+    CommandFactory,
+    Parser,
+    Subcommand,
+    ValueHint,
+    error::ErrorKind,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_default_reporter::SummaryScope;
@@ -131,7 +156,7 @@ pub struct CliArgs {
     // The load runs on the main thread before startup, since the process
     // environment must not be mutated once another thread is alive. This
     // field exists so the flag is still accepted, validated, documented,
-    // and completed — a valueless `--env-file` is reported instead of
+    // and completed, a valueless `--env-file` is reported instead of
     // silently ignored.
     #[clap(long = "env-file", value_name = "PATH", value_hint = ValueHint::FilePath, global = true)]
     pub env_file: Vec<PathBuf>,
@@ -270,7 +295,7 @@ pub struct PresentationArgs {
     pub no_color: bool,
     /// Reporter output format.
     // Self-override so a repeated `--reporter` takes the last occurrence,
-    // like nopt does — `--silent` expands to `--reporter=silent` (see
+    // like nopt does, `--silent` expands to `--reporter=silent` (see
     // `crate::shorthands`), so `--silent --reporter=ndjson` must not be a
     // duplicate-argument error.
     #[clap(long, value_enum, global = true, overrides_with = "reporter")]

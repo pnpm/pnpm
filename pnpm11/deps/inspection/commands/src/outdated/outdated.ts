@@ -11,8 +11,8 @@ import {
   expandGitHubActionSelectors,
   findOutdatedGitHubActions,
   hasPositiveGitHubActionSelector,
-  isGitHubActionSelector,
   shouldCheckGitHubActions,
+  withoutGitHubActionSelectors,
 } from '@pnpm/deps.github-actions'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
@@ -213,7 +213,7 @@ export async function handler (
     return outdatedRecursive(pkgs, params, { ...opts, include })
   }
   const packages = await readProjectsToCheck(opts)
-  const packageParams = params.filter((param) => !isGitHubActionSelector(param))
+  const packageParams = withoutGitHubActionSelectors(params)
   if (hasUnmatchedPackageParams(packages, packageParams, include)) {
     throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
       'None of the specified packages were found in the dependencies.')

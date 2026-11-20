@@ -1,11 +1,30 @@
 use super::{
-    AlwaysFail, Arc, FailFor, LockfileVerificationMessage, LogEvent, Mutex, Path, Reporter,
-    ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter, TWO_PKG_LOCKFILE, TempDir,
-    VerifyError, VerifyLockfileResolutionsOptions, collect_candidates, parse, run_fan_out,
+    AlwaysFail,
+    Arc,
+    FailFor,
+    LockfileVerificationMessage,
+    LogEvent,
+    Mutex,
+    Path,
+    Reporter,
+    ResolutionVerifier,
+    SINGLE_PKG_LOCKFILE,
+    SilentReporter,
+    TWO_PKG_LOCKFILE,
+    TempDir,
+    VerifyError,
+    VerifyLockfileResolutionsOptions,
+    collect_candidates,
+    parse,
+    run_fan_out,
     verify_lockfile_resolutions,
 };
 use pnpm_lockfile::LockfileResolution;
-use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx, VerifyFuture};
+use pnpm_resolving_resolver_base::{
+    ResolutionVerification,
+    VerifyCtx,
+    VerifyFuture,
+};
 
 const FOUR_PKG_LOCKFILE: &str = "lockfileVersion: '9.0'
 
@@ -328,8 +347,12 @@ impl ResolutionVerifier for MatchesNone {
 
 #[tokio::test]
 async fn unmatched_candidates_are_reported_as_completed() {
-    let (candidates, shape_violations) = collect_candidates(&parse(TWO_PKG_LOCKFILE));
-    assert!(shape_violations.is_empty(), "fixture lockfile must be shape-clean");
+    let lockfile = parse(TWO_PKG_LOCKFILE);
+    assert!(
+        crate::collect_resolution_shape_violations(&lockfile).is_empty(),
+        "fixture lockfile must be shape-clean",
+    );
+    let candidates = collect_candidates(&lockfile);
     let verifier = MatchesNone::new();
     let mut checked = 0;
     let violations =

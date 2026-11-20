@@ -1,14 +1,36 @@
 use super::{
-    Arc, DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsOptions, PackageBinSource, Path, PathBuf,
-    ShimTargetCache, Value, create_dir_all, io, is_shim_pointing_at, json, link_bins_of_packages,
-    link_bins_of_packages_cached, read_file, read_to_string, tempdir, write_file,
+    Arc,
+    DirCreation,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    Host,
+    LinkBinsOptions,
+    PackageBinSource,
+    Path,
+    PathBuf,
+    ShimTargetCache,
+    Value,
+    create_dir_all,
+    io,
+    is_shim_pointing_at,
+    json,
+    link_bins_of_packages,
+    link_bins_of_packages_cached,
+    read_file,
+    read_to_string,
+    tempdir,
+    write_file,
 };
 use crate::OwnNodePaths;
 
 /// A caller-supplied resolved location and the canonicalize fallback
 /// must derive the same shim `NODE_PATH` for a package reached through
-/// a virtual-store-style symlink — the lexical fast path is only sound
+/// a virtual-store-style symlink, the lexical fast path is only sound
 /// while this holds.
 #[cfg(unix)]
 #[test]
@@ -288,7 +310,10 @@ fn the_pnpm_cli_cmd_shim_for_an_interpreted_target_is_not_laid_out() {
 /// that is where an ordinary reinstall finds its shims.
 #[test]
 fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    };
 
     static SHIM_READS: AtomicUsize = AtomicUsize::new(0);
 
@@ -380,7 +405,10 @@ fn a_shim_in_a_freshly_created_bin_dir_is_written_without_reading_it_first() {
 
 #[test]
 fn shared_shim_target_cache_probes_a_resolved_target_once() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    };
 
     static READ_HEAD_CALLS: AtomicUsize = AtomicUsize::new(0);
 

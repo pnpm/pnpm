@@ -1,4 +1,9 @@
-use super::{Endpoint, api_base, parse_endpoint, query_param};
+use super::{
+    Endpoint,
+    api_base,
+    parse_endpoint,
+    query_param,
+};
 
 fn endpoint(tail: &str) -> Endpoint {
     parse_endpoint(tail).expect("tail names an endpoint")
@@ -121,7 +126,10 @@ fn refusals_preserve_registry_errors_for_batch_responses() {
 
 #[tokio::test]
 async fn open_circuit_response_preserves_retry_after_and_oci_json() {
-    use axum::http::{StatusCode, header};
+    use axum::http::{
+        StatusCode,
+        header,
+    };
     let response =
         super::response::registry_error(pnpr_error::RegistryError::UpstreamUnavailable {
             upstream: "example-upstream".to_string(),

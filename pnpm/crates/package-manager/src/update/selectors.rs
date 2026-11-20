@@ -1,8 +1,20 @@
 use super::UpdateError;
 use pnpm_matcher::create_matcher;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_resolving_deps_resolver::{UpdateTargets, VersionLine, real_package_name_of};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_resolving_deps_resolver::{
+    UpdateTargets,
+    VersionLine,
+    real_package_name_of,
+};
 
 /// A CLI selector split into its name pattern and optional version part.
 pub struct ParsedSelector {
@@ -57,8 +69,8 @@ pub fn reject_versioned_selectors(
     Ok(())
 }
 /// The selectors an update selector stands for. An `npm:` selector
-/// contributes a second one for the aliased package, because that -- not
-/// the alias -- is the name the resolver resolves the edge under; it
+/// contributes a second one for the aliased package, because that (not
+/// the alias) is the name the resolver resolves the edge under; it
 /// carries the aliased spec's own version so the expansion scopes the same
 /// version line the user asked for.
 pub(super) fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<ParsedSelector> {
@@ -137,7 +149,7 @@ pub(super) fn selector_matches_a_direct_dependency(
 }
 /// `pacquet update <dep>@<version>` where `<dep>` matches no direct dependency
 /// has nowhere to record the version. An update resolves such a target the way
-/// a fresh install would -- which a command-line version cannot influence -- so
+/// a fresh install would (which a command-line version cannot influence) so
 /// honoring the request would mean writing a lockfile entry no manifest backs,
 /// and the next fresh resolve would undo it. Neither npm nor Yarn accepts a
 /// version here either. Fail rather than resolve to something else and leave
@@ -169,6 +181,10 @@ pub(super) fn reject_versions_of_indirect_update_specs<Reporter: self::Reporter>
         }
         let pattern = &selector.pattern;
         if node_semver::Version::parse(version).is_err() {
+            #[cfg_attr(
+                dylint_lib = "perfectionist",
+                expect(perfectionist::em_dash_prose, reason = "pnpm v11 prints the same warning")
+            )]
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,
                 message: format!(
@@ -214,8 +230,8 @@ pub(super) fn indirect_version_error(pinned: &[(String, String)]) -> UpdateError
     }
 }
 /// The name an update target for `matched` is keyed by. A manifest keys a
-/// dependency by its alias, but the resolver matches update targets — and
-/// [`UpdateSeedPolicy::DropOnly`](crate::UpdateSeedPolicy::DropOnly) keys them — by the package name the edge
+/// dependency by its alias, but the resolver matches update targets, and
+/// [`UpdateSeedPolicy::DropOnly`](crate::UpdateSeedPolicy::DropOnly) keys them, by the package name the edge
 /// resolves under, which an `npm:` or `jsr:` selector states separately from
 /// the alias. Other selectors keep the target of the existing declaration.
 pub(super) fn update_target_name(
@@ -231,7 +247,8 @@ pub(super) fn update_target_name(
         })
         .find(|name| name.as_ref() != matched)
         .or_else(|| real_package_name_of(Some(matched), Some(previous)))
-        .map_or_else(|| matched.to_string(), std::borrow::Cow::into_owned)
+        .map(std::borrow::Cow::into_owned)
+        .unwrap_or_else(|| matched.to_string())
 }
 /// Compile a single pattern into a matcher. Used to map a matched direct
 /// dependency back to the selector that claimed it (so a versioned

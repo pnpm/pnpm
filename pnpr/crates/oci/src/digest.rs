@@ -1,6 +1,15 @@
-use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
-use sha2::{Digest as _, Sha256};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use std::fmt;
 
 /// The only algorithm pnpr stores under. The spec allows others, but a

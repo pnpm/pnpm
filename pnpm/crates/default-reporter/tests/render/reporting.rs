@@ -1,11 +1,44 @@
 use super::{
-    CWD, Colors, DedupeCheckLog, DependencyType, ExecutionTimeLog, GlobalLog, HookLog,
-    LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, MaxLogLevel,
-    NonDeprecatedAlternative, Output, PnpmErrorLog, PnpmLog, ReporterOptions, ReporterState, Stage,
-    StatsLog, StatsMessage, added_root_at, added_root_with_latest_at, deprecation,
-    deprecation_with_alternative, emitted_lines, interleaved_lifecycle_events, linked_root,
-    pnpm_log, progress, progress_at, render, scope, stage_at, state, state_with_options, summary,
-    summary_at, update_check,
+    CWD,
+    Colors,
+    DedupeCheckLog,
+    DependencyType,
+    ExecutionTimeLog,
+    GlobalLog,
+    HookLog,
+    LifecycleLog,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+    MaxLogLevel,
+    NonDeprecatedAlternative,
+    Output,
+    PnpmErrorLog,
+    PnpmLog,
+    ReporterOptions,
+    ReporterState,
+    Stage,
+    StatsLog,
+    StatsMessage,
+    added_root_at,
+    added_root_with_latest_at,
+    deprecation,
+    deprecation_with_alternative,
+    emitted_lines,
+    interleaved_lifecycle_events,
+    linked_root,
+    pnpm_log,
+    progress,
+    progress_at,
+    render,
+    scope,
+    stage_at,
+    state,
+    state_with_options,
+    summary,
+    summary_at,
+    update_check,
 };
 
 #[test]
@@ -276,7 +309,7 @@ fn zero_install_stats_render_already_up_to_date() {
 }
 
 /// A `pnpm:global` info message renders as a block, like the prefix-less
-/// `pnpm`-channel path — the web-auth flow surfaces the auth URL this way.
+/// `pnpm`-channel path, the web-auth flow surfaces the auth URL this way.
 #[test]
 fn global_info_log_renders() {
     let mut reporter = state(false);
@@ -551,7 +584,7 @@ fn a_hide_linked_pattern_drops_matching_linked_entries_from_the_summary() {
 
 /// Port of upstream's `groups lifecycle output when append-only and
 /// reporter-hide-prefix are used`: only the script's own output loses the
-/// prefix — the command echo and the `Done` line keep theirs.
+/// prefix, the command echo and the `Done` line keep theirs.
 #[test]
 fn hide_lifecycle_prefix_only_drops_it_from_output_lines() {
     let mut reporter = state_with_options(ReporterOptions {

@@ -1,59 +1,133 @@
 pub use build_phase::{
-    BuildPhaseError, BuildPhaseInputs, resolve_snapshot_patches, run_build_phase,
+    BuildPhaseError,
+    BuildPhaseInputs,
+    resolve_snapshot_patches,
+    run_build_phase,
 };
 pub use hoisted::{
-    HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
-    HoistedMaterialization, HoistedWorkspacePackages, collect_public_hoist_targets,
-    compute_hoist_plan, find_own_runtime_node_major, find_runtime_node_major,
-    parse_major_from_version, run_hoisted_linker, workspace_packages_for_hoist,
+    HoistPlan,
+    HoistedLinkerError,
+    HoistedLinkerInputs,
+    HoistedLinkerOutput,
+    HoistedMaterialization,
+    HoistedWorkspacePackages,
+    collect_public_hoist_targets,
+    compute_hoist_plan,
+    find_own_runtime_node_major,
+    find_runtime_node_major,
+    parse_major_from_version,
+    run_hoisted_linker,
+    workspace_packages_for_hoist,
 };
 
 mod verification;
-use verification::{ConcurrentVerification, fetch_verified, load_custom_fetcher_session};
+use verification::{
+    ConcurrentVerification,
+    fetch_verified,
+    load_custom_fetcher_session,
+};
 
 mod planning;
 use planning::{
-    BuildInputs, FetchInputs, FrozenInputs, HostDetectionInputs, HostPlan, LinkInputs,
-    MaterializationPlan, SkipSetPlan, detect_host, needs_installability_check, plan_engine_name,
-    seed_skip_set, settle_engine_name,
+    BuildInputs,
+    FetchInputs,
+    FrozenInputs,
+    HostDetectionInputs,
+    HostPlan,
+    LinkInputs,
+    MaterializationPlan,
+    SkipSetPlan,
+    detect_host,
+    needs_installability_check,
+    plan_engine_name,
+    seed_skip_set,
+    settle_engine_name,
 };
 
 mod materialization;
 
 use crate::{
-    AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStoreError,
-    CreateVirtualStoreOutput, HoistedDepGraphError, LinkHoistedModulesError,
-    LinkHoistedModulesOpts, LinkRootComponentMembersError, LinkVirtualStoreBinsError,
-    LockfileToHoistedDepGraphOptions, SkippedSnapshots, SymlinkDirectDependenciesError,
-    SymlinkPackageError, VersionPolicyError, build_direct_deps_by_importer,
-    direct_dep_names_for_importer, get_hoisted_dependencies, lockfile_to_hoisted_dep_graph,
+    AllowBuildPolicy,
+    BuildModules,
+    BuildModulesError,
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+    HoistedDepGraphError,
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+    LinkRootComponentMembersError,
+    LinkVirtualStoreBinsError,
+    LockfileToHoistedDepGraphOptions,
+    SkippedSnapshots,
+    SymlinkDirectDependenciesError,
+    SymlinkPackageError,
+    VersionPolicyError,
+    build_direct_deps_by_importer,
+    direct_dep_names_for_importer,
+    get_hoisted_dependencies,
+    lockfile_to_hoisted_dep_graph,
     symlink_direct_dependencies::importer_root_dir,
 };
 
 mod build_phase;
 mod hoisted;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsError;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::{
-    Lockfile, LockfileEntries, PackageKey, PackageMetadata, Prefix, SnapshotEntry,
+    Lockfile,
+    LockfileEntries,
+    PackageKey,
+    PackageMetadata,
+    Prefix,
+    SnapshotEntry,
 };
 use pnpm_lockfile_verification::VerifyError;
 use pnpm_matcher::create_matcher;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{
-    ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
+    ExtendedPatchInfo,
+    PatchKeyConflictError,
+    ResolvePatchedDependenciesError,
+    get_patch_info,
 };
-use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
-use pnpm_store_dir::{StoreIndexError, StoreIndexWriter};
+use pnpm_reporter::{
+    IgnoredScriptsLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    Stage,
+    StageLog,
+};
+use pnpm_store_dir::{
+    StoreIndexError,
+    StoreIndexWriter,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
     future::Future,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     pin::Pin,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 pub type LockfileVerificationOverride<'a> =
@@ -160,7 +234,7 @@ pub enum InstallFrozenLockfileError {
     /// Wraps any error `compute_skipped_snapshots` surfaces from the
     /// installability pass:
     ///
-    /// - `InstallabilityError::InvalidNodeVersion` — the resolved
+    /// - `InstallabilityError::InvalidNodeVersion`, the resolved
     ///   `current_node_version` isn't a parseable exact semver.
     ///   Pacquet falls back to a synthetic `99999.0.0` when
     ///   `node --version` fails, so this is currently unreachable
@@ -222,7 +296,7 @@ pub struct InstallFrozenLockfileOutput {
     /// `ERR_PNPM_IGNORED_BUILDS` from this list when `strictDepBuilds`
     /// is on (the default).
     pub ignored_builds: Vec<String>,
-    /// Dep paths whose build `--ignore-scripts` deferred — see
+    /// Dep paths whose build `--ignore-scripts` deferred; see
     /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
     /// them into `.modules.yaml.pendingBuilds`.
     pub deferred_builds: Vec<String>,
@@ -309,7 +383,7 @@ impl<'a> InstallFrozenLockfile<'a> {
     /// Returns an [`InstallFrozenLockfileOutput`] carrying the
     /// `HoistedDependencies` map produced by the hoist pass plus
     /// the install-time `SkippedSnapshots` set. The caller
-    /// (`Install::run`) feeds both into `.modules.yaml` —
+    /// (`Install::run`) feeds both into `.modules.yaml`,
     /// `hoistedDependencies` lets a later install observe the same
     /// hoist decisions, and `skipped` lets the next install seed
     /// the installability re-check against the previously skipped
@@ -384,7 +458,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         // await the join handle at the end of `run`, so the final
         // batch flushes once every queued row from both phases has
         // been processed. A writer open / task failure is degraded
-        // to a `warn!` and the install still succeeds — pacquet's
+        // to a `warn!` and the install still succeeds, pacquet's
         // existing best-effort stance on cache writes.
         // Under `frozenStore` the store is opened read-only, so the
         // writer is replaced with a drain-and-drop stub that never opens

@@ -1,7 +1,11 @@
 use crate::Implementation;
 use std::{
     fs::File,
-    io::{Read, Seek, SeekFrom},
+    io::{
+        Read,
+        Seek,
+        SeekFrom,
+    },
 };
 
 const ELF_HEADER_SIZE: usize = 64;

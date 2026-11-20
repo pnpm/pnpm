@@ -1,14 +1,29 @@
 pub(super) use glob::collect_glob_manifests;
 
 use super::{
-    BTreeSet, DirEntry, ErrorKind, FindWorkspaceProjectsError, Glob, MergePatterns,
-    PROJECT_MANIFEST_BASENAMES, Path, PathBuf, WorkspacePattern, fs,
+    BTreeSet,
+    DirEntry,
+    ErrorKind,
+    FindWorkspaceProjectsError,
+    Glob,
+    MergePatterns,
+    PROJECT_MANIFEST_BASENAMES,
+    Path,
+    PathBuf,
+    WorkspacePattern,
+    fs,
     managed::is_under_ignored_directory,
-    negations::{is_negated_directory, is_pruned_by_subtree_negation},
+    negations::{
+        is_negated_directory,
+        is_pruned_by_subtree_negation,
+    },
 };
 use ancestors::AncestorStack;
 use glob::WalkContext;
-use std::{ffi::OsStr, path::Component};
+use std::{
+    ffi::OsStr,
+    path::Component,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum SpecializedPattern<'pattern> {
@@ -226,8 +241,8 @@ fn is_manifest_basename(name: &OsStr) -> bool {
 /// Strip the pattern's leading `../` components, walking `workspace_root`
 /// up one directory for each. wax globs cannot express parent traversal,
 /// so a pattern such as `../shared/*` only matches when the walk starts
-/// from the ancestor it names. `None` — the traversal climbs past the
-/// filesystem root — matches nothing.
+/// from the ancestor it names. `None` (the traversal climbs past the
+/// filesystem root) matches nothing.
 pub(super) fn split_parent_prefix<'root, 'pattern>(
     workspace_root: &'root Path,
     pattern: &'pattern str,
@@ -280,7 +295,8 @@ fn compile_walk_ignores(
         .iter()
         .copied()
         .chain(dot_ignores)
-        .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
+        .map(Glob::new)
+        .map(|value| value.map(Glob::into_owned))
         .collect::<Result<Vec<_>, _>>()?;
     wax::any(patterns)
 }
@@ -357,7 +373,7 @@ const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**
 
 /// Prunes every path with a dot-prefixed component, so a wildcard cannot
 /// descend into `.git`, `.cache`, and friends. Applied only to patterns that
-/// do not name a dot component themselves — see [`positional_dot_ignores`].
+/// do not name a dot component themselves; see [`positional_dot_ignores`].
 const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
 
 mod ancestors;

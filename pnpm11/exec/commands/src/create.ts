@@ -1,6 +1,8 @@
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { docsUrl } from '@pnpm/cli.utils'
+import { types } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import * as dlx from './dlx.js'
@@ -28,7 +30,9 @@ export async function handler (_opts: dlx.DlxCommandOptions, params: string[], c
 }
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return {}
+  return pick([
+    'ignore-scripts',
+  ], types)
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {

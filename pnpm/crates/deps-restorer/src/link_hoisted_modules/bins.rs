@@ -1,9 +1,21 @@
-use super::{DepHierarchy, HeldBackBinsDir, LinkHoistedModulesError, LinkHoistedModulesOpts};
-use crate::{BinCandidates, BinTargets, BinsDirPass};
+use super::{
+    DepHierarchy,
+    HeldBackBinsDir,
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+};
+use crate::{
+    BinCandidates,
+    BinTargets,
+    BinsDirPass,
+};
 use pnpm_cmd_shim::PackageBinSource;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -89,7 +101,8 @@ pub(super) fn link_bundled_bins(
             let dep_names = linked.sources
                 .iter()
                 .filter_map(|package| package.location.strip_prefix(&modules_dir).ok())
-                .map(|name| name.to_string_lossy().into_owned())
+                .map(Path::to_string_lossy)
+                .map(std::borrow::Cow::into_owned)
                 .collect();
             output.held_back_bins_dirs.push(HeldBackBinsDir {
                 modules_dir: modules_dir.clone(),

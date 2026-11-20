@@ -7,14 +7,30 @@
 //! repository is still at the generation they were found unreachable at;
 //! the bytes nothing else maps are then reclaimed.
 
-use super::{Collection, GcReport, liveness, report_of};
-use crate::{Ecosystem, Result};
+use super::{
+    Collection,
+    GcReport,
+    liveness,
+    report_of,
+};
+use crate::{
+    Ecosystem,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
     BlobId,
-    database::{BlobLookup, BlobRow, BlobState, Mapping},
+    database::{
+        BlobLookup,
+        BlobRow,
+        BlobState,
+        Mapping,
+    },
 };
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::HashSet,
+    time::Duration,
+};
 
 struct RepositoryScan {
     generation: Option<u64>,
@@ -38,7 +54,7 @@ impl Collection<'_> {
                 }
             }
         }
-        failure.map_or(Ok(report), Err)
+        failure.map(Err).unwrap_or(Ok(report))
     }
 
     async fn unmap_repository(&self, name: &str, min_age: Duration) -> Result<GcReport> {

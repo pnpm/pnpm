@@ -1,24 +1,49 @@
 //! Tests for [`super::link_hoisted_modules`].
 
 use super::{
-    CasPathsByPkgId, LinkHoistedModulesError, LinkHoistedModulesOpts, link_hoisted_modules,
+    CasPathsByPkgId,
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+    link_hoisted_modules,
 };
-use crate::{DepHierarchy, DependenciesGraph, DependenciesGraphNode};
+use crate::{
+    DepHierarchy,
+    DependenciesGraph,
+    DependenciesGraphNode,
+};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::PackageImportMethod;
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PkgIdWithPatchHash, TarballResolution,
+    DirectoryResolution,
+    LockfileResolution,
+    PkgIdWithPatchHash,
+    TarballResolution,
 };
 use pnpm_modules_yaml::DepPath;
 use pnpm_reporter::{
-    LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter, SilentReporter,
+    LogEvent,
+    PackageImportMethod as WireImportMethod,
+    ProgressMessage,
+    Reporter,
+    SilentReporter,
 };
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
     fs,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, atomic::AtomicU8},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        atomic::AtomicU8,
+    },
 };
 
 fn sample_resolution() -> LockfileResolution {
@@ -802,7 +827,7 @@ fn no_prev_graph_still_installs() {
     );
 }
 
-/// Orphan removal tolerates errors silently — matches upstream's
+/// Orphan removal tolerates errors silently, matches upstream's
 /// `tryRemoveDir` EPERM/EBUSY swallowing. We can't easily provoke
 /// a permission error in a test, but a non-existent directory in
 /// `prev_graph` (e.g. one already removed by another process)
@@ -849,7 +874,7 @@ fn orphan_already_removed_is_tolerated() {
 }
 
 /// Pins fail-fast on internal inconsistency between the hierarchy
-/// and graph — the walker keeps the two in sync, but a
+/// and graph, the walker keeps the two in sync, but a
 /// future bug there shouldn't yield a partial install layout.
 #[test]
 fn hierarchy_entry_missing_from_graph_errors() {
@@ -892,7 +917,7 @@ fn hierarchy_entry_missing_from_graph_errors() {
     }
 }
 
-/// One `pnpm:progress imported` per imported node — the event the
+/// One `pnpm:progress imported` per imported node, the event the
 /// default reporter counts as `added`, and the only source of that
 /// counter under `nodeLinker: hoisted`.
 #[test]

@@ -12,28 +12,64 @@
 //! the next format's `importers` and `snapshots`, and [`restore_sections`]
 //! builds the peer-suffixed ones back.
 
-pub use catalogs::{NextCatalogEntry, NextCatalogs};
+pub use catalogs::{
+    NextCatalogEntry,
+    NextCatalogs,
+};
 pub use importer::{
-    Implied, NextImporter, NextImporterDep, NextImporterDeps, NextNamedDep, NextResolvedDep,
+    Implied,
+    NextImporter,
+    NextImporterDep,
+    NextImporterDeps,
+    NextNamedDep,
+    NextResolvedDep,
 };
 pub(crate) use linked::LinkedImporters;
 pub use package::{
-    NextPackage, NextPackageDep, NextPackageDepMap, NextPackageOut, PackageDeps, PeerDetails,
+    NextPackage,
+    NextPackageDep,
+    NextPackageDepMap,
+    NextPackageOut,
+    PackageDeps,
+    PeerDetails,
     PeerEntry,
 };
 pub use read::restore_sections;
-pub use reference::{NamedBindings, NextRef, names_binding, without_groups};
+pub use reference::{
+    NamedBindings,
+    NextRef,
+    names_binding,
+    without_groups,
+};
 pub use settings::NextSettings;
 
-pub(crate) use parse::{Shape, declares_next_format};
+pub(crate) use parse::{
+    Shape,
+    declares_next_format,
+};
 
 use crate::{
-    Lockfile, LockfileSettings, PackageKey, PackageMetadata, PkgName, ProjectSnapshot,
-    SnapshotEntry, implied_version::injected_paths,
+    Lockfile,
+    LockfileSettings,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotEntry,
+    implied_version::injected_paths,
 };
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use serde::{Deserialize, Serialize};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::HashMap;
 
 mod catalogs;

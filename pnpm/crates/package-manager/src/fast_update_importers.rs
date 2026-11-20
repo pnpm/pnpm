@@ -2,25 +2,40 @@ pub(crate) use locked_versions::locked_version_resolution_would_pick;
 
 mod importer_update;
 use importer_update::{
-    ImporterUpdate, LockedInputs, apply_one_importer_update, drop_stale_importers,
+    ImporterUpdate,
+    LockedInputs,
+    apply_one_importer_update,
+    drop_stale_importers,
 };
 
 mod locked_versions;
 
 use crate::{
-    fast_update_compose::Drift, fast_update_lockfile::GraphEdits,
-    fast_update_overrides::get_peer_names, fast_update_settings::workspace_package_names,
+    fast_update_compose::Drift,
+    fast_update_lockfile::GraphEdits,
+    fast_update_overrides::get_peer_names,
+    fast_update_settings::workspace_package_names,
 };
 use node_semver::Version;
 use pnpm_lockfile::{
-    Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_semver_include_prerelease::parse_strict_semver_range;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
     sync::OnceLock,
 };
@@ -70,7 +85,7 @@ impl ImportersPlan<'_, '_> {
 /// Whether the importers' records diverge from the manifests, without
 /// cloning anything. [`Drift::Resolve`] when an alias cannot be parsed
 /// (which the resolver reports) or when a changed specifier is one
-/// [`apply_importers_update`] is certain to refuse — bailing here keeps
+/// [`apply_importers_update`] is certain to refuse, bailing here keeps
 /// the compose from cloning a workspace-scale lockfile it would then
 /// throw away.
 pub(crate) fn detect_importers_drift<'a, 'manifest>(
@@ -149,7 +164,7 @@ fn stale_importer_ids(
 }
 
 /// Whether any importer's record drifted from its manifest. `None` when one
-/// of them can only be reconciled by resolving — bailing before the compose
+/// of them can only be reconciled by resolving, bailing before the compose
 /// clones the whole lockfile, since the apply would fail on it regardless.
 fn any_importer_diverged(
     lockfile: &Lockfile,
@@ -177,8 +192,8 @@ fn any_importer_diverged(
 /// Replay the manifests' drift onto `candidate`: compatible specifier
 /// changes, group moves, and removals, with the dropped aliases and
 /// optionality moves recorded in `edits` for the shared epilogue.
-/// `false` — an incompatible or non-semver change, or an alias the
-/// lockfile does not record — leaves the caller on the full-resolution
+/// `false` (an incompatible or non-semver change, or an alias the
+/// lockfile does not record) leaves the caller on the full-resolution
 /// path.
 pub(crate) fn apply_importers_update(
     candidate: &mut Lockfile,

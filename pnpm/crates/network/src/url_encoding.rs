@@ -1,4 +1,7 @@
-use std::{borrow::Cow, fmt::Write as _};
+use std::{
+    borrow::Cow,
+    fmt::Write as _,
+};
 
 /// Decode percent-escaped UTF-8 without form-query semantics: `+` and `&`
 /// remain literal. Invalid escapes pass through; invalid UTF-8 is replaced.

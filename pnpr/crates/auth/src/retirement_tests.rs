@@ -1,4 +1,9 @@
-use crate::{PasswordChange, SqliteAuth, UserBackend, UserRemoval};
+use crate::{
+    PasswordChange,
+    SqliteAuth,
+    UserBackend,
+    UserRemoval,
+};
 use pnpr_config::MaxUsers;
 
 fn test_auth() -> SqliteAuth {

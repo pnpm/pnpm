@@ -1,6 +1,11 @@
 use super::{
-    Access, Map, NormalizedRegistryUrl, PublishPackedPkgError, Value,
-    is_valid_old_npm_package_name, join_registry,
+    Access,
+    Map,
+    NormalizedRegistryUrl,
+    PublishPackedPkgError,
+    Value,
+    is_valid_old_npm_package_name,
+    join_registry,
 };
 
 /// The tarball digests written into the document's `dist`, already computed by
@@ -12,7 +17,7 @@ pub(crate) struct DistHashes<'a> {
     pub(crate) shasum: &'a str,
 }
 
-/// Build the npm publish document — the JSON body sent as the whole
+/// Build the npm publish document, the JSON body sent as the whole
 /// `PUT /:pkg` request.
 pub(crate) fn build_publish_document(
     manifest: &Value,
@@ -22,7 +27,7 @@ pub(crate) fn build_publish_document(
     tag: &str,
     dist_hashes: &DistHashes<'_>,
 ) -> Result<Value, PublishPackedPkgError> {
-    if manifest.get("private").and_then(Value::as_bool) == Some(true) {
+    if matches!(manifest.get("private"), Some(Value::Bool(true))) {
         return Err(PublishPackedPkgError::Private);
     }
     let name = manifest_string(manifest, "name");
@@ -30,8 +35,8 @@ pub(crate) fn build_publish_document(
     // the authenticated PUT URL, mirroring libnpmpublish's `npa.resolve(name, ..)`
     // gate. Without it a crafted tarball's `package.json` name could parse as an
     // absolute URL under `Url::join` (special-scheme URLs also treat `\` as `/`)
-    // and redirect the publish request — carrying the `Authorization` / `npm-otp`
-    // headers — to an attacker-controlled host.
+    // and redirect the publish request (carrying the `Authorization` / `npm-otp`
+    // headers) to an attacker-controlled host.
     if !is_valid_old_npm_package_name(&name) {
         return Err(PublishPackedPkgError::InvalidPackageName { name });
     }
@@ -66,10 +71,7 @@ pub(crate) fn build_publish_document(
     }
     root.insert("dist-tags".to_owned(), Value::Object(dist_tags));
     root.insert("versions".to_owned(), Value::Object(versions));
-    root.insert(
-        "access".to_owned(),
-        access.map_or(Value::Null, |access| Value::String(access.to_string())),
-    );
+    root.insert("access".to_owned(), Value::from(access.as_ref().map(ToString::to_string)));
     root.insert("_attachments".to_owned(), Value::Object(attachments));
     Ok(Value::Object(root))
 }

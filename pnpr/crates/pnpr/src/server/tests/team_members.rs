@@ -1,9 +1,20 @@
 use super::{
-    AuthState, Method, OneToken, ServiceExt, StatusCode, record, router_with_auth, signed, to_bytes,
+    AuthState,
+    Method,
+    OneToken,
+    ServiceExt,
+    StatusCode,
+    record,
+    router_with_auth,
+    signed,
+    to_bytes,
 };
 use std::{
     collections::BTreeSet,
-    sync::{Arc, atomic::Ordering},
+    sync::{
+        Arc,
+        atomic::Ordering,
+    },
 };
 
 #[tokio::test]

@@ -1,12 +1,17 @@
 //! Deciding which agent skills a dependency may link.
 
 use super::{
-    HashMap, VersionPolicyError,
+    HashMap,
+    VersionPolicyError,
     allow_build_policy::{
-        git_repo_allow_build_key_from_dep_path, is_dep_path_allow_build_key,
-        is_git_repo_allow_build_key, normalize_build_dep_path, parse_dep_path_name_version,
+        git_repo_allow_build_key_from_dep_path,
+        is_dep_path_allow_build_key,
+        is_git_repo_allow_build_key,
+        normalize_build_dep_path,
+        parse_dep_path_name_version,
     },
-    expand_package_version_spec, get_pkg_id_with_patch_hash,
+    expand_package_version_spec,
+    get_pkg_id_with_patch_hash,
 };
 use pnpm_config::SkillsPermission;
 

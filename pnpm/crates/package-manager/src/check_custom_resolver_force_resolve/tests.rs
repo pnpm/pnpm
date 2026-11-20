@@ -1,13 +1,26 @@
 use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
+    Arc,
+    Mutex,
+    atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
-use pnpm_hooks::{CustomResolver, HookError};
-use pnpm_lockfile::{Lockfile, PackageKey};
+use pnpm_hooks::{
+    CustomResolver,
+    HookError,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+};
 
 use super::check_custom_resolver_force_resolve;
 

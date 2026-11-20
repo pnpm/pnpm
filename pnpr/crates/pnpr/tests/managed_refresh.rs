@@ -3,23 +3,46 @@
 use crate::tokens::seeded_auth;
 use axum::{
     Router,
-    body::{Body, to_bytes},
+    body::{
+        Body,
+        to_bytes,
+    },
     extract::State,
-    http::{Request, StatusCode},
+    http::{
+        Request,
+        StatusCode,
+    },
     response::Response,
 };
-use pnpr::{Config, router_with_auth};
-use pnpr_config::{DatabaseBackend, LibsqlSettings};
+use pnpr::{
+    Config,
+    router_with_auth,
+};
+use pnpr_config::{
+    DatabaseBackend,
+    LibsqlSettings,
+};
 use pnpr_libsql::testing::serve_primary;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_storage::{
-    HostedDocumentVersion, Storage,
-    database::{NewRegistryGraph, NewScimUser},
+    HostedDocumentVersion,
+    Storage,
+    database::{
+        NewRegistryGraph,
+        NewScimUser,
+    },
 };
 use std::{
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };

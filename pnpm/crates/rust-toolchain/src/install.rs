@@ -1,16 +1,33 @@
 //! Downloading a release's archives and unpacking them into one toolchain
 //! directory.
 
-use crate::{Channel, RustToolchainError, ToolchainRequest, manifest::Archive};
+use crate::{
+    Channel,
+    RustToolchainError,
+    ToolchainRequest,
+    manifest::Archive,
+};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pnpm_tarball::BoundedReader;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
     fmt::Write as _,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
@@ -248,7 +265,8 @@ pub(crate) async fn install<Reporter: self::Reporter>(
             verify_and_unpack(&archive, &body, staged.path()).map(|()| staged)
         })
         .await
-        .map_err(|error| install_error(io::Error::other(error)))??;
+        .map_err(io::Error::other)
+        .map_err(install_error)??;
     }
     publish(staged, dir).map_err(install_error)
 }

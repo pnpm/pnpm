@@ -1,4 +1,7 @@
-use std::{borrow::Cow, collections::HashSet};
+use std::{
+    borrow::Cow,
+    collections::HashSet,
+};
 
 /// The command names [`super::choose_bins`] must not link. Windows
 /// resolves commands without regard to case, so there the names are

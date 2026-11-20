@@ -1,4 +1,9 @@
-use super::{Component, Path, PathBuf, normalize};
+use super::{
+    Component,
+    Path,
+    PathBuf,
+    normalize,
+};
 
 pub(super) fn normalized_prefix(cwd: &str, prefix: &str) -> String {
     let cwd = normalize(cwd);

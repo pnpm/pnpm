@@ -9,10 +9,24 @@ use crate::{
     ConfigDepError,
     manifest_lockfile::package_metadata,
     options::ConfigDepsInstallOptions,
-    resolve_and_install_config_deps::{assert_no_policy_violation, resolve_options},
+    resolve_and_install_config_deps::{
+        assert_no_policy_violation,
+        resolve_options,
+    },
 };
-use pnpm_lockfile::{EnvLockfile, PackageKey, PkgName, PkgVerPeer, SnapshotDepRef, SnapshotEntry};
-use pnpm_resolving_resolver_base::{ResolveResult, Resolver, WantedDependency};
+use pnpm_lockfile::{
+    EnvLockfile,
+    PackageKey,
+    PkgName,
+    PkgVerPeer,
+    SnapshotDepRef,
+    SnapshotEntry,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveResult,
+    Resolver,
+    WantedDependency,
+};
 use std::collections::HashMap;
 
 /// Resolve `parent_manifest.optionalDependencies` and record each into

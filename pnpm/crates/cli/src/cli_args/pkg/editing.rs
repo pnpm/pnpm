@@ -1,4 +1,10 @@
-use super::{Map, PkgError, Segment, Value, parse_property_path};
+use super::{
+    Map,
+    PkgError,
+    Segment,
+    Value,
+    parse_property_path,
+};
 
 const UNSAFE_KEYS: [&str; 3] = ["__proto__", "constructor", "prototype"];
 
@@ -41,13 +47,14 @@ pub(super) fn set_object_value_by_property_path(
     }
     check_unsafe_key_in_path(path)?;
     let segments = parse_property_path(path)
-        .map_err(|err| miette::Report::new(PkgError::InvalidPropertyPath(err)))?;
+        .map_err(PkgError::InvalidPropertyPath)
+        .map_err(miette::Report::new)?;
     let Some((last, parents)) = segments.split_last() else {
         return Err(PkgError::EmptyPath.into());
     };
     let mut current = root;
     for (position, segment) in parents.iter().enumerate() {
-        // A container is created — or replaced — to match what the next
+        // A container is created (or replaced) to match what the next
         // segment addresses it as, so a path can be set into a document
         // that does not describe it yet.
         let needs_array = matches!(&segments[position + 1], Segment::Index(_));
@@ -127,7 +134,7 @@ fn place_value(current: &mut Value, last: &Segment, value: Value) -> miette::Res
     Ok(())
 }
 
-/// Write into the array slot the index names, growing — or building —
+/// Write into the array slot the index names, growing (or building)
 /// the array to reach it.
 fn place_at_index(current: &mut Value, index: usize, value: Value) {
     if !current.is_array() {
@@ -167,7 +174,8 @@ pub(super) fn delete_object_value_by_property_path(
     path: &str,
 ) -> miette::Result<bool> {
     let segments = parse_property_path(path)
-        .map_err(|err| miette::Report::new(PkgError::InvalidPropertyPath(err)))?;
+        .map_err(PkgError::InvalidPropertyPath)
+        .map_err(miette::Report::new)?;
     let Some((last, parents)) = segments.split_last() else {
         return Ok(false);
     };
@@ -183,7 +191,7 @@ pub(super) fn delete_object_value_by_property_path(
 }
 
 /// Step into the container `segment` names. `None` when the document
-/// has nothing there — a path that does not exist deletes nothing.
+/// has nothing there, a path that does not exist deletes nothing.
 fn descend_for_delete<'a>(
     current: &'a mut Value,
     segment: &Segment,

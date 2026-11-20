@@ -2,7 +2,10 @@ use super::all_files_match;
 use std::{
     collections::HashSet,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(in crate::import_indexed_dir) fn all_imported_entries_match_exactly(

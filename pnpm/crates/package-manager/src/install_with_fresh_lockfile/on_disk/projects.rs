@@ -3,8 +3,14 @@
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use std::{
-    collections::{BTreeMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(in crate::install_with_fresh_lockfile) struct OnDiskProjects<'a> {

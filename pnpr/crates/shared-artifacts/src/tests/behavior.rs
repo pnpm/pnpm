@@ -1,9 +1,30 @@
 use super::{
-    Arc, ArtifactCandidate, ArtifactQuota, ArtifactSubject, ArtifactUsage, AtomicUsize,
-    FailArtifactWrites, FailOnly, HostedStoreConfig, InMemory, MAX_VARIANTS_PER_CANDIDATE,
-    ObjectPath, ObjectStore, ObjectStoreExt, Ordering, OwnerScope, RegistryError,
-    ResolveArtifactsRequest, SharedArtifactStore, TempDir, is_variant_file, lookup, publication,
-    publication_for_platform, publication_tagged, publication_with_blob,
+    Arc,
+    ArtifactCandidate,
+    ArtifactQuota,
+    ArtifactSubject,
+    ArtifactUsage,
+    AtomicUsize,
+    FailArtifactWrites,
+    FailOnly,
+    HostedStoreConfig,
+    InMemory,
+    MAX_VARIANTS_PER_CANDIDATE,
+    ObjectPath,
+    ObjectStore,
+    ObjectStoreExt,
+    Ordering,
+    OwnerScope,
+    RegistryError,
+    ResolveArtifactsRequest,
+    SharedArtifactStore,
+    TempDir,
+    is_variant_file,
+    lookup,
+    publication,
+    publication_for_platform,
+    publication_tagged,
+    publication_with_blob,
     workspace_task_publication,
 };
 use futures_util::StreamExt as _;
@@ -395,7 +416,7 @@ async fn a_backfill_writes_each_marker_once_however_many_variants_reach_it() {
     let scratch = TempDir::new().unwrap();
     let store = SharedArtifactStore::new(&config, scratch.path()).unwrap();
     // Two artifacts stored before markers existed, whose tags differ only in a
-    // floor — so they reach the same scope, which is the overlap markers stop.
+    // floor, so they reach the same scope, which is the overlap markers stop.
     let floors = ["pnpm:v1:linux-x64-node22-glibc2.17", "pnpm:v1:linux-x64-node22-glibc2.31"];
     let stored = publication_tagged("ci/stored", &floors[..1]);
     let (payload, _) = stored.envelope.decode_payload().unwrap();

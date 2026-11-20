@@ -1,7 +1,17 @@
-use std::net::{IpAddr, SocketAddr};
+use std::net::{
+    IpAddr,
+    SocketAddr,
+};
 
-use pnpm_network::{AddressGuard, GuardedDnsResolver, native_dns_resolver};
-use reqwest::dns::{Name, Resolve};
+use pnpm_network::{
+    AddressGuard,
+    GuardedDnsResolver,
+    native_dns_resolver,
+};
+use reqwest::dns::{
+    Name,
+    Resolve,
+};
 
 use crate::resolve_ref::GitRunError;
 

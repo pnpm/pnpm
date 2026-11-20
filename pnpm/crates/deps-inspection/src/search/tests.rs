@@ -5,7 +5,10 @@ use std::collections::HashMap;
 
 use pretty_assertions::assert_eq;
 
-use super::{SearchMatch, Searcher};
+use super::{
+    SearchMatch,
+    Searcher,
+};
 use crate::TreeNodeId;
 
 fn searcher(queries: &[&str]) -> Searcher {

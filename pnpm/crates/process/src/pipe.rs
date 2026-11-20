@@ -1,15 +1,29 @@
-use crate::{child::ProcessHandle, host};
+use crate::{
+    child::ProcessHandle,
+    host,
+};
 use pnpm_wasm_host::Request;
 use serde::Deserialize;
 use serde_json::json;
 use std::{
     future::Future,
-    io::{self, Read, Write},
+    io::{
+        self,
+        Read,
+        Write,
+    },
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
 };
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::{
+    AsyncRead,
+    AsyncWrite,
+    ReadBuf,
+};
 
 pub struct ReadPipe {
     handle: u32,

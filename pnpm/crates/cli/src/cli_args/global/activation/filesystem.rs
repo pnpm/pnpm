@@ -1,5 +1,14 @@
-use super::{PackageBinSource, Path, fs, io, relative_path};
-use miette::{Context, IntoDiagnostic};
+use super::{
+    PackageBinSource,
+    Path,
+    fs,
+    io,
+    relative_path,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 
 /// Point `link` at `target`, replacing any existing link in a single step
 /// so a concurrent command never observes it missing. Windows cannot

@@ -6,51 +6,74 @@
 //! frozen-lockfile freshness checks and for the fresh resolver's
 //! manifest hook.
 //!
-//! The hook never touches the on-disk `package.json` — mutation
+//! The hook never touches the on-disk `package.json`, mutation
 //! happens through [`pnpm_package_manifest::PackageManifest::value_mut`]
 //! on the in-memory `Value` only.
 
-pub use dependency_rewriter::overrides_dependency_rewriter;
-pub(crate) use selectors::{matches_target, parse_declared_range};
+pub use dependency_matcher::OverriddenDependencyMatcher;
+pub use dependency_rewriter::{
+    overrides_catalog_reference_rewriter,
+    overrides_dependency_rewriter,
+};
+pub(crate) use selectors::{
+    matches_target,
+    parse_declared_range,
+};
 
+mod dependency_matcher;
 mod dependency_rewriter;
 mod meta_only_peers;
 mod selectors;
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use pnpm_config_parse_overrides::{
+    PackageSelector,
+    VersionOverride,
+};
 use pnpm_local_spec::LocalSpec;
 use pnpm_matcher::WildcardMatcher;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::is_valid_peer_range;
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 /// In-memory hook that applies the parsed `pnpm.overrides` set to a
-/// manifest. Cheap to construct — partitioning the overrides into the
+/// manifest. Cheap to construct, partitioning the overrides into the
 /// parent-scoped vs. generic vs. convergence buckets happens once, and
 /// each call to [`Self::apply`] walks the dep maps in place.
 pub struct VersionsOverrider {
-    /// Overrides whose key carries a `parent>child` shape — only
+    /// Overrides whose key carries a `parent>child` shape, only
     /// applied when the manifest being rewritten matches the parent
     /// half (name + optional range).
     parent_scoped: Vec<ResolvedOverride>,
     /// Generic overrides (no parent half). Apply to every manifest.
     generic: Vec<ResolvedOverride>,
     /// Convergence overrides (`"pkg@"`), keyed by target package name
-    /// (at most one per name — the overrides map's keys are unique).
+    /// (at most one per name, the overrides map's keys are unique).
     /// Consulted only for edges no explicit override claims.
     converge: HashMap<String, ConvergeOverride>,
     /// Every declared semver range seen for packages that have a
     /// convergence override, whether or not the override's version
     /// satisfied it. Feeds the staleness check for convergence
     /// overrides after a full resolution. Edges claimed by an explicit
-    /// override are not recorded — the convergence override never
+    /// override are not recorded, the convergence override never
     /// governs them.
     converge_declared_ranges: Mutex<HashMap<String, HashSet<String>>>,
     /// Workspace catalogs used to dereference `catalog:` dependency
@@ -61,7 +84,7 @@ pub struct VersionsOverrider {
 /// A convergence override's replacement value, with the exact version
 /// pre-parsed once at construction time. `version` is `None` when the
 /// value isn't a parseable semver version (only reachable for
-/// hand-built [`VersionOverride`] entries — [`pnpm_config_parse_overrides::parse_overrides`]
+/// hand-built [`VersionOverride`] entries, [`pnpm_config_parse_overrides::parse_overrides`]
 /// rejects such values); the override then never rewrites an edge,
 /// matching how an unsatisfiable version behaves.
 struct ConvergeOverride {
@@ -110,28 +133,6 @@ impl ResolvedOverride {
             Some(target) => target.render(manifest_dir),
             _ => self.inner.new_bare_specifier.clone(),
         }
-    }
-}
-
-/// Answers whether an override governs a dependency declared as a given
-/// specifier — whether or not it rewrites the text. An override that repeats
-/// the declaration verbatim still governs it, and a range-scoped override
-/// (`foo@^2`) governs one declaration of `foo` and not another, so the
-/// declared specifier is part of the question.
-///
-/// Built by [`VersionsOverrider::dependency_matcher`] for one manifest.
-pub struct OverriddenDependencyMatcher<'a> {
-    overrider: &'a VersionsOverrider,
-    applicable_parent_scoped: Vec<&'a ResolvedOverride>,
-}
-
-impl OverriddenDependencyMatcher<'_> {
-    #[must_use]
-    pub fn matches(&self, group: DependencyGroup, dep_name: &str, dep_spec: &str) -> bool {
-        self.overrider
-            .choose_override(Some(group), &self.applicable_parent_scoped, dep_name, dep_spec)
-            .is_some()
-            || self.overrider.converge_applies(dep_name, dep_spec)
     }
 }
 
@@ -233,7 +234,7 @@ impl VersionsOverrider {
             return manifest;
         }
         if !self.has_applicable_override(&manifest) {
-            // Nothing rewrites, so the shared value is returned as-is —
+            // Nothing rewrites, so the shared value is returned as-is,
             // but the declared ranges of converge-governed edges must
             // still reach the staleness collector (`apply_to_value`
             // records them as a side effect of its walk, which is
@@ -434,7 +435,7 @@ impl VersionsOverrider {
     }
 
     /// Resolve the specifier the override set imposes on a dependency
-    /// edge that has no declaring manifest — a peer pnpm auto-installs.
+    /// edge that has no declaring manifest, a peer pnpm auto-installs.
     /// `"-"` means the edge is dropped. Parent-scoped overrides never
     /// apply: there is no parent manifest to match them against.
     /// `pkg_dir` is the directory of the package the edge is added to, so
@@ -442,7 +443,7 @@ impl VersionsOverrider {
     /// hard-coding this machine's layout into the lockfile.
     ///
     /// Such an edge never reaches [`Self::apply`], so the convergence
-    /// collector must not see it either — a range no manifest declares
+    /// collector must not see it either, a range no manifest declares
     /// would skew the staleness verdict.
     #[must_use]
     pub fn override_for_undeclared_dependency(
@@ -475,7 +476,7 @@ impl VersionsOverrider {
     /// Consult the convergence override for an edge no explicit
     /// override claimed: record the declared range for the staleness
     /// check, then return the exact version when it satisfies the
-    /// declared range — incompatible edges keep their own resolution.
+    /// declared range, incompatible edges keep their own resolution.
     fn converge_dep(&self, dep_name: &str, dep_spec: &str) -> Option<String> {
         let range = self.try_record_converge_range(dep_name, dep_spec)?;
         let entry = &self.converge[dep_name];

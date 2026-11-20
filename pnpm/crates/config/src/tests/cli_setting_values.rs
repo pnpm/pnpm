@@ -1,4 +1,9 @@
-use super::{Config, HostNoHome, fs, tempdir};
+use super::{
+    Config,
+    HostNoHome,
+    fs,
+    tempdir,
+};
 use crate::esm_node_path_loader::esm_node_path_loader_import_flag;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;

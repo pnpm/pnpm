@@ -2,15 +2,26 @@
 #![cfg(unix)]
 
 use super::StreamedScript;
-use crate::{process::Command, process_tracker::spawn_child};
-use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
+use crate::{
+    process::Command,
+    process_tracker::spawn_child,
+};
+use pnpm_reporter::{
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    Reporter,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
     process::Stdio,
     sync::Mutex,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::tempdir;
 

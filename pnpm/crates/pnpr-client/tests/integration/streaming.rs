@@ -1,6 +1,13 @@
 use super::{
-    PnprClient, PnprClientError, TestRegistry, deps, options, register_token, registry_upstream,
-    start_pnpr, start_pnpr_with_upstreams,
+    PnprClient,
+    PnprClientError,
+    TestRegistry,
+    deps,
+    options,
+    register_token,
+    registry_upstream,
+    start_pnpr,
+    start_pnpr_with_upstreams,
 };
 
 /// End-to-end: the test registry gates `@pnpm.e2e/needs-auth` behind
@@ -23,7 +30,8 @@ async fn an_upstream_resolves_a_private_package() {
     assert!(
         packages
             .keys()
-            .any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
+            .map(std::string::ToString::to_string)
+            .any(|text| text.starts_with("@pnpm.e2e/needs-auth@1.0.0")),
         "lockfile should contain the authed package, got: {:?}",
         packages
             .keys()
@@ -34,7 +42,7 @@ async fn an_upstream_resolves_a_private_package() {
 
 /// The same install against a server with no matching upstream
 /// fails: the client forwards no credential and pnpr has none to select,
-/// so the gated packument can only be fetched anonymously — which the
+/// so the gated packument can only be fetched anonymously, which the
 /// registry refuses.
 #[tokio::test]
 async fn a_private_package_fails_without_an_upstream() {

@@ -15,13 +15,26 @@ pub mod network;
 pub mod schema;
 pub mod sqlite;
 
-pub use dialect::{Dialect, DialectSql};
-pub use pnpr_config::{LibsqlSettings, SqlBackendSettings};
-pub use pnpr_error::{RegistryError, Result};
+pub use dialect::{
+    Dialect,
+    DialectSql,
+};
+pub use pnpr_config::{
+    LibsqlSettings,
+    SqlBackendSettings,
+};
+pub use pnpr_error::{
+    RegistryError,
+    Result,
+};
 
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 use std::{
-    sync::{Arc, Mutex, Weak},
+    sync::{
+        Arc,
+        Mutex,
+        Weak,
+    },
     time::Duration,
 };
 
@@ -29,17 +42,27 @@ use std::{
 mod postgres;
 #[cfg(feature = "backend-postgres")]
 pub use postgres::{
-    options as postgres_options, pool as postgres_pool, timeout_sql as postgres_timeout_sql,
+    options as postgres_options,
+    pool as postgres_pool,
+    timeout_sql as postgres_timeout_sql,
 };
 #[cfg(feature = "backend-mysql")]
 mod mysql;
 #[cfg(feature = "backend-mysql")]
-pub use mysql::{options as mysql_options, pool as mysql_pool, timeout_sql as mysql_timeout_sql};
+pub use mysql::{
+    options as mysql_options,
+    pool as mysql_pool,
+    timeout_sql as mysql_timeout_sql,
+};
 
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 mod startup;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
-pub use startup::{Checkout, StartupConnection, connect_startup};
+pub use startup::{
+    Checkout,
+    StartupConnection,
+    connect_startup,
+};
 
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 fn invalid_pool_size() -> RegistryError {
@@ -92,7 +115,8 @@ impl<Database: sqlx::Database> Pools<Database> {
         entries.retain(|entry| entry.pool.strong_count() > 0);
         if let Some(pool) = entries
             .iter()
-            .find(|entry| entry.runtime == runtime && &entry.settings == settings)
+            .filter(|entry| entry.runtime == runtime)
+            .find(|entry| &entry.settings == settings)
             .and_then(|entry| entry.pool.upgrade())
         {
             return Ok(pool);

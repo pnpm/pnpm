@@ -1,7 +1,24 @@
 use super::{
-    AmazonS3ConfigKey, BackendConfig, ClientConfigKey, Config, ConfigSource, Duration, Ecosystem,
-    EnvGuard, FeatureOverrides, MINIMAL_YAML, Path, PathBuf, RegistryError, bundled_registries,
-    listen, load_with_graph, normalize_key_prefix, resolve_relative, s3_settings_for, write_yaml,
+    AmazonS3ConfigKey,
+    BackendConfig,
+    ClientConfigKey,
+    Config,
+    ConfigSource,
+    Duration,
+    Ecosystem,
+    EnvGuard,
+    FeatureOverrides,
+    MINIMAL_YAML,
+    Path,
+    PathBuf,
+    RegistryError,
+    bundled_registries,
+    listen,
+    load_with_graph,
+    normalize_key_prefix,
+    resolve_relative,
+    s3_settings_for,
+    write_yaml,
 };
 
 #[test]
@@ -147,7 +164,7 @@ fn artifact_override_is_independent_from_the_resolver_override() {
 #[test]
 fn nothing_to_serve_is_a_config_error() {
     // `--disable-registry` with the resolver disabled leaves only `/-/ping`
-    // and the account endpoints — a misconfiguration.
+    // and the account endpoints, a misconfiguration.
     let yaml = "resolver:\n  enabled: false\n";
     let err = Config::from_yaml_str_with_overrides(
         yaml,
@@ -258,7 +275,7 @@ fn resolve_cli_when_only_cli_supplied() {
 
 #[test]
 fn resolve_cli_wins_over_default_path() {
-    // Both paths exist. CLI must take priority — the auto-discovered
+    // Both paths exist. CLI must take priority, the auto-discovered
     // path is a *fallback*, not a merge target.
     //
     // Storage paths are derived from `tmp` so they're absolute on
@@ -298,7 +315,10 @@ fn resolve_bundled_branch_honors_public_url_override() {
 
 #[test]
 fn bundled_default_config_enforces_its_protections() {
-    use pnpr_registry::{ConcreteKind, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
     // The bundled YAML provides production-safe defaults: registration disabled,
     // and the bundled registries are a default public npmjs proxy and an empty
     // local hosted registry.

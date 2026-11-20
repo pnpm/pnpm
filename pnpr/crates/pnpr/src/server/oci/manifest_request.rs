@@ -1,9 +1,35 @@
 use super::{
-    Action, Body, CanonicalPackageName, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode,
-    HostedRepo, ImageDocument, Method, OciPublication, Ownership, Refusal, RegistryError,
-    RegistrySource, Request, Response, ResponseBody, StatusCode, authorize_with_ownership,
-    collect_body, created, error, header, hosted_manifest_response, insert_header,
-    lookup_in_hosted_document, method_not_allowed, no_content, read_manifest_bytes, registry_error,
+    Action,
+    Body,
+    CanonicalPackageName,
+    DOCUMENT_WRITE_RETRIES,
+    Digest,
+    DocumentUpdate,
+    ErrorCode,
+    HostedRepo,
+    ImageDocument,
+    Method,
+    OciPublication,
+    Ownership,
+    Refusal,
+    RegistryError,
+    RegistrySource,
+    Request,
+    Response,
+    ResponseBody,
+    StatusCode,
+    authorize_with_ownership,
+    collect_body,
+    created,
+    error,
+    header,
+    hosted_manifest_response,
+    insert_header,
+    lookup_in_hosted_document,
+    method_not_allowed,
+    no_content,
+    read_manifest_bytes,
+    registry_error,
     unknown_repository,
 };
 use pnpr_oci::ManifestRemoval;
@@ -168,7 +194,8 @@ impl Request {
         let target = self.publish_target(name).await?;
         let content_type = self.headers
             .get(header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok());
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok);
         let bytes = collect_body(body, self.state.inner.config.http.oci.max_manifest_bytes).await?;
         OciPublication::new(
             target,

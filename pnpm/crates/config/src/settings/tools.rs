@@ -1,4 +1,8 @@
-use super::{Config, HashMap, Tool};
+use super::{
+    Config,
+    HashMap,
+    Tool,
+};
 
 impl Config {
     /// Where the builds of one tool are downloaded from, as

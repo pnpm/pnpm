@@ -1,13 +1,27 @@
 use super::{
-    BTreeMap, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, Deserialize,
-    LimitedBody, Response, Serialize, StatusCode, read_limited_body, redact_url_credentials,
-    retry_async, sanitize, send_with_retry,
+    BTreeMap,
+    DEPRECATION_ERROR_BODY_LIMIT,
+    DeprecateContext,
+    DeprecateError,
+    Deserialize,
+    LimitedBody,
+    Response,
+    Serialize,
+    StatusCode,
+    read_limited_body,
+    redact_url_credentials,
+    retry_async,
+    sanitize,
+    send_with_retry,
 };
 use crate::cli_args::{
     package_spec::PackageSpec,
     registry_client::{
-        PACKAGE_DOCUMENT_BODY_LIMIT, apply_auth_and_otp, auth_header_for_package,
-        package_endpoint_url, resolve_target_registry_for_package,
+        PACKAGE_DOCUMENT_BODY_LIMIT,
+        apply_auth_and_otp,
+        auth_header_for_package,
+        package_endpoint_url,
+        resolve_target_registry_for_package,
     },
 };
 

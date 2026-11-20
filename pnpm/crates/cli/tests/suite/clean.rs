@@ -1,11 +1,18 @@
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use pnpm_store_dir::StoreDir;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use std::{
-    fs, io,
+    fs,
+    io,
     path::Path,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// Create `dir/node_modules/<name>/package.json` so the directory
@@ -75,7 +82,7 @@ fn clean_finishes_when_stdout_is_closed() {
 
 /// The real isolated-linker layout: `node_modules/<name>` is a link
 /// (symlink or junction) into `.pnpm`. `.pnpm` sorts before the package
-/// names, so by the time `clean` reaches the link it dangles — removal
+/// names, so by the time `clean` reaches the link it dangles, removal
 /// must unlink it rather than follow it
 /// ([pnpm/pnpm#13694](https://github.com/pnpm/pnpm/issues/13694)).
 #[test]
@@ -542,7 +549,12 @@ fn clean_does_not_remove_virtual_store_dir_outside_the_project_root() {
 /// module is Unix-only.
 #[cfg(unix)]
 mod scripts {
-    use super::{CommandTempCwd, Path, fs, seed_package};
+    use super::{
+        CommandTempCwd,
+        Path,
+        fs,
+        seed_package,
+    };
     use command_extra::CommandExtra;
 
     fn write_manifest(dir: &Path, scripts: &serde_json::Value) {

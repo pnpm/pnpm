@@ -1,8 +1,14 @@
 use super::resolve::ResolvedEntry;
-use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
+use pnpm_cmd_shim::{
+    LinkBinsError,
+    LinkBinsOptions,
+};
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Link the bins of the symlinked `entries` into `<modules_dir>/.bin`. Each

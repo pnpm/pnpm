@@ -1,8 +1,15 @@
-use crate::{InUse, StoreDir, register_project};
+use crate::{
+    InUse,
+    StoreDir,
+    register_project,
+};
 use pnpm_fs::symlink_dir;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 
@@ -38,7 +45,7 @@ fn prune_is_noop_without_links_dir() {
 }
 
 /// `prune()` does nothing destructive when no projects are
-/// registered — pacquet doesn't know which slots are still
+/// registered, pacquet doesn't know which slots are still
 /// referenced, so the safe stance is "keep everything". Mirrors
 /// upstream's `if (projects.length === 0) { return }` branch.
 #[test]

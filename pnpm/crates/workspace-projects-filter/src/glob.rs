@@ -34,7 +34,7 @@
 //! matching: backslashes become `/` and a trailing `/` is stripped. This
 //! mirrors upstream's pattern `replace(/\\/g, '/')` together with
 //! micromatch's separator handling, which treats `\` in the candidate as a
-//! path separator too — so a Windows `ProjectRootDir` rendered with
+//! path separator too, so a Windows `ProjectRootDir` rendered with
 //! backslashes by [`PathBuf::to_string_lossy`](std::path::PathBuf) still
 //! matches.
 
@@ -261,7 +261,11 @@ fn split_top_level(content: &str, separator: &[char]) -> Vec<String> {
     while index < chars.len() {
         match chars[index] {
             '[' => index = bracket_end(&chars, brackets, index + 1).unwrap_or(index + 1),
-            '{' => index = spans.closes[index].map_or(index + 1, |close| close + 1),
+            '{' => {
+                index = spans.closes[index]
+                    .map(|close| close + 1)
+                    .unwrap_or(index + 1);
+            }
             _ if chars[index..].starts_with(separator) => {
                 parts.push(chars[part_start..index].iter().collect());
                 index += separator.len();

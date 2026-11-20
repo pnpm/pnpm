@@ -1,5 +1,12 @@
-use super::{CreateVirtualStoreOutput, immutable_download, retain_dependency_closure};
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use super::{
+    CreateVirtualStoreOutput,
+    immutable_download,
+    retain_dependency_closure,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use std::collections::HashMap;
 
 struct CachedBuildInputs<'a> {
@@ -62,7 +69,9 @@ impl CachedBuildInputs<'_> {
         }
         let overlays = self.fetched.side_effects.maps.get(key)?;
         let should_run_scripts = !self.config.ignore_scripts
-            && self.allow_build_policy.check(&key.without_peer().to_string()) == Some(true);
+            && self.allow_build_policy
+                .check(&key.without_peer().to_string())
+                .unwrap_or(false);
         let cache_key = pnpm_graph_hasher::calc_dep_state(
             graph,
             deps_state_cache,

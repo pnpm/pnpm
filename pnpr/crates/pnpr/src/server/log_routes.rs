@@ -13,22 +13,51 @@
 //! the registry's statements about the record.
 
 use super::{
-    AppState, AuthedCaller, Ecosystem, Identity, RegistrySource, Response, StatusCode,
-    TargetRegistry, addressed_registry, caller_scoped, hosted_read_namespace, not_found,
-    private_no_cache, resolve_registry_source,
+    AppState,
+    AuthedCaller,
+    Ecosystem,
+    Identity,
+    RegistrySource,
+    Response,
+    StatusCode,
+    TargetRegistry,
+    addressed_registry,
+    caller_scoped,
+    hosted_read_namespace,
+    not_found,
+    private_no_cache,
+    resolve_registry_source,
 };
 use axum::{
     body::Body,
-    extract::{Path, State},
-    http::{HeaderValue, header},
+    extract::{
+        Path,
+        State,
+    },
+    http::{
+        HeaderValue,
+        header,
+    },
     response::IntoResponse,
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD};
-use pnpm_release_record::{AcceptancePredicate, Envelope, PredicateType, Statement, StoredRecord};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD,
+};
+use pnpm_release_record::{
+    AcceptancePredicate,
+    Envelope,
+    PredicateType,
+    Statement,
+    StoredRecord,
+};
 use pnpm_transparency_log::TilePath;
 use pnpr_config::HostedConfig;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::transparency_log::{InclusionProof, LogId};
+use pnpr_storage::transparency_log::{
+    InclusionProof,
+    LogId,
+};
 use serde_json::json;
 use std::time::Duration;
 
@@ -346,7 +375,8 @@ async fn sigstore_bundle(
         return Ok(None);
     };
     let bytes = axum::body::to_bytes(body, 16 * 1024 * 1024).await
-        .map_err(|err| pnpr_error::RegistryError::Io(std::io::Error::other(err)))?;
+        .map_err(std::io::Error::other)
+        .map_err(pnpr_error::RegistryError::Io)?;
     Ok(Some(serde_json::from_slice(&bytes)?))
 }
 

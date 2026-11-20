@@ -2,21 +2,48 @@
 //! own lockfiles, each once the workspace projects it depends on are done.
 
 use super::{
-    Arc, Config, Context, DedicatedProjectRuns, DedicatedProjects, DedicatedSync, HashMap, HashSet,
-    IndexMap, InstallArgs, Path, PathBuf, Reporter, State, ThrottledClient,
-    ci_validation::PreparedDedicatedProject, dedicated_project_name, discover_workspace_projects,
-    injected_source_dirs, pipelined_runs::early_starts, project_dependencies, project_names,
-    prune_after_dedicated_installs, sync_dedicated_injected_deps,
+    Arc,
+    Config,
+    Context,
+    DedicatedProjectRuns,
+    DedicatedProjects,
+    DedicatedSync,
+    HashMap,
+    HashSet,
+    IndexMap,
+    InstallArgs,
+    Path,
+    PathBuf,
+    Reporter,
+    State,
+    ThrottledClient,
+    ci_validation::PreparedDedicatedProject,
+    dedicated_project_name,
+    discover_workspace_projects,
+    injected_source_dirs,
+    pipelined_runs::early_starts,
+    project_dependencies,
+    project_names,
+    prune_after_dedicated_installs,
+    sync_dedicated_injected_deps,
 };
 use crate::{
-    cli_args::recursive::{AutoExcludeRoot, select_recursive_projects},
+    cli_args::recursive::{
+        AutoExcludeRoot,
+        select_recursive_projects,
+    },
     state::DedicatedCaches,
 };
 use pnpm_package_manager::WorkspaceDependenciesInstalled;
 use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
+    ScheduleGraphAsyncOptions,
+    TaskCompletion,
+    schedule_graph_async,
 };
-use std::{future::Future, sync::Mutex};
+use std::{
+    future::Future,
+    sync::Mutex,
+};
 
 impl DedicatedProjectRuns<'_> {
     pub(super) async fn run<Rep, Runner, RunFuture>(self, run: Runner) -> miette::Result<()>
@@ -88,7 +115,8 @@ impl DedicatedProjectRuns<'_> {
         first_error
             .into_inner()
             .expect("dedicated install error lock is not poisoned")
-            .map_or(Ok(()), Err)
+            .map(Err)
+            .unwrap_or(Ok(()))
     }
 
     /// Install the project at `project_dir` through `run`, sharing `caches`
@@ -211,7 +239,7 @@ pub(super) async fn run_dedicated_projects<Reporter: self::Reporter + 'static>(
 }
 
 /// `sharedWorkspaceLockfile: false` workspace install: one independent
-/// single-project install per workspace project — each gets its own
+/// single-project install per workspace project; each gets its own
 /// `pnpm-lock.yaml`, `node_modules`, and virtual store, mirroring
 /// pnpm's dedicated-lockfile per-project loop in its recursive
 /// dispatch. The workspace root participates when it has a manifest,

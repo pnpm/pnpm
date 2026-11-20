@@ -1,11 +1,38 @@
 use super::{
-    BTreeMap, BTreeSet, BlockPlacement, Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog,
-    Frame, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus,
-    LockfileVerificationMessage, LogLevel, MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState,
-    PendingSkillsLog, ReporterState, RequestRetryLog, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog, cached_verdict,
-    detect_install_source, is_strictly_newer, normalize, pending_approval_packages, pretty_ms,
-    progress_label, relative, update_command, zoom_out,
+    BTreeMap,
+    BTreeSet,
+    BlockPlacement,
+    Colors,
+    DedupeCheckLog,
+    DeprecationLog,
+    ExecutionTimeLog,
+    Frame,
+    HookLog,
+    IgnoredScriptsLog,
+    InstallingConfigDepsLog,
+    InstallingConfigDepsStatus,
+    LockfileVerificationMessage,
+    LogLevel,
+    MAX_SHOWN_WARNINGS,
+    MaxLogLevel,
+    NoticeState,
+    PendingSkillsLog,
+    ReporterState,
+    RequestRetryLog,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+    UpdateCheckLog,
+    cached_verdict,
+    detect_install_source,
+    is_strictly_newer,
+    normalize,
+    pending_approval_packages,
+    pretty_ms,
+    progress_label,
+    relative,
+    update_command,
+    zoom_out,
 };
 use jiff::Timestamp;
 
@@ -57,7 +84,7 @@ impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
     pub(super) fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
-        // Suppress the warning box under `strictDepBuilds` — the install
+        // Suppress the warning box under `strictDepBuilds`, the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
         // only duplicate the error. The structured event still carries the
         // names for NDJSON consumers.
@@ -115,7 +142,7 @@ impl ReporterState {
             return;
         }
         self.display.frame.push_block(format!(
-            "Update available! {current} \u{2192} {latest}.\n{changelog} https://pnpm.io/v/{version}\nTo update, run: {command}",
+            "Update available! {current} → {latest}.\n{changelog} https://pnpm.io/v/{version}\nTo update, run: {command}",
             current = self.rendering.colors.red(&log.current_version),
             latest = self.rendering.colors.green(&log.latest_version),
             changelog = self.rendering.colors.magenta("Changelog:"),
@@ -209,6 +236,13 @@ impl ReporterState {
 
     pub(super) fn on_request_retry(&mut self, log: &RequestRetryLog) {
         let left = log.max_retries.saturating_sub(log.attempt);
+        #[cfg_attr(
+            dylint_lib = "perfectionist",
+            expect(
+                perfectionist::em_dash_prose,
+                reason = "the retry notice keeps its printed separator"
+            )
+        )]
         let msg = format!(
             "{} {} error ({}) {} {}\nWill retry in {}. {left} retries left.",
             log.method,

@@ -7,13 +7,28 @@
 
 use indexmap::IndexMap;
 use pnpr_config::RoutingConfig;
-use pnpr_policy::{AccessList, AccessToken, PackageRule, RuleTable};
-use pnpr_registry::{Ecosystem, PackagePattern};
+use pnpr_policy::{
+    AccessList,
+    AccessToken,
+    PackageRule,
+    RuleTable,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+};
 use pnpr_storage::{
     Storage,
-    database::{GrantContent, GrantWrite, StoredGrant},
+    database::{
+        GrantContent,
+        GrantWrite,
+        StoredGrant,
+    },
 };
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// The rules of one registry of a document.
 #[derive(Clone)]
@@ -57,7 +72,8 @@ fn take_registry_rules(key: &str, registry: &mut Map<String, Value>) -> Option<R
     let ecosystem: Ecosystem = registry
         .get("ecosystem")
         .cloned()
-        .map(|ecosystem| serde_json::from_value(ecosystem).expect("a known ecosystem"))
+        .map(serde_json::from_value)
+        .map(|ecosystem| ecosystem.expect("a known ecosystem"))
         .unwrap_or_default();
     let public = registry
         .get("public")
@@ -101,7 +117,8 @@ fn list(value: &Value) -> AccessList {
         Value::String(entry) => vec![entry.as_str()],
         Value::Array(entries) => entries
             .iter()
-            .map(|entry| entry.as_str().expect("an access list entry"))
+            .map(Value::as_str)
+            .map(|text| text.expect("an access list entry"))
             .collect(),
         _ => panic!("an access list is an entry or a sequence of entries"),
     };

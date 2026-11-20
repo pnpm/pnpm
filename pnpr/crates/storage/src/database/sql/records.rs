@@ -1,15 +1,25 @@
 use super::{
     SqlDatabase,
-    adapter::{Connection, Param, Query},
+    adapter::{
+        Connection,
+        Param,
+        Query,
+    },
     batch::WriteTransaction,
     transactions::Freshness,
 };
 use crate::MetadataRecord;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_sql::DialectSql;
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, Ordering},
+    atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 
 #[derive(Debug)]

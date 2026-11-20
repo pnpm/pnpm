@@ -1,12 +1,26 @@
 use super::{
-    ArgTable, CliNetworkArgs, CliPathArgs, OsStr, OsString, PathBuf, PresentationArgs,
+    ArgTable,
+    CliNetworkArgs,
+    CliPathArgs,
+    OsStr,
+    OsString,
+    PathBuf,
+    PresentationArgs,
     ReporterFlags,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::{grammar, install::InstallLockfileArgs, install_options::OfflineArgs},
+    cli_args::{
+        grammar,
+        install::InstallLockfileArgs,
+        install_options::OfflineArgs,
+    },
 };
-use clap::{CommandFactory, FromArgMatches, parser::ValueSource};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+    parser::ValueSource,
+};
 use std::sync::OnceLock;
 
 /// The flags the pre-command pass reads from a command line it scans
@@ -74,7 +88,8 @@ impl BootstrapTokens {
     fn offer_long(&mut self, token: &str, long: &str, next: Option<&OsStr>) -> Option<usize> {
         let (name, value_attached) = long
             .split_once('=')
-            .map_or((long, false), |(name, _)| (name, true));
+            .map(|(name, _)| (name, true))
+            .unwrap_or((long, false));
         let consumes_value = BootstrapArgv::options().long_consumes_value(name)?;
         if !consumes_value || value_attached {
             self.0.push(vec![OsString::from(token)]);
@@ -100,7 +115,7 @@ impl BootstrapTokens {
         for (index, short) in shorts.char_indices() {
             let rest = &shorts[index + short.len_utf8()..];
             let Some(consumes_value) = BootstrapArgv::options().short_consumes_value(short) else {
-                if options.short_consumes_value(short) != Some(false) {
+                if options.short_consumes_value(short).unwrap_or(true) {
                     return None;
                 }
                 continue;
@@ -209,7 +224,8 @@ pub(super) fn declared_option_width(token: &str, options: &ArgTable) -> Option<u
 fn declared_long_width(name: &str, options: &ArgTable) -> Option<usize> {
     let (name, value_attached) = name
         .split_once('=')
-        .map_or((name, false), |(name, _)| (name, true));
+        .map(|(name, _)| (name, true))
+        .unwrap_or((name, false));
     let consumes_value = options.long_consumes_value(name)?;
     Some(if consumes_value && !value_attached { 2 } else { 1 })
 }
@@ -246,7 +262,7 @@ pub(super) fn cluster_options<'a>(
         .chars()
         .take_while(move |&short| {
             let named = !value_follows;
-            value_follows = options.short_consumes_value(short) != Some(false);
+            value_follows = options.short_consumes_value(short).unwrap_or(true);
             named
         })
 }

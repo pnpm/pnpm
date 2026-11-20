@@ -1,18 +1,31 @@
 //! The direct dependency links of each project: whether one is broken, or a
 //! local link the last install made is gone.
 
-use super::{OptimisticRepeatInstallCheck, included_groups, project_modules_dirs};
+use super::{
+    OptimisticRepeatInstallCheck,
+    included_groups,
+    project_modules_dirs,
+};
 use crate::optimistic_repeat_install::manifest_string_field;
 use pnpm_config::NodeLinker;
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_workspace::importer_id_from_root_dir;
 use rayon::prelude::*;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 

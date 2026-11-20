@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Express `path` relative to `base`, mirroring Node's
 /// `path.relative(base, path)`: the shortest relative path when the two
@@ -32,7 +35,7 @@ fn relative_path_inner(base: &Path, path: &Path) -> PathBuf {
 /// Whether `path` and `base` have an identical `Component::Prefix` after
 /// `dunce::simplified`, with drive letters case-folded. UNC shares
 /// only match when their server/share are written with identical
-/// casing and variant — the check has to stay in lockstep with what
+/// casing and variant, the check has to stay in lockstep with what
 /// `pathdiff::diff_paths` will tolerate, since a variant-tolerant or
 /// case-tolerant comparison here would let the downstream diff emit
 /// a re-anchored garbage path on a `Prefix` mismatch it cannot relate.
@@ -45,7 +48,10 @@ fn same_path_root(path: &Path, base: &Path) -> bool {
         }
     }
     fn case_normalize(prefix: std::path::Prefix<'_>) -> std::path::Prefix<'_> {
-        use std::path::Prefix::{Disk, VerbatimDisk};
+        use std::path::Prefix::{
+            Disk,
+            VerbatimDisk,
+        };
         match prefix {
             Disk(d) => Disk(d.to_ascii_uppercase()),
             VerbatimDisk(d) => VerbatimDisk(d.to_ascii_uppercase()),

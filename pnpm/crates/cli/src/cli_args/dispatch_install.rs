@@ -1,40 +1,99 @@
 pub(super) use maintenance::{
-    approve, approve_builds, dedupe, deploy, env, fetch, import, link, permissions, prune, rebuild,
-    runtime, unlink,
+    approve,
+    approve_builds,
+    dedupe,
+    deploy,
+    env,
+    fetch,
+    import,
+    link,
+    permissions,
+    prune,
+    rebuild,
+    runtime,
+    unlink,
 };
-pub(super) use patches::{patch, patch_commit, patch_remove};
-pub(super) use pipeline::{install_test, pipeline};
+pub(super) use patches::{
+    patch,
+    patch_commit,
+    patch_remove,
+};
+pub(super) use pipeline::{
+    install_test,
+    pipeline,
+};
 
 use super::{
-    add::{AddArgs, apply_allow_build},
-    approve_builds::{ApprovalStore, ApproveBuildsArgs},
+    add::{
+        AddArgs,
+        apply_allow_build,
+    },
+    approve_builds::{
+        ApprovalStore,
+        ApproveBuildsArgs,
+    },
     ci::CiArgs,
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
-    dispatch::{CommandFuture, RunCtx, apply_update_config},
+    dispatch::{
+        CommandFuture,
+        RunCtx,
+        apply_global_update_config,
+        apply_update_config,
+    },
     dlx::DlxArgs,
-    env::{EnvArgs, EnvSubcommand},
+    env::{
+        EnvArgs,
+        EnvSubcommand,
+    },
     fetch::FetchArgs,
     global,
     import::ImportArgs,
-    install::{InstallArgs, resolve_bool_override},
+    install::{
+        InstallArgs,
+        resolve_bool_override,
+    },
     link::LinkArgs,
     patch::PatchArgs,
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
-    permissions::{ApproveArgs, PermissionsArgs, PermissionsCommand, render_permissions},
-    pipeline::{PipelineArgs, PipelineInvocation, WatchInvocation, run_pipeline, run_watch},
+    permissions::{
+        ApproveArgs,
+        PermissionsArgs,
+        PermissionsCommand,
+        render_permissions,
+    },
+    pipeline::{
+        PipelineArgs,
+        PipelineInvocation,
+        WatchInvocation,
+        run_pipeline,
+        run_watch,
+    },
     pipelines::{
-        AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,
-        RemovePipeline, UpdatePipeline, apply_install_cli_config, derive_config_root,
-        ensure_project_manifest, installed_project_config, keeps_project_lockfiles,
-        run_dedicated_lockfile_workspace_install, warn_about_config_root,
+        AddPipeline,
+        DedupePipeline,
+        DeployPipeline,
+        InstallPipeline,
+        PrunePipeline,
+        RemovePipeline,
+        UpdatePipeline,
+        apply_install_cli_config,
+        derive_config_root,
+        ensure_project_manifest,
+        installed_project_config,
+        keeps_project_lockfiles,
+        run_dedicated_lockfile_workspace_install,
+        warn_about_config_root,
     },
     prune::PruneArgs,
     rebuild::RebuildArgs,
     remove::RemoveArgs,
-    reporter::{ReporterType, reporter_emit},
+    reporter::{
+        ReporterType,
+        reporter_emit,
+    },
     runtime::RuntimeArgs,
     unlink::UnlinkArgs,
     update::UpdateArgs,
@@ -42,12 +101,21 @@ use super::{
     workspace_option::workspace_link_root,
 };
 use crate::{
-    cli_args::reporter::{CliReporter, selected_reporter},
-    package_specifier::{EcosystemPackageSpecifier, PackageSpecifierPlan},
+    cli_args::reporter::{
+        CliReporter,
+        selected_reporter,
+    },
+    package_specifier::{
+        EcosystemPackageSpecifier,
+        PackageSpecifierPlan,
+    },
 };
 use miette::Context;
 use pnpm_config::Config;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<CommandFuture<'a>> {
     let ecosystem_packages = route_package_specifiers(&mut args)?;
@@ -129,10 +197,11 @@ fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFutu
     args.install.lockfile_dir.apply_to_global(config)?;
     args.apply_cli_config(config);
     let dir = ctx.locations.dir;
-    let update_check = update_notifier::spawn(config, reporter_emit(selected_reporter()));
-    let install: CommandFuture<'a> = Box::pin(args.run_global::<CliReporter>(config, dir));
+    let reporter = selected_reporter();
     Ok(Box::pin(async move {
-        let installed = install.await;
+        apply_global_update_config(config).await?;
+        let update_check = update_notifier::spawn(config, reporter_emit(reporter));
+        let installed = Box::pin(args.run_global::<CliReporter>(config, dir)).await;
         update_notifier::settle(update_check);
         installed
     }))
@@ -190,7 +259,10 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
         let config = (ctx.loaders.global_packages_config)()?;
         args.install.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
-        return Ok(Box::pin(args.run_global::<CliReporter>(config)));
+        return Ok(Box::pin(async move {
+            apply_global_update_config(config).await?;
+            Box::pin(args.run_global::<CliReporter>(config)).await
+        }));
     }
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
@@ -340,13 +412,13 @@ pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFu
 
 pub(super) fn dlx<'a>(ctx: &RunCtx<'a>, args: DlxArgs) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.cli_dir;
-    let config = (ctx.loaders.config)()?;
+    let config = (ctx.loaders.dlx_config)()?;
     Ok(Box::pin(args.run::<CliReporter>(dir, config)))
 }
 
 pub(super) fn create<'a>(ctx: &RunCtx<'a>, args: CreateArgs) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.cli_dir;
-    let config = (ctx.loaders.config)()?;
+    let config = (ctx.loaders.dlx_config)()?;
     Ok(Box::pin(args.run::<CliReporter>(dir, config)))
 }
 

@@ -2,10 +2,20 @@
 //! credentials are `${VAR}` references to listed variables, resolved by each
 //! replica when it builds the routing.
 
-use pnpm_env_replace::{EnvVar, env_replace_lossy, placeholder_ranges};
-use pnpr_error::{RegistryError, redact_url_credentials};
+use pnpm_env_replace::{
+    EnvVar,
+    env_replace_lossy,
+    placeholder_ranges,
+};
+use pnpr_error::{
+    RegistryError,
+    redact_url_credentials,
+};
 
-use super::{RegistryFile, RegistryGraphDocument};
+use super::{
+    RegistryFile,
+    RegistryGraphDocument,
+};
 use crate::config_file::UpstreamFile;
 
 impl RegistryGraphDocument {

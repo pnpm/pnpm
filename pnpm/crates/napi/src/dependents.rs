@@ -1,4 +1,4 @@
-//! `getDependents` / `renderDependents` — the engine side of `pnpm why`.
+//! `getDependents` / `renderDependents`: the engine side of `pnpm why`.
 //!
 //! Wraps [`pnpm_deps_inspection`], the crate `pnpm why` itself is built on,
 //! so an embedder needs neither `@pnpm/deps.inspection.tree-builder` nor
@@ -10,35 +10,61 @@
 //! [`get_dependents`] reads the lockfile and returns the reverse trees as
 //! plain JSON, and [`render_dependents`] turns those trees into terminal,
 //! parseable, or JSON output. Splitting them is what makes the TypeScript
-//! `nameFormatter` callback unnecessary — the tree walk is synchronous Rust
+//! `nameFormatter` callback unnecessary, the tree walk is synchronous Rust
 //! and cannot call back into JS, so an embedder that renames nodes asks for
 //! the manifest fields it renames by (`manifestFields`), rewrites
 //! `displayName` on the returned JSON, and hands the trees back to be
 //! rendered.
 
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use napi_derive::napi;
 use pnpm_deps_inspection::{
     MAX_WALK_DEPTH,
-    build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
+    build::{
+        LoadedState,
+        importer_root_ids,
+        read_project_manifest,
+        safe_importer_dir,
+    },
     dependents::{
-        BuildDependentsOptions, DependencySpecifiers, DependentNode, DependentsTree, ImporterInfo,
+        BuildDependentsOptions,
+        DependencySpecifiers,
+        DependentNode,
+        DependentsTree,
+        ImporterInfo,
         build_dependents_tree,
     },
     dependents_render::{
-        RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
+        RenderDependentsOptions,
+        render_dependents_json,
+        render_dependents_parseable,
         render_dependents_tree,
     },
-    graph::{BuildGraphOptions, build_dependency_graph},
+    graph::{
+        BuildGraphOptions,
+        build_dependency_graph,
+    },
     search::Searcher,
 };
-use pnpm_lockfile::{Lockfile, PeerEdgeOptions};
+use pnpm_lockfile::{
+    Lockfile,
+    PeerEdgeOptions,
+};
 use pnpm_matcher::create_matcher;
-use pnpm_modules_yaml::{DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, IncludedDependencies};
+use pnpm_modules_yaml::{
+    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    IncludedDependencies,
+};
 
 use crate::error::report_to_napi_error;
 
@@ -61,8 +87,8 @@ pub struct DependentsOptions {
     pub project_dirs: Option<Vec<String>>,
     /// Importer-id patterns to skip when `project_dirs` is omitted, in
     /// pnpm's `hoistPattern` glob syntax (`*` is the only wildcard). Lets a
-    /// host keep its own generated importers — Bit's `.bit_roots` projects
-    /// — out of the answer without reading the lockfile itself to
+    /// host keep its own generated importers (Bit's `.bit_roots` projects)
+    /// out of the answer without reading the lockfile itself to
     /// enumerate the rest.
     pub exclude_project_patterns: Option<Vec<String>>,
     /// `node_modules` directory. Defaults to `<dir>/node_modules`.
@@ -104,7 +130,7 @@ pub struct RenderDependentsInput {
 
 /// Every package matching `packages`, each with the reverse tree of what
 /// depends on it. Returns an empty array when the directory has no
-/// lockfile — an un-installed workspace has no dependents to report,
+/// lockfile, an un-installed workspace has no dependents to report,
 /// which is an answer, not an error.
 #[napi]
 pub async fn get_dependents(options: DependentsOptions) -> napi::Result<serde_json::Value> {
@@ -123,8 +149,8 @@ pub async fn get_dependents(options: DependentsOptions) -> napi::Result<serde_js
         })
 }
 
-/// Render trees produced by [`get_dependents`] — after any `displayName`
-/// rewriting the caller applied — as terminal, parseable, or JSON output.
+/// Render trees produced by [`get_dependents`] (after any `displayName`
+/// rewriting the caller applied) as terminal, parseable, or JSON output.
 /// Synchronous: rendering is pure string work over data the caller already
 /// holds, apart from the `package.json` reads `long` asks for.
 #[napi]
@@ -157,8 +183,8 @@ pub fn render_dependents(
 
 /// Refuse a caller-supplied tree nested deeper than the walk that produced
 /// it could ever go. Deserialization and all three renderers recurse over
-/// `dependents`, so an arbitrarily deep argument — a hand-built one, or a
-/// tree from another tool — would otherwise exhaust the stack and take the
+/// `dependents`, so an arbitrarily deep argument (a hand-built one, or a
+/// tree from another tool) would otherwise exhaust the stack and take the
 /// host process down with it.
 ///
 /// The check itself is iterative for the same reason.
@@ -291,10 +317,9 @@ fn registry_routes(options: &DependentsOptions) -> BTreeMap<String, String> {
 }
 
 fn virtual_store_dir_max_length(options: &DependentsOptions) -> usize {
-    options.virtual_store_dir_max_length.map_or(
-        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize,
-        |value| value as usize,
-    )
+    options.virtual_store_dir_max_length
+        .map(|value| value as usize)
+        .unwrap_or(DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize)
 }
 
 fn importer_dirs(

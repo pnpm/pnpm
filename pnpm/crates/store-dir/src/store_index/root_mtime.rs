@@ -1,10 +1,22 @@
 use std::{
     collections::HashMap,
     ffi::OsString,
-    fs::{self, File, FileTimes},
+    fs::{
+        self,
+        File,
+        FileTimes,
+    },
     io,
-    path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Mutex, Weak},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+        Weak,
+    },
     time::SystemTime,
 };
 
@@ -79,7 +91,8 @@ fn set_dir_mtime(dir: &Path, mtime: SystemTime) -> io::Result<()> {
     {
         use std::os::windows::fs::OpenOptionsExt;
         use windows_sys::Win32::Storage::FileSystem::{
-            FILE_FLAG_BACKUP_SEMANTICS, FILE_WRITE_ATTRIBUTES,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            FILE_WRITE_ATTRIBUTES,
         };
         options.access_mode(FILE_WRITE_ATTRIBUTES).custom_flags(FILE_FLAG_BACKUP_SEMANTICS);
     }

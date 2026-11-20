@@ -2,34 +2,64 @@
 //! cache directory. A proof-of-concept tier of the workspace task cache
 //! RFC (pnpm/rfcs#22): keys cover the script text, the declared env
 //! values, the project's tracked files, the upstream task keys, the
-//! lockfile, and the runtime — with the lockfile hashed whole as a
+//! lockfile, and the runtime, with the lockfile hashed whole as a
 //! deliberate `PoC` stand-in for the per-importer dependency-graph hash the
 //! RFC specifies.
 
 use super::{
     capture::CapturedScript,
-    paths::{check_ancestors, check_input_directories, validate_relative_path},
+    paths::{
+        check_ancestors,
+        check_input_directories,
+        validate_relative_path,
+    },
 };
 use crate::process::Command;
-use fs_ops::{remove_output_file, replace_output_file};
-use inputs::{HashedFile, compile_globs};
+use fs_ops::{
+    remove_output_file,
+    replace_output_file,
+};
+use inputs::{
+    HashedFile,
+    compile_globs,
+};
 use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
 use pnpm_crypto_hash::{
-    create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file, create_short_hash,
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+    create_short_hash,
 };
-use pnpm_lockfile::{Lockfile, WantedLockfileSelection};
+use pnpm_lockfile::{
+    Lockfile,
+    WantedLockfileSelection,
+};
 use pnpm_workspace_task_scheduler::TaskNode;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::HashMap,
-    env, fs, io,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    env,
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use wax::{
     Glob,
-    walk::{Entry, FileIterator},
+    walk::{
+        Entry,
+        FileIterator,
+    },
 };
 
 /// How a task met the cache, for the run report.
@@ -87,7 +117,7 @@ pub enum InputsUnavailable {
     /// Git cannot enumerate the project's files: the project is outside a
     /// work tree, or `git` is not installed. The input contract makes the
     /// default input set the project's Git-tracked and untracked, unignored
-    /// files, so there is no set to hash and the tasks bypass the cache — the
+    /// files, so there is no set to hash and the tasks bypass the cache, the
     /// same bypass a submodule input gets. Unlike the submodule case, this one
     /// is reported: a project Git does not cover is usually an accident the
     /// user can fix.
@@ -163,13 +193,13 @@ impl TaskCache {
     }
 
     /// Restore a stored task into the working tree. `Err` carries the
-    /// human-readable reason the restore refused — the caller runs the
+    /// human-readable reason the restore refused, the caller runs the
     /// task normally.
     ///
     /// A file is only ever overwritten or deleted when its current
     /// content matches what the previous run or restore left there
     /// (or what the artifact would write anyway). The record therefore
-    /// carries content hashes, not just paths — a path set cannot tell
+    /// carries content hashes, not just paths, a path set cannot tell
     /// "we produced it" apart from "we produced it and the user has
     /// edited it since".
     pub fn restore(

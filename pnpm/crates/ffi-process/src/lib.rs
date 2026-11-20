@@ -24,19 +24,31 @@ pub use environment::SingleThreaded;
 #[cfg(unix)]
 pub use group_announcement::spawn_announcing_group;
 #[cfg(windows)]
-pub use handle::{ProcessHandle, Wait};
+pub use handle::{
+    ProcessHandle,
+    Wait,
+};
 #[cfg(unix)]
 pub use inheritance::allow_inheritance;
 #[cfg(windows)]
-pub use job::{Job, enclosing_job_releases_children};
+pub use job::{
+    Job,
+    enclosing_job_releases_children,
+};
 #[cfg(target_os = "macos")]
 pub use kernel::darwin_major_version;
 #[cfg(windows)]
 pub use machine::native_architecture;
 #[cfg(unix)]
-pub use open_file_limit::{raise_open_file_limit, soft_open_file_limit};
+pub use open_file_limit::{
+    raise_open_file_limit,
+    soft_open_file_limit,
+};
 #[cfg(windows)]
-pub use process_list::{has_children, runs_image};
+pub use process_list::{
+    has_children,
+    runs_image,
+};
 pub use umask::Umask;
 #[cfg(unix)]
 pub use umask::current_umask;

@@ -1,7 +1,21 @@
 use super::{
-    AccessList, Body, Registries, Registry, Request, ServiceExt, StatusCode, TempDir, config_for,
-    drain_resolve_response, hosted_publish_request, hosted_with_access, json, package_tar_and_tgz,
-    router_with_auth, sha512_integrity, spawn_counting_server,
+    AccessList,
+    Body,
+    Registries,
+    Registry,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    config_for,
+    drain_resolve_response,
+    hosted_publish_request,
+    hosted_with_access,
+    json,
+    package_tar_and_tgz,
+    router_with_auth,
+    sha512_integrity,
+    spawn_counting_server,
 };
 use crate::tokens::issue_token;
 use std::sync::atomic::Ordering;
@@ -398,4 +412,232 @@ async fn resolve_continues_to_support_workspace_protocol_across_projects() {
     assert!(text.contains(r#""type":"done""#), "{text}");
     assert!(text.contains("link:../lib"), "{text}");
     packument.assert_async().await;
+}
+
+async fn post_ndjson(
+    app: &axum::Router,
+    path: &str,
+    token: Option<&str>,
+    body: &serde_json::Value,
+) -> (StatusCode, String) {
+    let mut builder = Request::post(path).header("content-type", "application/json");
+    if let Some(token) = token {
+        builder = builder.header("authorization", format!("Bearer {token}"));
+    }
+    let response = app
+        .clone()
+        .oneshot(
+            builder
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let (status, bytes) = drain_resolve_response(response).await;
+    (status, String::from_utf8(bytes).unwrap())
+}
+
+fn done_lockfile(ndjson: &str) -> serde_json::Value {
+    let last = ndjson
+        .lines()
+        .rfind(|line| !line.trim().is_empty())
+        .expect("terminal frame");
+    let frame: serde_json::Value = serde_json::from_str(last).expect("valid JSON frame");
+    assert_eq!(frame["type"], "done", "{ndjson}");
+    frame["lockfile"].clone()
+}
+
+#[tokio::test]
+async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve() {
+    let (public_url, _) = spawn_counting_server(
+        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    )
+    .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.http.public_url = public_url.clone();
+    let mut hosted = hosted_with_access("", "alice");
+    hosted.rules = super::PackageRules::new(
+        vec![
+            super::PackageRule {
+                pattern: super::PackagePattern::parse("@acme/*", super::Ecosystem::Npm).unwrap(),
+                access: Some(AccessList::from_tokens(["alice"])),
+                publish: Some(AccessList::from_tokens(["alice"])),
+                unpublish: None,
+            },
+            super::PackageRule {
+                pattern: super::PackagePattern::parse("public-dep", super::Ecosystem::Npm).unwrap(),
+                access: Some(AccessList::from_tokens(["$all"])),
+                publish: Some(AccessList::from_tokens(["alice"])),
+                unpublish: None,
+            },
+        ],
+        Some(AccessList::from_tokens(["alice"])),
+    );
+    config.routing.hosted.insert("local".into(), hosted);
+    config.routing.registries = Registries::new(
+        std::iter::once(("local".into(), Registry::Hosted { patterns: vec![] })).collect(),
+        Some("local".into()),
+    );
+
+    let auth = crate::tokens::seeded_auth(&config, &[("alice", "password"), ("bob", "password")]);
+    let alice = issue_token(&auth, "alice").await;
+    let bob = issue_token(&auth, "bob").await;
+    let app = router_with_auth(config, auth);
+
+    for (path, name) in [
+        ("/npm/@acme%2fborn-priv", "@acme/born-priv"),
+        ("/npm/@acme%2fsecond-priv", "@acme/second-priv"),
+        ("/npm/public-dep", "public-dep"),
+    ] {
+        let (_, tgz) = package_tar_and_tgz(&format!(r#"{{"name":"{name}","version":"1.0.0"}}"#));
+        let published = app
+            .clone()
+            .oneshot(hosted_publish_request(path, name, "1.0.0", &tgz, &alice))
+            .await
+            .unwrap();
+        assert_eq!(published.status(), StatusCode::CREATED);
+    }
+
+    let registry = format!("{public_url}/npm/");
+    let (status, resolved) = post_ndjson(
+        &app,
+        "/-/pnpr/v0/resolve",
+        Some(&alice),
+        &json!({
+            "registry": registry,
+            "dependencies": { "@acme/born-priv": "^1.0.0" },
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{resolved}");
+    let lockfile = done_lockfile(&resolved);
+
+    let frozen_req = json!({
+        "registry": registry,
+        "dependencies": { "@acme/born-priv": "^1.0.0" },
+        "lockfile": lockfile,
+        "frozenLockfile": true,
+        "trustPolicy": "no-downgrade",
+    });
+    let warm_req = json!({
+        "registry": registry,
+        "dependencies": { "@acme/born-priv": "^1.0.0", "public-dep": "^1.0.0" },
+        "lockfile": lockfile,
+        "frozenLockfile": false,
+        "trustPolicy": "no-downgrade",
+    });
+
+    assert_eq!(
+        post_ndjson(&app, "/-/pnpr/v0/verify-lockfile", Some(&bob), &frozen_req)
+            .await
+            .0,
+        StatusCode::BAD_GATEWAY,
+    );
+    assert_eq!(
+        post_ndjson(&app, "/-/pnpr/v0/resolve", Some(&bob), &frozen_req).await.0,
+        StatusCode::BAD_GATEWAY,
+    );
+
+    let (alice_status, alice_body) =
+        post_ndjson(&app, "/-/pnpr/v0/verify-lockfile", Some(&alice), &frozen_req).await;
+    assert_eq!(alice_status, StatusCode::OK, "{alice_body}");
+    assert!(alice_body.contains(r#""type":"done""#), "{alice_body}");
+
+    for path in ["/-/pnpr/v0/verify-lockfile", "/-/pnpr/v0/resolve"] {
+        let (status, body) = post_ndjson(&app, path, Some(&alice), &frozen_req).await;
+        assert_eq!(status, StatusCode::OK, "{path}: {body}");
+        assert!(body.contains(r#""type":"done""#), "{path}: {body}");
+    }
+    let (warm_status, warm_body) =
+        post_ndjson(&app, "/-/pnpr/v0/resolve", Some(&alice), &warm_req).await;
+    assert_eq!(warm_status, StatusCode::OK, "{warm_body}");
+    let _warm_lockfile = done_lockfile(&warm_body);
+
+    for (path, req) in [
+        ("/-/pnpr/v0/verify-lockfile", &frozen_req),
+        ("/-/pnpr/v0/resolve", &frozen_req),
+        ("/-/pnpr/v0/resolve", &warm_req),
+    ] {
+        let (bob_status, bob_body) = post_ndjson(&app, path, Some(&bob), req).await;
+        assert_eq!(bob_status, StatusCode::BAD_GATEWAY, "bob {path}: {bob_body}");
+        let (anon_status, _) = post_ndjson(&app, path, None, req).await;
+        assert_eq!(anon_status, StatusCode::UNAUTHORIZED, "anon {path}");
+    }
+
+    let trusted_warm_req = json!({
+        "registry": registry,
+        "dependencies": { "@acme/born-priv": "^1.0.0", "@acme/second-priv": "^1.0.0" },
+        "lockfile": lockfile,
+        "frozenLockfile": false,
+        "trustLockfile": true,
+    });
+    let (_, alice_trusted) =
+        post_ndjson(&app, "/-/pnpr/v0/resolve", Some(&alice), &trusted_warm_req).await;
+    let _ = done_lockfile(&alice_trusted);
+    let (_, bob_trusted) =
+        post_ndjson(&app, "/-/pnpr/v0/resolve", Some(&bob), &trusted_warm_req).await;
+    assert!(bob_trusted.contains(r#""type":"error""#), "{bob_trusted}");
+}
+
+#[tokio::test]
+async fn verify_lockfile_and_resolve_endpoints_reject_shape_mismatched_lockfiles() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_for("http://127.0.0.1:9", tmp.path().to_path_buf());
+    let auth = crate::tokens::seeded_auth(&config, &[("reader", "password")]);
+    let reader = issue_token(&auth, "reader").await;
+    let app = router_with_auth(config, auth);
+    let lockfile = json!({
+        "lockfileVersion": "9.0",
+        "importers": {
+            ".": {
+                "dependencies": {
+                    "safe-pkg": { "specifier": "1.0.0", "version": "1.0.0" }
+                }
+            }
+        },
+        "packages": {
+            "safe-pkg@1.0.0": {
+                "resolution": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "tarball": "file:alt.tgz",
+                }
+            }
+        },
+        "snapshots": { "safe-pkg@1.0.0": {} }
+    });
+
+    for (route, payload) in [
+        (
+            "/-/pnpr/v0/verify-lockfile",
+            json!({ "registry": "http://127.0.0.1:9/", "lockfile": lockfile }),
+        ),
+        (
+            "/-/pnpr/v0/resolve",
+            json!({
+                "dependencies": { "safe-pkg": "1.0.0" },
+                "registry": "http://127.0.0.1:9/",
+                "frozenLockfile": true,
+                "lockfile": lockfile,
+            }),
+        ),
+    ] {
+        let request = Request::post(route)
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {reader}"))
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+        let (status, body) = drain_resolve_response(
+            app.clone()
+                .oneshot(request)
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{route}");
+        let body = String::from_utf8(body).unwrap();
+        assert!(body.contains(r#""type":"violations""#), "{route}: {body}");
+        assert!(body.contains(r#""code":"RESOLUTION_SHAPE_MISMATCH""#), "{route}: {body}");
+        assert!(!body.contains(r#""type":"done""#), "{route}: {body}");
+    }
 }

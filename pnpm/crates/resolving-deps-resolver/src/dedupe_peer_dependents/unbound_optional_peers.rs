@@ -1,6 +1,12 @@
 //! The variants an importer's rejected optional peers must stay unbound in.
 
-use super::{DepPath, DependenciesGraph, DirectByImporter, HashSet, UnboundOptionalPeers};
+use super::{
+    DepPath,
+    DependenciesGraph,
+    DirectByImporter,
+    HashSet,
+    UnboundOptionalPeers,
+};
 
 /// Every variant in an importer's closure that leaves unbound one of the
 /// optional peers in `rejected_by_importer`, with the names it leaves

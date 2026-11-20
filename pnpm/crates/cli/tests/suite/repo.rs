@@ -1,4 +1,4 @@
-//! `pacquet repo` — open the repository URL of a package in the browser.
+//! `pacquet repo`: open the repository URL of a package in the browser.
 //!
 //! The URL-normalization logic is covered by
 //! the unit tests on `repository_to_web_url` / `pick_repo_url`; the full
@@ -8,7 +8,10 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 fn pacquet(workspace: &std::path::Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)

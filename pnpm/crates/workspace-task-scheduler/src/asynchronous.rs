@@ -1,6 +1,15 @@
 use super::{
-    Condvar, FuturesUnordered, IndexMap, Mutex, NodeEdges, ScheduleGraphAsyncOptions,
-    SchedulerState, StreamExt, TaskCompletion, VecDeque, node_edges,
+    Condvar,
+    FuturesUnordered,
+    IndexMap,
+    Mutex,
+    NodeEdges,
+    ScheduleGraphAsyncOptions,
+    SchedulerState,
+    StreamExt,
+    TaskCompletion,
+    VecDeque,
+    node_edges,
 };
 
 /// Async counterpart of [`schedule_graph`](crate::synchronous::schedule_graph), used by command pipelines whose

@@ -2,18 +2,39 @@
 
 use std::sync::Arc;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{LockfileResolution, VariationsResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    VariationsResolution,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
-    ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
 };
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
+};
 
-use crate::read_deno_assets::{ReadDenoAssetsError, read_deno_assets};
+use crate::read_deno_assets::{
+    ReadDenoAssetsError,
+    read_deno_assets,
+};
 
 const RESOLVED_VIA: &str = "github.com/denoland/deno";
 

@@ -1,8 +1,22 @@
 use super::{
-    ArchiveStoreProjection, AuthHeaders, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL,
-    IngestTarballToStore, MemCache, SharedReportedProgressKeys, SharedVerifiedFilesCache,
-    StoreIndex, ThrottledClient, UNREACHABLE_URL, assert_eq, fast_fail_client, integrity,
-    seed_row_holding_another_package, store_index_key, tempdir_with_leaked_path, test_retry_opts,
+    ArchiveStoreProjection,
+    AuthHeaders,
+    FASTIFY_ERROR_INTEGRITY,
+    FASTIFY_ERROR_TARBALL,
+    IngestTarballToStore,
+    MemCache,
+    SharedReportedProgressKeys,
+    SharedVerifiedFilesCache,
+    StoreIndex,
+    ThrottledClient,
+    UNREACHABLE_URL,
+    assert_eq,
+    fast_fail_client,
+    integrity,
+    seed_row_holding_another_package,
+    store_index_key,
+    tempdir_with_leaked_path,
+    test_retry_opts,
 };
 
 #[cfg(not(target_os = "windows"))]
@@ -168,13 +182,16 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
 /// different `package_id`s. The first uses `SilentReporter`
 /// (modelling the prefetcher). The second uses the recording
 /// reporter (modelling the install pass) and hits the
-/// immediate-`Available` branch — the only event captured must be
+/// immediate-`Available` branch, the only event captured must be
 /// a single `found_in_store` for the install pass's `package_id`.
 #[tokio::test]
 async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{
+        LogEvent,
+        ProgressMessage,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
@@ -194,7 +211,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         .mock("GET", "/pkg.tgz")
         .with_status(200)
         .with_body(FASTIFY_ERROR_TARBALL)
-        // exactly one network hit — the second requester must reuse
+        // exactly one network hit, the second requester must reuse
         // the in-memory cache without going to the network.
         .expect(1)
         .create_async()
@@ -330,7 +347,10 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
 async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{LogEvent, ProgressMessage};
+    use pnpm_reporter::{
+        LogEvent,
+        ProgressMessage,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 

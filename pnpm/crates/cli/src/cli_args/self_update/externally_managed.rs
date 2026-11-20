@@ -74,7 +74,8 @@ pub(super) fn refuse_without_pin(
     };
     let pins_pnpm = manifest
         .and_then(Option::as_ref)
-        .and_then(|manifest| wanted_package_manager(manifest.value()))
+        .map(PackageManifest::value)
+        .and_then(wanted_package_manager)
         .is_some_and(|pm| pm.name == "pnpm");
     if pins_pnpm {
         return Ok(Some(manager));

@@ -47,6 +47,7 @@ windows-sys = { workspace = true, features = [
 ] }
 
 [dev-dependencies]
+command-extra = { workspace = true }
 pnpm-process = { path = "../process", features = ["test"] }
 pnpm-testing-utils = { workspace = true }
 pretty_assertions = { workspace = true }

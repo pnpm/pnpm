@@ -1,5 +1,12 @@
-use super::{boolean_flags, resolve_boolean_values, spellings};
-use crate::{boolean_negations::with_boolean_negations, cli_args::CliArgs};
+use super::{
+    boolean_flags,
+    resolve_boolean_values,
+    spellings,
+};
+use crate::{
+    boolean_negations::with_boolean_negations,
+    cli_args::CliArgs,
+};
 use clap::CommandFactory;
 use pretty_assertions::assert_eq;
 use std::ffi::OsString;

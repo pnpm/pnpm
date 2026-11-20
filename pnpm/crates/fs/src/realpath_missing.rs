@@ -1,7 +1,12 @@
 use std::{
     ffi::OsStr,
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 const MAX_SYMLINK_HOPS: usize = 40;

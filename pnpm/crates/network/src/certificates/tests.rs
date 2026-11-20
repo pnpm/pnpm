@@ -1,4 +1,7 @@
-use security_framework::{certificate::SecCertificate, trust::SecTrust};
+use security_framework::{
+    certificate::SecCertificate,
+    trust::SecTrust,
+};
 
 use super::is_platform_verifier_available;
 

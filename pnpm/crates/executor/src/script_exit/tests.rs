@@ -22,7 +22,10 @@ fn emulated_renders_like_an_exit_status() {
 #[cfg(unix)]
 #[test]
 fn a_signalled_child_reports_the_signal_name() {
-    use std::{os::unix::process::ExitStatusExt, process::ExitStatus};
+    use std::{
+        os::unix::process::ExitStatusExt,
+        process::ExitStatus,
+    };
 
     let killed = ScriptExit::Process(ExitStatus::from_raw(libc::SIGKILL));
     assert_eq!(killed.code(), None);

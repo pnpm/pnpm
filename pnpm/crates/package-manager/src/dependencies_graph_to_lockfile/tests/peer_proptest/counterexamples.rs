@@ -1,9 +1,18 @@
 //! Minimized counterexamples the properties in the parent module found.
 
 use super::{
-    Reuse, Workspace, in_order, lockfile_of,
-    model::{Edge, PackageVersion, Peer, PeerRange},
-    outcome_of, resolve,
+    Reuse,
+    Workspace,
+    in_order,
+    lockfile_of,
+    model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+    },
+    outcome_of,
+    resolve,
 };
 use pretty_assertions::assert_eq;
 
@@ -896,7 +905,11 @@ fn reinstall_preserves_injected_peer_dependency_classification() {
 
 #[test]
 fn peer_only_importer_keeps_a_provider_locked_by_a_range() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let workspace = Workspace {
         packages: vec![
             vec![
@@ -935,7 +948,11 @@ fn peer_only_importer_keeps_a_provider_locked_by_a_range() {
 
 #[test]
 fn retained_peer_context_preserves_transitive_cycle_context() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let any_peer = |target, also_dependency| PackageVersion {
         dependencies: vec![],
         peers: vec![Peer { target, range: PeerRange::Any, optional: false, also_dependency }],
@@ -969,7 +986,11 @@ fn retained_peer_context_preserves_transitive_cycle_context() {
 
 #[test]
 fn cyclic_provider_keeps_its_optional_dependency_context() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let workspace = Workspace {
         packages: vec![
             vec![
@@ -1009,7 +1030,11 @@ fn cyclic_provider_keeps_its_optional_dependency_context() {
 
 #[test]
 fn unchanged_locked_cycle_keeps_transitive_peer_context() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let workspace = Workspace {
         packages: vec![
             vec![
@@ -1055,7 +1080,11 @@ fn unchanged_locked_cycle_keeps_transitive_peer_context() {
 
 #[test]
 fn retained_leaf_provider_keeps_a_hashed_cycle_context() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let workspace = Workspace {
         packages: vec![
             vec![
@@ -1112,7 +1141,11 @@ fn retained_leaf_provider_keeps_a_hashed_cycle_context() {
 
 #[test]
 fn shared_children_do_not_reuse_another_occurrences_peer_context() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let workspace = Workspace {
         packages: vec![
             vec![
@@ -1160,7 +1193,11 @@ fn shared_children_do_not_reuse_another_occurrences_peer_context() {
 
 #[test]
 fn optional_cycle_peer_keeps_its_transitive_context() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let workspace = Workspace {
         packages: vec![
             vec![
@@ -1224,7 +1261,11 @@ fn optional_cycle_peer_keeps_its_transitive_context() {
 
 #[test]
 fn retained_direct_provider_preserves_shared_cycle_contexts() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let workspace = Workspace {
         packages: vec![
             vec![leaf(), depending_on(1, 2)],
@@ -1270,7 +1311,11 @@ fn retained_direct_provider_preserves_shared_cycle_contexts() {
 
 #[test]
 fn bare_non_leaf_provider_does_not_replace_an_injected_cycle_context() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let workspace = Workspace {
         packages: vec![
             vec![
@@ -1323,7 +1368,11 @@ fn bare_non_leaf_provider_does_not_replace_an_injected_cycle_context() {
 
 #[test]
 fn same_name_cycle_context_is_stable_on_reinstall() {
-    use super::{Settings, lockfile_with_settings, resolve_with};
+    use super::{
+        Settings,
+        lockfile_with_settings,
+        resolve_with,
+    };
     let workspace = Workspace {
         packages: vec![
             vec![depending_on(4, 1), leaf()],

@@ -1,8 +1,8 @@
 //! Per-package access rules: each concrete registry's `packages:` map,
 //! keyed by [`PackagePattern`] with `access` / `publish` / `unpublish`
 //! permission lists as values. Selection is by **specificity**, not
-//! declaration order — an exact name beats `@scope/*` beats `@*/*` beats
-//! `**` — because a YAML mapping is formally unordered and key order must
+//! declaration order (an exact name beats `@scope/*` beats `@*/*` beats
+//! `**`) because a YAML mapping is formally unordered and key order must
 //! not decide which access rule applies. The restricted pattern language
 //! makes that selection total: for any one name, at most one key per
 //! specificity tier can match, so every name has exactly one winning entry.
@@ -14,9 +14,20 @@
 //! instance. The caller's [`Identity`] lists its teams, so evaluation needs
 //! only the identity.
 
-pub use access::{AccessList, AccessToken, Identity};
-pub use grants::{Action, Grant, GrantSpec};
-pub use package_rules::{PackageRules, RuleOverride};
+pub use access::{
+    AccessList,
+    AccessToken,
+    Identity,
+};
+pub use grants::{
+    Action,
+    Grant,
+    GrantSpec,
+};
+pub use package_rules::{
+    PackageRules,
+    RuleOverride,
+};
 
 use grants::Grants;
 

@@ -1,6 +1,17 @@
-use super::{Reuse, config, fixture::Fixture, graph, in_order, model, resolve_with};
+use super::{
+    Reuse,
+    config,
+    fixture::Fixture,
+    graph,
+    in_order,
+    model,
+    resolve_with,
+};
 
-use pnpm_lockfile::{Lockfile, LockfileFormat};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileFormat,
+};
 use proptest::prelude::*;
 
 #[derive(Debug, Clone, Copy)]
@@ -96,7 +107,14 @@ proptest! {
 
 #[test]
 fn removal_of_peer_dependent_preserves_other_importer_children() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let empty = PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -156,7 +174,12 @@ fn check_update(
 
 #[test]
 fn peer_free_additions_removals_and_retargets_still_use_fast_update() {
-    use model::{Edge, PackageVersion, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Settings,
+        Workspace,
+    };
     let empty = PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![vec![empty; 2]; 2],
@@ -178,7 +201,14 @@ fn peer_free_additions_removals_and_retargets_still_use_fast_update() {
 
 #[test]
 fn removing_required_peer_dependent_releases_optional_provider() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let empty = PackageVersion { dependencies: vec![], peers: vec![] };
     let dependent = |optional| PackageVersion {
         dependencies: vec![],

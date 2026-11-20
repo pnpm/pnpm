@@ -1,4 +1,9 @@
-use super::{Config, HostNoHome, assert_eq, tempdir};
+use super::{
+    Config,
+    HostNoHome,
+    assert_eq,
+    tempdir,
+};
 
 #[test]
 pub fn engine_strict_node_version_and_max_sockets_default() {

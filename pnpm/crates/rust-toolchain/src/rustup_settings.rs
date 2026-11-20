@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Where rustup keeps its settings, such as the directory overrides
 /// `rustup override set` records and the default host triple.

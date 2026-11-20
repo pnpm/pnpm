@@ -1,6 +1,14 @@
 use super::{
-    Arc, HashMap, NodeId, NodeWalkContext, ParentPkgInfo, ParentRefs, PeerWalkMode, SharedChain,
-    TreeChildren, Walker,
+    Arc,
+    HashMap,
+    NodeId,
+    NodeWalkContext,
+    ParentPkgInfo,
+    ParentRefs,
+    PeerWalkMode,
+    SharedChain,
+    TreeChildren,
+    Walker,
 };
 use crate::resolved_tree::DependenciesTreeNode;
 
@@ -13,7 +21,7 @@ impl Walker<'_> {
 
     /// Whether the peer walk drops the `pkg_id → child_pkg_id` edge:
     /// a self-edge, or an intra-SCC edge whose target is not later in
-    /// package-id order — the same answer at every occurrence.
+    /// package-id order, the same answer at every occurrence.
     pub(in super::super) fn cuts_cycle_edge(
         scc_of: &HashMap<Arc<str>, usize>,
         pkg_id: &str,

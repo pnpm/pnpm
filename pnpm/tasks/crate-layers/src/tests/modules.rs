@@ -1,11 +1,24 @@
 use super::MemoryTree;
 use crate::{
-    cycles::{self, CycleReport},
-    lexer::{self, Token},
+    cycles::{
+        self,
+        CycleReport,
+    },
+    lexer::{
+        self,
+        Token,
+    },
     modules::CrateModules,
-    problem::{Metric, Mismatch, Problem},
+    problem::{
+        Metric,
+        Mismatch,
+        Problem,
+    },
     ratchet,
-    use_tree::{self, UsePath},
+    use_tree::{
+        self,
+        UsePath,
+    },
 };
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;

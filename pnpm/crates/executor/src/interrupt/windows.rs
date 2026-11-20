@@ -2,12 +2,28 @@
 //! reaches every attached process at once, so nothing is relayed, and a
 //! child that would sit on the interrupt forever is ended by pnpm.
 
-use super::{RELAYED_INTERRUPTS, RelayEntry, visit_targets};
-use pnpm_ffi_process::{ProcessHandle, Wait};
-use pnpm_ffi_signal::{Handled, Interrupt};
+use super::{
+    RELAYED_INTERRUPTS,
+    RelayEntry,
+    visit_targets,
+};
+use pnpm_ffi_process::{
+    ProcessHandle,
+    Wait,
+};
+use pnpm_ffi_signal::{
+    Handled,
+    Interrupt,
+};
 use std::{
-    sync::{Once, atomic::Ordering},
-    time::{Duration, Instant},
+    sync::{
+        Once,
+        atomic::Ordering,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 pub(super) fn install_handler() {

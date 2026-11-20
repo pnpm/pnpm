@@ -1,10 +1,19 @@
 use super::super::{
-    adapter::{Param, Query},
+    adapter::{
+        Param,
+        Query,
+    },
     dialect::Dialect,
     schema::MARKER,
 };
-use pnpr_error::{RegistryError, Result};
-use std::{fmt::Write as _, time::Duration};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use std::{
+    fmt::Write as _,
+    time::Duration,
+};
 
 /// The second key of a `PostgreSQL` advisory lock, so pnpr instances on
 /// different schemas of one database do not wait on each other's locks.

@@ -1,4 +1,9 @@
-use super::{Target, process_group_of, target_exists, try_signal_target};
+use super::{
+    Target,
+    process_group_of,
+    target_exists,
+    try_signal_target,
+};
 
 #[test]
 fn a_process_group_is_readable_for_this_process() {

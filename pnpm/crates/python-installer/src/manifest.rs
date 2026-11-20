@@ -2,13 +2,24 @@ mod metadata;
 mod selection;
 use selection::Pnpm;
 
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{PackageName, Requirement};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+};
 use pnpm_python_resolver::parse_requirement;
 use serde::Deserialize;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt::Write as _,
     path::Path,
 };
@@ -258,7 +269,8 @@ impl Manifest {
             .values()
             .flatten()
             .filter_map(toml::Value::as_str)
-            .filter_map(|requirement| parse_requirement(requirement).ok())
+            .map(parse_requirement)
+            .filter_map(Result::ok)
             .map(|requirement| requirement.name)
             .filter(|name| !names.contains(name))
             .collect()
@@ -300,7 +312,8 @@ impl Manifest {
                 .chain(project.optional_dependencies.values().flatten())
                 .map(String::as_str)
                 .chain(groups)
-                .filter_map(|requirement| parse_requirement(requirement).ok())
+                .map(parse_requirement)
+                .filter_map(Result::ok)
                 .map(|requirement| requirement.name)
                 .collect(),
         )
@@ -387,7 +400,9 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
     let (table_name, key) =
         if development { ("dependency-groups", "dev") } else { ("project", "dependencies") };
     let table = document.get(table_name);
-    let existing_array = table.and_then(|table| table.get_ref().get(key));
+    let existing_array = table
+        .map(toml::Spanned::get_ref)
+        .and_then(|table| table.get(key));
     let mut entries = existing_array
         .map(|array| {
             array
@@ -428,7 +443,8 @@ fn merge_requirements(entries: &mut Vec<toml::Value>, requirements: &[String]) -
             .position(|entry| {
                 entry
                     .as_str()
-                    .and_then(|value| value.parse::<Requirement>().ok())
+                    .map(str::parse::<Requirement>)
+                    .and_then(Result::ok)
                     .is_some_and(|entry| entry.name == parsed.name && entry.marker == parsed.marker)
             });
         if let Some(index) = existing {
@@ -453,7 +469,8 @@ fn insert_key_into_table(
     if original[span.clone()].trim_start().starts_with('[') {
         let end = original[span.end..]
             .find('\n')
-            .map_or(original.len(), |end| span.end + end + 1);
+            .map(|end| span.end + end + 1)
+            .unwrap_or(original.len());
         updated.insert_str(end, &format!("\n{key} = {array}\n"));
         return Ok(());
     }

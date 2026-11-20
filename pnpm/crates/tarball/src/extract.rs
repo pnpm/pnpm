@@ -3,39 +3,88 @@
 pub(super) mod gzip;
 
 pub(crate) use gzip::{
-    GZIP_MAGIC, GzipExtraction, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
-    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, decompress_gzip, extract_gzipped_tarball_with_tar,
+    GZIP_MAGIC,
+    GzipExtraction,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    decompress_gzip,
+    extract_gzipped_tarball_with_tar,
     is_eager_decode_limit_exceeded,
 };
-pub use limits::{ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits};
-pub(crate) use limits::{
-    OversizedManifestError, RejectedEntryPathError, TarBudget, archive_entry_segments,
-    clean_archive_entry_path, oversized_manifest_error,
+pub use limits::{
+    ArchiveLimit,
+    DEFAULT_MAX_TARBALL_UNPACKED_SIZE,
+    TarLimits,
 };
-pub use manifest::{TarInspection, inspect_tar, read_buffered_tar_entry, tar_requires_build};
-pub(crate) use manifest::{apply_append_manifest, apply_placeholder_manifest};
+pub(crate) use limits::{
+    OversizedManifestError,
+    RejectedEntryPathError,
+    TarBudget,
+    archive_entry_segments,
+    clean_archive_entry_path,
+    oversized_manifest_error,
+};
+pub use manifest::{
+    TarInspection,
+    inspect_tar,
+    read_buffered_tar_entry,
+    tar_requires_build,
+};
+pub(crate) use manifest::{
+    apply_append_manifest,
+    apply_placeholder_manifest,
+};
 pub use publication::{
-    MAX_PUBLICATION_ARCHIVE_ENTRIES, MAX_PUBLICATION_MANIFEST_BYTES, MAX_PUBLICATION_PATH_BYTES,
-    PublicationArchive, PublicationArchiveError, read_publication_archive,
+    MAX_PUBLICATION_ARCHIVE_ENTRIES,
+    MAX_PUBLICATION_MANIFEST_BYTES,
+    MAX_PUBLICATION_PATH_BYTES,
+    PublicationArchive,
+    PublicationArchiveError,
+    read_publication_archive,
 };
 pub(crate) use streaming::{
-    BodyChunkReceiver, BodyChunkSender, ExtractedResource, STREAM_ENTRY_BUFFER_MAX,
-    StreamedResource, body_chunk_channel, extract_resource_stream, stream_extract_channel,
-    stream_extract_gzipped_tarball_with_tar, tar_entry_payload,
+    BodyChunkReceiver,
+    BodyChunkSender,
+    ExtractedResource,
+    STREAM_ENTRY_BUFFER_MAX,
+    StreamedResource,
+    body_chunk_channel,
+    extract_resource_stream,
+    stream_extract_channel,
+    stream_extract_gzipped_tarball_with_tar,
+    tar_entry_payload,
 };
 
 use std::collections::BTreeMap;
 
 use super::{
-    Cow, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
-    ParallelIterator, Read, TarballError, UNIX_EPOCH, cas_write_pool,
+    Cow,
+    Cursor,
+    HashMap,
+    IgnoreEntryFilter,
+    IntoParallelRefIterator,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    ParallelIterator,
+    Read,
+    TarballError,
+    UNIX_EPOCH,
+    cas_write_pool,
 };
 use pnpm_fs::file_mode;
 use pnpm_package_manifest::{
-    BuildTriggers, PackageBin, ScriptRuntime, parse_manifest_bytes, parse_shebang_from_bytes,
+    BuildTriggers,
+    PackageBin,
+    ScriptRuntime,
+    parse_manifest_bytes,
+    parse_shebang_from_bytes,
     resolve_package_bins_with,
 };
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    WriteCasFileFromReaderError,
+};
 use ssri::Integrity;
 use tar::Archive;
 
@@ -110,10 +159,10 @@ pub(crate) struct ExtractedArchiveBytes {
 }
 
 /// One regular-file tar entry whose path has been validated and
-/// cleaned, paired with its payload — a borrow into the decompressed
+/// cleaned, paired with its payload, a borrow into the decompressed
 /// archive buffer on the eager path, an owned copy on the streaming
 /// path. Collected serially while walking the tar stream, then hashed
-/// and written to the CAFS — serially or across the rayon pool — in
+/// and written to the CAFS (serially or across the rayon pool) in
 /// [`write_cas_entry`].
 pub(crate) struct PendingFile<'a> {
     cleaned_path: String,
@@ -146,7 +195,9 @@ pub(crate) fn checked_now() -> Option<u64> {
     UNIX_EPOCH
         .elapsed()
         .ok()
-        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok())
+        .map(|elapsed| elapsed.as_millis())
+        .map(u64::try_from)
+        .and_then(Result::ok)
 }
 
 pub(crate) type ExtractedEntries =
@@ -266,7 +317,7 @@ fn resolve_pending_bins(
 /// store, preserving input order in the returned rows.
 ///
 /// Extracting a package with thousands of files (e.g. `core-js`) on a
-/// single blocking thread pins one core while the rest sit idle — most
+/// single blocking thread pins one core while the rest sit idle, most
 /// costly at the makespan tail, when it's the last extraction still
 /// running. [`write_cas_entry`] is safe to run concurrently, so large
 /// slices fan out across the dedicated [`cas_write_pool`]; small ones
@@ -318,7 +369,7 @@ type WrittenEntries = Vec<(String, pnpm_fs::StoreFile, CafsFileInfo)>;
 
 /// Assemble the extraction outputs from written CAS rows. `written`
 /// preserves entry order, so a tarball with duplicate paths keeps the
-/// last entry — matching pnpm's last-wins `filesIndex.set`.
+/// last entry, matching pnpm's last-wins `filesIndex.set`.
 fn assemble_extract_output(
     written: Vec<(String, pnpm_fs::StoreFile, CafsFileInfo)>,
     manifest: Option<serde_json::Value>,
@@ -473,12 +524,20 @@ impl<'a> StreamingExtract<'a> {
 }
 
 mod limits;
-use limits::{TAR_BLOCK, check_trailer, is_tar_block};
+use limits::{
+    TAR_BLOCK,
+    check_trailer,
+    is_tar_block,
+};
 
 mod streaming;
 
 use streaming::{
-    EntryMeta, STREAM_BATCH_BUDGET_BYTES, StreamingExtract, entry_meta, flush_pending_batch,
+    EntryMeta,
+    STREAM_BATCH_BUDGET_BYTES,
+    StreamingExtract,
+    entry_meta,
+    flush_pending_batch,
     truncated_entry_error,
 };
 

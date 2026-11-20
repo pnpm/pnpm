@@ -1,6 +1,11 @@
 #[cfg(unix)]
 use super::{
-    GitFetcherError, SilentReporter, StoreDir, failing_fetcher, tempdir, write_failing_git_shim,
+    GitFetcherError,
+    SilentReporter,
+    StoreDir,
+    failing_fetcher,
+    tempdir,
+    write_failing_git_shim,
 };
 
 #[cfg(unix)]

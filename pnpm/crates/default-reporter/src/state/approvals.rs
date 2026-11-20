@@ -1,8 +1,15 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 use pnpm_package_name::short_package_label;
 
-use super::{BlockSlot, Output, ReporterState};
+use super::{
+    BlockSlot,
+    Output,
+    ReporterState,
+};
 
 #[derive(Default)]
 pub(super) struct PendingApprovals {

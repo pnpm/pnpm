@@ -1,10 +1,22 @@
 use std::future::pending;
 
-use tokio::{io::AsyncReadExt as _, net::TcpListener};
+use tokio::{
+    io::AsyncReadExt as _,
+    net::TcpListener,
+};
 
 use super::{
-    AuthState, Body, Duration, Request, ServiceExt, StatusCode, TempDir, config_for,
-    drain_resolve_response, json, router_with_auth,
+    AuthState,
+    Body,
+    Duration,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    config_for,
+    drain_resolve_response,
+    json,
+    router_with_auth,
 };
 use crate::tokens::issue_token;
 

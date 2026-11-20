@@ -1,5 +1,8 @@
 use crate::cli_args::approve_builds::ApprovalStore;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_package_manager::parse_allow_build_selector;
@@ -44,7 +47,9 @@ fn is_package_selector(selector: &str) -> bool {
         .char_indices()
         .skip(1)
         .find_map(|(index, ch)| (ch == '@').then_some(index));
-    let (name, version) = version_at.map_or((spec, ""), |index| spec.split_at(index));
+    let (name, version) = version_at
+        .map(|index| spec.split_at(index))
+        .unwrap_or((spec, ""));
     let name_slashes = name.matches('/').count();
     let name_is_plain = if name.starts_with('@') { name_slashes == 1 } else { name_slashes == 0 };
     name_is_plain && !spec.contains([':', '#']) && !version.contains('/')
@@ -65,7 +70,12 @@ pub(crate) fn apply_allow_build(
     let overlap: Vec<&str> = selectors
         .iter()
         .filter_map(|&AllowBuildSelector { name, allowed }| {
-            (allowed && config.allow_builds.get(name) == Some(&false)).then_some(name)
+            (allowed
+                && !config.allow_builds
+                    .get(name)
+                    .copied()
+                    .unwrap_or(true))
+            .then_some(name)
         })
         .collect();
     if !overlap.is_empty() {

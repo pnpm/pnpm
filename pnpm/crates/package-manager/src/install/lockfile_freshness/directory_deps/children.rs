@@ -2,19 +2,32 @@
 //! one still satisfies the spec the resolver walks for it.
 
 use super::{
-    FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_declared_local_directory,
+    FreshnessCheckError,
+    ImporterSatisfactionCheck,
+    LocalDepContext,
+    is_declared_local_directory,
     package::check_single_directory_dep_freshness,
-    scope::{AliasScope, Visited},
+    scope::{
+        AliasScope,
+        Visited,
+    },
     spec::spec_satisfies_snapshot_dep,
 };
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{
-    ChildCatalogs, DependencySpec, ResolveDependencyTreeError, declared_peer_dependencies,
-    directory_package_dir, local_directory_child_specs,
+    ChildCatalogs,
+    DependencySpec,
+    ResolveDependencyTreeError,
+    declared_peer_dependencies,
+    directory_package_dir,
+    local_directory_child_specs,
 };
 use pnpm_resolving_resolver_base::is_valid_semver_range;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 /// Compares the children the resolver walks for the package (see
 /// [`local_directory_child_specs`]) with the ones its snapshot records.
 pub(super) fn check_local_dep_children_freshness(
@@ -76,7 +89,7 @@ pub(super) fn check_recorded_local_targets(
         if (child_catalogs
             .get(&child.alias)
             .is_some_and(|catalog| {
-                recorded_catalog_spec_matches(check, dep, &child.alias, catalog) == Some(false)
+                !recorded_catalog_spec_matches(check, dep, &child.alias, catalog).unwrap_or(true)
                     || !(catalog_child_is_fresh(check, dep, snapshot, child)
                         || peer_replaces_child(
                             check,
@@ -198,7 +211,9 @@ fn recorded_local_target_is_fresh(
     let local = child.bare_specifier.starts_with("workspace:")
         || child.bare_specifier.starts_with("link:")
         || super::is_declared_by_path(&child.bare_specifier)
-        || recorded.is_some_and(|recorded| recorded.as_link_target().is_some());
+        || recorded
+            .map(pnpm_lockfile::SnapshotDepRef::as_link_target)
+            .is_some_and(|link_target| link_target.is_some());
     if !local {
         return true;
     }

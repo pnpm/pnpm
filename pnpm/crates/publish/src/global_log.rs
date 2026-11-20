@@ -1,6 +1,11 @@
 //! Emit `pnpm:global` info / warn messages through the `R: Reporter` seam.
 
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 
 pub(crate) fn global_info<Reporter: self::Reporter>(message: &str) {
     Reporter::emit(&LogEvent::Global(GlobalLog {

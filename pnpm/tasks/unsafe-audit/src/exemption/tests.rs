@@ -1,4 +1,8 @@
-use super::{Tier, exempt, exemption_for};
+use super::{
+    Tier,
+    exempt,
+    exemption_for,
+};
 
 #[test]
 fn every_exemption_is_looked_up_by_name() {

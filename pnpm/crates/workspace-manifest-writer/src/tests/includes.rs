@@ -1,8 +1,17 @@
 //! Writes to a workspace whose `pnpm-workspace.yaml` includes other files.
 
-use super::{TempDir, UpdateWorkspaceManifestOptions, catalogs, fs, update_workspace_manifest};
+use super::{
+    TempDir,
+    UpdateWorkspaceManifestOptions,
+    catalogs,
+    fs,
+    update_workspace_manifest,
+};
 use crate::{
-    UpdateWorkspaceManifestError, set_allow_builds, set_overrides, update_workspace_setting,
+    UpdateWorkspaceManifestError,
+    set_allow_builds,
+    set_overrides,
+    update_workspace_setting,
 };
 use std::path::Path;
 

@@ -1,13 +1,24 @@
-pub use crate::shell_emulator_types::{EmulatedOutput, ShellEmulatorError};
+pub use crate::shell_emulator_types::{
+    EmulatedOutput,
+    ShellEmulatorError,
+};
 use crate::{
     ProcessTracker,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
     spawn_child,
 };
 use pnpm_reporter::LifecycleStdio;
 use std::{
     collections::HashMap,
-    io::{self, BufRead, BufReader, Read},
+    io::{
+        self,
+        BufRead,
+        BufReader,
+        Read,
+    },
     path::Path,
     thread,
 };

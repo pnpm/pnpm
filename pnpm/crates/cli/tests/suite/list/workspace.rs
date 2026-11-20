@@ -1,6 +1,22 @@
 use super::{
-    BTreeSet, Command, CommandCargoExt, CommandExtra, CommandTempCwd, DEP, HELLO, LEGEND, PKG,
-    Path, Value, canonical, fs, json, pacquet_in, recursive_project_names, run_ok, setup_registry,
+    BTreeSet,
+    Command,
+    CommandCargoExt,
+    CommandExtra,
+    CommandTempCwd,
+    DEP,
+    HELLO,
+    LEGEND,
+    PKG,
+    Path,
+    Value,
+    canonical,
+    fs,
+    json,
+    pacquet_in,
+    recursive_project_names,
+    run_ok,
+    setup_registry,
     write_workspace,
 };
 
@@ -355,8 +371,7 @@ fn changed_files_ignore_pattern_is_respected() {
         )
         .expect("write package.json");
     }
-    let unicode_projects =
-        [("\u{4e2d}\u{6587}", "project-chinese"), ("\u{d55c}\u{ae00}", "project-korean")];
+    let unicode_projects = [("中文", "project-chinese"), ("한글", "project-korean")];
     for (dir_name, name) in unicode_projects {
         let dir = workspace.join(dir_name);
         fs::create_dir_all(&dir).expect("create Unicode project dir");
@@ -375,8 +390,8 @@ fn changed_files_ignore_pattern_is_respected() {
 
     let git = |args: &[&str]| {
         let output = Command::new("git")
-            .args(args)
-            .current_dir(&workspace)
+            .with_args(args)
+            .with_current_dir(&workspace)
             .output()
             .expect("spawn git");
         assert!(
@@ -403,7 +418,7 @@ fn changed_files_ignore_pattern_is_respected() {
         .expect("write changed file");
     fs::write(workspace.join("project-3-ignored-by-pattern").join("README.md"), "")
         .expect("write changed file");
-    fs::write(workspace.join("project-3-ignored-by-pattern").join("\u{68c0}\u{67e5}.js"), "")
+    fs::write(workspace.join("project-3-ignored-by-pattern").join("检查.js"), "")
         .expect("write ignored Unicode file");
     let buildscript_dir = workspace.join("project-4-ignored-by-pattern").join("a/b/c");
     fs::create_dir_all(&buildscript_dir).expect("create nested dirs");
@@ -421,7 +436,7 @@ fn changed_files_ignore_pattern_is_respected() {
     // Left uncommitted, like upstream: `git diff <since>` also sees
     // working-tree changes to tracked files.
     write_workspace_yaml(
-        "changedFilesIgnorePattern:\n  - '**/{*.spec.js,*.md}'\n  - '**/buildscript.js'\n  - '**/cache/**'\n  - '**/\u{68c0}\u{67e5}.js'\n",
+        "changedFilesIgnorePattern:\n  - '**/{*.spec.js,*.md}'\n  - '**/buildscript.js'\n  - '**/cache/**'\n  - '**/检查.js'\n",
     );
 
     let changed_project_names = |extra_args: &[&str]| {
@@ -498,15 +513,15 @@ fn recursive_list_renders_workspace_projects_in_one_pass() {
         format!(
             "{LEGEND}\n\n\
              project-1@1.0.0 {project_1}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{252c} {PKG}@100.0.0\n\
-             \x20\x20\u{2514}\u{2500}\u{2500} {DEP}@100.1.0\n\
+             │\n\
+             │   dependencies:\n\
+             └─┬ {PKG}@100.0.0\n\
+             \x20\x20└── {DEP}@100.1.0\n\
              \n\
              project-2@1.0.0 {project_2}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{2500} {HELLO}@1.0.0\n\
+             │\n\
+             │   dependencies:\n\
+             └── {HELLO}@1.0.0\n\
              \n\
              3 packages in 4 projects\n"
         ),
@@ -616,12 +631,12 @@ fn list_only_projects_follows_projects_with_dedicated_lockfiles() {
         format!(
             "{LEGEND}\n\n\
              root@1.0.0 {dir}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{251c}\u{2500}\u{252c} @scope/a@link:packages/a\n\
-             \u{2502} \u{2514}\u{2500}\u{2500} @scope/b@link:packages/b\n\
-             \u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
-             \x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
+             │\n\
+             │   dependencies:\n\
+             ├─┬ @scope/a@link:packages/a\n\
+             │ └── @scope/b@link:packages/b\n\
+             └─┬ @scope/b@link:packages/b\n\
+             \x20\x20└── @scope/c@link:packages/c\n\
              \n\
              4 packages\n"
         ),
@@ -667,11 +682,11 @@ fn list_only_projects_stops_at_a_cycle_between_projects_with_dedicated_lockfiles
         format!(
             "{LEGEND}\n\n\
              root@1.0.0 {dir}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
-             \x20\x20\u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
-             \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/a@link:packages/a\n\
+             │\n\
+             │   dependencies:\n\
+             └─┬ @scope/a@link:packages/a\n\
+             \x20\x20└─┬ @scope/b@link:packages/b\n\
+             \x20\x20\x20\x20└── @scope/a@link:packages/a\n\
              \n\
              3 packages\n"
         ),
@@ -717,9 +732,9 @@ fn list_only_projects_matches_each_alias_of_a_project_with_a_dedicated_lockfile(
         format!(
             "{LEGEND}\n\n\
              root@1.0.0 {dir}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{2500} alias-two@link:packages/c\n\
+             │\n\
+             │   dependencies:\n\
+             └── alias-two@link:packages/c\n\
              \n\
              1 package\n"
         ),
@@ -776,11 +791,11 @@ fn list_only_projects_follows_a_project_linked_through_its_publish_directory() {
             format!(
                 "{LEGEND}\n\n\
                  root@1.0.0 {dir}\n\
-                 \u{2502}\n\
-                 \u{2502}   dependencies:\n\
-                 \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
-                 \x20\x20\u{2514}\u{2500}\u{252c} @scope/c@link:packages/c/dist\n\
-                 \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/b@link:packages/b\n\
+                 │\n\
+                 │   dependencies:\n\
+                 └─┬ @scope/a@link:packages/a\n\
+                 \x20\x20└─┬ @scope/c@link:packages/c/dist\n\
+                 \x20\x20\x20\x20└── @scope/b@link:packages/b\n\
                  \n\
                  3 packages\n"
             ),
@@ -847,9 +862,9 @@ fn list_only_projects_prefers_a_project_directory_over_a_publish_directory_into_
         format!(
             "{LEGEND}\n\n\
              root@1.0.0 {dir}\n\
-             \u{2502}\n\
-             \u{2502}   dependencies:\n\
-             \u{2514}\u{2500}\u{2500} @scope/b@link:packages/b\n\
+             │\n\
+             │   dependencies:\n\
+             └── @scope/b@link:packages/b\n\
              \n\
              1 package\n"
         ),
@@ -896,11 +911,11 @@ fn nested_projects_tree(workspace: &Path) -> String {
     format!(
         "{LEGEND}\n\n\
          root@1.0.0 {dir}\n\
-         \u{2502}\n\
-         \u{2502}   dependencies:\n\
-         \u{2514}\u{2500}\u{252c} @scope/a@link:packages/a\n\
-         \x20\x20\u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
-         \x20\x20\x20\x20\u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
+         │\n\
+         │   dependencies:\n\
+         └─┬ @scope/a@link:packages/a\n\
+         \x20\x20└─┬ @scope/b@link:packages/b\n\
+         \x20\x20\x20\x20└── @scope/c@link:packages/c\n\
          \n\
          3 packages\n",
     )
@@ -911,12 +926,12 @@ fn dedicated_lockfiles_tree(workspace: &Path) -> String {
     format!(
         "{LEGEND}\n\n\
          root@1.0.0 {dir}\n\
-         \u{2502}\n\
-         \u{2502}   dependencies:\n\
-         \u{251c}\u{2500}\u{252c} @scope/a@link:packages/a\n\
-         \u{2502} \u{2514}\u{2500}\u{252c} @scope/b@link:packages/b\n\
-         \u{2502}   \u{2514}\u{2500}\u{2500} @scope/c@link:packages/c\n\
-         \u{2514}\u{2500}\u{2500} @scope/b@link:packages/b [deduped]\n\
+         │\n\
+         │   dependencies:\n\
+         ├─┬ @scope/a@link:packages/a\n\
+         │ └─┬ @scope/b@link:packages/b\n\
+         │   └── @scope/c@link:packages/c\n\
+         └── @scope/b@link:packages/b [deduped]\n\
          \n\
          4 packages\n",
     )

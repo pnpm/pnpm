@@ -9,20 +9,45 @@ use crate::{
     node_id::NodeId,
     resolve_dependency_tree::SyncCursor,
     resolve_peers::{
-        HoistMissingScope, ResolvePeersOptions,
-        cache::{PeerProviderChildren, PeersCacheItem},
-        context::{ChainSuffixMemo, CurrentProviderSource, ParentPkgInfo, SharedChain},
+        HoistMissingScope,
+        ResolvePeersOptions,
+        cache::{
+            PeerProviderChildren,
+            PeersCacheItem,
+        },
+        context::{
+            ChainSuffixMemo,
+            CurrentProviderSource,
+            ParentPkgInfo,
+            SharedChain,
+        },
         walker::{
-            MissingSummary, NodeOutput, PeerWalkMode, RootWalk, SnapshotBudget, Walker,
-            children_scc_ids, index_peer_provider_children,
+            MissingSummary,
+            NodeOutput,
+            PeerWalkMode,
+            RootWalk,
+            SnapshotBudget,
+            Walker,
+            children_scc_ids,
+            index_peer_provider_children,
         },
     },
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+    },
 };
 use peers_cache::PeersCache;
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    cell::RefCell,
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// Peer-hoist discovery engine: one persistent tree view + walker
 /// caches shared by every hoist round of a workspace resolve. Replaces
@@ -92,7 +117,7 @@ impl PeerHoistDiscovery {
     /// verdicts derived from them predate the rewrite, and an
     /// incremental sync cannot tell which of them the rewrite
     /// invalidated.
-    /// `parents_direct` is the importer's full direct set — it defines
+    /// `parents_direct` is the importer's full direct set; it defines
     /// the importer-level peer providers every walked subtree matches
     /// against. `walk_direct` is the slice actually walked; a hoist
     /// round that only added new direct deps passes just the additions
@@ -135,7 +160,7 @@ impl PeerHoistDiscovery {
 /// passes ([`crate::WorkspaceTreeCtx::sync_discovery_tree`] rebuilds
 /// the engine's view on the incompatible exceptions), so a subtree
 /// verdict recorded under one importer's walk short-circuits every
-/// compatible revisit — [`Walker::find_hit`] re-validates each
+/// compatible revisit. [`Walker::find_hit`] re-validates each
 /// [`PeersCacheItem`] against the current parent context, and a hoisted
 /// provider that newly satisfies a cached missing peer rejects the
 /// stale item. This is the same sharing
@@ -237,7 +262,7 @@ impl CanonicalCycleGate {
     }
 }
 
-/// What one peer-hoist discovery pass reports back to the hoist loop —
+/// What one peer-hoist discovery pass reports back to the hoist loop,
 /// the subset of [`ResolvePeersResult`](super::ResolvePeersResult) the
 /// loop actually consumes, so discovery never has to build a
 /// [`crate::DependenciesGraph`].

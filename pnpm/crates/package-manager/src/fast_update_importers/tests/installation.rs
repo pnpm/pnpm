@@ -1,8 +1,16 @@
 use super::{
-    WITH_HASHED_PEER_SUFFIX, WITH_PEER_ON_ANOTHER_VERSION, WITH_REMOVABLE_DEP,
-    WITH_SHARED_OPTIONAL_CHILD, WITH_THREE_GROUPS, WITH_TWO_LOCKED_VERSIONS, manifest_from,
-    parsed_lockfile, snapshot_optional, try_fast_update_importers,
-    with_a_bare_snapshot_beside_the_peer_variant, with_a_second_locked_child,
+    WITH_HASHED_PEER_SUFFIX,
+    WITH_PEER_ON_ANOTHER_VERSION,
+    WITH_REMOVABLE_DEP,
+    WITH_SHARED_OPTIONAL_CHILD,
+    WITH_THREE_GROUPS,
+    WITH_TWO_LOCKED_VERSIONS,
+    manifest_from,
+    parsed_lockfile,
+    snapshot_optional,
+    try_fast_update_importers,
+    with_a_bare_snapshot_beside_the_peer_variant,
+    with_a_second_locked_child,
 };
 use pnpm_config::ResolutionMode::LowestDirect as LOWEST_DIRECT;
 use pnpm_lockfile::PkgName;

@@ -1,7 +1,15 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, Resolver,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    Resolver,
     WantedDependency,
 };
 use pnpm_tool_protocol::is_tool_specifier;

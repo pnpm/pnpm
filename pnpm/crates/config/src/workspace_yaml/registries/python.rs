@@ -1,4 +1,7 @@
-use super::{LoadWorkspaceYamlError, redact_registry_url};
+use super::{
+    LoadWorkspaceYamlError,
+    redact_registry_url,
+};
 use pnpm_package_name::canonicalize_python_name;
 
 /// One ecosystem index and the Python namespace it owns.
@@ -151,7 +154,8 @@ pub(super) fn patterns(
     }
     let patterns = packages
         .iter()
-        .map(|pattern| PythonPattern::parse(pattern).map_err(invalid))
+        .map(|pattern| PythonPattern::parse(pattern))
+        .map(|parsed| parsed.map_err(invalid))
         .collect::<Result<Vec<_>, _>>()?;
     for (i, pattern) in patterns.iter().enumerate() {
         if patterns[..i]

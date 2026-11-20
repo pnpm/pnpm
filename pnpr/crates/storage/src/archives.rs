@@ -10,8 +10,20 @@ mod reclaim;
 mod tests;
 
 use crate::{
-    BlobId, BlobSlot, GetRange, HostedDocumentVersion, RangedBlob, Storage,
-    database::{ArtifactBlob, BlobLookup, BlobRef, BlobRow, PublishBase, PublishIncarnation},
+    BlobId,
+    BlobSlot,
+    GetRange,
+    HostedDocumentVersion,
+    RangedBlob,
+    Storage,
+    database::{
+        ArtifactBlob,
+        BlobLookup,
+        BlobRef,
+        BlobRow,
+        PublishBase,
+        PublishIncarnation,
+    },
 };
 use axum::body::Body;
 use pnpr_error::Result;

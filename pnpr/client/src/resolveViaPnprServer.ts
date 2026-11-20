@@ -12,6 +12,7 @@ import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { PackageExtension, RegistryDeclaration, TrustPolicy } from '@pnpm/types'
 
 import type { ResponseMetadata } from './protocol.js'
+import { buildPnprVerifyError, type PnprViolation } from './verifyError.js'
 
 export interface PnprProject {
   /** Relative dir within the workspace (e.g. "." or "packages/foo") */
@@ -95,14 +96,14 @@ export interface ResolveViaPnprServerOptions {
    */
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   /**
-   * The client's verification policy. The server is the only place these
-   * run on the pnpr path — the client skips its own
-   * `verifyLockfileResolutions` whenever a pnpr server is configured — so
-   * every field has to travel with the request. Anything omitted is not
-   * merely defaulted server-side: the server clears the field from its
-   * config, which enforces a *stricter* policy than the user configured
-   * (an omitted `minimumReleaseAgeExclude` re-applies the age gate to
-   * packages the user opted out of).
+   * The client's supply-chain verification policy. The client runs offline
+   * structural and resolution-shape checks locally, while the server enforces
+   * the online supply-chain policy on the pnpr path — so every policy field
+   * has to travel with the request. Anything omitted is not merely defaulted
+   * server-side: the server clears the field from its config, which enforces a
+   * *stricter* policy than the user configured (an omitted
+   * `minimumReleaseAgeExclude` re-applies the age gate to packages the user
+   * opted out of).
    */
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
@@ -136,8 +137,6 @@ export interface ResolveViaPnprServerResult {
   stats: ResponseMetadata['stats']
 }
 
-interface Violation { name: string, version: string, code: string, reason: string }
-
 /**
  * One NDJSON frame from `POST /-/pnpr/v0/resolve`. `package` frames stream as
  * the server resolves; exactly one terminal frame (`done` / `error` /
@@ -147,7 +146,7 @@ type ResolveFrame =
   | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string }
   | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'], appliedPolicies: Record<string, unknown> }
   | { type: 'error', message: string, code?: string }
-  | { type: 'violations', violations: Violation[] }
+  | { type: 'violations', violations: PnprViolation[] }
 
 /**
  * Resolve a project against a pnpr server and return the resolved
@@ -237,10 +236,7 @@ function assertResolutionSucceeded (terminal: TerminalFrame): asserts terminal i
     throw new Error(terminal.message)
   }
   if (terminal.type === 'violations') {
-    const rendered = terminal.violations
-      .map((violation) => `  ${violation.name}@${violation.version}: ${violation.reason}`)
-      .join('\n')
-    throw new Error(`pnpr server rejected the lockfile under the verification policy:\n${rendered}`)
+    throw buildPnprVerifyError(terminal.violations)
   }
 }
 

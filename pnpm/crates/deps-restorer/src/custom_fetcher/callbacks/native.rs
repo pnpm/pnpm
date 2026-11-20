@@ -1,15 +1,36 @@
 use super::{
-    NativeCallbacks, NativeFetcherResult, NativeFetcherSettings, Verified, callback_error,
-    callback_location, callback_lockfile_dir, fetch_location, reject_locked_integrity,
+    NativeCallbacks,
+    NativeFetcherResult,
+    NativeFetcherSettings,
+    Verified,
+    callback_error,
+    callback_location,
+    callback_lockfile_dir,
+    fetch_location,
+    reject_locked_integrity,
 };
 use crate::install_package_by_snapshot::{
-    archive_filter_for, fetch_binary_resolution_to_cas, running_pnpm_execpath,
+    archive_filter_for,
+    fetch_binary_resolution_to_cas,
+    running_pnpm_execpath,
 };
-use pnpm_git_fetcher::{GitFetcher, GitHostedTarballFetcher, GitSource, GitStoreContext};
+use pnpm_git_fetcher::{
+    GitFetcher,
+    GitHostedTarballFetcher,
+    GitSource,
+    GitStoreContext,
+};
 use pnpm_hooks::FetcherCallback;
-use pnpm_lockfile::{GitResolution, PackageKey, TarballResolution};
+use pnpm_lockfile::{
+    GitResolution,
+    PackageKey,
+    TarballResolution,
+};
 use pnpm_store_dir::git_hosted_store_index_key;
-use pnpm_tarball::{FetchErrorDetails, FetchedTarball};
+use pnpm_tarball::{
+    FetchErrorDetails,
+    FetchedTarball,
+};
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -202,6 +223,6 @@ fn git_hosted_files_index_file(
     package_id: &str,
     allow_build: &impl Fn(&str) -> Option<bool>,
 ) -> String {
-    let built = !settings.ignore_scripts && allow_build(package_id) != Some(false);
+    let built = !settings.ignore_scripts && allow_build(package_id).unwrap_or(true);
     git_hosted_store_index_key(package_id, built)
 }

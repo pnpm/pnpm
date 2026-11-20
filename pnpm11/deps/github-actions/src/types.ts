@@ -57,6 +57,7 @@ export interface ActionReference {
   range: readonly [number, number]
   ref: string
   repo: string
+  scalarLength: number
 }
 
 export interface ActionFile {

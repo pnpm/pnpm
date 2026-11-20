@@ -1,7 +1,21 @@
-pub use pnpm_resolving_resolver_base::{PackageExtension, PeerDependencyMeta};
-pub use remote::{RemoteCacheSettings, RemoteSideEffectsCacheSettings};
+pub use pnpm_resolving_resolver_base::{
+    PackageExtension,
+    PeerDependencyMeta,
+};
+pub use remote::{
+    RemoteCacheSettings,
+    RemoteSideEffectsCacheSettings,
+};
 
-use super::{AuditLevel, BTreeMap, Deserialize, Deserializer, HashMap, IndexMap, overlay_some};
+use super::{
+    AuditLevel,
+    BTreeMap,
+    Deserialize,
+    Deserializer,
+    HashMap,
+    IndexMap,
+    overlay_some,
+};
 
 mod remote;
 
@@ -252,8 +266,8 @@ pub enum SideEffectsCacheSetting {
     Settings(Box<SideEffectsCacheSettings>),
 }
 
-/// Where a dependency's build output may be reused from: this machine, and —
-/// through [`Self::remote`] — other machines in the same organization.
+/// Where a dependency's build output may be reused from: this machine, and,
+/// through [`Self::remote`], other machines in the same organization.
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SideEffectsCacheSettings {
@@ -365,7 +379,7 @@ pub struct TaskSettings {
     ///
     /// A task with no declaration behaves as `dependsOn: ['^<its own
     /// name>']`. An entry with `dependsOn` omitted declares an empty
-    /// dependency list — the task depends on nothing and may start
+    /// dependency list, the task depends on nothing and may start
     /// immediately.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_on: Option<Vec<String>>,
@@ -466,7 +480,8 @@ impl<'de> Deserialize<'de> for TaskSettings {
 fn json_i32(value: &serde_json::Value) -> Option<i32> {
     value
         .as_i64()
-        .and_then(|n| i32::try_from(n).ok())
+        .map(i32::try_from)
+        .and_then(Result::ok)
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.

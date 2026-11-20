@@ -1,8 +1,26 @@
 use super::{
-    ArtifactUsage, BACKFILLED_SCOPE, HashSet, MAX_RESOLVE_RESPONSE_SIZE, MAX_SCOPE_MARKER_BYTES,
-    ObjectPath, ObjectStoreExt, RegistryError, Result, SharedArtifactStore, SignedArtifactEnvelope,
-    StoredArtifacts, artifact_operation_id, blob_id, digest_segment, entry_owner, is_blob_path,
-    is_variant_file, object_name, scope_name, staged_blob_path, staged_recently,
+    ArtifactUsage,
+    BACKFILLED_SCOPE,
+    HashSet,
+    MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_SCOPE_MARKER_BYTES,
+    ObjectPath,
+    ObjectStoreExt,
+    RegistryError,
+    Result,
+    SharedArtifactStore,
+    SignedArtifactEnvelope,
+    StoredArtifacts,
+    artifact_operation_id,
+    blob_id,
+    digest_segment,
+    entry_owner,
+    is_blob_path,
+    is_variant_file,
+    object_name,
+    scope_name,
+    staged_blob_path,
+    staged_recently,
 };
 use futures_util::StreamExt as _;
 
@@ -101,7 +119,7 @@ impl SharedArtifactStore {
     }
 
     /// The blobs stored artifacts reference, the artifacts themselves, and
-    /// whether every variant was read — all from one pass, since reclamation
+    /// whether every variant was read; all from one pass, since reclamation
     /// asks all three of every envelope it reads.
     ///
     /// A variant it could not read is stored all the same, and its scopes are

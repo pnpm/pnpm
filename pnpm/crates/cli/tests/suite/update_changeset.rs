@@ -1,8 +1,19 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use serde_json::{Value, json};
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
@@ -47,11 +58,13 @@ fn generated_changesets(workspace: &Path) -> Vec<std::path::PathBuf> {
     let changeset_dir = workspace.join(".changeset");
     let Ok(entries) = fs::read_dir(changeset_dir) else { return Vec::new() };
     let mut paths = entries
-        .map(|entry| entry.expect("read changeset entry").path())
+        .map(|entry| entry.expect("read changeset entry"))
+        .map(|value| value.path())
         .filter(|path| {
             path.file_name()
                 .and_then(OsStr::to_str)
-                .is_some_and(|name| name.starts_with("pnpm-update-") && name.ends_with(".md"))
+                .filter(|name| name.starts_with("pnpm-update-"))
+                .is_some_and(|name| name.ends_with(".md"))
         })
         .collect::<Vec<_>>();
     paths.sort();
@@ -329,7 +342,7 @@ fn update_changeset_reports_malformed_config_with_a_stable_error() {
     assert!(!output.status.success(), "malformed config must fail the update");
     let stderr = String::from_utf8_lossy(&output.stderr);
     // miette wraps long diagnostic lines at the terminal width, which on
-    // Windows CI splits the long temp path — and the `config.json` within it —
+    // Windows CI splits the long temp path (and the `config.json` within it)
     // across lines. Drop whitespace and the box-drawing continuation marker so
     // the substring check doesn't depend on where the wrap lands.
     let unwrapped: String = stderr

@@ -2,9 +2,19 @@
 //! wipe-and-rebuild rule.
 
 use crate::{
-    HostedBackend, Result, Storage,
-    database::sql::{StoreBinding, StoreClaim},
-    layout::{LAYOUT_FILE, LAYOUT_VERSION, LayoutMarker, new_store_id},
+    HostedBackend,
+    Result,
+    Storage,
+    database::sql::{
+        StoreBinding,
+        StoreClaim,
+    },
+    layout::{
+        LAYOUT_FILE,
+        LAYOUT_VERSION,
+        LayoutMarker,
+        new_store_id,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
@@ -42,6 +52,7 @@ impl Storage {
             cached: self.cached.clone(),
             tar_integrities: Arc::clone(&self.tar_integrities),
             tar_integrity_cache: Arc::clone(&self.tar_integrity_cache),
+            purged_upstream: Arc::clone(&self.purged_upstream),
             database: Arc::clone(&self.database),
             metadata: self.database.view(namespace, ecosystem),
         }

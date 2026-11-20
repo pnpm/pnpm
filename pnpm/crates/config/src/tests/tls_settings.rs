@@ -1,8 +1,24 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, HostNoHome, LinkProbe, OsString, Path,
-    PathBuf, assert_eq, fs, io, tempdir, write_file,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    HostNoHome,
+    LinkProbe,
+    OsString,
+    Path,
+    PathBuf,
+    assert_eq,
+    fs,
+    io,
+    tempdir,
+    write_file,
 };
-use std::{collections::BTreeMap, net::IpAddr};
+use std::{
+    collections::BTreeMap,
+    net::IpAddr,
+};
 
 const LOCAL_ADDRESS: &str = "127.0.0.2";
 

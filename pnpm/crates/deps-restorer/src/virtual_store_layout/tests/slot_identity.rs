@@ -1,16 +1,40 @@
 use super::{
-    super::{VirtualStoreLayout, global_virtual_store_version_dir},
-    alias, cyclic_slot_suffixes, make_config, package_metadata, registry_metadata,
+    super::{
+        VirtualStoreLayout,
+        global_virtual_store_version_dir,
+    },
+    alias,
+    cyclic_slot_suffixes,
+    make_config,
+    package_metadata,
+    registry_metadata,
     snapshot_with_link,
 };
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
+    DirectoryResolution,
+    LockfileEntries,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TarballResolution,
 };
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]
@@ -81,7 +105,7 @@ fn slot_dir_uses_gvs_layout_when_gvs_on() {
 }
 /// Unscoped packages get an `@/` prefix so every entry in the
 /// shared store sits at the same `<scope>/<name>/<version>/<hash>`
-/// depth — easier `readdir`-driven traversal.
+/// depth, easier `readdir`-driven traversal.
 #[test]
 fn slot_dir_prefixes_unscoped_with_at_slash_under_gvs() {
     let config = make_config(
@@ -319,7 +343,7 @@ fn cross_pinning_siblings_get_distinct_slots() {
     }
 
     // Two builder siblings, each with `dependencies.node:
-    // runtime:<major>` — the desugared form the resolver writes
+    // runtime:<major>`, the desugared form the resolver writes
     // for a manifest-level `engines.runtime` declaration.
     let mut pins_22_deps = HashMap::new();
     pins_22_deps.insert(
@@ -349,7 +373,7 @@ fn cross_pinning_siblings_get_distinct_slots() {
         ["pins-22".to_string(), "pins-20".to_string()].into_iter().collect();
     let policy = crate::AllowBuildPolicy::new(allowed, std::collections::HashSet::new(), false);
 
-    // Same install-wide fallback for both layout queries — the
+    // Same install-wide fallback for both layout queries, the
     // divergence has to come from the per-snapshot pin lookup.
     let layout = VirtualStoreLayout::new(
         &config,
@@ -369,7 +393,7 @@ fn gvs_version_segment_anchors_directory_deps() {
     assert_eq!(super::super::gvs_version_segment(None, &semver.suffix), "1.2.3");
 
     // The lockfile records no version for a directory snapshot, and the
-    // install path that resolves from manifests does know it — so the
+    // install path that resolves from manifests does know it, so the
     // segment has to be the same either way, or a re-install would
     // relocate the package.
     let dir_dep: PackageKey = "b@file:packages/b".parse().unwrap();
@@ -441,7 +465,7 @@ fn named_registry_slots_share_the_version_dir_but_not_the_hash() {
 /// A `link:` dependency is materialized as a symlink out of the store,
 /// so the slot holding it belongs to whichever directory the lockfile's
 /// relative target resolves to. Two projects linking *different*
-/// directories must not land on one slot — the peer suffix that tells
+/// directories must not land on one slot, the peer suffix that tells
 /// their dep paths apart is deliberately absent from the GVS hash, so
 /// without the link scope they would collide and share whichever
 /// symlink was written first.
@@ -612,7 +636,7 @@ fn collect_injected_deps_maps_file_snapshots_to_slots() {
         snapshots.insert(key.clone(), SnapshotEntry::default());
     }
     // A `file:` tarball snapshot: present in `snapshots` but with a
-    // tarball resolution — must NOT be treated as an injected project.
+    // tarball resolution, must NOT be treated as an injected project.
     let tarball_key: PackageKey = "tar-dep@file:vendor/dep.tgz".parse().unwrap();
     snapshots.insert(tarball_key, SnapshotEntry::default());
     let mut packages = HashMap::new();
@@ -729,7 +753,10 @@ fn cyclic_gvs_slots_are_stable_across_runs() {
 #[test]
 fn a_variations_resolution_is_identified_by_the_selected_archive() {
     use pnpm_lockfile::{
-        PkgIdWithPatchHash, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
+        PkgIdWithPatchHash,
+        PlatformAssetResolution,
+        PlatformAssetTarget,
+        PlatformSelector,
         VariationsResolution,
     };
 

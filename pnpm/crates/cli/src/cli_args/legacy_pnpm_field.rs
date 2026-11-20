@@ -1,5 +1,5 @@
 //! The `pnpm` field of `package.json` is no longer read for install
-//! settings — pnpm 10 moved them all to `pnpm-workspace.yaml`. A project
+//! settings, pnpm 10 moved them all to `pnpm-workspace.yaml`. A project
 //! that still carries one of the migrated keys gets a warning naming it,
 //! so the setting isn't silently dropped.
 

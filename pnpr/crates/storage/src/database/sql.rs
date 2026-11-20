@@ -1,31 +1,64 @@
 //! Metadata in a SQL database.
 //!
-//! Package documents are stored as normalized rows per ecosystem — accepted
+//! Package documents are stored as normalized rows per ecosystem (accepted
 //! version manifests, READMEs, tags, deprecations, crate versions, Python
 //! distribution files, OCI manifests and tags, plus package-level state
-//! versioned by `packages.state_version` — and rendered through the fragment
+//! versioned by `packages.state_version`) and rendered through the fragment
 //! and view caches in [`render`].
 
 #[cfg(feature = "backend-libsql")]
 pub(crate) use pnpr_sql::libsql;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 pub(crate) use pnpr_sql::network;
-pub(crate) use pnpr_sql::{adapter, schema, sqlite};
+pub(crate) use pnpr_sql::{
+    adapter,
+    schema,
+    sqlite,
+};
 
 pub use cache::RenderStats;
 pub use cdn::CdnInvalidation;
-pub use grants::{GrantContent, GrantWrite, StoredGrant, StoredGrants};
-pub use mappings::{Mapping, Unmapping};
+pub use grants::{
+    GrantContent,
+    GrantWrite,
+    StoredGrant,
+    StoredGrants,
+};
+pub use mappings::{
+    Mapping,
+    Unmapping,
+};
 pub use registry_graph::{
-    HostedNamespace, NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphRevision,
-    RegistryGraphWrite, StoredRegistryGraph,
+    HostedNamespace,
+    NewRegistryGraph,
+    REGISTRY_GRAPH_REVISIONS_KEPT,
+    RegistryGraphRevision,
+    RegistryGraphWrite,
+    StoredRegistryGraph,
 };
 pub(crate) use removed::RemovedPackage;
-pub use scim::{NewScimUser, ScimStatus, ScimUserRemoval, ScimUserWrite, StoredScimUser};
-pub(crate) use staged::{StagedEntry, StagedId};
-pub(crate) use store_binding::{StoreBinding, StoreClaim};
+pub use scim::{
+    NewScimUser,
+    ScimStatus,
+    ScimUserRemoval,
+    ScimUserWrite,
+    StoredScimUser,
+};
+pub(crate) use staged::{
+    StagedEntry,
+    StagedId,
+};
+pub(crate) use store_binding::{
+    StoreBinding,
+    StoreClaim,
+};
 pub use tags::TagHistoryEntry;
-pub use teams::{StoredTeam, StoredTeams, TeamCreation, TeamRemoval};
+pub use teams::{
+    StoredTeam,
+    StoredTeams,
+    TeamCreation,
+    TeamRemoval,
+};
 pub(crate) use view::PackageMetadata;
 
 mod batch;
@@ -61,20 +94,45 @@ mod versions;
 mod view;
 
 use super::{
-    ArtifactMember, BatchDocument, BlobFence, Generation, Publication, PublicationCommit,
-    PublicationRequest, PublishNotes, RecordedOutcome,
+    ArtifactMember,
+    BatchDocument,
+    BlobFence,
+    Generation,
+    Publication,
+    PublicationCommit,
+    PublicationRequest,
+    PublishNotes,
+    RecordedOutcome,
 };
 use crate::{
     HostedDocumentVersion,
-    transparency_log::{ImportedLogEntry, LogId, RawLogState},
+    transparency_log::{
+        ImportedLogEntry,
+        LogId,
+        RawLogState,
+    },
 };
-use adapter::{Adapter, Connection};
-use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use adapter::{
+    Adapter,
+    Connection,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_sql::DialectSql;
 use std::{
     path::Path,
-    sync::{Arc, Mutex, OnceLock, PoisonError},
+    sync::{
+        Arc,
+        Mutex,
+        OnceLock,
+        PoisonError,
+    },
     time::Instant,
 };
 use transactions::Freshness;
@@ -482,7 +540,8 @@ fn namespace_generation(connection: &dyn Connection, namespace: &str) -> Result<
         "SELECT generation FROM namespaces WHERE namespace = ?1",
         params![namespace],
     )?;
-    row.map_or(Ok(0), |mut row| Ok(to_generation(row.get(0)?)))
+    row.map(|mut row| Ok(to_generation(row.get(0)?)))
+        .unwrap_or(Ok(0))
 }
 
 const ADVANCE_NAMESPACE: DialectSql = DialectSql::with_mysql(

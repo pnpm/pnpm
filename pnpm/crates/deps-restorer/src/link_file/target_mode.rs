@@ -3,7 +3,10 @@
 use pnpm_fs::StoreFile;
 #[cfg(unix)]
 use std::fs;
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// The permissions the copy tier gives a copy of `source_file`: the
 /// store-entry mode for a store entry, or the source's own permissions.
@@ -67,8 +70,8 @@ fn source_mode(source_file: &Path) -> io::Result<pnpm_fs::FileMode> {
 
 /// Align a materialized `target_link` with the mode a fresh store write
 /// under the current umask would give `source_file`. A reflink carries the
-/// source's mode onto the target — `clonefile` copies its attributes and the
-/// reflink tier sets them explicitly — so an entry the store wrote under a
+/// source's mode onto the target (`clonefile` copies its attributes and the
+/// reflink tier sets them explicitly) so an entry the store wrote under a
 /// wider umask keeps that wider mode in `node_modules` until it is aligned
 /// here (pnpm/pnpm#3807).
 #[cfg(any(unix, target_os = "wasi"))]

@@ -1,8 +1,23 @@
 use super::{
-    Config, DependencyGroup, HashSet, OutdatedQuery, Path, PromptRow, PromptStyle, Reporter,
-    TargetVersion, UpdatePrompt, collect_outdated_for_importer, has_pnpm_cli_dependency,
-    ignored_dependencies_matcher, miette, report_cancelled, sanitize_inline, selected_packages,
+    Config,
+    DependencyGroup,
+    HashSet,
+    OutdatedQuery,
+    Path,
+    PromptRow,
+    PromptStyle,
+    Reporter,
+    TargetVersion,
+    UpdatePrompt,
+    collect_outdated_for_importer,
+    has_pnpm_cli_dependency,
+    ignored_dependencies_matcher,
+    miette,
+    report_cancelled,
+    sanitize_inline,
+    selected_packages,
 };
+use miette::WrapErr;
 
 pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     base_config: &'static Config,
@@ -71,10 +86,8 @@ async fn outdated_group_rows(
     let mut rows = Vec::new();
     for pkg in matched_packages {
         let state = crate::State::init(pkg.install_dir.join("package.json"), config, false)
-            .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
-        let lockfile = state.lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+            .wrap_err("initialize global state")?;
+        let lockfile = state.lockfile.get().wrap_err("load the lockfile")?;
         let mut outdated = collect_outdated_for_importer(
             &state.manifest,
             lockfile,

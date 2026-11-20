@@ -1,8 +1,18 @@
-use super::{CachedTgz, CanonicalPackageName, Storage};
+use super::{
+    CachedTgz,
+    CanonicalPackageName,
+    Storage,
+};
 use axum::body::Body;
 use futures_util::StreamExt;
-use ssri::{Integrity, IntegrityChecker};
-use std::io::{self, Read};
+use ssri::{
+    Integrity,
+    IntegrityChecker,
+};
+use std::io::{
+    self,
+    Read,
+};
 
 /// What to do about a `.tgz` whose bytes did not match the version's
 /// integrity: fail the response, which ends after the bytes, and evict the

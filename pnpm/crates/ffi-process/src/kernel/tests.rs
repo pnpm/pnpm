@@ -1,4 +1,7 @@
-use super::{darwin_major_version, release};
+use super::{
+    darwin_major_version,
+    release,
+};
 
 /// Pins that the release the kernel reports is the one the gate parses, so
 /// a flag gate cannot read a major version the running kernel does not

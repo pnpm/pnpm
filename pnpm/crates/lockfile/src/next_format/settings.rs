@@ -3,10 +3,19 @@
 //! `overrides`, `patchedDependencies`, the two checksums and
 //! `ignoredOptionalDependencies`, which today are top-level sections.
 
-use super::catalogs::{self, NextCatalogs};
-use crate::{Lockfile, LockfileSettings};
+use super::catalogs::{
+    self,
+    NextCatalogs,
+};
+use crate::{
+    Lockfile,
+    LockfileSettings,
+};
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::BTreeMap;
 
 /// `settings` as read. `base` is `None` when the block has none of today's

@@ -3119,6 +3119,7 @@ snapshots:
 				"@pnpm/workspace.injected-deps-syncer": "workspace:*",
 				"@pnpm/workspace.project-manifest-reader": "workspace:*",
 				"@pnpm/workspace.projects-filter": "workspace:*",
+				"@pnpm/workspace.projects-graph": "workspace:*",
 				"@pnpm/workspace.projects-reader": "workspace:*",
 				"@pnpm/workspace.projects-sorter": "workspace:*",
 				"@pnpm/workspace.task-scheduler": "workspace:*",
@@ -6534,6 +6535,7 @@ snapshots:
 		"pnpm11/workspace/projects-graph": {
 			"name": "@pnpm/workspace.projects-graph",
 			"dependencies": {
+				"@pnpm/catalogs.protocol-parser": "workspace:*",
 				"@pnpm/catalogs.resolver": "workspace:*",
 				"@pnpm/catalogs.types": "workspace:*",
 				"@pnpm/config.parse-overrides": "workspace:*",

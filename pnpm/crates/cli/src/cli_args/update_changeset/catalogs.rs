@@ -1,4 +1,9 @@
-use super::{BTreeMap, BTreeSet, Catalogs, parse_catalog_protocol};
+use super::{
+    BTreeMap,
+    BTreeSet,
+    Catalogs,
+    parse_catalog_protocol,
+};
 
 pub(super) fn find_changed_catalog_entries(
     before: &Catalogs,

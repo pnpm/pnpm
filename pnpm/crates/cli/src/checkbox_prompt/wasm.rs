@@ -1,4 +1,9 @@
-use super::{CheckboxPrompt, CheckboxTheme, Key, KeyOutcome};
+use super::{
+    CheckboxPrompt,
+    CheckboxTheme,
+    Key,
+    KeyOutcome,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Mode {

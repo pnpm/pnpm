@@ -1,17 +1,34 @@
 use super::{
-    ManifestSpecBumps, OverriddenDeclarations, apply_manifest_spec_bumps, bumped_range,
+    ManifestSpecBumps,
+    OverriddenDeclarations,
+    apply_manifest_spec_bumps,
+    bumped_range,
     split_registry_alias,
 };
 use crate::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::parse_overrides;
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName, ResolvedDependencyMap};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ResolvedDependencyMap,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use serde_json::json;
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn lockfile(source: &str) -> Lockfile {
@@ -349,8 +366,8 @@ importers:
 }
 
 /// The declared text is what the resolver read. When the lockfile entry
-/// carries something else — an override replaced the declaration before
-/// resolution — the entry is not the update's to move (pnpm/pnpm#12115).
+/// carries something else (an override replaced the declaration before
+/// resolution) the entry is not the update's to move (pnpm/pnpm#12115).
 #[test]
 fn a_declaration_an_override_replaced_is_left_alone() {
     let mut lockfile = lockfile(

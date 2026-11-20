@@ -1,6 +1,12 @@
 use pnpr::{
-    BackendConfig, Config, SqliteAuth, UserBackend,
-    htpasswd_import::{HtpasswdImportOptions, import_htpasswd},
+    BackendConfig,
+    Config,
+    SqliteAuth,
+    UserBackend,
+    htpasswd_import::{
+        HtpasswdImportOptions,
+        import_htpasswd,
+    },
 };
 use pnpr_config::MaxUsers;
 use pnpr_fixtures::MockConfigPresets as _;

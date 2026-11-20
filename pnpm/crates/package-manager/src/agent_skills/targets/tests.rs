@@ -1,6 +1,9 @@
 use super::agent_skills_dir_from_lookup;
 use pretty_assertions::assert_eq;
-use std::{ffi::OsString, fs};
+use std::{
+    ffi::OsString,
+    fs,
+};
 
 #[test]
 fn detects_claude_code() {

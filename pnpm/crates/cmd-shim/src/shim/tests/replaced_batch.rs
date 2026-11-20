@@ -1,11 +1,23 @@
-use super::{CmdShimBatch, ScriptRuntime, cmd_encoding::cmd_in_own_console, generate_cmd_shim};
+use super::{
+    CmdShimBatch,
+    ScriptRuntime,
+    cmd_encoding::cmd_in_own_console,
+    generate_cmd_shim,
+};
 use crate::shim::end_replaced_cmd_shim_batch;
+use command_extra::CommandExtra;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Output,
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// A `pnpm.cmd` that runs `pnpm.exe` as a command of its batch, so cmd.exe is
 /// still reading it while `pnpm.exe` runs.
@@ -220,8 +232,8 @@ impl ReplacingShim {
     fn run_replacing_with(&self, replacement: &str) -> Output {
         fs::write(self.root.path().join("new-shim.txt"), replacement).unwrap();
         let output = cmd_in_own_console()
-            .args(["/d", "/c", "shim.cmd", "/d", "/c", "replace.cmd"])
-            .current_dir(self.root.path())
+            .with_args(["/d", "/c", "shim.cmd", "/d", "/c", "replace.cmd"])
+            .with_current_dir(self.root.path())
             .output()
             .unwrap();
         eprintln!("{output:?}");

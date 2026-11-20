@@ -2,11 +2,22 @@
 //! package-manager environment, and one around each engine's slot.
 
 use crate::slot_lock;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_fs::DirLock;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::{path::Path, time::Duration};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use std::{
+    path::Path,
+    time::Duration,
+};
 
 /// Take the host-wide lock guarding this engine's slot, or `None` when
 /// another process holds it: the engine is then installed privately. A

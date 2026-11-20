@@ -1,17 +1,30 @@
-use super::{InstallScope, RunExecution};
+use super::{
+    InstallScope,
+    RunExecution,
+};
 #[cfg(target_os = "macos")]
 use pnpm_config::LinkWorkspacePackages;
 #[cfg(target_os = "macos")]
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 #[cfg(target_os = "macos")]
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, DependencyGroups, GraphProject, ProjectGraph,
+    BaseProject,
+    CreateProjectsGraphOptions,
+    DependencyGroups,
+    GraphProject,
+    ProjectGraph,
     create_projects_graph,
 };
 #[cfg(target_os = "macos")]
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(target_os = "macos")]

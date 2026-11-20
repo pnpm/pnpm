@@ -1,4 +1,9 @@
-use super::{CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput, Snapshots};
+use super::{
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+    Snapshots,
+};
 use crate::BuildModules;
 use pnpm_lockfile::PlatformSelector;
 use pnpm_reporter::Reporter;

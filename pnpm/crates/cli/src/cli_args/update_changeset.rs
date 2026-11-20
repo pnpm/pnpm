@@ -1,36 +1,80 @@
 mod catalogs;
 mod ignore;
 
-use catalogs::{find_changed_catalog_entries, uses_changed_catalog_entry};
+use catalogs::{
+    find_changed_catalog_entries,
+    uses_changed_catalog_entry,
+};
 use ignore::{
-    ChangesetDirState, IgnoredProjects, ensure_changeset_dir_is_safe, project_reference,
-    read_config_ignore_patterns, write_changeset,
+    ChangesetDirState,
+    IgnoredProjects,
+    ensure_changeset_dir_is_safe,
+    project_reference,
+    read_config_ignore_patterns,
+    write_changeset,
 };
 
-use super::{recursive::discover_workspace_projects, update::UpdateSaveArgs};
-use derive_more::{Display, Error};
+use super::{
+    recursive::discover_workspace_projects,
+    update::UpdateSaveArgs,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_matcher::{Matcher, create_matcher};
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pnpm_versioning::{
-    IntentBumpType, format_change_intent, is_dir_ref, normalize_project_dir, to_project_dir,
+    IntentBumpType,
+    format_change_intent,
+    is_dir_ref,
+    normalize_project_dir,
+    to_project_dir,
 };
 use pnpm_workspace::{
-    ReadProjectManifestOnlyError, ReadWorkspaceManifestError, read_workspace_manifest,
+    ReadProjectManifestOnlyError,
+    ReadWorkspaceManifestError,
+    read_workspace_manifest,
     safe_read_project_manifest_only,
 };
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    fs::{self, OpenOptions},
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    fs::{
+        self,
+        OpenOptions,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -299,7 +343,8 @@ fn capture_dep_specs(root_dirs: &[PathBuf]) -> Result<CapturedManifests, UpdateC
             safe_read_project_manifest_only(root_dir).map_err(UpdateChangesetError::ReadProject)?;
         if let Some(name) = manifest
             .as_ref()
-            .and_then(|manifest| manifest.value().get("name"))
+            .map(PackageManifest::value)
+            .and_then(|value| value.get("name"))
             .and_then(Value::as_str)
         {
             *name_counts.entry(name.to_string()).or_insert(0) += 1;
@@ -332,7 +377,7 @@ fn releasable_package_name<'a>(
         .value()
         .get("private")
         .and_then(Value::as_bool)
-        == Some(true)
+        .unwrap_or(false)
         || node_semver::Version::parse(version).is_err()
         || ignored.matches(package_name, project_dir)
     {

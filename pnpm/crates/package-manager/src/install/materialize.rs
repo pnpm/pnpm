@@ -4,20 +4,50 @@ mod frozen;
 mod missing_projects;
 mod scope;
 use scope::{
-    allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
-    frozen_project_anchor_ids, importer_manifests_by_id, lockfile_specifier_manifests_by_id,
-    previously_skipped, prior_unbuilt_builds, record_auto_dedupe_baseline,
-    record_fresh_lockfile_verified, settle_frozen_verification,
+    allow_builds_changed_since,
+    anchored_project_manifests,
+    announce_headless_install,
+    frozen_project_anchor_ids,
+    importer_manifests_by_id,
+    lockfile_specifier_manifests_by_id,
+    previously_skipped,
+    prior_unbuilt_builds,
+    record_auto_dedupe_baseline,
+    record_fresh_lockfile_verified,
+    settle_frozen_verification,
 };
 
 use super::{
-    Arc, AtomicU8, BTreeMap, Catalogs, DependencyGroup, HashSet, HoistedDependencies,
-    IncludedDependencies, InstallError, InstallFrozenLockfile, InstallWithFreshLockfile, Lockfile,
-    LockfileEntries, MemCache, PackageManifest, Path, PathBuf, RebuildOptions, Reporter,
-    ResolutionVerifier, ThrottledClient, build_workspace_packages_map, map_fresh_lockfile_error,
-    map_frozen_lockfile_error, run::InstallView,
+    Arc,
+    AtomicU8,
+    BTreeMap,
+    Catalogs,
+    DependencyGroup,
+    HashSet,
+    HoistedDependencies,
+    IncludedDependencies,
+    InstallError,
+    InstallFrozenLockfile,
+    InstallWithFreshLockfile,
+    Lockfile,
+    LockfileEntries,
+    MemCache,
+    PackageManifest,
+    Path,
+    PathBuf,
+    RebuildOptions,
+    Reporter,
+    ResolutionVerifier,
+    ThrottledClient,
+    build_workspace_packages_map,
+    map_fresh_lockfile_error,
+    map_frozen_lockfile_error,
+    run::InstallView,
 };
-use crate::install_with_fresh_lockfile::{FreshInputs, OwnedInputs};
+use crate::install_with_fresh_lockfile::{
+    FreshInputs,
+    OwnedInputs,
+};
 
 pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) install: InstallView<'a>,
@@ -75,7 +105,7 @@ pub(super) struct MaterializationExecution<'a> {
     pub(super) take_frozen_path: bool,
     pub(super) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
-    /// A host detection spawned right after the wanted lockfile parse —
+    /// A host detection spawned right after the wanted lockfile parse;
     /// see [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`].
     /// Handed to whichever install path runs.
     pub(super) early_host_detection:
@@ -120,7 +150,7 @@ pub(super) struct MaterializationResolution<'a> {
     pub(super) inputs: crate::install::run::ResolutionInputs,
 }
 
-/// The store-index writer's wind-down task — see
+/// The store-index writer's wind-down task; see
 /// [`MaterializationOutput::store_index_teardown`].
 pub(super) type StoreIndexTeardown =
     tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>;
@@ -146,7 +176,7 @@ pub(super) struct MaterializationOutput {
     pub(super) materialized: Materialized,
     /// The store-index writer task, already winding down (both install
     /// paths dropped every writer handle before returning). The caller
-    /// awaits it after the tail writes it can overlap with — the full
+    /// awaits it after the tail writes it can overlap with, the full
     /// rationale lives at the await site in `run.rs`.
     pub(super) store_index_teardown: StoreIndexTeardown,
 }
@@ -326,7 +356,7 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
     /// bypassed the policy locally is caught even though the resolver
     /// re-resolves from it. No-op when there's no lockfile
     /// (state 4) or verification is disabled. The pnpr override stays
-    /// a blocking gate — it is a single round trip with nothing
+    /// a blocking gate; it is a single round trip with nothing
     /// substantial to overlap.
     async fn start_fresh_verification<Reporter: self::Reporter>(
         &mut self,
@@ -342,7 +372,7 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
                 let shared_lockfile = self.lockfiles.wanted_shared
                     .as_ref()
                     .map(Arc::clone)
-                    .or_else(|| self.lockfiles.wanted.map(|loaded| Arc::new(loaded.clone())));
+                    .or_else(|| self.lockfiles.wanted.cloned().map(Arc::new));
                 shared_lockfile.and_then(|loaded_lockfile| {
                     super::LockfileVerificationGate::spawn::<Reporter>(
                         Arc::clone(&loaded_lockfile),

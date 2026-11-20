@@ -1,6 +1,10 @@
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Create or validate a process-shared lock directory in the current user's
@@ -175,7 +179,10 @@ fn native_path_bytes(path: &Path) -> Vec<u8> {
 
 #[cfg(unix)]
 fn secure_unix_directory(directory: &Path) -> io::Result<()> {
-    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    use std::os::unix::fs::{
+        MetadataExt as _,
+        PermissionsExt as _,
+    };
 
     let metadata = fs::symlink_metadata(directory)?;
     let effective_user = pnpm_ffi_process::effective_user_id();

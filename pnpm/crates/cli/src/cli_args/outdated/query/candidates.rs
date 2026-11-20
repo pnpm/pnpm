@@ -1,14 +1,37 @@
 use super::{
-    CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Catalogs, Cow,
-    DeclaredEngineDep, DependencyGroup, HashMap, LatestQuery, Lockfile, OutdatedMetadata,
-    OutdatedPackage, OutdatedQuery, OutdatedRun, PackageManifest, ResolverWantedDependency,
-    TargetVersion, TrustChange, Version, dereference_catalog_protocol, min_version_of_spec,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    CatalogWantedDependency,
+    Catalogs,
+    Cow,
+    DeclaredEngineDep,
+    DependencyGroup,
+    HashMap,
+    LatestQuery,
+    Lockfile,
+    OutdatedMetadata,
+    OutdatedPackage,
+    OutdatedQuery,
+    OutdatedRun,
+    PackageManifest,
+    ResolverWantedDependency,
+    TargetVersion,
+    TrustChange,
+    Version,
+    dereference_catalog_protocol,
+    min_version_of_spec,
     resolve_from_catalog,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_resolving_npm_resolver::{TrustEvidence, get_manifest_trust_evidence};
+use pnpm_resolving_npm_resolver::{
+    TrustEvidence,
+    get_manifest_trust_evidence,
+};
 use pnpm_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectors,
 };
 use std::sync::Arc;
 
@@ -336,7 +359,8 @@ fn outdated_target(
     let target = target_manifest
         .get("version")
         .and_then(serde_json::Value::as_str)
-        .and_then(|version| version.parse::<Version>().ok())?;
+        .map(str::parse::<Version>)
+        .and_then(Result::ok)?;
     let deprecated = target_manifest
         .get("deprecated")
         .and_then(serde_json::Value::as_str)

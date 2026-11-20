@@ -5,9 +5,19 @@ pub use policy::*;
 
 mod policy;
 
-use derive_more::{Display, Error};
-use signed_note::{Note, NoteError, Signer};
-use tlog_tiles::{Checkpoint, Hash};
+use derive_more::{
+    Display,
+    Error,
+};
+use signed_note::{
+    Note,
+    NoteError,
+    Signer,
+};
+use tlog_tiles::{
+    Checkpoint,
+    Hash,
+};
 
 /// A log's tree head: the content of a checkpoint without its signatures.
 #[derive(Debug, Clone, PartialEq)]

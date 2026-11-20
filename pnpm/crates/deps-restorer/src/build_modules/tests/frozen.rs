@@ -1,9 +1,18 @@
 #[cfg(unix)]
 use super::{
-    super::BuildModules, TEST_LOGGED_METHODS, create_postinstall_modifies_source_fixture, key,
-    policy_from_specs, report_store_file_differences, root_importers, snapshot_regular_files,
+    super::BuildModules,
+    TEST_LOGGED_METHODS,
+    create_postinstall_modifies_source_fixture,
+    key,
+    policy_from_specs,
+    report_store_file_differences,
+    root_importers,
+    snapshot_regular_files,
 };
-use super::{frozen_backstop_run, gvs_layout};
+use super::{
+    frozen_backstop_run,
+    gvs_layout,
+};
 #[cfg(unix)]
 use crate::SkippedSnapshots;
 use crate::VirtualStoreLayout;
@@ -50,7 +59,7 @@ fn frozen_store_gvs_optional_not_seeded_skips() {
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 /// Negative control: the same patched, un-seeded snapshot does NOT trip
-/// the backstop when `frozen_store` is off — proving the flag is
+/// the backstop when `frozen_store` is off, proving the flag is
 /// load-bearing. With no fixture on disk the run no-ops at the
 /// `!pkg_dir.exists()` guard, so it returns `Ok` rather than attempting
 /// to apply the (absent) patch file.
@@ -66,7 +75,7 @@ fn gvs_without_frozen_store_does_not_trip_backstop() {
 }
 /// Negative control: under the legacy (non-GVS) layout, package
 /// directories live under the writable project-local virtual store, so
-/// the backstop is correctly inert even with `frozen_store` enabled —
+/// the backstop is correctly inert even with `frozen_store` enabled,
 /// builds and patches there never touch the read-only store.
 #[test]
 fn frozen_store_without_gvs_does_not_trip_backstop() {
@@ -84,7 +93,10 @@ fn frozen_store_without_gvs_does_not_trip_backstop() {
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn frozen_store_skips_side_effects_upload() {
-    use pnpm_store_dir::{StoreDir, StoreIndexWriter};
+    use pnpm_store_dir::{
+        StoreDir,
+        StoreIndexWriter,
+    };
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
     let integrity_str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";

@@ -1,4 +1,8 @@
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
 use pnpm_text_sanitize::sanitize_inline;
 
 /// The warning for a package that is about to be depended on through
@@ -21,7 +25,10 @@ pub fn linked_peer_dependencies_warning(
         .iter()
         .map(|(key, value)| {
             let sanitized_key = sanitize_warning_text(key);
-            let val_str = value.as_str().map_or_else(|| value.to_string(), ToString::to_string);
+            let val_str = value
+                .as_str()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| value.to_string());
             let sanitized_val = sanitize_warning_text(&val_str);
             format!("  - {sanitized_key}@{sanitized_val}")
         })

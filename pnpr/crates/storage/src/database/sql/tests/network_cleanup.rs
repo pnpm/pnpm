@@ -1,4 +1,7 @@
-use super::{Adapter, Db};
+use super::{
+    Adapter,
+    Db,
+};
 use pnpr_error::Result;
 
 impl Drop for Db {

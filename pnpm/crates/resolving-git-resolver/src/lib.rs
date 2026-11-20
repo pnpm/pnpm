@@ -5,26 +5,26 @@
 //! plain `https://host/repo.git[#ref]` shape some hosts (Gitea, ...)
 //! serve.
 //!
-//! Specs of known hosts are identities, not transport choices —
-//! `parse_bare_specifier`'s module doc states the rule.
+//! Specs of known hosts are identities, not transport choices,
+//! The bare-specifier parser's module doc states the rule.
 //!
 //! Pieces:
 //!
-//! - [`create_git_hosted_pkg_id()`] — pure ID builder for git resolutions.
-//! - [`parse_bare_specifier()`] — recognise + normalise the input
-//!   string, pick a `fetchSpec`. Pure — no network.
-//! - [`GitResolver`] — the [`Resolver`](pnpm_resolving_resolver_base::Resolver)
+//! - [`create_git_hosted_pkg_id()`], pure ID builder for git resolutions.
+//! - [`parse_bare_specifier()`], recognise + normalise the input
+//!   string, pick a `fetchSpec`. Pure, no network.
+//! - [`GitResolver`], the [`Resolver`](pnpm_resolving_resolver_base::Resolver)
 //!   impl that runs `git ls-remote` to pin a commit and emits either a
 //!   `Tarball{gitHosted: true}` or `Git` resolution, decided by the
 //!   [`GitProbe`] archive check. Given a [`GitFetchContext`], it also
-//!   reads the package's name from its `package.json` — out of the
+//!   reads the package's name from its `package.json` (out of the
 //!   host archive, or out of a checkout for a repo that serves no
-//!   archive — plus the archive's integrity. See that type for why
+//!   archive) plus the archive's integrity. See that type for why
 //!   resolution is where that has to happen.
 //!
 //! Out of scope:
 //!
-//! - Proxy / TLS plumbing on the HTTP HEAD probe — the probe uses the
+//! - Proxy / TLS plumbing on the HTTP HEAD probe, the probe uses the
 //!   default [`pnpm_network::ThrottledClient`], same as the rest of
 //!   the install path.
 
@@ -34,15 +34,34 @@ pub(crate) use pnpm_process as process;
 extern crate pnpm_http as reqwest;
 
 pub use create_git_hosted_pkg_id::create_git_hosted_pkg_id;
-pub use git_resolver::{GitFetchContext, GitProbe, GitResolver, ProbeFuture};
-pub use hosted_git::{HostedGit, HostedGitType, HostedOpts};
+pub use git_resolver::{
+    GitFetchContext,
+    GitProbe,
+    GitResolver,
+    ProbeFuture,
+};
+pub use hosted_git::{
+    HostedGit,
+    HostedGitType,
+    HostedOpts,
+};
 pub use parse_bare_specifier::{
-    HostedPackageSpec, PartialSpec, git_spec_committish_and_path, parse_bare_specifier,
+    HostedPackageSpec,
+    PartialSpec,
+    git_spec_committish_and_path,
+    parse_bare_specifier,
 };
 pub use resolve_ref::{
-    GitCommandRunner, GitResolveRefError, GitRunError, get_repo_refs, resolve_ref,
+    GitCommandRunner,
+    GitResolveRefError,
+    GitRunError,
+    get_repo_refs,
+    resolve_ref,
 };
-pub use runners::{RealGitProbe, RealGitRunner};
+pub use runners::{
+    RealGitProbe,
+    RealGitRunner,
+};
 
 mod create_git_hosted_pkg_id;
 mod git_resolver;

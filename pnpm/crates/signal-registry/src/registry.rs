@@ -1,7 +1,11 @@
 //! A registry of values, where a registration is a guard.
 
 use crate::SignalList;
-use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicPtr,
+    AtomicUsize,
+    Ordering,
+};
 
 /// A registry of values a signal handler can walk.
 ///

@@ -4,24 +4,43 @@
 //! which occurrence of a package records its children.
 
 pub(super) use children_ownership::{
-    ChildrenOwner, ChildrenOwnerClaim, ChildrenRecording, RecordedChildren,
-    RecordedChildrenContext, children_warmup_claimed, claim_children_owner, claim_children_warmup,
-    insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
-    register_peer_dep_names, register_shadowable_dep_names,
+    ChildrenOwner,
+    ChildrenOwnerClaim,
+    ChildrenRecording,
+    RecordedChildren,
+    RecordedChildrenContext,
+    children_warmup_claimed,
+    claim_children_owner,
+    claim_children_warmup,
+    insert_tree_node,
+    is_current_children_owner,
+    make_non_owner_nodes_lazy,
+    record_children,
+    register_peer_dep_names,
+    register_shadowable_dep_names,
 };
 pub(super) use subtree_split::{
-    claim_recorded_subtree_owners, recorded_children_match, recorded_prior_key,
+    claim_recorded_subtree_owners,
+    recorded_children_match,
+    recorded_prior_key,
 };
 
 pub(super) use cache_keys::{
-    PathKey, SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey,
+    PathKey,
+    SharedWorkspaceWantedKey,
+    WantedKey,
+    WorkspaceFinalWantedKey,
     WorkspaceResolutionOptionsKey,
 };
 
 mod reachable_nodes;
 use reachable_nodes::{
-    collect_newly_visited, fold_version, fold_visited_versions, merge_synced_child_spec,
-    walk_reachable_children, walk_reachable_nodes,
+    collect_newly_visited,
+    fold_version,
+    fold_visited_versions,
+    merge_synced_child_spec,
+    walk_reachable_children,
+    walk_reachable_nodes,
 };
 
 mod version_snapshot;
@@ -39,14 +58,34 @@ mod update_scopes;
 
 use jiff::Timestamp;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveOptions, WorkspacePackages};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use pnpm_lockfile::{
+    PkgName,
+    PkgNameVerPeer,
+    RegistryContext,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveOptions,
+    WorkspacePackages,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
     collections::BTreeMap,
-    hash::{Hash, Hasher},
+    hash::{
+        Hash,
+        Hasher,
+    },
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock},
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        OnceLock,
+        RwLock,
+    },
 };
 
 use crate::{
@@ -54,14 +93,27 @@ use crate::{
     parent_pkg_aliases::ParentPkgAliases,
     resolve_peers::MissingNames,
     resolved_tree::{
-        AncestorPkgIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+        AncestorPkgIds,
+        DependenciesTreeNode,
+        DirectDep,
+        PeerDep,
+        ResolvedPackage,
+        ResolvedTree,
         TreeChildren,
     },
 };
 
 use super::{
-    DependencySpec, DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn,
-    UpdateDepth, UpdateReuseScope, lock_recoverable, reuse::LockfileReuseCache, tree_ctx::TreeCtx,
+    DependencySpec,
+    DeprecationLogFn,
+    FinalizedPackageFn,
+    ManifestHook,
+    SkippedOptionalLogFn,
+    UpdateDepth,
+    UpdateReuseScope,
+    lock_recoverable,
+    reuse::LockfileReuseCache,
+    tree_ctx::TreeCtx,
 };
 
 /// An importer's resolved direct-dependency versions, keyed by package
@@ -153,7 +205,7 @@ pub(crate) struct WorkspaceTreeStorage {
     /// Reverse index over `dependencies_tree`: every occurrence node
     /// recorded for a `pkgIdWithPatchHash`. Keeps
     /// [`fn@make_non_owner_nodes_lazy`] proportional to the package's
-    /// own occurrences — scanning the whole tree per recorded package
+    /// own occurrences, scanning the whole tree per recorded package
     /// made lockfile-reuse walks quadratic in workspace size.
     nodes_by_pkg_id: Mutex<HashMap<Arc<str>, Vec<NodeId>>>,
     /// See [`SyncLog`].
@@ -170,7 +222,7 @@ pub(crate) struct WorkspaceChildrenState {
     pub(super) specs_by_id: RwLock<HashMap<Arc<str>, Arc<Vec<DependencySpec>>>>,
     /// Package ids whose children have already been speculatively
     /// resolved. A package is warmed once, however many occurrences of
-    /// it a level seeds — see [`fn@warm_children_resolutions`].
+    /// it a level seeds; see [`fn@warm_children_resolutions`].
     ///
     /// [`fn@warm_children_resolutions`]: super::walk::warm_children_resolutions
     warmed_by_id: Mutex<HashSet<Arc<str>>>,
@@ -248,7 +300,7 @@ pub(super) struct WorkspaceResolutionCache {
     /// Hook-processed workspace results indexed by their canonical target and
     /// rendered consumer link, so importers that render the same `link:` reuse
     /// one hook pass. `resolved_by_wanted` keeps its project-scoped entry for
-    /// these too — this map is what a *different* importer hits.
+    /// these too; this map is what a *different* importer hits.
     pub(super) resolved_workspace_final_by_wanted:
         Mutex<HashMap<WorkspaceFinalWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
     /// Per-key admission locks for concurrent first callers of
@@ -286,7 +338,7 @@ pub(crate) struct WorkspacePreferredVersions {
     preferred_version_roots: Mutex<HashSet<String>>,
     /// `pkgIdWithPatchHash → (name, version)` for packages whose
     /// resolution carries no `name_ver` but was wanted through a
-    /// non-path `workspace:` specifier — the workspace-project versions
+    /// non-path `workspace:` specifier, the workspace-project versions
     /// [`WorkspaceTreeCtx::run_preferred_versions`] folds for such packages. Keyed
     /// by package id so the fold stays reachability-gated.
     workspace_manifest_identities: Mutex<HashMap<String, (String, String)>>,
@@ -350,7 +402,7 @@ pub(super) struct WorkspaceResolutionPolicy {
     pub(super) allowed_deprecated_versions: BTreeMap<String, String>,
     /// The install's `autoInstallPeers` setting. It widens which of a
     /// resolved package's `dependencies` its own `peerDependencies`
-    /// shadow — see [`peer_shadowed_dependencies`].
+    /// shadow; see [`peer_shadowed_dependencies`].
     ///
     /// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
     pub(super) auto_install_peers: bool,
@@ -378,7 +430,7 @@ struct OwnerMissingRecord {
 /// A map whose readers want a whole-map snapshot rather than a lookup,
 /// paired with the last snapshot handed out. Every hoist round of every
 /// importer takes one of these, so rebuilding per read is quadratic in
-/// workspace size — the cached `Arc` collapses a round of reads that
+/// workspace size, the cached `Arc` collapses a round of reads that
 /// changed nothing into one projection.
 ///
 /// Writers reach the map through [`Self::map_mut`], which drops the

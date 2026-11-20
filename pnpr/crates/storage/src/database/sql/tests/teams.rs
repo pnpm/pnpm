@@ -1,5 +1,12 @@
-use super::{Db, storage};
-use crate::database::{StoredTeam, TeamCreation, TeamRemoval};
+use super::{
+    Db,
+    storage,
+};
+use crate::database::{
+    StoredTeam,
+    TeamCreation,
+    TeamRemoval,
+};
 
 fn team(id: &str, name: &str, members: &[&str]) -> StoredTeam {
     StoredTeam {

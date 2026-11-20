@@ -1,4 +1,13 @@
-use super::{IntoDiagnostic, OsStr, OsString, Path, PathBuf, Result, fs, io};
+use super::{
+    IntoDiagnostic,
+    OsStr,
+    OsString,
+    Path,
+    PathBuf,
+    Result,
+    fs,
+    io,
+};
 use miette::WrapErr as _;
 
 pub(super) struct PinnedDirectory {
@@ -110,7 +119,10 @@ impl PinnedDirectory {
 fn open_windows_directory(path: &Path) -> io::Result<fs::File> {
     use std::os::windows::fs::OpenOptionsExt as _;
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_FLAG_OPEN_REPARSE_POINT,
+        FILE_SHARE_READ,
+        FILE_SHARE_WRITE,
     };
 
     // Deliberately omit FILE_SHARE_DELETE. Every component handle remains

@@ -1,9 +1,30 @@
 use super::{
-    Arc, ArtifactBlobRequest, ArtifactCandidate, ArtifactSubject, BASE64, BTreeMap, Barrier,
-    HashSet, OwnerScope, PackageIdentity, PnprClient, PnprClientError, RegistryDeclaration,
-    ResolveArtifactsOptions, Sha512, SigningKey, TcpListener, TestRegistry,
-    capture_one_request_with_response, deps, options, signed_artifact_fixture,
-    signed_artifact_fixture_for_platform, start_pnpr, start_pnpr_artifacts, start_pnpr_inner,
+    Arc,
+    ArtifactBlobRequest,
+    ArtifactCandidate,
+    ArtifactSubject,
+    BASE64,
+    BTreeMap,
+    Barrier,
+    HashSet,
+    OwnerScope,
+    PackageIdentity,
+    PnprClient,
+    PnprClientError,
+    RegistryDeclaration,
+    ResolveArtifactsOptions,
+    Sha512,
+    SigningKey,
+    TcpListener,
+    TestRegistry,
+    capture_one_request_with_response,
+    deps,
+    options,
+    signed_artifact_fixture,
+    signed_artifact_fixture_for_platform,
+    start_pnpr,
+    start_pnpr_artifacts,
+    start_pnpr_inner,
 };
 use base64::Engine as _;
 use p256::pkcs8::EncodePublicKey as _;
@@ -25,7 +46,8 @@ async fn resolves_a_package() {
     assert!(
         packages
             .keys()
-            .any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+            .map(std::string::ToString::to_string)
+            .any(|text| text.starts_with("@foo/no-deps@1.0.0")),
         "lockfile should contain @foo/no-deps@1.0.0, got: {:?}",
         packages
             .keys()
@@ -397,7 +419,8 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
     assert!(
         packages
             .keys()
-            .any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+            .map(std::string::ToString::to_string)
+            .any(|text| text.starts_with("@foo/no-deps@1.0.0")),
         "the declared registry should have served the scope, got: {:?}",
         packages
             .keys()
@@ -408,7 +431,7 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
 
 /// A client describes its whole configuration, including scopes a given
 /// resolve never reaches. Declaring a registry this pnpr does not serve is
-/// therefore not an error by itself — only fetching from one is.
+/// therefore not an error by itself, only fetching from one is.
 #[tokio::test]
 async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
     let registry = TestRegistry::start();
@@ -428,7 +451,8 @@ async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
     assert!(
         packages
             .keys()
-            .any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+            .map(std::string::ToString::to_string)
+            .any(|text| text.starts_with("@foo/no-deps@1.0.0")),
     );
 }
 

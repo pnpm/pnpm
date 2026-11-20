@@ -1,7 +1,21 @@
 use super::{
-    BlockPlacement, BlockSlot, COLOR_WHEEL, LifecycleEntry, LifecycleMessage, LifecycleState,
-    LifecycleStdio, RenderingContext, ReporterState, contains_path, cut_line, format_prefix,
-    format_prefix_no_trim, highlight_last_folder, lifecycle_ids, pretty_ms, printable_script_line,
+    BlockPlacement,
+    BlockSlot,
+    COLOR_WHEEL,
+    LifecycleEntry,
+    LifecycleMessage,
+    LifecycleState,
+    LifecycleStdio,
+    RenderingContext,
+    ReporterState,
+    contains_path,
+    cut_line,
+    format_prefix,
+    format_prefix_no_trim,
+    highlight_last_folder,
+    lifecycle_ids,
+    pretty_ms,
+    printable_script_line,
     visible_width,
 };
 use std::fmt::Write as _;
@@ -87,7 +101,9 @@ impl ReporterState {
         let time = self.scripts.entries
             .get(key)
             .and_then(|e| e.start)
-            .map(|start| pretty_ms(start.elapsed().as_millis()))
+            .map(|start| start.elapsed())
+            .map(|elapsed| elapsed.as_millis())
+            .map(pretty_ms)
             .unwrap_or_default();
         if exit_code == 0 {
             self.rendering.format_indented_status(&self.rendering.colors.magenta_bright(&format!(
@@ -152,7 +168,9 @@ impl ReporterState {
         let time = self.scripts.entries
             .get(key)
             .and_then(|e| e.start)
-            .map(|start| pretty_ms(start.elapsed().as_millis()))
+            .map(|start| start.elapsed())
+            .map(|elapsed| elapsed.as_millis())
+            .map(pretty_ms)
             .unwrap_or_default();
         if *exit_code == 0 {
             return format!("{label}, done in {time}");

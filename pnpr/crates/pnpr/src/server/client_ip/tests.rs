@@ -1,6 +1,15 @@
-use super::{parse_hop_ip, resolve_client_ip};
-use axum::http::{HeaderMap, HeaderValue};
-use pnpr_config::{IpNetwork, TrustedProxyHeader};
+use super::{
+    parse_hop_ip,
+    resolve_client_ip,
+};
+use axum::http::{
+    HeaderMap,
+    HeaderValue,
+};
+use pnpr_config::{
+    IpNetwork,
+    TrustedProxyHeader,
+};
 use std::net::IpAddr;
 
 fn ip(raw: &str) -> IpAddr {
@@ -10,7 +19,9 @@ fn ip(raw: &str) -> IpAddr {
 fn networks(entries: &[&str]) -> Vec<IpNetwork> {
     entries
         .iter()
-        .map(|entry| IpNetwork::parse(entry).unwrap())
+        .copied()
+        .map(IpNetwork::parse)
+        .map(Result::unwrap)
         .collect()
 }
 

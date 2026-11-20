@@ -6,7 +6,10 @@
 
 use crate::process::Command;
 
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// Captured output of a spawned subprocess: the `stdout`, `stderr`, and
 /// exit-status fields the callers read.

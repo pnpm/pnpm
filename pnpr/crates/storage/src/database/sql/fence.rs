@@ -3,18 +3,41 @@
 //! `COMMIT`.
 
 use super::{
-    adapter::{Connection, Query, Row},
-    blobs::{ROWS, id_from, json_array, rows_from},
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
+    blobs::{
+        ROWS,
+        id_from,
+        json_array,
+        rows_from,
+    },
     to_column,
 };
 use crate::{
     BlobId,
-    database::{ArtifactBlob, BlobFence, BlobRow, BlobState},
+    database::{
+        ArtifactBlob,
+        BlobFence,
+        BlobRow,
+        BlobState,
+    },
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
-use pnpr_sql::{Dialect, DialectSql};
-use std::collections::{BTreeMap, BTreeSet};
+use pnpr_sql::{
+    Dialect,
+    DialectSql,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// The files of one package a JSON array names that are mapped, with the
 /// blobs they are mapped to.

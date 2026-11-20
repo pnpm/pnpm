@@ -1,6 +1,14 @@
 use super::{
-    GuardExhaustionPolicy, MISMATCHED_KEY_BODY, PACKAGE_BODY, ResolveOptions, WantedDependency,
-    assert_eq, build_resolver, guard_rejecting, packument_with_many_versions, reject_versions,
+    GuardExhaustionPolicy,
+    MISMATCHED_KEY_BODY,
+    PACKAGE_BODY,
+    ResolveOptions,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    guard_rejecting,
+    packument_with_many_versions,
+    reject_versions,
 };
 use pnpm_resolving_resolver_base::Resolver;
 

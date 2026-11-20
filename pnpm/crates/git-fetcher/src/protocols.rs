@@ -1,5 +1,13 @@
-use crate::{GitFetcherError, fetcher::exec_git_with};
-use std::{collections::HashMap, env, ffi::OsStr, path::Path};
+use crate::{
+    GitFetcherError,
+    fetcher::exec_git_with,
+};
+use std::{
+    collections::HashMap,
+    env,
+    ffi::OsStr,
+    path::Path,
+};
 
 /// Git transports permitted for dependency fetching. Helper transports
 /// can execute commands selected by repository metadata.

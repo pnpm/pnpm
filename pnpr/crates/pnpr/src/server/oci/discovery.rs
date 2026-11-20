@@ -1,8 +1,31 @@
 use super::{
-    Action, CanonicalPackageName, Catalog, ECOSYSTEM, Ecosystem, ErrorCode, ImageDocument, Method,
-    Refusal, RegistryError, RegistrySource, Request, Response, StatusCode, TagList,
-    addressed_registry, authorize, error, hosted_sources, insert_header, json, method_not_allowed,
-    private_no_cache, query_param, read_hosted_document, registry_error, resolve_ecosystem_source,
+    Action,
+    CanonicalPackageName,
+    Catalog,
+    ECOSYSTEM,
+    Ecosystem,
+    ErrorCode,
+    ImageDocument,
+    Method,
+    Refusal,
+    RegistryError,
+    RegistrySource,
+    Request,
+    Response,
+    StatusCode,
+    TagList,
+    addressed_registry,
+    authorize,
+    error,
+    hosted_sources,
+    insert_header,
+    json,
+    method_not_allowed,
+    private_no_cache,
+    query_param,
+    read_hosted_document,
+    registry_error,
+    resolve_ecosystem_source,
     unknown_repository,
 };
 
@@ -46,7 +69,7 @@ impl Request {
         })
     }
 
-    /// `GET /v2/_catalog` — the repository names this caller may read.
+    /// `GET /v2/_catalog`: the repository names this caller may read.
     pub(super) async fn catalog(&self) -> Response {
         if self.method != Method::GET {
             return method_not_allowed();

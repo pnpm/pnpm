@@ -1,9 +1,18 @@
 #[cfg(unix)]
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::ffi::{
+    OsStrExt,
+    OsStringExt,
+};
 #[cfg(target_os = "wasi")]
-use std::os::wasi::ffi::{OsStrExt, OsStringExt};
+use std::os::wasi::ffi::{
+    OsStrExt,
+    OsStringExt,
+};
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     path::PathBuf,
 };
 
@@ -15,7 +24,9 @@ pub fn split_paths<Value: AsRef<OsStr> + ?Sized>(
         .as_ref()
         .as_bytes()
         .split(|&byte| byte == b':')
-        .map(|bytes| PathBuf::from(OsString::from_vec(bytes.to_vec())))
+        .map(<[u8]>::to_vec)
+        .map(OsString::from_vec)
+        .map(PathBuf::from)
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error)]

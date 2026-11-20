@@ -1,8 +1,15 @@
-use crate::apply::{PatchApplyError, apply_patch_to_dir, preview_patch};
+use crate::apply::{
+    PatchApplyError,
+    apply_patch_to_dir,
+    preview_patch,
+};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::tempdir;
-use text_block_macros::{text_block, text_block_fnl};
+use text_block_macros::{
+    text_block,
+    text_block_fnl,
+};
 
 /// An `is-positive` patch: a single-hunk Modify on `index.js`.
 const IS_POSITIVE_PATCH: &str = "\

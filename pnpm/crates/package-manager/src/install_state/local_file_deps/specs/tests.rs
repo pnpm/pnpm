@@ -1,4 +1,7 @@
-use super::{is_unambiguous_local_file_spec, is_workspace_path_spec};
+use super::{
+    is_unambiguous_local_file_spec,
+    is_workspace_path_spec,
+};
 
 #[test]
 fn a_workspace_path_is_told_from_a_workspace_range() {

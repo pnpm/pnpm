@@ -1,13 +1,24 @@
 use super::{
     AccessError,
     registry::{
-        AccessContext, fetch_error_from_response, package_access_url, send_get, send_json,
-        team_package_url, write_error_from_response,
+        AccessContext,
+        fetch_error_from_response,
+        package_access_url,
+        send_get,
+        send_json,
+        team_package_url,
+        write_error_from_response,
     },
 };
 use crate::cli_args::registry_client::auth_header_for_package;
-use miette::{Context, IntoDiagnostic};
-use reqwest::{Method, StatusCode};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use reqwest::{
+    Method,
+    StatusCode,
+};
 
 pub(super) async fn get_status(
     context: &AccessContext<'_>,

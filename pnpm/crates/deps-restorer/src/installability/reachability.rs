@@ -1,7 +1,22 @@
-use super::{CheckCache, cached_check};
-use pnpm_lockfile::{PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
-use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions};
-use std::collections::{HashMap, HashSet, VecDeque};
+use super::{
+    CheckCache,
+    cached_check,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
+use pnpm_package_is_installable::{
+    InstallabilityError,
+    InstallabilityOptions,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+    VecDeque,
+};
 
 /// Edge classification produced by [`walk_lockfile_edges`].
 pub(super) struct LockfileEdgeReach<'lock> {
@@ -9,7 +24,7 @@ pub(super) struct LockfileEdgeReach<'lock> {
     /// including chains through skipped parents.
     pub(super) reachable: HashSet<&'lock PackageKey>,
     /// Skip candidates (incompatible when checked as optional) with a
-    /// non-optional inbound edge from an installed source — an
+    /// non-optional inbound edge from an installed source, an
     /// importer or a non-skipped snapshot. The fail / warn dispatch
     /// wins for these.
     pub(super) required: HashSet<&'lock PackageKey>,

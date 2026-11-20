@@ -1,7 +1,15 @@
-use super::{super::import_indexed_dir, ImportIndexedDirOpts, cas_map, write_source};
+use super::{
+    super::import_indexed_dir,
+    ImportIndexedDirOpts,
+    cas_map,
+    write_source,
+};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
-use std::{fs, sync::atomic::AtomicU8};
+use std::{
+    fs,
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
 
 const REUSE: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {

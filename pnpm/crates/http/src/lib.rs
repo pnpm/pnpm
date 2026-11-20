@@ -4,19 +4,33 @@ pub mod dns;
 pub mod redirect;
 
 #[cfg(target_family = "wasm")]
-pub use client::{Client, ClientBuilder};
+pub use client::{
+    Client,
+    ClientBuilder,
+};
 #[cfg(target_family = "wasm")]
 pub use error::Error;
 #[cfg(target_family = "wasm")]
-pub use http::{Method, StatusCode, header};
+pub use http::{
+    Method,
+    StatusCode,
+    header,
+};
 #[cfg(target_family = "wasm")]
-pub use request::{Request, RequestBuilder};
+pub use request::{
+    Request,
+    RequestBuilder,
+};
 #[cfg(not(target_family = "wasm"))]
 pub use reqwest::*;
 #[cfg(target_family = "wasm")]
 pub use response::Response;
 #[cfg(target_family = "wasm")]
-pub use security::{Certificate, Identity, Proxy};
+pub use security::{
+    Certificate,
+    Identity,
+    Proxy,
+};
 #[cfg(target_family = "wasm")]
 pub use url::Url;
 

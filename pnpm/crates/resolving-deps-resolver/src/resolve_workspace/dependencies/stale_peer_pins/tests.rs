@@ -1,4 +1,7 @@
-use super::{exact_version, locked_importer_version};
+use super::{
+    exact_version,
+    locked_importer_version,
+};
 use pretty_assertions::assert_eq;
 
 #[test]

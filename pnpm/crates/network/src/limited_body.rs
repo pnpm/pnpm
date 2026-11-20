@@ -2,7 +2,11 @@ use crate::error_chain::is_unclean_tls_close;
 use bytes::Bytes;
 use reqwest::{
     Response,
-    header::{CONTENT_LENGTH, HeaderMap, TRANSFER_ENCODING},
+    header::{
+        CONTENT_LENGTH,
+        HeaderMap,
+        TRANSFER_ENCODING,
+    },
 };
 
 /// A response body read through [`read_limited_body`]: at most the requested
@@ -15,8 +19,8 @@ pub struct LimitedBody {
 
 /// Read a response body, capping it at `limit` bytes. A registry response
 /// that a command buffers whole (an error body, a metadata object) must not
-/// let a hostile or broken server exhaust memory, so reading stops — and the
-/// body is marked truncated — once the cap is reached.
+/// let a hostile or broken server exhaust memory, so reading stops (and the
+/// body is marked truncated) once the cap is reached.
 pub async fn read_limited_body(
     response: Response,
     limit: usize,
@@ -126,7 +130,9 @@ fn has_body_framing(headers: &HeaderMap) -> bool {
         || headers
             .get_all(TRANSFER_ENCODING)
             .iter()
-            .filter_map(|value| value.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .filter_map(Result::ok)
             .flat_map(|value| value.split(','))
-            .any(|coding| coding.trim().eq_ignore_ascii_case("chunked"))
+            .map(str::trim)
+            .any(|trimmed| trimmed.eq_ignore_ascii_case("chunked"))
 }

@@ -1,9 +1,17 @@
 use super::{
-    LockedImporter, UpdatePlan, UpdateScope, create_matcher, ignored_resolved_names,
-    matches_update_pattern, matching::selectors_match_ignored_direct,
+    LockedImporter,
+    UpdatePlan,
+    UpdateScope,
+    create_matcher,
+    ignored_resolved_names,
+    matches_update_pattern,
+    matching::selectors_match_ignored_direct,
     widen_drop_targets_by_matcher,
 };
-use crate::{UpdateSelection, UpdateVersionOptions};
+use crate::{
+    UpdateSelection,
+    UpdateVersionOptions,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::DependencyGroup;

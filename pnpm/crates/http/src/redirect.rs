@@ -1,5 +1,12 @@
-use crate::{Error, Url, error::Kind};
-use std::{fmt, sync::Arc};
+use crate::{
+    Error,
+    Url,
+    error::Kind,
+};
+use std::{
+    fmt,
+    sync::Arc,
+};
 
 #[derive(Clone)]
 pub struct Policy(Arc<dyn Fn(Attempt<'_>) -> Action + Send + Sync>);

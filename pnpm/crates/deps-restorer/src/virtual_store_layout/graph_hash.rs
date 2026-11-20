@@ -1,17 +1,35 @@
-use super::{gvs_layout_cache, gvs_version_segment, local_directory_scope};
-use crate::{AllowBuildPolicy, install_frozen_lockfile::find_own_runtime_node_major};
+use super::{
+    gvs_layout_cache,
+    gvs_version_segment,
+    local_directory_scope,
+};
+use crate::{
+    AllowBuildPolicy,
+    install_frozen_lockfile::find_own_runtime_node_major,
+};
 use indexmap::IndexMap;
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
 use pnpm_graph_hasher::{
-    DepsGraphNode, DepsStateCache, calc_graph_node_hash, engine_name,
+    DepsGraphNode,
+    DepsStateCache,
+    calc_graph_node_hash,
+    engine_name,
     format_global_virtual_store_path,
 };
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PlatformSelector,
-    SnapshotEntry, select_platform_variant,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgIdWithPatchHash,
+    PlatformSelector,
+    SnapshotEntry,
+    select_platform_variant,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 
@@ -31,7 +49,7 @@ use std::{
 /// `integrity` (directory / git) are emitted with the bare
 /// `pkg_id_with_patch_hash` as their `full_pkg_id`. The frozen-
 /// lockfile install path rejects those resolutions before reaching the
-/// linker, so a stub `full_pkg_id` here is safe — the GVS hash for an
+/// linker, so a stub `full_pkg_id` here is safe, the GVS hash for an
 /// install that contains one of those snapshots is irrelevant because
 /// the install will error out before consulting it.
 pub(super) fn lockfile_to_dep_graph(
@@ -339,7 +357,11 @@ pub(super) fn engine_gating_dep_paths(
 ) -> HashSet<String> {
     let built_dep_paths = snapshots
         .keys()
-        .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
+        .filter(|key| {
+            policy
+                .check(&key.without_peer().to_string())
+                .unwrap_or(false)
+        })
         .map(ToString::to_string)
         .collect();
     pnpm_graph_hasher::build_required_dep_paths(graph, &built_dep_paths)

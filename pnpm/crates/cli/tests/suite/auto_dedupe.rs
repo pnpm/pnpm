@@ -1,11 +1,21 @@
-use crate::_utils::{importer_version, read_lockfile};
+use crate::_utils::{
+    importer_version,
+    read_lockfile,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 pub(crate) const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
@@ -129,7 +139,7 @@ fn frozen_install_does_not_record_a_dedupe_baseline_and_repeat_install_skips_aft
 }
 
 /// The `autoDedupe` the workspace state records, `None` when the key is
-/// absent — what the next command's settings comparison reads as "no dedupe
+/// absent, what the next command's settings comparison reads as "no dedupe
 /// baseline has been established".
 fn recorded_auto_dedupe(workspace: &Path) -> Option<bool> {
     let path = workspace.join("node_modules/.pnpm-workspace-state-v1.json");
@@ -312,10 +322,10 @@ fn partial_change_discovers_a_new_candidate_and_updates_existing_consumers() {
             importer_version(&read_lockfile(&workspace.join("pnpm-lock.yaml")), "low", DEP),
             "100.0.0",
         );
-        let mut command = pnpm_at(&workspace.join("high"));
-        command.args(["add", &format!("{DEP}@100.1.0"), "--auto-dedupe"]);
+        let mut command = pnpm_at(&workspace.join("high"))
+            .with_args(["add", &format!("{DEP}@100.1.0"), "--auto-dedupe"]);
         if lockfile_only {
-            command.arg("--lockfile-only");
+            command = command.with_arg("--lockfile-only");
         }
         command.assert().success();
         if !lockfile_only {

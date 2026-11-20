@@ -1,15 +1,23 @@
 #[cfg(unix)]
 use super::{
-    super::BuildModules, TEST_LOGGED_METHODS, create_failing_postinstall_fixture,
-    create_postinstall_modifies_source_fixture, create_postinstall_with_unreadable_fixture,
+    super::BuildModules,
+    TEST_LOGGED_METHODS,
+    create_failing_postinstall_fixture,
+    create_postinstall_modifies_source_fixture,
+    create_postinstall_with_unreadable_fixture,
     root_importers,
 };
 use super::{
     super::{
         allow_build_policy::AllowBuildPolicy,
-        slots::{is_contained_descendant, parse_name_version_from_key, virtual_store_dir_for_key},
+        slots::{
+            is_contained_descendant,
+            parse_name_version_from_key,
+            virtual_store_dir_for_key,
+        },
     },
-    key, policy_from_specs,
+    key,
+    policy_from_specs,
 };
 #[cfg(unix)]
 use crate::SkippedSnapshots;
@@ -22,12 +30,20 @@ use pnpm_lockfile::PackageKey;
 use pnpm_lockfile::SnapshotEntry;
 #[cfg(unix)]
 use pnpm_reporter::{
-    LogEvent, Reporter, SilentReporter, SkippedOptionalPackage, SkippedOptionalReason,
+    LogEvent,
+    Reporter,
+    SilentReporter,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
 };
 use pretty_assertions::assert_eq;
 use std::path::Path;
 #[cfg(unix)]
-use std::{collections::HashMap, fs, sync::Mutex};
+use std::{
+    collections::HashMap,
+    fs,
+    sync::Mutex,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -66,7 +82,7 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
     );
 
     // A GitHub `github:` dependency is downloaded from codeload.github.com, yet
-    // the same key a clone of the repo would use approves it — no commit hash.
+    // the same key a clone of the repo would use approves it, no commit hash.
     assert_eq!(policy.check("foo@https://codeload.github.com/org/foo/tar.gz/abc123"), Some(true));
     assert_eq!(
         policy.check("foo@https://codeload.github.com/org/foo/tar.gz/def456(react@19.0.0)"),
@@ -100,7 +116,7 @@ fn explicit_allow_by_git_hosted_tarball_repo_url() {
     assert_eq!(policy.check("qux@https://codeload.github.com/org/extra/qux/tar.gz/abc123"), None);
     assert_eq!(policy.check("quux@https://bitbucket.org/org/extra/quux/get/abc123.tar.gz"), None);
     // A URL on a claimed download host that does not match that host's tarball
-    // pattern is rejected outright — it must not fall through to the generic
+    // pattern is rejected outright; it must not fall through to the generic
     // GitLab matcher and produce the host's trusted repo key.
     assert_eq!(
         policy.check("bar@https://bitbucket.org/org/bar/-/archive/abc123/bar-abc123.tar.gz"),
@@ -165,7 +181,7 @@ fn allow_via_version_union() {
     assert_eq!(policy.check("qar@2.0.0"), Some(true));
     assert_eq!(policy.check("qar@1.1.0"), None);
 }
-/// `from_config` propagates `expand_package_version_specs` errors —
+/// `from_config` propagates `expand_package_version_specs` errors,
 /// an invalid version union in `Config.allow_builds` surfaces as
 /// `ERR_PNPM_INVALID_VERSION_UNION` rather than silently dropping
 /// the rule.
@@ -199,7 +215,7 @@ fn empty_config_denies_all() {
 /// (`postinstall: echo hello && echo world && exit 1`).
 ///
 /// Unix-gated because the script is POSIX shell syntax. The
-/// cmd-on-Windows path picks a different shell —
+/// cmd-on-Windows path picks a different shell,
 /// `pnpm_executor::select_shell` (tested in the executor crate's
 /// `shell::tests`) covers the shell-selection branches in isolation.
 #[cfg(unix)]
@@ -223,7 +239,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     let snapshots = HashMap::from([(pkg_key.clone(), optional_snapshot)]);
     let importers = root_importers(&[("@pnpm.e2e/failing-postinstall", "1.0.0")]);
     // `dangerouslyAllowAllBuilds` so the policy lets the failing
-    // script through to actually run — this test exercises the
+    // script through to actually run; this test exercises the
     // build-failure path, not the policy gate.
     let policy = policy_from_specs([], true);
 
@@ -325,7 +341,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 #[test]
 pub(super) fn fail_when_failing_postinstall_is_required() {
     let pkg_key = key("@pnpm.e2e/failing-postinstall", "1.0.0");
-    // `optional: false` — the ALL-paths-optional fold concluded the
+    // `optional: false`: the ALL-paths-optional fold concluded the
     // dep is required.
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
     let importers = root_importers(&[("@pnpm.e2e/failing-postinstall", "1.0.0")]);
@@ -405,7 +421,12 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
 #[tokio::test(flavor = "current_thread")]
 async fn write_path_disabled_skips_upload() {
     use pnpm_store_dir::{
-        HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter, store_index_key,
+        HASH_ALGORITHM,
+        PackageFilesIndex,
+        StoreDir,
+        StoreIndex,
+        StoreIndexWriter,
+        store_index_key,
     };
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");
@@ -552,7 +573,12 @@ async fn write_path_disabled_skips_upload() {
 #[tokio::test(flavor = "current_thread")]
 async fn upload_error_does_not_interrupt_install() {
     use pnpm_store_dir::{
-        HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter, store_index_key,
+        HASH_ALGORITHM,
+        PackageFilesIndex,
+        StoreDir,
+        StoreIndex,
+        StoreIndexWriter,
+        store_index_key,
     };
 
     let pkg_key = key("@pnpm/postinstall-modifies-source", "1.0.0");

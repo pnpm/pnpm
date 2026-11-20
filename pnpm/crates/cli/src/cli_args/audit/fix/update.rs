@@ -1,10 +1,38 @@
 use super::{
-    Arc, AuditAdvisory, AuditError, BTreeMap, DependencyGroup, HashMap, HashSet, Lockfile,
-    PackageVersionGuard, PackumentPublishInfo, Range, RangeSpecStyle, Reporter, ResolutionObserver,
-    State, Update, Version, blue, color_severity, green, red, resolve_minimum_release_age_excludes,
-    satisfies_including_prerelease, severity_name, severity_number, write_age_excludes,
+    Arc,
+    AuditAdvisory,
+    AuditError,
+    BTreeMap,
+    DependencyGroup,
+    HashMap,
+    HashSet,
+    Lockfile,
+    PackageVersionGuard,
+    PublishInfoLookup,
+    Range,
+    RangeSpecStyle,
+    Reporter,
+    ResolutionObserver,
+    State,
+    Update,
+    Version,
+    blue,
+    color_severity,
+    green,
+    package_semver,
+    red,
+    resolve_minimum_release_age_excludes,
+    satisfies_including_prerelease,
+    severity_name,
+    severity_number,
+    write_age_excludes,
 };
-use crate::cli_args::audit::{ReleaseAgeExclusions, patched_range_for_style, report::AdvisoryId};
+use crate::cli_args::audit::{
+    ReleaseAgeExclusions,
+    patched_range_for_style,
+    report::AdvisoryId,
+};
+use miette::WrapErr;
 use pnpm_resolving_deps_resolver::UpdateTargets;
 
 /// The advisories of a `--fix update` run, partitioned by how the update can
@@ -16,8 +44,8 @@ pub(crate) struct UpdateClassification {
     pub(crate) vulnerabilities: HashMap<String, Vec<(AdvisoryId, Range)>>,
     pub(crate) unfixable: HashMap<String, Vec<AdvisoryId>>,
     /// Advisory ids whose `vulnerable_versions` failed to parse. The registry
-    /// is untrusted, so a malformed range must not silently drop the advisory
-    /// — it is counted as remaining rather than read as a clean exit.
+    /// is untrusted, so a malformed range must not silently drop the advisory;
+    /// it is counted as remaining rather than read as a clean exit.
     pub(crate) unparsable: Vec<AdvisoryId>,
 }
 
@@ -65,7 +93,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     advisories: &BTreeMap<String, AuditAdvisory>,
     lockfile_dir: &std::path::Path,
     settings_dir: &std::path::Path,
-    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    publish_infos: &HashMap<String, PublishInfoLookup>,
     release_age_exclusions: ReleaseAgeExclusions,
 ) -> miette::Result<(Vec<AdvisoryId>, Vec<AdvisoryId>, Vec<String>)> {
     let classification = classify_for_update(advisories);
@@ -84,8 +112,8 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     // A missing lockfile here means the update couldn't be verified; mirror
     // pnpm's `fixWithUpdate`, which errors rather than reporting everything
     // fixed against an empty installed set.
-    let Some(updated) = Lockfile::load_wanted_from_dir(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("re-read the lockfile after update"))?
+    let Some(updated) =
+        Lockfile::load_wanted_from_dir(lockfile_dir).wrap_err("re-read the lockfile after update")?
     else {
         return Err(AuditError::NoLockfileAfterUpdate.into());
     };
@@ -132,7 +160,7 @@ fn persist_age_excludes(
     state: &State,
     advisories: &BTreeMap<String, AuditAdvisory>,
     settings_dir: &std::path::Path,
-    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    publish_infos: &HashMap<String, PublishInfoLookup>,
 ) -> miette::Result<Vec<String>> {
     let Some(minimum_release_age) = state.config.resolved_minimum_release_age() else {
         return Ok(Vec::new());
@@ -146,22 +174,26 @@ fn persist_age_excludes(
 }
 
 /// Every still-installed package name, regardless of how its lockfile
-/// key is shaped, plus the subset whose key parses as semver — the only
-/// ones a vulnerable range can be checked against.
+/// key is shaped, plus the subset with a semver version that a vulnerable
+/// range can be checked against.
 fn installed_packages(updated: &Lockfile) -> InstalledPackages {
     let mut installed = InstalledPackages { names: HashSet::new(), versions: HashMap::new() };
+    let packages = updated.packages.as_ref();
     for key in updated.snapshots
         .iter()
         .flatten()
         .map(|(key, _)| key)
     {
+        if key.suffix.prefix() == pnpm_lockfile::Prefix::Runtime {
+            continue;
+        }
         let name = key.name.to_string();
         installed.names.insert(name.clone());
-        if let Some(version) = key.suffix.version_semver() {
+        if let Some(version) = package_semver(key, packages) {
             installed.versions
                 .entry(name)
                 .or_default()
-                .push(version.clone());
+                .push(version);
         }
     }
     installed
@@ -177,7 +209,7 @@ pub(crate) struct InstalledPackages {
 /// its package is gone, or every installed semver version of it escapes the
 /// vulnerable range. It stays **remaining** when a vulnerable version is still
 /// installed, when the package survives only under non-semver keys (`file:` /
-/// git / tarball — unverifiable), when its range is `>=0.0.0` / `*` and the
+/// git / tarball, unverifiable), when its range is `>=0.0.0` / `*` and the
 /// package is still installed, or when its range was unparsable. The
 /// conservative bias keeps `audit --fix update` from reporting a clean state
 /// it can't prove.
@@ -407,6 +439,7 @@ fn vulnerable_locked_versions(
     vulnerabilities: &HashMap<String, Vec<(AdvisoryId, Range)>>,
 ) -> UpdateTargets {
     let mut targets = UpdateTargets::default();
+    let packages = lockfile.and_then(|lockfile| lockfile.packages.as_ref());
     for key in lockfile
         .and_then(|lockfile| lockfile.snapshots.as_ref())
         .into_iter()
@@ -415,12 +448,12 @@ fn vulnerable_locked_versions(
     {
         let name = key.name.to_string();
         let (Some(version), Some(entries)) =
-            (key.suffix.version_semver(), vulnerabilities.get(&name))
+            (package_semver(key, packages), vulnerabilities.get(&name))
         else {
             continue;
         };
-        if entries.iter().any(|(_, range)| satisfies_including_prerelease(version, range)) {
-            targets.insert_version(name, version.clone());
+        if entries.iter().any(|(_, range)| satisfies_including_prerelease(&version, range)) {
+            targets.insert_version(name, version);
         }
     }
     targets

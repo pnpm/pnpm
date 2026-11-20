@@ -1,7 +1,16 @@
-use crate::types::{ExtendedPatchInfo, PatchGroupRecord};
-use derive_more::{Display, Error};
+use crate::types::{
+    ExtendedPatchInfo,
+    PatchGroupRecord,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 
 /// Raised when a `name@version` pair satisfies more than one
 /// configured version range. The user must add an exact-version
@@ -31,7 +40,7 @@ pub struct PatchKeyConflictError {
 /// 3. wildcard (`all`)
 ///
 /// If the configured ranges fail to parse as semver, those entries
-/// are silently skipped — an unparsable range is treated as
+/// are silently skipped, an unparsable range is treated as
 /// non-matching.
 pub fn get_patch_info<'a>(
     patch_file_groups: Option<&'a PatchGroupRecord>,

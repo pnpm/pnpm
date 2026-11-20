@@ -1,5 +1,11 @@
-use super::super::{adapter::Connection, schema::MARKER};
-use pnpr_error::{RegistryError, Result};
+use super::super::{
+    adapter::Connection,
+    schema::MARKER,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 
 /// The table comment [`crate::schema::MARKER_TABLE`] places on [`MARKER`] on
 /// `MySQL` before step 1 finishes. It differs from the `pnpr-init:1` of alpha

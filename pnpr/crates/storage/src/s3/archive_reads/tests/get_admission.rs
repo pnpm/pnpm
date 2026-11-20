@@ -1,10 +1,24 @@
-use crate::{BlobId, s3::S3Store};
+use crate::{
+    BlobId,
+    s3::S3Store,
+};
 use async_trait::async_trait;
 use axum::body::to_bytes;
 use futures_util::stream::BoxStream;
 use object_store::{
-    CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    ObjectStoreExt as _, PutMultipartOptions, PutOptions, PutPayload, PutResult, memory::InMemory,
+    CopyOptions,
+    GetOptions,
+    GetResult,
+    ListResult,
+    MultipartUpload,
+    ObjectMeta,
+    ObjectStore,
+    ObjectStoreExt as _,
+    PutMultipartOptions,
+    PutOptions,
+    PutPayload,
+    PutResult,
+    memory::InMemory,
     path::Path,
 };
 use pnpr_package_name::Ecosystem;
@@ -12,8 +26,12 @@ use std::{
     fmt,
     future::Future,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };

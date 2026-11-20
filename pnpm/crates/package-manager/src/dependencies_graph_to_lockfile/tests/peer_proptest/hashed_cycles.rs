@@ -1,9 +1,20 @@
-use super::{Reuse, in_order, model, resolve_with};
+use super::{
+    Reuse,
+    in_order,
+    model,
+    resolve_with,
+};
 use pnpm_lockfile::LockfileFormat;
 
 #[test]
 fn injected_peer_cycle_with_hashed_suffix_serializes() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Workspace,
+    };
     let empty = PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, major| Peer {
         target,
@@ -36,7 +47,13 @@ fn injected_peer_cycle_with_hashed_suffix_serializes() {
 
 #[test]
 fn injected_mutual_peers_with_hashed_suffix_serialize() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Workspace,
+    };
     let empty = PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, major, also_dependency| Peer {
         target,
@@ -73,7 +90,13 @@ fn injected_mutual_peers_with_hashed_suffix_serialize() {
 
 #[test]
 fn injected_peer_cycles_do_not_bind_unlisted_transitive_providers() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Workspace,
+    };
     let empty = PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, major, also_dependency| Peer {
         target,
@@ -131,7 +154,13 @@ fn assert_round_trip(workspace: &model::Workspace) {
 
 #[test]
 fn fresh_hashed_bindings_do_not_require_subset_recovery() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Workspace,
+    };
     let leaf = PackageVersion { dependencies: vec![], peers: vec![] };
     let consumer = PackageVersion {
         dependencies: vec![],

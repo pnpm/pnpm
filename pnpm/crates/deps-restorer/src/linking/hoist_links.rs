@@ -1,18 +1,32 @@
 //! Writing a hoist plan: the private and public hoisted symlinks and the
 //! bins of the privately hoisted packages.
 
-use super::{LinkPhaseError, LinkPhaseInputs};
+use super::{
+    LinkPhaseError,
+    LinkPhaseInputs,
+};
 use crate::{
-    SkippedSnapshots, VirtualStoreLayout,
+    SkippedSnapshots,
+    VirtualStoreLayout,
     install_frozen_lockfile::{
-        HoistPlan, collect_public_hoist_targets, compute_hoist_plan, workspace_packages_for_hoist,
+        HoistPlan,
+        collect_public_hoist_targets,
+        compute_hoist_plan,
+        workspace_packages_for_hoist,
     },
     symlink_hoisted_dependencies,
 };
-use pnpm_cmd_shim::{LinkBinsOptions, PackageBinSource};
+use pnpm_cmd_shim::{
+    LinkBinsOptions,
+    PackageBinSource,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::PackageKey;
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// Planned before the links are written, not with them: an importer's
 /// dep that public-hoist lands at root has to be in
@@ -62,7 +76,7 @@ pub(super) fn plan_hoist(inputs: &LinkPhaseInputs<'_>, skipped: &SkippedSnapshot
 /// bins nothing else shims: every importer's direct-dep bins were
 /// written by `SymlinkDirectDependencies`, and publicly hoisted regular
 /// packages go through the post-build top-level pass
-/// (`publicly_hoisted_for_post_build`) — but that pass resolves bins out
+/// (`publicly_hoisted_for_post_build`), but that pass resolves bins out
 /// of virtual-store slots, which a workspace project doesn't have.
 /// Collected before [`write_hoist_links`] consumes the plan; shimmed after
 /// the hoist symlinks land.

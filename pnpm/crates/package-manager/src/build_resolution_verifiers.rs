@@ -9,20 +9,43 @@
 //! The verifier list is built from the install's config fields just
 //! before the lockfile-resolution gate runs over it.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, TrustPolicy,
-    version_policy::{PackageVersionPolicy, VersionPolicyError, create_package_version_policy},
+    Config,
+    TrustPolicy,
+    version_policy::{
+        PackageVersionPolicy,
+        VersionPolicyError,
+        create_package_version_policy,
+    },
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_resolving_npm_resolver::{
-    CreateNpmResolutionVerifierOptions, MergeNamedRegistriesError, ObservedDistStats,
-    PackageMetaCache, VerifierLookups, create_npm_resolution_verifier, merge_named_registries,
+    CreateNpmResolutionVerifierOptions,
+    MergeNamedRegistriesError,
+    ObservedDistStats,
+    PackageMetaCache,
+    VerificationArtifacts,
+    VerifierLookups,
+    create_npm_resolution_verifier,
+    merge_named_registries,
 };
-use pnpm_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
+use pnpm_resolving_resolver_base::{
+    PlannedCanonicalFetches,
+    ResolutionVerifier,
+};
 
 /// Error from [`build_resolution_verifiers`]. Wraps the inner error so
 /// the install command can route the diagnostic code without
@@ -59,8 +82,8 @@ pub enum BuildVerifiersError {
 }
 
 /// Assemble the verifier list for this install. The npm verifier is
-/// always included — it enforces the tarball-URL binding regardless of
-/// policy configuration — so the list is non-empty.
+/// always included (it enforces the tarball-URL binding regardless of
+/// policy configuration) so the list is non-empty.
 ///
 /// `meta_cache` is the optional per-install packument cache shared
 /// with the resolver. When provided, the verifier reads it before
@@ -84,11 +107,30 @@ pub fn build_resolution_verifiers(
     planned_canonical_fetches: Option<PlannedCanonicalFetches>,
     lookups: Option<VerifierLookups>,
 ) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
-    let mut verifiers: Vec<Arc<dyn ResolutionVerifier>> = Vec::new();
+    build_resolution_verifiers_with_artifacts(
+        config,
+        http_client,
+        meta_cache,
+        auth_override,
+        VerificationArtifacts {
+            observed_stats: observed_dist_stats,
+            canonical_fetches: planned_canonical_fetches,
+            lookups,
+            published_tarball_mapper: None,
+            reverse_routed_tarball_url: None,
+        },
+    )
+}
 
+pub fn build_resolution_verifiers_with_artifacts(
+    config: &Config,
+    http_client: Arc<ThrottledClient>,
+    meta_cache: Option<Arc<dyn PackageMetaCache>>,
+    auth_override: Option<Arc<AuthHeaders>>,
+    artifacts: VerificationArtifacts,
+) -> Result<Vec<Arc<dyn ResolutionVerifier>>, BuildVerifiersError> {
     let (min_age_exclude, trust_exclude, registries, registries_by_prefix) =
         verifier_policies(config)?;
-
     let opts = CreateNpmResolutionVerifierOptions {
         registries,
         registries_by_prefix,
@@ -117,16 +159,9 @@ pub fn build_resolution_verifiers(
             offline: config.offline,
             retry_opts: config.retry_opts(),
         },
-        artifacts: pnpm_resolving_npm_resolver::VerificationArtifacts {
-            observed_stats: observed_dist_stats,
-            canonical_fetches: planned_canonical_fetches,
-            lookups,
-        },
+        artifacts,
     };
-
-    verifiers.push(Arc::new(create_npm_resolution_verifier(opts)));
-
-    Ok(verifiers)
+    Ok(vec![Arc::new(create_npm_resolution_verifier(opts))])
 }
 
 type VerifierPolicies = (

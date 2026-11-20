@@ -8,7 +8,11 @@
 //! would each hold such an arena (pnpm/pnpm#17020).
 
 use std::{
-    panic::{AssertUnwindSafe, catch_unwind, resume_unwind},
+    panic::{
+        AssertUnwindSafe,
+        catch_unwind,
+        resume_unwind,
+    },
     sync::LazyLock,
 };
 

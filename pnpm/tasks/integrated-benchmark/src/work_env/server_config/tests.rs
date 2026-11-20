@@ -1,13 +1,28 @@
 use super::{
-    cold_mock_config_yaml, cold_mock_registries_yaml, pnpr_benchmark_config_yaml,
-    pnpr_benchmark_public_url, pnpr_benchmark_registries_yaml, write_pnpr_benchmark_config,
+    cold_mock_config_yaml,
+    cold_mock_registries_yaml,
+    pnpr_benchmark_config_yaml,
+    pnpr_benchmark_public_url,
+    pnpr_benchmark_registries_yaml,
+    write_pnpr_benchmark_config,
 };
 use crate::work_env::{
-    registries_home::{RegistriesHome, fixture_registries, revision_source},
+    registries_home::{
+        RegistriesHome,
+        fixture_registries,
+        revision_source,
+    },
     revision_mock::pnpr_server_command,
 };
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+};
 
 fn parse(yaml: &str) -> Value {
     serde_saphyr::from_str(yaml).unwrap()
@@ -141,7 +156,8 @@ fn only_a_database_pnpr_server_gets_a_public_url_of_its_own_host() {
         });
         let args: Vec<_> = command
             .get_args()
-            .map(|arg| arg.to_str().unwrap())
+            .map(OsStr::to_str)
+            .map(Option::unwrap)
             .collect();
         let public_url = args
             .windows(2)

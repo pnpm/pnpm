@@ -24,6 +24,7 @@ pnpr-fixtures = { workspace = true }
 
 base64 = { workspace = true }
 clap = { workspace = true }
+command-extra = { workspace = true }
 flate2 = { workspace = true }
 itertools = { workspace = true }
 os_display = { workspace = true }

@@ -1,10 +1,17 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, PackageManifest, ResolveDependencyTreeOptions, ResolveOptions,
-    StubResolver, fake_result, resolve_dependency_tree,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    PackageManifest,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    StubResolver,
+    fake_result,
+    resolve_dependency_tree,
 };
 
 /// `package.json` builder that takes both `dependencies` and
-/// `optionalDependencies` blocks — the bundled [`fake_manifest`]
+/// `optionalDependencies` blocks, the bundled [`fake_manifest`]
 /// helper only writes to `dependencies` so it can't exercise the
 /// importer-level optional flag.
 #[expect(

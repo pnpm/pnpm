@@ -1,4 +1,9 @@
-use super::{RegistryError, StatusCode, error_response, header};
+use super::{
+    RegistryError,
+    StatusCode,
+    error_response,
+    header,
+};
 
 #[tokio::test]
 async fn open_circuit_response_preserves_retry_after_and_cargo_json() {

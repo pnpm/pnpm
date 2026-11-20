@@ -1,4 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 /// Generate the current time as an ISO-8601 string, matching
 /// the shape npm and verdaccio use in `time.modified`.

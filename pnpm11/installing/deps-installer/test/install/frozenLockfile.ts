@@ -797,3 +797,45 @@ test('mutateModules re-runs resolutionVerifiers and preResolution hooks if pnpm-
   expect(hookCalls).toBe(2)
   expect(verifiedNames).toContain('is-negative')
 })
+
+test('frozen-lockfile: installation succeeds with mismatched settings when ignoreLockfileSettingsChecks is true', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }
+
+  await install(manifest, testDefaults({ autoInstallPeers: true }))
+
+  await install(manifest, testDefaults({ frozenLockfile: true, autoInstallPeers: false, ignoreLockfileSettingsChecks: true }))
+
+  project.has('is-positive')
+})
+
+test('prefer-frozen-lockfile: resolution is skipped with mismatched settings when ignoreLockfileSettingsChecks is true', async () => {
+  const project = prepareEmpty()
+  const manifest = {
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }
+
+  await install(manifest, testDefaults({ autoInstallPeers: true, lockfileOnly: true }))
+
+  const reporter = jest.fn()
+  await install(manifest, testDefaults({
+    preferFrozenLockfile: true,
+    autoInstallPeers: false,
+    ignoreLockfileSettingsChecks: true,
+    reporter,
+  }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'info',
+    message: 'Lockfile is up to date, resolution step is skipped',
+    name: 'pnpm',
+  }))
+  project.has('is-positive')
+  expect(project.readLockfile().settings.autoInstallPeers).toBe(true)
+})

@@ -1,6 +1,15 @@
 use super::super::{
-    Config, HashSet, IncludedDependencies, InstallError, InstallWithFreshLockfileError, Lockfile,
-    NodeLinker, PackageManifest, Path, PathBuf, Reporter,
+    Config,
+    HashSet,
+    IncludedDependencies,
+    InstallError,
+    InstallWithFreshLockfileError,
+    Lockfile,
+    NodeLinker,
+    PackageManifest,
+    Path,
+    PathBuf,
+    Reporter,
 };
 
 pub(super) struct SelectMaterializedStateInputs<'a> {

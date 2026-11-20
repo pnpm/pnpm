@@ -2,8 +2,16 @@
 
 use crate::installability::InstallabilityHost;
 use pnpm_lockfile::{
-    ImporterDepVersion, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer,
-    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef,
+    ImporterDepVersion,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
     TarballResolution,
 };
 use std::collections::HashMap;
@@ -55,7 +63,7 @@ fn synthetic_metadata(
     os: Option<&[&str]>,
     libc: Option<&[&str]>,
 ) -> PackageMetadata {
-    // Tarball resolution — the installability check ignores the
+    // Tarball resolution, the installability check ignores the
     // resolution shape entirely, but every `PackageMetadata` must
     // carry one.
     PackageMetadata {

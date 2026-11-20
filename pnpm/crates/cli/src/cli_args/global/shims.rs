@@ -1,10 +1,31 @@
 use super::{
-    BTreeMap, BTreeSet, CmdShimHost, Config, Context, GlobalError, GlobalPackageBinSnapshot,
-    GlobalShims, HashMap, HashSet, IntoDiagnostic, LinkBinsOptions, PackageBinSource, Path,
-    ShimTarget, choose_bins, get_installed_bin_names, install::group_install_state_dir,
-    install_native_shim, link_bins_of_packages_with_excludes, migrate_legacy_shims,
-    read_installed_packages, record_package_manager_shims, remove_native_shim,
-    scan_global_packages, virtual_shim_bins_to_restore, virtual_shim_owner,
+    BTreeMap,
+    BTreeSet,
+    CmdShimHost,
+    Config,
+    Context,
+    GlobalError,
+    GlobalPackageBinSnapshot,
+    GlobalShims,
+    HashMap,
+    HashSet,
+    IntoDiagnostic,
+    LinkBinsOptions,
+    PackageBinSource,
+    Path,
+    ShimTarget,
+    choose_bins,
+    get_installed_bin_names,
+    install::group_install_state_dir,
+    install_native_shim,
+    link_bins_of_packages_with_excludes,
+    migrate_legacy_shims,
+    read_installed_packages,
+    record_package_manager_shims,
+    remove_native_shim,
+    scan_global_packages,
+    virtual_shim_bins_to_restore,
+    virtual_shim_owner,
     virtual_shim_restoration_owners,
 };
 use pnpm_deps_restorer::hoisted_node_paths;
@@ -26,7 +47,7 @@ pub(super) fn link_global_bins(
 ) -> miette::Result<()> {
     // A package manager installed globally opts into project-aware
     // dispatch, so it defers to whatever version a project pins and stays
-    // the fallback for projects that pin nothing — the arrangement a
+    // the fallback for projects that pin nothing, the arrangement a
     // globally installed runtime already has. The entry is recorded before
     // the split below, so the bins this very run writes are the
     // dispatching flavor.

@@ -1,4 +1,4 @@
-//! `pacquet sbom` — generate a Software Bill of Materials.
+//! `pacquet sbom`: generate a Software Bill of Materials.
 //!
 //! Ports pnpm's `sbom` command
 //! (`pnpm11/deps/compliance/commands/src/sbom/sbom.ts`).
@@ -8,51 +8,109 @@ use crate::{
     cli_args::{
         install::resolve_bool_override,
         recursive::{
-            AutoExcludeRoot, discover_workspace_projects, print_no_projects_matched,
-            select_recursive_projects, selected_workspace_importer_ids, selectors_narrow_the_run,
+            AutoExcludeRoot,
+            discover_workspace_projects,
+            print_no_projects_matched,
+            select_recursive_projects,
+            selected_workspace_importer_ids,
+            selectors_narrow_the_run,
         },
     },
 };
-use clap::{Args, ValueHint};
+use clap::{
+    Args,
+    ValueHint,
+};
 use collection::collect_components;
-use cyclonedx::{CycloneDxOpts, serialize_cyclonedx};
+use cyclonedx::{
+    CycloneDxOpts,
+    serialize_cyclonedx,
+};
 use indexmap::IndexMap;
 use license::classify_license;
 use metadata::{
-    SanitizedNamedRegistry, SanitizedRegistries, base64_to_hex, build_purl,
-    build_purl_with_encoded_registry, extract_bugs_url, extract_description, extract_repository,
-    generate_uuid_v4, integrity_string, normalize_link_path, peer_names_from_manifest,
-    platform_incompatible_optional, read_pkg_metadata_from_store, sanitize_package_name,
+    SanitizedNamedRegistry,
+    SanitizedRegistries,
+    base64_to_hex,
+    build_purl,
+    build_purl_with_encoded_registry,
+    extract_bugs_url,
+    extract_description,
+    extract_repository,
+    generate_uuid_v4,
+    integrity_string,
+    normalize_link_path,
+    peer_names_from_manifest,
+    platform_incompatible_optional,
+    read_pkg_metadata_from_store,
+    sanitize_package_name,
     sanitize_path_segment,
 };
+use miette::WrapErr;
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PeerSatisfactionEdges,
-    PkgName, PkgNameVerPeer, RegistryContext, RegistryServerType, SnapshotEntry, TarballUrlOptions,
-    npm_tarball_url, registry_server_type, revision_registry_tarball_url,
+    LazyLockfile,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PeerSatisfactionEdges,
+    PkgName,
+    PkgNameVerPeer,
+    RegistryContext,
+    RegistryServerType,
+    SnapshotEntry,
+    TarballUrlOptions,
+    npm_tarball_url,
+    registry_server_type,
+    revision_registry_tarball_url,
 };
 use pnpm_package_is_installable::{
-    InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
+    InstallabilityOptions,
+    WantedPlatformRef,
+    platform_is_supported_with_inference,
 };
-use pnpm_package_manager::{importer_root_dir, validate_importer_id};
+use pnpm_package_manager::{
+    importer_root_dir,
+    validate_importer_id,
+};
 use pnpm_package_manifest::{
-    extract_author, extract_homepage, extract_license, safe_read_package_json_from_dir,
+    extract_author,
+    extract_homepage,
+    extract_license,
+    safe_read_package_json_from_dir,
     safe_read_project_manifest_from_dir,
 };
-use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
+use pnpm_resolving_git_resolver::{
+    HostedGit,
+    HostedOpts,
+};
 use spdx::serialize_spdx;
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{
+        HashMap,
+        HashSet,
+        hash_map::Entry,
+    },
     fmt::Display,
     hash::Hash,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use walk::{
-    ImporterComponents, TransitiveEdges, WalkContext, WalkStores, component_walk_context,
+    ImporterComponents,
+    TransitiveEdges,
+    WalkContext,
+    WalkStores,
+    component_walk_context,
     walk_importer_components,
 };
 use workspace::{
-    merged_dedicated_lockfile_state, required_sbom_lockfile, select_importer_ids,
+    merged_dedicated_lockfile_state,
+    required_sbom_lockfile,
+    select_importer_ids,
     sorted_importer_ids,
 };
 
@@ -224,9 +282,7 @@ impl SbomArgs {
         let include = self.include_filter(state.config.optional);
         let authors = self.author_list();
 
-        let lockfile = state.lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        let lockfile = state.lockfile.get().wrap_err("load the lockfile")?;
         let all_importer_ids = sorted_importer_ids(lockfile);
         let all_count = all_importer_ids.len();
         let Some(importer_ids) = select_importer_ids(&state, all_importer_ids, lockfile.is_some())?
@@ -267,7 +323,8 @@ impl SbomArgs {
             .as_deref()
             .map(|csv| {
                 csv.split(',')
-                    .map(|author| author.trim().to_string())
+                    .map(str::trim)
+                    .map(std::string::ToString::to_string)
                     .filter(|author| !author.is_empty())
                     .collect()
             })
@@ -297,7 +354,7 @@ impl SbomArgs {
 
     /// A workspace whose projects keep their own lockfiles has no one
     /// lockfile to walk, so a run that spans several of them merges
-    /// their lockfiles — and their virtual stores — first.
+    /// their lockfiles (and their virtual stores) first.
     fn merged_state(&self, state: State) -> miette::Result<(State, Option<Vec<PathBuf>>)> {
         let spans_several_projects =
             state.config.recursive || self.split || selectors_narrow_the_run(state.config);

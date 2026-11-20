@@ -1,10 +1,16 @@
 //! The check that lets a later `pnpm version -r` delete the intents a
 //! release consumed: the registry holds the notes composed from them.
 
-use super::http::{NotesHttp, PublicationLink};
+use super::http::{
+    NotesHttp,
+    PublicationLink,
+};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_release_notes::{normalize_line_endings, note_digest};
+use pnpm_release_notes::{
+    normalize_line_endings,
+    note_digest,
+};
 
 /// The notes `pnpm version -r` composed for one release.
 pub(crate) struct ComposedNotes<'a> {
@@ -61,5 +67,7 @@ fn holds(text: Option<&str>, initial_digest: Option<&str>, expected: &str) -> bo
     let expected_text = expected.trim();
     expected_text.is_empty()
         || initial_digest == Some(note_digest(expected).as_str())
-        || text.is_some_and(|text| normalize_line_endings(text).contains(expected_text))
+        || text
+            .map(normalize_line_endings)
+            .is_some_and(|normalize_line_endings| normalize_line_endings.contains(expected_text))
 }

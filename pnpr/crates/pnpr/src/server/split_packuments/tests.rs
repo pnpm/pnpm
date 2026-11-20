@@ -1,9 +1,17 @@
 use super::{
-    install_v2, install_v2_body, leave_out_unlikely_picks, likely_picks, record_address,
-    release_records::release_record, without_pnpr_facts_in,
+    install_v2,
+    install_v2_body,
+    leave_out_unlikely_picks,
+    likely_picks,
+    record_address,
+    release_records::release_record,
+    without_pnpr_facts_in,
 };
 use pnpr_config::PackageDocumentsConfig;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::time::Duration;
 
 fn version(integrity: &str) -> Value {
@@ -71,7 +79,8 @@ fn a_small_document_keeps_every_manifest() {
     assert!(
         versions
             .values()
-            .all(|entry| entry.get("manifest").is_some()),
+            .map(|entry| entry.get("manifest"))
+            .all(|value| value.is_some()),
     );
 }
 
@@ -123,7 +132,8 @@ fn is_split(body: &[u8]) -> bool {
         .as_object()
         .expect("versions")
         .values()
-        .any(|entry| entry.get("manifest").is_none())
+        .map(|entry| entry.get("manifest"))
+        .any(|value| value.is_none())
 }
 
 #[test]

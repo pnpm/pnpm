@@ -1,6 +1,18 @@
-use super::{AddressGuard, GuardedDnsResolver, is_public_address};
-use reqwest::dns::{Addrs, Name, Resolve, Resolving};
-use std::{net::SocketAddr, sync::Arc};
+use super::{
+    AddressGuard,
+    GuardedDnsResolver,
+    is_public_address,
+};
+use reqwest::dns::{
+    Addrs,
+    Name,
+    Resolve,
+    Resolving,
+};
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
 
 struct FixedResolver(Vec<SocketAddr>);
 

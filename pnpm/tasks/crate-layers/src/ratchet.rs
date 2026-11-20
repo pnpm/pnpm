@@ -1,6 +1,13 @@
-use crate::problem::{Metric, Mismatch, Problem};
+use crate::problem::{
+    Metric,
+    Mismatch,
+    Problem,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt::Write as _,
 };
 

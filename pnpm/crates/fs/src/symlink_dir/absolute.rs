@@ -1,5 +1,12 @@
-use super::{ForceSymlinkOutcome, force_symlink, to_native_separators};
-use std::{io, path::Path};
+use super::{
+    ForceSymlinkOutcome,
+    force_symlink,
+    to_native_separators,
+};
+use std::{
+    io,
+    path::Path,
+};
 
 /// [`force_symlink_dir`](super::force_symlink_dir) with the link holding
 /// `target` as given rather than a path relative to the link, for a link

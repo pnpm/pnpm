@@ -141,6 +141,8 @@ export interface FilterWorkspaceProjectsOptions {
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
   useGlobDirFiltering?: boolean
+  /** Applied to the manifests a `[<since>]` selector checks for changed catalog entries. */
+  overrides?: ProjectsGraphOverrides
 }
 
 export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
@@ -193,6 +195,7 @@ function toFilterWorkspaceProjectsOptions (opts: FilterWorkspaceProjectsOptions)
     testPattern: opts.testPattern,
     changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
     useGlobDirFiltering: opts.useGlobDirFiltering,
+    overrides: opts.overrides,
   }
 }
 
@@ -297,6 +300,7 @@ async function findEntryProjectsByLocation<Pkg extends BaseProject> (
       {
         allProjects: Object.values(projectsGraph).map((node) => node.package),
         changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
+        overrides: opts.overrides,
         testPattern: opts.testPattern,
         useGlobDirFiltering: selector.useGlobDirFiltering ?? opts.useGlobDirFiltering,
         workingDir: selector.parentDir,

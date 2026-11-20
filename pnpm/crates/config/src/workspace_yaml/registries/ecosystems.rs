@@ -1,13 +1,21 @@
 //! Ecosystem index declarations and exclusive Python package routing.
 
 use super::{
-    Ecosystem, EcosystemIndex, LoadWorkspaceYamlError, RegistryDeclaration, RegistryLookups,
-    quote_and_join, redact_registry_url,
+    Ecosystem,
+    EcosystemIndex,
+    LoadWorkspaceYamlError,
+    RegistryDeclaration,
+    RegistryLookups,
+    quote_and_join,
+    redact_registry_url,
 };
 use indexmap::IndexMap;
 use pnpm_lockfile::RegistryOptions;
 use pnpm_network::normalize_registry_url;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// What the map has declared for each ecosystem other than npm, so the rules
 /// that span entries are checked once the whole map has been read: one index
@@ -65,9 +73,7 @@ impl DeclaredIndexes {
                 registries: quote_and_join(urls.iter().map(|index| index.url.as_str())),
             }),
             _ => super::python::validate_routes(
-                self.urls
-                    .get(&Ecosystem::Pypi)
-                    .map_or(&[], Vec::as_slice),
+                self.urls.get(&Ecosystem::Pypi).map_or_default(Vec::as_slice),
             ),
         }
     }
@@ -128,7 +134,7 @@ pub(super) fn extend_with_indexes(
 /// machine and the repository from disagreeing about what one URL serves.
 /// Merging the lookups field by field would then leave the URL in both roles
 /// at once: `cargo_index_url` and `python_indexes` could answer with the same
-/// URL, `extend_with_indexes` would fold two ecosystems into one declaration,
+/// URL, extending with the indexes would fold two ecosystems into one declaration,
 /// and an npm route declared later would be deleted as though it were stale.
 ///
 /// Applied before the layer's own lookups are merged in, so only the earlier
@@ -152,7 +158,8 @@ pub fn take_roles_from_earlier_layers(
         .chain(
             layer.registries_by_prefix
                 .values()
-                .map(|registry| normalize_registry_url(registry).into_owned()),
+                .map(|registry| normalize_registry_url(registry))
+                .map(std::borrow::Cow::into_owned),
         )
         .chain(layer.registry_options_by_url.keys().cloned())
         .chain(layer.default_registry.clone())

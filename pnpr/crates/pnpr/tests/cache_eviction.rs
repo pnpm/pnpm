@@ -5,11 +5,20 @@ mod ecosystem_upstreams;
 mod security_and_scopes;
 mod sqlite_security;
 
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+};
 use pnpr::{
     Config,
     cache_maintenance::{
-        CacheGcEffect, CacheGcOptions, CacheGcScope, active_cache_namespaces, collect_cache,
+        CacheGcEffect,
+        CacheGcOptions,
+        CacheGcScope,
+        active_cache_namespaces,
+        collect_cache,
         prune_orphaned_namespaces_startup,
     },
 };
@@ -17,10 +26,24 @@ use pnpr_storage::layout::package_segments;
 use rusqlite::Connection;
 use std::{
     collections::HashMap,
-    fs::{File, FileTimes},
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    fs::{
+        File,
+        FileTimes,
+    },
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 use tempfile::TempDir;
 
@@ -462,9 +485,13 @@ async fn whole_cache_eviction_covers_resolver_store_resolver_cache_and_verdict_d
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
          CREATE TABLE lockfile_verdicts (
-             hash TEXT PRIMARY KEY,
+             hash TEXT NOT NULL,
+             footprint_key TEXT NOT NULL,
+             footprint TEXT NOT NULL,
              policy TEXT NOT NULL,
-             verified_at_ms INTEGER NOT NULL
+             epoch TEXT NOT NULL,
+             verified_at_ms INTEGER NOT NULL,
+             PRIMARY KEY (hash, epoch, footprint_key)
          );",
     )
     .unwrap();
@@ -477,13 +504,17 @@ async fn whole_cache_eviction_covers_resolver_store_resolver_cache_and_verdict_d
     .unwrap();
     let expired_ms = now_ms - i64::try_from(Duration::from_hours(48).as_millis()).unwrap();
     conn.execute(
-        "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
-        rusqlite::params!["expired-hash", "{}", expired_ms],
+        "INSERT INTO lockfile_verdicts (
+             hash, footprint_key, footprint, policy, epoch, verified_at_ms
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params!["expired-hash", "", "[]", "{}", "", expired_ms],
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
-        rusqlite::params!["fresh-hash", "{}", now_ms],
+        "INSERT INTO lockfile_verdicts (
+             hash, footprint_key, footprint, policy, epoch, verified_at_ms
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params!["fresh-hash", "", "[]", "{}", "", now_ms],
     )
     .unwrap();
     drop(conn);

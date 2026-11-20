@@ -1,10 +1,21 @@
 //! The policy's rules, applied to what the scan found.
 
 use super::{
-    Finding, Kind, Occurrence,
-    source::{occurrences, opts_out_of_unsafe_code, relative},
+    Finding,
+    Kind,
+    Occurrence,
+    source::{
+        occurrences,
+        opts_out_of_unsafe_code,
+        relative,
+    },
 };
-use crate::{Exemption, Member, Tier, exemption::exemption_for};
+use crate::{
+    Exemption,
+    Member,
+    Tier,
+    exemption::exemption_for,
+};
 use std::path::Path;
 
 /// The check that is the workspace's rather than any member's: a member

@@ -4,22 +4,45 @@ mod refresh_bounds;
 mod snapshot_budget;
 
 use super::{
-    CanonicalCycleGate, PeerDiscoveryCaches, PeerDiscoveryResult, PeerHoistDiscovery,
-    ViewGeneration, discovery_provider_sources, walk_discovery_direct,
+    CanonicalCycleGate,
+    PeerDiscoveryCaches,
+    PeerDiscoveryResult,
+    PeerHoistDiscovery,
+    ViewGeneration,
+    discovery_provider_sources,
+    walk_discovery_direct,
 };
 use crate::{
     node_id::NodeId,
     resolve_dependency_tree::WorkspaceTreeCtx,
     resolve_peers::{
         ResolvePeersOptions,
-        test_support::{add_lazy_direct_dep, child_edge, package, tree_node},
-        walker::{PeerWalkMode, RootWalk, Walker},
+        test_support::{
+            add_lazy_direct_dep,
+            child_edge,
+            package,
+            tree_node,
+        },
+        walker::{
+            PeerWalkMode,
+            RootWalk,
+            Walker,
+        },
     },
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+    },
 };
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 fn discover_peers(
     tree: &mut ResolvedTree,
