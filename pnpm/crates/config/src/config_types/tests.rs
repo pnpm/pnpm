@@ -77,7 +77,7 @@ fn config_file_keys() {
     assert!(is_config_file_key("tag"));
     assert!(is_config_file_key("provenance"));
     // `otp` is an npm key, but its value lasts one invocation, so no file
-    // carries it -- `pnpm config set otp` is refused rather than ignored.
+    // carries it. `pnpm config set otp` is refused rather than ignored.
     assert!(!is_config_file_key("otp"));
     assert!(!is_config_file_key("publish-branch"));
     // excluded workspace-only / CLI keys

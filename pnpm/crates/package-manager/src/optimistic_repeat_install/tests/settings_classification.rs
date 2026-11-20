@@ -75,6 +75,7 @@ const AUTH: &str = "credentials, not what is installed";
 
 #[rustfmt::skip]
 const CLASSIFICATION: &[(&str, Reach)] = &[
+    ("access", NotAnInput(OTHER_COMMAND)),
     ("add_missing_peer_types", Recorded { key: "addMissingPeerTypes", change: |config| config.add_missing_peer_types = !config.add_missing_peer_types }),
     ("aggregate_output", NotAnInput(CLI_ONLY)),
     ("agent_skills_disabled", Through("the agent skill targets, compared after the fast path")),
