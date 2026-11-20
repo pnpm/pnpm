@@ -103,3 +103,48 @@ async fn durable_purge_marker_suppresses_retained_cache_across_restarts_until_cl
     let cleaned = storage_in(&tmp);
     assert!(!cleaned.is_upstream_package_purged(ns, &name).await.unwrap());
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn inaccessible_purged_package_dir_keeps_suppression_without_blocking_other_packages() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let broken = pkg("@corp/broken");
+    let healthy = pkg("healthy");
+
+    storage.write_upstream_document("broken-ns", &broken, b"{\"broken\":true}").await.unwrap();
+    storage.write_upstream_document("healthy-ns", &healthy, b"{\"healthy\":true}").await.unwrap();
+    storage.mark_upstream_package_purged("broken-ns", &broken).await.unwrap();
+
+    // Replace the scope parent with a regular file so `metadata(package_dir)` fails with ENOTDIR.
+    let broken_dir = storage.cached.namespaced("broken-ns").package_dir(&broken);
+    let scope_parent = broken_dir
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    std::fs::remove_dir_all(&scope_parent).unwrap();
+    std::fs::write(&scope_parent, b"not-a-directory").unwrap();
+    assert_eq!(
+        std::fs::metadata(&broken_dir).unwrap_err().kind(),
+        std::io::ErrorKind::NotADirectory,
+    );
+
+    drop(storage);
+    let restarted = storage_in(&tmp);
+    assert_eq!(
+        restarted
+            .read_upstream_document_any("healthy-ns", &healthy)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(b"{\"healthy\":true}".as_slice()),
+    );
+    assert!(restarted.is_upstream_package_purged("broken-ns", &broken).await.unwrap());
+    assert!(
+        restarted
+            .read_upstream_document_any("broken-ns", &broken)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+}

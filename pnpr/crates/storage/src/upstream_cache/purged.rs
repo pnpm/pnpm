@@ -152,8 +152,14 @@ async fn load_single_marker(
     entry: &fs::DirEntry,
 ) -> Result<Option<(String, CanonicalPackageName)>> {
     let path = entry.path();
-    if is_atomic_write_temp_path(&path) || !entry.file_type().await?.is_file() {
+    if is_atomic_write_temp_path(&path) {
         return Ok(None);
+    }
+    match entry.file_type().await {
+        Ok(ft) if ft.is_file() => {}
+        Ok(_) => return Ok(None),
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err.into()),
     }
     let bytes = match fs::read(&path).await {
         Ok(bytes) => bytes,
@@ -171,12 +177,11 @@ async fn load_single_marker(
     let package_dir =
         Store::new(cache_root.to_path_buf()).namespaced(&marker.namespace).package_dir(&name);
     match fs::metadata(&package_dir).await {
-        Ok(_) => Ok(Some((marker.namespace, name))),
         Err(err) if err.kind() == ErrorKind::NotFound => {
             let _ = remove_marker_if_present(&path).await;
             Ok(None)
         }
-        Err(err) => Err(err.into()),
+        Ok(_) | Err(_) => Ok(Some((marker.namespace, name))),
     }
 }
 

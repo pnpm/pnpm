@@ -195,10 +195,7 @@ async fn inventory_protects_purged_upstream_markers_from_eviction() {
     std::fs::create_dir_all(&evictable_dir).unwrap();
     std::fs::write(evictable_dir.join("document.json"), b"{}").unwrap();
 
-    let inv = inventory_cache_dir(tmp.path(), &std::collections::HashSet::new())
-        .await
-        .unwrap()
-        .unwrap();
+    let inv = inventory_cache_dir(tmp.path(), &HashSet::new()).await.unwrap().unwrap();
     assert_eq!(inv.non_evictable_bytes, 21);
     assert_eq!(inv.files.len(), 1);
     assert!(inv.files[0].path.ends_with("document.json"));
