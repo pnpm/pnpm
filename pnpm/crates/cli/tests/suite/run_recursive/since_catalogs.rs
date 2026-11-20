@@ -11,8 +11,8 @@ use std::path::Path;
 
 fn git(cwd: &Path, args: &[&str]) {
     let output = std::process::Command::new("git")
-        .args(args)
-        .current_dir(cwd)
+        .with_args(args)
+        .with_current_dir(cwd)
         .output()
         .expect("spawn git");
     assert!(

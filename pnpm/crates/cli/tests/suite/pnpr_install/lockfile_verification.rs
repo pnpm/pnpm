@@ -222,12 +222,12 @@ fn client_rejects_shape_mismatched_lockfile_from_permissive_pnpr_server() {
 
     let marker = root.path().join("marker-malicious-server");
     for extra_flag in [None, Some("--trust-lockfile")] {
-        let mut cmd = pacquet_at(&workspace);
-        cmd.env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-            .env("MARKER_FILE", &marker)
-            .args(["install", "--pnpr-server", &malicious_server.url()]);
+        let mut cmd = pacquet_at(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_env("MARKER_FILE", &marker)
+            .with_args(["install", "--pnpr-server", &malicious_server.url()]);
         if let Some(flag) = extra_flag {
-            cmd.arg(flag);
+            cmd = cmd.with_arg(flag);
         }
         let assert = cmd.assert().failure();
         let output = format!(

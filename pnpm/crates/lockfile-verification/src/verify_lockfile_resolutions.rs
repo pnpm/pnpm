@@ -179,7 +179,7 @@ impl<'a> VerifiedOfflineLockfile<'a> {
 }
 
 /// Whether a recorded verification already covers `lockfile` as it sits
-/// at `lockfile_path` under the policy `verifiers` currently demand —
+/// at `lockfile_path` under the policy `verifiers` currently demand,
 /// i.e. whether a [`verify_lockfile_resolutions`] call would
 /// short-circuit on the cache without running the fan-out. The offline
 /// structural dependency-name gate runs here too (it is cheap and the
@@ -415,7 +415,7 @@ fn record_verdict(
 
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that
 /// returns violations as data instead of throwing on the first batch.
-/// No reporter emits, no cache wiring — for callers that need to
+/// No reporter emits, no cache wiring, for callers that need to
 /// inspect violations.
 pub async fn collect_resolution_policy_violations(
     lockfile: &Lockfile,
@@ -430,7 +430,7 @@ pub async fn collect_resolution_policy_violations(
         return Ok(shape_violations);
     }
     // `Err(message)` is a transport failure the caller must surface rather than
-    // treat as "no violations" — see [`run_fan_out`].
+    // treat as "no violations"; see [`run_fan_out`].
     run_fan_out(collect_candidates(lockfile), verifiers, concurrency, &mut || {}).await
 }
 

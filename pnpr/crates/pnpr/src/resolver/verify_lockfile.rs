@@ -347,7 +347,7 @@ async fn collect_policy_violations_until(
         return Err(VerifyFailure::Internal(request_timeout_response()));
     };
     // A transport failure verifying an entry (the upstream registry couldn't be
-    // reached/authorized) is a gateway error, not a policy violation — surface
+    // reached/authorized) is a gateway error, not a policy violation, surface
     // the registry's own (credential-redacted) message to the client.
     result.map_err(|message| VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message)))
 }
