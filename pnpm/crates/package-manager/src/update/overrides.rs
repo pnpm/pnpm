@@ -33,6 +33,9 @@ pub(super) struct OverriddenDirect {
 pub(super) struct BareOverrideEntry {
     pub(super) key: String,
     pub(super) value: String,
+    /// The value with a `catalog:` or `$` reference resolved, as the install
+    /// applies it.
+    pub(super) resolved: String,
     /// Whether the workspace manifest writer can edit the entry. It cannot
     /// address a dependency-type key such as `foo:prod`, nor an entry from a
     /// project's `packageConfigs`, so such an entry is reported rather than
@@ -161,7 +164,9 @@ pub(super) async fn override_owned_latest_rewrite<Reporter: self::Reporter>(
     // `workspace:` or `catalog:` reference, a `$` reference) has no version
     // the update can move, so moving it is the user's call.
     if names_another_dependency(&entry.value) {
-        warn_unmovable_override::<Reporter>(rewrite_ctx, name, &entry.value);
+        if !resolved_range_admits_latest(rewrite_ctx, latest_chain, name, &entry.resolved).await? {
+            warn_unmovable_override::<Reporter>(rewrite_ctx, name, &entry.value);
+        }
         return Ok(MatchedRewrite::Target(None));
     }
     // A dist tag tracks a moving target the way a tag-tracking declaration
@@ -194,6 +199,22 @@ pub(super) async fn override_owned_latest_rewrite<Reporter: self::Reporter>(
         warn_unmovable_override::<Reporter>(rewrite_ctx, name, &entry.value);
     }
     Ok(MatchedRewrite::Target(None))
+}
+
+/// Whether the range a `catalog:` or `$` reference resolves to already admits
+/// the version `--latest` picks, so the reference is not in the way. A value
+/// that still names a dependency of its own once resolved is never asked about.
+async fn resolved_range_admits_latest(
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+    latest_chain: &mut Option<LatestResolverChain>,
+    name: &str,
+    resolved: &str,
+) -> Result<bool, UpdateError> {
+    if names_another_dependency(resolved) || range_of_specifier(resolved).is_none() {
+        return Ok(false);
+    }
+    let latest = latest_version_for_spec(rewrite_ctx, latest_chain, name, resolved).await?;
+    Ok(latest.is_some_and(|latest| override_admits(resolved, &latest)))
 }
 
 /// Whether an override value names a dependency of its own rather than

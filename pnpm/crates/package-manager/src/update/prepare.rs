@@ -256,6 +256,7 @@ fn bare_override_entry(
             .map(|value| BareOverrideEntry {
                 key: governing.selector.clone(),
                 value: value.clone(),
+                resolved: governing.new_bare_specifier.clone(),
                 writable: false,
             });
     }
@@ -274,6 +275,7 @@ fn bare_override_entry(
         .map(|value| BareOverrideEntry {
             key: governing.selector.clone(),
             value,
+            resolved: governing.new_bare_specifier.clone(),
             writable: governing.target_pkg.dep_type.is_none(),
         })
 }

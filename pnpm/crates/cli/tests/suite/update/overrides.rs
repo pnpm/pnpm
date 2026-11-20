@@ -616,3 +616,30 @@ fn update_latest_moves_the_workspace_override_when_package_configs_are_inactive(
 
     drop((root, anchor));
 }
+
+/// A `catalog:` override is not moved, but when the catalog range it points
+/// at already admits the latest version nothing is in the way, so the update
+/// has nothing to report.
+#[test]
+fn update_latest_is_quiet_when_a_catalog_override_admits_the_latest() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    yaml.push_str("\ncatalog:\n  \"");
+    yaml.push_str(DEP);
+    yaml.push_str("\": \">=100.0.0\"\n");
+    fs::write(&yaml_path, yaml).expect("write yaml");
+    set_overrides(&workspace, &[(DEP, "catalog:")]);
+    pacquet(&workspace, ["install"]).assert().success();
+    let before_yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", DEP]).output().expect("run update --latest");
+    assert!(output.status.success(), "update failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("is controlled by an override"), "no warning: {stdout}");
+    assert_eq!(fs::read_to_string(&yaml_path).expect("read yaml"), before_yaml);
+
+    drop((root, anchor));
+}
