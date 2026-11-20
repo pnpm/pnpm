@@ -153,7 +153,9 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
   }
   pnpmConfig.packageManager = packageManager
 
-  pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
+  pnpmConfig.rootProjectManifestDir = cliOptions['global']
+    ? pnpmConfig.globalPkgDir
+    : (pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir)
   const workspaceManifestRegistries = opts.ignoreLocalSettings
     ? undefined
     : await applyLocalSettings(state, { forSelfUpdate: opts.forSelfUpdate, skipUnreadableSettings: opts.skipUnreadableSettings })
@@ -224,7 +226,7 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     defaultOptions: defaultOptions as Record<string, unknown>,
     dir: cliOptions.dir as string | undefined,
     workspaceDir: opts.workspaceDir,
-    ignoreProjectNpmrc: opts.ignoreProjectNpmrc || opts.skipUnreadableSettings,
+    ignoreProjectNpmrc: opts.ignoreProjectNpmrc || opts.skipUnreadableSettings || Boolean(cliOptions['global']),
     npmrcAuthFile: getNpmrcAuthFile({ cliOptions, env, globalYamlConfig }),
     configDir: configDir as string,
     moduleDirname: import.meta.dirname,

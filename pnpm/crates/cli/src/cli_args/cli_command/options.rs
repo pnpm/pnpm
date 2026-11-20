@@ -187,6 +187,7 @@ impl CliArgs {
         // were workspace projects.
         if !self.workspace.recursive
             && !self.paths.ignore_workspace
+            && !self.command.is_global()
             && self.command.recursive_by_default()
             && let Ok(Some(workspace_dir)) = pnpm_workspace::find_workspace_dir(&dir)
         {

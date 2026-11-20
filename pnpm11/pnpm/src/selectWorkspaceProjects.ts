@@ -28,7 +28,7 @@ export function enableRecursiveByDefault (invocation: CommandInvocation, config:
   if (enableFilteredClean(cmd, cliOptions, config)) {
     return
   }
-  if (!isRecursiveCommand(cmd) || typeof workspaceDir !== 'string') {
+  if (cliOptions['global'] || !isRecursiveCommand(cmd) || typeof workspaceDir !== 'string') {
     return
   }
   const hasExplicitRecursive = cliOptions['recursive'] === true

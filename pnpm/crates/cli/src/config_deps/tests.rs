@@ -1585,3 +1585,30 @@ async fn update_config_rebases_relative_filters_and_reports_subdir_as_dir() {
     assert_eq!(config.filter, [other_dir.to_string_lossy().as_ref(), "../app"]);
     assert_eq!(config.filter_prod, ["{../app}..."]);
 }
+
+#[tokio::test]
+async fn global_update_config_hook_ignores_malformed_ancestor_workspace_manifest() {
+    let root = tempfile::tempdir().expect("tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "packages: [\n")
+        .expect("write malformed ancestor workspace settings");
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global/11");
+    fs::create_dir_all(&global_pkg_dir).expect("create global package directory");
+    let global_pnpmfile = root.path().join("trusted-global-pnpmfile.cjs");
+    fs::write(
+        &global_pnpmfile,
+        "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, GLOBAL_HOOK_APPLIED: '1' }; return config } } }",
+    )
+    .expect("write global pnpmfile");
+
+    let mut config = Config::default();
+    config.cli.command_target = pnpm_config::CommandTarget::GlobalPackages;
+    config.global_pnpmfile = Some(global_pnpmfile);
+    let mut config = config.current::<Host>(&pnpm_home).expect("load global configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &global_pkg_dir)
+        .await
+        .expect("run global updateConfig hook despite malformed ancestor workspace");
+
+    assert_eq!(config.extra_env.get("GLOBAL_HOOK_APPLIED").map(String::as_str), Some("1"));
+}

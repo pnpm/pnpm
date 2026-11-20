@@ -127,6 +127,12 @@ impl Config {
         if self.ignore_workspace {
             return None;
         }
+        if self.cli.command_target == crate::CommandTarget::GlobalPackages {
+            return start_dir
+                .join(crate::workspace_yaml::WORKSPACE_MANIFEST_FILENAME)
+                .is_file()
+                .then(|| (start_dir.to_path_buf(), None));
+        }
         pnpm_workspace::WORKSPACE_DIR_ENV_VARS
             .iter()
             .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))

@@ -801,7 +801,7 @@ impl WorkspaceSettings {
     }
 
     /// [`Self::load_at`], reading the settings `settings_read` selects.
-    fn read_at(
+    pub(crate) fn read_at(
         dir: &Path,
         settings_read: crate::SettingsRead,
     ) -> Result<Option<Self>, LoadWorkspaceYamlError> {

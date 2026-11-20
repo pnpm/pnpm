@@ -139,7 +139,11 @@ fn pre_command_plan_with_state(
     }
     let config =
         load_pre_command_config(invocation, config_overrides, &dir, ConfigLoad::PIN_DECISION)?;
-    let roots = PinRoots::of(&config, &dir);
+    let roots = if invocation.global {
+        PinRoots { manifest: dir.clone(), env: dir.clone() }
+    } else {
+        PinRoots::of(&config, &dir)
+    };
     let manifest = read_root_manifest(&roots.manifest);
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
     let locked_env = read_pin_lockfile(
@@ -215,7 +219,7 @@ fn pins_nothing_to_check(invocation: &Invocation, dir: &Path) -> bool {
         return true;
     }
     let mut candidates = vec![dir.to_path_buf()];
-    if !invocation.paths.ignore_workspace {
+    if !invocation.paths.ignore_workspace && !invocation.global {
         candidates.extend(pnpm_workspace::find_workspace_dir_from_env());
         candidates.push(pnpm_config::workspace_root_or(dir));
     }

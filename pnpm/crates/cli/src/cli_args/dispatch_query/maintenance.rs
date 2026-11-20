@@ -35,7 +35,9 @@ pub(in super::super) fn bin<'a>(
     ctx: &RunCtx<'a>,
     args: BinArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.locations.dir, (ctx.loaders.config)()?)?;
+    let config =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
+    args.run(ctx.locations.dir, config)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -58,7 +60,9 @@ pub(in super::super) fn root<'a>(
     ctx: &RunCtx<'a>,
     args: RootArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.locations.dir, (ctx.loaders.config)()?)?;
+    let config =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
+    args.run(ctx.locations.dir, config)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -66,7 +70,9 @@ pub(in super::super) fn prefix<'a>(
     ctx: &RunCtx<'a>,
     args: PrefixArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run(ctx.locations.dir, (ctx.loaders.config)()?)?;
+    let config =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
+    args.run(ctx.locations.dir, config)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

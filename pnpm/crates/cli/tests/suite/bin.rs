@@ -175,6 +175,37 @@ fn bin_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
     drop(root);
 }
 
+#[cfg(unix)]
+#[test]
+fn bin_global_ignores_broken_or_hostile_project_workspace_config_in_cwd() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: [\n")
+        .expect("write malformed pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{ "packageManager": "pnpm@0.0.0" }"#)
+        .expect("write package.json");
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("HOME", root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
+        .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("COREPACK_ROOT", "/fake/corepack")
+        .with_env("PATH", path)
+        .with_args(["bin", "-g"])
+        .output()
+        .expect("run pacquet bin -g");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet bin -g should succeed despite broken CWD yaml");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", global_bin.display()));
+
+    drop(root);
+}
+
 /// Regression test for
 /// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622): the path
 /// printed under the subdirectory does not exist, so tools spawning

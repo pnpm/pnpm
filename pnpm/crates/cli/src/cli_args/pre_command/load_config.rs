@@ -179,13 +179,20 @@ fn load_raw_pre_command_config(
     dir: &Path,
     load: ConfigLoad,
 ) -> Result<Config, ConfigLoadFailure> {
+    let global_home = invocation.global.then(pnpm_config::default_pnpm_home_dir::<Host>).flatten();
+    let ignore_workspace =
+        invocation.paths.ignore_workspace || (invocation.global && global_home.is_none());
     let mut config = seed_config(
         invocation.paths.npmrc_auth_file.as_deref(),
-        invocation.paths.ignore_workspace,
+        ignore_workspace,
         config_overrides,
         invocation.network.registry.as_deref(),
     );
+    if invocation.global {
+        config.cli.command_target = pnpm_config::CommandTarget::GlobalPackages;
+    }
     config.skip_store_dir_resolution = !load.resolve_store;
     config.settings_read = load.settings_read;
-    config.current_keeping_warnings::<Host>(dir)
+    let anchor = global_home.as_deref().unwrap_or(dir);
+    config.current_keeping_warnings::<Host>(anchor)
 }

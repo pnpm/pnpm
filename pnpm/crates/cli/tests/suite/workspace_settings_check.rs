@@ -409,8 +409,9 @@ fn config_list_warns_but_succeeds_under_a_satisfied_pin() {
     );
 }
 
-/// A `--global` command does not act on the project, so the project's pin
-/// does not harden the report into an error.
+/// A `--global` command ignores the caller project's `pnpm-workspace.yaml`
+/// and never hardens an unrecognized key in the global `pnpm-workspace.yaml`
+/// into an error, even under a satisfied pin.
 #[test]
 fn a_global_command_warns_under_a_satisfied_pin() {
     let CommandTempCwd {
@@ -420,18 +421,25 @@ fn a_global_command_warns_under_a_satisfied_pin() {
         npmrc_info: _registry,
         ..
     } = init_with_running_pin();
-    write_workspace_yaml(&workspace, "minimumReleaseAg: 100\n");
+    write_workspace_yaml(&workspace, "projectUnknownKey: 100\n");
 
     let global_bin = root.path().join("pnpm-home");
     fs::create_dir_all(&global_bin).expect("create the global bin dir");
+    write_package_manager_pin(&global_bin);
+    write_workspace_yaml(&global_bin, "minimumReleaseAg: 100\n");
     let mut pacquet = pacquet;
     pacquet.env("PATH", prepend_to_path(&global_bin));
     let output = run_with_switch_disabled(pacquet, root.path(), &["list", "--global"]);
 
     assert_success(&output);
+    let stderr = stderr(&output);
     assert_contains(
-        &stderr(&output),
+        &stderr,
         r#"[WARN] The following settings in pnpm-workspace.yaml are not recognized by this version of pnpm and were ignored: "minimumReleaseAg" (did you mean "minimumReleaseAge"?)."#,
+    );
+    assert!(
+        !stderr.contains("projectUnknownKey"),
+        "caller project's pnpm-workspace.yaml must not be read on --global: {stderr}",
     );
 }
 

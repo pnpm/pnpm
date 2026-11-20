@@ -19,12 +19,13 @@ use crate::{
         },
         deps_tree_finders::{FinderHandle, evaluate_finders, finder_candidates, resolve_finders},
         install::resolve_bool_override,
-        list::{print_output, recursive::dedicated_project_config},
+        list::{global_install_dir_config, print_output, recursive::dedicated_project_config},
         parse_depth_limit,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     },
 };
 use clap::Args;
+use miette::IntoDiagnostic;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
@@ -38,6 +39,9 @@ use std::{
 #[derive(Debug, Args)]
 pub struct WhyArgs {
     pub packages: Vec<String>,
+    /// Inspect globally installed packages.
+    #[clap(short = 'g', long)]
+    pub global: bool,
     /// Max display depth of the reverse dependency tree. `Infinity`
     /// renders the whole tree.
     #[clap(long, value_parser = parse_depth_limit)]
@@ -88,6 +92,48 @@ impl WhyArgs {
         };
 
         print_output(&self.render(&trees));
+        Ok(())
+    }
+
+    pub async fn run_global(self, config: &Config) -> miette::Result<()> {
+        if self.packages.is_empty() && self.find_by.is_empty() {
+            return Err(miette::miette!(
+                code = "ERR_PNPM_MISSING_PACKAGE_NAME",
+                "`pnpm why` requires the package name or --find-by=<finder-name>"
+            ));
+        }
+        let global_pkg_dir = config.global_pkg_dir
+            .clone()
+            .ok_or_else(|| {
+                miette::miette!(
+                    code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
+                    "Unable to find the global packages directory"
+                )
+            })?;
+        let finders = resolve_finders(config, &global_pkg_dir, &self.find_by).await?;
+        let install_dirs =
+            pnpm_global::find_global_install_dirs(&global_pkg_dir, &[]).into_diagnostic()?;
+        let mut any_lockfile = false;
+        let mut trees = Vec::new();
+        for install_dir in &install_dirs {
+            let group_config = global_install_dir_config(config, install_dir);
+            if let Some(group_trees) = self.trees_for_lockfile(
+                &group_config,
+                install_dir,
+                std::slice::from_ref(install_dir),
+                &finders,
+            )
+            .await?
+            {
+                any_lockfile = true;
+                trees.extend(group_trees);
+            }
+        }
+        if !any_lockfile {
+            return Ok(());
+        }
+        let merged = merge_trees(trees);
+        print_output(&self.render(&merged));
         Ok(())
     }
 

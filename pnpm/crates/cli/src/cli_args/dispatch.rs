@@ -3,7 +3,7 @@ pub(crate) use context::{
 };
 
 pub(super) use super::pre_command::{apply_cli_layers, seed_config};
-pub(super) use configuration::apply_update_config;
+pub(super) use configuration::{apply_global_update_config, apply_update_config};
 
 use super::{
     cli_command::{CliArgs, CliCommand},

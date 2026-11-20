@@ -119,7 +119,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         return Ok(hooks);
     }
 
-    let base_dir = hook_base_dir(root_dir)?;
+    let base_dir = hook_base_dir(config, root_dir)?;
     let mut input = TrustedSettings::from_resolved(config)
         .to_json()
         .into_diagnostic()
@@ -329,8 +329,13 @@ fn ignored_hook_warning(hook: IgnoredHook, pnpmfiles: &str) -> String {
 }
 
 /// The directory relative hook-output paths resolve against: the workspace
-/// manifest's, else the root.
-fn hook_base_dir(root_dir: &Path) -> Result<PathBuf> {
+/// manifest's for project commands that search for a workspace, else `root_dir`.
+fn hook_base_dir(config: &Config, root_dir: &Path) -> Result<PathBuf> {
+    if config.ignore_workspace
+        || config.cli.command_target == pnpm_config::CommandTarget::GlobalPackages
+    {
+        return Ok(root_dir.to_path_buf());
+    }
     Ok(match WorkspaceSettings::find_and_load(root_dir).into_diagnostic()? {
         Some((path, _)) => path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf),
         None => root_dir.to_path_buf(),
