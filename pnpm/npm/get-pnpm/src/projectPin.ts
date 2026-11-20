@@ -116,9 +116,17 @@ function isWorkspaceProject (workspaceDir: string, workspace: Record<string, unk
   if (relative === '') return true
   if (relative.startsWith('../') || relative.split('/').some((part) => part === 'node_modules' || part === 'bower_components')) return false
   const patterns = Array.isArray(workspace.packages) ? workspace.packages.filter((pattern) => typeof pattern === 'string') : []
-  const matches = (pattern: string, options?: picomatch.PicomatchOptions): boolean => picomatch.isMatch(relative, pattern.replace(/^\.\//, '').replace(/\/$/, ''), options)
+  const matches = (pattern: string, options?: picomatch.PicomatchOptions): boolean => picomatch.isMatch(relative, normalizePattern(pattern), options)
   const excludes = patterns.filter((pattern) => pattern.startsWith('!')).map((pattern) => pattern.slice(1))
   return !excludes.some((pattern) => matches(pattern, { dot: true })) && patterns.filter((pattern) => !pattern.startsWith('!')).some((pattern) => matches(pattern))
+}
+
+/**
+ * A `packages` pattern with its `.` segments, `..` segments, and trailing
+ * slash resolved lexically, as pnpm normalizes it before matching.
+ */
+function normalizePattern (pattern: string): string {
+  return path.posix.normalize(pattern).replace(/\/+$/, '')
 }
 
 /** The manifest basenames in the order the workspace's `preferredManifestFormat` sets. */

@@ -97,6 +97,18 @@ describe('readProjectPin', () => {
     assert.deepEqual(pinOf(byDefault), { spec: '11.20.0', field: 'packageManager', manifestPath: path.join(byDefault, 'package.json') })
   })
 
+  test('matches packages patterns with . segments as pnpm does', () => {
+    const workspace = project({
+      'pnpm-workspace.yaml': 'packages:\n  - ./packages/./*/\npreferredManifestFormat: json5\n',
+      'package.json': manifest({}),
+      'packages/a/package.json': manifest({ packageManager: 'pnpm@11.20.0' }),
+      'packages/a/package.json5': "{ packageManager: 'pnpm@12.1.0' }",
+    })
+    const projectDir = path.join(workspace, 'packages/a')
+
+    assert.deepEqual(pinOf(projectDir), { spec: '12.1.0', field: 'packageManager', manifestPath: path.join(projectDir, 'package.json5') })
+  })
+
   test('reads a project the workspace excludes in the default order', () => {
     const workspace = project({
       'pnpm-workspace.yaml': 'packages:\n  - packages/*\npreferredManifestFormat: json5\n',
