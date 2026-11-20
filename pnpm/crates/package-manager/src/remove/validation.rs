@@ -1,6 +1,18 @@
-use super::{RemoveValidationError, patterns::missing_selected_dependencies};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use std::{collections::HashSet, fmt::Write as _};
+use super::{
+    RemoveValidationError,
+    patterns::{
+        missing_selected_dependencies,
+        selected_removable_names,
+    },
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use std::{
+    collections::HashSet,
+    fmt::Write as _,
+};
 
 fn collect_selected_available_dependencies(
     projects: &[pnpm_workspace::Project],
@@ -10,16 +22,7 @@ fn collect_selected_available_dependencies(
     let mut available_lookup = HashSet::new();
     let mut available_dependencies = Vec::new();
     for &index in selected_indices {
-        let manifest = &projects[index].manifest;
-        let peer_dependencies = manifest
-            .dependencies([DependencyGroup::Peer])
-            .filter(|_| save_type.is_none())
-            .map(|(name, _)| name.to_string());
-        for dep in manifest
-            .available_dependency_names(save_type)
-            .into_iter()
-            .chain(peer_dependencies)
-        {
+        for dep in selected_removable_names(&projects[index].manifest, save_type) {
             if available_lookup.insert(dep.clone()) {
                 available_dependencies.push(dep);
             }

@@ -153,12 +153,9 @@ function createMutatedImporter (
   const { manifest } = ctx.manifestsByPath[rootDir]
   const localConfig = ctx.getProjectConfig(manifest) ?? {}
   const updateTargets = selectUpdateTargets(ctx, manifest)
-  if (ctx.updateMatch != null && (updateTargets.length === 0)) {
-    if (ctx.cmdFullName === 'remove') return undefined
-    if (typeof ctx.opts.depth === 'undefined' || ctx.opts.depth <= 0) {
-      ctx.installOpts.pruneLockfileImporters = false
-      return undefined
-    }
+  if (ctx.updateMatch != null && (updateTargets.length === 0) && (typeof ctx.opts.depth === 'undefined' || ctx.opts.depth <= 0)) {
+    ctx.installOpts.pruneLockfileImporters = false
+    return undefined
   }
   const dependencySelectors = completeDependencySelectors(ctx, manifest, updateTargets)
   const modulesDir = localConfig.modulesDir ?? ctx.opts.modulesDir

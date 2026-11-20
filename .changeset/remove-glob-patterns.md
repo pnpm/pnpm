@@ -1,7 +1,5 @@
 ---
-"@pnpm/installing.commands": patch
-"pacquet": patch
-"pnpm": patch
+"pacquet": minor
 ---
 
-`pnpm remove` and `pnpm rm` now accept glob patterns in dependency selectors [#13546](https://github.com/pnpm/pnpm/issues/13546).
+`pnpm remove` now accepts glob patterns and `!` exclusions in dependency selectors, such as `pnpm remove "eslint-*" "!eslint-plugin-import"` [#13546](https://github.com/pnpm/pnpm/issues/13546).

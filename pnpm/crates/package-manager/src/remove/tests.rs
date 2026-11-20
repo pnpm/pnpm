@@ -236,7 +236,10 @@ fn remove_expands_dependency_glob_patterns() {
     }));
 
     assert_eq!(
-        expand_remove_patterns(&manifest, &strings(&["eslint", "eslint-*"]), None),
+        expand_remove_patterns(
+            &manifest.available_dependency_names(None),
+            &strings(&["eslint", "eslint-*"])
+        ),
         strings(&["eslint", "eslint-plugin-import"]),
     );
 }
@@ -250,8 +253,10 @@ fn remove_preserves_missing_exact_dependencies_when_expanding_patterns() {
         },
     }));
 
-    let package_names =
-        expand_remove_patterns(&manifest, &strings(&["left-pad", "eslint-*"]), None);
+    let package_names = expand_remove_patterns(
+        &manifest.available_dependency_names(None),
+        &strings(&["left-pad", "eslint-*"]),
+    );
 
     assert_eq!(package_names, strings(&["left-pad", "eslint-plugin-import"]));
     assert!(matches!(
@@ -270,8 +275,52 @@ fn remove_with_only_negated_dependency_patterns_is_a_no_op() {
     }));
 
     assert_eq!(
-        expand_remove_patterns(&manifest, &strings(&["!does-not-exist"]), None),
+        expand_remove_patterns(
+            &manifest.available_dependency_names(None),
+            &strings(&["!does-not-exist"])
+        ),
         Vec::<String>::new(),
+    );
+}
+
+#[test]
+fn remove_exclusion_overrides_exact_dependency_name() {
+    let available = strings(&["eslint", "eslint-plugin-import"]);
+
+    assert_eq!(
+        expand_remove_patterns(&available, &strings(&["eslint", "eslint-*", "!eslint"])),
+        strings(&["eslint-plugin-import"]),
+    );
+}
+
+#[test]
+fn selected_remove_glob_matches_peer_only_dependencies() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let root_dir = dir.path().join("a");
+    std::fs::create_dir_all(&root_dir).expect("create project directory");
+    let package_json = root_dir.join("package.json");
+    std::fs::write(
+        &package_json,
+        json!({ "name": "a", "peerDependencies": { "eslint-config-example": "1.0.0" } }).to_string(
+        ),
+    )
+    .expect("write package.json");
+    let mut projects = vec![Project {
+        root_dir,
+        manifest: PackageManifest::from_path(package_json).expect("read package.json"),
+        dependency_manifest: None,
+    }];
+    let indices = [0];
+    let package_names = strings(&["eslint-*"]);
+
+    assert!(validate_selected_remove(&projects, &indices, &package_names, None).is_ok());
+    assert_eq!(edited_project_dirs(&projects, &indices, &package_names, None).len(), 1);
+    prepare_selected_manifests::<SilentReporter>(&mut projects, &indices, &package_names, None);
+    assert_eq!(
+        projects[0].manifest
+            .dependencies([DependencyGroup::Peer])
+            .count(),
+        0,
     );
 }
 

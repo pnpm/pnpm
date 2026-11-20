@@ -23,7 +23,6 @@ import {
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
 import type {
-  DependenciesField,
   DepPath,
   IgnoredBuilds,
   PackageManifest,
@@ -192,7 +191,6 @@ async function installProject (
   }
   const action = createProjectAction(ctx.cmdFullName, {
     rootDir,
-    targetDependenciesField: ctx.targetDependenciesField,
     dependencySelectors: completeDependencySelectors(ctx, manifest, updateTargets),
   })
   const localConfig = ctx.getProjectConfig(manifest) ?? {}
@@ -237,12 +235,11 @@ export async function loadProjectHooks (opts: RecursiveOptions, rootDir: Project
 interface ProjectActionTarget {
   rootDir: ProjectRootDir
   dependencySelectors: string[]
-  targetDependenciesField: DependenciesField | undefined
 }
 
 function createProjectAction (
   cmdFullName: CommandFullName,
-  { rootDir, dependencySelectors, targetDependenciesField }: ProjectActionTarget
+  { rootDir, dependencySelectors }: ProjectActionTarget
 ): ActionFunction {
   if (cmdFullName === 'remove') {
     return async (_manifest, opts) => {
@@ -251,7 +248,6 @@ function createProjectAction (
           dependencyNames: dependencySelectors,
           mutation: 'uninstallSome',
           rootDir,
-          targetDependenciesField,
         },
       ], opts)
       return {

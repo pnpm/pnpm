@@ -49,8 +49,15 @@ use std::{
 
 mod patterns;
 mod validation;
-use patterns::{expand_remove_patterns, has_remove_patterns};
-use validation::{validate_removable, validate_selected_remove};
+use patterns::{
+    expand_remove_patterns,
+    has_remove_patterns,
+    selected_removable_names,
+};
+use validation::{
+    validate_removable,
+    validate_selected_remove,
+};
 
 #[must_use]
 pub struct Remove<'a> {
@@ -106,8 +113,10 @@ impl Remove<'_> {
             manifest,
         } = self;
         let has_remove_patterns = has_remove_patterns(remove.package_names);
-        let package_names =
-            expand_remove_patterns(manifest, remove.package_names, remove.save_type);
+        let package_names = expand_remove_patterns(
+            &manifest.available_dependency_names(remove.save_type),
+            remove.package_names,
+        );
         if has_remove_patterns && package_names.is_empty() {
             return Ok(());
         }
@@ -300,8 +309,8 @@ fn edited_project_dirs(
                 .into_iter()
                 .chain(peer_dependencies)
                 .collect();
-            let expanded = expand_remove_patterns(manifest, package_names, save_type);
-            expanded
+            let available = selected_removable_names(manifest, save_type);
+            expand_remove_patterns(&available, package_names)
                 .iter()
                 .any(|name| listed.contains(name))
         })
@@ -330,8 +339,8 @@ fn prepare_selected_manifests<Reporter: self::Reporter>(
     save_type: Option<DependencyGroup>,
 ) {
     for &index in selected_indices {
-        let package_names =
-            expand_remove_patterns(&projects[index].manifest, package_names, save_type);
+        let available = selected_removable_names(&projects[index].manifest, save_type);
+        let package_names = expand_remove_patterns(&available, package_names);
         prepare_manifest::<Reporter>(&mut projects[index].manifest, &package_names, save_type);
     }
 }
