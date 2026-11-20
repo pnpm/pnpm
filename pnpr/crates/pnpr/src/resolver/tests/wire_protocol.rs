@@ -18,7 +18,6 @@ use super::{
     registry_config,
     reject_inline_url_auth,
     set_local_hosted_rules,
-    store_resolution,
     tarball_router,
     tarball_router_with_registries,
     upstream_with_access,

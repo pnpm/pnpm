@@ -128,13 +128,15 @@ pub async fn resolve(
         })?;
 
     let resolved_excludes = pnpm_config::WorkspaceSettings::load_at(dir)
-        .map_err(|err| ResolveError::install(err.to_string()))?
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)?
         .and_then(|settings| settings.minimum_release_age_exclude)
         .unwrap_or_default();
     let allowed_picks =
         newly_allowed_picks(request.minimum_release_age_exclude.as_deref(), &resolved_excludes)?;
     let lockfile = Lockfile::load_wanted_from_dir(dir)
-        .map_err(|err| ResolveError::install(err.to_string()))?
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)?
         .ok_or(ResolveError::NoLockfile)?;
     Ok(ResolveResult { lockfile, allowed_picks })
 }
@@ -145,16 +147,19 @@ fn newly_allowed_picks(
 ) -> Result<Vec<String>, ResolveError> {
     let requested =
         pnpm_config::version_policy::expand_package_version_specs(requested.unwrap_or_default())
-            .map_err(|err| ResolveError::install(err.to_string()))?;
+            .map_err(|err| err.to_string())
+            .map_err(ResolveError::install)?;
     let resolved = pnpm_config::version_policy::expand_package_version_specs(resolved)
-        .map_err(|err| ResolveError::install(err.to_string()))?;
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)?;
     let mut added: Vec<_> = resolved
         .difference(&requested)
         .cloned()
         .collect();
     added.sort();
     pnpm_config::version_policy::merge_package_version_specs(added)
-        .map_err(|err| ResolveError::install(err.to_string()))
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)
 }
 
 async fn prepare_resolve_workspace(

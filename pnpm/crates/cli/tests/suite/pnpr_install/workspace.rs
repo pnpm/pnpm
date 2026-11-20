@@ -29,7 +29,8 @@ use super::{
     write_workspace_project,
 };
 use crate::_utils::{
-    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    append_workspace_yaml_key,
+    bravo_dep_mature_up_to_1_0_1_minimum_release_age,
     set_minimum_release_age,
 };
 use assert_cmd::assert::OutputAssertExt;

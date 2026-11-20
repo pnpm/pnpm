@@ -1,6 +1,13 @@
-use pnpm_lockfile::{Prefix, VersionPart};
+use pnpm_lockfile::{
+    Prefix,
+    VersionPart,
+};
 
-use super::{Lockfile, PnprClientError, ResolveProjectsOptions};
+use super::{
+    Lockfile,
+    PnprClientError,
+    ResolveProjectsOptions,
+};
 
 pub(crate) fn assert_allowed_picks(
     allowed_picks: &[String],
