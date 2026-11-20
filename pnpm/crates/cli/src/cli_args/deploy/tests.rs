@@ -482,6 +482,9 @@ fn deploy_workspace_settings_preserves_v13_lockfile_format_and_tarball_url() {
         })),
     );
     assert_eq!(manifest.get("lockfileIncludeTarballUrl"), Some(&json!(true)));
+    // The v13 format records these, so the deployed workspace pins them.
+    assert_eq!(manifest.get("autoDedupe"), Some(&json!(false)));
+    assert_eq!(manifest.get("linkWorkspacePackages"), Some(&json!(false)));
 
     let mut target_config = Config::default();
     settings.apply_to_config(&mut target_config, Path::new("deploy"));

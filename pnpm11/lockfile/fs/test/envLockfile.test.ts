@@ -168,6 +168,13 @@ testOnNonWindows('writeEnvLockfile preserves the lockfile mode against the umask
 // A lockfile pnpm wrote for a project with no dependencies, with its empty
 // main document and the separator before it trimmed off.
 // https://github.com/pnpm/pnpm/issues/16477
+test('readEnvLockfile returns null when the env document has no content', async () => {
+  const dir = temporaryDirectory()
+  fs.writeFileSync(path.join(dir, WANTED_LOCKFILE), "---\n# no env lockfile\n---\nlockfileVersion: '9.0'\n")
+
+  expect(await readEnvLockfile(dir)).toBeNull()
+})
+
 test('readEnvLockfile reads an env-only lockfile and writeWantedLockfile keeps it', async () => {
   const dir = temporaryDirectory()
   const lockfilePath = path.join(dir, WANTED_LOCKFILE)

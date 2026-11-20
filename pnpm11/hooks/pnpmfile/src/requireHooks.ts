@@ -1,4 +1,4 @@
-import { hookLogger } from '@pnpm/core-loggers'
+import { hookLogger, type HookMessage } from '@pnpm/core-loggers'
 import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import type { CustomFetcher, CustomResolver, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
@@ -313,10 +313,12 @@ function createPreResolutionHookLogger (prefix: string): PreResolutionHookLogger
   const from = 'pnpmfile'
   return {
     info: (message: string) => {
-      hookLogger.info({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the logger info and warn signatures accept only message and prefix, but the reporter reads hook and from too
+      const logObj: HookMessage = { message, prefix, hook, from }
+      hookLogger.info(logObj)
     },
     warn: (message: string) => {
-      hookLogger.warn({ message, prefix, hook, from } as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the logger info and warn signatures accept only message and prefix, but the reporter reads hook and from too
+      const logObj: HookMessage & { error?: Error } = { message, prefix, hook, from }
+      hookLogger.warn(logObj)
     },
   }
 }

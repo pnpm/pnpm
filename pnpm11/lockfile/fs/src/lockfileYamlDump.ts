@@ -1,7 +1,6 @@
-import { dump } from 'js-yaml'
+import { dumpYaml } from './yamlDump.js'
 
-const OPTIONS = { lineWidth: -1, noCompatMode: true, noRefs: true }
-const FLOW_OPTIONS = { ...OPTIONS, flowLevel: 1 }
+const FLOW_OPTIONS = { flowLevel: 1 }
 const INLINE_KEYS = new Set(['cpu', 'engines', 'os', 'libc'])
 const SPACED_SECTIONS = new Set(['importers', 'packages', 'snapshots'])
 const INDENT = '  '
@@ -28,13 +27,13 @@ function writeMappingChunks (mapping: Record<string, unknown>, batchOrdinaryEntr
       continue
     }
     if (ordinaryEntries.length > 0) {
-      chunks.push(dump(Object.fromEntries(ordinaryEntries), OPTIONS).slice(0, -1))
+      chunks.push(dumpYaml(Object.fromEntries(ordinaryEntries)).slice(0, -1))
       ordinaryEntries = []
     }
-    chunks.push(custom ? writeCustomEntry(key, value) : dump({ [key]: value }, OPTIONS).slice(0, -1))
+    chunks.push(custom ? writeCustomEntry(key, value) : dumpYaml({ [key]: value }).slice(0, -1))
   }
   if (ordinaryEntries.length > 0) {
-    chunks.push(dump(Object.fromEntries(ordinaryEntries), OPTIONS).slice(0, -1))
+    chunks.push(dumpYaml(Object.fromEntries(ordinaryEntries)).slice(0, -1))
   }
   return chunks
 }
@@ -51,10 +50,10 @@ function joinWithBlankLines (chunks: string[]): string {
 
 function writeCustomEntry (key: string, value: Record<string, unknown> | unknown[]): string {
   if (usesFlowStyle(key, value)) {
-    return dump({ [key]: value }, FLOW_OPTIONS).slice(0, -1)
+    return dumpYaml({ [key]: value }, FLOW_OPTIONS).slice(0, -1)
   }
 
-  const renderedKey = dump({ [key]: null }, OPTIONS).slice(0, -' null\n'.length)
+  const renderedKey = dumpYaml({ [key]: null }).slice(0, -' null\n'.length)
   return writeBlockEntry(key, renderedKey, value)
 }
 
@@ -93,7 +92,7 @@ function writeSequence (sequence: unknown[]): string {
 }
 
 function writeSequenceItem (item: unknown): string {
-  if (!hasNestedLayout(item)) return dump([item], OPTIONS).slice(0, -1)
+  if (!hasNestedLayout(item)) return dumpYaml([item]).slice(0, -1)
   const collection = Array.isArray(item) ? writeSequence(item) : writeMapping(item, '\n')
   return `- ${indentContinuation(collection)}`
 }

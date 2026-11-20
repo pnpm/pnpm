@@ -70,6 +70,7 @@ pub(super) struct DeployLockfileSettings {
     pub(super) format: pnpm_lockfile::LockfileFormat,
     pub(super) include_resolution_settings: bool,
     pub(super) include_tarball_url: bool,
+    pub(super) records_resolution_settings: bool,
     pub(super) integrity_target: pnpm_lockfile::IntegrityTarget,
     pub(super) link_workspace_packages: bool,
 }
@@ -82,6 +83,7 @@ impl DeployLockfileSettings {
             format: config.lockfile_format,
             include_resolution_settings: config.lockfile_include_resolution_settings,
             include_tarball_url: config.lockfile_include_tarball_url,
+            records_resolution_settings: config.lockfile_records_resolution_settings(),
             integrity_target: config.lockfile_integrity_target,
             link_workspace_packages: false,
         }
@@ -120,12 +122,14 @@ impl DeployLockfileSettings {
                 serde_json::json!(self.integrity_target),
             );
         }
-        if self.include_resolution_settings {
+        if self.records_resolution_settings {
             manifest.insert("autoDedupe".to_string(), Value::Bool(self.auto_dedupe));
             manifest.insert(
                 "linkWorkspacePackages".to_string(),
                 Value::Bool(self.link_workspace_packages),
             );
+        }
+        if self.include_resolution_settings {
             lockfile_settings.insert("includeResolutionSettings".to_string(), Value::Bool(true));
         }
         if !lockfile_settings.is_empty() {

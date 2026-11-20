@@ -42,7 +42,6 @@ catalog:
   '@types/is-windows': ^1.0.2
   '@types/isexe': 2.0.4
   '@types/jest': ^30.0.0
-  '@types/js-yaml': ^4.0.9
   '@types/libnpmpublish': ^11.2.0
   '@types/lodash.kebabcase': 4.1.9
   '@types/lodash.throttle': 4.1.9
@@ -164,7 +163,7 @@ catalog:
   jest: 30.4.2
   jest-diff: 30.4.1
   human-id: ^4.2.2
-  js-yaml: ^4.3.2
+  js-yaml: ^5.5.0
   json5: ^2.2.3
   keyv: 6.1.0
   lcov-result-merger: ^6.0.0

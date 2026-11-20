@@ -6,7 +6,7 @@ import gfs from '@pnpm/fs.graceful-fs'
 import { parseNpmAliasTarget } from '@pnpm/resolving.npm-resolver'
 import * as structUtils from '@yarnpkg/core/structUtils'
 import { type LockFileObject, parse as parseYarnLockfile } from '@yarnpkg/lockfile'
-import yaml from 'js-yaml'
+import { FAILSAFE_SCHEMA, load } from 'js-yaml'
 import { loadJsonFile } from 'load-json-file'
 
 import { splitDescriptor, yarnLockFileKeyNormalizer } from './yarnUtil.js'
@@ -149,8 +149,8 @@ function getBerryNpmResolutionDescriptor (resolution: string | undefined): strin
 }
 
 function parseYarn2Yaml (lockFileContents: string): YarnLockYaml {
-  const parseYarnLock = yaml.load(lockFileContents, {
-    schema: yaml.FAILSAFE_SCHEMA,
+  const parseYarnLock = load(lockFileContents, {
+    schema: FAILSAFE_SCHEMA,
     json: true,
   })
   if (parseYarnLock == null) return {}
