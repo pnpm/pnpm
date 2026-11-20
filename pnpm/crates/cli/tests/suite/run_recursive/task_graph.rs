@@ -17,7 +17,7 @@ fn filter_keeps_dependency_tasks_outside_the_selection_from_running() {
                     "name": "app",
                     "version": "1.0.0",
                     "dependencies": { "lib": "workspace:*" },
-                    "scripts": { "build": "echo app >> ../order.log" },
+                    "scripts": { "build": append_line_script("app", "../order.log") },
                 }),
             ),
             ("lib", build_appends_run_order("lib")),
