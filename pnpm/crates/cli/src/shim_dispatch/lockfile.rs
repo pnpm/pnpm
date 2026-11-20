@@ -1,7 +1,16 @@
 use std::path::Path;
 
-use pnpm_config::{Config, Host};
-use pnpm_lockfile::{ImporterDepVersion, ImporterLoad, Lockfile, PkgName, Prefix};
+use pnpm_config::{
+    Config,
+    Host,
+};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    ImporterLoad,
+    Lockfile,
+    PkgName,
+    Prefix,
+};
 
 /// The exact runtime version resolved for this project in its selected lockfile.
 /// Branch lockfile selection does not read the shared lockfile when a branch

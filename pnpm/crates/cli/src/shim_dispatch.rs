@@ -41,12 +41,12 @@ pub(crate) use native_shim::{
 pub(crate) use runtime_env::{
     MaterializedRuntime,
     materialize_runtime,
+    select_global_runtime,
 };
 pub(crate) use settings::{
     apply_settings_above_global_config,
     global_shims_setting,
 };
-pub(crate) use runtime_env::select_global_runtime;
 
 mod lockfile;
 

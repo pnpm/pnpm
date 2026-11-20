@@ -1,10 +1,22 @@
 use crate::{
-    ComVer, Lockfile, LockfileVersion, ProjectSnapshot, declares_next_format, extract_main_document,
+    ComVer,
+    Lockfile,
+    LockfileVersion,
+    ProjectSnapshot,
+    declares_next_format,
+    extract_main_document,
 };
 use serde::Deserialize;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
-use super::{LoadLockfileError, read_lockfile_text, yaml_parse_options};
+use super::{
+    LoadLockfileError,
+    read_lockfile_text,
+    yaml_parse_options,
+};
 
 /// Whether a wanted-lockfile candidate contains a main document.
 pub enum ImporterLoad {
