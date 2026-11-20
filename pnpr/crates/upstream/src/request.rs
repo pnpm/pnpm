@@ -218,7 +218,7 @@ impl Upstream {
         Err(RegistryError::UpstreamStatus {
             url: redact_url_for_display(url),
             status: status.as_u16(),
-            body: pnpr_error::redact_url_credentials(&body),
+            body,
         })
     }
 }

@@ -168,7 +168,9 @@ pub(in crate::server) async fn reload_upstream_packument_for_expired_tarball(
     let key = (namespace.to_string(), name.clone(), PackumentFlightKind::ForcedRefresh);
     let document = coalesce_upstream_packument_keyed(state, key, || async {
         let admissions = &state.inner.packuments.admissions;
+        let upstream_admission = admissions.acquire(DocumentSource::Upstream(namespace)).await;
         if !state.inner.proxy.packument_refetches.claim_forced(namespace, name) {
+            drop(upstream_admission);
             if !upstream.caches() {
                 return Ok(None);
             }
@@ -177,10 +179,9 @@ pub(in crate::server) async fn reload_upstream_packument_for_expired_tarball(
                 read_unpurged_upstream_document(state, namespace, name, REFETCH_INTERVAL).await?;
             return Ok(cached.map(|bytes| AdmittedPackument::new(bytes, admission)));
         }
-        let admission = admissions.acquire(DocumentSource::Upstream(namespace)).await;
         let fetched =
             fetch_and_cache_upstream_packument(state, namespace, upstream, name, None).await?;
-        Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, admission)))
+        Ok(fetched.map(|bytes| AdmittedPackument::new(bytes, upstream_admission)))
     })
     .await?;
     Ok(document.map(|document| document.bytes.to_vec()))

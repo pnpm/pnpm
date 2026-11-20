@@ -754,8 +754,6 @@ fn frozen_frames_and_lockfile_routing_isolate_multi_registry_stats_and_routed_en
     assert_eq!(west_frame["unpackedSize"], 2_222);
     assert_eq!(west_frame["requiresBuild"], false);
 
-    // 2. Unprefixed `acme@1.0.0` whose tarball is already routed through `/~east/`
-    // keeps `/~east/` rather than being rewritten onto the default `west` registry.
     let unprefixed_routed =
         lockfile_with_tarball("http://127.0.0.1:7677/npm/~east/acme/-/acme-1.0.0.tgz");
     let routed = router.route_lockfile(&pnpm_config, &unprefixed_routed);
@@ -779,4 +777,26 @@ fn frozen_frames_and_lockfile_routing_isolate_multi_registry_stats_and_routed_en
     );
     assert_eq!(unprefixed_frame["unpackedSize"], 1_111);
     assert_eq!(unprefixed_frame["requiresBuild"], true);
+
+    pnpm_config.registries_by_prefix.insert(
+        "pub".to_string(),
+        "https://pub.east.example/".to_string(),
+    );
+    let router_pub = router.with_registries_by_prefix(pnpm_config.registries_by_prefix.clone());
+    let raw_pub = lockfile_with_tarball("https://pub.east.example/acme/-/acme-1.0.0.tgz");
+    let routed_pub = router_pub.route_lockfile(&pnpm_config, &raw_pub);
+    assert_eq!(
+        lockfile_tarball_url(&routed_pub, "acme@1.0.0"),
+        "https://pub.east.example/acme/-/acme-1.0.0.tgz",
+    );
+    let pub_frames = super::super::wire::frozen_package_frames_until(
+        &pnpm_config,
+        &router_pub,
+        &raw_pub,
+        &stats,
+        &|| false,
+    )
+    .unwrap();
+    let pub_frame: serde_json::Value = serde_json::from_slice(&pub_frames[0]).unwrap();
+    assert_eq!(pub_frame["tarball"], "https://pub.east.example/acme/-/acme-1.0.0.tgz");
 }

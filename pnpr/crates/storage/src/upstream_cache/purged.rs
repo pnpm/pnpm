@@ -50,7 +50,7 @@ pub(crate) struct PurgedUpstreamPackages {
 impl PurgedUpstreamPackages {
     pub(super) async fn is_purged(
         &self,
-        cache_root: &Path,
+        store: &Store,
         namespace: &str,
         name: &CanonicalPackageName,
     ) -> Result<bool> {
@@ -60,7 +60,7 @@ impl PurgedUpstreamPackages {
         if self.dir_state.load(Ordering::Acquire) == DIR_ABSENT {
             return Ok(false);
         }
-        Box::pin(self.lookup_marker(cache_root, namespace, name)).await
+        Box::pin(self.lookup_marker(store, namespace, name)).await
     }
 
     pub(super) async fn mark_purged(
@@ -114,17 +114,17 @@ impl PurgedUpstreamPackages {
 
     async fn lookup_marker(
         &self,
-        cache_root: &Path,
+        store: &Store,
         namespace: &str,
         name: &CanonicalPackageName,
     ) -> Result<bool> {
         let observed_gen = self.current_generation();
         if self.dir_state.load(Ordering::Acquire) == DIR_UNKNOWN
-            && !ensure_dir_present(cache_root, &self.dir_state).await?
+            && !ensure_dir_present(&store.root, &self.dir_state).await?
         {
             return Ok(self.cached_state(namespace, name) == Some(MarkerState::Purged));
         }
-        let disk_state = inspect_package_marker(cache_root, namespace, name).await;
+        let disk_state = self.inspect_package_marker(store, namespace, name).await;
         let effective = self.record_observed_state(namespace, name, observed_gen, disk_state);
         Ok(matches!(effective, MarkerState::Purged))
     }
@@ -182,6 +182,62 @@ impl PurgedUpstreamPackages {
         state.observed.insert(key, disk_state, 1, OBSERVED_MARKER_CACHE_CAPACITY);
         disk_state
     }
+
+    async fn inspect_package_marker(
+        &self,
+        store: &Store,
+        namespace: &str,
+        name: &CanonicalPackageName,
+    ) -> MarkerState {
+        let path = marker_path(&store.root, namespace, name);
+        let bytes = match fs::read(&path).await {
+            Ok(bytes) => bytes,
+            Err(err) if err.kind() == ErrorKind::NotFound => return MarkerState::Clean,
+            Err(_) => return MarkerState::Purged,
+        };
+        let Ok(marker) = serde_json::from_slice::<PurgedMarker>(&bytes) else {
+            return MarkerState::Purged;
+        };
+        if marker.namespace != namespace
+            || marker.ecosystem != name.ecosystem()
+            || marker.package != name.as_str()
+        {
+            return MarkerState::Purged;
+        }
+        let package_dir = store.namespaced(namespace).package_dir(name);
+        match fs::metadata(&package_dir).await {
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                self.cleanup_orphaned_marker(store, namespace, name, &package_dir, &path).await
+            }
+            Ok(_) | Err(_) => MarkerState::Purged,
+        }
+    }
+
+    async fn cleanup_orphaned_marker(
+        &self,
+        store: &Store,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        package_dir: &Path,
+        marker: &Path,
+    ) -> MarkerState {
+        let _write_guard = store.record_write_lock.lock().await;
+        if self.is_active_purged(namespace, name) {
+            return MarkerState::Purged;
+        }
+        match fs::metadata(package_dir).await {
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                let _ = remove_marker_if_present(marker).await;
+                MarkerState::Clean
+            }
+            Ok(_) | Err(_) => MarkerState::Purged,
+        }
+    }
+
+    fn is_active_purged(&self, namespace: &str, name: &CanonicalPackageName) -> bool {
+        let state = self.state.lock().expect("purged upstream lock poisoned");
+        state.active_purged.contains(&(namespace.to_string(), name.clone()))
+    }
 }
 
 async fn ensure_dir_present(cache_root: &Path, dir_state: &AtomicU8) -> Result<bool> {
@@ -205,36 +261,6 @@ async fn ensure_dir_present(cache_root: &Path, dir_state: &AtomicU8) -> Result<b
             Ok(dir_state.load(Ordering::Acquire) == DIR_PRESENT)
         }
         Err(err) => Err(err.into()),
-    }
-}
-
-async fn inspect_package_marker(
-    cache_root: &Path,
-    namespace: &str,
-    name: &CanonicalPackageName,
-) -> MarkerState {
-    let path = marker_path(cache_root, namespace, name);
-    let bytes = match fs::read(&path).await {
-        Ok(bytes) => bytes,
-        Err(err) if err.kind() == ErrorKind::NotFound => return MarkerState::Clean,
-        Err(_) => return MarkerState::Purged,
-    };
-    let Ok(marker) = serde_json::from_slice::<PurgedMarker>(&bytes) else {
-        return MarkerState::Purged;
-    };
-    if marker.namespace != namespace
-        || marker.ecosystem != name.ecosystem()
-        || marker.package != name.as_str()
-    {
-        return MarkerState::Purged;
-    }
-    let package_dir = Store::new(cache_root.to_path_buf()).namespaced(namespace).package_dir(name);
-    match fs::metadata(&package_dir).await {
-        Err(err) if err.kind() == ErrorKind::NotFound => {
-            let _ = remove_marker_if_present(&path).await;
-            MarkerState::Clean
-        }
-        Ok(_) | Err(_) => MarkerState::Purged,
     }
 }
 

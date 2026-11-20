@@ -141,7 +141,7 @@ impl Storage {
         namespace: &str,
         name: &CanonicalPackageName,
     ) -> Result<bool> {
-        self.purged_upstream.is_purged(&self.cached.root, namespace, name).await
+        self.purged_upstream.is_purged(&self.cached, namespace, name).await
     }
 
     pub async fn mark_upstream_package_purged(

@@ -280,10 +280,9 @@ fn prepare_frozen_lockfile(
     should_cancel: &dyn Fn() -> bool,
 ) -> Option<Result<pnpm_lockfile::Lockfile, Response>> {
     let lockfile = resolve::fresh_frozen_input_lockfile(config, request)?;
-    let verified = tarball_router.verification_lockfile(&lockfile);
     Some(
         tarball_router
-            .route_lockfile_until(config, &verified, should_cancel)
+            .route_lockfile_until(config, &lockfile, should_cancel)
             .ok_or_else(request_timeout_response),
     )
 }

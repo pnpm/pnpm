@@ -47,7 +47,6 @@ pub(in crate::server) async fn refresh_cached_packument(
     crate::server::upstream_packuments::invalidate_upstream_package(state, namespace, name);
     evict_stale_upstream_blobs(state, namespace, name, eviction).await?;
     state.inner.storage.write_upstream_document(namespace, name, &packument.bytes).await?;
-    state.inner.storage.clear_upstream_package_purged(namespace, name).await?;
     state.inner.proxy.packument_writes.commit_stored(namespace, name, fetch_seq);
     Ok(RefreshOutcome::Stored(packument))
 }

@@ -35,7 +35,8 @@ pub(super) async fn read_upstream_error_body(response: reqwest::Response) -> Str
     else {
         return String::new();
     };
-    let mut text = String::from_utf8_lossy(&body.bytes).into_owned();
+    let raw = String::from_utf8_lossy(&body.bytes);
+    let mut text = sanitize_upstream_error_body(&raw);
     if body.truncated {
         if !text.is_empty()
             && !text
@@ -48,6 +49,84 @@ pub(super) async fn read_upstream_error_body(response: reqwest::Response) -> Str
         text.push_str("(response body truncated)");
     }
     text
+}
+
+fn sanitize_upstream_error_body(body: &str) -> String {
+    if let Ok(mut parsed) = serde_json::from_str::<serde_json::Value>(body) {
+        sanitize_json_strings(&mut parsed);
+        if let Ok(serialized) = serde_json::to_string(&parsed) {
+            return serialized;
+        }
+    }
+    sanitize_error_text(body)
+}
+
+fn sanitize_json_strings(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::String(text) => {
+            *text = sanitize_error_text(text);
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                sanitize_json_strings(item);
+            }
+        }
+        serde_json::Value::Object(entries) => {
+            for entry in entries.values_mut() {
+                sanitize_json_strings(entry);
+            }
+        }
+        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
+    }
+}
+
+fn sanitize_error_text(text: &str) -> String {
+    if !text.contains('\\') {
+        return pnpr_error::redact_url_credentials(text);
+    }
+    let unescaped = unescape_json_like(text);
+    pnpr_error::redact_url_credentials(&unescaped)
+}
+
+fn unescape_json_like(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        let Some(escaped) = chars.next() else {
+            out.push('\\');
+            break;
+        };
+        match escaped {
+            '/' | '"' | '\\' => out.push(escaped),
+            'u' => decode_ascii_unicode_escape(&mut chars, &mut out),
+            other => {
+                out.push('\\');
+                out.push(other);
+            }
+        }
+    }
+    out
+}
+
+fn decode_ascii_unicode_escape(chars: &mut std::str::Chars<'_>, out: &mut String) {
+    let saved = chars.as_str();
+    let hex = saved.get(..4);
+    if let Some(hex) = hex
+        && let Ok(code) = u32::from_str_radix(hex, 16)
+        && code <= 0x7f
+        && let Some(decoded) = char::from_u32(code)
+    {
+        for _ in 0..4 {
+            let _ = chars.next();
+        }
+        out.push(decoded);
+        return;
+    }
+    out.push_str(r"\u");
 }
 
 /// Whether two URLs share a scheme, host and port, so a credential meant for
