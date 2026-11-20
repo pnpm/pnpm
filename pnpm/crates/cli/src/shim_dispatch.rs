@@ -4,11 +4,12 @@
 //! own name, with the global target recorded beside it (see
 //! [`native_shim`]). Launched under that name, pnpm dispatches instead of
 //! running the CLI: the `globalShims` record decides which providing
-//! packages are eligible, and the managed runtimes are enabled by default.
+//! packages are eligible, and Node.js project pins select an exact global runtime.
 //! For a runtime pin, the dispatcher reads the project's
 //! `devEngines.runtime` / `engines.runtime`, `.node-version`, or `.nvmrc`,
-//! materializes the release in pnpm's global virtual store, and executes
-//! it directly, never through the project's `node_modules/.bin`. A
+//! then runs an exactly matching globally installed runtime. It fails when
+//! that runtime is not installed — never through the project's
+//! `node_modules/.bin`. A
 //! publisher-signature-verified stable Node release runs without prompting.
 //!
 //! Everything else eligible (ordinary package bins, unsigned runtime
@@ -45,6 +46,7 @@ pub(crate) use settings::{
     apply_settings_above_global_config,
     global_shims_setting,
 };
+pub(crate) use runtime_env::select_global_runtime;
 
 mod lockfile;
 
@@ -289,7 +291,7 @@ fn dispatch_target(
         Some(Candidate::RuntimePin { version_spec, .. })
             if runtime_runs_promptless(policy, name, &version_spec) =>
         {
-            run_runtime_from_store(state_dir, name, &version_spec, args)
+            run_project_runtime_pin(state_dir, name, &version_spec, args)
         }
         Some(Candidate::PackageManagerPin { pm, version_spec, .. })
             if package_manager_runs_promptless(policy, pm, &version_spec) =>
@@ -369,7 +371,7 @@ fn run_trusted_candidate(
             exec_program(&bin, args)
         }
         Candidate::RuntimePin { version_spec, .. } => {
-            run_runtime_from_store(state_dir, name, &version_spec, args)
+            run_project_runtime_pin(state_dir, name, &version_spec, args)
         }
         Candidate::PackageManagerPin { pm, version_spec, .. } => {
             run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
@@ -415,13 +417,10 @@ fn bypass_requested() -> bool {
 
 /// A project-provided replacement for the invoked global bin.
 enum Candidate {
-    /// The project has `node_modules/.bin/<name>`, an installed
-    /// dependency (including a materialized runtime) providing the bin.
+    /// The project has a local bin provided by an installed dependency.
     LocalBin { project_dir: PathBuf, bin: PathBuf, identity: String },
     /// The project pins the runtime `<name>` in `devEngines.runtime`,
-    /// `engines.runtime`, `.node-version`, or `.nvmrc`, but has not
-    /// materialized it; the pinned version is fetched into the store on
-    /// demand.
+    /// `engines.runtime`, `.node-version`, or `.nvmrc`.
     RuntimePin { project_dir: PathBuf, version_spec: String, source_hash: String, identity: String },
     /// The project pins its package manager in `packageManager` /
     /// `devEngines.packageManager`. Like a runtime pin, the version is
@@ -539,32 +538,25 @@ fn local_bin_path(dir: &Path, name: &str) -> Option<PathBuf> {
         .find(|path| path.is_file())
 }
 
-fn run_runtime_from_store(
+fn run_project_runtime_pin(
     state_dir: &Path,
     name: &str,
     version_spec: &str,
     args: &[OsString],
 ) -> i32 {
-    let result = crate::block_on_runtime(
-        "pacquet-global-shim-runtime",
-        materialize_runtime(state_dir, name.to_string(), version_spec.to_string()),
-    );
+    let result = select_global_runtime(state_dir, name, version_spec);
     match result {
-        Ok(MaterializedRuntime {
-            bin,
-            private_install: Some(private_install),
-        }) => run_held_program(&bin, &[], args, vec![private_install]),
-        Ok(MaterializedRuntime { bin, private_install: None }) => exec_program(&bin, args),
+        Ok(bin) => exec_program(&bin, args),
         Err(error) => {
             pnpm_diagnostics::eprintln!(
-                "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}",
+                "pnpm: failed to select {name}@runtime:{version_spec}: {error:?}",
             );
             pnpm_diagnostics::eprintln!(
-                "pnpm: global runtime downloads use global configuration and environment settings. pnpm-workspace.yaml is ignored unless PNPM_CONFIG_WORKSPACE_DIR or NPM_CONFIG_WORKSPACE_DIR selects a workspace.",
+                "pnpm: project-aware runtime shims require the exact runtime version to be installed globally.",
             );
             if name == "node" {
                 pnpm_diagnostics::eprintln!(
-                    "pnpm: for Node.js mirrors, check tools.node, nodeDownloadMirrors, PNPM_CONFIG_TOOLS, and PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS.",
+                    "pnpm: install the required Node.js version globally with pnpm runtime set node --global.",
                 );
             }
             1

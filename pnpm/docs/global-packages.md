@@ -177,7 +177,7 @@ No shell hooks, `.bashrc` edits, or `use`-style commands are involved. The shims
 
 pnpm walks up from the current working directory to the nearest project that provides the command, then:
 
-* For the **runtimes** (`node`, `deno`, `bun`), only a runtime pin counts: [`devEngines.runtime`](./package_json.md#devenginesruntime), then `engines.runtime`. For `node`, since v12.7.0, a `.node-version` or `.nvmrc` file also counts (see [below](#nvmrc-and-node-version)). When a lockfile resolves the pin, pnpm uses that exact version. If that version is already installed globally with `pnpm runtime set node -g`, the shim runs the global copy; otherwise, it downloads the resolved version into the [global virtual store](./global-virtual-store.md) on demand. The project's `node_modules/.bin` is never consulted for a runtime, so a dependency cannot supply the `node` you run.
+* For the **Node.js runtime**, `devEngines.runtime` and `engines.runtime` pins count. For Node.js, a `.node-version` or `.nvmrc` file also counts. When a lockfile resolves the pin, project-aware shims require that exact Node.js version to be installed globally with `pnpm runtime set node --global`. If it is missing, the shim reports an error. The project's `node_modules/.bin` is never consulted.
 * For the **[package managers](./package-managers.md)** (`npm`, `yarn`, `bun`), added in v12.0.0-rc.6, the project's `packageManager` or [`devEngines.packageManager`](./package_json.md#devenginespackagemanager) pin counts, and pnpm provisions that version on demand. The pin outranks a copy of that package manager installed globally, because it is the project's own statement of what installs it.
 * For **any other package**, the project's `node_modules/.bin/<name>` is used.
 
@@ -185,24 +185,9 @@ Directories inside the pnpm home are skipped, since global installs are not proj
 
 If the project provides nothing, or the lookup is declined, the globally installed version runs. Commands never fail merely because dispatch did not apply.
 
-### Runtime download mirrors
+### Runtime requirements
 
-Project-aware global runtime commands use the global Node.js installation when its exact version matches the project lockfile. If there is no match, they download the lockfile's version using the [global configuration file](./cli/config.md) and environment settings. They do not automatically load the project's `pnpm-workspace.yaml`. A project's mirror settings still apply to runtime dependencies installed by `pnpm install`. Removing or changing the global runtime can therefore cause pnpm to download the lockfile's version the next time the shim runs.
-
-An explicit `PNPM_CONFIG_WORKSPACE_DIR` or `NPM_CONFIG_WORKSPACE_DIR` environment setting selects a workspace whose `pnpm-workspace.yaml` can supply settings, including `nodeDownloadMirrors`. Lowercase spellings of these variables also work.
-
-For example, to use a Node.js mirror for the global `node` command, put this in the global configuration file:
-
-```yaml title="config.yaml"
-nodeDownloadMirrors:
-  release: https://npmmirror.com/mirrors/node/
-```
-
-Alternatively, configure [`tools.node.channels.release`](./settings/cli.md#tools).
-
-If `pnpm install` prints `pnpm: failed to prepare node@runtime:...`, check whether `node --version` fails the same way inside the project. A command launched through `node` can fail while preparing Node.js before the install starts. Check the mirror settings in the global configuration and any explicitly selected workspace, plus the `PNPM_CONFIG_TOOLS` and `PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS` environment variables. See [mirror-setting precedence](./settings/cli.md#nodedownloadmirrors).
-
-Runtime preparation failures explain which configuration applies, including workspace-directory environment overrides. For Node.js, the diagnostic also lists the global mirror settings and environment variables to check.
+Project-aware global Node.js commands require a globally installed version that matches the project's runtime pin. If no exact match is installed, the shim reports an error. Install the required version with `pnpm runtime set node --global`. These shims do not automatically load the project's `pnpm-workspace.yaml`. With `gitBranchLockfile` enabled, they use only the current branch lockfile. If it is missing, empty, or has no project entry, pnpm uses the manifest pin.
 
 ### `.nvmrc` and `.node-version`
 

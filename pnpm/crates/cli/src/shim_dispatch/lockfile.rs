@@ -3,9 +3,9 @@ use std::path::Path;
 use pnpm_config::{Config, Host};
 use pnpm_lockfile::{ImporterDepVersion, ImporterLoad, Lockfile, PkgName, Prefix};
 
-/// The exact runtime version resolved for this project in the wanted lockfile.
-/// Missing, unreadable, or unsupported lockfiles leave the manifest selector
-/// in force.
+/// The exact runtime version resolved for this project in its selected lockfile.
+/// Branch lockfile selection does not read the shared lockfile when a branch
+/// lockfile is missing or has no importer.
 pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<String> {
     let package_name = PkgName::parse(name).ok()?;
     let config = Config::default().current::<Host>(project_dir).ok()?;
@@ -19,7 +19,8 @@ pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<S
             .and_then(|importer| importer_runtime_version(importer, &package_name))
             .flatten();
     }
-    for file_name in selection.read_order() {
+    let file_count = selection.branch_lockfile_candidates.len().max(1);
+    for file_name in selection.read_order().take(file_count) {
         let lockfile_path = lockfile_dir.join(file_name);
         let importer_id = importer_id(project_dir, lockfile_dir)?;
         match load_importer_snapshot(&lockfile_path, &importer_id) {

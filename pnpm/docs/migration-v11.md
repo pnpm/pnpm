@@ -51,7 +51,7 @@ To fetch a private hosted repository over SSH, configure Git on the machine. See
 
 ### Global Node.js follows the project
 
-A Node.js installed globally with pnpm runs the version the current project pins in `devEngines.runtime`, `engines.runtime`, `.node-version`, or `.nvmrc`. pnpm downloads that version on first use. A version without a publisher signature, such as a Node.js prerelease, asks once whether you trust the project. See [Project-aware global bins](./global-packages.md#project-aware-global-bins). To turn this off, set [`globalShims: false`](./settings/other.md#globalshims) in the global configuration, or set `PNPM_SHIM_BYPASS=1` for one command.
+A Node.js installed globally with pnpm runs the version the current project pins in `devEngines.runtime`, `engines.runtime`, `.node-version`, or `.nvmrc`. The exact version must be installed globally; otherwise, the shim reports an error. See [Project-aware global bins](./global-packages.md#project-aware-global-bins). To turn this off, set [`globalShims: false`](./settings/other.md#globalshims) in the global configuration, or set `PNPM_SHIM_BYPASS=1` for one command.
 
 ### Global commands under `sudo`
 

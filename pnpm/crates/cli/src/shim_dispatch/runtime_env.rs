@@ -1,5 +1,6 @@
 //! Materialization of pinned runtimes into the trusted global virtual
 //! store, under configuration a project cannot influence.
+//! Project-aware global shims use an exact-match lookup and fail when it is absent.
 //!
 //! A runtime's slot is entered only under its [`crate::slot_lock`]. When
 //! another process holds that lock, the runtime is installed into a
@@ -260,6 +261,30 @@ pub(super) fn managed_runtime_bin(
         return None;
     }
     runtime_bin_in_package(&package_dir, name)
+}
+
+/// Select an exact global runtime for a project-aware shim. This path never
+/// provisions a missing version.
+pub(crate) fn select_global_runtime(
+    state_dir: &Path,
+    name: &str,
+    version_spec: &str,
+) -> miette::Result<PathBuf> {
+    if state_dir.as_os_str().is_empty() {
+        return Err(miette::miette!("the pnpm state directory could not be resolved"));
+    }
+    let environments_dir = state_dir.join(RUNTIME_ENVS_DIR_NAME);
+    let config = trusted_runtime_config(&environments_dir)?;
+    let global_config = if config.global_packages_config.is_some() {
+        trusted_global_runtime_config(&environments_dir)?
+    } else {
+        config
+    };
+    installed_global_runtime_bin(&global_config, name, version_spec).ok_or_else(|| {
+        miette::miette!(
+            "no globally installed {name}@runtime:{version_spec} matches the project's runtime pin"
+        )
+    })
 }
 
 /// Reuse a globally installed runtime only when its installed package version
