@@ -21,9 +21,7 @@ pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<S
     }
     for file_name in selection.read_order() {
         let lockfile_path = lockfile_dir.join(file_name);
-        let Some(importer_id) = importer_id(project_dir, lockfile_dir) else {
-            return None;
-        };
+        let importer_id = importer_id(project_dir, lockfile_dir)?;
         match load_importer_snapshot(&lockfile_path, &importer_id) {
             Ok(ImporterLoad::MissingLockfile) => continue,
             Ok(ImporterLoad::Importer(Some(importer))) => {
