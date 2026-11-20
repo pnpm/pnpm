@@ -2,20 +2,15 @@
 //! dependency edges among the `--filter`-selected projects, their topological
 //! order, and the workspace dependencies a selection reaches.
 
-use super::{RecursiveSelection, filter_graphs, recursive_filter_options};
-use crate::cli_args::{
-    catalogs::{configured_catalogs, workspace_catalogs},
-    verify_deps::with_dependencies,
+use super::{
+    RecursiveSelection, filter_graphs, linked_dependencies::LinkedEdgesConfig,
+    recursive_filter_options,
 };
+use crate::cli_args::verify_deps::with_dependencies;
 use indexmap::IndexMap;
-use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
-};
 use pnpm_config::Config;
-use pnpm_fs::lexical_normalize;
 use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_workspace_projects_graph::{ProjectGraph, WorkspaceCatalogs};
+use pnpm_workspace_projects_graph::ProjectGraph;
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -160,21 +155,22 @@ pub fn projects_to_verify<'dirs>(
     // depends on it, which that project's own install covers; explicit `link:`
     // dependencies remain symlinks and still need their target project installed.
     let only_linked = !config.shares_one_lockfile() && config.inject_workspace_packages;
-    let catalogs = if only_linked { Some(configured_catalogs(config)?) } else { None };
-    let ws_catalogs = catalogs.as_ref().and_then(|catalogs| workspace_catalogs(config, catalogs));
+    let linked_edges_config =
+        only_linked.then(|| LinkedEdgesConfig::load(config, prefix)).transpose()?;
+    let linked_edges = linked_edges_config
+        .as_ref()
+        .map(|linked_edges_config| linked_edges_config.edges(config));
     let mut projects = projects_with_workspace_dependencies_filtered(
         project_dirs.iter().copied(),
         selection.full_graph(),
         selection.prod_all.as_ref(),
         &selection.prod_only_selected,
-        |parent_dir, pkg, deps| {
-            retained_dependency_dirs(
-                parent_dir,
-                &pkg.project.manifest,
-                deps,
-                only_linked,
-                ws_catalogs,
-            )
+        |parent_dir, pkg, deps| match &linked_edges {
+            Some(linked_edges) => linked_edges.retain(parent_dir, *pkg, deps),
+            None => deps
+                .iter()
+                .map(PathBuf::as_path)
+                .collect(),
         },
     );
     if config.shares_one_lockfile() && has_negated_selector(config) {
@@ -183,69 +179,6 @@ pub fn projects_to_verify<'dirs>(
         projects.retain(|project_dir| kept.contains(project_dir));
     }
     Ok(projects)
-}
-
-fn retained_dependency_dirs<'graph>(
-    parent_dir: &Path,
-    manifest: &PackageManifest,
-    deps: &'graph [PathBuf],
-    only_linked: bool,
-    catalogs: Option<WorkspaceCatalogs<'_>>,
-) -> Vec<&'graph Path> {
-    if !only_linked || deps.is_empty() {
-        return deps
-            .iter()
-            .map(PathBuf::as_path)
-            .collect();
-    }
-    let linked = linked_dependency_dirs(parent_dir, manifest, catalogs);
-    deps.iter()
-        .map(PathBuf::as_path)
-        .filter(|dep_dir| linked.contains(&lexical_normalize(dep_dir)))
-        .collect()
-}
-
-fn linked_dependency_dirs(
-    parent_dir: &Path,
-    manifest: &PackageManifest,
-    catalogs: Option<WorkspaceCatalogs<'_>>,
-) -> rustc_hash::FxHashSet<PathBuf> {
-    manifest
-        .dependencies([
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-            DependencyGroup::Peer,
-        ])
-        .filter_map(|(dep_name, raw_spec)| {
-            let resolved = resolve_catalog_spec(parent_dir, dep_name, raw_spec, catalogs);
-            let spec = resolved.as_deref().unwrap_or(raw_spec);
-            let rel = spec.strip_prefix("link:")?;
-            Some(lexical_normalize(&parent_dir.join(rel.replace('\\', "/"))))
-        })
-        .collect()
-}
-
-fn resolve_catalog_spec(
-    consumer_dir: &Path,
-    dep_name: &str,
-    raw_spec: &str,
-    catalogs: Option<WorkspaceCatalogs<'_>>,
-) -> Option<String> {
-    let catalogs = catalogs?;
-    if !raw_spec.starts_with("catalog:") {
-        return None;
-    }
-    let wanted =
-        WantedDependency { alias: dep_name.to_string(), bare_specifier: raw_spec.to_string() };
-    let anchor = CatalogAnchor::Reanchor {
-        workspace_dir: catalogs.workspace_dir,
-        consumer_dir: Some(consumer_dir),
-    };
-    match resolve_from_catalog(catalogs.catalogs, &wanted, anchor) {
-        CatalogResolutionResult::Found(found) => Some(found.resolution.specifier),
-        CatalogResolutionResult::Misconfiguration(_) | CatalogResolutionResult::Unused => None,
-    }
 }
 
 fn has_negated_selector(config: &Config) -> bool {
