@@ -242,8 +242,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         built_lockfile: Lockfile,
         allow_build_policy: AllowBuildPolicy,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
-        let known_requires_build = collect_known_requires_build(&self.resolved.graph.merged_graph);
-        let known_bins = collect_known_bins(&self.resolved.graph.merged_graph);
+        let known = ResolvedPackageFacts::collect(&self.resolved.graph);
         let initial =
             MaterializationScope::initial(self.install, self.shape.is_hoisted, &built_lockfile);
         let mut plan = plan_fresh_materialization::<Reporter>(
@@ -258,7 +257,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                 groups: &initial.groups,
                 include_transitive_optional_dependencies: self.shape
                     .include_transitive_optional_dependencies,
-                known_requires_build: known_requires_build.as_ref(),
+                known_requires_build: known.requires_build.as_ref(),
             },
         )
         .await?;
@@ -271,15 +270,9 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             self.install.drivers.logged_methods,
         )
         .await;
-        let on_disk = self.run_on_disk(
-            &built_lockfile,
-            &scope,
-            &mut plan,
-            &allow_build_policy,
-            known_requires_build.as_ref(),
-            known_bins.as_ref(),
-        )
-        .await?;
+        let on_disk =
+            self.run_on_disk(&built_lockfile, &scope, &mut plan, &allow_build_policy, &known)
+                .await?;
         self.persist_result(built_lockfile, on_disk).await
     }
 
@@ -318,22 +311,21 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         scope: &FinalScope,
         plan: &mut FreshPlan<'_>,
         allow_build_policy: &AllowBuildPolicy,
-        known_requires_build: Option<&pnpm_deps_restorer::RequiresBuildBySnapshot>,
-        known_bins: Option<&pnpm_deps_restorer::PackageBins>,
+        known: &ResolvedPackageFacts,
     ) -> Result<OnDiskOutput, InstallWithFreshLockfileError> {
-        let store = on_disk_store(
-            self.stores.take_writer(),
-            &self.resources.tarball_mem_cache,
-            self.resources.resolution_observer.as_deref(),
-            &self.stores,
-            plan.dir_clone_cache.as_ref(),
-            self.custom_fetcher_session.as_ref(),
-        );
         let swap_lock =
             pnpm_deps_restorer::ModulesSwapLock::new(&self.install.drivers.config.modules_dir);
-        let latest_versions = collect_latest_versions(&self.resolved.graph);
         run_on_disk_phases::<Reporter>(
             OnDiskInputs {
+                // Ahead of `ctx`, which borrows the stores `take_writer` mutates.
+                store: on_disk_store(
+                    self.stores.take_writer(),
+                    &self.resources.tarball_mem_cache,
+                    self.resources.resolution_observer.as_deref(),
+                    &self.stores,
+                    plan.dir_clone_cache.as_ref(),
+                    self.custom_fetcher_session.as_ref(),
+                ),
                 install: self.install,
                 ctx: &fresh_install_context(
                     self.install,
@@ -348,14 +340,13 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     .deps_requiring_build_sink
                     .take(),
                 patched_dependencies: self.resolved.patches.record.as_deref(),
-                store,
                 runtime: crate::install_with_fresh_lockfile::on_disk::OnDiskRuntime {
                     host_node: plan.host_node.as_ref(),
                     engine_name: plan.engine_name.take(),
                     deferred_engine_name: plan.deferred_engine_name.take(),
-                    known_requires_build,
-                    known_bins,
-                    latest_versions: latest_versions.as_ref(),
+                    known_requires_build: known.requires_build.as_ref(),
+                    known_bins: known.bins.as_ref(),
+                    latest_versions: known.latest_versions.as_ref(),
                 },
                 projects: scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests),
             },
@@ -363,6 +354,24 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             &mut self.resources.lockfile.verification_gate,
         )
         .await
+    }
+}
+
+/// What the resolve phase already learned about the resolved packages,
+/// handed to the on-disk phases so they need not read it again.
+struct ResolvedPackageFacts {
+    requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    bins: Option<pnpm_deps_restorer::PackageBins>,
+    latest_versions: Option<pnpm_deps_restorer::LatestVersions>,
+}
+
+impl ResolvedPackageFacts {
+    fn collect(graph: &super::resolution::ResolvedGraph) -> Self {
+        ResolvedPackageFacts {
+            requires_build: collect_known_requires_build(&graph.merged_graph),
+            bins: collect_known_bins(&graph.merged_graph),
+            latest_versions: collect_latest_versions(graph),
+        }
     }
 }
 

@@ -116,6 +116,18 @@ pub struct LinkPhaseInputs<'a> {
 }
 
 impl LinkPhaseInputs<'_> {
+    fn importer_graph<'b>(
+        &'b self,
+        skipped: &'b SkippedSnapshots,
+    ) -> crate::ImporterDependencyGraph<'b> {
+        crate::ImporterDependencyGraph {
+            importers: &self.graph.lockfile.importers,
+            packages: self.graph.lockfile.packages.as_ref(),
+            skipped,
+            latest_versions: self.packages.latest_versions,
+        }
+    }
+
     fn scheduled_builds(&self) -> Option<crate::build_modules::ScheduledBuilds<'_>> {
         crate::build_modules::ScheduledBuilds::new(crate::build_modules::ScheduledBuildsInputs {
             materialized_snapshots: self.graph.materialized_snapshots,
@@ -259,12 +271,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
             workspace_root: inputs.ctx.workspace_root,
             link_options: inputs.ctx.linker.bin_options,
         },
-        graph: crate::ImporterDependencyGraph {
-            importers: &inputs.graph.lockfile.importers,
-            packages: inputs.graph.lockfile.packages.as_ref(),
-            skipped,
-            latest_versions: inputs.packages.latest_versions,
-        },
+        graph: inputs.importer_graph(skipped),
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: hoist.public_targets.as_ref(),
             trusted_importer_ids: Some(inputs.projects.trusted_importer_ids),

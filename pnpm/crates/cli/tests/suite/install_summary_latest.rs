@@ -52,7 +52,7 @@ fn install_names_a_newer_latest_of_a_direct_dependency() {
 
     assert_eq!(
         added_line(pacquet, &["install"]),
-        format!("+ {FOO} 100.0.0 (100.1.0 is available)")
+        format!("+ {FOO} 100.0.0 (100.1.0 is available)"),
     );
 
     drop((root, mock_instance));
