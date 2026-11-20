@@ -7,6 +7,7 @@
 
 use super::{
     CheckResult,
+    DoctorArgs,
     install_probe::last_message,
 };
 use crate::process::{
@@ -204,8 +205,9 @@ fn shell_behind(sh: &Path) -> Option<PathBuf> {
 pub(super) fn check_lifecycle_scripts(
     config: &Config,
     project_dir: &Path,
-    benchmark: bool,
+    args: &DoctorArgs,
 ) -> CheckResult {
+    let benchmark = args.benchmark;
     let title = "Lifecycle scripts";
     let started = Instant::now();
     if which::which("node").is_err() {
@@ -228,6 +230,7 @@ pub(super) fn check_lifecycle_scripts(
                 base: base.path(),
                 shim: consumer.join("node_modules/.bin").join(PROBE_BIN),
                 shell_settings: shell_settings(config),
+                offline: args.offline,
             };
             run_script_probes(&probe, &consumer, project_dir)
         });
@@ -246,8 +249,17 @@ fn shell_settings(config: &Config) -> Vec<String> {
     let script_shell = config.script_shell.as_deref().map(Path::new);
     let emulator = use_shell_emulator(config.shell_emulator, script_shell);
     let mut settings = vec![format!("--config.shell-emulator={emulator}")];
-    if !emulator && let Ok(shell) = select_shell(script_shell, cfg!(windows)) {
-        settings.push(format!("--config.script-shell={}", shell.program.display()));
+    if emulator {
+        return settings;
+    }
+    // A configured shell goes as written, so one that scripts reject fails
+    // the probe the same way.
+    let shell = match script_shell.filter(|shell| !shell.as_os_str().is_empty()) {
+        Some(shell) => Some(shell.to_path_buf()),
+        None => select_shell(None, cfg!(windows)).ok().map(|shell| shell.program),
+    };
+    if let Some(shell) = shell {
+        settings.push(format!("--config.script-shell={}", shell.display()));
     }
     settings
 }
@@ -297,12 +309,14 @@ fn write_probe_fixture(base: &Path) -> std::io::Result<PathBuf> {
 }
 
 /// The pnpm under test, the temporary directory the probes write to, the
-/// shim of the probe executable, and the script shell flags of the install.
+/// shim of the probe executable, the script shell flags of the install, and
+/// whether `pnpm doctor` runs with `--offline`.
 struct Probe<'a> {
     pnpm: &'a Path,
     base: &'a Path,
     shim: PathBuf,
     shell_settings: Vec<String>,
+    offline: bool,
 }
 
 impl Probe<'_> {
@@ -337,7 +351,8 @@ impl Probe<'_> {
         read_probe_result(output, &result, &format!("a script in {}", project_dir.display()))
     }
 
-    /// `pnpm exec` in `dir`, kept from installing the project. The variable
+    /// `pnpm exec` in `dir`, offline when `pnpm doctor` is, and kept from
+    /// installing the project. The variable
     /// outranks every other source of `verifyDepsBeforeRun`, and the
     /// uppercase spelling is removed so it cannot take precedence.
     fn exec_in(&self, dir: &Path) -> Command {
@@ -345,8 +360,11 @@ impl Probe<'_> {
         command
             .current_dir(dir)
             .env_remove("PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN")
-            .env(VERIFY_DEPS_BEFORE_RUN_ENV, "false")
-            .arg("exec");
+            .env(VERIFY_DEPS_BEFORE_RUN_ENV, "false");
+        if self.offline {
+            command.arg("--config.offline=true");
+        }
+        command.arg("exec");
         command
     }
 

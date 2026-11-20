@@ -185,6 +185,11 @@ fn the_probe_install_gets_the_effective_script_shell() {
         shell_settings(&configured),
         ["--config.shell-emulator=false", "--config.script-shell=/opt/shell"],
     );
+    let batch_file = Config { script_shell: Some("C:\\shell.bat".to_owned()), ..Config::default() };
+    assert_eq!(
+        shell_settings(&batch_file),
+        ["--config.shell-emulator=false", "--config.script-shell=C:\\shell.bat"],
+    );
     let emulated = Config { shell_emulator: true, ..Config::default() };
     assert_eq!(shell_settings(&emulated), ["--config.shell-emulator=true"]);
 }
