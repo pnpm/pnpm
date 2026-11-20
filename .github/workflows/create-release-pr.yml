@@ -46,13 +46,6 @@ jobs:
   create-release-pr:
     if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    env:
-      # The husky hooks are a developer safety net; CI has its own gates. Without
-      # this, `pnpm install` wires the hooks and the pre-push hook runs the full
-      # TS compile/lint plus the Rust clippy/doc sweep during "Commit and push"
-      # (the shallow clone and URL remote make its change detection always
-      # conclude that Rust sources changed).
-      HUSKY: 0
     steps:
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
