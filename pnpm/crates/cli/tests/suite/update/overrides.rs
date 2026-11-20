@@ -521,3 +521,27 @@ fn update_latest_warns_when_a_dependency_type_override_governs_the_dependency() 
 
     drop((root, anchor));
 }
+
+/// A dependency-type override that already admits the latest version is not
+/// in the way, so the update has nothing to report.
+#[test]
+fn update_latest_is_quiet_when_a_dependency_type_override_admits_the_latest() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    let typed_key = format!("{DEP}:prod");
+    set_overrides(&workspace, &[(typed_key.as_str(), "^101.0.0")]);
+    pacquet(&workspace, ["install"]).assert().success();
+    let before_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", DEP]).output().expect("run update --latest");
+    assert!(output.status.success(), "update failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("is controlled by an override"), "no warning: {stdout}");
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml"),
+        before_yaml,
+    );
+
+    drop((root, anchor));
+}
