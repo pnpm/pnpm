@@ -65,9 +65,8 @@ impl PublishArgs {
         }
     }
 
-    /// `--access`, else the `access` setting. Sent verbatim: an unrecognized
-    /// value goes to the registry to reject, matching pnpm, rather than
-    /// falling back to a possibly more permissive `publishConfig.access`.
+    /// `--access`, else the `access` setting. See [`pnpm_publish::resolve_access`]
+    /// for why the value is not validated here.
     fn access(&self, config: &Config) -> Option<String> {
         self.flags.registry.access.clone().or_else(|| config.access.clone())
     }

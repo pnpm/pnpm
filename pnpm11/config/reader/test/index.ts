@@ -1295,6 +1295,21 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(warnings).toContainEqual(expect.stringContaining('PNPM_CONFIG_OTP'))
   })
 
+  test('a manifest one-time password with an unset placeholder does not fail the config load', async () => {
+    prepareEmpty()
+
+    delete process.env.PNPM_TEST_UNSET_OTP
+    writeYamlFileSync('pnpm-workspace.yaml', { otp: '${PNPM_TEST_UNSET_OTP}' })
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect((config as { otp?: string }).otp).toBeUndefined()
+    expect(warnings).toContainEqual(expect.stringContaining('PNPM_CONFIG_OTP'))
+  })
+
   // The manifest pass merges the CLI options in again, so the refusal has to
   // land on the manifest's value only.
   test('refusing the manifest\'s one-time password keeps the one --otp passed', async () => {

@@ -39,7 +39,7 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
   workspaceDir,
 }: WorkspaceManifestSettingsOptions): OptionsFromRootManifest {
   const skipped: ReadonlySet<string> | undefined = skipSettings
-  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource, warnings })
+  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, omitNeverAFileSettings(workspaceManifest), { manifest: projectManifest, expandRequestDestinationEnv, trustedSource, warnings })
   resolveLockfileDir(pnpmConfig, settingsFromManifest as { lockfileDir?: unknown }, {
     configFromCliOpts,
     skipped,
@@ -48,7 +48,9 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
   const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
   const newSettings = { ...settingsFromManifest, ...configFromCliOpts }
   for (const [key, value] of Object.entries(newSettings)) {
-    if (!isAppliedSettingKey(key, { configFromCliOpts, skipped })) continue
+    if (!isCamelCase(key)) continue
+    if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
+    if (skipped?.has(key)) continue
     applyWorkspaceSetting(pnpmConfig, { key, value, sideEffectsCacheFromManifest })
     pnpmConfig.explicitlySetKeys.add(key)
   }
@@ -65,18 +67,14 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
 }
 
 /**
- * Whether a key of the merged manifest and command-line settings is applied to
- * the config. A per-invocation setting such as `otp` is applied only when the
- * command line supplied it, never from the manifest.
+ * The manifest without the settings no file may carry. They are dropped
+ * before the manifest's `${VAR}` placeholders are expanded, so an unset
+ * variable in one cannot fail the config load.
  */
-function isAppliedSettingKey (
-  key: string,
-  { configFromCliOpts, skipped }: { configFromCliOpts: Record<string, unknown>, skipped: ReadonlySet<string> | undefined }
-): boolean {
-  if (!isCamelCase(key)) return false
-  if (CONFIG_CONTEXT_KEY_SET.has(key)) return false
-  if (isNeverAFileSetting(kebabCase(key)) && !Object.hasOwn(configFromCliOpts, key)) return false
-  return !skipped?.has(key)
+function omitNeverAFileSettings (workspaceManifest: WorkspaceManifest): WorkspaceManifest {
+  return Object.fromEntries(
+    Object.entries(workspaceManifest).filter(([key]) => !isNeverAFileSetting(kebabCase(key)))
+  ) as WorkspaceManifest
 }
 
 interface WorkspaceSetting {

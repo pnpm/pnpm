@@ -48,3 +48,15 @@ pub fn npmrc_access_never_reaches_the_config() {
     set_fake_env(&[]);
     assert_eq!(load_with_fake_env(project.path()).access, None);
 }
+
+/// `otp` is never read from a file, so an unset placeholder in one cannot fail
+/// the load the way an unset placeholder in a real setting does.
+#[test]
+pub fn a_workspace_otp_with_an_unset_placeholder_does_not_fail_the_load() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join("pnpm-workspace.yaml"), "otp: ${PNPM_TEST_UNSET_OTP}\n")
+        .expect("write pnpm-workspace.yaml");
+    set_fake_env(&[]);
+    load_with_fake_env(project.path());
+}

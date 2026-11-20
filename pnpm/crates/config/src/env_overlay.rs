@@ -127,10 +127,17 @@ impl TrustedSettings {
     /// `pnpm-workspace.yaml` so env vars win over yaml.
     #[must_use]
     pub fn from_pnpm_config_env<Sys: EnvVar>() -> Self {
-        Self::from_reader(&StringReader {
+        let mut trusted = Self::from_reader(&StringReader {
             read: &|suffix| read_env::<Sys>(suffix),
             read_allow_empty: &|suffix| read_env_allow_empty::<Sys>(suffix),
-        })
+        });
+        // pnpm's env pass parses `access` against its npm type union and drops
+        // a value outside it, so an invalid `PNPM_CONFIG_ACCESS` cannot clobber
+        // a valid lower layer. Every other layer, `--config.access` included,
+        // is assigned unchecked.
+        trusted.settings.access = trusted.settings.access
+            .filter(|access| matches!(access.as_str(), "public" | "restricted"));
+        trusted
     }
 
     /// Build the overlay from a flat map of string settings, keyed by the
@@ -370,15 +377,7 @@ impl WorkspaceSettings {
         string_field!(settings, reader, publish_branch, "PUBLISH_BRANCH");
         json_field!(settings, reader, publish_wait_timeout, "PUBLISH_WAIT_TIMEOUT");
         json_field!(settings, reader, provenance, "PROVENANCE");
-        // pnpm's env pass parses `access` against its npm type union and
-        // drops a value outside it, so an invalid `PNPM_CONFIG_ACCESS` cannot
-        // clobber a valid lower layer. The yaml layers are assigned unchecked.
-        if let Some(access) = reader
-            .value("ACCESS")
-            .filter(|access| matches!(access.as_str(), "public" | "restricted"))
-        {
-            settings.access = Some(access);
-        }
+        string_field!(settings, reader, access, "ACCESS");
         string_field_allow_empty!(settings, reader, tag_version_prefix, "TAG_VERSION_PREFIX");
         json_field!(settings, reader, engine_strict, "ENGINE_STRICT");
         json_field!(settings, reader, force_ignores_platform, "FORCE_IGNORES_PLATFORM");

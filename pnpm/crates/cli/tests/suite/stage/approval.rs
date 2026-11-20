@@ -4,6 +4,7 @@ use super::{
     Mutex,
     SECOND_STAGE_ID,
     STAGE_ID,
+    apply_test_registry,
     assert_failure_with_code,
     assert_success,
     json,
@@ -73,7 +74,9 @@ fn approve_sends_an_otp_from_the_environment() {
         .expect(1)
         .create();
 
-    let approve = pacquet(dir.path())
+    let mut command = pacquet(dir.path());
+    apply_test_registry(&mut command, dir.path());
+    let approve = command
         .with_args(["stage", "approve", STAGE_ID])
         .with_env("PNPM_CONFIG_OTP", "654321")
         .output()
