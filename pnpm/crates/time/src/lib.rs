@@ -77,7 +77,7 @@ pub fn parse_packument_timestamp(input: &str) -> Option<Timestamp> {
                 .map(|date| date.at(0, 0, 0, 0))
         })?;
     civil
-        .to_zoned(jiff::tz::TimeZone::UTC)
+        .to_zoned_datetime(jiff::tz::TimeZone::UTC)
         .ok()
         .map(|date| date.timestamp())
 }

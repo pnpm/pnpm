@@ -360,15 +360,17 @@ fn to_http_date(value: &str) -> Option<String> {
         datetime
     } else if let Ok(date) = jiff::civil::Date::strptime("%Y-%m-%d", value) {
         date.at(0, 0, 0, 0)
-            .to_zoned(jiff::tz::TimeZone::UTC)
+            .to_zoned_datetime(jiff::tz::TimeZone::UTC)
             .ok()?
             .timestamp()
     } else {
         return httpdate::parse_http_date(value).ok().map(httpdate::fmt_http_date);
     };
     // `fmt_http_date` panics outside that range.
-    let in_range = time >= jiff::Timestamp::UNIX_EPOCH;
-    in_range.then(|| httpdate::fmt_http_date(time.into()))
+    if time < jiff::Timestamp::UNIX_EPOCH {
+        return None;
+    }
+    std::time::SystemTime::try_from(time).ok().map(httpdate::fmt_http_date)
 }
 
 /// Fetch the registry metadata document for `pkg_name`. The

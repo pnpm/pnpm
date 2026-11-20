@@ -706,9 +706,9 @@ dependencies = [
 
 [[package]]
 name = "bstr"
-version = "1.13.1"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bb31b46c14244e20ee9984b11bf5c992b91fb6939fea616e3512c8baecdbe5f"
+checksum = "a680398c10c7bc0488067c4612226ea905a85f607134b69f3068d505d58c4214"
 dependencies = [
  "memchr",
  "regex-automata",
@@ -797,7 +797,7 @@ version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f6852a6fffb5443e5c26155532745f3db7eec431e31581da2f844c0a437c8ff"
 dependencies = [
- "jiff",
+ "jiff 0.2.46",
  "semver",
  "serde",
  "serde-untagged",
@@ -3212,9 +3212,25 @@ version = "0.2.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "175dc66334db3b9ab9985bf8b61cfed50dc16d20964bb47f9e479adcae984a7f"
 dependencies = [
- "jiff-core",
- "jiff-static",
- "jiff-tzdb-platform",
+ "jiff-core 0.1.8",
+ "jiff-static 0.2.46",
+ "jiff-tzdb-platform 0.1.3",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+ "windows-link",
+]
+
+[[package]]
+name = "jiff"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed5d126d72eb017f10b302e73bdeca446bea405ee449af4d9e7866d6b082d83e"
+dependencies = [
+ "jiff-core 1.0.1",
+ "jiff-static 1.0.1",
+ "jiff-tzdb-platform 1.0.0",
  "log",
  "portable-atomic",
  "portable-atomic-util",
@@ -3232,15 +3248,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "jiff-core"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6b46a105a9874634dd96231021526bf24ca04955a5998c59a9c7666e634b7b8"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "jiff-static"
 version = "0.2.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7b1af7547d47354bc438d797e3854601bde8f8d185780c5ba4ab27afa54f1ba"
 dependencies = [
- "jiff-core",
+ "jiff-core 0.1.8",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "jiff-static"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0127e9bde3c6130d6169e7d8d68676e4be69c4bf7573c308b6f960a5089c428"
+dependencies = [
+ "jiff-core 1.0.1",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -3250,12 +3287,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0980fca2cc272465bd60e82397607ba9f33add9e48defd77923301bbd03808f2"
 
 [[package]]
+name = "jiff-tzdb"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12e71a1b68a875a44a33bb7a1dd84392cb77145a3367a552a3cfe6a4f5cf3afc"
+
+[[package]]
 name = "jiff-tzdb-platform"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "875a5a69ac2bab1a891711cf5eccbec1ce0341ea805560dcd90b7a2e925132e8"
 dependencies = [
- "jiff-tzdb",
+ "jiff-tzdb 0.1.10",
+]
+
+[[package]]
+name = "jiff-tzdb-platform"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc65b284afcfa8f6cf189c7274c805505314a7ab975c60e1f548bff56525420e"
+dependencies = [
+ "jiff-tzdb 1.0.0",
 ]
 
 [[package]]
@@ -4879,7 +4931,7 @@ dependencies = [
  "home",
  "indexmap 2.14.2",
  "insta",
- "jiff",
+ "jiff 1.0.1",
  "libc",
  "miette 7.6.0",
  "mimalloc",
@@ -5140,7 +5192,7 @@ version = "0.0.1"
 dependencies = [
  "console",
  "insta",
- "jiff",
+ "jiff 1.0.1",
  "node-semver",
  "owo-colors",
  "pnpm-config",
@@ -5611,7 +5663,7 @@ name = "pnpm-github-actions"
 version = "0.0.1"
 dependencies = [
  "futures-util",
- "jiff",
+ "jiff 1.0.1",
  "miette 7.6.0",
  "node-semver",
  "pnpm-config",
@@ -5834,7 +5886,7 @@ dependencies = [
  "derive_more",
  "futures-util",
  "insta",
- "jiff",
+ "jiff 1.0.1",
  "miette 7.6.0",
  "pnpm-diagnostics",
  "pnpm-lockfile",
@@ -5899,7 +5951,7 @@ dependencies = [
  "derive_more",
  "httpdate",
  "indexmap 2.14.2",
- "jiff",
+ "jiff 1.0.1",
  "pathdiff",
  "pipe-trait",
  "pnpm-diagnostics",
@@ -6091,7 +6143,7 @@ dependencies = [
  "httpdate",
  "indexmap 2.14.2",
  "insta",
- "jiff",
+ "jiff 1.0.1",
  "miette 7.6.0",
  "mockito",
  "node-semver",
@@ -6475,7 +6527,7 @@ dependencies = [
  "base64 0.23.1",
  "derive_more",
  "ed25519-dalek 2.2.0",
- "jiff",
+ "jiff 1.0.1",
  "percent-encoding",
  "pnpm-time",
  "pnpm-transparency-log",
@@ -6530,7 +6582,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "futures-util",
- "jiff",
+ "jiff 1.0.1",
  "miette 7.6.0",
  "node-semver",
  "pathdiff",
@@ -6628,7 +6680,7 @@ dependencies = [
  "futures-util",
  "httpdate",
  "indexmap 2.14.2",
- "jiff",
+ "jiff 1.0.1",
  "libc",
  "miette 7.6.0",
  "mockito",
@@ -6676,7 +6728,7 @@ name = "pnpm-resolving-resolver-base"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "jiff",
+ "jiff 1.0.1",
  "miette 7.6.0",
  "node-semver",
  "pnpm-lockfile",
@@ -6879,7 +6931,7 @@ version = "0.0.1"
 name = "pnpm-time"
 version = "0.0.1"
 dependencies = [
- "jiff",
+ "jiff 1.0.1",
 ]
 
 [[package]]
@@ -7119,7 +7171,7 @@ dependencies = [
  "home",
  "hyper 1.12.0",
  "indexmap 2.14.2",
- "jiff",
+ "jiff 1.0.1",
  "libc",
  "libsql",
  "miette 7.6.0",
@@ -7208,7 +7260,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "icu_normalizer",
- "jiff",
+ "jiff 1.0.1",
  "libsql",
  "openidconnect",
  "p256 0.14.0",
@@ -7539,7 +7591,7 @@ name = "pnpr-upstream"
 version = "0.0.1"
 dependencies = [
  "futures-util",
- "jiff",
+ "jiff 1.0.1",
  "mockito",
  "pnpm-lockfile",
  "pnpm-network",
@@ -7960,9 +8012,9 @@ checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "rand_pcg"
-version = "0.10.2"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caa0f4137e1c0a72f4c651489402276c8e8e1cf081f3b0ba156d2cbeef09e86a"
+checksum = "eb95882a1e14462c69aea9984bb261293ccfe6022ef8de0eda18bd5afb0052df"
 dependencies = [
  "rand_core 0.10.1",
 ]
@@ -8652,7 +8704,7 @@ dependencies = [
  "hex",
  "indexmap 1.9.3",
  "indexmap 2.14.2",
- "jiff",
+ "jiff 0.2.46",
  "schemars 0.9.0",
  "schemars 1.2.3",
  "serde_core",
@@ -8887,7 +8939,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98819125d96663ca27bc1b4fa06673da03de760f6b4d24596efd175e66ac3857"
 dependencies = [
- "jiff",
+ "jiff 0.2.46",
  "sigstore-types",
  "thiserror 2.0.21",
 ]
@@ -8902,7 +8954,7 @@ dependencies = [
  "const-oid 0.9.6",
  "der 0.7.10",
  "futures-io",
- "jiff",
+ "jiff 0.2.46",
  "rustls-pki-types",
  "sigstore-types",
  "spki 0.7.3",
@@ -8944,7 +8996,7 @@ checksum = "a423ecc09a05563ec31dadfba42a42346b537e04cbaee782c9de0bb4f1715f5b"
 dependencies = [
  "ambient-id",
  "base64 0.23.1",
- "jiff",
+ "jiff 0.2.46",
  "open",
  "rand 0.10.4",
  "reqwest",
@@ -8966,7 +9018,7 @@ checksum = "9abc878eed02e46c130bf5c2a48633144eb0a95ec93d47124bf51b931cf20e1f"
 dependencies = [
  "base64 0.23.1",
  "hex",
- "jiff",
+ "jiff 0.2.46",
  "reqwest",
  "serde",
  "serde_json",
@@ -9001,7 +9053,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6111e00e097bb764b6fe9e6205bce3d582c3594512450ee69837753f759c55e2"
 dependencies = [
  "directories",
- "jiff",
+ "jiff 0.2.46",
  "serde",
  "serde_json",
  "sigstore-crypto",
@@ -9021,7 +9073,7 @@ dependencies = [
  "const-oid 0.9.6",
  "der 0.7.10",
  "hex",
- "jiff",
+ "jiff 0.2.46",
  "rand 0.10.4",
  "reqwest",
  "rustls-pki-types",
@@ -9041,7 +9093,7 @@ checksum = "0ef81a8257fcb3873e1e85f29d33d642f962c9faa7d69a05ac2c754dcd460301"
 dependencies = [
  "glob",
  "hex",
- "jiff",
+ "jiff 0.2.46",
  "reqwest",
  "serde",
  "serde_json",
@@ -9061,7 +9113,7 @@ checksum = "b4f0e9a87bcaf654b5d3b8540eaf78040cae72eb59157bb1765f56684fb0e3e9"
 dependencies = [
  "base64 0.23.1",
  "hex",
- "jiff",
+ "jiff 0.2.46",
  "pem",
  "serde",
  "serde_json",
@@ -10236,9 +10288,9 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "ucd-trie"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
+checksum = "8f20bdbfc9915686faa18fb5bbe8b4552778505defbf9f12289beefbc44092a6"
 
 [[package]]
 name = "unarray"
@@ -11237,9 +11289,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.7.0"
+version = "9.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08687262e7c0f1284b259686f322805a8adaa8ef4d7210e76448950b3f083bf7"
+checksum = "63e50f7b2212e4635244be3c363b53273d159f2523eb7db3096c1d2861c1b603"
 dependencies = [
  "constant_time_eq",
  "crc32fast",
