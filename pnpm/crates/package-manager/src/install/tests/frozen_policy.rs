@@ -127,6 +127,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: true,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -231,6 +232,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -292,6 +294,61 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
 }
 #[tokio::test]
 async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
+    for run in [FrozenRun::Install, FrozenRun::Validate] {
+        let result = frozen_run_with_drifted_pnpmfile_checksum(run, frozen_lockfile_policy()).await;
+
+        assert!(
+            matches!(
+                result,
+                Err(InstallError::LockfileConfigMismatch { setting: "pnpmfileChecksum" })
+            ),
+            "{run:?}: {result:?}",
+        );
+    }
+}
+
+#[tokio::test]
+async fn frozen_lockfile_ignores_a_drifted_pnpmfile_checksum_when_settings_checks_are_ignored() {
+    for run in [FrozenRun::Install, FrozenRun::Validate] {
+        frozen_run_with_drifted_pnpmfile_checksum(
+            run,
+            crate::InstallLockfilePolicy {
+                ignore_settings_check: true,
+                ..frozen_lockfile_policy()
+            },
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{run:?}: the settings check is skipped, got {error:?}"));
+    }
+}
+
+/// How [`frozen_run_with_drifted_pnpmfile_checksum`] runs the frozen
+/// install: [`Install::run`] or [`Install::validate_frozen`].
+#[derive(Debug, Clone, Copy)]
+enum FrozenRun {
+    Install,
+    Validate,
+}
+
+fn frozen_lockfile_policy() -> crate::InstallLockfilePolicy {
+    crate::InstallLockfilePolicy {
+        frozen: true,
+        prefer_frozen: None,
+        ignore_manifest_check: false,
+        ignore_settings_check: false,
+        trust: false,
+        update_checksums: false,
+        excludes: PolicyExcludes::Persist,
+        disable_optimistic_repeat: false,
+    }
+}
+
+/// Runs a frozen install of a project with a `.pnpmfile.cjs` that the
+/// lockfile records no checksum for.
+async fn frozen_run_with_drifted_pnpmfile_checksum(
+    run: FrozenRun,
+    lockfile_policy: crate::InstallLockfilePolicy,
+) -> Result<(), InstallError> {
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
     let modules_dir = project_root.join("node_modules");
@@ -317,16 +374,8 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
     )
     .unwrap();
 
-    let result = Install {
-        lockfile_policy: crate::InstallLockfilePolicy {
-            frozen: true,
-            prefer_frozen: None,
-            ignore_manifest_check: false,
-            trust: false,
-            update_checksums: false,
-            excludes: PolicyExcludes::Persist,
-            disable_optimistic_repeat: false,
-        },
+    let install = Install {
+        lockfile_policy,
         execution: crate::InstallExecution {
             skip_runtimes: false,
             mutation: ProjectMutation::InstallWorkspace,
@@ -365,14 +414,11 @@ async fn frozen_lockfile_errors_when_pnpmfile_checksum_drifts() {
             dedicated: None,
             discovered_workspace: None,
         },
+    };
+    match run {
+        FrozenRun::Install => install.run::<SilentReporter>().await,
+        FrozenRun::Validate => install.validate_frozen(None).await,
     }
-    .run::<SilentReporter>()
-    .await;
-
-    assert!(matches!(
-        result,
-        Err(InstallError::LockfileConfigMismatch { setting: "pnpmfileChecksum" })
-    ));
 }
 
 /// The `@pnpm/napi` rebuild checks only the lockfile's patches, as pnpm
@@ -426,6 +472,7 @@ async fn rebuild_patches_only(lockfile: &str) -> Result<(), InstallError> {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -502,6 +549,7 @@ async fn frozen_lockfile_errors_when_an_importer_reference_has_no_snapshot() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: true,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,

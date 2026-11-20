@@ -184,6 +184,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,

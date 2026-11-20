@@ -52,6 +52,7 @@ async fn frozen_lockfile_with_gvs_off_registers_the_project() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -162,6 +163,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -300,6 +302,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -457,6 +460,7 @@ async fn frozen_install_swallows_and_reports_unreachable_optional_tarball() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             // The lockfile-resolution verifier is unrelated to what this test
             // exercises (the optional-tarball swallow path);
             // its fail-closed tarball-URL check would otherwise try to fetch
@@ -627,6 +631,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             // As in the sister test: without it the lockfile verifier fetches
             // `broken-pkg` metadata from the live default registry and fails
             // the install before the tarball fetch this test is about.
@@ -759,6 +764,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -874,6 +880,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
@@ -989,6 +996,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
             frozen: true,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: false,
             update_checksums: false,
             excludes: PolicyExcludes::Persist,

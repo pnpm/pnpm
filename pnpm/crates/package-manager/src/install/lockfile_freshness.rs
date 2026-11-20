@@ -130,6 +130,7 @@ async fn workspace_manifests_satisfy(
             pnpmfile_hook: None,
             scope: FreshnessScope {
                 ignore_manifest_check: check.ignore_manifest_check,
+                ignore_settings_check: false,
                 allow_missing_dependency_free_importers: true,
                 frozen_lockfile: false,
                 prune_stale_importers: true,
@@ -264,6 +265,8 @@ pub(super) async fn try_fast_update_lockfile<Reporter: pnpm_reporter::Reporter>(
 pub(crate) struct FreshnessScope<'a> {
     /// Skip the per-importer specifier gate entirely.
     pub(crate) ignore_manifest_check: bool,
+    /// See [`crate::InstallLockfilePolicy::ignore_settings_check`].
+    pub(crate) ignore_settings_check: bool,
     /// Treat a project with no importer entry and no dependencies as
     /// satisfied rather than missing.
     pub(crate) allow_missing_dependency_free_importers: bool,

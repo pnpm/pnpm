@@ -114,6 +114,7 @@ impl ManifestTransforms {
             pnpmfile_hook: self.hook.as_ref(),
             scope: crate::install::FreshnessScope {
                 ignore_manifest_check: false,
+                ignore_settings_check: false,
                 allow_missing_dependency_free_importers: false,
                 frozen_lockfile: false,
                 prune_stale_importers: false,

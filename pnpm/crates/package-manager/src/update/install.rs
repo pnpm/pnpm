@@ -336,6 +336,7 @@ impl UpdateOptions<'_> {
             frozen: false,
             prefer_frozen: Some(false),
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: self.config.trust_lockfile,
             update_checksums: self.version.patches,
             excludes: if self.version.save {

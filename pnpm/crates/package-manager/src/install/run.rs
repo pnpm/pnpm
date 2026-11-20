@@ -332,6 +332,10 @@ pub struct InstallLockfilePolicy {
     pub frozen: bool,
     pub prefer_frozen: Option<bool>,
     pub ignore_manifest_check: bool,
+    /// Do not compare the settings the lockfile records with the current
+    /// ones. A mismatch neither fails a frozen install nor makes the install
+    /// resolve again.
+    pub ignore_settings_check: bool,
     pub trust: bool,
     pub update_checksums: bool,
     pub excludes: PolicyExcludes,
@@ -350,6 +354,7 @@ impl InstallLockfilePolicy {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: config.trust_lockfile,
             update_checksums: false,
             excludes: PolicyExcludes::Skip,

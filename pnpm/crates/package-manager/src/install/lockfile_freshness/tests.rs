@@ -42,6 +42,7 @@ pub(crate) async fn check_frozen_fixture(
             pnpmfile_hook: None,
             scope: super::FreshnessScope {
                 ignore_manifest_check: false,
+                ignore_settings_check: false,
                 allow_missing_dependency_free_importers: false,
                 frozen_lockfile: true,
                 prune_stale_importers: true,
