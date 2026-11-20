@@ -301,3 +301,23 @@ fn a_user_path_reference_to_path_is_the_machine_path() {
         ],
     );
 }
+
+#[test]
+fn a_user_path_resolves_a_machine_variable_in_the_machine_scope() {
+    let machine = "\r\nHKEY_LOCAL_MACHINE\\...\\Environment\r\n    \
+                   Path    REG_EXPAND_SZ    C:\\Windows\r\n    \
+                   TOOLS    REG_EXPAND_SZ    %SystemDrive%\\npm\r\n";
+    let user = "\r\nHKEY_CURRENT_USER\\Environment\r\n    \
+                Path    REG_EXPAND_SZ    %TOOLS%;C:\\pnpm-home\\bin\r\n";
+    let process_env = |name: &str| (name == "SystemDrive").then(|| "C:".to_string());
+
+    let dirs = persisted_path_from_registry(machine, user, process_env).unwrap();
+    assert_eq!(
+        dirs,
+        [
+            PathBuf::from(r"C:\Windows"),
+            PathBuf::from(r"C:\npm"),
+            PathBuf::from(r"C:\pnpm-home\bin")
+        ],
+    );
+}
