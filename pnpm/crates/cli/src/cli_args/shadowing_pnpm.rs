@@ -121,8 +121,15 @@ fn origin_from_path(path: &Path) -> Option<InstallOrigin> {
 /// `NpmGlobal` when `path` lies in a `node_modules/pnpm` package outside
 /// any project. A project's own `node_modules`, which `node_modules/.bin`
 /// puts on `PATH` in scripts, sits next to a `package.json`; npm's global
-/// prefixes (`lib/` on POSIX, `%APPDATA%\npm` on Windows) do not.
+/// prefixes (`lib/` on POSIX, `%APPDATA%\npm` on Windows) do not. A
+/// package in a pnpm virtual store (`.pnpm`) was installed by pnpm, not npm.
 fn npm_global_package(path: &Path) -> Option<InstallOrigin> {
+    if path
+        .components()
+        .any(|component| component.as_os_str() == ".pnpm")
+    {
+        return None;
+    }
     let node_modules = path
         .ancestors()
         .filter(|dir| dir.file_name() == Some(OsStr::new("pnpm")))

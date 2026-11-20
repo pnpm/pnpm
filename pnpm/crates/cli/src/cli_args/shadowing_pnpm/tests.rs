@@ -233,6 +233,13 @@ fn a_project_dependency_is_not_an_npm_global_install() {
         "#!/bin/sh\nexec node \"$basedir/../../node_modules/pnpm/bin/pnpm.cjs\" \"$@\"\n",
     );
     assert_eq!(InstallOrigin::detect(&shim), InstallOrigin::Unknown);
+
+    let in_virtual_store = write_executable(
+        &project.path().join("node_modules/.pnpm/pnpm@12.0.0/node_modules/pnpm/bin"),
+        "pnpm.cjs",
+        "",
+    );
+    assert_eq!(InstallOrigin::detect(&in_virtual_store), InstallOrigin::Unknown);
 }
 
 #[test]
