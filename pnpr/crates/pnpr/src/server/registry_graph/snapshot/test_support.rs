@@ -30,4 +30,10 @@ impl super::super::super::AppState {
             resolver.forget_results();
         }
     }
+
+    /// Run `check` while holding the grant-reload transition guard.
+    pub(crate) fn test_with_grant_transition(&self, check: impl FnOnce()) {
+        let _transition = self.inner.identity.managed.grants.begin_transition();
+        check();
+    }
 }

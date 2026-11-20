@@ -26,20 +26,22 @@ impl LocalRegistry {
     }
 
     /// Stored `(graph, grants)` revision stamp for the lockfile verdict cache,
-    /// so verdicts persisted on disk before an offline `grants import` or
-    /// `registries import` miss once the server serves the newer revision.
-    pub(crate) fn verdict_epoch(&self) -> String {
-        let grants_generation = self.state
-            .upgrade()
-            .and_then(|inner| inner.identity.managed.grants.snapshot().generation);
-        match (self.graph_generation, grants_generation) {
+    /// or `None` while a grant reload is applying new rules and invalidating
+    /// caches so concurrent verifications bypass cached verdicts across the
+    /// transition.
+    pub(crate) fn verdict_epoch(&self) -> Option<String> {
+        let grants_generation = match self.state.upgrade() {
+            Some(inner) => inner.identity.managed.grants.stable_generation()?,
+            None => None,
+        };
+        Some(match (self.graph_generation, grants_generation) {
             (None, None) => String::new(),
             (graph, grants) => {
                 let graph = graph.map(|value| value.to_string()).unwrap_or_default();
                 let grants = grants.map(|value| value.to_string()).unwrap_or_default();
                 format!("{graph}:{grants}")
             }
-        }
+        })
     }
 
     pub(crate) fn fetcher(&self, identity: Identity) -> Arc<LocalFetch> {

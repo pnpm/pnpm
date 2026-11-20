@@ -106,7 +106,7 @@ fn hit_hands_the_cached_policy_to_the_trust_check() {
 }
 
 #[test]
-fn corrupt_or_stale_rows_are_evicted_on_lookup() {
+fn corrupt_rows_are_evicted_and_epoch_mismatch_preserves_other_epochs() {
     let dir = TempDir::new().expect("tempdir");
     let path = dir.path().join("verdicts.sqlite");
     let cache = VerdictCache::open(&path).expect("open cache");
@@ -136,16 +136,10 @@ fn corrupt_or_stale_rows_are_evicted_on_lookup() {
         )
         .expect("insert tampered key");
     }
-    record_public(&cache, "stale-epoch", "1:1", 60);
 
-    for (hash, epoch) in [
-        ("corrupt-policy", "1:1"),
-        ("corrupt-footprint", "1:1"),
-        ("tampered-key", "1:1"),
-        ("stale-epoch", "1:2"),
-    ] {
+    for hash in ["corrupt-policy", "corrupt-footprint", "tampered-key"] {
         assert_eq!(
-            cache.verified_footprint(&lookup(hash, epoch, &context, &Identity::Anonymous), |_| {
+            cache.verified_footprint(&lookup(hash, "1:1", &context, &Identity::Anonymous), |_| {
                 true
             }),
             None,
@@ -157,7 +151,22 @@ fn corrupt_or_stale_rows_are_evicted_on_lookup() {
     let remaining: i64 = conn
         .query_row("SELECT COUNT(*) FROM lockfile_verdicts", [], |row| row.get(0))
         .expect("count rows");
-    assert_eq!(remaining, 0, "corrupt, tampered, and stale-epoch rows self-heal on lookup");
+    assert_eq!(remaining, 0, "corrupt and tampered rows self-heal on lookup");
+
+    record_public(&cache, "epoch-isolated", "1:2", 1440);
+    assert_eq!(
+        cache.verified_footprint(
+            &lookup("epoch-isolated", "1:1", &context, &Identity::Anonymous),
+            |_| true,
+        ),
+        None,
+    );
+    record_public(&cache, "epoch-isolated", "1:1", 60);
+    let current_hit = cache.verified_footprint(
+        &lookup("epoch-isolated", "1:2", &context, &Identity::Anonymous),
+        |cached| cached.get("minimumReleaseAge") == Some(&Value::from(1440)),
+    );
+    assert!(current_hit.is_some(), "an older-epoch lookup or write preserves the newer-epoch pass");
 }
 
 #[test]

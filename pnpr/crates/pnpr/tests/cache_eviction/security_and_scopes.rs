@@ -121,7 +121,7 @@ async fn verdict_db_trim_does_not_wipe_all_rows_under_concurrent_wal_reader_and_
                  policy TEXT NOT NULL,
                  epoch TEXT NOT NULL,
                  verified_at_ms INTEGER NOT NULL,
-                 PRIMARY KEY (hash, footprint_key)
+                 PRIMARY KEY (hash, epoch, footprint_key)
              );",
         )
         .unwrap();

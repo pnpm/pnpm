@@ -5,7 +5,10 @@ use super::{AppState, RegistryError, managed_state::read_with_deadline};
 use pnpr_config::{GraphSource, RoutingConfig};
 use pnpr_policy::{Action, Grant, GrantSpec};
 use pnpr_storage::database::{GrantContent, GrantWrite, StoredGrant, StoredGrants};
-use std::sync::{Arc, PoisonError, RwLock};
+use std::sync::{
+    Arc, PoisonError, RwLock,
+    atomic::{AtomicU64, Ordering},
+};
 
 /// The key that names every registry in a grant.
 pub(super) const EVERY_REGISTRY: &str = "*";
@@ -29,15 +32,43 @@ impl Grants {
 
 /// The grants this replica last read. A failed read keeps them.
 #[derive(Debug, Default)]
-pub(super) struct GrantState(RwLock<Arc<Grants>>);
+pub(super) struct GrantState {
+    published: RwLock<Arc<Grants>>,
+    transition: AtomicU64,
+}
+
+pub(super) struct GrantTransition<'a>(&'a AtomicU64);
+
+impl Drop for GrantTransition<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::Release);
+    }
+}
 
 impl GrantState {
     pub(super) fn snapshot(&self) -> Arc<Grants> {
-        Arc::clone(&self.0.read().unwrap_or_else(PoisonError::into_inner))
+        Arc::clone(&self.published.read().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    /// Read the published grants generation only when no grant reload is
+    /// currently applying rules or invalidating caches.
+    pub(super) fn stable_generation(&self) -> Option<Option<u64>> {
+        let before = self.transition.load(Ordering::Acquire);
+        if !before.is_multiple_of(2) {
+            return None;
+        }
+        let generation = self.snapshot().generation;
+        let after = self.transition.load(Ordering::Acquire);
+        (before == after).then_some(generation)
+    }
+
+    pub(super) fn begin_transition(&self) -> GrantTransition<'_> {
+        self.transition.fetch_add(1, Ordering::AcqRel);
+        GrantTransition(&self.transition)
     }
 
     fn publish(&self, grants: Grants) {
-        *self.0.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(grants);
+        *self.published.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(grants);
     }
 }
 
@@ -110,6 +141,7 @@ pub(super) async fn reload_grants(state: &AppState) -> bool {
     match read_with_deadline(state.inner.storage.read_grants(known)).await {
         Ok(Some(StoredGrants { generation, grants })) => {
             let grants = Grants { generation: Some(generation), grants };
+            let _transition = directory.begin_transition();
             // The served registries, not the ones this request pinned: a
             // reload under a request must reach what later requests read.
             apply(state, &grants, &state.inner.current_routing());

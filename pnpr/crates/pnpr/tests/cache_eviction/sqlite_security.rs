@@ -36,7 +36,7 @@ async fn symlinked_resolver_sqlite_paths_do_not_mutate_external_dbs_and_retain_c
              policy TEXT NOT NULL,
              epoch TEXT NOT NULL,
              verified_at_ms INTEGER NOT NULL,
-             PRIMARY KEY (hash, footprint_key)
+             PRIMARY KEY (hash, epoch, footprint_key)
          );
          INSERT INTO lockfile_verdicts VALUES ('victim-hash', '', '[]', '{}', '', 1);",
     )
@@ -243,7 +243,7 @@ async fn verdict_expiry_below_vacuum_threshold_matches_dry_run_and_apply_near_ma
              policy TEXT NOT NULL,
              epoch TEXT NOT NULL,
              verified_at_ms INTEGER NOT NULL,
-             PRIMARY KEY (hash, footprint_key)
+             PRIMARY KEY (hash, epoch, footprint_key)
          );",
     )
     .unwrap();
@@ -439,7 +439,7 @@ async fn uncheckpointed_live_wal_pages_still_trim_verdict_rows_to_max_size() {
                  policy TEXT NOT NULL,
                  epoch TEXT NOT NULL,
                  verified_at_ms INTEGER NOT NULL,
-                 PRIMARY KEY (hash, footprint_key)
+                 PRIMARY KEY (hash, epoch, footprint_key)
              );
              PRAGMA wal_checkpoint(TRUNCATE);",
         )
@@ -537,7 +537,7 @@ async fn symlinked_verdict_sidecar_still_counts_db_bytes_and_retries_deferred_va
              policy TEXT NOT NULL,
              epoch TEXT NOT NULL,
              verified_at_ms INTEGER NOT NULL,
-             PRIMARY KEY (hash, footprint_key)
+             PRIMARY KEY (hash, epoch, footprint_key)
          );",
     )
     .unwrap();

@@ -337,7 +337,7 @@ async fn verify_input_lockfile(
 
     let hash = hash_lockfile(&lockfile);
     if let Some(cached) =
-        past_verdict_footprint(runtime, context.identity, &hash, &epoch, &verifiers)
+        past_verdict_footprint(runtime, context.identity, &hash, epoch.as_deref(), &verifiers)
     {
         context.footprint
             .lock()
@@ -357,7 +357,7 @@ async fn verify_input_lockfile(
     .await
     .map_err(VerifyFailure::Internal)?;
     if violations.is_empty() && osv_violations.is_empty() {
-        record_verdict(runtime, &hash, &epoch, context.footprint, &verifiers);
+        record_verdict(runtime, &hash, epoch.as_deref(), context.footprint, &verifiers);
         return Ok(Some(dist_stats));
     }
 
@@ -367,13 +367,15 @@ async fn verify_input_lockfile(
 fn record_verdict(
     runtime: &Resolver,
     hash: &str,
-    epoch: &str,
+    epoch: Option<&str>,
     footprint: &Mutex<Footprint>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) {
-    if runtime.local_registry.verdict_epoch() != epoch {
+    let Some(epoch) =
+        epoch.filter(|pinned| runtime.local_registry.verdict_epoch().as_deref() == Some(*pinned))
+    else {
         return;
-    }
+    };
     let Some(cache) = runtime.cache.verdicts.as_ref() else {
         return;
     };
@@ -397,9 +399,10 @@ fn past_verdict_footprint(
     runtime: &Resolver,
     identity: &Identity,
     hash: &str,
-    epoch: &str,
+    epoch: Option<&str>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> Option<Footprint> {
+    let epoch = epoch?;
     let cache = runtime.cache.verdicts.as_ref()?;
     let lookup = VerdictLookup {
         hash,

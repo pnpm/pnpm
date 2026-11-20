@@ -433,11 +433,6 @@ fn done_lockfile(ndjson: &str) -> serde_json::Value {
     frame["lockfile"].clone()
 }
 
-/// Once an authorized caller (`alice`) verifies a lockfile referencing a
-/// private hosted package, `VerdictCache` enforces the recorded private-route
-/// `Footprint` on every cache hit so unauthorized callers (`bob`, anonymous)
-/// still fail on both `/-/pnpr/v0/verify-lockfile` and `/-/pnpr/v0/resolve`
-/// (frozen and warm).
 #[tokio::test]
 async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve() {
     let (public_url, _) = spawn_counting_server(
@@ -476,9 +471,11 @@ async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve
     let bob = issue_token(&auth, "bob").await;
     let app = router_with_auth(config, auth);
 
-    for (path, name) in
-        [("/npm/@acme%2fborn-priv", "@acme/born-priv"), ("/npm/public-dep", "public-dep")]
-    {
+    for (path, name) in [
+        ("/npm/@acme%2fborn-priv", "@acme/born-priv"),
+        ("/npm/@acme%2fsecond-priv", "@acme/second-priv"),
+        ("/npm/public-dep", "public-dep"),
+    ] {
         let (_, tgz) = package_tar_and_tgz(&format!(r#"{{"name":"{name}","version":"1.0.0"}}"#));
         let published = app
             .clone()
@@ -517,7 +514,6 @@ async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve
         "trustPolicy": "no-downgrade",
     });
 
-    // Before Alice populates VerdictCache, Bob is denied across all paths.
     assert_eq!(
         post_ndjson(&app, "/-/pnpr/v0/verify-lockfile", Some(&bob), &frozen_req)
             .await
@@ -529,13 +525,11 @@ async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve
         StatusCode::BAD_GATEWAY,
     );
 
-    // Alice verifies, populating VerdictCache with the private hosted Footprint.
     let (alice_status, alice_body) =
         post_ndjson(&app, "/-/pnpr/v0/verify-lockfile", Some(&alice), &frozen_req).await;
     assert_eq!(alice_status, StatusCode::OK, "{alice_body}");
     assert!(alice_body.contains(r#""type":"done""#), "{alice_body}");
 
-    // Alice hits VerdictCache on repeat verify, frozen resolve, and warm resolve.
     for path in ["/-/pnpr/v0/verify-lockfile", "/-/pnpr/v0/resolve"] {
         let (status, body) = post_ndjson(&app, path, Some(&alice), &frozen_req).await;
         assert_eq!(status, StatusCode::OK, "{path}: {body}");
@@ -546,9 +540,6 @@ async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve
     assert_eq!(warm_status, StatusCode::OK, "{warm_body}");
     let _warm_lockfile = done_lockfile(&warm_body);
 
-    // Bob and anonymous callers MUST still be denied on verify-lockfile,
-    // frozen resolve, and warm resolve (including trustLockfile: true against
-    // ResolverCache after Alice's VerdictCache-assisted warm resolve).
     for (path, req) in [
         ("/-/pnpr/v0/verify-lockfile", &frozen_req),
         ("/-/pnpr/v0/resolve", &frozen_req),
@@ -562,7 +553,7 @@ async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve
 
     let trusted_warm_req = json!({
         "registry": registry,
-        "dependencies": { "@acme/born-priv": "^1.0.0", "public-dep": "^1.0.0" },
+        "dependencies": { "@acme/born-priv": "^1.0.0", "@acme/second-priv": "^1.0.0" },
         "lockfile": lockfile,
         "frozenLockfile": false,
         "trustLockfile": true,
@@ -572,17 +563,5 @@ async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve
     let _ = done_lockfile(&alice_trusted);
     let (_, bob_trusted) =
         post_ndjson(&app, "/-/pnpr/v0/resolve", Some(&bob), &trusted_warm_req).await;
-    // Even if pacquet reuses the caller's own input lockfile when trustLockfile is true,
-    // verify that resolving `@acme/born-priv` without an input lockfile still fails for Bob.
-    let (_, bob_fresh) = post_ndjson(
-        &app,
-        "/-/pnpr/v0/resolve",
-        Some(&bob),
-        &json!({
-            "registry": registry,
-            "dependencies": { "@acme/born-priv": "^1.0.0" },
-        }),
-    )
-    .await;
-    assert!(bob_fresh.contains(r#""type":"error""#), "{bob_trusted}\n{bob_fresh}");
+    assert!(bob_trusted.contains(r#""type":"error""#), "{bob_trusted}");
 }

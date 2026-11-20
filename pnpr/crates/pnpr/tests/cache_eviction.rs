@@ -468,7 +468,7 @@ async fn whole_cache_eviction_covers_resolver_store_resolver_cache_and_verdict_d
              policy TEXT NOT NULL,
              epoch TEXT NOT NULL,
              verified_at_ms INTEGER NOT NULL,
-             PRIMARY KEY (hash, footprint_key)
+             PRIMARY KEY (hash, epoch, footprint_key)
          );",
     )
     .unwrap();

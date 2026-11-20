@@ -77,21 +77,27 @@ async fn forget_results_clears_verdicts_and_rotates_cache_generation() {
     ));
     let verdicts = engine.cache.verdicts.as_ref().expect("verdict cache opened");
     let public_footprint = Footprint::default();
+    let epoch = engine.local_registry.verdict_epoch().expect("stable epoch");
     verdicts.record(VerdictRecord {
         hash: "hash-1",
         footprint: &public_footprint,
         secret: &engine.cache.secret,
-        epoch: &engine.local_registry.verdict_epoch(),
+        epoch: &epoch,
         policy: serde_json::Map::new(),
     });
     let lookup = VerdictLookup {
         hash: "hash-1",
-        epoch: &engine.local_registry.verdict_epoch(),
+        epoch: &epoch,
         secret: &engine.cache.secret,
         route_context: &engine.route_context,
         identity: &Identity::Anonymous,
     };
     assert!(verdicts.verified_footprint(&lookup, |_| true).is_some());
+
+    state.test_with_grant_transition(|| {
+        assert_eq!(engine.local_registry.verdict_epoch(), None);
+    });
+    assert_eq!(engine.local_registry.verdict_epoch().as_deref(), Some(epoch.as_str()));
 
     state.test_forget_resolver_results();
 
@@ -109,8 +115,6 @@ async fn forget_results_clears_verdicts_and_rotates_cache_generation() {
     );
     assert!(verdicts.verified_footprint(&lookup, |_| true).is_none());
 
-    // An in-flight resolution that pinned `before_key` before `forget_results`
-    // cannot populate `after_key` when it finishes.
     assert!(store_resolution(
         &engine.cache.entries,
         ttl,

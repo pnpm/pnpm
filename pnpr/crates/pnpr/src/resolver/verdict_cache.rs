@@ -10,9 +10,10 @@
 //! [`ResolutionVerifier::can_trust_past_check`] accepts that stored snapshot
 //! (a looser current policy can trust a stricter cached run).
 //!
-//! Rows are keyed by `(hash, footprint_key)` so callers resolving the same
-//! lockfile through distinct private upstream aliases each keep their own
-//! cached verdict without overwriting one another, while callers sharing the
+//! Rows are keyed by `(hash, epoch, footprint_key)` so callers resolving the
+//! same lockfile through distinct private upstream aliases each keep their own
+//! cached verdict without overwriting one another, an earlier-epoch verification
+//! cannot clobber a pass recorded in the current epoch, and callers sharing the
 //! same access reuse one row. Backed by `SQLite` so many client connections
 //! can read/write concurrently and the server can evict without the JSONL
 //! append/compaction races.
@@ -69,7 +70,6 @@ struct StoredVerdict {
     footprint_key: String,
     footprint_json: String,
     policy_json: String,
-    epoch: String,
 }
 
 /// Concurrency-safe store of whole-lockfile verification verdicts.
@@ -93,7 +93,7 @@ impl VerdictCache {
                  policy         TEXT NOT NULL,
                  epoch          TEXT NOT NULL,
                  verified_at_ms INTEGER NOT NULL,
-                 PRIMARY KEY (hash, footprint_key)
+                 PRIMARY KEY (hash, epoch, footprint_key)
              );",
         )?;
         Ok(Self { conn: Mutex::new(conn) })
@@ -117,7 +117,7 @@ impl VerdictCache {
         trusts: impl Fn(&Map<String, Value>) -> bool,
     ) -> Option<Footprint> {
         let conn = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
-        load_candidates(&conn, lookup.hash)
+        load_candidates(&conn, lookup.hash, lookup.epoch)
             .iter()
             .find_map(|candidate| evaluate_candidate(&conn, candidate, lookup, &trusts))
     }
@@ -139,10 +139,9 @@ impl VerdictCache {
                  hash, footprint_key, footprint, policy, epoch, verified_at_ms
              )
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT(hash, footprint_key) DO UPDATE SET
+             ON CONFLICT(hash, epoch, footprint_key) DO UPDATE SET
                  footprint = excluded.footprint,
                  policy = excluded.policy,
-                 epoch = excluded.epoch,
                  verified_at_ms = excluded.verified_at_ms",
             rusqlite::params![
                 entry.hash,
@@ -153,26 +152,25 @@ impl VerdictCache {
                 now_ms
             ],
         );
-        evict_hash_overflow(&conn, entry.hash);
+        evict_hash_overflow(&conn, entry.hash, entry.epoch);
         evict_overflow(&conn);
     }
 }
 
-fn load_candidates(conn: &Connection, hash: &str) -> Vec<StoredVerdict> {
+fn load_candidates(conn: &Connection, hash: &str, epoch: &str) -> Vec<StoredVerdict> {
     let Ok(mut stmt) = conn.prepare(
-        "SELECT footprint_key, footprint, policy, epoch
+        "SELECT footprint_key, footprint, policy
          FROM lockfile_verdicts
-         WHERE hash = ?1
+         WHERE hash = ?1 AND epoch = ?2
          ORDER BY verified_at_ms DESC",
     ) else {
         return Vec::new();
     };
-    let Ok(rows) = stmt.query_map(rusqlite::params![hash], |row| {
+    let Ok(rows) = stmt.query_map(rusqlite::params![hash, epoch], |row| {
         Ok(StoredVerdict {
             footprint_key: row.get(0)?,
             footprint_json: row.get(1)?,
             policy_json: row.get(2)?,
-            epoch: row.get(3)?,
         })
     }) else {
         return Vec::new();
@@ -187,17 +185,15 @@ fn evaluate_candidate(
     trusts: &impl Fn(&Map<String, Value>) -> bool,
 ) -> Option<Footprint> {
     let Ok(policy) = serde_json::from_str::<Map<String, Value>>(&candidate.policy_json) else {
-        delete_candidate(conn, lookup.hash, &candidate.footprint_key);
+        delete_candidate(conn, lookup.hash, lookup.epoch, &candidate.footprint_key);
         return None;
     };
     let Ok(footprint) = serde_json::from_str::<Footprint>(&candidate.footprint_json) else {
-        delete_candidate(conn, lookup.hash, &candidate.footprint_key);
+        delete_candidate(conn, lookup.hash, lookup.epoch, &candidate.footprint_key);
         return None;
     };
-    if candidate.epoch != lookup.epoch
-        || footprint.digest(lookup.secret).unwrap_or_default() != candidate.footprint_key
-    {
-        delete_candidate(conn, lookup.hash, &candidate.footprint_key);
+    if footprint.digest(lookup.secret).unwrap_or_default() != candidate.footprint_key {
+        delete_candidate(conn, lookup.hash, lookup.epoch, &candidate.footprint_key);
         return None;
     }
     let caller_allowed =
@@ -205,22 +201,23 @@ fn evaluate_candidate(
     (caller_allowed && trusts(&policy)).then_some(footprint)
 }
 
-fn delete_candidate(conn: &Connection, hash: &str, footprint_key: &str) {
+fn delete_candidate(conn: &Connection, hash: &str, epoch: &str, footprint_key: &str) {
     let _ = conn.execute(
-        "DELETE FROM lockfile_verdicts WHERE hash = ?1 AND footprint_key = ?2",
-        rusqlite::params![hash, footprint_key],
+        "DELETE FROM lockfile_verdicts
+         WHERE hash = ?1 AND epoch = ?2 AND footprint_key = ?3",
+        rusqlite::params![hash, epoch, footprint_key],
     );
 }
 
-fn evict_hash_overflow(conn: &Connection, hash: &str) {
+fn evict_hash_overflow(conn: &Connection, hash: &str, epoch: &str) {
     let _ = conn.execute(
         "DELETE FROM lockfile_verdicts WHERE rowid IN (
              SELECT rowid FROM lockfile_verdicts
-             WHERE hash = ?1
+             WHERE hash = ?1 AND epoch = ?2
              ORDER BY verified_at_ms DESC, rowid DESC
-             LIMIT -1 OFFSET ?2
+             LIMIT -1 OFFSET ?3
          )",
-        rusqlite::params![hash, MAX_CANDIDATES_PER_HASH],
+        rusqlite::params![hash, epoch, MAX_CANDIDATES_PER_HASH],
     );
 }
 

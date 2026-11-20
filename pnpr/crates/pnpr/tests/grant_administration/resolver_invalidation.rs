@@ -43,10 +43,6 @@ fn done_lockfile(ndjson: &str) -> Value {
     frame["lockfile"].clone()
 }
 
-/// Revoking `$all: [read]` via `PUT`/`DELETE /-/pnpr/v0/admin/grants/{name}` or
-/// `pnpr grants import` immediately invalidates public entries in
-/// `ResolverCache` and `VerdictCache` and isolates the on-disk packument mirror
-/// from unauthorized callers.
 #[tokio::test]
 async fn revoking_public_read_grant_invalidates_resolver_and_verdict_caches_immediately() {
     let dir = TempDir::new().unwrap();
@@ -113,7 +109,6 @@ defaultRegistry: local
         "dependencies": { "@acme/internal": "1.0.0" },
     });
 
-    // Populate ResolverCache (as public), on-disk public mirror, and VerdictCache (as public).
     let (status, range_body) =
         post_ndjson(&app, "/-/pnpr/v0/resolve", Some(&bob), &range_req).await;
     assert_eq!(status, StatusCode::OK, "{range_body}");
@@ -136,7 +131,6 @@ defaultRegistry: local
     assert_eq!(status, StatusCode::OK, "{verify_body}");
     assert!(verify_body.contains(r#""type":"done""#), "{verify_body}");
 
-    // Restrict the grant via PUT so only `alice` has `read`.
     let alice_only = json!({
         "registries": ["local"],
         "subjects": {
@@ -146,8 +140,6 @@ defaultRegistry: local
     assert_eq!(put_grant(&app, &root, "local-access", alice_only).await.0, StatusCode::OK);
     assert_eq!(read(&app, "/npm/@acme%2finternal", &bob).await, StatusCode::NOT_FOUND);
 
-    // Bob and anonymous callers immediately lose access across resolve (range,
-    // exact, frozen) and verify-lockfile, while Alice still succeeds.
     for req in [&range_req, &exact_req] {
         let (bob_status, bob_body) = post_ndjson(&app, "/-/pnpr/v0/resolve", Some(&bob), req).await;
         assert_eq!(bob_status, StatusCode::OK);
@@ -178,8 +170,6 @@ defaultRegistry: local
         assert!(alice_body.contains(r#""type":"done""#), "{path}: {alice_body}");
     }
 
-    // Re-open via an extra grant, re-warm as public, then revoke via DELETE and
-    // verify DELETE also invalidates immediately.
     let public_extra = json!({
         "registries": ["local"],
         "subjects": { "$all": ["read"] },
@@ -210,9 +200,6 @@ defaultRegistry: local
         StatusCode::BAD_GATEWAY,
     );
 
-    // Re-open, warm persistent SQLite VerdictCache, run offline `pnpr grants import`
-    // restricting back to `alice`, and verify a restarted server sharing `cacheDir`
-    // does not replay the pre-import public verdict.
     assert_eq!(put_grant(&app, &root, "local-access", open_grant).await.0, StatusCode::OK);
     assert_eq!(
         post_ndjson(&app, "/-/pnpr/v0/verify-lockfile", Some(&bob), &verify_req)

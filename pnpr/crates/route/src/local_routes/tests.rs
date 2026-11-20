@@ -115,24 +115,48 @@ fn denied_own_origin_package_does_not_share_public_or_authorized_metadata_scope(
     assert_ne!(anon_scope, MetadataCacheScope::Public);
     assert_ne!(bob_scope, alice_scope);
     assert_ne!(anon_scope, alice_scope);
+
+    let upstream_rules = &config.routing.upstreams["npmjs"].rules;
+    upstream_rules.replace(
+        upstream_rules
+            .snapshot()
+            .with_overrides(Some(AccessList::from_tokens(["alice"])), Vec::new())
+            .unwrap(),
+    );
+    assert_ne!(
+        scope_for(Identity::user("bob"), "https://pnpr.example/npm/~npmjs/lodash", "lodash"),
+        MetadataCacheScope::Public,
+    );
+    assert_ne!(
+        scope_for(Identity::user("bob"), "https://pnpr.example/npm/~unknown/lodash", "lodash"),
+        MetadataCacheScope::Public,
+    );
 }
 
 #[test]
 fn footprint_serde_roundtrip_and_extend_preserve_descriptors() {
     use crate::{Footprint, PrivateAccessDescriptor};
 
-    let mut first = Footprint::default();
-    first.add(PrivateAccessDescriptor::Hosted { policy_id: "local\0@acme/a".to_string() });
-    let mut second = Footprint::default();
-    second.add(PrivateAccessDescriptor::Alias {
+    let hosted = PrivateAccessDescriptor::Hosted { policy_id: "local\0@acme/a".to_string() };
+    let alias = PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: "deadbeef".to_string(),
         package: Some("@acme/b".to_string()),
-    });
+    };
+
+    let mut first = Footprint::default();
+    first.add(hosted.clone());
+    let mut second = Footprint::default();
+    second.add(alias.clone());
     first.extend(&second);
 
+    let mut expected = Footprint::default();
+    expected.add(hosted);
+    expected.add(alias);
+
+    assert_eq!(first, expected);
     let encoded = serde_json::to_string(&first).expect("serialize footprint");
     let decoded: Footprint = serde_json::from_str(&encoded).expect("deserialize footprint");
-    assert_eq!(decoded, first);
-    assert_eq!(decoded.digest(b"secret"), first.digest(b"secret"));
+    assert_eq!(decoded, expected);
+    assert_eq!(decoded.digest(b"secret"), expected.digest(b"secret"));
 }
