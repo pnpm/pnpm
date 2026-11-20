@@ -22,7 +22,6 @@ import { checkCompatibility } from './checkCompatibility/index.js'
 
 interface ImporterToPurge {
   modulesDir: string
-  /** Why the modules directory has to be recreated. */
   reason: string
   rootDir: ProjectRootDir
   rootDirRealPath?: string
@@ -87,7 +86,7 @@ export async function validateModules (
     importersToPurge.push({
       modulesDir: pathAbsolute(opts.modulesDir, opts.lockfileDir),
       rootDir: opts.lockfileDir as ProjectRootDir,
-      reason: importersToPurge[0].reason,
+      reason: 'It holds the virtual store of the workspace projects whose modules directories are recreated.',
     })
   }
 
@@ -151,12 +150,9 @@ function collectImportersToPurge (
   }
 ): ImporterToPurge[] {
   const importersToPurge: ImporterToPurge[] = []
-  if (rootProject != null) {
-    const reason = findPurgeReason(() => checkHoistPattern(modules, opts), canRecreateModulesDirs)
-    if (reason != null) {
-      importersToPurge.push({ ...rootProject, reason })
-    }
-  }
+  const rootHoistPatternReason = rootProject != null
+    ? findPurgeReason(() => checkHoistPattern(modules, opts), canRecreateModulesDirs)
+    : undefined
   for (const project of projects) {
     const compatibilityOpts = {
       modulesDir: project.modulesDir,
@@ -164,10 +160,13 @@ function collectImportersToPurge (
       virtualStoreDir: opts.virtualStoreDir,
     }
     const isSkipped = opts.forceNewModules && !opts.mutatedProjectDirs.has(project.rootDir)
-    const reason = findPurgeReason(() => checkCompatibility(modules, compatibilityOpts), canRecreateModulesDirs) ??
-      (isSkipped ? undefined : findPurgeReason(() => checkIncludedDeps(modules, project, opts), opts.forceNewModules))
-    if (reason != null) {
-      importersToPurge.push({ ...project, reason })
+    const reasons = [
+      project === rootProject ? rootHoistPatternReason : undefined,
+      findPurgeReason(() => checkCompatibility(modules, compatibilityOpts), canRecreateModulesDirs),
+      isSkipped ? undefined : findPurgeReason(() => checkIncludedDeps(modules, project, opts), opts.forceNewModules),
+    ].filter((reason): reason is string => reason != null)
+    if (reasons.length > 0) {
+      importersToPurge.push({ ...project, reason: reasons.join(' ') })
     }
   }
   return importersToPurge
@@ -239,13 +238,17 @@ async function purgeModulesDirsOfImporters (
     .filter((importer): importer is SafeImporterToPurge => importer != null)
   if (safeImporters.length === 0) return true
 
+  const confirmModulesPurge = opts.confirmModulesPurge ?? true
+  if (confirmModulesPurge && !process.stdin.isTTY) {
+    assertSafeNonInteractivePurge(safeImporters)
+  }
   for (const importer of safeImporters) {
     logger.warn({
-      message: `The modules directory at "${importer.modulesDir}" will be recreated. ${importer.reason}`,
+      message: `The modules directory at "${importer.modulesDir}" has to be recreated. ${importer.reason}`,
       prefix: importer.rootDir,
     })
   }
-  if (opts.confirmModulesPurge ?? true) {
+  if (confirmModulesPurge) {
     await confirmPurge(safeImporters)
   }
   await Promise.all(safeImporters.map(async (importer) => purgeModulesDir(importer, opts.virtualStoreDir)))
@@ -254,7 +257,12 @@ async function purgeModulesDirsOfImporters (
 
 async function confirmPurge (safeImporters: SafeImporterToPurge[]): Promise<void> {
   if (!process.stdin.isTTY) {
-    confirmNonInteractivePurge(safeImporters)
+    for (const importer of safeImporters) {
+      logger.info({
+        message: `Non-interactive terminal detected. Automatically proceeding with modules directory purge for "${importer.modulesDir}".`,
+        prefix: importer.rootDir,
+      })
+    }
     return
   }
   let confirmed: boolean
@@ -281,19 +289,13 @@ async function confirmPurge (safeImporters: SafeImporterToPurge[]): Promise<void
  * only for targets a user would not be surprised to see recreated: a real
  * `node_modules` directory directly inside the project.
  */
-function confirmNonInteractivePurge (safeImporters: SafeImporterToPurge[]): void {
+function assertSafeNonInteractivePurge (safeImporters: SafeImporterToPurge[]): void {
   const unsafeModulesDirs = safeImporters
     .filter((importer) => !isSafeAutoPurgeTarget(importer))
     .map(({ modulesDir }) => modulesDir)
   if (unsafeModulesDirs.length > 0) {
     throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_UNSAFE', `Aborted removal of a custom or symlinked modules directory without a TTY: ${unsafeModulesDirs.map((dir) => `"${dir}"`).join(', ')}`, {
       hint: 'Use a direct, non-symlinked "node_modules" directory, or set "confirmModulesPurge" to "false".',
-    })
-  }
-  for (const importer of safeImporters) {
-    logger.info({
-      message: `Non-interactive terminal detected. Automatically proceeding with modules directory purge for "${importer.modulesDir}".`,
-      prefix: importer.rootDir,
     })
   }
 }

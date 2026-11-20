@@ -6,6 +6,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, install, type MutatedProject, mutateModules } from '@pnpm/installing.deps-installer'
 import type { Modules } from '@pnpm/installing.modules-yaml'
+import { logger } from '@pnpm/logger'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -63,8 +64,24 @@ test('a warning explains why the modules directory is recreated', async () => {
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'warn',
-    message: `The modules directory at "${path.resolve('node_modules')}" will be recreated. This modules directory was created using a different node-linker value.`,
+    message: `The modules directory at "${path.resolve('node_modules')}" has to be recreated. This modules directory was created using a different node-linker value.`,
   }))
+})
+
+test('a modules directory with several mismatches gets one warning that lists every reason', async () => {
+  prepareEmpty()
+  const manifest = { dependencies: { 'is-positive': '1.0.0' } }
+  await install(manifest, testDefaults())
+
+  const reporter = jest.fn()
+  await install(manifest, testDefaults({ confirmModulesPurge: false, hoistPattern: ['is-*'], reporter, storeDir: path.resolve('../other-store') }))
+
+  const warnings = reporter.mock.calls
+    .map(([log]) => log as { level: string, message?: string })
+    .filter((log) => log.level === 'warn' && log.message?.includes('has to be recreated'))
+  expect(warnings).toHaveLength(1)
+  expect(warnings[0].message).toContain('different hoist-pattern value.')
+  expect(warnings[0].message).toContain('Unexpected store location')
 })
 
 test.each([
@@ -289,14 +306,22 @@ test('fail on non-compatible custom modules directory in non-TTY environment', a
 
   await saveModulesYaml('0.50.0', opts.storeDir, 'custom_modules')
 
-  await expect(withoutTTY(() => install({}, {
-    ...opts,
-    confirmModulesPurge: true,
-    modulesDir: 'custom_modules',
-  }))).rejects.toMatchObject({
-    code: 'ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE',
-    message: expect.stringContaining(path.resolve('custom_modules')),
-  })
+  const warn = jest.spyOn(logger, 'warn')
+  try {
+    await expect(withoutTTY(() => install({}, {
+      ...opts,
+      confirmModulesPurge: true,
+      modulesDir: 'custom_modules',
+    }))).rejects.toMatchObject({
+      code: 'ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE',
+      message: expect.stringContaining(path.resolve('custom_modules')),
+    })
+    expect(warn).not.toHaveBeenCalledWith(expect.objectContaining({
+      message: expect.stringContaining('has to be recreated'),
+    }))
+  } finally {
+    warn.mockRestore()
+  }
 })
 
 test('fail on non-compatible symlinked node_modules in non-TTY environment', async () => {

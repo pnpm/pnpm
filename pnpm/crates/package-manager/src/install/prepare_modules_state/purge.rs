@@ -44,29 +44,29 @@ pub(super) fn purge_inconsistent_modules_dir<ReporterImpl: Reporter>(
     }
     Ok(true)
 }
-/// Tells the user why the modules directory is about to be emptied. The reason
-/// is the error a mutation would have failed with, without its advice to run
-/// `pnpm install`, which is what is happening.
+/// The reason is the error a mutation would have failed with, without its
+/// advice to run `pnpm install`, which is what is happening. A drift that
+/// mutations accept, such as a tree linked from the sibling `v3` store, still
+/// gets a reason, as a plain install recreates the tree all the same.
 fn warn_modules_dir_recreated<ReporterImpl: Reporter>(context: &InconsistentModulesDir<'_>) {
-    let Err(error) =
+    let reason =
         refuse_drifted_modules_dir(context.modules_manifest, context.config, context.node_linker)
-    else {
-        return;
-    };
+            .err()
+            .map_or_else(
+                || "Its recorded layout differs from the current settings.".to_string(),
+                |error| purge_reason(&error),
+            );
     ReporterImpl::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
         message: format!(
-            r#"The modules directory at "{}" will be recreated. {}"#,
+            r#"The modules directory at "{}" has to be recreated. {reason}"#,
             context.config.modules_dir.display(),
-            purge_reason(&error),
         ),
         prefix: context.workspace_root.to_string_lossy().into_owned(),
     }));
 }
 
-/// The message of a modules directory incompatibility without its advice to
-/// recreate the modules directory.
-pub(super) fn purge_reason(error: &InstallError) -> String {
+fn purge_reason(error: &InstallError) -> String {
     let message = error.to_string();
     message
         .strip_suffix(r#" Run "pnpm install" to recreate the modules directory."#)
