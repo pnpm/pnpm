@@ -544,6 +544,9 @@ fn run_project_runtime_pin(
     version_spec: &str,
     args: &[OsString],
 ) -> i32 {
+    if name != "node" {
+        return run_runtime_from_store(state_dir, name, version_spec, args);
+    }
     let result = select_global_runtime(state_dir, name, version_spec);
     match result {
         Ok(bin) => exec_program(&bin, args),
@@ -559,6 +562,34 @@ fn run_project_runtime_pin(
                     "pnpm: install the required Node.js version globally with pnpm runtime set node --global.",
                 );
             }
+            1
+        }
+    }
+}
+
+fn run_runtime_from_store(
+    state_dir: &Path,
+    name: &str,
+    version_spec: &str,
+    args: &[OsString],
+) -> i32 {
+    let result = crate::block_on_runtime(
+        "pacquet-global-shim-runtime",
+        materialize_runtime(state_dir, name.to_string(), version_spec.to_string()),
+    );
+    match result {
+        Ok(MaterializedRuntime {
+            bin,
+            private_install: Some(private_install),
+        }) => run_held_program(&bin, &[], args, vec![private_install]),
+        Ok(MaterializedRuntime { bin, private_install: None }) => exec_program(&bin, args),
+        Err(error) => {
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}",
+            );
+            pnpm_diagnostics::eprintln!(
+                "pnpm: global runtime downloads use global configuration and environment settings. pnpm-workspace.yaml is ignored unless PNPM_CONFIG_WORKSPACE_DIR or NPM_CONFIG_WORKSPACE_DIR selects a workspace.",
+            );
             1
         }
     }

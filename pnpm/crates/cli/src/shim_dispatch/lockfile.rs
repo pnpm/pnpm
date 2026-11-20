@@ -22,7 +22,7 @@ pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<S
     let selection = config.wanted_lockfile_selection();
     if selection.merge_git_branch_lockfiles {
         let lockfile = Lockfile::load_wanted(lockfile_dir, &selection).ok()??;
-        let importer_id = importer_id(project_dir, lockfile_dir)?;
+        let importer_id = importer_id(project_dir, lockfile_dir);
         return lockfile.importers
             .get(&importer_id)
             .and_then(|importer| importer_runtime_version(importer, &package_name))
@@ -31,7 +31,7 @@ pub(super) fn locked_runtime_version(project_dir: &Path, name: &str) -> Option<S
     let file_count = selection.branch_lockfile_candidates.len().max(1);
     for file_name in selection.read_order().take(file_count) {
         let lockfile_path = lockfile_dir.join(file_name);
-        let importer_id = importer_id(project_dir, lockfile_dir)?;
+        let importer_id = importer_id(project_dir, lockfile_dir);
         match load_importer_snapshot(&lockfile_path, &importer_id) {
             Ok(ImporterLoad::MissingLockfile) => continue,
             Ok(ImporterLoad::Importer(Some(importer))) => {
@@ -62,13 +62,8 @@ fn load_importer_snapshot(
     }
 }
 
-fn importer_id(project_dir: &Path, lockfile_dir: &Path) -> Option<String> {
-    let relative = project_dir.strip_prefix(lockfile_dir).ok()?;
-    Some(if relative.as_os_str().is_empty() {
-        ".".to_string()
-    } else {
-        relative.to_string_lossy().replace('\\', "/")
-    })
+fn importer_id(project_dir: &Path, lockfile_dir: &Path) -> String {
+    pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir)
 }
 
 fn importer_runtime_version(
@@ -88,4 +83,17 @@ fn importer_runtime_version(
         return Some(None);
     }
     Some(version.version_semver().map(ToString::to_string))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::importer_id;
+    use std::path::Path;
+
+    #[test]
+    fn importer_id_supports_a_lockfile_directory_below_the_project() {
+        let project = tempfile::tempdir().unwrap();
+        let lockfile_dir = project.path().join("locks");
+        assert_eq!(importer_id(project.path(), Path::new(&lockfile_dir)), "..",);
+    }
 }
