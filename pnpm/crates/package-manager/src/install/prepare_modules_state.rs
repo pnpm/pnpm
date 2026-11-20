@@ -64,7 +64,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         inputs.tree.config,
     )?;
     let drifted = modules_layout_drifted(modules_manifest, &inputs);
-    let is_inconsistent = prepare_modules_layout(&inputs, modules_manifest, drifted)?;
+    let is_inconsistent = prepare_modules_layout::<Reporter>(&inputs, modules_manifest, drifted)?;
 
     let recorded_state = load_recorded_workspace_state(&inputs);
     let recorded = recorded_workspace(
@@ -119,13 +119,13 @@ fn recorded_workspace<'a>(
 }
 
 /// Returns `is_inconsistent` as [`purge_inconsistent_modules_dir`] leaves it.
-fn prepare_modules_layout(
+fn prepare_modules_layout<Reporter: self::Reporter>(
     inputs: &PrepareModulesStateInputs<'_, '_>,
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
     is_inconsistent: bool,
 ) -> Result<bool, InstallError> {
     let is_inconsistent = if !inputs.resolve_only && is_inconsistent {
-        purge_inconsistent_modules_dir(&InconsistentModulesDir {
+        purge_inconsistent_modules_dir::<Reporter>(&InconsistentModulesDir {
             config: inputs.tree.config,
             workspace_root: inputs.tree.workspace_root,
             modules_manifest,
