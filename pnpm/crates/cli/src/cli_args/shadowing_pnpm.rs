@@ -162,11 +162,35 @@ fn origin_from_shim_script(executable: &Path) -> Option<InstallOrigin> {
 /// What `pnpm setup` does to the user's `PATH`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SetupPathEntry {
-    /// Writes the global bin directory first on `PATH`.
-    Prepended,
+    /// Writes a shell configuration block that puts the global bin directory
+    /// first on `PATH` in every new shell, wherever it was before.
+    PrependedInShellConfig,
+    /// Prepends the global bin directory to the Windows user `Path`, which
+    /// Windows appends after the machine `Path`, so a `pnpm` there still wins.
+    AddedToUserPath,
     /// Prints the settings for the user to add, under `--no-modify-path` or
     /// when the shell configuration cannot be written.
     LeftAlone,
+}
+
+impl SetupPathEntry {
+    /// What a `pnpm setup` that tried to update the environment did to it.
+    pub(crate) fn after_env_update<Report, Error>(result: &Result<Report, Error>) -> Self {
+        match result {
+            Ok(_) if cfg!(windows) => Self::AddedToUserPath,
+            Ok(_) => Self::PrependedInShellConfig,
+            Err(_) => Self::LeftAlone,
+        }
+    }
+
+    /// Whether a `pnpm` from another installer ahead of the global bin
+    /// directory may still run first in a new shell.
+    pub(crate) fn keeps_shadowing(self) -> bool {
+        match self {
+            Self::PrependedInShellConfig => false,
+            Self::AddedToUserPath | Self::LeftAlone => true,
+        }
+    }
 }
 
 /// A `pnpm` that a `PATH` lookup finds ahead of the one in the global bin
@@ -185,17 +209,6 @@ pub(crate) struct ShadowingPnpm {
 impl ShadowingPnpm {
     /// The warning to print once a pnpm is linked into `global_bin` and this
     /// one still answers to `pnpm`.
-    /// Whether the warning still applies after `pnpm setup` writes its PATH
-    /// entry. Setup puts a global bin directory missing from `PATH` first,
-    /// which is the fix the warning would ask for, unless it leaves `PATH`
-    /// alone.
-    pub(crate) fn outlives_setup(&self, path_entry: SetupPathEntry) -> bool {
-        match path_entry {
-            SetupPathEntry::Prepended => self.global_bin_on_path,
-            SetupPathEntry::LeftAlone => true,
-        }
-    }
-
     pub(crate) fn emit_warning<Logger: Reporter>(&self, global_bin: &Path, prefix: &str) {
         Logger::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
@@ -238,8 +251,8 @@ pub(crate) fn warn_if_shadowed_after_setup<Logger: Reporter>(
     path_entry: SetupPathEntry,
     prefix: &str,
 ) {
-    if let Some(shadowing) = find_shadowing_pnpm_on_path(global_bin)
-        && shadowing.outlives_setup(path_entry)
+    if path_entry.keeps_shadowing()
+        && let Some(shadowing) = find_shadowing_pnpm_on_path(global_bin)
     {
         shadowing.emit_warning::<Logger>(global_bin, prefix);
     }

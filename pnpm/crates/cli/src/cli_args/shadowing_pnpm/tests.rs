@@ -257,17 +257,23 @@ fn a_project_dependency_is_not_an_npm_global_install() {
 }
 
 #[test]
-fn setup_keeps_the_warning_only_when_its_path_entry_does_not_fix_it() {
-    let bin_missing = ShadowingPnpm {
-        executable: PathBuf::from("/usr/local/bin/pnpm"),
-        origin: InstallOrigin::Unknown,
-        global_bin_on_path: false,
+fn setup_keeps_the_warning_unless_its_shell_config_puts_the_global_bin_first() {
+    assert!(!SetupPathEntry::PrependedInShellConfig.keeps_shadowing());
+    assert!(SetupPathEntry::AddedToUserPath.keeps_shadowing());
+    assert!(SetupPathEntry::LeftAlone.keeps_shadowing());
+}
+
+#[test]
+fn a_failed_env_update_leaves_the_path_alone() {
+    let failed: Result<(), ()> = Err(());
+    assert_eq!(SetupPathEntry::after_env_update(&failed), SetupPathEntry::LeftAlone);
+    let written = SetupPathEntry::after_env_update(&Ok::<(), ()>(()));
+    let expected = if cfg!(windows) {
+        SetupPathEntry::AddedToUserPath
+    } else {
+        SetupPathEntry::PrependedInShellConfig
     };
-    let bin_behind = ShadowingPnpm { global_bin_on_path: true, ..bin_missing.clone() };
-    assert!(!bin_missing.outlives_setup(SetupPathEntry::Prepended));
-    assert!(bin_missing.outlives_setup(SetupPathEntry::LeftAlone));
-    assert!(bin_behind.outlives_setup(SetupPathEntry::Prepended));
-    assert!(bin_behind.outlives_setup(SetupPathEntry::LeftAlone));
+    assert_eq!(written, expected);
 }
 
 /// Windows shims are `.cmd` scripts in a directory that says nothing about
