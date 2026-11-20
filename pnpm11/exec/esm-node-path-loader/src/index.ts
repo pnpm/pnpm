@@ -26,9 +26,9 @@
  * syntax in them. A `require()` from a module without a filename also has no
  * `parentURL`. Unless the user adds `--conditions=import`, only the entry
  * point resolves with the `import` condition, so the hook leaves such a
- * `require()` to `require.extensions`. Some Node.js
- * versions pass the conditions of a `require()` as a `Set`, so the hook
- * spreads them before searching.
+ * `require()` to `require.extensions`. Some Node.js versions pass the
+ * conditions of a `require()` as a `Set`, so the hook spreads them before
+ * searching.
  *
  * The Rust CLI embeds an identical copy of these sources — the two must
  * stay in sync so both CLIs inject the same `NODE_OPTIONS` value.

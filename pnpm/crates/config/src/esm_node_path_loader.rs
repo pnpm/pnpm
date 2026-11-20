@@ -18,8 +18,9 @@
 //! module syntax in them. A `require()` from a module without a filename
 //! also has no parent URL. Unless the user adds `--conditions=import`, only
 //! the entry point resolves with the `import` condition, so the hook leaves
-//! such a `require()` to `require.extensions`. Some Node.js versions pass the conditions of a
-//! `require()` as a `Set`, so the hook spreads them before searching.
+//! such a `require()` to `require.extensions`. Some Node.js versions pass
+//! the conditions of a `require()` as a `Set`, so the hook spreads them
+//! before searching.
 //!
 //! The hook sources are identical copies of the ones the TypeScript CLI
 //! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`) — the two must
