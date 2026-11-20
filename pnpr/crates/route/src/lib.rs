@@ -360,7 +360,8 @@ impl RouteContext {
     fn authorized_alias(&self, identity: &Identity, registry: &str) -> Option<&ResolvedAlias> {
         self.aliases
             .iter()
-            .find(|alias| alias.name == registry && alias.admits(identity))
+            .filter(|alias| alias.name == registry)
+            .find(|alias| alias.admits(identity))
     }
 
     fn is_public_route(&self, fetch: &str, package: Option<&str>) -> bool {
@@ -549,7 +550,8 @@ fn public_route_matchers(policy: &RoutePolicy) -> Vec<RouteMatcher> {
         .chain(
             policy.public
                 .iter()
-                .filter_map(|route| RouteMatcher::from_public_route(route).ok()),
+                .map(RouteMatcher::from_public_route)
+                .filter_map(Result::ok),
         )
         .collect()
 }

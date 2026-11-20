@@ -64,7 +64,8 @@ fn unambiguous_candidates(tarballs: Vec<MissingIntegrityTarball>) -> Vec<Missing
         .collect();
     tarballs
         .into_iter()
-        .filter(|tarball| tarball.needs_integrity && !shared.contains(&tarball.filename))
+        .filter(|tarball| tarball.needs_integrity)
+        .filter(|tarball| !shared.contains(&tarball.filename))
         .collect()
 }
 

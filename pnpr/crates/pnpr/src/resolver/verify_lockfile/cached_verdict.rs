@@ -103,7 +103,7 @@ pub(in crate::resolver) fn past_verdict_footprint(
 
 /// Merge every active verifier's policy snapshot into one bag, the key
 /// the verdict cache stores alongside the lockfile hash. Later verifiers
-/// overwrite earlier ones on a shared key — mirrors the local cache's
+/// overwrite earlier ones on a shared key, mirrors the local cache's
 /// [`merge_policies`] so a verdict recorded here is comparable to one the
 /// client's own cache would write.
 pub(in crate::resolver) fn merge_policies(

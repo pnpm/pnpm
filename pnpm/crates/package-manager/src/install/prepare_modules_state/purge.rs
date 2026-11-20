@@ -64,10 +64,10 @@ fn warn_modules_dir_recreated<ReporterImpl: Reporter>(context: &InconsistentModu
     let reason =
         refuse_drifted_modules_dir(context.modules_manifest, context.config, context.node_linker)
             .err()
-            .map_or_else(
-                || "Its recorded layout differs from the current settings.".to_string(),
-                |error| purge_reason(&error),
-            );
+            .map(|error| purge_reason(&error))
+            .unwrap_or_else(|| {
+                "Its recorded layout differs from the current settings.".to_string()
+            });
     ReporterImpl::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,
         message: format!(
@@ -82,7 +82,8 @@ fn purge_reason(error: &InstallError) -> String {
     let message = error.to_string();
     message
         .strip_suffix(r#" Run "pnpm install" to recreate the modules directory."#)
-        .map_or_else(|| message.clone(), str::to_string)
+        .map(str::to_string)
+        .unwrap_or_else(|| message.clone())
 }
 /// The canonicalized directory the purge may sweep, and whether sweeping it is
 /// safe at all. Deleting from the validated path closes the

@@ -357,7 +357,8 @@ fn next_redirect_target(
     response
         .headers()
         .get(reqwest::header::LOCATION)
-        .and_then(|location| location.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .and_then(|location| response.url().join(location).ok())
 }
 

@@ -113,7 +113,8 @@ async fn serve_cdn_connection(socket: &mut tokio::net::TcpStream, tgz: &[u8], hi
     let expected_line = format!("GET /@corp/split/split-1.0.0.tgz?{PRESIGNED_QUERY} HTTP/");
     let leaked_auth = req
         .lines()
-        .any(|line| line.to_ascii_lowercase().starts_with("authorization:"));
+        .map(str::to_ascii_lowercase)
+        .any(|lowercase| lowercase.starts_with("authorization:"));
     if !req.starts_with(&expected_line) || leaked_auth {
         let _ = socket.write_all(
             b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
@@ -262,7 +263,8 @@ async fn post_ndjson(app: &Router, path: &str, token: &str, body: Value) -> Vec<
     let text = String::from_utf8(raw).unwrap();
     assert_eq!(status, StatusCode::OK, "{text}");
     text.lines()
-        .map(|line| serde_json::from_str(line).unwrap())
+        .map(serde_json::from_str)
+        .map(Result::unwrap)
         .collect()
 }
 

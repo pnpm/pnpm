@@ -195,7 +195,8 @@ fn run_install_blocking(
         }),
     };
     begin_stats();
-    let deps_requiring_build_sink = (options.return_list_of_deps_requiring_build == Some(true))
+    let deps_requiring_build_sink = options.return_list_of_deps_requiring_build
+        .unwrap_or(false)
         .then(DepsRequiringBuildSink::default);
     let outcome = run_install_inner(
         options,
@@ -323,8 +324,8 @@ impl InstallShape {
             lockfile_policy: pnpm_package_manager::InstallLockfilePolicy {
                 frozen: self.frozen_lockfile,
                 prefer_frozen: self.prefer_frozen_lockfile,
-                ignore_manifest_check: options.ignore_package_manifest == Some(true),
-                ignore_settings_check: options.ignore_lockfile_settings_checks == Some(true),
+                ignore_manifest_check: options.ignore_package_manifest.unwrap_or(false),
+                ignore_settings_check: options.ignore_lockfile_settings_checks.unwrap_or(false),
                 disable_optimistic_repeat: mode.disable_optimistic_repeat_install(),
                 // The repeat-install fast path keys off `package.json` mtimes
                 // by default. NAPI installs use caller-supplied manifests
@@ -379,7 +380,7 @@ impl InstallShape {
 /// `node_modules` and must keep its own frozen shape even when the caller
 /// reuses install options that carry the flag.
 fn ignores_package_manifest(options: &InstallOptions, mode: &EngineMode) -> bool {
-    matches!(mode, EngineMode::Install(_)) && options.ignore_package_manifest == Some(true)
+    matches!(mode, EngineMode::Install(_)) && options.ignore_package_manifest.unwrap_or(false)
 }
 
 /// `update: true` re-resolves the whole graph to the highest in-range
@@ -399,7 +400,7 @@ fn updates_everything(
     ignore_package_manifest: bool,
 ) -> bool {
     matches!(mode, EngineMode::Install(_))
-        && options.update == Some(true)
+        && options.update.unwrap_or(false)
         && !ignore_package_manifest
 }
 
@@ -533,7 +534,7 @@ fn root_manifest_value(options: &InstallOptions, dir: &Path) -> napi::Result<ser
 
 fn dependency_groups(options: &InstallOptions) -> Vec<DependencyGroup> {
     let mut groups = vec![DependencyGroup::Prod, DependencyGroup::Dev];
-    if options.include_optional_deps != Some(false) {
+    if options.include_optional_deps.unwrap_or(true) {
         groups.push(DependencyGroup::Optional);
     }
     groups

@@ -67,7 +67,7 @@ pub(super) fn rewrite_dist_tarball(
     public_url: &str,
 ) {
     // Every string `dist.tarball` must be rewritten to a route on *this*
-    // server, where integrity and OSV are enforced — never passed through.
+    // server, where integrity and OSV are enforced, never passed through.
     let version = value
         .get("version")
         .and_then(Value::as_str)

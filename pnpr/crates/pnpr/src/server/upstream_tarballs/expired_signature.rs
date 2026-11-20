@@ -81,5 +81,6 @@ async fn rotated_tarball_dist(
 ) -> Result<Option<TarballDist>, RegistryError> {
     Ok(parse_tarball_dist(state, packument, tarball.name, tarball.filename)
         .await?
-        .filter(|dist| dist.integrity == *tarball.integrity && dist.route != *tarball.route))
+        .filter(|dist| dist.integrity == *tarball.integrity)
+        .filter(|dist| dist.route != *tarball.route))
 }

@@ -774,7 +774,8 @@ fn frozen_frames_and_lockfile_routing_isolate_multi_registry_stats_and_routed_en
     assert_eq!(frames.len(), 2);
     let parsed: Vec<serde_json::Value> = frames
         .iter()
-        .map(|line| serde_json::from_slice(line).unwrap())
+        .map(|line| serde_json::from_slice(line))
+        .map(Result::unwrap)
         .collect();
     let east_frame = parsed
         .iter()
