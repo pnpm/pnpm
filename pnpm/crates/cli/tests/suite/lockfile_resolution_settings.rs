@@ -292,7 +292,7 @@ fn a_v13_lockfile_without_the_settings_needs_a_regular_install() {
     let lockfile = fs::read_to_string(&lockfile_path).unwrap();
     let keys =
         ["autoDedupe", "dedupeInjectedDeps", "dedupePeerDependents", "linkWorkspacePackages"];
-    let stripped: String = lockfile
+    let mut stripped = lockfile
         .lines()
         .filter(|line| {
             !keys
@@ -302,8 +302,9 @@ fn a_v13_lockfile_without_the_settings_needs_a_regular_install() {
                         .starts_with(&format!("\"{key}\""))
                 })
         })
-        .map(|line| format!("{line}\n"))
-        .collect();
+        .collect::<Vec<_>>()
+        .join("\n");
+    stripped.push('\n');
     assert_ne!(stripped, lockfile);
     fs::write(&lockfile_path, stripped).unwrap();
     assert_eq!(recorded(&workspace), ResolutionSettings::default());
