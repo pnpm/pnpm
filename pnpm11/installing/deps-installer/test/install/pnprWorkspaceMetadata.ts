@@ -358,7 +358,9 @@ test('pnpr rejects pattern package names in resolved lockfiles', async () => {
 
   await expect(install(manifest, createOptions(workspaceRoot, rootDir, {
     minimumReleaseAge: 1440,
-  }))).rejects.toThrow('not an exact version in the resolved lockfile')
+    // The resolved lockfile's own name check rejects the pattern before the
+    // allowed picks are read, so it never reaches minimumReleaseAgeExclude.
+  }))).rejects.toThrow('not valid package names')
 })
 
 test("pnpr forwards the client's whole verification policy, not just the age cutoff", async () => {
