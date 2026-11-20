@@ -175,6 +175,9 @@
       "path": "../../workspace/injected-deps-syncer"
     },
     {
+      "path": "../../workspace/package-patterns"
+    },
+    {
       "path": "../../workspace/project-manifest-reader"
     },
     {

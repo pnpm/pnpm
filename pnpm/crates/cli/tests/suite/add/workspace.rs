@@ -37,6 +37,93 @@ fn add_to_multi_pattern_workspace_root_requires_workspace_root_flag() {
         .success();
 }
 
+/// Run `pnpm add foo` from `subdir` of a workspace whose root manifest is the
+/// only one, and return the failed command's stderr.
+fn add_from_workspace_subdir(packages: &str, subdir: &str, extra_args: &[&str]) -> String {
+    let root = TempDir::new().unwrap();
+    std::fs::write(root.path().join("package.json"), r#"{"name":"root","version":"1.0.0"}"#)
+        .unwrap();
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), format!("packages:\n{packages}"))
+        .unwrap();
+    let cwd = root.path().join(subdir);
+    std::fs::create_dir_all(&cwd).unwrap();
+    let root_dir = root
+        .path()
+        .to_str()
+        .expect("UTF-8 temp dir")
+        .to_string();
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&cwd)
+        .with_args(["add", "foo"])
+        .with_args(
+            extra_args
+                .iter()
+                .map(|arg| arg.replace("<root>", &root_dir)),
+        )
+        .output()
+        .expect("run pnpm add");
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(!output.status.success(), "adding to the workspace root must fail: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_ADDING_TO_ROOT"), "unexpected stderr: {stderr}");
+    stderr
+}
+
+const INIT_SUGGESTION: &str = r#"running "pnpm init" to generate a package.json"#;
+
+#[test]
+fn add_from_a_matched_directory_without_a_manifest_suggests_pnpm_init() {
+    let stderr =
+        add_from_workspace_subdir("  - packages/*\n  - tools/*\n", "packages/project", &[]);
+    assert!(stderr.contains(INIT_SUGGESTION), "unexpected stderr: {stderr}");
+}
+
+#[test]
+fn add_from_a_matched_directory_without_a_manifest_suggests_pnpm_init_with_one_pattern() {
+    let stderr = add_from_workspace_subdir("  - packages/*\n", "packages/project", &[]);
+    assert!(stderr.contains(INIT_SUGGESTION), "unexpected stderr: {stderr}");
+}
+
+#[test]
+fn add_from_a_directory_outside_the_patterns_keeps_the_root_warning() {
+    let stderr = add_from_workspace_subdir("  - packages/*\n  - tools/*\n", "scripts", &[]);
+    assert!(!stderr.contains(INIT_SUGGESTION), "unexpected stderr: {stderr}");
+}
+
+#[test]
+fn add_from_a_directory_excluded_by_the_patterns_keeps_the_root_warning() {
+    let stderr = add_from_workspace_subdir(
+        "  - packages/*\n  - tools/*\n  - '!packages/ignored'\n",
+        "packages/ignored",
+        &[],
+    );
+    assert!(!stderr.contains(INIT_SUGGESTION), "unexpected stderr: {stderr}");
+}
+
+#[test]
+fn add_from_inside_the_modules_dir_keeps_the_root_warning() {
+    let stderr =
+        add_from_workspace_subdir("  - '**'\n  - tools/*\nmodulesDir: deps\n", "deps/foo", &[]);
+    assert!(!stderr.contains(INIT_SUGGESTION), "unexpected stderr: {stderr}");
+}
+
+#[test]
+fn add_from_a_matched_directory_suggests_pnpm_init_when_the_modules_dir_is_the_root() {
+    let stderr =
+        add_from_workspace_subdir("  - packages/*\nmodulesDir: .\n", "packages/project", &[]);
+    assert!(stderr.contains(INIT_SUGGESTION), "unexpected stderr: {stderr}");
+}
+
+#[test]
+fn add_with_dir_at_the_workspace_root_keeps_the_root_warning() {
+    let stderr = add_from_workspace_subdir(
+        "  - packages/*\n  - tools/*\n",
+        "packages/project",
+        &["--dir", "<root>"],
+    );
+    assert!(!stderr.contains(INIT_SUGGESTION), "unexpected stderr: {stderr}");
+}
+
 #[test]
 fn add_accepts_multiple_local_package_selectors() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

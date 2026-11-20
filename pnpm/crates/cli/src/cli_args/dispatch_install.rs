@@ -56,12 +56,13 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<Com
     }
     let config_dependencies = args.parse_config_dependencies()?;
     let dir = ctx.locations.dir;
+    let cli_dir = ctx.locations.cli_dir;
     let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
     let reporter = selected_reporter();
     Ok(Box::pin(async move {
         let (config_root, recursive_sort) =
-            prepare_add_config(&args, cfg, dir, reporter, config_dependencies.is_none())?;
+            prepare_add_config(&args, cfg, dir, cli_dir, reporter, config_dependencies.is_none())?;
         let update_check = update_notifier::spawn(cfg, reporter_emit(reporter));
         let pipeline = AddPipeline {
             args,
@@ -100,6 +101,7 @@ fn prepare_add_config(
     args: &AddArgs,
     cfg: &mut Config,
     dir: &Path,
+    cli_dir: &Path,
     reporter: ReporterType,
     plain_dependencies: bool,
 ) -> miette::Result<(PathBuf, bool)> {
@@ -108,7 +110,7 @@ fn prepare_add_config(
     workspace_link_root(args.target.workspace, cfg.workspace_dir.as_deref())?;
     let recursive_sort = cfg.sort;
     if plain_dependencies {
-        args.check_workspace_root(cfg, dir)?;
+        args.check_workspace_root(cfg, dir, cli_dir)?;
     }
     args.install.lockfile_dir.apply_to(cfg, dir);
     args.apply_cli_config(cfg);

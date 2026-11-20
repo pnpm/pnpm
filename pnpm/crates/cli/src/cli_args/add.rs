@@ -33,7 +33,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_package_manager::{Add, build_workspace_packages_map};
-use pnpm_package_manifest::DependencyGroup;
+use pnpm_package_manifest::{DependencyGroup, PROJECT_MANIFEST_BASENAMES};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -215,7 +215,14 @@ pub struct AddArgs {
 }
 
 impl AddArgs {
-    pub(crate) fn check_workspace_root(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+    /// `cli_dir` is the directory `pnpm add` was invoked from, which differs
+    /// from `dir` when that directory has no manifest of its own.
+    pub(crate) fn check_workspace_root(
+        &self,
+        config: &Config,
+        dir: &Path,
+        cli_dir: &Path,
+    ) -> miette::Result<()> {
         if config.recursive
             || config.workspace_root
             || resolve_bool_override(
@@ -230,6 +237,9 @@ impl AddArgs {
         let patterns = pnpm_workspace::read_workspace_manifest(dir)
             .into_diagnostic()?
             .map(|manifest| pnpm_workspace::workspace_package_patterns(&manifest));
+        if is_uninitialized_workspace_project_dir(config, dir, cli_dir, patterns.as_deref())? {
+            return Err(AddError::AddingToRootFromUninitializedProject.into());
+        }
         if patterns
             .as_ref()
             .is_some_and(|patterns| patterns.len() > 1)
@@ -365,6 +375,29 @@ fn workspace_selectors(
         .collect()
 }
 
+/// `pnpm add` run from a directory that the workspace patterns select but
+/// that has no manifest yet falls back to the workspace root. Such a
+/// directory is most likely a package that was not initialized.
+fn is_uninitialized_workspace_project_dir(
+    config: &Config,
+    workspace_dir: &Path,
+    cli_dir: &Path,
+    patterns: Option<&[String]>,
+) -> miette::Result<bool> {
+    if cli_dir == workspace_dir
+        || PROJECT_MANIFEST_BASENAMES
+            .iter()
+            .any(|basename| cli_dir.join(basename).exists())
+    {
+        return Ok(false);
+    }
+    let opts = pnpm_workspace::FindWorkspaceProjectsOpts {
+        patterns: Some(patterns.map_or_else(|| vec![".".to_string()], <[String]>::to_vec)),
+        ignored_directories: config.managed_directories(),
+    };
+    pnpm_workspace::is_workspace_project_dir(workspace_dir, cli_dir, &opts).into_diagnostic()
+}
+
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum AddError {
@@ -373,6 +406,12 @@ pub enum AddError {
     )]
     #[diagnostic(code(ERR_PNPM_ADDING_TO_ROOT))]
     AddingToRoot,
+
+    #[display(
+        r#"Running this command in a workspace package directory without a package manifest will add the dependency to the workspace root, which might not be what you want. If this directory is meant to be a package, create a package manifest first, for example by running "pnpm init" to generate a package.json. If you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). If you don't want to see this warning anymore, you may set the ignore-workspace-root-check setting to true."#
+    )]
+    #[diagnostic(code(ERR_PNPM_ADDING_TO_ROOT))]
+    AddingToRootFromUninitializedProject,
 
     #[display(
         "Cannot declare {request} as the package manager of a filtered selection of projects"
