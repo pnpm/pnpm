@@ -130,31 +130,51 @@ impl UpdateArgs {
             inputs.action_matcher(&self.packages)
         };
         let packages = inputs.package_selectors(&packages);
+        if self.updates_packages(&packages) {
+            self.run_all_package_steps::<Reporter>(&mut state, &mut selection, inputs, &packages)
+                .await?;
+        }
+        self.update_github_actions::<Reporter>(inputs, action_matcher.as_ref(), state.config).await
+    }
+
+    async fn run_all_package_steps<Reporter: self::Reporter + 'static>(
+        &self,
+        state: &mut State,
+        selection: &mut Option<InstallFamilySelection>,
+        inputs: &UpdateInputs,
+        packages: &[String],
+    ) -> miette::Result<()> {
         let engine_outcome =
-            self.run_engine_update_step(&mut state, selection.as_mut(), inputs, &packages).await?;
+            self.run_engine_update_step(state, selection.as_mut(), inputs, packages).await?;
+        let eco_selectors =
+            if engine_outcome.remaining_packages.is_empty() && excludes_only(packages) {
+                packages
+            } else {
+                &engine_outcome.remaining_packages
+            };
         let eco_outcome = self.run_ecosystem_update_step::<Reporter>(
-            &state,
+            state,
             selection.as_ref(),
             inputs,
-            &engine_outcome.remaining_packages,
+            eco_selectors,
         )
         .await?;
         if self.should_run_node_update(
-            &state,
+            state,
             selection.as_ref(),
-            &packages,
+            packages,
             &engine_outcome,
             &eco_outcome,
         ) {
             self.run_package_update_step::<Reporter>(
-                &mut state,
+                state,
                 selection.as_mut(),
                 inputs,
                 &eco_outcome.remaining_node_selectors,
             )
             .await?;
         }
-        self.update_github_actions::<Reporter>(inputs, action_matcher.as_ref(), state.config).await
+        Ok(())
     }
 
     async fn run_engine_update_step(
@@ -280,7 +300,8 @@ impl UpdateArgs {
             return Ok(None);
         }
         let lockfile = command_lockfile(&state.lockfile, &inputs.lockfile_path)?.document;
-        let prompt = self.interactive_options(&inputs.include_direct, inputs.update_actions);
+        let prompt =
+            self.interactive_options(&inputs.include_direct, inputs.update_actions, &packages);
         match selection {
             Some(selection) => {
                 self.prompted_or_given_for_projects::<Reporter>(
@@ -289,7 +310,7 @@ impl UpdateArgs {
                     lockfile,
                     &inputs.actions_root,
                     prompt,
-                    packages,
+                    packages.clone(),
                 )
                 .await
             }
@@ -299,7 +320,7 @@ impl UpdateArgs {
                     lockfile,
                     &inputs.actions_root,
                     prompt,
-                    packages,
+                    packages.clone(),
                 )
                 .await
             }

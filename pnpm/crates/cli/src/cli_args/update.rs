@@ -104,6 +104,7 @@ impl UpdateArgs {
         &'a self,
         include_direct: &'a [DependencyGroup],
         update_actions: bool,
+        packages: &'a [String],
     ) -> InteractiveUpdateOptions<'a> {
         // `--no-save` keeps the manifest ranges, so the update stays inside
         // them whatever `--latest` or `--tag` asks for.
@@ -112,10 +113,17 @@ impl UpdateArgs {
         } else {
             TargetVersion::from_update_flags(self.selection.latest, self.selection.tag.as_deref())
         };
+        let package_selectors = (!update_actions
+            || !crate::github_actions::selects_actions_only(&self.packages, packages))
+        .then_some(packages);
         InteractiveUpdateOptions {
             target_version,
             include_direct,
+            package_selectors,
             include_github_actions: update_actions,
+            action_matcher: update_actions
+                .then(|| github_actions::selector_matcher(&self.packages))
+                .flatten(),
             latest_github_actions: self.selection.latest,
             prompt: self.prompt,
             details: if self.selection.display.long {

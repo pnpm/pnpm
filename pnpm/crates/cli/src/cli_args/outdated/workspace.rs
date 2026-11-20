@@ -357,17 +357,19 @@ impl OutdatedArgs {
         )?;
         let query = filters.query(self.target_version());
         let mut outdated = Vec::new();
-        for state in states {
-            outdated.extend(
-                collect_outdated(
-                    &state.manifest,
-                    wanted_lockfile(&state)?,
-                    config,
-                    &state.http_client,
-                    &query,
-                )
-                .await?,
-            );
+        if !self.selects_github_actions_only(&package_patterns) {
+            for state in states {
+                outdated.extend(
+                    collect_outdated(
+                        &state.manifest,
+                        wanted_lockfile(&state)?,
+                        config,
+                        &state.http_client,
+                        &query,
+                    )
+                    .await?,
+                );
+            }
         }
 
         self.report_outdated(config, &mut outdated).await

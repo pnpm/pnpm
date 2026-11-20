@@ -27,8 +27,7 @@ pub(crate) fn requires_ecosystem_lockfile(
         && let Some(cargo_matcher) =
             ecosystem_matcher(package_patterns, EcosystemFilterKind::Cargo)?
     {
-        let cargo_query =
-            OutdatedQuery { match_names: cargo_matcher.as_ref().or(query.match_names), ..*query };
+        let cargo_query = query_for_ecosystem(query, package_patterns, cargo_matcher.as_ref());
         if has_matching_cargo_deps(project_dir, workspace_root, &cargo_query)? {
             return Ok(true);
         }
@@ -37,8 +36,7 @@ pub(crate) fn requires_ecosystem_lockfile(
         && !has_python_lockfile(project_dir, workspace_root)
         && let Some(py_matcher) = ecosystem_matcher(package_patterns, EcosystemFilterKind::Python)?
     {
-        let py_query =
-            OutdatedQuery { match_names: py_matcher.as_ref().or(query.match_names), ..*query };
+        let py_query = query_for_ecosystem(query, package_patterns, py_matcher.as_ref());
         if has_matching_python_deps(project_dir, workspace_root, &py_query)? {
             return Ok(true);
         }
@@ -113,8 +111,7 @@ pub(crate) async fn collect_ecosystem_outdated(
     if run.config.cargo.enabled
         && let Some(cargo_matcher) = ecosystem_matcher(raw_packages, EcosystemFilterKind::Cargo)?
     {
-        let cargo_query =
-            OutdatedQuery { match_names: cargo_matcher.as_ref().or(query.match_names), ..*query };
+        let cargo_query = query_for_ecosystem(query, raw_packages, cargo_matcher.as_ref());
         out.extend(
             collect_cargo_outdated(
                 project_dir,
@@ -129,8 +126,7 @@ pub(crate) async fn collect_ecosystem_outdated(
     if run.config.python.enabled
         && let Some(py_matcher) = ecosystem_matcher(raw_packages, EcosystemFilterKind::Python)?
     {
-        let py_query =
-            OutdatedQuery { match_names: py_matcher.as_ref().or(query.match_names), ..*query };
+        let py_query = query_for_ecosystem(query, raw_packages, py_matcher.as_ref());
         out.extend(
             collect_python_outdated(
                 project_dir,
@@ -146,6 +142,15 @@ pub(crate) async fn collect_ecosystem_outdated(
     Ok(out)
 }
 
+fn query_for_ecosystem<'a>(
+    query: &OutdatedQuery<'a>,
+    raw_packages: &[String],
+    ecosystem_matcher: Option<&'a Matcher>,
+) -> OutdatedQuery<'a> {
+    let match_names = if raw_packages.is_empty() { query.match_names } else { ecosystem_matcher };
+    OutdatedQuery { match_names, ..*query }
+}
+
 fn ecosystem_matcher(
     raw_packages: &[String],
     kind: EcosystemFilterKind,
@@ -155,7 +160,7 @@ fn ecosystem_matcher(
     }
     let patterns = patterns_for_ecosystem(raw_packages, kind)?;
     if patterns.is_empty() {
-        return Ok(None);
+        return Ok(super::excludes_only(raw_packages).then_some(None));
     }
     Ok(Some(Some(create_matcher(&patterns))))
 }

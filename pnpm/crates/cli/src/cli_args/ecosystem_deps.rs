@@ -9,7 +9,8 @@ pub(crate) use outdated::{
     requires_ecosystem_lockfile,
 };
 pub(crate) use selectors::{
-    EcosystemFilterKind, excludes_only, patterns_for_ecosystem, validate_ecosystem_selectors,
+    EcosystemFilterKind, excludes_only, is_ecosystem_prefixed, patterns_for_ecosystem,
+    validate_ecosystem_selectors,
 };
 pub(crate) use standalone::{
     select_recursive_and_standalone_projects, select_standalone_ecosystem_dirs,
@@ -232,20 +233,24 @@ fn filter_remaining_node_selectors(
     }
     if !node_selectors
         .iter()
-        .any(|sel| !sel.starts_with('@') && !is_cargo_prefixed(sel) && !is_python_prefixed(sel))
+        .any(|sel| {
+            let unnegated = sel.strip_prefix('!').unwrap_or(sel);
+            !unnegated.starts_with('@') && !is_cargo_prefixed(sel) && !is_python_prefixed(sel)
+        })
     {
-        return Ok(node_selectors
+        let remaining = node_selectors
             .iter()
             .filter(|sel| !is_cargo_prefixed(sel) && !is_python_prefixed(sel))
             .cloned()
-            .collect());
+            .collect();
+        return Ok(pnpm_matcher::prune_orphan_ignores(remaining, node_selectors));
     }
     let eco_names = collect_declared_eco_names(target_dirs, python_dep_names, config)?;
     if eco_names.is_empty() {
         return Ok(node_selectors.to_vec());
     }
     let node_deps = collect_declared_node_names(manifests);
-    Ok(node_selectors
+    let remaining = node_selectors
         .iter()
         .filter(|selector| {
             if is_cargo_prefixed(selector) || is_python_prefixed(selector) {
@@ -257,7 +262,8 @@ fn filter_remaining_node_selectors(
                 .is_none_or(|name| node_deps.contains(name) || !eco_names.contains(name))
         })
         .cloned()
-        .collect())
+        .collect();
+    Ok(pnpm_matcher::prune_orphan_ignores(remaining, node_selectors))
 }
 
 fn collect_declared_eco_names(

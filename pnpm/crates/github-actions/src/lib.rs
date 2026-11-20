@@ -21,8 +21,7 @@ use std::{
 use tokio::fs;
 use versions::{find_current, parse_comment_version, replaces_comment_version, repo_versions};
 use workflow::discover;
-use yaml_serde::Value;
-use yamlpath::{Component, Document, QueryError, Route};
+use yamlpath::QueryError;
 
 #[derive(Clone)]
 pub struct OutdatedGitHubAction {
@@ -49,6 +48,7 @@ struct WorkflowValue {
     indentation: String,
     original_value: String,
     range: Range<usize>,
+    scalar_len: usize,
 }
 
 #[derive(Clone)]

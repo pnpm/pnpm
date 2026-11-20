@@ -563,6 +563,8 @@ fn run(command: Command, root: &Path, args: &[&str]) -> Output {
     command.env("PNPM_HOME", root.join("pnpm-home"));
     command.env("HOME", root);
     command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
+    command.env("XDG_CACHE_HOME", root.join("xdg-cache"));
+    command.env("XDG_STATE_HOME", root.join("xdg-state"));
     command
         .args(args)
         .output()

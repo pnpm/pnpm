@@ -43,14 +43,32 @@ fn negated_action_selectors_do_not_skip_package_updates() {
     for (raw, actions_only) in [
         (&[][..], false),
         (&["actions/checkout"][..], true),
+        (&["actions/checkout", "!lodash"][..], true),
         (&["actions/cache", "!actions/cache/save"][..], true),
         (&["!actions/checkout"][..], false),
         (&["!actions/cache/save"][..], false),
+        (&["!lodash"][..], false),
+        (&["!actions/checkout", "!lodash"][..], false),
         (&["pkg:npm/pkg-a"][..], false),
         (&["actions/checkout", "lodash"][..], false),
+        (&["react", "actions/checkout", "!lodash"][..], false),
     ] {
         let raw = strings(raw);
         let packages = without_action_selectors(&raw);
         assert_eq!(selects_actions_only(&raw, &packages), actions_only, "raw: {raw:?}");
     }
+}
+
+#[test]
+fn drops_orphan_negated_package_selectors_when_only_actions_are_positively_selected() {
+    assert_eq!(without_action_selectors(&strings(&["actions/checkout", "!lodash"])), strings(&[]));
+    assert_eq!(without_action_selectors(&strings(&["!lodash"])), strings(&["!lodash"]));
+    assert_eq!(
+        without_action_selectors(&strings(&["!actions/checkout", "!lodash"])),
+        strings(&["!lodash"]),
+    );
+    assert_eq!(
+        without_action_selectors(&strings(&["react", "actions/checkout", "!lodash"])),
+        strings(&["react", "!lodash"]),
+    );
 }

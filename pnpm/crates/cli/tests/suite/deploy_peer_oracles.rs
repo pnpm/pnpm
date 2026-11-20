@@ -1,10 +1,10 @@
 use crate::_utils::{
-    ManifestDeps, TreeView, WorkspaceFixture, assert_success, read_manifest,
+    ManifestDeps, TreeView, WorkspaceFixture, assert_success, pacquet_in, read_manifest,
     resolve_node_modules_package, write_manifest_value,
 };
 use pnpm_lockfile::{BoundProviders, Lockfile, LockfileFormat};
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{fs, path::Path, process::Output};
 
 #[derive(Debug, Clone, Copy)]
 struct Scenario {
@@ -229,9 +229,8 @@ fn check_deployed_self_link(format: &str) {
     let linked = resolve_node_modules_package(&deployed, "app").unwrap();
     assert_eq!(fs::canonicalize(linked).unwrap(), fs::canonicalize(&deployed).unwrap());
     let lockfile = fs::read(deployed.join("pnpm-lock.yaml")).unwrap();
-    fs::copy(fixture.workspace.join(".npmrc"), deployed.join(".npmrc")).unwrap();
     fs::remove_dir_all(deployed.join("node_modules")).unwrap();
-    assert_success(&fixture.command_at(&deployed, ["install", "--frozen-lockfile"]));
+    assert_success(&frozen_install_deployed(&fixture, &deployed));
     let linked = resolve_node_modules_package(&deployed, "app").unwrap();
     assert_eq!(fs::canonicalize(linked).unwrap(), fs::canonicalize(&deployed).unwrap());
     assert_eq!(fs::read(deployed.join("pnpm-lock.yaml")).unwrap(), lockfile);
@@ -285,16 +284,15 @@ fn check_frozen_deploy(fixture: &WorkspaceFixture, deployed: &Path, expected_pee
     let expected_lockfile = fs::read(deployed.join("pnpm-lock.yaml")).unwrap();
     let expected_tree = TreeView::new(deployed).project(deployed, false);
     assert!(expected_tree.contains("shared@1.0.0"), "{expected_tree}");
-    fs::copy(fixture.workspace.join(".npmrc"), deployed.join(".npmrc")).unwrap();
     fs::remove_dir_all(deployed.join("node_modules")).unwrap();
-    assert_success(&fixture.command_at(deployed, ["install", "--frozen-lockfile"]));
+    assert_success(&frozen_install_deployed(fixture, deployed));
     assert_eq!(fs::read(deployed.join("pnpm-lock.yaml")).unwrap(), expected_lockfile);
     assert_eq!(TreeView::new(deployed).project(deployed, false), expected_tree);
     assert_eq!(shared_peer_version(deployed).as_deref(), expected_peer, "{}", deployed.display());
     let mut stale = read_manifest(deployed);
     stale["dependencies"]["shared"] = json!("0.0.0");
     write_manifest_value(deployed, &stale);
-    let rejected = fixture.command_at(deployed, ["install", "--frozen-lockfile"]);
+    let rejected = frozen_install_deployed(fixture, deployed);
     let output = format!(
         "{}{}",
         String::from_utf8_lossy(&rejected.stdout),
@@ -308,8 +306,22 @@ fn check_frozen_deploy(fixture: &WorkspaceFixture, deployed: &Path, expected_pee
     assert_eq!(fs::read(deployed.join("pnpm-lock.yaml")).unwrap(), expected_lockfile);
 }
 
+fn frozen_install_deployed(fixture: &WorkspaceFixture, deployed: &Path) -> Output {
+    pacquet_in(deployed)
+        .env("PNPM_CONFIG_REGISTRY", fixture.registry.mock_instance.url())
+        .env("PNPM_CONFIG_STORE_DIR", &fixture.registry.store_dir)
+        .env("PNPM_CONFIG_CACHE_DIR", &fixture.registry.cache_dir)
+        .env("XDG_CONFIG_HOME", fixture.workspace.with_file_name("xdg-config"))
+        .args(["--reporter=ndjson", "install", "--frozen-lockfile"])
+        .output()
+        .expect("run frozen install in deployed directory")
+}
+
 fn shared_peer_version(project: &Path) -> Option<String> {
-    let shared = resolve_node_modules_package(project, "shared").expect("installed shared package");
+    let shared = resolve_node_modules_package(project, "shared")
+        .unwrap_or_else(|| {
+            panic!("installed shared package at {}", describe_missing_shared(project))
+        });
     let shared = fs::canonicalize(shared).unwrap();
     resolve_node_modules_package(&shared, "@pnpm.e2e/foo")
         .map(|provider| {
@@ -318,4 +330,47 @@ fn shared_peer_version(project: &Path) -> Option<String> {
                 .unwrap()
                 .to_string()
         })
+}
+
+fn describe_missing_shared(project: &Path) -> String {
+    let candidate = project.join("node_modules/shared");
+    let link_state = match fs::symlink_metadata(&candidate) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            let target = fs::read_link(&candidate).ok();
+            let resolved = target
+                .as_ref()
+                .map(|rel| candidate.parent().unwrap().join(rel));
+            let target_entries = resolved
+                .as_deref()
+                .and_then(|dir| fs::read_dir(dir).ok())
+                .map(|entries| {
+                    entries
+                        .filter_map(Result::ok)
+                        .map(|entry| {
+                            entry
+                                .file_name()
+                                .to_string_lossy()
+                                .into_owned()
+                        })
+                        .collect::<Vec<_>>()
+                });
+            format!("symlink -> {target:?} (entries={target_entries:?})")
+        }
+        Ok(meta) => format!("dirent {:?}", meta.file_type()),
+        Err(err) => format!("absent ({err})"),
+    };
+    let modules_entries = fs::read_dir(project.join("node_modules"))
+        .ok()
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .map(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned()
+                })
+                .collect::<Vec<_>>()
+        });
+    format!("{} [shared={link_state}, node_modules={modules_entries:?}]", project.display())
 }

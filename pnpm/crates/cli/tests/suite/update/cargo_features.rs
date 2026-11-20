@@ -145,6 +145,51 @@ fn update_with_an_exclusion_does_not_override_an_explicit_crate_request() {
 }
 
 #[test]
+fn update_with_a_crate_selector_and_bare_exclusion_skips_npm_and_unselected_crates() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = setup_workspace(root.path());
+    let package_json =
+        r#"{"name":"app","version":"0.1.0","dependencies":{"unfetched-npm-dep":"^1.0.0"}}"#;
+    fs::write(workspace.join("package.json"), package_json).unwrap();
+
+    let output = pacquet(
+        &workspace,
+        ["update", "--latest", "crate:bar", "!lodash", "--offline", "--lockfile-only"],
+    )
+    .output()
+    .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    let cargo_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    assert!(cargo_toml.contains(r#"bar = "2.0.0""#), "{cargo_toml}");
+    assert!(cargo_toml.contains(r#"baz = "1.0.0""#), "{cargo_toml}");
+    assert!(cargo_toml.contains(r#"foo = "1.0.0""#), "{cargo_toml}");
+    assert_eq!(fs::read_to_string(workspace.join("package.json")).unwrap(), package_json);
+}
+
+#[test]
+fn update_with_bare_exclusion_preserves_exclusion_when_package_json_has_no_npm_deps() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = setup_workspace(root.path());
+    fs::write(workspace.join("package.json"), r#"{"name":"app","version":"0.1.0"}"#).unwrap();
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", "!bar", "--offline", "--lockfile-only"])
+            .output()
+            .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    let cargo_toml = fs::read_to_string(workspace.join("Cargo.toml")).unwrap();
+    assert!(cargo_toml.contains(r#"bar = "1.0.0""#), "{cargo_toml}");
+    assert!(cargo_toml.contains(r#"baz = "2.0.0""#), "{cargo_toml}");
+    assert!(cargo_toml.contains(r#"foo = "1.0.0""#), "{cargo_toml}");
+}
+
+#[test]
 fn recursive_update_resolves_a_cargo_workspace_once_for_all_its_members() {
     let root = tempfile::tempdir().unwrap();
     let workspace = setup_workspace(root.path());

@@ -34,6 +34,26 @@ pub fn create_matcher(patterns: &[String]) -> Matcher {
     Matcher(create_matcher_with_index(patterns))
 }
 
+/// Returns `true` when at least one pattern in `patterns` is an include rule
+/// (does not start with `'!'`).
+#[must_use]
+pub fn has_include_pattern(patterns: &[String]) -> bool {
+    patterns
+        .iter()
+        .any(|pattern| !pattern.starts_with('!'))
+}
+
+/// Drops ignore-only rules from `filtered` when `original` included at least
+/// one positive pattern, preventing a domain projection from turning leftover
+/// `'!'` exclusions into a match-everything-except-exclusions list.
+#[must_use]
+pub fn prune_orphan_ignores(mut filtered: Vec<String>, original: &[String]) -> Vec<String> {
+    if has_include_pattern(original) && !has_include_pattern(&filtered) {
+        filtered.clear();
+    }
+    filtered
+}
+
 /// Boolean matcher — opaque wrapper around [`MatcherWithIndex`].
 #[derive(Clone)]
 pub struct Matcher(MatcherWithIndex);

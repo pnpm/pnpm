@@ -321,13 +321,17 @@ fn select_python_targets(
     declared: &[DeclaredPythonDep],
     options: &PythonUpdateOptions<'_>,
 ) -> Result<BTreeMap<PackageName, Option<String>>> {
+    let exclusions: Vec<pnpm_matcher::WildcardMatcher> = options.exclusions
+        .iter()
+        .map(|pattern| pnpm_matcher::WildcardMatcher::new(pattern))
+        .collect();
     let mut targets = BTreeMap::new();
     for dep in declared {
         if !options.step.include_groups.contains(&map_python_group(dep.group)) {
             continue;
         }
         let dep_name_str = dep.name.to_string();
-        if is_python_dep_excluded(&dep_name_str, options) {
+        if is_python_dep_excluded(&dep_name_str, options, &exclusions) {
             continue;
         }
         if let Some(req) = find_python_request(&dep.name, options.requests) {
@@ -344,11 +348,15 @@ fn select_python_targets(
     Ok(targets)
 }
 
-fn is_python_dep_excluded(name: &str, options: &PythonUpdateOptions<'_>) -> bool {
+fn is_python_dep_excluded(
+    name: &str,
+    options: &PythonUpdateOptions<'_>,
+    exclusions: &[pnpm_matcher::WildcardMatcher],
+) -> bool {
     options.step.ignore_matcher.is_some_and(|matcher| matcher.matches(name))
-        || options.exclusions
+        || exclusions
             .iter()
-            .any(|excluded| excluded == name)
+            .any(|matcher| matcher.matches(name))
 }
 
 fn find_python_request<'a>(
