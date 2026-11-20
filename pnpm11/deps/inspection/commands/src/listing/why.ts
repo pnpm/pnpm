@@ -1,8 +1,16 @@
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
-import { whyForPackages } from '@pnpm/deps.inspection.list'
+import {
+  type DependentsTree,
+  getDependentsTrees,
+  mergeDependentsTrees,
+  renderDependents,
+  whyForPackages,
+  type WhyOptions,
+} from '@pnpm/deps.inspection.list'
 import { PnpmError } from '@pnpm/error'
+import { findGlobalInstallDirs } from '@pnpm/global.commands'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -79,6 +87,10 @@ export async function handler (
     finders,
   }
 
+  if (opts.global && opts.globalPkgDir) {
+    return whyGlobal(opts.globalPkgDir, params, whyOpts)
+  }
+
   if (opts.recursive && opts.selectedProjectsGraph != null) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     return whyRecursive(pkgs, params, {
@@ -92,4 +104,21 @@ export async function handler (
     ...whyOpts,
     lockfileDir: opts.lockfileDir ?? opts.dir,
   })
+}
+
+async function whyGlobal (
+  globalPkgDir: string,
+  params: string[],
+  whyOpts: Omit<WhyOptions, 'lockfileDir'>
+): Promise<string> {
+  const installDirs = findGlobalInstallDirs(globalPkgDir, [])
+  const projectTrees = (await Promise.all(installDirs.map((installDir) =>
+    getDependentsTrees(params, [installDir], {
+      ...whyOpts,
+      lockfileDir: installDir,
+      modulesDir: undefined,
+    })
+  ))).filter((trees): trees is DependentsTree[] => trees != null)
+  if (projectTrees.length === 0) return ''
+  return renderDependents(mergeDependentsTrees(projectTrees.flat()), whyOpts)
 }

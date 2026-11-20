@@ -7458,3 +7458,35 @@ test('getConfig() reads externalDependencies and autoInstallPeersFromHighestMatc
   expect(config.autoInstallPeersFromHighestMatch).toBe(true)
   expect(config.externalDependencies).toStrictEqual(new Set(['@pnpm.e2e/dep-of-pkg-with-1-dep']))
 })
+
+test('getConfig() with --global skips project .npmrc and anchors rootProjectManifestDir at globalPkgDir', async () => {
+  prepareEmpty()
+  const cwd = fs.realpathSync(process.cwd())
+  const pnpmHome = path.join(cwd, 'pnpm-home')
+  const binDir = path.join(pnpmHome, 'bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  fs.writeFileSync('.npmrc', 'registry=https://untrusted-project.example/\n', 'utf8')
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'untrusted-project',
+    version: '1.0.0',
+    packageManager: 'yarn@4.0.0',
+    workspaces: ['packages/*'],
+  }), 'utf8')
+
+  const { config, context, warnings } = await getConfig({
+    cliOptions: { global: true },
+    env: {
+      ...process.env,
+      PNPM_HOME: pnpmHome,
+      [PATH]: `${binDir}${path.delimiter}${process.env[PATH] ?? ''}`,
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.dir).toBe(cwd)
+  expect(context.rootProjectManifestDir).toBe(config.globalPkgDir)
+  expect(context.rootProjectManifest).toBeUndefined()
+  expect(context.wantedPackageManager).toMatchObject({ name: 'yarn', version: '4.0.0' })
+  expect(config.registry).not.toBe('https://untrusted-project.example/')
+  expect(warnings.some((warning) => warning.includes('"workspaces" field in package.json'))).toBe(false)
+})

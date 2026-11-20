@@ -302,6 +302,17 @@ pub(in super::super) async fn apply_update_config(
     prepare_config::<CliReporter>(config, dir).await
 }
 
+/// Apply `updateConfig` hooks from the global pnpmfile (or the global packages
+/// directory's pnpmfile) without touching the caller's project directory.
+pub(in super::super) async fn apply_global_update_config(
+    config: &mut Config,
+) -> miette::Result<()> {
+    if let Some(global_pkg_dir) = config.global_pkg_dir.clone() {
+        crate::config_deps::run_update_config_hooks::<CliReporter>(config, &global_pkg_dir).await?;
+    }
+    Ok(())
+}
+
 pub(super) fn warn_fast_path_config(config_overrides: &ConfigOverrides, config: &Config) {
     warn_shared_workspace_lockfile_outside_workspace(
         config_overrides.shared_workspace_lockfile(),

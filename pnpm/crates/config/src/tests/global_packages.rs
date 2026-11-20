@@ -162,3 +162,32 @@ fn a_global_packages_load_drops_the_build_policy_of_the_workspace_layer() {
     assert!(!config.dangerously_allow_all_builds);
     assert!(config.allow_builds.is_empty());
 }
+
+#[test]
+fn a_global_packages_load_ignores_workspace_env_vars_and_parent_workspaces() {
+    fake_env!();
+    let outer = tempdir().expect("outer tempdir");
+    write_file(&outer.path().join("pnpm-workspace.yaml"), "packages: [\n");
+    let nested_home = outer.path().join("nested-pnpm-home");
+    fs::create_dir_all(&nested_home).expect("create nested pnpm home");
+
+    let env_workspace = tempdir().expect("env workspace tempdir");
+    write_file(&env_workspace.path().join("pnpm-workspace.yaml"), "pnpmfile: ./evil.cjs\n");
+
+    let machine = Machine::with_global_config("");
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", machine.xdg_config_home()),
+        (
+            "PNPM_CONFIG_WORKSPACE_DIR",
+            env_workspace
+                .path()
+                .to_str()
+                .expect("UTF-8 path"),
+        ),
+    ]);
+
+    let config = global_packages_load().current::<FakeEnv>(&nested_home).expect("load config");
+
+    assert_eq!(config.workspace_dir, None);
+    assert_eq!(config.pnpmfile, None);
+}

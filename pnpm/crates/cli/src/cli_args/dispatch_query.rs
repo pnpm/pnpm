@@ -20,7 +20,7 @@ use super::{
     clean::CleanArgs,
     config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand},
     deprecate::DeprecateArgs,
-    dispatch::{CommandFuture, RunCtx, apply_update_config},
+    dispatch::{CommandFuture, RunCtx, apply_global_update_config, apply_update_config},
     dist_tag::DistTagArgs,
     docs::DocsArgs,
     doctor::{DoctorArgs, DoctorOutcome},
@@ -98,6 +98,7 @@ pub(super) fn outdated<'a>(
     if args.global {
         let config = (ctx.loaders.global_packages_config)()?;
         return Ok(Box::pin(async move {
+            apply_global_update_config(config).await?;
             if Box::pin(args.run_global(config)).await? == OutdatedOutcome::Outdated {
                 // `outdated` exits non-zero when a dependency is outdated, mirroring pnpm.
                 pnpm_executor::exit(1);
@@ -130,6 +131,14 @@ pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<Com
 }
 
 pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<CommandFuture<'a>> {
+    if args.global {
+        let config = (ctx.loaders.global_packages_config)()?;
+        let dir = ctx.locations.dir;
+        return Ok(Box::pin(async move {
+            apply_global_update_config(config).await?;
+            args.run(config, dir, false).await
+        }));
+    }
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let recursive = ctx.workspace.recursive;
@@ -168,6 +177,13 @@ pub(super) fn fund<'a>(ctx: &RunCtx<'a>, args: FundArgs) -> miette::Result<Comma
 }
 
 pub(super) fn why<'a>(ctx: &RunCtx<'a>, args: WhyArgs) -> miette::Result<CommandFuture<'a>> {
+    if args.global {
+        let config = (ctx.loaders.global_packages_config)()?;
+        return Ok(Box::pin(async move {
+            apply_global_update_config(config).await?;
+            args.run_global(config).await
+        }));
+    }
     let command_state = ctx.prepared_state(true);
     Ok(Box::pin(async move { args.run(command_state.await?).await }))
 }
@@ -184,7 +200,9 @@ pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<Com
     let recursive_from_command_line = ctx.workspace.recursive_from_command_line;
     let dir = ctx.locations.dir;
     Ok(Box::pin(async move {
-        if !args.global {
+        if args.global {
+            apply_global_update_config(cfg).await?;
+        } else {
             apply_update_config(cfg, dir).await?;
         }
         let recursive = recursive && !dedicated_subproject(cfg, dir, recursive_from_command_line);

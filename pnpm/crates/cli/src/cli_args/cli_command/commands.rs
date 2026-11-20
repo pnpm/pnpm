@@ -333,6 +333,7 @@ impl CliCommand {
             CliCommand::Root(args) => args.global,
             CliCommand::Runtime(args) => args.global,
             CliCommand::Update(args) => args.selection.global,
+            CliCommand::Why(args) => args.global,
             _ => false,
         }
     }

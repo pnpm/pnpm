@@ -219,9 +219,11 @@ function handlesPackageManager ({ cmd, params, options }: ParsedCliArgsWithBuilt
  * It names the global config files and does not load the config of a global
  * install.
  */
-function applyGlobalScope ({ cmd, params, options }: ParsedCliArgsWithBuiltIn, isConfigCommand: boolean): void {
+function applyGlobalScope (parsedCliArgs: ParsedCliArgsWithBuiltIn, isConfigCommand: boolean): void {
+  const { cmd, params, options } = parsedCliArgs
   if (cmd === 'link' && params.length === 0) {
     options.global = true
+    parsedCliArgs.workspaceDir = undefined
   } else if (isConfigCommand && options.global === true) {
     options.location ??= 'global'
     delete options.global

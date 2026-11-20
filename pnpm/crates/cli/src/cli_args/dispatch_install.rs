@@ -12,7 +12,7 @@ use super::{
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
-    dispatch::{CommandFuture, RunCtx, apply_update_config},
+    dispatch::{CommandFuture, RunCtx, apply_global_update_config, apply_update_config},
     dlx::DlxArgs,
     env::{EnvArgs, EnvSubcommand},
     fetch::FetchArgs,
@@ -129,10 +129,11 @@ fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFutu
     args.install.lockfile_dir.apply_to_global(config)?;
     args.apply_cli_config(config);
     let dir = ctx.locations.dir;
-    let update_check = update_notifier::spawn(config, reporter_emit(selected_reporter()));
-    let install: CommandFuture<'a> = Box::pin(args.run_global::<CliReporter>(config, dir));
+    let reporter = selected_reporter();
     Ok(Box::pin(async move {
-        let installed = install.await;
+        apply_global_update_config(config).await?;
+        let update_check = update_notifier::spawn(config, reporter_emit(reporter));
+        let installed = Box::pin(args.run_global::<CliReporter>(config, dir)).await;
         update_notifier::settle(update_check);
         installed
     }))
@@ -190,7 +191,10 @@ pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<C
         let config = (ctx.loaders.global_packages_config)()?;
         args.install.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
-        return Ok(Box::pin(args.run_global::<CliReporter>(config)));
+        return Ok(Box::pin(async move {
+            apply_global_update_config(config).await?;
+            Box::pin(args.run_global::<CliReporter>(config)).await
+        }));
     }
     let dir = ctx.locations.dir;
     let manifest_path = ctx.locations.manifest_path;
