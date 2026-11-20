@@ -172,6 +172,8 @@ async function getConfigInheritingDlxSettingsFromLocal (opts: GetConfigOptions):
   const globalCfgOpts: typeof localOpts = {
     ...localOpts,
     ignoreLocalSettings: true,
+    ignoreProjectNpmrc: true,
+    workspaceDir: undefined,
     cliOptions: {
       ...localOpts.cliOptions,
       dir: os.homedir(),

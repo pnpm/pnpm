@@ -288,6 +288,8 @@ fn dlx_does_not_reuse_the_cache_across_node_majors() {
             .expect("find the pnpm binary")
             .with_current_dir(&workspace)
             .without_ambient_pnpm_config()
+            .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+            .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
             .with_env("PATH", &path)
             .with_env("FAKE_NODE_VERSION", node_version)
             .with_env("REAL_NODE", &real_node)
@@ -327,6 +329,8 @@ fn dlx_resolves_caller_catalog_references_in_overrides() {
     .expect("write caller project workspace yaml");
 
     pacquet
+        .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
         .with_arg("dlx")
         .with_arg("@foo/touch-file-one-bin")
         .assert()
@@ -457,8 +461,13 @@ fn dlx_fails_when_a_package_spec_is_missing_from_the_catalog() {
 #[test]
 #[cfg_attr(not(unix), ignore = "dlx bin execution is only exercised on Unix")]
 fn dlx_ignores_the_caller_projects_patched_dependencies() {
-    let CommandTempCwd { pacquet, root, workspace, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
 
     std::fs::create_dir(workspace.join("patches")).expect("create the caller's patches dir");
     std::fs::write(
@@ -485,6 +494,8 @@ fn dlx_ignores_the_caller_projects_patched_dependencies() {
     std::fs::write(&workspace_yaml_path, workspace_yaml).expect("add the caller's patch entry");
 
     pacquet
+        .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
         .with_arg("dlx")
         .with_arg("@foo/touch-file-one-bin")
         .assert()
@@ -525,6 +536,8 @@ fn dlx_ignores_an_ambient_workspace_manifest_above_the_cache_dir() {
         .expect("write ambient workspace manifest above the cache dir");
 
     pacquet
+        .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
         .with_arg("dlx")
         .with_arg("@foo/touch-file-one-bin")
         .assert()
@@ -601,7 +614,10 @@ fn dlx_recovers_ignored_builds() {
         let caller_yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
             .expect("read caller settings");
         pacquet.env_remove("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
-        pacquet.args(["dlx", "@pnpm.e2e/has-bin-and-needs-build"]);
+        pacquet
+            .env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+            .env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
+            .args(["dlx", "@pnpm.e2e/has-bin-and-needs-build"]);
         if cached {
             pacquet.assert().success();
         }
@@ -931,3 +947,6 @@ fn dlx_allow_build_negation_skips_postinstall_and_prompt() {
 
     drop(root);
 }
+
+#[cfg(unix)]
+mod isolation_and_specs;

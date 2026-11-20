@@ -56,7 +56,7 @@ use pnpm_cmd_shim::{
     link_bins_of_packages_with_excludes, remove_bin as remove_cmd_shim,
 };
 use pnpm_config::{CatalogMode, Config, GlobalShims, WorkspaceSettings, check_global_bin_dir};
-use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir, symlink_dir};
+use pnpm_fs::{is_subdir, remove_symlink_dir, symlink_dir};
 use pnpm_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
     create_global_cache_key, create_install_dir, find_global_package, get_hash_link,

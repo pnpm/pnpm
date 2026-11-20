@@ -4,6 +4,7 @@ use crate::{
     State,
     cli_args::{
         add::add_package, catalogs::configured_catalogs, exec::set_package_manager_env,
+        package_spec::resolve_local_package_spec,
         supported_architectures::SupportedArchitecturesArgs,
     },
     engine_pm::{channel::PackageManager, provision::provision},
@@ -187,8 +188,15 @@ impl DlxArgs {
 
         // With `--package`, the command names the bin to run; otherwise the
         // command is also the package.
-        let pkgs: Vec<String> =
-            if self.package.is_empty() { vec![bin_command.clone()] } else { self.package.clone() };
+        let raw_pkgs = if self.package.is_empty() {
+            std::slice::from_ref(bin_command)
+        } else {
+            self.package.as_slice()
+        };
+        let pkgs: Vec<String> = raw_pkgs
+            .iter()
+            .map(|pkg| resolve_local_package_spec(pkg, dir))
+            .collect();
         // Resolved here rather than in the install below so the catalog's
         // version also feeds the cache key: two callers whose catalogs pin
         // different versions of the same package must not share a cache

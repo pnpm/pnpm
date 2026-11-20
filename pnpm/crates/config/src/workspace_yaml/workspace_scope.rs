@@ -195,4 +195,42 @@ impl WorkspaceSettings {
         self.clear_workspace_resolution_fields();
         self.clear_workspace_hooks_fields();
     }
+
+    /// Retain only the workspace settings `dlx` and `create` inherit from the
+    /// caller's `pnpm-workspace.yaml`, plus `nodeDownloadMirrors.release`
+    /// (returned separately so merging it preserves global mirrors for other
+    /// channels). Matches `inheritDlxConfig` in `@pnpm/config.reader`.
+    pub(crate) fn into_dlx_local_settings(mut self) -> (Self, Option<String>) {
+        let release_mirror = self.node_download_mirrors
+            .as_mut()
+            .and_then(|mirrors| mirrors.remove("release"));
+        for entry in self.registries.iter_mut().flat_map(IndexMap::values_mut) {
+            if let RegistryEntry::Declaration(declaration) = entry {
+                declaration.server_type = None;
+            }
+        }
+        let retained = Self {
+            registry: self.registry,
+            registries: self.registries,
+            named_registries: self.named_registries,
+            minimum_release_age: self.minimum_release_age,
+            minimum_release_age_exclude: self.minimum_release_age_exclude,
+            minimum_release_age_ignore_missing_time: self.minimum_release_age_ignore_missing_time,
+            minimum_release_age_strict: self.minimum_release_age_strict,
+            trust_lockfile: self.trust_lockfile,
+            trust_policy: self.trust_policy,
+            trust_policy_exclude: self.trust_policy_exclude,
+            trust_policy_ignore_after: self.trust_policy_ignore_after,
+            catalog: self.catalog,
+            catalogs: self.catalogs,
+            fetch_retries: self.fetch_retries,
+            fetch_retry_factor: self.fetch_retry_factor,
+            fetch_retry_mintimeout: self.fetch_retry_mintimeout,
+            fetch_retry_maxtimeout: self.fetch_retry_maxtimeout,
+            fetch_timeout: self.fetch_timeout,
+            key_issues: self.key_issues,
+            ..Self::default()
+        };
+        (retained, release_mirror)
+    }
 }

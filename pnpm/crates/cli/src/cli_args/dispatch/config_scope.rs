@@ -9,6 +9,7 @@ use pnpm_config::CommandTarget;
 #[derive(Clone, Copy)]
 pub(super) enum ConfigScope {
     Dir,
+    Dlx,
     PnpmHome,
     GlobalPackages,
 }
@@ -20,9 +21,10 @@ impl ConfigScope {
         store_use: StoreUse,
         warnings: ConfigWarnings,
     ) -> ConfigTarget<'_> {
-        let is_global = !matches!(self, Self::Dir);
+        let is_global = matches!(self, Self::PnpmHome | Self::GlobalPackages);
         let command_target = match self {
             Self::GlobalPackages => CommandTarget::GlobalPackages,
+            Self::Dlx => CommandTarget::Dlx,
             Self::Dir | Self::PnpmHome => CommandTarget::Project,
         };
         let anchor = if is_global { &anchors.global_config } else { &anchors.dir };

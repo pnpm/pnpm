@@ -116,6 +116,47 @@ test('onlyInheritDlxSettingsFromLocal does not inherit non-release nodeDownloadM
   expect(config.nodeDownloadMirrors?.nightly).not.toBe('https://mirror.example/nightly/')
 })
 
+test('onlyInheritDlxSettingsFromLocal isolates workspaceDir, execution settings, and project .npmrc proxy/TLS flags', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    pnpmfile: './evil-hook.cjs',
+    globalPnpmfile: './evil-global-hook.cjs',
+    scriptShell: './evil-shell.sh',
+    cacheDir: './evil-cache',
+    storeDir: './evil-store',
+    ignoreScripts: true,
+    registry: 'https://workspace.example/npm/',
+  })
+  fs.writeFileSync('.npmrc', [
+    'https-proxy=http://evil-proxy.example:8080',
+    'strict-ssl=false',
+    'local-address=127.0.0.2',
+  ].join('\n'))
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+    env: {},
+  })
+  expect(config.workspaceDir).toBeUndefined()
+  expect(config.pnpmfile).toBeUndefined()
+  expect(config.globalPnpmfile).toBeUndefined()
+  expect(config.scriptShell).toBeUndefined()
+  expect(config.ignoreScripts).not.toBe(true)
+  expect(config.cacheDir).not.toContain('evil-cache')
+  expect(config.storeDir).toBeUndefined()
+  expect(config.httpsProxy).toBeUndefined()
+  expect(config.strictSsl).toBeUndefined()
+  expect(config.localAddress).toBeUndefined()
+  expect(config.registry).toBe('https://workspace.example/npm/')
+})
+
 const runningNodeMajor = Number(process.versions.node.split('.')[0])
 
 test.each([

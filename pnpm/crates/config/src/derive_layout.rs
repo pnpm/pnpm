@@ -229,6 +229,9 @@ impl Config {
         // `PNPM_CONFIG_STORE_DIR`) set it.
         if explicit.store_dir {
             self.store_dir_placement_skipped = false;
+        } else if self.cli.command_target == crate::CommandTarget::Dlx {
+            let store_anchor = self.cache_dir.clone();
+            self.resolve_default_store_dir::<Sys>(&store_anchor);
         } else {
             self.resolve_default_store_dir::<Sys>(start_dir);
         }
@@ -261,6 +264,9 @@ impl Config {
     }
 
     fn workspace_root_bin_paths(&self) -> Vec<std::path::PathBuf> {
+        if self.cli.command_target == crate::CommandTarget::Dlx {
+            return Vec::new();
+        }
         self.workspace_dir
             .as_deref()
             .map_or_else(Vec::new, |dir| {

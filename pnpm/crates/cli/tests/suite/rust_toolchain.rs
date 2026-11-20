@@ -94,6 +94,7 @@ fn dlx_runs_a_tool_of_the_release_it_names() {
     );
 
     let output = pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
         .with_args([
             "dlx",
             "--package=rust@nightly-2026-08-27",

@@ -32,6 +32,7 @@ export interface DlxCacheKeyOptions {
   trustPolicyIgnoreAfter?: number
   trustLockfile?: boolean
   blockExoticSubdeps?: boolean
+  ignoreScripts?: boolean
 }
 
 export interface FindDlxCacheOptions extends DlxCacheKeyOptions {
@@ -133,6 +134,9 @@ function appendPolicyCacheKeyInputs (args: unknown[], opts: DlxCacheKeyOptions):
   }
   if (opts.blockExoticSubdeps === true) {
     args.push({ blockExoticSubdeps: true })
+  }
+  if (opts.ignoreScripts === true) {
+    args.push({ ignoreScripts: true })
   }
 }
 

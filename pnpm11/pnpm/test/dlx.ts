@@ -1,4 +1,6 @@
 import fs from 'node:fs'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import path from 'node:path'
 
 import { beforeAll, describe, expect, test } from '@jest/globals'
@@ -602,4 +604,77 @@ describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
       notInstalled,
     } as OptionalDepsInfo)
   })
+})
+
+test('dlx and create isolate local pnpmfile and ignoreScripts, key cache by --ignore-scripts, and build URL/relative tarballs', async () => {
+  prepareEmpty()
+
+  const srcPkgDir = path.resolve('src-url-tool')
+  fs.mkdirSync(srcPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(srcPkgDir, 'package.json'), JSON.stringify({
+    name: 'create-dlx-url-tool',
+    version: '1.0.0',
+    bin: { 'create-dlx-url-tool': 'bin.js' },
+    scripts: {
+      postinstall: 'node -e "require(\'fs\').writeFileSync(\'built.txt\', \'ok\')"',
+    },
+  }))
+  fs.writeFileSync(path.join(srcPkgDir, 'bin.js'), [
+    '#!/usr/bin/env node',
+    'const fs = require("fs")',
+    'const path = require("path")',
+    'const ok = fs.existsSync(path.join(__dirname, "built.txt"))',
+    'fs.writeFileSync(process.argv[2], ok ? "BUILT_OK" : "MISSING_BUILD")',
+  ].join('\n'), { mode: 0o755 })
+  execPnpmSync(['pack'], { cwd: srcPkgDir, expectSuccess: true })
+  const tarballBytes = fs.readFileSync(path.join(srcPkgDir, 'create-dlx-url-tool-1.0.0.tgz'))
+
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/octet-stream' })
+    res.end(tarballBytes)
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as AddressInfo).port
+  const tarballUrl = `http://127.0.0.1:${port}/create-dlx-url-tool.tgz`
+
+  try {
+    const repoDir = path.resolve('untrusted-repo')
+    fs.mkdirSync(repoDir, { recursive: true })
+    const hookMarker = path.resolve('pwned-hook')
+    const hookBody = `require("fs").writeFileSync(${JSON.stringify(hookMarker)}, "ran"); module.exports = { hooks: {} }\n`
+    fs.writeFileSync(path.join(repoDir, '.pnpmfile.cjs'), hookBody)
+    fs.writeFileSync(path.join(repoDir, 'hook.cjs'), hookBody)
+    writeYamlFileSync(path.join(repoDir, 'pnpm-workspace.yaml'), {
+      packages: ['.'],
+      pnpmfile: './hook.cjs',
+      ignoreScripts: true,
+    })
+    fs.writeFileSync(path.join(repoDir, 'local-tool.tgz'), tarballBytes)
+
+    const cacheFlags = [
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+    ]
+    process.chdir(repoDir)
+
+    const skippedOut = path.join(repoDir, 'skipped.txt')
+    await execPnpm([...cacheFlags, '--ignore-scripts', 'dlx', tarballUrl, skippedOut])
+    expect(fs.readFileSync(skippedOut, 'utf8')).toBe('MISSING_BUILD')
+
+    const builtFromWsOut = path.join(repoDir, 'built-ws.txt')
+    await execPnpm([...cacheFlags, 'dlx', tarballUrl, builtFromWsOut])
+    expect(fs.readFileSync(builtFromWsOut, 'utf8')).toBe('BUILT_OK')
+
+    const builtLocalOut = path.join(repoDir, 'built-local.txt')
+    await execPnpm([...cacheFlags, 'dlx', './local-tool.tgz', builtLocalOut])
+    expect(fs.readFileSync(builtLocalOut, 'utf8')).toBe('BUILT_OK')
+
+    const builtCreateOut = path.join(repoDir, 'built-create.txt')
+    await execPnpm([...cacheFlags, 'create', `dlx-url-tool@${tarballUrl}`, builtCreateOut])
+    expect(fs.readFileSync(builtCreateOut, 'utf8')).toBe('BUILT_OK')
+
+    expect(fs.existsSync(hookMarker)).toBe(false)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
 })

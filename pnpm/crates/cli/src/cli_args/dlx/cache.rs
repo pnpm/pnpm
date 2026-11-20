@@ -65,7 +65,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         .map_err(|source| DlxError::Cache { dir: manifest_path.display().to_string(), source })?;
 
     configure_cache_install(config, prepare_dir, pkgs, allow_build, supported_architectures)?;
-    let config: &Config = config;
+    let config: &'static Config = config;
 
     for pkg in pkgs {
         let state = State::init(manifest_path.clone(), config, false)
@@ -84,6 +84,12 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         )
         .await?;
     }
+    let config = direct_builds::rebuild_direct_non_registry_packages::<Reporter>(
+        config,
+        prepare_dir,
+        &manifest_path,
+    )
+    .await?;
     crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
         config,
         prepare_dir,
@@ -92,6 +98,8 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     .await?;
     Ok(())
 }
+
+mod direct_builds;
 
 /// The command's cache directory, created and canonicalized so the prepare
 /// dir carries no `..` segments. A relative `cacheDir` (e.g. `../pnpm-cache`)
@@ -230,36 +238,6 @@ pub(super) fn read_json(path: &Path) -> Result<Value, DlxError> {
         })
 }
 
-/// Drop workspace-manifest resolution mutations (`overrides`,
-/// `packageExtensions`, `blockExoticSubdeps`) unless supplied via CLI flags or
-/// `PNPM_CONFIG_*` environment variables, then expand `catalog:` overrides.
-fn isolate_dlx_caller_settings(config: &mut Config) -> miette::Result<()> {
-    let mut env_settings =
-        pnpm_config::TrustedSettings::from_pnpm_config_env::<pnpm_config::Host>();
-    env_settings.substitute_env_trusted_lossy::<pnpm_config::Host>();
-    let cli = &config.cli.setting_values;
-    let cli_overrides = cli
-        .get("overrides")
-        .and_then(|raw| serde_json::from_str(raw).ok());
-    let cli_extensions = cli
-        .get("package-extensions")
-        .or_else(|| cli.get("packageExtensions"))
-        .and_then(|raw| serde_json::from_str(raw).ok());
-    let cli_block_exotic = cli
-        .get("block-exotic-subdeps")
-        .or_else(|| cli.get("blockExoticSubdeps"))
-        .and_then(|raw| serde_json::from_str(raw).ok());
-    config.overrides = cli_overrides
-        .or(env_settings.settings.overrides)
-        .filter(|map| !map.is_empty());
-    config.package_extensions = cli_extensions
-        .or(env_settings.settings.package_extensions)
-        .filter(|map| !map.is_empty());
-    config.block_exotic_subdeps =
-        cli_block_exotic.or(env_settings.settings.block_exotic_subdeps).unwrap_or(true);
-    resolve_cache_overrides(config)
-}
-
 /// Resolve caller catalogs before the cache install severs its workspace anchor.
 fn resolve_cache_overrides(config: &mut Config) -> miette::Result<()> {
     if let Some(overrides) = config.overrides.as_ref()
@@ -385,7 +363,7 @@ pub(super) async fn get_or_prepare_cache<Reporter: self::Reporter + 'static>(
     supported_architectures: &SupportedArchitecturesArgs,
 ) -> miette::Result<PathBuf> {
     let parsed_allow_build = parse_allow_build_selectors(allow_build)?;
-    isolate_dlx_caller_settings(config)?;
+    resolve_cache_overrides(config)?;
     let command_dir =
         command_cache_dir(config, pkgs, &parsed_allow_build, supported_architectures)?;
     let cache_link = command_dir.join("pkg");

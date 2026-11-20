@@ -270,18 +270,12 @@ impl CliArgs {
                 setup,
                 anchors,
                 target_template.0,
-                take_preloaded_config(
-                    &preloaded_config,
-                    target.anchor,
-                    target.is_global,
-                    &anchors.dir,
-                ),
+                take_preloaded_config(&preloaded_config, &target, &anchors.dir),
             )
         };
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
-        let config = || load_config(ConfigScope::Dir);
         let config_self_update =
             || self.load_self_update_config(invocation, config_overrides, setup, anchors);
         let builtin_replaced_by_script = AtomicBool::new(false);
@@ -292,7 +286,8 @@ impl CliArgs {
             locations: CommandLocations::from(anchors),
             workspace: WorkspaceInvocation::from(&self.workspace),
             loaders: CommandLoaders {
-                config: &config,
+                config: &|| load_config(ConfigScope::Dir),
+                dlx_config: &|| load_config(ConfigScope::Dlx),
                 global_config: &|| load_config(ConfigScope::PnpmHome),
                 global_packages_config: &|| load_config(ConfigScope::GlobalPackages),
                 config_self_update: &config_self_update,
