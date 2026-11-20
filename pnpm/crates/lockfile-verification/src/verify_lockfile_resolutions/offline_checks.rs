@@ -27,33 +27,45 @@ pub(super) fn verify_structure_before_install(
     verify_offline_structural_checks(lockfile)
 }
 
+/// Schema version recorded under `resolutionShapeCheck` in whole-lockfile
+/// verification caches (`lockfile-verified.jsonl` and `pnpr` verdict caches).
+/// Records carrying any other value (such as boolean `true` or a different
+/// integer) miss `can_trust_past_check` and trigger re-verification.
+pub const RESOLUTION_SHAPE_CACHE_VERSION: u64 = 2;
+
 /// Cache-key participant for an always-on offline structural check
-/// (resolution-shape, dependency-alias): a record written before the
-/// check's rule existed lacks its `flag`, so `can_trust_past_check`
-/// rejects it and forces a re-verification. `verify` is never invoked —
-/// the identity is appended only to the verifier lists handed to the
+/// (resolution-shape, dependency-alias): a record lacking `flag: expected`
+/// fails `can_trust_past_check` and forces re-verification. `verify` is never
+/// invoked — the identity is appended only to the verifier lists handed to the
 /// cache lookup and recorder.
 struct OfflineCheckCacheIdentity {
     policy: serde_json::Map<String, serde_json::Value>,
     flag: &'static str,
+    expected: serde_json::Value,
+}
+
+fn offline_cache_identity(
+    flag: &'static str,
+    expected: serde_json::Value,
+) -> Arc<dyn ResolutionVerifier> {
+    let mut policy = serde_json::Map::new();
+    policy.insert(flag.to_string(), expected.clone());
+    Arc::new(OfflineCheckCacheIdentity { policy, flag, expected })
 }
 
 fn resolution_shape_cache_identity() -> Arc<dyn ResolutionVerifier> {
-    let mut policy = serde_json::Map::new();
-    policy.insert("resolutionShapeCheck".to_string(), serde_json::Value::Bool(true));
-    Arc::new(OfflineCheckCacheIdentity { policy, flag: "resolutionShapeCheck" })
+    offline_cache_identity(
+        "resolutionShapeCheck",
+        serde_json::Value::from(RESOLUTION_SHAPE_CACHE_VERSION),
+    )
 }
 
 fn dependency_alias_cache_identity() -> Arc<dyn ResolutionVerifier> {
-    let mut policy = serde_json::Map::new();
-    policy.insert("dependencyAliasCheck".to_string(), serde_json::Value::Bool(true));
-    Arc::new(OfflineCheckCacheIdentity { policy, flag: "dependencyAliasCheck" })
+    offline_cache_identity("dependencyAliasCheck", serde_json::Value::Bool(true))
 }
 
 fn variation_resolution_cache_identity() -> Arc<dyn ResolutionVerifier> {
-    let mut policy = serde_json::Map::new();
-    policy.insert("variationResolutionCheck".to_string(), serde_json::Value::Bool(true));
-    Arc::new(OfflineCheckCacheIdentity { policy, flag: "variationResolutionCheck" })
+    offline_cache_identity("variationResolutionCheck", serde_json::Value::Bool(true))
 }
 
 /// Append the always-on offline structural checks' identities to `verifiers`
@@ -88,7 +100,7 @@ impl ResolutionVerifier for OfflineCheckCacheIdentity {
     }
 
     fn can_trust_past_check(&self, cached: &serde_json::Map<String, serde_json::Value>) -> bool {
-        cached.get(self.flag) == Some(&serde_json::Value::Bool(true))
+        cached.get(self.flag) == Some(&self.expected)
     }
 }
 

@@ -13,8 +13,13 @@ import {
   RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
   verifyLockfileFileOffline,
   verifyLockfileResolutions,
+  withOfflineCheckCacheIdentities,
 } from '../../src/install/verifyLockfileResolutions.js'
-import { recordVerification } from '../../src/install/verifyLockfileResolutionsCache.js'
+import {
+  recordVerification,
+  tryLockfileVerificationCache,
+  type VerifierCacheIdentity,
+} from '../../src/install/verifyLockfileResolutionsCache.js'
 
 const NOOP_SLOT = {
   policy: {} as Record<string, unknown>,
@@ -60,7 +65,15 @@ test.each([
   expect(verifierCalls).toBe(0)
 })
 
-test('stale lockfile-verified.jsonl record lacking resolutionShapeCheck cannot bypass shape check', async () => {
+test.each([
+  ['lacking resolutionShapeCheck', { mra: 60 }],
+  ['with boolean resolutionShapeCheck', {
+    mra: 60,
+    resolutionShapeCheck: true,
+    dependencyAliasCheck: true,
+    variationResolutionCheck: true,
+  }],
+] as const)('lockfile-verified.jsonl record %s cannot bypass shape check', async (_label, seededPolicy) => {
   const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-shape-cache-'))
   try {
     const cacheDir = path.join(tmpDir, 'cache')
@@ -69,17 +82,22 @@ test('stale lockfile-verified.jsonl record lacking resolutionShapeCheck cannot b
     const lockfile = makeLockfile({
       'safe-pkg@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'file:alt.tgz' } },
     })
-    const verifier: ResolutionVerifier = {
-      ...NOOP_SLOT,
+    const seededIdentity: VerifierCacheIdentity = {
+      policy: seededPolicy,
+      canTrustPastCheck: () => true,
+    }
+    const activeVerifier: ResolutionVerifier = {
+      policy: { mra: 60 },
+      canTrustPastCheck: (cached) => cached.mra === 60,
       verify: async () => ({ ok: true }),
     }
     recordVerification(cacheDir, {
       lockfilePath,
-      verifiers: [verifier],
+      verifiers: [seededIdentity],
       hashLockfile: () => hashObject(lockfile),
     })
 
-    await expect(verifyLockfileResolutions(lockfile, [verifier], {
+    await expect(verifyLockfileResolutions(lockfile, [activeVerifier], {
       cacheDir,
       lockfilePath,
     })).rejects.toMatchObject({
@@ -112,11 +130,17 @@ test('poisoned lockfile-verified.jsonl record cannot bypass invalid dependency a
       ...NOOP_SLOT,
       verify: async () => ({ ok: true }),
     }
+    const cacheVerifiers = withOfflineCheckCacheIdentities([verifier])
     recordVerification(cacheDir, {
       lockfilePath,
-      verifiers: [verifier],
+      verifiers: cacheVerifiers,
       hashLockfile: () => hashObject(lockfile),
     })
+    expect(tryLockfileVerificationCache(cacheDir, {
+      lockfilePath,
+      verifiers: cacheVerifiers,
+      hashLockfile: () => hashObject(lockfile),
+    }).hit).toBe(true)
 
     await expect(verifyLockfileResolutions(lockfile, [verifier], {
       cacheDir,
@@ -127,6 +151,36 @@ test('poisoned lockfile-verified.jsonl record cannot bypass invalid dependency a
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true })
   }
+})
+
+test('verifyLockfileResolutions validates importer aliases without packages and package-key names', async () => {
+  const withoutPackages = {
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      '.': {
+        specifiers: { '../../../escape': 'link:../escape' },
+        dependencies: { '../../../escape': 'link:../escape' },
+      },
+    },
+  } as unknown as LockfileObject
+  await expect(verifyLockfileResolutions(withoutPackages, [])).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
+
+  for (const key of ['../../../escape@1.0.0', '..\\escape@1.0.0']) {
+    // eslint-disable-next-line no-await-in-loop -- check each traversal separator sequentially
+    await expect(verifyLockfileResolutions(makeLockfile({
+      [key]: { resolution: { integrity: 'sha512-deadbeef' } },
+    }), [])).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+    })
+  }
+
+  await expect(verifyLockfileResolutions(makeLockfile({
+    '@scope/pkg@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+    '/@scope/pkg@2.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+    '/js-tokens@4.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+  }), [])).resolves.toBeUndefined()
 })
 
 test('verifyLockfileFileOffline accepts legacy v6 leading-slash keys while rejecting shape-mismatched and traversal entries', () => {
@@ -150,7 +204,7 @@ test('verifyLockfileFileOffline accepts legacy v6 leading-slash keys while rejec
     lockfileVersion: LOCKFILE_VERSION,
     importers: { '.': {} },
     packages: {
-      'safe-pkg@1.0.0': {
+      '/@scope/pkg@1.0.0': {
         resolution: { integrity: 'sha512-deadbeef', tarball: 'file:alt.tgz' },
       },
     },
@@ -159,16 +213,18 @@ test('verifyLockfileFileOffline accepts legacy v6 leading-slash keys while rejec
     code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
   }))
 
-  expect(() => verifyLockfileFileOffline({
-    lockfileVersion: LOCKFILE_VERSION,
-    importers: { '.': {} },
-    packages: {
-      '../../../escape@1.0.0': {
-        resolution: { integrity: 'sha512-deadbeef' },
+  for (const key of ['../../../escape@1.0.0', '..\\escape@1.0.0']) {
+    expect(() => verifyLockfileFileOffline({
+      lockfileVersion: LOCKFILE_VERSION,
+      importers: { '.': {} },
+      packages: {
+        [key]: {
+          resolution: { integrity: 'sha512-deadbeef' },
+        },
       },
-    },
-    snapshots: {},
-  })).toThrow(expect.objectContaining({
-    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
-  }))
+      snapshots: {},
+    })).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+    }))
+  }
 })

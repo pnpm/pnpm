@@ -681,11 +681,12 @@ test('a frozen install via the pnpr server rejects a shape-mismatched lockfile w
   const cacheDir = path.resolve('cache')
   const markerPath = path.resolve('ran-postinstall')
   fs.mkdirSync('alt', { recursive: true })
+  fs.writeFileSync('alt/postinstall.cjs', `require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, 'ran')\n`)
   fs.writeFileSync('alt/package.json', JSON.stringify({
     name: 'is-positive',
     version: '1.0.0',
     scripts: {
-      postinstall: `node -e "require('fs').writeFileSync(${JSON.stringify(markerPath)}, 'ran')"`,
+      postinstall: 'node postinstall.cjs',
     },
   }))
   writeYamlFileSync('pnpm-workspace.yaml', {

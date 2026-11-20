@@ -1,9 +1,8 @@
 import * as dp from '@pnpm/deps.path'
 import { isValidDependencyAlias } from '@pnpm/installing.deps-resolver'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.fs'
-import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { isGitHostedTarballUrl } from '@pnpm/lockfile.utils'
 import type { Resolution, ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
-import type { DepPath } from '@pnpm/types'
 
 export const RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE = 'RESOLUTION_SHAPE_MISMATCH'
 
@@ -18,7 +17,11 @@ export function collectInvalidAliases (lockfile: LockfileObject): string[] {
     pushInvalidAliases(importer.devDependencies, invalidAliases)
     pushInvalidAliases(importer.optionalDependencies, invalidAliases)
   }
-  for (const snapshot of Object.values(lockfile.packages ?? {})) {
+  for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
+    const parsed = parseLockfileDepPath(depPath)
+    if (parsed.name != null && !isValidDependencyAlias(parsed.name)) {
+      invalidAliases.add(parsed.name)
+    }
     pushInvalidAliases(snapshot.dependencies, invalidAliases)
     pushInvalidAliases(snapshot.optionalDependencies, invalidAliases)
   }
@@ -28,10 +31,11 @@ export function collectInvalidAliases (lockfile: LockfileObject): string[] {
 export function collectShapeViolations (lockfile: LockfileObject): ResolutionPolicyViolation[] {
   const shapeViolations: ResolutionPolicyViolation[] = []
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
-    const { name, version, nonSemverVersion } = nameVerFromPkgSnapshot(depPath as DepPath, snapshot)
-    if (!name || !version) continue
-    if (nonSemverVersion == null && !isRegistryShapedResolution(snapshot.resolution)) {
-      shapeViolations.push(createShapeViolation(name, version, snapshot.resolution))
+    const parsed = parseLockfileDepPath(depPath)
+    const version = snapshot.version ?? parsed.version
+    if (!parsed.name || !version) continue
+    if (parsed.nonSemverVersion == null && !isRegistryShapedResolution(snapshot.resolution)) {
+      shapeViolations.push(createShapeViolation(parsed.name, version, snapshot.resolution))
     }
   }
   return shapeViolations
@@ -59,7 +63,7 @@ function collectLockfileFilePackageViolations (
   shapeViolations: ResolutionPolicyViolation[]
 ): void {
   for (const [depPath, pkgInfo] of Object.entries(packages ?? {})) {
-    const parsed = parseLockfileFileDepPath(depPath)
+    const parsed = parseLockfileDepPath(depPath)
     if (parsed.name != null && !isValidDependencyAlias(parsed.name)) {
       invalidAliases.add(parsed.name)
     }
@@ -76,7 +80,7 @@ function collectLockfileFileSnapshotAliases (
   invalidAliases: Set<string>
 ): void {
   for (const [depPath, snapshot] of Object.entries(snapshots ?? {})) {
-    const parsed = parseLockfileFileDepPath(depPath)
+    const parsed = parseLockfileDepPath(depPath)
     if (parsed.name != null && !isValidDependencyAlias(parsed.name)) {
       invalidAliases.add(parsed.name)
     }
@@ -85,7 +89,7 @@ function collectLockfileFileSnapshotAliases (
   }
 }
 
-function parseLockfileFileDepPath (depPath: string): dp.DependencyPath {
+function parseLockfileDepPath (depPath: string): dp.DependencyPath {
   return dp.parse(depPath.startsWith('/') ? depPath.slice(1) : depPath)
 }
 

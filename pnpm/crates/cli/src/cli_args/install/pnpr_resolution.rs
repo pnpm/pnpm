@@ -415,7 +415,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     if link.lockfile.frozen
         && let Some(previous_wanted) = session.previous_wanted
     {
-        verify_pnpr_input_lockfile::<Reporter>(&link, previous_wanted).await?;
+        verify_pnpr_input_lockfile(&link, previous_wanted)?;
         check_frozen_pnpmfile(state, inputs.pnpmfile_hook.as_ref(), previous_wanted).await?;
     }
     let prefetcher = streaming_prefetcher(state, lockfile_dir, &link, &session, &inputs).await;

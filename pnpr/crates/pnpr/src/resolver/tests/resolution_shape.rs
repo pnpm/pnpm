@@ -237,7 +237,7 @@ async fn verdict_cache_requires_shape_check_policy_and_never_bypasses_shape_mism
     let footprint = Footprint::default();
     let verdicts = runtime.cache.verdicts.as_ref().expect("verdict cache open");
 
-    // Pre-fix cached row lacks `resolutionShapeCheck: true` and must miss.
+    // Verdict rows lacking `resolutionShapeCheck: 2` (absent or boolean `true`) miss.
     verdicts.record(VerdictRecord {
         hash: &clean_hash,
         footprint: &footprint,
@@ -249,8 +249,21 @@ async fn verdict_cache_requires_shape_check_policy_and_never_bypasses_shape_mism
         past_verdict_footprint(&runtime, &identity, &clean_hash, Some(&epoch), &cache_verifiers)
             .is_none(),
     );
+    let mut bool_shape_policy = merge_policies(&cache_verifiers, None);
+    bool_shape_policy["resolutionShapeCheck"] = json!(true);
+    verdicts.record(VerdictRecord {
+        hash: &clean_hash,
+        footprint: &footprint,
+        secret: &runtime.cache.secret,
+        epoch: &epoch,
+        policy: bool_shape_policy,
+    });
+    assert!(
+        past_verdict_footprint(&runtime, &identity, &clean_hash, Some(&epoch), &cache_verifiers)
+            .is_none(),
+    );
 
-    // Current merged policy includes `resolutionShapeCheck: true` and hits for a clean lockfile.
+    // Merged policy carrying `resolutionShapeCheck: 2` hits for a clean lockfile.
     verdicts.record(VerdictRecord {
         hash: &clean_hash,
         footprint: &footprint,

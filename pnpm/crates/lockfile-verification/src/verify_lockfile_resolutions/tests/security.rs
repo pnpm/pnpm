@@ -38,21 +38,20 @@ snapshots:
 
 #[test]
 fn rejects_a_traversal_package_key_when_snapshots_absent() {
-    let lockfile = parse(
-        "lockfileVersion: '9.0'
-
-packages:
-
-  ../../../escape@1.0.0:
-    resolution: {integrity: sha512-deadbeef}
-",
-    );
-    let err = crate::verify_lockfile_dependency_names(&lockfile)
-        .expect_err("a traversal packages key must be rejected even without snapshots");
-    let VerifyError::InvalidDependencyAlias { breakdown, .. } = err else {
-        panic!("expected InvalidDependencyAlias, got {err:?}");
-    };
-    assert!(breakdown.contains("../../../escape"), "breakdown {breakdown:?}");
+    for raw_key in ["../../../escape@1.0.0", r"..\escape@1.0.0"] {
+        let yaml = format!(
+            "lockfileVersion: '9.0'\n\npackages:\n\n  '{raw_key}':\n    resolution: {{integrity: sha512-deadbeef}}\n",
+        );
+        let lockfile = parse(&yaml);
+        let err = crate::verify_lockfile_dependency_names(&lockfile)
+            .expect_err("a traversal packages key must be rejected even without snapshots");
+        let VerifyError::InvalidDependencyAlias { breakdown, .. } = err else {
+            panic!("expected InvalidDependencyAlias for {raw_key}, got {err:?}");
+        };
+        let expected =
+            serde_json::to_string(raw_key.trim_end_matches("@1.0.0")).expect("serialize alias");
+        assert!(breakdown.contains(&expected), "breakdown {breakdown:?}");
+    }
 }
 
 async fn assert_shape_violation_for_resolution(label: &str, resolution: &str) {
@@ -110,8 +109,15 @@ async fn collect_resolution_policy_violations_reports_shape_mismatches() {
     }
 }
 
+fn make_policy_verifier(policy: serde_json::Value) -> Arc<dyn ResolutionVerifier> {
+    let serde_json::Value::Object(map) = policy else {
+        panic!("expected policy object, got {policy}");
+    };
+    Arc::new(CapturingVerifier { seen: Arc::new(Mutex::new(Vec::new())), policy: map })
+}
+
 #[tokio::test]
-async fn stale_cache_record_without_shape_flag_cannot_bypass_resolution_shape_mismatch() {
+async fn stale_or_boolean_shape_flag_cache_record_cannot_bypass_resolution_shape_mismatch() {
     let yaml = "lockfileVersion: '9.0'
 importers:
   .:
@@ -125,36 +131,54 @@ packages:
 snapshots:
   safe-pkg@1.0.0: {}
 ";
-    let dir = TempDir::new().expect("tempdir");
-    let lockfile_path = dir.path().join("pnpm-lock.yaml");
-    std::fs::write(&lockfile_path, yaml).expect("write lockfile");
     let lockfile = parse(yaml);
-    let cache_dir = dir.path().join("cache");
-
-    // Simulate a cache entry recorded without `with_offline_check_cache_identities`
-    // (missing `resolutionShapeCheck: true`).
-    crate::record_verification(
-        &cache_dir,
-        &lockfile_path,
-        &[],
-        || crate::hash_lockfile(&lockfile),
-        crate::CachePrecomputed::default(),
-    );
-    assert!(cache_dir.join(crate::CACHE_FILE_NAME).exists());
-
-    assert!(!lockfile_verification_is_cached(&cache_dir, &lockfile_path, &lockfile, &[]));
-    assert!(!lockfile_verification_is_cached_by_content(&cache_dir, &lockfile, &[]));
-
-    let err = verify_lockfile_resolutions::<SilentReporter>(
-        &lockfile,
-        &[],
-        &VerifyLockfileResolutionsOptions {
-            lockfile_path: Some(&lockfile_path),
-            cache_dir: Some(&cache_dir),
-            ..Default::default()
-        },
-    )
-    .await
-    .expect_err("cache entry lacking resolutionShapeCheck must not bypass shape check");
+    let err = crate::VerifiedOfflineLockfile::verify(&lockfile, false)
+        .expect_err("offline lockfile proof must reject shape mismatch");
     assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
+
+    let active_verifier = make_policy_verifier(serde_json::json!({ "mra": 60 }));
+    let seeded_policies = [
+        serde_json::json!({ "mra": 60 }),
+        serde_json::json!({
+            "mra": 60,
+            "resolutionShapeCheck": true,
+            "dependencyAliasCheck": true,
+            "variationResolutionCheck": true,
+        }),
+    ];
+
+    for seeded_policy in seeded_policies {
+        let dir = TempDir::new().expect("tempdir");
+        let lockfile_path = dir.path().join("pnpm-lock.yaml");
+        std::fs::write(&lockfile_path, yaml).expect("write lockfile");
+        let cache_dir = dir.path().join("cache");
+        let seeded_verifier = make_policy_verifier(seeded_policy.clone());
+        crate::record_verification(
+            &cache_dir,
+            &lockfile_path,
+            &[seeded_verifier],
+            || crate::hash_lockfile(&lockfile),
+            crate::CachePrecomputed::default(),
+        );
+
+        let verifiers = std::slice::from_ref(&active_verifier);
+        assert!(!lockfile_verification_is_cached(&cache_dir, &lockfile_path, &lockfile, verifiers));
+        assert!(!lockfile_verification_is_cached_by_content(&cache_dir, &lockfile, verifiers));
+
+        let err = verify_lockfile_resolutions::<SilentReporter>(
+            &lockfile,
+            verifiers,
+            &VerifyLockfileResolutionsOptions {
+                lockfile_path: Some(&lockfile_path),
+                cache_dir: Some(&cache_dir),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect_err("cached entry without resolutionShapeCheck: 2 must not bypass shape check");
+        assert!(
+            matches!(err, VerifyError::ResolutionShapeMismatch { .. }),
+            "seeded={seeded_policy}, got {err:?}",
+        );
+    }
 }

@@ -213,8 +213,9 @@ test('records a cache entry that the next install hits on both the stat shortcut
   expect(hashResult.hit).toBe(true)
 })
 
-test('refuses to record a lockfile with an invalid dependency alias', () => {
-  const tampered = {
+test('refuses to record a lockfile with an invalid dependency alias or package key', () => {
+  fs.writeFileSync(lockfilePath, "lockfileVersion: '9.0'\n")
+  const tamperedImporter = {
     ...makeLockfile(),
     importers: {
       '.': {
@@ -226,7 +227,24 @@ test('refuses to record a lockfile with an invalid dependency alias', () => {
   recordLockfileVerified({
     cacheDir,
     lockfilePath,
-    lockfile: tampered,
+    lockfile: tamperedImporter,
+    resolutionVerifiers: [mraVerifier(60)],
+  })
+  expect(fs.existsSync(path.join(cacheDir, 'lockfile-verified.jsonl'))).toBe(false)
+
+  const tamperedPackageKey = {
+    ...makeLockfile(),
+    importers: {},
+    packages: {
+      '../../../escape@1.0.0': {
+        resolution: { integrity: 'sha512-deadbeef' },
+      },
+    },
+  } as unknown as LockfileObject
+  recordLockfileVerified({
+    cacheDir,
+    lockfilePath,
+    lockfile: tamperedPackageKey,
     resolutionVerifiers: [mraVerifier(60)],
   })
   expect(fs.existsSync(path.join(cacheDir, 'lockfile-verified.jsonl'))).toBe(false)

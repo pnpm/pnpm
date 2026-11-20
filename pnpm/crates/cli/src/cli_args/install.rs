@@ -28,8 +28,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pnpm_lockfile_verification::{
-    VerifyLockfileResolutionsOptions, lockfile_verification_is_cached,
-    lockfile_verification_is_cached_by_content, record_lockfile_verified,
+    VerifiedOfflineLockfile, VerifyLockfileResolutionsOptions, record_lockfile_verified,
     verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::IncludedDependencies;

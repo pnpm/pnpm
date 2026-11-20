@@ -185,12 +185,12 @@ pub(super) async fn install_from_local_lockfile<Reporter: self::Reporter + 'stat
     link: &PnprLink<'_>,
     local: &LocalLockfileInstall<'_>,
 ) -> miette::Result<()> {
-    verify_pnpr_input_lockfile::<Reporter>(link, local.lockfile).await?;
+    let verified_input = verify_pnpr_input_lockfile(link, local.lockfile)?;
 
     let prefetcher = prefetch_local_lockfile(state, link, local).await;
 
     let lockfile_verification_override =
-        local_lockfile_verification(state, pnpr_server, link, local)?;
+        local_lockfile_verification(state, pnpr_server, link, local, verified_input)?;
 
     let mut install = state.install(link.dependency_groups.clone());
     install.lockfile_policy.frozen = true;

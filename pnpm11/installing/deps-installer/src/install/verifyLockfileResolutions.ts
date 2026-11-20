@@ -52,9 +52,11 @@ const POLICY_VIOLATION_CODES = new Set([
 // Same code the sink-level guards (`safeJoinModulesDir`) throw.
 export const INVALID_DEPENDENCY_ALIAS_CODE = 'INVALID_DEPENDENCY_NAME'
 
+export const RESOLUTION_SHAPE_CACHE_VERSION = 2
+
 const RESOLUTION_SHAPE_CACHE_IDENTITY: VerifierCacheIdentity = {
-  policy: { resolutionShapeCheck: true },
-  canTrustPastCheck: (cached) => cached.resolutionShapeCheck === true,
+  policy: { resolutionShapeCheck: RESOLUTION_SHAPE_CACHE_VERSION },
+  canTrustPastCheck: (cached) => cached.resolutionShapeCheck === RESOLUTION_SHAPE_CACHE_VERSION,
 }
 
 const DEPENDENCY_ALIAS_CACHE_IDENTITY: VerifierCacheIdentity = {
@@ -131,8 +133,8 @@ export async function verifyLockfileResolutions (
   verifiers: ResolutionVerifier[],
   options?: VerifyLockfileResolutionsOptions
 ): Promise<void> {
-  if (!lockfile.packages) return
   verifyLockfileDependencyAliases(lockfile)
+  if (!lockfile.packages) return
 
   const cacheContext = createVerificationCacheContext(lockfile, verifiers, options)
   if (isVerifiedByCache(cacheContext, verifiers, options?.lockfilePath)) return

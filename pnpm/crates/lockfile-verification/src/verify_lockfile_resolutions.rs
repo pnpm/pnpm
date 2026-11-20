@@ -8,9 +8,10 @@
 //! dispatch-free at this layer.
 
 pub use offline_checks::{
-    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, collect_resolution_shape_violations,
-    verify_lockfile_dependency_names, verify_lockfile_importer_snapshot_links,
-    verify_lockfile_resolution_shapes, with_offline_check_cache_identities,
+    RESOLUTION_SHAPE_CACHE_VERSION, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+    collect_resolution_shape_violations, verify_lockfile_dependency_names,
+    verify_lockfile_importer_snapshot_links, verify_lockfile_resolution_shapes,
+    with_offline_check_cache_identities,
 };
 
 use std::{collections::BTreeMap, path::Path, sync::Arc};
@@ -84,6 +85,62 @@ pub struct ReplacedEntries<'a>(pub &'a (dyn Fn(ReplacedCandidate<'_>) -> bool + 
 impl std::fmt::Debug for ReplacedEntries<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ReplacedEntries(..)")
+    }
+}
+
+/// Proof that `lockfile` passed offline dependency-name, importer-snapshot
+/// link (unless `repairs_lockfile`), and resolution-shape validation, allowing
+/// a subsequent verification-cache lookup to skip repeating those scans.
+#[derive(Debug, Clone, Copy)]
+pub struct VerifiedOfflineLockfile<'a>(&'a Lockfile);
+
+impl<'a> VerifiedOfflineLockfile<'a> {
+    /// Validate offline structure and resolution shapes of `lockfile`.
+    pub fn verify(lockfile: &'a Lockfile, repairs_lockfile: bool) -> Result<Self, VerifyError> {
+        verify_structure_before_install(
+            lockfile,
+            &VerifyLockfileResolutionsOptions { repairs_lockfile, ..Default::default() },
+        )?;
+        verify_lockfile_resolution_shapes(lockfile)?;
+        Ok(Self(lockfile))
+    }
+
+    /// Whether `lockfile-verified.jsonl` already covers this offline-verified
+    /// lockfile at `lockfile_path` under `verifiers`.
+    #[must_use]
+    pub fn is_cached(
+        self,
+        cache_dir: &Path,
+        lockfile_path: &Path,
+        verifiers: &[Arc<dyn ResolutionVerifier>],
+    ) -> bool {
+        if self.0.packages.is_none() {
+            return true;
+        }
+        try_lockfile_verification_cache(
+            cache_dir,
+            lockfile_path,
+            &with_offline_check_cache_identities(verifiers),
+            || hash_lockfile(self.0),
+        )
+        .hit
+    }
+
+    /// Content-only counterpart of [`Self::is_cached`].
+    #[must_use]
+    pub fn is_cached_by_content(
+        self,
+        cache_dir: &Path,
+        verifiers: &[Arc<dyn ResolutionVerifier>],
+    ) -> bool {
+        if self.0.packages.is_none() {
+            return true;
+        }
+        lockfile_verification_is_cached_by_hash(
+            cache_dir,
+            &hash_lockfile(self.0),
+            &with_offline_check_cache_identities(verifiers),
+        )
     }
 }
 

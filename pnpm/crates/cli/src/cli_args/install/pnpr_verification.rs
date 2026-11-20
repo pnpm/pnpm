@@ -1,29 +1,19 @@
 use super::{
     InstallFrozenLockfileError, LocalLockfileInstall, Lockfile, LockfileVerificationOverride,
-    PnprClient, PnprClientError, PnprLink, Reporter, State, VerifyLockfileOptions,
-    VerifyLockfileResolutionsOptions, build_resolution_verifiers, lockfile_verification_is_cached,
-    lockfile_verification_is_cached_by_content, record_lockfile_verified,
-    verify_lockfile_resolutions,
+    PnprClient, PnprClientError, PnprLink, Reporter, State, VerifiedOfflineLockfile,
+    VerifyLockfileOptions, VerifyLockfileResolutionsOptions, build_resolution_verifiers,
+    record_lockfile_verified, verify_lockfile_resolutions,
 };
 
 /// Offline structural and shape verification for an existing lockfile before
 /// delegating policy verification or resolution to the pnpr server. Runs even
 /// under `--trust-lockfile`, which opts out only of online supply-chain policy
 /// verifiers.
-pub(super) async fn verify_pnpr_input_lockfile<Reporter: self::Reporter + 'static>(
+pub(super) fn verify_pnpr_input_lockfile<'a>(
     link: &PnprLink<'_>,
-    lockfile: &Lockfile,
-) -> miette::Result<()> {
-    verify_lockfile_resolutions::<Reporter>(
-        lockfile,
-        &[],
-        &VerifyLockfileResolutionsOptions {
-            repairs_lockfile: link.lockfile.fix,
-            ..Default::default()
-        },
-    )
-    .await
-    .map_err(miette::Report::new)
+    lockfile: &'a Lockfile,
+) -> miette::Result<VerifiedOfflineLockfile<'a>> {
+    VerifiedOfflineLockfile::verify(lockfile, link.lockfile.fix).map_err(miette::Report::new)
 }
 
 /// Verify the settled lockfile returned by the pnpr server (and merged locally
@@ -36,24 +26,13 @@ pub(super) async fn verify_settled_pnpr_lockfile<Reporter: self::Reporter + 'sta
     lockfile: &Lockfile,
 ) -> miette::Result<Option<Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>>>
 {
-    verify_lockfile_resolutions::<Reporter>(
-        lockfile,
-        &[],
-        &VerifyLockfileResolutionsOptions::default(),
-    )
-    .await
-    .map_err(miette::Report::new)?;
+    let verified = VerifiedOfflineLockfile::verify(lockfile, false).map_err(miette::Report::new)?;
     if !(link.lockfile.fix && partial_selection) {
         return Ok(None);
     }
     let verifiers =
         if link.lockfile.trust { Vec::new() } else { state_resolution_verifiers(state)? };
-    if !verifiers.is_empty()
-        && !lockfile_verification_is_cached_by_content(
-            &state.config.cache_dir,
-            lockfile,
-            &verifiers,
-        )
+    if !verifiers.is_empty() && !verified.is_cached_by_content(&state.config.cache_dir, &verifiers)
     {
         verify_lockfile_resolutions::<Reporter>(
             lockfile,
@@ -74,17 +53,13 @@ pub(super) fn local_lockfile_verification<'a>(
     pnpr_server: &str,
     link: &PnprLink<'_>,
     local: &LocalLockfileInstall<'a>,
+    verified_input: VerifiedOfflineLockfile<'a>,
 ) -> miette::Result<Option<LockfileVerificationOverride<'a>>> {
     if link.lockfile.trust {
         return Ok(None);
     }
     let verifiers = state_resolution_verifiers(state)?;
-    if lockfile_verification_is_cached(
-        &state.config.cache_dir,
-        local.lockfile_path,
-        local.lockfile,
-        &verifiers,
-    ) {
+    if verified_input.is_cached(&state.config.cache_dir, local.lockfile_path, &verifiers) {
         return Ok(None);
     }
     let verify_opts = local_verify_options(state, pnpr_server, link, local);
