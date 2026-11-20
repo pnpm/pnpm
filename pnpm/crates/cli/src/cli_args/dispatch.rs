@@ -118,6 +118,7 @@ impl CliArgs {
     /// reporter only uses it to shorten the paths it prints.
     pub fn configure_reporter(&self) {
         pnpm_default_reporter::set_is_global(super::pre_command::is_global(&self.command));
+        pnpm_default_reporter::set_edits_manifests(self.command.edits_manifests());
         if let Some(color) = self.output.presentation.color.or_else(|| {
             self.output.presentation.no_color.then_some(ColorMode::Never)
         }) {

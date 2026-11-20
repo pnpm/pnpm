@@ -157,7 +157,9 @@ impl ReporterState {
     }
 
     fn requested_dependencies(&self, prefix: &str) -> RequestedDependencies {
-        let edit = self.summary.manifest_diffs.get(prefix);
+        let edit = self.summary.manifest_diffs
+            .get(prefix)
+            .filter(|_| self.options.scope.edits_manifests);
         let initial = edit.and_then(|edit| edit.initial.as_ref()).map(remove_optional_from_prod);
         let updated = edit.and_then(|edit| edit.updated.as_ref()).map(remove_optional_from_prod);
         let mut requested =

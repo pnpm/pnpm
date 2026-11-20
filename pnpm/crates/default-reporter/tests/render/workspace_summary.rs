@@ -3,6 +3,7 @@ use super::{
     DependencyType,
     LogEvent,
     LogLevel,
+    ReporterOptions,
     RootLog,
     RootMessage,
     SummaryLog,
@@ -13,6 +14,7 @@ use super::{
     package_manifest_updated_at,
     render,
     state,
+    state_with_options,
     summary,
 };
 use pnpm_reporter::{
@@ -20,6 +22,17 @@ use pnpm_reporter::{
     RemovedRoot,
 };
 use serde_json::json;
+
+/// A reporter for a command that edits manifests, such as `pnpm add`.
+fn editing_state() -> pnpm_default_reporter::state::ReporterState {
+    state_with_options(ReporterOptions {
+        scope: pnpm_default_reporter::state::ScopeOptions {
+            edits_manifests: true,
+            ..Default::default()
+        },
+        ..ReporterOptions::default()
+    })
+}
 
 fn workspace_summary(new_projects: &[&str]) -> LogEvent {
     LogEvent::Summary(SummaryLog {
@@ -144,7 +157,7 @@ fn different_versions_of_a_dependency_are_separate_lines() {
 
 #[test]
 fn first_workspace_install_lists_only_what_carries_information() {
-    let mut reporter = state(false);
+    let mut reporter = editing_state();
     let frame = render(
         &mut reporter,
         vec![
@@ -262,7 +275,7 @@ fn same_alias_for_different_packages_is_separate_lines() {
 /// rendered the summary.
 #[test]
 fn new_project_dependency_moved_out_of_its_declared_range_is_listed() {
-    let mut reporter = state(false);
+    let mut reporter = editing_state();
     let frame = render(
         &mut reporter,
         vec![
@@ -294,4 +307,21 @@ fn project_paths_lose_control_characters() {
         ],
     );
     assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0  packages/evil[2Jx\n");
+}
+
+/// An override can install a version outside the declared range without
+/// the command asking for it.
+#[test]
+fn install_infers_no_requested_dependencies() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            package_manifest_initial_at(CWD, json!({ "dependencies": { "foo": "^1.0.0" } })),
+            added_root_at(CWD, "foo", "2.0.0", DependencyType::Prod),
+            added_root_at(CWD, "hooked", "1.0.0", DependencyType::Prod),
+            workspace_summary(&[CWD]),
+        ],
+    );
+    assert_eq!(frame, "");
 }

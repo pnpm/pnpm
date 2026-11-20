@@ -73,6 +73,7 @@ static STREAM_LIFECYCLE_OUTPUT: OnceLock<bool> = OnceLock::new();
 static AGGREGATE_OUTPUT: OnceLock<bool> = OnceLock::new();
 static HIDE_LIFECYCLE_PREFIX: OnceLock<bool> = OnceLock::new();
 static IS_GLOBAL: OnceLock<bool> = OnceLock::new();
+static EDITS_MANIFESTS: OnceLock<bool> = OnceLock::new();
 static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
 static MAX_LOG_LEVEL: OnceLock<MaxLogLevel> = OnceLock::new();
 
@@ -101,6 +102,12 @@ pub enum SummaryScope {
 /// Whether the command operates on global packages. Call before the first event.
 pub fn set_is_global(is_global: bool) {
     let _ = IS_GLOBAL.set(is_global);
+}
+
+/// Whether the command edits the manifests of the projects it installs, as
+/// `add`, `remove` and `update` do. Call before the first event.
+pub fn set_edits_manifests(edits_manifests: bool) {
+    let _ = EDITS_MANIFESTS.set(edits_manifests);
 }
 
 /// Set the project root the reporter renders paths relative to. Call once
@@ -538,6 +545,7 @@ fn reporter_options(append_only: bool) -> state::ReporterOptions {
                 .unwrap_or(SummaryScope::CurrentPrefix),
             reports_scope: REPORTS_SCOPE.get().is_some_and(|value| *value),
             is_global: IS_GLOBAL.get().is_some_and(|value| *value),
+            edits_manifests: EDITS_MANIFESTS.get().is_some_and(|value| *value),
             recursive: IS_RECURSIVE.get().is_some_and(|value| *value),
         },
         ..state::ReporterOptions::default()
