@@ -55,6 +55,7 @@ export function moveOrMergeModulesDirs (src: string, dest: string): void {
     switch (isError(err) && 'code' in err && err.code) {
       case 'ENOENT':
         return
+      case 'EEXIST':
       case 'ENOTEMPTY':
       case 'EPERM':
         mergeModulesDirs(src, dest)

@@ -62,15 +62,26 @@ function createImportPackage (
   }
 }
 
-function probeCloneAndSwitch (to: string, opts: ImportOptions, createOpts?: CreateIndexedPkgImporterOptions): 'clone' | undefined {
-  if (process.platform === 'win32') return undefined
+type CloneProbeOutcome = 'cloned' | 'skipped' | 'unsupported'
+
+function probeCloneAndSwitch (to: string, opts: ImportOptions, createOpts?: CreateIndexedPkgImporterOptions): CloneProbeOutcome {
+  if (process.platform === 'win32') return 'unsupported'
   try {
-    if (!tryClonePkg(to, opts)) return undefined
+    if (!tryClonePkg(to, opts)) return 'skipped'
     if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'clone' })
-    return 'clone'
+    return 'cloned'
   } catch {
-    return undefined
+    return 'unsupported'
   }
+}
+
+function probeHardlinkPkg (to: string, opts: ImportOptions): 'hardlink' | undefined {
+  let importedFile = false
+  const probeLink: ImportFile = (existingPath, newPath) => {
+    linkOrThrowOnLinkFailure(existingPath, newPath)
+    importedFile = true
+  }
+  return hardlinkPkg(probeLink, to, opts) && importedFile ? 'hardlink' : undefined
 }
 
 function handleHardlinkProbeError (
@@ -100,12 +111,14 @@ function createAutoImporter (createOpts?: CreateIndexedPkgImporterOptions): Impo
     to: string,
     opts: ImportOptions
   ): string | undefined {
-    if (probeCloneAndSwitch(to, opts, createOpts)) {
+    const cloneOutcome = probeCloneAndSwitch(to, opts, createOpts)
+    if (cloneOutcome === 'cloned') {
       auto = createClonePkg()
       return 'clone'
     }
+    if (cloneOutcome === 'skipped') return undefined
     try {
-      if (!hardlinkPkg(linkOrThrowOnLinkFailure, to, opts)) return undefined
+      if (!probeHardlinkPkg(to, opts)) return undefined
       if (!createOpts?.disableLogging) packageImportMethodLogger.debug({ method: 'hardlink' })
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
@@ -153,19 +166,25 @@ function alignedClone (clone: CloneFunction): CloneFunction {
  * Import a single package using a raw clone function (no ENOTSUP fallback).
  * Used by auto-mode to probe whether the filesystem supports cloning.
  * If cloning isn't supported, the error propagates so the caller can fall
- * through to a faster method (e.g. hardlinks).
+ * through to a faster method (e.g. hardlinks). Returns `undefined` when no
+ * file was written (for example, when `safeToSkip` reused an already-complete
+ * shared slot), keeping the probe pending for the next package.
  */
 function tryClonePkg (
   to: string,
   opts: ImportOptions
 ): 'clone' | undefined {
-  if (shouldImportPkg(to, opts)) {
-    const clone = alignedClone(createCloneFunction())
-    importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
-    removeQuarantineFromNativeBinaries(to, opts)
-    return 'clone'
+  if (!shouldImportPkg(to, opts)) return undefined
+  const rawClone = alignedClone(createCloneFunction())
+  let importedFile = false
+  const clone: CloneFunction = (src, dest) => {
+    rawClone(src, dest)
+    importedFile = true
   }
-  return undefined
+  importIndexedDir({ importFile: clone, importFileAtomic: clone }, to, opts.filesMap, opts)
+  if (!importedFile) return undefined
+  removeQuarantineFromNativeBinaries(to, opts)
+  return 'clone'
 }
 
 function withCloneFallback (clone: CloneFunction, fallback: CloneFunction): ImportFile {
