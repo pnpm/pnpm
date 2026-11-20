@@ -376,8 +376,13 @@ where
     };
     let machine_lookup =
         |name: &str| scoped(machine, name, &process_env).or_else(|| process_env(name));
-    let user_lookup =
-        |name: &str| scoped(user, name, &machine_lookup).or_else(|| machine_lookup(name));
+    // A `%Path%` in the user `Path` is the machine `Path` it is appended to.
+    let user_lookup = |name: &str| {
+        if name.eq_ignore_ascii_case("Path") {
+            return machine_lookup(name);
+        }
+        scoped(user, name, &machine_lookup).or_else(|| machine_lookup(name))
+    };
     let mut dirs =
         split_registry_path(&get_env_value_from_registry(machine, "Path")?, machine_lookup);
     if let Some(user_path) = get_env_value_from_registry(user, "Path") {

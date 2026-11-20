@@ -280,3 +280,21 @@ fn persisted_path_expands_each_scope_with_its_own_variables() {
         ],
     );
 }
+
+#[test]
+fn a_user_path_reference_to_path_is_the_machine_path() {
+    let machine = "\r\nHKEY_LOCAL_MACHINE\\...\\Environment\r\n    \
+                   Path    REG_EXPAND_SZ    C:\\Windows\r\n";
+    let user = "\r\nHKEY_CURRENT_USER\\Environment\r\n    \
+                Path    REG_EXPAND_SZ    %Path%;C:\\pnpm-home\\bin\r\n";
+
+    let dirs = persisted_path_from_registry(machine, user, |_: &str| None).unwrap();
+    assert_eq!(
+        dirs,
+        [
+            PathBuf::from(r"C:\Windows"),
+            PathBuf::from(r"C:\Windows"),
+            PathBuf::from(r"C:\pnpm-home\bin"),
+        ],
+    );
+}
