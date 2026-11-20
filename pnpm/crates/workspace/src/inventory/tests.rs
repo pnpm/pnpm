@@ -2,6 +2,7 @@ use super::{
     find_workspace_inventory,
     find_workspace_inventory_with,
 };
+#[cfg(not(windows))]
 use command_extra::CommandExtra;
 use pnpm_fs::symlink_dir as symlink;
 use pretty_assertions::assert_eq;

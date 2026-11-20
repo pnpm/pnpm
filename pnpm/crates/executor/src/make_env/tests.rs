@@ -12,6 +12,7 @@ use super::{
     sanitize_env_key,
     stamp_package,
 };
+#[cfg(not(windows))]
 use command_extra::CommandExtra;
 use pretty_assertions::assert_eq;
 use serde_json::json;

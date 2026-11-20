@@ -6,6 +6,7 @@ use super::{
     select_shell,
     use_shell_emulator,
 };
+#[cfg(not(windows))]
 use command_extra::CommandExtra;
 use pretty_assertions::assert_eq;
 use std::{

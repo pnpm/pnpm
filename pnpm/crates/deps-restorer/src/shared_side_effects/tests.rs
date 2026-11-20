@@ -3,6 +3,7 @@ use super::{
     platform::validate_windows_kernel_version,
 };
 use crate::shared_side_effects::platform::parse_macos_product_version;
+#[cfg(not(windows))]
 use command_extra::CommandExtra;
 use pnpm_lockfile::PackageKey;
 use std::collections::HashMap;

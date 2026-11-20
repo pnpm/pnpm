@@ -913,7 +913,7 @@ fn a_shim_runs_a_target_that_is_a_hard_link_of_it() {
     #[cfg(unix)]
     let command = shim_command(&root, &cwd, "pnpm", target.to_str().unwrap());
     #[cfg(windows)]
-    let mut command = windows_shim_command(&root, &cwd, "pnpm", &target);
+    let command = windows_shim_command(&root, &cwd, "pnpm", &target);
     fs::hard_link(command.get_program(), &target).unwrap();
 
     let output = command

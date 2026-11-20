@@ -8,6 +8,7 @@ use super::{
     inode_map::file_id,
     publish_edits,
 };
+#[cfg(not(windows))]
 use command_extra::CommandExtra;
 use pnpm_fs::LinkFailure;
 use pretty_assertions::assert_eq;

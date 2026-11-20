@@ -6,6 +6,7 @@ use super::{
 use crate::shim::is_relocatable_shim;
 #[cfg(unix)]
 use crate::shim::is_sh_shim_basedir_anchor_current;
+#[cfg(not(windows))]
 use command_extra::CommandExtra;
 
 #[test]

@@ -17,6 +17,7 @@ use super::{
     safe_read_package_json_from_dir,
     tempdir,
 };
+#[cfg(not(windows))]
 use command_extra::CommandExtra;
 
 #[cfg(unix)]

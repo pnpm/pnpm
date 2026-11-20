@@ -1,3 +1,4 @@
+#[cfg(not(windows))]
 use command_extra::CommandExtra;
 use pnpr_fixtures::read_packument;
 
