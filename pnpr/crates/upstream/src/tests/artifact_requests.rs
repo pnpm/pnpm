@@ -509,4 +509,25 @@ async fn declared_tarball_redirect_to_disallowed_target_is_blocked_without_conta
         client.fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &ok_route).await.unwrap();
     assert!(matches!(outcome, crate::FetchOutcome::Ok(_)));
     allowed_tarball.assert_async().await;
+
+    // An upstream 403 error body echoing a signed URL redacts query credentials
+    // before storing `RegistryError::UpstreamStatus::body`.
+    let forbidden = cdn
+        .mock("GET", "/expired.tgz")
+        .with_status(403)
+        .with_body(
+            "AccessDenied for https://cdn.corp.example/expired.tgz?X-Amz-Signature=SECRET_BODY_SIG&X-Amz-Credential=AKIA_BODY_CRED",
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let expired_route = crate::UpstreamTarballRoute::Url(format!("{}/expired.tgz", cdn.url()));
+    let expired_err = client
+        .fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &expired_route)
+        .await
+        .unwrap_err();
+    let debug = format!("{expired_err:?}");
+    assert!(!debug.contains("SECRET_BODY_SIG"), "{debug}");
+    assert!(!debug.contains("AKIA_BODY_CRED"), "{debug}");
+    forbidden.assert_async().await;
 }

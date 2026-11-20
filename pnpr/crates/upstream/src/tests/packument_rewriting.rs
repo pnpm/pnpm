@@ -673,9 +673,13 @@ fn revision_route_tarball_version_recognizes_clean_canonical_revisions() {
         revision_route_tarball_version("https://pnpr.test/npm/@corp/foo@1.0.0+r3", &scoped),
         Some("1.0.0+r3"),
     );
+    assert_eq!(revision_route_tarball_version("/npm/foo@1.0.0+r0", &unscoped), Some("1.0.0+r0"));
+    assert_eq!(revision_route_tarball_version("foo@1.0.0+r0", &unscoped), Some("1.0.0+r0"));
     for invalid in [
         "https://pnpr.test/npm/foo@1.0.0+r02",
         "https://pnpr.test/npm/evil/../foo@1.0.0+r3",
+        "../foo@1.0.0+r3",
+        "./foo@1.0.0+r3",
         "https://pnpr.test/npm/foo@1.0.0+r3?sig=secret",
         "https://pnpr.test/npm/foo@1.0.0+build.1",
         "https://pnpr.test/npm/foo/-/foo-1.0.0.tgz",

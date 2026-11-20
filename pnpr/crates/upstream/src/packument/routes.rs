@@ -61,14 +61,18 @@ pub fn revision_route_tarball_version<'a>(
 }
 
 fn has_dot_path_segment(url: &str) -> bool {
-    let after_scheme = url
+    let path = match url
         .split_once("://")
-        .map(|(_, rest)| rest)
-        .unwrap_or(url);
-    let path = after_scheme
-        .split_once('/')
-        .map(|(_, path)| path)
-        .unwrap_or("");
+        .or_else(|| {
+            url.strip_prefix("//")
+                .map(|rest| ("", rest))
+        }) {
+        Some((_, after_authority_start)) => after_authority_start
+            .split_once('/')
+            .map(|(_, path)| path)
+            .unwrap_or(""),
+        None => url,
+    };
     path.split('/')
         .any(|seg| seg == "." || seg == "..")
 }

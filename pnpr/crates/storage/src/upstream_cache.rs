@@ -5,8 +5,7 @@ mod purged;
 
 use super::{
     BlobWrite, CachedDocument, CanonicalPackageName, DocumentStamp, Ecosystem, ErrorKind, Path,
-    PathBuf, RegistryError, Result, Storage, Store, is_atomic_write_temp_path, read_dir_if_present,
-    write_atomic,
+    PathBuf, RegistryError, Result, Storage, Store, write_atomic,
 };
 use std::time::{Duration, SystemTime};
 use tokio::fs;

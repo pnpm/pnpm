@@ -4,6 +4,7 @@ pub(super) use missing_versions::{
     PackumentRefetches, REFETCH_INTERVAL, reload_source_packument_lacking_version,
     reload_upstream_packument_for_expired_tarball, reload_upstream_packument_lacking_version,
 };
+pub(super) use purge::cache_upstream_packument;
 pub(super) use serving::serve_packument_via_upstream;
 pub(super) use write_order::{PackumentWriteOrder, PurgeRemoval, WriteVerdict};
 
@@ -16,9 +17,7 @@ use super::{
     packument_response, resolve_registry_source, timed, upstream_cache_namespace,
 };
 use axum::body::Bytes;
-use purge::{
-    purge_cached_package, read_unpurged_upstream_document, read_unpurged_upstream_document_any,
-};
+use purge::{read_unpurged_upstream_document, read_unpurged_upstream_document_any};
 use std::{future::Future, sync::Arc};
 
 mod missing_versions;
@@ -197,57 +196,6 @@ async fn fetch_and_cache_upstream_packument(
     cache_upstream_packument(state, namespace, upstream, name, fetched, fetch_seq)
         .await
         .map_err(Arc::new)
-}
-
-pub(super) async fn cache_upstream_packument(
-    state: &AppState,
-    namespace: &str,
-    upstream: &Upstream,
-    name: &CanonicalPackageName,
-    fetched: PackumentFetch,
-    fetch_seq: u64,
-) -> Result<Option<Vec<u8>>, RegistryError> {
-    match fetched {
-        PackumentFetch::Modified(fetched) => {
-            if !upstream.caches() {
-                return Ok(Some(fetched.bytes));
-            }
-            let Some(refreshed) = super::upstream_integrity::refresh_cached_packument(
-                state,
-                namespace,
-                name,
-                fetched.bytes,
-                fetch_seq,
-            )
-            .await?
-            else {
-                return Ok(None);
-            };
-            if refreshed.needs_backfill {
-                super::upstream_integrity::schedule(state, namespace, upstream, name);
-            }
-            Ok(Some(refreshed.bytes))
-        }
-        PackumentFetch::NotFound => {
-            // The 404 is authoritative: the package is gone from this origin,
-            // so drop its cached entry too. Otherwise the stale copy would
-            // outlive every TTL and a later transient outage could resurrect
-            // the unpublished package through the stale-if-error fallback.
-            if !upstream.caches() {
-                return Ok(None);
-            }
-            purge_cached_package(state, namespace, name, fetch_seq).await
-        }
-        // `load_upstream_packument` sends no conditional validators (the upstream
-        // cache refetches stale entries rather than revalidating — see
-        // `Store::read_upstream_document`), so a well-behaved upstream never
-        // answers 304 here. If one does anyway, "not modified" means the cached
-        // body is current, so serve it (fresh or stale) rather than a spurious
-        // 404 that a client could cache as "package gone".
-        PackumentFetch::NotModified => {
-            read_unpurged_upstream_document_any(state, namespace, name).await
-        }
-    }
 }
 
 /// Serializes the writes to one upstream package's cached packument: a refresh,

@@ -5,7 +5,9 @@ use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey, PackageMetadata, T
 use pnpm_package_manager::{
     ResolvedPackageHint, ResolvedPackageIdentity, tarball_url_and_integrity,
 };
-use pnpm_resolving_npm_resolver::{DistStats, ObservedDistStats};
+use pnpm_resolving_npm_resolver::{
+    DistStats, ObservedDistStats, VerificationRegistryRoutes, observed_dist_stats_key,
+};
 
 use super::{MAX_NDJSON_FRAME_BYTES, TarballRouter, ndjson_line, routed_package_frame};
 
@@ -35,6 +37,7 @@ pub(in super::super) fn frozen_package_frames_until(
     let Some(packages) = lockfile.packages.as_ref() else {
         return Some(Vec::new());
     };
+    let routes = router.build_verification_routes(config);
     let mut seen_urls = HashSet::new();
     let mut frames = Vec::new();
     let mut total_bytes = 0usize;
@@ -43,7 +46,14 @@ pub(in super::super) fn frozen_package_frames_until(
             return None;
         }
         if let Some(line) = frozen_package_frame(
-            FrozenFrameInputs { config, router, dist_stats, package_key, snapshot },
+            FrozenFrameInputs {
+                config,
+                router,
+                routes: &routes,
+                dist_stats,
+                package_key,
+                snapshot,
+            },
             &mut seen_urls,
         ) {
             if total_bytes.saturating_add(line.len()) > MAX_NDJSON_FRAME_BYTES {
@@ -60,6 +70,7 @@ pub(in super::super) fn frozen_package_frames_until(
 struct FrozenFrameInputs<'a> {
     config: &'a PacquetConfig,
     router: &'a TarballRouter,
+    routes: &'a VerificationRegistryRoutes,
     dist_stats: &'a ObservedDistStats,
     package_key: &'a PackageKey,
     snapshot: &'a PackageMetadata,
@@ -86,8 +97,8 @@ fn frozen_package_frame(
         return None;
     };
     let (name, id, bare_version) = frozen_package_coordinates(inputs.package_key);
-    let tarball_url = inputs.router.route_lockfile_tarball(
-        inputs.config,
+    let tarball_url = inputs.router.route_lockfile_tarball_with_routes(
+        inputs.routes,
         inputs.package_key,
         &inputs.snapshot.resolution,
         &upstream_tarball_url,
@@ -97,7 +108,7 @@ fn frozen_package_frame(
     }
     let revision =
         pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
-    let stats = frozen_dist_stats(inputs.dist_stats, &name, &bare_version);
+    let stats = frozen_dist_stats(inputs, &name, &bare_version);
     let frame = routed_package_frame(
         &ResolvedPackageHint {
             integrity: &integrity.to_string(),
@@ -126,9 +137,16 @@ fn frozen_package_coordinates(package_key: &PackageKey) -> (String, String, Stri
     (name, id, bare_version)
 }
 
-fn frozen_dist_stats(stats: &ObservedDistStats, name: &str, version: &str) -> DistStats {
-    stats
-        .get(&(name.to_string(), version.to_string()))
+fn frozen_dist_stats(inputs: FrozenFrameInputs<'_>, name: &str, version: &str) -> DistStats {
+    let Some(registry) = inputs.router.verified_entry_registry(
+        inputs.routes,
+        inputs.package_key,
+        &inputs.snapshot.resolution,
+    ) else {
+        return DistStats::default();
+    };
+    inputs.dist_stats
+        .get(&observed_dist_stats_key(&registry, name, version))
         .map(|entry| *entry)
         .unwrap_or_default()
 }

@@ -12,6 +12,12 @@ pub(in crate::server) struct RefreshedPackument {
     pub(in crate::server) needs_backfill: bool,
 }
 
+pub(in crate::server) enum RefreshOutcome {
+    Stored(RefreshedPackument),
+    SupersededByPurge,
+    MissingSupersedingStored,
+}
+
 struct Reconciliation {
     packument: RefreshedPackument,
     eviction: BlobEviction,
@@ -28,17 +34,12 @@ pub(in crate::server) async fn refresh_cached_packument(
     name: &CanonicalPackageName,
     bytes: Vec<u8>,
     fetch_seq: u64,
-) -> Result<Option<RefreshedPackument>, RegistryError> {
+) -> Result<RefreshOutcome, RegistryError> {
     let _guard = super::lock_upstream_package(state, namespace, name).await;
-    match state.inner.proxy.packument_writes.check(namespace, name, fetch_seq) {
-        crate::server::upstream_packuments::WriteVerdict::SupersededByPurge => return Ok(None),
-        crate::server::upstream_packuments::WriteVerdict::SupersededByStored => {
-            let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
-            return Ok(previous.map(|bytes| RefreshedPackument { bytes, needs_backfill: false }));
-        }
-        crate::server::upstream_packuments::WriteVerdict::Proceed => {}
+    if let Some(outcome) = check_superseded_refresh(state, namespace, name, fetch_seq).await? {
+        return Ok(outcome);
     }
-    let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
+    let previous = read_previous_for_reconcile(state, namespace, name).await?;
     let package = name.clone();
     let Reconciliation { packument, eviction } =
         state.inner.packuments.workers.run(move || reconcile(previous.as_deref(), bytes, &package))
@@ -46,8 +47,45 @@ pub(in crate::server) async fn refresh_cached_packument(
     crate::server::upstream_packuments::invalidate_upstream_package(state, namespace, name);
     evict_stale_upstream_blobs(state, namespace, name, eviction).await?;
     state.inner.storage.write_upstream_document(namespace, name, &packument.bytes).await?;
+    state.inner.storage.clear_upstream_package_purged(namespace, name).await?;
     state.inner.proxy.packument_writes.commit_stored(namespace, name, fetch_seq);
-    Ok(Some(packument))
+    Ok(RefreshOutcome::Stored(packument))
+}
+
+async fn check_superseded_refresh(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    fetch_seq: u64,
+) -> Result<Option<RefreshOutcome>, RegistryError> {
+    match state.inner.proxy.packument_writes.check(namespace, name, fetch_seq) {
+        crate::server::upstream_packuments::WriteVerdict::SupersededByPurge => {
+            Ok(Some(RefreshOutcome::SupersededByPurge))
+        }
+        crate::server::upstream_packuments::WriteVerdict::SupersededByStored => {
+            let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
+            Ok(Some(match previous {
+                Some(bytes) => {
+                    RefreshOutcome::Stored(RefreshedPackument { bytes, needs_backfill: false })
+                }
+                None => RefreshOutcome::MissingSupersedingStored,
+            }))
+        }
+        crate::server::upstream_packuments::WriteVerdict::Proceed => Ok(None),
+    }
+}
+
+async fn read_previous_for_reconcile(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    if state.inner.proxy.packument_writes.is_purged(namespace, name)
+        || state.inner.storage.is_upstream_package_purged(namespace, name).await?
+    {
+        return Ok(None);
+    }
+    state.inner.storage.read_upstream_document_any(namespace, name).await
 }
 
 async fn evict_stale_upstream_blobs(

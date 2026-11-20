@@ -151,3 +151,38 @@ async fn inaccessible_purged_package_dir_keeps_suppression_without_blocking_othe
             .is_none(),
     );
 }
+
+#[tokio::test]
+async fn corrupt_purge_marker_suppresses_only_its_own_package_across_restart() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let corrupt = pkg("@corp/corrupt");
+    let healthy = pkg("healthy");
+
+    storage.write_upstream_document("corp-ns", &corrupt, b"{\"stale\":true}").await.unwrap();
+    storage.write_upstream_document("corp-ns", &healthy, b"{\"healthy\":true}").await.unwrap();
+    storage.mark_upstream_package_purged("corp-ns", &corrupt).await.unwrap();
+
+    let corrupt_marker = super::purged::marker_path(&storage.cached.root, "corp-ns", &corrupt);
+    assert!(corrupt_marker.exists());
+    std::fs::write(&corrupt_marker, b"{not-valid-json").unwrap();
+
+    drop(storage);
+    let restarted = storage_in(&tmp);
+    assert_eq!(
+        restarted
+            .read_upstream_document_any("corp-ns", &healthy)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(b"{\"healthy\":true}".as_slice()),
+    );
+    assert!(restarted.is_upstream_package_purged("corp-ns", &corrupt).await.unwrap());
+    assert!(
+        restarted
+            .read_upstream_document_any("corp-ns", &corrupt)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+}

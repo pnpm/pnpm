@@ -219,7 +219,9 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
 #[test]
 fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     use pnpm_lockfile::Lockfile;
-    use pnpm_resolving_npm_resolver::{DistStats, observed_dist_stats_sink};
+    use pnpm_resolving_npm_resolver::{
+        DistStats, observed_dist_stats_key, observed_dist_stats_sink,
+    };
 
     let lockfile: Lockfile = serde_json::from_value(serde_json::json!({
         "lockfileVersion": "9.0",
@@ -239,7 +241,7 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
 
     let stats = observed_dist_stats_sink();
     stats.insert(
-        ("acme".to_string(), "1.0.0".to_string()),
+        observed_dist_stats_key("https://registry.example.test/", "acme", "1.0.0"),
         DistStats {
             unpacked_size: Some(123_456),
             file_count: Some(42),
@@ -667,4 +669,114 @@ fn published_tarball_mapper_accepts_public_query_urls_and_binds_private_entries_
     let proxied_mapped =
         mapper("https://npm.corp.example/", "@corp/rev", "1.0.0", proxied_rev, upstream_rev);
     assert_eq!(proxied_mapped.accepted_routed_url.as_deref(), Some(proxied_rev));
+}
+
+#[test]
+fn frozen_frames_and_lockfile_routing_isolate_multi_registry_stats_and_routed_endpoints() {
+    use pnpm_lockfile::Lockfile;
+    use pnpm_resolving_npm_resolver::{
+        DistStats, observed_dist_stats_key, observed_dist_stats_sink,
+    };
+
+    let mut registry = registry_config();
+    registry.routing.upstreams.insert(
+        "east".to_string(),
+        upstream_with_access("https://east.corp.example/", "alice"),
+    );
+    registry.routing.upstreams.insert(
+        "west".to_string(),
+        upstream_with_access("https://west.corp.example/", "alice"),
+    );
+    let mut pnpm_config = config_for_registry("https://west.corp.example/");
+    pnpm_config.registries_by_prefix.insert(
+        "east".to_string(),
+        "https://east.corp.example/".to_string(),
+    );
+    pnpm_config.registries_by_prefix.insert(
+        "west".to_string(),
+        "https://west.corp.example/".to_string(),
+    );
+    let router = tarball_router(&registry, user("alice"))
+        .with_registries_by_prefix(pnpm_config.registries_by_prefix.clone());
+
+    // 1. Same name@version across `east:` and `west:` keeps distinct dist stats.
+    let multi_lockfile: Lockfile = serde_json::from_value(serde_json::json!({
+        "lockfileVersion": "9.0",
+        "importers": { ".": {} },
+        "packages": {
+            "acme@east:1.0.0": {
+                "resolution": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "tarball": "http://127.0.0.1:7677/npm/~east/acme/-/acme-1.0.0.tgz"
+                }
+            },
+            "acme@west:1.0.0": {
+                "resolution": {
+                    "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
+                    "tarball": "http://127.0.0.1:7677/npm/~west/acme/-/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }))
+    .unwrap();
+    let stats = observed_dist_stats_sink();
+    stats.insert(
+        observed_dist_stats_key("https://east.corp.example/", "acme", "1.0.0"),
+        DistStats { unpacked_size: Some(1_111), file_count: Some(10), requires_build: Some(true) },
+    );
+    stats.insert(
+        observed_dist_stats_key("https://west.corp.example/", "acme", "1.0.0"),
+        DistStats { unpacked_size: Some(2_222), file_count: Some(20), requires_build: Some(false) },
+    );
+    let frames = super::super::wire::frozen_package_frames_until(
+        &pnpm_config,
+        &router,
+        &multi_lockfile,
+        &stats,
+        &|| false,
+    )
+    .unwrap();
+    assert_eq!(frames.len(), 2);
+    let parsed: Vec<serde_json::Value> = frames
+        .iter()
+        .map(|line| serde_json::from_slice(line).unwrap())
+        .collect();
+    let east_frame = parsed
+        .iter()
+        .find(|frame| frame["id"] == "acme@east:1.0.0")
+        .unwrap();
+    let west_frame = parsed
+        .iter()
+        .find(|frame| frame["id"] == "acme@west:1.0.0")
+        .unwrap();
+    assert_eq!(east_frame["unpackedSize"], 1_111);
+    assert_eq!(east_frame["requiresBuild"], true);
+    assert_eq!(west_frame["unpackedSize"], 2_222);
+    assert_eq!(west_frame["requiresBuild"], false);
+
+    // 2. Unprefixed `acme@1.0.0` whose tarball is already routed through `/~east/`
+    // keeps `/~east/` rather than being rewritten onto the default `west` registry.
+    let unprefixed_routed =
+        lockfile_with_tarball("http://127.0.0.1:7677/npm/~east/acme/-/acme-1.0.0.tgz");
+    let routed = router.route_lockfile(&pnpm_config, &unprefixed_routed);
+    assert_eq!(
+        lockfile_tarball_url(&routed, "acme@1.0.0"),
+        "http://127.0.0.1:7677/npm/~east/acme/-/acme-1.0.0.tgz",
+    );
+    let unprefixed_frames = super::super::wire::frozen_package_frames_until(
+        &pnpm_config,
+        &router,
+        &unprefixed_routed,
+        &stats,
+        &|| false,
+    )
+    .unwrap();
+    let unprefixed_frame: serde_json::Value =
+        serde_json::from_slice(&unprefixed_frames[0]).unwrap();
+    assert_eq!(
+        unprefixed_frame["tarball"],
+        "http://127.0.0.1:7677/npm/~east/acme/-/acme-1.0.0.tgz",
+    );
+    assert_eq!(unprefixed_frame["unpackedSize"], 1_111);
+    assert_eq!(unprefixed_frame["requiresBuild"], true);
 }

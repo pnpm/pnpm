@@ -101,13 +101,29 @@ pub struct DistStats {
     pub requires_build: Option<bool>,
 }
 
-/// `(package name, version) → dist` work statistics filled by the
-/// verifier as a side product of the tarball-URL binding check. The
+/// `(registry, package name, version) → dist` work statistics filled by
+/// the verifier as a side product of the tarball-URL binding check. The
 /// metadata is already in hand per entry, so collecting costs no extra
 /// fetch; consumers (the pnpr server's frozen fast path) use the stats
-/// to schedule the most expensive tarball downloads first. Shared as an
-/// `Arc` so the caller keeps a handle while the verifier fan-out writes.
-pub type ObservedDistStats = Arc<DashMap<(String, String), DistStats>>;
+/// to schedule the most expensive tarball downloads first. Keyed by
+/// canonical registry URL so two registries serving the same
+/// `name@version` in one lockfile never overwrite each other's stats.
+pub type ObservedDistStats = Arc<DashMap<(String, String, String), DistStats>>;
+
+/// Build the normalized `(registry, name, version)` key used by
+/// [`ObservedDistStats`].
+#[must_use]
+pub fn observed_dist_stats_key(
+    registry: &str,
+    name: &str,
+    version: &str,
+) -> (String, String, String) {
+    (
+        pnpm_network::normalize_registry_url(registry).into_owned(),
+        name.to_string(),
+        version.to_string(),
+    )
+}
 
 /// Construct a fresh sink for
 /// [`VerificationArtifacts::observed_stats`].

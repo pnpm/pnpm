@@ -372,7 +372,7 @@ async fn binding_check_records_dist_stats_into_the_sink() {
 
     assert_eq!(result, ResolutionVerification::Ok);
     let recorded = sink
-        .get(&("acme".to_string(), "1.0.0".to_string()))
+        .get(&crate::observed_dist_stats_key(&registry, "acme", "1.0.0"))
         .map(|entry| *entry.value())
         .expect("stats recorded");
     assert_eq!(recorded.unpacked_size, Some(123_456));

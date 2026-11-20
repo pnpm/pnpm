@@ -167,7 +167,7 @@ impl NpmResolutionVerifier {
         };
         match fetch.run().await {
             Ok(record) => {
-                self.record_release_dist_stats(name, version, &record);
+                self.record_release_dist_stats(registry, name, version, &record);
                 Ok(record.dist.integrity.clone())
             }
             Err(ReleaseRecordError::NotFound(_)) => Ok(None),
@@ -180,6 +180,7 @@ impl NpmResolutionVerifier {
 
     fn record_release_dist_stats(
         &self,
+        registry: &str,
         name: &str,
         version: &str,
         record: &pnpm_registry::PackageVersion,
@@ -196,7 +197,7 @@ impl NpmResolutionVerifier {
             || stats.file_count.is_some()
             || stats.requires_build.is_some()
         {
-            sink.insert((name.to_string(), version.to_string()), stats);
+            sink.insert(crate::observed_dist_stats_key(registry, name, version), stats);
         }
     }
 
@@ -223,7 +224,10 @@ impl NpmResolutionVerifier {
                 .as_ref()
                 .and_then(|stats| stats.get(version))
         {
-            sink.insert((name.to_string(), version.to_string()), *stats);
+            sink.insert(
+                crate::observed_dist_stats_key(registry, &name.to_string(), version),
+                *stats,
+            );
         }
         Ok(meta.version_artifacts.and_then(|artifacts| artifacts.get(version).cloned()))
     }

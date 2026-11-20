@@ -97,9 +97,9 @@ impl TarballRouter {
     /// classified by their registry origin (preserving split-domain routing and
     /// stripping presigned query tokens), while direct URL tarball dependencies
     /// are classified by their own URL.
-    pub(super) fn route_lockfile_tarball(
+    pub(super) fn route_lockfile_tarball_with_routes(
         &self,
-        config: &PacquetConfig,
+        routes: &VerificationRegistryRoutes,
         package_key: &PackageKey,
         resolution: &LockfileResolution,
         tarball_url: &str,
@@ -114,24 +114,23 @@ impl TarballRouter {
             .expect("checked in is_registry_package_resolution")
             .to_string();
         if let Some((registry_name, _)) = package_key.suffix.registry_qualified() {
-            let Some(registry) = self.named_registry_url(Some(config), registry_name) else {
+            let Some(registry) =
+                routes.select_registry(&package_key.name, Some(registry_name), None)
+            else {
                 return sanitize_registry_tarball_url(tarball_url);
             };
-            return self.route_for_registry(registry, &name, &version, tarball_url);
+            return self.route_for_registry(&registry, &name, &version, tarball_url);
         }
-        let registry = self.scope_registry_for_package(config, &name);
+        let reversed = match resolution {
+            LockfileResolution::Tarball(tarball) => {
+                self.upstream_endpoint_tarball_url(&tarball.tarball, Some(&name))
+            }
+            _ => None,
+        };
+        let registry = routes
+            .select_registry(&package_key.name, None, reversed.as_deref())
+            .expect("unprefixed entries always select a scope or default registry");
         self.route_for_registry(&registry, &name, &version, tarball_url)
-    }
-
-    fn scope_registry_for_package(&self, config: &PacquetConfig, package: &str) -> String {
-        if !self.registries.is_empty() {
-            return pick_registry_for_package(&self.registries, package, None);
-        }
-        let registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        pick_registry_for_package(&registries, package, None)
     }
 
     fn named_registry_url<'a>(
@@ -260,6 +259,7 @@ impl TarballRouter {
         if should_cancel() {
             return None;
         }
+        let routes = self.build_verification_routes(config);
         let mut routed = lockfile.clone();
         let Some(packages) = routed.packages.as_mut() else {
             return Some(routed);
@@ -268,7 +268,7 @@ impl TarballRouter {
             if should_cancel() {
                 return None;
             }
-            self.route_package_metadata(config, package_key, metadata);
+            self.route_package_metadata(config, &routes, package_key, metadata);
         }
         Some(routed)
     }
@@ -276,6 +276,7 @@ impl TarballRouter {
     fn route_package_metadata(
         &self,
         config: &PacquetConfig,
+        routes: &VerificationRegistryRoutes,
         package_key: &PackageKey,
         metadata: &mut PackageMetadata,
     ) {
@@ -296,8 +297,12 @@ impl TarballRouter {
         if !is_http_tarball_url(&tarball_url) || is_git_hosted_tarball_url(&tarball_url) {
             return;
         }
-        let routed_url =
-            self.route_lockfile_tarball(config, package_key, &metadata.resolution, &tarball_url);
+        let routed_url = self.route_lockfile_tarball_with_routes(
+            routes,
+            package_key,
+            &metadata.resolution,
+            &tarball_url,
+        );
         if routed_url == tarball_url.as_ref() {
             return;
         }

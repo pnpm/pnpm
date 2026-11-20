@@ -54,22 +54,64 @@ impl TarballRouter {
         Some(format!("{:x}", hasher.finalize()))
     }
 
-    fn build_verification_routes(&self, config: &PacquetConfig) -> VerificationRegistryRoutes {
-        let registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
+    pub(in crate::resolver::wire) fn build_verification_routes(
+        &self,
+        config: &PacquetConfig,
+    ) -> VerificationRegistryRoutes {
+        let registries: HashMap<String, String> = if self.registries.is_empty() {
+            config
+                .resolved_registries()
+                .into_iter()
+                .collect()
+        } else {
+            self.registries
+                .iter()
+                .map(|(scope, url)| {
+                    (scope.clone(), pnpm_network::normalize_registry_url(url).into_owned())
+                })
+                .collect()
+        };
         let mut registries_by_prefix: HashMap<String, String> = BUILTIN_REGISTRIES_BY_PREFIX
             .iter()
-            .map(|(alias, url)| ((*alias).to_string(), (*url).to_string()))
+            .map(|(alias, url)| {
+                ((*alias).to_string(), pnpm_network::normalize_registry_url(url).into_owned())
+            })
             .collect();
         for (alias, url) in &self.registries_by_prefix {
-            registries_by_prefix.insert(alias.clone(), url.clone());
+            registries_by_prefix.insert(
+                alias.clone(),
+                pnpm_network::normalize_registry_url(url).into_owned(),
+            );
         }
         for (alias, url) in &config.registries_by_prefix {
-            registries_by_prefix.insert(alias.clone(), url.clone());
+            registries_by_prefix.insert(
+                alias.clone(),
+                pnpm_network::normalize_registry_url(url).into_owned(),
+            );
         }
         VerificationRegistryRoutes::new(registries, registries_by_prefix, None)
+    }
+
+    /// Select the registry URL that [`pnpm_resolving_npm_resolver::NpmResolutionVerifier`]
+    /// verified `package_key` / `resolution` against, reversing authorized
+    /// `/~<alias>/` endpoints first.
+    pub(in crate::resolver::wire) fn verified_entry_registry(
+        &self,
+        routes: &VerificationRegistryRoutes,
+        package_key: &PackageKey,
+        resolution: &LockfileResolution,
+    ) -> Option<String> {
+        let name = package_key.name.to_string();
+        if let Some((registry_name, _)) = package_key.suffix.registry_qualified() {
+            return routes.select_registry(&package_key.name, Some(registry_name), None);
+        }
+        let effective = match resolution {
+            LockfileResolution::Tarball(tarball) => self
+                .upstream_endpoint_tarball_url(&tarball.tarball, Some(&name))
+                .or_else(|| Some(tarball.tarball.clone())),
+            _ => None,
+        };
+        routes.select_registry(&package_key.name, None, effective.as_deref())
     }
 
     fn collect_entry_binding_digests(
