@@ -375,6 +375,7 @@ impl WorkspaceFixture {
             .with_current_dir(cwd)
             .without_ambient_pnpm_config()
             .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
+            .env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
             .arg("--reporter=ndjson")
             .args(args)
             .output()
