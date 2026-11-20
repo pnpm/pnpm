@@ -243,6 +243,8 @@ export type InstallInContextOptions = Omit<StrictInstallOptions, 'patchedDepende
   currentLockfileIsUpToDate: boolean
   hoistWorkspacePackages?: boolean
   verifyLockfile?: () => Promise<void>
+  /** Receives the verdict on a lockfile the install writes, which the install records once its scripts are done. */
+  deferVerificationRecord?: (record: PendingVerificationRecord) => void
 }
 
 export type InstallFunction = (
@@ -285,6 +287,8 @@ export interface MutationRun extends MutationRunBase {
    * reconciles the verdict on paths that never reach the build phase.
    */
   verifyLockfile?: () => Promise<void>
+  /** Verdicts on the lockfiles this install writes, recorded once its scripts are done. */
+  deferredVerificationRecords: PendingVerificationRecord[]
   forceResolutionFromHook: boolean
   pruneVirtualStore: boolean
 }

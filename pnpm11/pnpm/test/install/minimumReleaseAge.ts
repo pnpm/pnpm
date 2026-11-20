@@ -498,6 +498,47 @@ describe('lockfile minimumReleaseAge verification', () => {
     expect(fs.readFileSync(cacheFile, 'utf8').split('\n').filter(Boolean)).toHaveLength(1)
   })
 
+  test('an install that re-resolves records the lockfile it writes after the builds approved since the last install', () => {
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+        'log-reading-dep': 'file:./log-reading-dep',
+      },
+    })
+    const cacheDir = path.resolve('pnpm-cache')
+    const cacheFile = path.join(cacheDir, 'lockfile-verified.jsonl')
+    const logAsSeenByTheBuild = path.resolve('log-as-seen-by-the-build.txt')
+    fs.mkdirSync('log-reading-dep')
+    fs.writeFileSync('log-reading-dep/package.json', JSON.stringify({
+      name: 'log-reading-dep',
+      version: '1.0.0',
+      scripts: { postinstall: 'node snapshot-log.cjs' },
+    }))
+    fs.writeFileSync('log-reading-dep/snapshot-log.cjs', [
+      "const fs = require('fs')",
+      `const log = ${JSON.stringify(cacheFile)}`,
+      `fs.writeFileSync(${JSON.stringify(logAsSeenByTheBuild)}, fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '')`,
+    ].join('\n'))
+    const policy = { minimumReleaseAge: 1, minimumReleaseAgeStrict: true, cacheDir }
+    writeYamlFileSync('pnpm-workspace.yaml', policy)
+    const firstInstall = execPnpmSync([PUBLIC_REGISTRY, 'install'], omitMinReleaseAgeEnv)
+    expect(`${firstInstall.stdout}${firstInstall.stderr}`).toContain('ERR_PNPM_IGNORED_BUILDS')
+
+    // A new dependency makes the next install resolve and write a new
+    // lockfile, while the approval makes it rebuild the ignored package.
+    fs.rmSync(cacheFile, { force: true })
+    const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8')) as { dependencies: Record<string, string> }
+    manifest.dependencies['is-negative'] = '1.0.0'
+    fs.writeFileSync('package.json', JSON.stringify(manifest))
+    writeYamlFileSync('pnpm-workspace.yaml', { ...policy, dangerouslyAllowAllBuilds: true })
+    execPnpmSync([PUBLIC_REGISTRY, 'install'], { ...omitMinReleaseAgeEnv, expectSuccess: true })
+
+    expect(fs.readFileSync(logAsSeenByTheBuild, 'utf8')).toBe('')
+    const recordedPaths = fs.readFileSync(cacheFile, 'utf8').split('\n').filter(Boolean)
+      .map((line) => (JSON.parse(line) as { lockfile: { path: string } }).lockfile.path)
+    expect(recordedPaths).toContain(path.resolve('pnpm-lock.yaml'))
+  })
+
   test('pnpm ci records the verdict of its preflight after the builds', () => {
     // `pnpm ci` verifies the lockfile before it cleans node_modules, well
     // ahead of the install that runs the dependency builds.

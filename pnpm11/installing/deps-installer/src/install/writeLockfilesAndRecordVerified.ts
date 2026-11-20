@@ -3,7 +3,8 @@ import path from 'node:path'
 import { getWantedLockfileName, type LockfileObject, writeLockfiles, type WriteLockfilesResult } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
-import { recordLockfileVerified } from './recordLockfileVerified.js'
+import { pendingLockfileVerified } from './recordLockfileVerified.js'
+import type { PendingVerificationRecord } from './verifyLockfileResolutions.js'
 
 export interface WriteLockfilesAndRecordVerifiedOptions {
   wantedLockfile: LockfileObject
@@ -14,6 +15,8 @@ export interface WriteLockfilesAndRecordVerifiedOptions {
   mergeGitBranchLockfiles?: boolean
   cacheDir?: string
   resolutionVerifiers: readonly ResolutionVerifier[] | undefined
+  /** Receives the verdict instead of it being recorded now, for an install that runs scripts afterwards. */
+  deferRecord?: (record: PendingVerificationRecord) => void
 }
 
 /** Plural counterpart of {@link writeWantedLockfileAndRecordVerified}. */
@@ -37,12 +40,16 @@ export async function writeLockfilesAndRecordVerified (
     wantedLockfileName,
   })
   if (cacheActive) {
-    recordLockfileVerified({
+    const pending = pendingLockfileVerified({
       cacheDir: opts.cacheDir,
       lockfilePath: path.resolve(opts.wantedLockfileDir, wantedLockfileName!),
       lockfile: written.wantedLockfile,
       resolutionVerifiers: opts.resolutionVerifiers,
     })
+    if (pending) {
+      if (opts.deferRecord) opts.deferRecord(pending)
+      else pending.record()
+    }
   }
   return written
 }

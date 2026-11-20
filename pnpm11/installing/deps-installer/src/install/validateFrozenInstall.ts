@@ -360,6 +360,7 @@ function buildValidationRun (
   return {
     allowBuild: createAllowBuildFunction(opts),
     ctx,
+    deferredVerificationRecords: [],
     detachReporter: () => {},
     forceResolutionFromHook: false,
     installsAndUninstallsOnly: true,

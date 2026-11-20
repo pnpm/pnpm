@@ -368,6 +368,7 @@ async function writeLockfiles ({ ctx, opts, resolution }: LinkContext, result: L
       resolutionVerifiers: opts.resolutionVerifiers,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      deferRecord: opts.deferVerificationRecord,
     })
   } else {
     await writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile)

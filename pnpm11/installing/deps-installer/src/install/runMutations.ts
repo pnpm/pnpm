@@ -195,6 +195,9 @@ async function installCollectedProjects (
     updateLockfileMinorVersion: true,
     patchedDependencies: plan.checksums.patchGroups,
     verifyLockfile: run.verifyLockfile,
+    deferVerificationRecord: (record) => {
+      run.deferredVerificationRecords.push(record)
+    },
   })
 
   return {

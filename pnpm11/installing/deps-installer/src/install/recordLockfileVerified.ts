@@ -2,8 +2,8 @@ import { hashObject } from '@pnpm/crypto.object-hasher'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
-import { withOfflineCheckCacheIdentities } from './verifyLockfileResolutions.js'
-import { recordVerification } from './verifyLockfileResolutionsCache.js'
+import { type PendingVerificationRecord, withOfflineCheckCacheIdentities } from './verifyLockfileResolutions.js'
+import { appendVerificationRecord, buildVerificationRecord } from './verifyLockfileResolutionsCache.js'
 
 export interface RecordLockfileVerifiedOptions {
   cacheDir?: string
@@ -26,12 +26,28 @@ export interface RecordLockfileVerifiedOptions {
  * recorded lockfile is policy-clean by construction.
  */
 export function recordLockfileVerified (opts: RecordLockfileVerifiedOptions): void {
-  if (!opts.cacheDir) return
-  if (!opts.resolutionVerifiers?.length) return
-  if (!opts.lockfile.packages) return
-  recordVerification(opts.cacheDir, {
+  pendingLockfileVerified(opts)?.record()
+}
+
+/**
+ * {@link recordLockfileVerified} for an install that goes on to run
+ * dependency scripts, which records the returned value after them. The
+ * lockfile's stat and hash are taken now, so a script that rewrites the
+ * file in between cannot inherit this verdict.
+ */
+export function pendingLockfileVerified (opts: RecordLockfileVerifiedOptions): PendingVerificationRecord | undefined {
+  const { cacheDir } = opts
+  if (!cacheDir) return undefined
+  if (!opts.resolutionVerifiers?.length) return undefined
+  if (!opts.lockfile.packages) return undefined
+  const record = buildVerificationRecord({
     lockfilePath: opts.lockfilePath,
     verifiers: withOfflineCheckCacheIdentities(opts.resolutionVerifiers),
     hashLockfile: () => hashObject(opts.lockfile),
   })
+  return record && {
+    record: () => {
+      appendVerificationRecord(cacheDir, record)
+    },
+  }
 }

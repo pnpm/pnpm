@@ -347,19 +347,32 @@ export function recordVerification (
   key: LockfileVerificationCacheKey,
   precomputed?: { stat?: LockfileStat, hash?: string }
 ): void {
+  const record = buildVerificationRecord(key, precomputed)
+  if (record) appendVerificationRecord(cacheDir, record)
+}
+
+/**
+ * The record a passing verification persists, computing whichever of the
+ * lockfile's stat and hash `precomputed` lacks. `undefined` when the
+ * lockfile cannot be stat'ed or hashed.
+ */
+export function buildVerificationRecord (
+  key: LockfileVerificationCacheKey,
+  precomputed?: { stat?: LockfileStat, hash?: string }
+): CacheRecord | undefined {
   let stat: LockfileStat | null
   let hash: string
   try {
     stat = precomputed?.stat ?? statLockfile(key.lockfilePath)
-    if (!stat) return
+    if (!stat) return undefined
     hash = precomputed?.hash ?? key.hashLockfile()
   } catch (err: unknown) {
     // The gate has already passed; if we can't record the cache entry we
     // just won't get the speedup next time. Not a reason to fail install.
     logger.debug({ msg: 'lockfile-verified cache: could not record verification', err })
-    return
+    return undefined
   }
-  const record: CacheRecord = {
+  return {
     lockfile: {
       hash,
       path: key.lockfilePath,
@@ -370,7 +383,6 @@ export function recordVerification (
     verifiedAt: new Date().toISOString(),
     policy: mergePolicies(key.verifiers),
   }
-  appendVerificationRecord(cacheDir, record)
 }
 
 /**

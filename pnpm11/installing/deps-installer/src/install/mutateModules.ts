@@ -130,12 +130,13 @@ async function prepareMutationRun (base: MutationRunBase): Promise<MutationRun> 
     verifyLockfile: verifyLockfilePromise && (async () => {
       await verifyLockfilePromise
     }),
+    deferredVerificationRecords: [],
     forceResolutionFromHook,
     pruneVirtualStore,
   }
 }
 
-type OpenedMutationRun = Omit<MutationRun, 'forceResolutionFromHook' | 'pruneVirtualStore' | 'verifyLockfile' | 'verifyLockfilePromise'>
+type OpenedMutationRun = Omit<MutationRun, 'deferredVerificationRecords' | 'forceResolutionFromHook' | 'pruneVirtualStore' | 'verifyLockfile' | 'verifyLockfilePromise'>
 
 async function openMutationRun (base: MutationRunBase): Promise<OpenedMutationRun> {
   const { projects, opts } = base
@@ -503,7 +504,7 @@ async function finishMutation (run: MutationRun, result: InnerInstallResult): Pr
   // `settleIgnoredBuilds` rebuilds the packages approved since the last
   // install, the last dependency scripts this install runs. An install
   // that threw never gets here, so it leaves no verdict behind.
-  ;(await run.verifyLockfilePromise)?.record()
+  for (const pending of [await run.verifyLockfilePromise, ...run.deferredVerificationRecords]) pending?.record()
 
   run.detachReporter()
 

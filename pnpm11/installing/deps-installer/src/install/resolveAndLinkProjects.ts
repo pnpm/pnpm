@@ -149,6 +149,7 @@ async function writeLockfileWithoutLinking (
       resolutionVerifiers: opts.resolutionVerifiers,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      deferRecord: opts.deferVerificationRecord,
     })
   }
 
