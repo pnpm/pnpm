@@ -101,7 +101,9 @@ function collectErrors (header) {
   // Quoted text may carry proper names (e.g. "`Eslint` config"), so it is
   // ignored by the case checks, as commitlint does.
   const casedText = subject.replace(/`.*?`|".*?"|'.*?'/g, '').trim()
-  if (casedText !== '' && !/^\d/.test(casedText)) {
+  // Scripts without letter case, such as Chinese, have nothing to check.
+  const hasCasedLetter = casedText.toUpperCase() !== casedText.toLowerCase()
+  if (hasCasedLetter && !/^\d/.test(casedText)) {
     if (casedText === casedText.toUpperCase()) {
       errors.push('subject must not be in all upper-case')
     } else if (casedText.charAt(0) !== casedText.charAt(0).toLowerCase()) {

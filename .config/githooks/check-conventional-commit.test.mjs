@@ -11,6 +11,8 @@ test('accepts conventional headers', () => {
     'docs: mention "Node.js" in the guide',
     'perf: 2x faster resolution',
     'test: cover iOS paths',
+    'fix: 修复安装失败',
+    'fix(core): 修复 lockfile 解析',
   ]) {
     assert.deepEqual(lintCommitMessage(`${header}\n\nBody.\n`), [], header)
   }
