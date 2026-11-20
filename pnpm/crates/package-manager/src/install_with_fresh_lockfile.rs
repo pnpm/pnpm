@@ -636,7 +636,8 @@ fn is_installed(
     let name_version = format!("{}@{}", deprecation.pkg_name, deprecation.pkg_version);
     [deprecation.pkg_id.as_str(), name_version.as_str()]
         .into_iter()
-        .filter_map(|key| key.parse::<pnpm_lockfile::PackageKey>().ok())
+        .map(str::parse::<pnpm_lockfile::PackageKey>)
+        .filter_map(Result::ok)
         .any(|key| packages.contains_key(&key.without_peer()))
 }
 
