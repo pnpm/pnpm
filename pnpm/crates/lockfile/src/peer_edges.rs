@@ -3,8 +3,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    BoundProviders, Lockfile, PackageKey, PackageMetadata, PeerBindings, PkgName, SnapshotDepRef,
-    SnapshotEntry,
+    BoundProviders, Lockfile, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry,
 };
 
 /// How [`PeerSatisfactionEdges::of_lockfile`] decides which importers
@@ -191,12 +190,17 @@ fn optional_peer_edges<'a>(
     snapshots
         .iter()
         .filter_map(|(key, snapshot)| {
+            if key.suffix.peer().is_empty() {
+                return None;
+            }
             let package = packages.get(&key.without_peer())?;
-            let _ = PeerBindings::from_key(key)?;
-            let providers = BoundProviders::of_snapshot(entries, key);
-            let edges = all_entries(snapshot)
+            let mut candidates = all_entries(snapshot)
                 .filter(|(alias, _)| is_optional_peer(package, alias))
                 .filter_map(|(alias, dep_ref)| Some((alias, dep_ref.resolve(alias)?)))
+                .peekable();
+            candidates.peek()?;
+            let providers = BoundProviders::of_snapshot(entries, key);
+            let edges = candidates
                 .filter(|(_, target)| providers.binds(target))
                 .collect::<Vec<_>>();
             (!edges.is_empty()).then_some((key, edges))

@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Write, path::Path};
 use pretty_assertions::assert_eq;
 
 use super::{PeerEdgeOptions, PeerSatisfactionEdges};
-use crate::{Lockfile, PackageKey, PkgName};
+use crate::{Lockfile, PackageKey, PeerBindings, PkgName};
 
 const ABC: &str = "abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)";
 
@@ -449,4 +449,47 @@ fn an_optional_peer_the_key_does_not_bind_is_followed() {
         .expect("abc snapshot");
     snapshots.insert(key("abc@1.0.0(peer-a@1.0.0)"), abc);
     assert_eq!(classified(&lockfile, PeerEdgeOptions::default()), Vec::<String>::new());
+}
+
+#[test]
+fn a_hashed_key_only_classifies_the_optional_peer_it_binds() {
+    let suffix = PeerBindings::Explicit(vec!["peer-c@1.0.0".to_string()])
+        .to_suffix(3)
+        .expect("hashed suffix");
+    let version = format!("1.0.0{suffix}");
+    let importers = importer(
+        ".",
+        &[
+            ("dependencies", &[("abc", &version)]),
+            ("devDependencies", &[("peer-a", "2.0.0"), ("peer-c", "1.0.0")]),
+        ],
+    );
+    let lockfile = parse(&format!(
+        "lockfileVersion: '9.0'
+importers:
+{importers}
+packages:
+  abc@1.0.0:
+    resolution: {{integrity: sha512-abc}}
+    peerDependencies:
+      peer-a: ^1.0.0
+      peer-c: ^1.0.0
+    peerDependenciesMeta:
+      peer-a: {{optional: true}}
+      peer-c: {{optional: true}}
+
+snapshots:
+  abc@{version}:
+    dependencies:
+      peer-a: 2.0.0
+    optionalDependencies:
+      peer-c: 1.0.0
+  peer-a@2.0.0: {{}}
+  peer-c@1.0.0: {{}}
+",
+    ));
+    assert_eq!(
+        classified(&lockfile, PeerEdgeOptions::default()),
+        [format!("abc@{version} > peer-c")],
+    );
 }
