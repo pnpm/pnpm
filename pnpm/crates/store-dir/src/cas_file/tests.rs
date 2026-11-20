@@ -313,7 +313,7 @@ fn write_cas_file_from_reader_removes_temp_when_shard_creation_fails() {
 
 /// A reader that ends short of `expected_size` (a truncated archive)
 /// must fail without committing anything to a content-addressed path
-/// the partial blob would be correctly addressed but must not enter
+/// (the partial blob would be correctly addressed but must not enter
 /// the store) and without leaking its temp file.
 #[test]
 fn write_cas_file_from_reader_rejects_short_reader_without_committing() {

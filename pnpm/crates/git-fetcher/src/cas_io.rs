@@ -194,7 +194,7 @@ pub(crate) fn synthesize_files_index(
 fn cas_path_digest(path: &Path) -> Option<String> {
     // SHA-512 produces 64 bytes / 128 hex chars. The first 2 hex
     // chars become the shard directory; the rest become the file
-    // stem. Anything outside that exact shape is not a v11 CAS path
+    // stem. Anything outside that exact shape is not a v11 CAS path,
     // fail closed instead of producing a short / over-long digest
     // that would later poison `index.db`.
     const STEM_LEN: usize = 128 - 2;
