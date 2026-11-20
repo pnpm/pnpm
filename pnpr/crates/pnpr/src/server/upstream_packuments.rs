@@ -252,16 +252,17 @@ async fn purge_cached_package(
     fetch_seq: u64,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let _guard = lock_upstream_package(state, namespace, name).await;
-    if !state.inner.proxy.packument_writes.try_accept(namespace, name, fetch_seq) {
+    if !state.inner.proxy.packument_writes.accepts(namespace, name, fetch_seq) {
         return state.inner.storage.read_upstream_document_any(namespace, name).await;
     }
     invalidate_upstream_package(state, namespace, name);
-    if let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await {
-        tracing::warn!(
+    match state.inner.storage.remove_upstream_package(namespace, name).await {
+        Ok(_) => state.inner.proxy.packument_writes.commit(namespace, name, fetch_seq),
+        Err(err) => tracing::warn!(
             ?err,
             package = %name.as_str(),
             "failed to purge cached entry after an upstream 404",
-        );
+        ),
     }
     Ok(None)
 }

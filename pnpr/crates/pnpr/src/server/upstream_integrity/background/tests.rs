@@ -432,8 +432,43 @@ async fn refresh_cached_packument_rejects_older_fetch_completion_after_newer_wri
         .unwrap()
     };
 
-    let older_read_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let earliest_stale_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let older_valid_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let newer_failed_seq = state.inner.proxy.packument_writes.begin_fetch();
+
+    // A newer refresh that fails to parse or persist must not advance the
+    // committed sequence or suppress a pending valid fetch.
+    assert!(
+        super::super::refresh_cached_packument(
+            &state,
+            "test",
+            &name,
+            b"{malformed".to_vec(),
+            newer_failed_seq,
+        )
+        .await
+        .is_err(),
+    );
+    let initial = super::super::refresh_cached_packument(
+        &state,
+        "test",
+        &name,
+        doc("initial"),
+        older_valid_seq,
+    )
+    .await
+    .unwrap()
+    .expect("pending valid fetch still commits after newer failed refresh");
+    let initial_json: Value = serde_json::from_slice(&initial.bytes).unwrap();
+    assert!(
+        initial_json["versions"]["1.0.0"]["dist"]["tarball"]
+            .as_str()
+            .unwrap()
+            .ends_with("?sig=initial"),
+    );
+
     let newer_refresh_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let older_read_seq = earliest_stale_seq;
 
     let accepted = super::super::refresh_cached_packument(
         &state,

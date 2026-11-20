@@ -31,7 +31,7 @@ pub(in crate::server) async fn refresh_cached_packument(
 ) -> Result<Option<RefreshedPackument>, RegistryError> {
     let _guard = super::lock_upstream_package(state, namespace, name).await;
     let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
-    if !state.inner.proxy.packument_writes.try_accept(namespace, name, fetch_seq) {
+    if !state.inner.proxy.packument_writes.accepts(namespace, name, fetch_seq) {
         return Ok(previous.map(|bytes| RefreshedPackument { bytes, needs_backfill: false }));
     }
     let package = name.clone();
@@ -41,6 +41,7 @@ pub(in crate::server) async fn refresh_cached_packument(
     crate::server::upstream_packuments::invalidate_upstream_package(state, namespace, name);
     evict_stale_upstream_blobs(state, namespace, name, eviction).await?;
     state.inner.storage.write_upstream_document(namespace, name, &packument.bytes).await?;
+    state.inner.proxy.packument_writes.commit(namespace, name, fetch_seq);
     Ok(Some(packument))
 }
 

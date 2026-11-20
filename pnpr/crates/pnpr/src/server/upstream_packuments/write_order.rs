@@ -26,19 +26,36 @@ impl PackumentWriteOrder {
         self.next_seq.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     }
 
-    pub(in crate::server) fn try_accept(
+    /// Whether `fetch_seq` is newer than the last committed persistence for
+    /// `(namespace, name)`. Call under [`super::lock_upstream_package`].
+    pub(in crate::server) fn accepts(
         &self,
         namespace: &str,
         name: &CanonicalPackageName,
         fetch_seq: u64,
     ) -> bool {
+        let accepted = self.accepted.lock().expect("packument write-order lock poisoned");
+        let last_seq = accepted
+            .get(&(namespace.to_string(), name.clone()))
+            .copied()
+            .unwrap_or(0);
+        fetch_seq > last_seq
+    }
+
+    /// Commit `fetch_seq` after storage persistence succeeds under
+    /// [`super::lock_upstream_package`], so a failed parse or write never
+    /// suppresses a pending valid fetch.
+    pub(in crate::server) fn commit(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        fetch_seq: u64,
+    ) {
         let mut accepted = self.accepted.lock().expect("packument write-order lock poisoned");
         let key = (namespace.to_string(), name.clone());
         let last_seq = accepted.get(&key).copied().unwrap_or(0);
-        if fetch_seq <= last_seq {
-            return false;
+        if fetch_seq > last_seq {
+            accepted.insert(key, fetch_seq, 1, WRITE_ORDER_CAPACITY);
         }
-        accepted.insert(key, fetch_seq, 1, WRITE_ORDER_CAPACITY);
-        true
     }
 }
