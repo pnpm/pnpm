@@ -565,3 +565,65 @@ async fn verdict_cache_isolates_private_hosted_package_across_verify_and_resolve
         post_ndjson(&app, "/-/pnpr/v0/resolve", Some(&bob), &trusted_warm_req).await;
     assert!(bob_trusted.contains(r#""type":"error""#), "{bob_trusted}");
 }
+
+#[tokio::test]
+async fn verify_lockfile_and_resolve_endpoints_reject_shape_mismatched_lockfiles() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_for("http://127.0.0.1:9", tmp.path().to_path_buf());
+    let auth = crate::tokens::seeded_auth(&config, &[("reader", "password")]);
+    let reader = issue_token(&auth, "reader").await;
+    let app = router_with_auth(config, auth);
+    let lockfile = json!({
+        "lockfileVersion": "9.0",
+        "importers": {
+            ".": {
+                "dependencies": {
+                    "safe-pkg": { "specifier": "1.0.0", "version": "1.0.0" }
+                }
+            }
+        },
+        "packages": {
+            "safe-pkg@1.0.0": {
+                "resolution": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "tarball": "file:alt.tgz",
+                }
+            }
+        },
+        "snapshots": { "safe-pkg@1.0.0": {} }
+    });
+
+    for (route, payload) in [
+        (
+            "/-/pnpr/v0/verify-lockfile",
+            json!({ "registry": "http://127.0.0.1:9/", "lockfile": lockfile }),
+        ),
+        (
+            "/-/pnpr/v0/resolve",
+            json!({
+                "dependencies": { "safe-pkg": "1.0.0" },
+                "registry": "http://127.0.0.1:9/",
+                "frozenLockfile": true,
+                "lockfile": lockfile,
+            }),
+        ),
+    ] {
+        let request = Request::post(route)
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {reader}"))
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+        let (status, body) = drain_resolve_response(
+            app.clone()
+                .oneshot(request)
+                .await
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{route}");
+        let body = String::from_utf8(body).unwrap();
+        assert!(body.contains(r#""type":"violations""#), "{route}: {body}");
+        assert!(body.contains(r#""code":"RESOLUTION_SHAPE_MISMATCH""#), "{route}: {body}");
+        assert!(!body.contains(r#""type":"done""#), "{route}: {body}");
+    }
+}

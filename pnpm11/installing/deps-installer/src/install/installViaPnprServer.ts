@@ -31,6 +31,7 @@ import {
 } from './installPredicates.js'
 import type { InstallResult, MutatedProject, SingleProjectInstallOptions } from './mutationTypes.js'
 import { applyResolvedSpecsFromLockfile, type PnprNewDep } from './pnpr.js'
+import { verifyLockfileFileOffline, verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
 interface PnprInstallProjectOptions {
@@ -207,15 +208,14 @@ async function resolveLockfileViaPnpr (
     recordsDependencies(existingLockfile)
   )
   const pnpmfileChecksum = await opts.hooks?.calculatePnpmfileChecksum?.()
-  if (frozenLockfile && existingLockfile != null) {
-    assertFrozenPnprPnpmfileChecksum(opts, existingLockfile.pnpmfileChecksum, pnpmfileChecksum)
-  }
+  verifyExistingPnprLockfile({ existingLockfile, frozenLockfile, opts, pnpmfileChecksum })
 
   logger.info({ message: 'Resolving dependencies via the pnpr server', prefix: rootDir })
 
   const { lockfile, stats: pnprStats } = await request.resolveViaPnprServer(
     createResolveRequest(request, { existingLockfile, frozenLockfile, patchedDependencies })
   )
+  await verifyLockfileResolutions(lockfile, [])
 
   // The server never sees the pnpmfile, so the fields a local resolution
   // records for it are stamped here.
@@ -242,6 +242,24 @@ async function resolveLockfileViaPnpr (
     prefix: rootDir,
   })
   return lockfile
+}
+
+function verifyExistingPnprLockfile ({
+  existingLockfile,
+  frozenLockfile,
+  opts,
+  pnpmfileChecksum,
+}: {
+  existingLockfile: LockfileFile | null
+  frozenLockfile: boolean
+  opts: SingleProjectInstallOptions
+  pnpmfileChecksum: string | undefined
+}): void {
+  if (existingLockfile == null) return
+  verifyLockfileFileOffline(existingLockfile)
+  if (frozenLockfile) {
+    assertFrozenPnprPnpmfileChecksum(opts, existingLockfile.pnpmfileChecksum, pnpmfileChecksum)
+  }
 }
 
 /**

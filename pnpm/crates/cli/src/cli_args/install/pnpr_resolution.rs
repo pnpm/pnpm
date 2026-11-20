@@ -11,7 +11,7 @@ use super::{
     },
     pnpr_lockfile_dir, pnpr_request_inputs, report_merged_lockfile_conflicts,
     resolve_projects_for_pnpr, resolve_projects_options, selection_importer_ids,
-    wanted_lockfile_satisfies_workspace,
+    verify_pnpr_input_lockfile, wanted_lockfile_satisfies_workspace,
 };
 
 /// Resolve the active project or selected workspace projects through a
@@ -415,6 +415,7 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     if link.lockfile.frozen
         && let Some(previous_wanted) = session.previous_wanted
     {
+        verify_pnpr_input_lockfile(&link, previous_wanted)?;
         check_frozen_pnpmfile(state, inputs.pnpmfile_hook.as_ref(), previous_wanted).await?;
     }
     let prefetcher = streaming_prefetcher(state, lockfile_dir, &link, &session, &inputs).await;

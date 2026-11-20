@@ -28,8 +28,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pnpm_lockfile_verification::{
-    VerifyLockfileResolutionsOptions, lockfile_verification_is_cached,
-    lockfile_verification_is_cached_by_content, record_lockfile_verified,
+    VerifiedOfflineLockfile, VerifyLockfileResolutionsOptions, record_lockfile_verified,
     verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::IncludedDependencies;
@@ -58,6 +57,9 @@ use pnpr_request::{
     pnpr_request_inputs, resolve_projects_for_pnpr, resolve_projects_options,
 };
 use pnpr_resolution::{PnprSession, install_via_pnpr_inner, prefetch_allowed};
+use pnpr_verification::{
+    local_lockfile_verification, verify_pnpr_input_lockfile, verify_settled_pnpr_lockfile,
+};
 
 use std::path::PathBuf;
 
@@ -516,3 +518,5 @@ mod pnpr_request;
 mod pnpr_lockfile;
 
 mod pnpr_resolution;
+
+mod pnpr_verification;

@@ -328,8 +328,12 @@ impl ResolutionVerifier for MatchesNone {
 
 #[tokio::test]
 async fn unmatched_candidates_are_reported_as_completed() {
-    let (candidates, shape_violations) = collect_candidates(&parse(TWO_PKG_LOCKFILE));
-    assert!(shape_violations.is_empty(), "fixture lockfile must be shape-clean");
+    let lockfile = parse(TWO_PKG_LOCKFILE);
+    assert!(
+        crate::collect_resolution_shape_violations(&lockfile).is_empty(),
+        "fixture lockfile must be shape-clean",
+    );
+    let candidates = collect_candidates(&lockfile);
     let verifier = MatchesNone::new();
     let mut checked = 0;
     let violations =

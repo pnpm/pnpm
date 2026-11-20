@@ -22,6 +22,8 @@ mod configuration_cache;
 
 mod graph_swap;
 
+mod resolution_shape;
+
 use axum::http::StatusCode;
 use pnpm_config::{Config as PacquetConfig, RegistryDeclaration, ResolutionMode};
 use pnpm_lockfile::Lockfile;

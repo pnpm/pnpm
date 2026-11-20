@@ -12,8 +12,9 @@ use super::{
     pypi, request_tarball_router,
     request_validation::{
         parse_request, reject_incompatible_lockfile_format, reject_inline_url_auth,
-        reject_invalid_patch_hashes, reject_invalid_registries, reject_local_dependency_specs,
-        reject_off_allowlist_fetches, reject_unsafe_publish_directories,
+        reject_invalid_lockfile_dependency_names, reject_invalid_patch_hashes,
+        reject_invalid_registries, reject_local_dependency_specs, reject_off_allowlist_fetches,
+        reject_unsafe_publish_directories,
     },
     resolution_cache_key, resolve, stream_resolve_response, verify_request_lockfile,
     wire::{
@@ -234,6 +235,7 @@ pub(super) fn reject_unusable_resolve(
         .or_else(|| reject_local_dependency_specs(request))
         .or_else(|| reject_off_allowlist_fetches(request, context))
         .or_else(|| reject_incompatible_lockfile_format(request))
+        .or_else(|| reject_invalid_lockfile_dependency_names(request))
 }
 
 /// A verified frozen lockfile is the whole answer: no incremental tree walk

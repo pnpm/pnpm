@@ -7,10 +7,11 @@
 //! resolutions outside their scope; the runner is policy-neutral and
 //! dispatch-free at this layer.
 
-pub(crate) use offline_checks::with_offline_check_cache_identities;
 pub use offline_checks::{
-    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, verify_lockfile_dependency_names,
-    verify_lockfile_importer_snapshot_links,
+    RESOLUTION_SHAPE_CACHE_VERSION, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+    collect_resolution_shape_violations, verify_lockfile_dependency_names,
+    verify_lockfile_importer_snapshot_links, verify_lockfile_resolution_shapes,
+    with_offline_check_cache_identities,
 };
 
 use std::{collections::BTreeMap, path::Path, sync::Arc};
@@ -84,6 +85,70 @@ pub struct ReplacedEntries<'a>(pub &'a (dyn Fn(ReplacedCandidate<'_>) -> bool + 
 impl std::fmt::Debug for ReplacedEntries<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ReplacedEntries(..)")
+    }
+}
+
+/// Proof that `lockfile` passed offline dependency-name, importer-snapshot
+/// link (except in [`Self::verify_for_repair`]), and resolution-shape
+/// validation, allowing a subsequent verification-cache lookup to skip
+/// repeating those scans.
+#[derive(Debug, Clone, Copy)]
+pub struct VerifiedOfflineLockfile<'a>(&'a Lockfile);
+
+impl<'a> VerifiedOfflineLockfile<'a> {
+    /// Validate offline dependency names, importer-snapshot links, and
+    /// resolution shapes of `lockfile`.
+    pub fn verify(lockfile: &'a Lockfile) -> Result<Self, VerifyError> {
+        verify_offline_structural_checks(lockfile)?;
+        verify_lockfile_resolution_shapes(lockfile)?;
+        Ok(Self(lockfile))
+    }
+
+    /// Validate offline dependency names and resolution shapes of `lockfile`
+    /// while allowing missing importer-snapshot links that `--fix-lockfile`
+    /// re-resolves.
+    pub fn verify_for_repair(lockfile: &'a Lockfile) -> Result<Self, VerifyError> {
+        verify_lockfile_dependency_names(lockfile)?;
+        verify_lockfile_resolution_shapes(lockfile)?;
+        Ok(Self(lockfile))
+    }
+
+    /// Whether `lockfile-verified.jsonl` already covers this offline-verified
+    /// lockfile at `lockfile_path` under `verifiers`.
+    #[must_use]
+    pub fn is_cached(
+        self,
+        cache_dir: &Path,
+        lockfile_path: &Path,
+        verifiers: &[Arc<dyn ResolutionVerifier>],
+    ) -> bool {
+        if self.0.packages.is_none() {
+            return true;
+        }
+        try_lockfile_verification_cache(
+            cache_dir,
+            lockfile_path,
+            &with_offline_check_cache_identities(verifiers),
+            || hash_lockfile(self.0),
+        )
+        .hit
+    }
+
+    /// Content-only counterpart of [`Self::is_cached`].
+    #[must_use]
+    pub fn is_cached_by_content(
+        self,
+        cache_dir: &Path,
+        verifiers: &[Arc<dyn ResolutionVerifier>],
+    ) -> bool {
+        if self.0.packages.is_none() {
+            return true;
+        }
+        lockfile_verification_is_cached_by_hash(
+            cache_dir,
+            &hash_lockfile(self.0),
+            &with_offline_check_cache_identities(verifiers),
+        )
     }
 }
 
@@ -179,10 +244,18 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         CacheOutcome::Miss(precomputed) => precomputed,
     };
 
-    let (candidates, skipped_replaced) = collect_candidates_to_verify(lockfile, opts.replaced)?;
+    // Checked after the verification cache so a lockfile freshly resolved on
+    // this machine by a local custom resolver (recorded via
+    // `record_lockfile_verified`) can reinstall cleanly, while any uncached
+    // lockfile or cacheless check rejects shape mismatches even with empty
+    // `verifiers`.
+    verify_lockfile_resolution_shapes(lockfile)?;
     if verifiers.is_empty() {
         return Ok(());
     }
+
+    let CandidatesToVerify { candidates, skipped_replaced } =
+        collect_candidates_to_verify(lockfile, opts.replaced);
     let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
@@ -201,18 +274,21 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     Err(build_verification_error(violations))
 }
 
+struct CandidatesToVerify {
+    candidates: Vec<Candidate>,
+    skipped_replaced: bool,
+}
+
 /// The lockfile entries the policy verifiers check, after the offline
-/// shape check passes. Entries `replaced` matches are left out, and the
-/// returned flag tells whether any was.
+/// shape check passes. Entries `replaced` matches are left out.
 fn collect_candidates_to_verify(
     lockfile: &Lockfile,
     replaced: Option<ReplacedEntries<'_>>,
-) -> Result<(Vec<Candidate>, bool), VerifyError> {
-    let (mut candidates, shape_violations) = collect_candidates(lockfile);
-    if !shape_violations.is_empty() {
-        return Err(build_verification_error(shape_violations));
-    }
-    let Some(ReplacedEntries(is_replaced)) = replaced else { return Ok((candidates, false)) };
+) -> CandidatesToVerify {
+    let mut candidates = collect_candidates(lockfile);
+    let Some(ReplacedEntries(is_replaced)) = replaced else {
+        return CandidatesToVerify { candidates, skipped_replaced: false };
+    };
     let entries = candidates.len();
     candidates.retain(|candidate| {
         !is_replaced(ReplacedCandidate {
@@ -222,7 +298,7 @@ fn collect_candidates_to_verify(
         })
     });
     let skipped_replaced = candidates.len() < entries;
-    Ok((candidates, skipped_replaced))
+    CandidatesToVerify { candidates, skipped_replaced }
 }
 
 /// Run the verifiers over every candidate, reporting the run to the
@@ -320,16 +396,16 @@ pub async fn collect_resolution_policy_violations(
     verifiers: &[Arc<dyn ResolutionVerifier>],
     concurrency: Option<usize>,
 ) -> Result<Vec<ResolutionPolicyViolation>, String> {
-    if verifiers.is_empty() || lockfile.packages.is_none() {
+    if lockfile.packages.is_none() {
         return Ok(Vec::new());
     }
-    // Shape violations and invalid aliases are deliberately not
-    // collected here: they are hard tampering failures, not policy
-    // picks a caller may auto-exclude.
-    let (candidates, _shape_violations) = collect_candidates(lockfile);
+    let shape_violations = collect_resolution_shape_violations(lockfile);
+    if !shape_violations.is_empty() || verifiers.is_empty() {
+        return Ok(shape_violations);
+    }
     // `Err(message)` is a transport failure the caller must surface rather than
     // treat as "no violations" — see [`run_fan_out`].
-    run_fan_out(candidates, verifiers, concurrency, &mut || {}).await
+    run_fan_out(collect_candidates(lockfile), verifiers, concurrency, &mut || {}).await
 }
 
 #[cfg(test)]
@@ -340,8 +416,5 @@ mod offline_checks;
 mod progress;
 
 use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};
-use offline_checks::{
-    is_registry_shaped_resolution, verify_offline_structural_checks,
-    verify_structure_before_install,
-};
+use offline_checks::{verify_offline_structural_checks, verify_structure_before_install};
 use progress::{VerificationProgress, emit};
