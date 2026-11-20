@@ -32,6 +32,7 @@ jobs:
     outputs:
       ts: ${{ steps.force.outputs.ts || steps.filter.outputs.ts }}
       changesets: ${{ steps.filter.outputs.changesets }}
+      githooks: ${{ steps.force.outputs.ts || steps.filter.outputs.githooks }}
     steps:
       # In the merge queue the full suite must run: `TS CI / Compile & Lint`
       # is itself a required check, and a skipped job never reports its
@@ -80,6 +81,12 @@ jobs:
             # it gates that job alone.
             changesets:
               - '.changeset/**'
+            # The git hooks' tests need neither a dependency install nor a
+            # compile, so a hook-only change runs them alone rather than
+            # starting the TypeScript suite.
+            githooks:
+              - '.config/githooks/**'
+              - '.github/workflows/ci.yml'
 
   compile-and-lint:
     needs: changes
@@ -130,6 +137,24 @@ jobs:
         name: compiled-packages
         path: compiled.tar.gz
         retention-days: 1
+
+  test-git-hooks:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.githooks == 'true' }}
+    name: TS CI / Test Git Hooks
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+    - name: Checkout Commit
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Install Node.js
+      uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
+      with:
+        runtime: node@22
+        install: false
+    - name: Test git hook scripts
+      run: node --test .config/githooks/*.test.mjs
 
   # Build the pnpr binaries once per OS via a per-OS reusable workflow (not a
   # single matrix job) so each platform's test jobs gate only on their own
@@ -228,6 +253,7 @@ jobs:
     needs:
       - changes
       - compile-and-lint
+      - test-git-hooks
       - build-pnpr-linux
       - build-pnpr-windows
       - test
