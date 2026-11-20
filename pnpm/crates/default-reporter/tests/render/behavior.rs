@@ -97,7 +97,7 @@ fn direct_deprecation_of_the_current_project_names_no_project() {
         ..ReporterOptions::default()
     });
     let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD), summary()]);
-    assert_eq!(frame, "\n[WARN] deprecated: express@0.14.1\n");
+    assert_eq!(frame, "[WARN] deprecated: express@0.14.1");
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn direct_deprecation_of_another_project_names_it() {
         &mut reporter,
         vec![deprecation("express", "0.14.1", 0, "/repo/packages/app"), summary()],
     );
-    assert_eq!(frame, "\n[WARN] deprecated: express@0.14.1 (packages/app)\n");
+    assert_eq!(frame, "[WARN] deprecated: express@0.14.1 (packages/app)");
 }
 
 /// A single selected project is the directory the user is standing in, so

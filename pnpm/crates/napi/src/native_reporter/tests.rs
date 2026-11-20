@@ -4,6 +4,7 @@ use std::sync::{
 };
 
 use pnpm_reporter::{
+    DeprecationLog,
     LogEvent,
     LogLevel,
     ProgressLog,
@@ -208,4 +209,29 @@ fn a_zero_width_is_floored_to_one_column() {
     renderer.handle(&progress());
 
     assert!(!written(&buffer).is_empty());
+}
+
+/// `warn` filters the summary out, and an engine call emits no footer.
+#[test]
+fn held_deprecation_warnings_print_when_the_renderer_is_dropped() {
+    let (mut renderer, buffer) = renderer(&ReporterOptions {
+        append_only: Some(true),
+        log_level: Some("warn".to_string()),
+        ..ReporterOptions::default()
+    });
+    renderer.handle(&LogEvent::Deprecation(DeprecationLog {
+        level: LogLevel::Debug,
+        pkg_name: "express".to_string(),
+        pkg_version: "0.14.1".to_string(),
+        pkg_id: "express@0.14.1".to_string(),
+        prefix: DIR.to_string(),
+        depth: 0,
+        non_deprecated_alternative: None,
+    }));
+    renderer.handle(&summary());
+    assert_eq!(written(&buffer), "");
+
+    drop(renderer);
+
+    assert_eq!(written(&buffer), "[WARN] deprecated: express@0.14.1\n");
 }

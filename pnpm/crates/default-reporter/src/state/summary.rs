@@ -93,9 +93,17 @@ impl ReporterState {
             return;
         }
         self.apply_manifest_diffs();
-        let msg = self.render_summary();
+        let (mut msg, shown_deprecations) = self.render_summary_sections();
         if msg.is_empty() {
+            // A manifest event may still add dependency sections.
+            self.flush_deprecations();
             return;
+        }
+        let warnings = self.deprecation_warnings(&shown_deprecations);
+        if !warnings.is_empty() {
+            msg.push('\n');
+            msg.push_str(&warnings.join("\n"));
+            msg.push('\n');
         }
         self.summary.rendered = true;
         self.notices.deprecations.clear();
@@ -111,9 +119,9 @@ impl ReporterState {
                 == normalized_prefix(&self.rendering.cwd, &self.rendering.cwd)
     }
 
-    /// The dependency sections, followed by the deprecation warnings no
-    /// line of theirs carries.
-    pub(super) fn render_summary(&self) -> String {
+    /// The dependency sections, and the held deprecation warnings their
+    /// lines carry.
+    fn render_summary_sections(&self) -> (String, HashSet<usize>) {
         let mut msg = String::new();
         let mut shown_deprecations = HashSet::new();
         let workspace = self.summary.workspace
@@ -147,13 +155,7 @@ impl ReporterState {
             );
             msg.push('\n');
         }
-        let warnings = self.deprecation_warnings(&shown_deprecations);
-        if !warnings.is_empty() {
-            msg.push('\n');
-            msg.push_str(&warnings.join("\n"));
-            msg.push('\n');
-        }
-        msg
+        (msg, shown_deprecations)
     }
 
     fn current_project_summary_lines(&self, kind: DepKind) -> Vec<(String, &PackageDiff)> {

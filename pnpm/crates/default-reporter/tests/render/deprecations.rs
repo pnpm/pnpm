@@ -6,6 +6,8 @@ use super::{
     LogLevel,
     NonDeprecatedAlternative,
     Output,
+    PackageManifestLog,
+    PackageManifestMessage,
     added_root,
     deprecation,
     deprecation_with_alternative,
@@ -96,4 +98,35 @@ fn deprecations_the_summary_carried_are_not_repeated() {
         ],
     );
     assert!(matches!(reporter.flush_pending_deprecations(), Output::None));
+}
+
+/// `pnpm add --lockfile-only` links nothing, so its summary has no section
+/// until the edited manifest arrives after it.
+#[test]
+fn warnings_do_not_close_a_summary_a_manifest_edit_still_fills() {
+    let manifest = |updated: bool, value: serde_json::Value| {
+        LogEvent::PackageManifest(PackageManifestLog {
+            level: LogLevel::Debug,
+            message: if updated {
+                PackageManifestMessage::Updated { prefix: CWD.to_string(), updated: value }
+            } else {
+                PackageManifestMessage::Initial { prefix: CWD.to_string(), initial: value }
+            },
+        })
+    };
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            manifest(false, serde_json::json!({})),
+            deprecation("express", "0.14.1", 0, CWD),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "[WARN] deprecated: express@0.14.1");
+    let frame = render(
+        &mut reporter,
+        vec![manifest(true, serde_json::json!({ "dependencies": { "express": "0.14.1" } }))],
+    );
+    assert_eq!(frame, "[WARN] deprecated: express@0.14.1\n\ndependencies:\n+ express 0.14.1\n");
 }

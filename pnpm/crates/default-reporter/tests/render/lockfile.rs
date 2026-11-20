@@ -352,5 +352,5 @@ fn transitive_deprecations_follow_the_install_summary() {
     assert!(frame.is_empty(), "deprecations must wait for the summary: {frame:?}");
 
     let frame = render(&mut reporter, vec![summary()]);
-    assert_eq!(frame, "\n[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0\n");
+    assert_eq!(frame, "[WARN] 2 deprecated subdependencies found: request@2.88.2, uuid@3.4.0");
 }

@@ -478,7 +478,7 @@ fn direct_deprecation_waits_for_the_summary_without_the_notice() {
     let frame = render(&mut reporter, vec![deprecation("express", "0.14.1", 0, CWD)]);
     assert_eq!(frame, "");
     let frame = render(&mut reporter, vec![summary()]);
-    assert_eq!(frame, "\n[WARN] deprecated: express@0.14.1\n");
+    assert_eq!(frame, "[WARN] deprecated: express@0.14.1");
 }
 
 /// A git or tarball dependency names itself, so the identifier is filtered
@@ -506,7 +506,7 @@ fn direct_deprecation_names_a_version_that_is_not_deprecated() {
     );
     assert_eq!(
         frame,
-        "\n[WARN] deprecated: express@0.14.1. 4.21.2 is not deprecated, outside the range you declared.\n",
+        "[WARN] deprecated: express@0.14.1. 4.21.2 is not deprecated, outside the range you declared.",
     );
 }
 
@@ -529,7 +529,7 @@ fn direct_deprecation_drops_the_range_clause_when_no_range_was_declared() {
             summary(),
         ],
     );
-    assert_eq!(frame, "\n[WARN] deprecated: express@0.14.1. 0.14.2 is not deprecated.\n");
+    assert_eq!(frame, "[WARN] deprecated: express@0.14.1. 0.14.2 is not deprecated.");
 }
 
 #[test]
@@ -541,7 +541,7 @@ fn direct_deprecation_strips_control_characters_from_the_identifier() {
     );
     // The payload stays readable rather than being removed: without the
     // leading ESC the terminal prints it instead of acting on it.
-    assert_eq!(frame, "\n[WARN] deprecated: express[2Kclean@0.14.1\n");
+    assert_eq!(frame, "[WARN] deprecated: express[2Kclean@0.14.1");
 }
 
 /// The event fires for every command; only the ones in pnpm's

@@ -287,6 +287,16 @@ impl NativeRenderer {
     }
 }
 
+/// An engine call has no `Done in ...` footer, and its guard drops the
+/// renderer when the call ends, successful or not, so held deprecation
+/// warnings are printed here.
+impl Drop for NativeRenderer {
+    fn drop(&mut self) {
+        let output = self.state.flush_pending_deprecations();
+        self.write(output);
+    }
+}
+
 /// Match pnpm's outputMaxWidth, floored at one column for narrow terminals.
 fn renderer_state_options(options: &ReporterOptions, append_only: bool) -> StateOptions {
     StateOptions {
