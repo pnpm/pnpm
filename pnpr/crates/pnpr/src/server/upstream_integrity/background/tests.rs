@@ -519,3 +519,86 @@ async fn refresh_cached_packument_rejects_older_fetch_completion_after_newer_wri
             .ends_with("?sig=rotated"),
     );
 }
+
+#[tokio::test]
+async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
+    let server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let state = state(tmp.path(), &server.url());
+    let routing = state.routing();
+    let upstream = &routing.upstream_clients["mirror"];
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+    let doc = |sig: &str| {
+        serde_json::to_vec(&json!({
+            "versions": {
+                "1.0.0": {
+                    "dist": {
+                        "tarball": format!("{}/example/-/example-1.0.0.tgz?sig={sig}", server.url()),
+                        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    }
+                }
+            }
+        }))
+        .unwrap()
+    };
+
+    let older_fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let purge_seq = state.inner.proxy.packument_writes.begin_fetch();
+
+    // Block `cache_dir/fail-ns` with a regular file so `remove_upstream_package`
+    // deterministically fails with `NotADirectory` on every OS.
+    let blocker = state.inner.config.storage.cache_dir.join("fail-ns");
+    std::fs::create_dir_all(&state.inner.config.storage.cache_dir).unwrap();
+    std::fs::write(&blocker, b"blocker").unwrap();
+    assert!(state.inner.storage.remove_upstream_package("fail-ns", &name).await.is_err());
+
+    let purged = crate::server::upstream_packuments::cache_upstream_packument(
+        &state,
+        "fail-ns",
+        upstream,
+        &name,
+        pnpr_upstream::PackumentFetch::NotFound,
+        purge_seq,
+    )
+    .await
+    .unwrap();
+    assert!(purged.is_none());
+
+    // Simulate unremoved stale bytes remaining on disk after the failed removal.
+    std::fs::remove_file(&blocker).unwrap();
+    state.inner.storage
+        .write_upstream_document("fail-ns", &name, &doc("stale"))
+        .await
+        .unwrap();
+
+    // An older pre-404 fetch completion is rejected without restoring or returning metadata.
+    assert!(
+        super::super::refresh_cached_packument(
+            &state,
+            "fail-ns",
+            &name,
+            doc("pre-404"),
+            older_fetch_seq,
+        )
+        .await
+        .unwrap()
+        .is_none(),
+    );
+    assert!(state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+
+    // A later republish (`republished_seq > purge_seq`) clears the purge marker.
+    let republished_seq = state.inner.proxy.packument_writes.begin_fetch();
+    assert!(
+        super::super::refresh_cached_packument(
+            &state,
+            "fail-ns",
+            &name,
+            doc("republished"),
+            republished_seq,
+        )
+        .await
+        .unwrap()
+        .is_some(),
+    );
+    assert!(!state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+}

@@ -31,8 +31,12 @@ pub(in crate::server) async fn refresh_cached_packument(
 ) -> Result<Option<RefreshedPackument>, RegistryError> {
     let _guard = super::lock_upstream_package(state, namespace, name).await;
     let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
-    if !state.inner.proxy.packument_writes.accepts(namespace, name, fetch_seq) {
-        return Ok(previous.map(|bytes| RefreshedPackument { bytes, needs_backfill: false }));
+    match state.inner.proxy.packument_writes.check(namespace, name, fetch_seq) {
+        crate::server::upstream_packuments::WriteVerdict::SupersededByStored => {
+            return Ok(previous.map(|bytes| RefreshedPackument { bytes, needs_backfill: false }));
+        }
+        crate::server::upstream_packuments::WriteVerdict::SupersededByPurge => return Ok(None),
+        crate::server::upstream_packuments::WriteVerdict::Proceed => {}
     }
     let package = name.clone();
     let Reconciliation { packument, eviction } =
@@ -41,7 +45,7 @@ pub(in crate::server) async fn refresh_cached_packument(
     crate::server::upstream_packuments::invalidate_upstream_package(state, namespace, name);
     evict_stale_upstream_blobs(state, namespace, name, eviction).await?;
     state.inner.storage.write_upstream_document(namespace, name, &packument.bytes).await?;
-    state.inner.proxy.packument_writes.commit(namespace, name, fetch_seq);
+    state.inner.proxy.packument_writes.commit_stored(namespace, name, fetch_seq);
     Ok(Some(packument))
 }
 

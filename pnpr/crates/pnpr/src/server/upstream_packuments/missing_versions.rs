@@ -5,7 +5,8 @@ use super::{
     AdmittedPackument, AppState, CanonicalPackageName, DocumentSource, Duration, Identity,
     PackumentFlightKind, RegistryError, RegistrySource, Upstream, authorized_upstream,
     coalesce_upstream_packument, coalesce_upstream_packument_keyed,
-    fetch_and_cache_upstream_packument, upstream_cache_namespace,
+    fetch_and_cache_upstream_packument, read_unpurged_upstream_document,
+    read_unpurged_upstream_document_any, upstream_cache_namespace,
 };
 use std::{collections::HashMap, sync::Mutex, time::Instant};
 
@@ -108,8 +109,9 @@ pub(in crate::server) async fn reload_upstream_packument_lacking_version(
     if !upstream.caches() {
         return Ok(None);
     }
-    let storage = &state.inner.storage;
-    if let Some(recent) = storage.read_upstream_document(namespace, name, REFETCH_INTERVAL).await? {
+    if let Some(recent) =
+        read_unpurged_upstream_document(state, namespace, name, REFETCH_INTERVAL).await?
+    {
         return Ok(Some(recent));
     }
     // The claim is taken by the flight's leader, so a request arriving
@@ -118,7 +120,7 @@ pub(in crate::server) async fn reload_upstream_packument_lacking_version(
         let admissions = &state.inner.packuments.admissions;
         if !state.inner.proxy.packument_refetches.claim(namespace, name) {
             let admission = admissions.acquire(DocumentSource::Stored).await;
-            let cached = storage.read_upstream_document_any(namespace, name).await?;
+            let cached = read_unpurged_upstream_document_any(state, namespace, name).await?;
             return Ok(cached.map(|bytes| AdmittedPackument::new(bytes, admission)));
         }
         let admission = admissions.acquire(DocumentSource::Upstream(namespace)).await;
@@ -156,8 +158,7 @@ pub(in crate::server) async fn reload_upstream_packument_for_expired_tarball(
             }
             let admission = admissions.acquire(DocumentSource::Stored).await;
             let cached =
-                state.inner.storage.read_upstream_document(namespace, name, REFETCH_INTERVAL)
-                    .await?;
+                read_unpurged_upstream_document(state, namespace, name, REFETCH_INTERVAL).await?;
             return Ok(cached.map(|bytes| AdmittedPackument::new(bytes, admission)));
         }
         let admission = admissions.acquire(DocumentSource::Upstream(namespace)).await;

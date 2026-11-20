@@ -3,7 +3,7 @@ pub(super) use missing_versions::{
     reload_upstream_packument_for_expired_tarball, reload_upstream_packument_lacking_version,
 };
 pub(super) use serving::serve_packument_via_upstream;
-pub(super) use write_order::PackumentWriteOrder;
+pub(super) use write_order::{PackumentWriteOrder, WriteVerdict};
 
 use super::{
     Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
@@ -79,7 +79,7 @@ async fn read_cached_upstream_packument(
     let bytes = timed(
         "packument:cache_read",
         name.as_str(),
-        state.inner.storage.read_upstream_document(namespace, name, ttl),
+        read_unpurged_upstream_document(state, namespace, name, ttl),
     )
     .await?;
     if bytes.is_some() {
@@ -88,6 +88,29 @@ async fn read_cached_upstream_packument(
         state.inner.metrics.record_cache_miss();
     }
     Ok(bytes)
+}
+
+async fn read_unpurged_upstream_document(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    ttl: Duration,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    if state.inner.proxy.packument_writes.is_purged(namespace, name) {
+        return Ok(None);
+    }
+    state.inner.storage.read_upstream_document(namespace, name, ttl).await
+}
+
+async fn read_unpurged_upstream_document_any(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    if state.inner.proxy.packument_writes.is_purged(namespace, name) {
+        return Ok(None);
+    }
+    state.inner.storage.read_upstream_document_any(namespace, name).await
 }
 
 pub(super) struct AdmittedPackument {
@@ -167,8 +190,7 @@ async fn fetch_and_cache_upstream_packument(
 ) -> Result<Option<Vec<u8>>, Arc<RegistryError>> {
     if let Some(ttl) = ttl
         && upstream.caches()
-        && let Ok(Some(bytes)) =
-            state.inner.storage.read_upstream_document(namespace, name, ttl).await
+        && let Ok(Some(bytes)) = read_unpurged_upstream_document(state, namespace, name, ttl).await
     {
         return Ok(Some(bytes));
     }
@@ -240,7 +262,7 @@ pub(super) async fn cache_upstream_packument(
         // body is current, so serve it (fresh or stale) rather than a spurious
         // 404 that a client could cache as "package gone".
         PackumentFetch::NotModified => {
-            state.inner.storage.read_upstream_document_any(namespace, name).await
+            read_unpurged_upstream_document_any(state, namespace, name).await
         }
     }
 }
@@ -252,17 +274,21 @@ async fn purge_cached_package(
     fetch_seq: u64,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let _guard = lock_upstream_package(state, namespace, name).await;
-    if !state.inner.proxy.packument_writes.accepts(namespace, name, fetch_seq) {
-        return state.inner.storage.read_upstream_document_any(namespace, name).await;
+    match state.inner.proxy.packument_writes.check(namespace, name, fetch_seq) {
+        WriteVerdict::SupersededByStored => {
+            return state.inner.storage.read_upstream_document_any(namespace, name).await;
+        }
+        WriteVerdict::SupersededByPurge => return Ok(None),
+        WriteVerdict::Proceed => {}
     }
+    state.inner.proxy.packument_writes.commit_purged(namespace, name, fetch_seq);
     invalidate_upstream_package(state, namespace, name);
-    match state.inner.storage.remove_upstream_package(namespace, name).await {
-        Ok(_) => state.inner.proxy.packument_writes.commit(namespace, name, fetch_seq),
-        Err(err) => tracing::warn!(
+    if let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await {
+        tracing::warn!(
             ?err,
             package = %name.as_str(),
             "failed to purge cached entry after an upstream 404",
-        ),
+        );
     }
     Ok(None)
 }
@@ -313,7 +339,7 @@ pub(super) async fn recover_stale_upstream_packument(
     if !err.is_transient_upstream_error() || !upstream.caches() {
         return Err(err);
     }
-    let Some(bytes) = state.inner.storage.read_upstream_document_any(namespace, name).await? else {
+    let Some(bytes) = read_unpurged_upstream_document_any(state, namespace, name).await? else {
         return Err(err);
     };
     // The upstream error may embed credentials in its request URL, so only its
