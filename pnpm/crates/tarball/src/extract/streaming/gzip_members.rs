@@ -1,8 +1,17 @@
 //! Hashing the tar a `.tgz` decodes to, one gzip member or all of them.
 
 use super::{
-    BodyHasher, Extraction, HashingReader, IgnoreEntryFilter, Integrity, Read, StoreDir, TarLimits,
-    TarballError, drain_after_archive, extract_tarball_entries_streaming,
+    BodyHasher,
+    Extraction,
+    HashingReader,
+    IgnoreEntryFilter,
+    Integrity,
+    Read,
+    StoreDir,
+    TarLimits,
+    TarballError,
+    drain_after_archive,
+    extract_tarball_entries_streaming,
 };
 
 /// Extract the first gzip member of a `.tgz`, which a resource pin installs.

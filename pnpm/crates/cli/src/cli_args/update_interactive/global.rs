@@ -1,7 +1,21 @@
 use super::{
-    Config, DependencyGroup, HashSet, OutdatedQuery, Path, PromptRow, PromptStyle, Reporter,
-    TargetVersion, UpdatePrompt, collect_outdated_for_importer, has_pnpm_cli_dependency,
-    ignored_dependencies_matcher, miette, report_cancelled, sanitize_inline, selected_packages,
+    Config,
+    DependencyGroup,
+    HashSet,
+    OutdatedQuery,
+    Path,
+    PromptRow,
+    PromptStyle,
+    Reporter,
+    TargetVersion,
+    UpdatePrompt,
+    collect_outdated_for_importer,
+    has_pnpm_cli_dependency,
+    ignored_dependencies_matcher,
+    miette,
+    report_cancelled,
+    sanitize_inline,
+    selected_packages,
 };
 
 pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(

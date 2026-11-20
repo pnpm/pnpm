@@ -1,6 +1,17 @@
 use super::{
-    BlobUpload, Body, Bytes, CanonicalPackageName, Digest, ErrorCode, HASH_CHUNK, Refusal,
-    RegistryError, Sha256, Storage, SystemTime, UNIX_EPOCH,
+    BlobUpload,
+    Body,
+    Bytes,
+    CanonicalPackageName,
+    Digest,
+    ErrorCode,
+    HASH_CHUNK,
+    Refusal,
+    RegistryError,
+    Sha256,
+    Storage,
+    SystemTime,
+    UNIX_EPOCH,
 };
 use futures_util::StreamExt as _;
 use sha2::Digest as _;

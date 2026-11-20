@@ -1,7 +1,10 @@
 #[cfg(unix)]
 use super::run_command;
 use super::{
-    TMUTIL_MAX_PATHS_PER_BATCH, new_directories_to_exclude, tmutil_command, tmutil_failure_message,
+    TMUTIL_MAX_PATHS_PER_BATCH,
+    new_directories_to_exclude,
+    tmutil_command,
+    tmutil_failure_message,
 };
 use pnpm_config::Config;
 #[cfg(unix)]
@@ -9,7 +12,12 @@ use pnpm_process::Command;
 use pnpm_store_dir::StoreDir;
 #[cfg(unix)]
 use std::time::Duration;
-use std::{ffi::OsStr, fs, io, path::PathBuf};
+use std::{
+    ffi::OsStr,
+    fs,
+    io,
+    path::PathBuf,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -246,7 +254,10 @@ fn drains_output_and_enforces_the_command_timeout() {
 #[cfg(unix)]
 #[test]
 fn sanitizes_nonzero_tmutil_diagnostics() {
-    use std::{os::unix::process::ExitStatusExt, process::Output};
+    use std::{
+        os::unix::process::ExitStatusExt,
+        process::Output,
+    };
 
     let message = tmutil_failure_message(Ok(Ok(Some(Output {
         status: std::process::ExitStatus::from_raw(1),

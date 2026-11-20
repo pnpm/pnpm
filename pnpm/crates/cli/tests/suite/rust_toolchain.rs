@@ -3,9 +3,15 @@
 
 #[cfg(unix)]
 use crate::_utils::write_executable;
-use crate::_utils::{pacquet_in, write_fake_bin};
+use crate::_utils::{
+    pacquet_in,
+    write_fake_bin,
+};
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    diagnostics::assert_diagnostic_contains,
+};
 use serde_json::json;
 use std::fs;
 

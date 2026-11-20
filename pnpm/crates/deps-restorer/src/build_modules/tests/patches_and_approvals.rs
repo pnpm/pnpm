@@ -1,22 +1,40 @@
 use super::super::allow_build_policy::allow_build_key_from_ignored_build;
 #[cfg(unix)]
 use super::{
-    super::BuildModules, TEST_LOGGED_METHODS, create_postinstall_modifies_source_fixture, key,
-    policy_from_specs, root_importers, sha512_hex,
+    super::BuildModules,
+    TEST_LOGGED_METHODS,
+    create_postinstall_modifies_source_fixture,
+    key,
+    policy_from_specs,
+    root_importers,
+    sha512_hex,
 };
 #[cfg(unix)]
-use crate::{SkippedSnapshots, VirtualStoreLayout};
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 #[cfg(unix)]
 use pnpm_config::PackageImportMethod;
 #[cfg(unix)]
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 #[cfg(unix)]
 use pnpm_reporter::SilentReporter;
-use pnpm_reporter::{IgnoredScriptsLog, LogEvent, Reporter};
+use pnpm_reporter::{
+    IgnoredScriptsLog,
+    LogEvent,
+    Reporter,
+};
 use pretty_assertions::assert_eq;
 use std::sync::Mutex;
 #[cfg(unix)]
-use std::{collections::HashMap, fs};
+use std::{
+    collections::HashMap,
+    fs,
+};
 #[cfg(unix)]
 use tempfile::tempdir;
 
@@ -72,7 +90,12 @@ fn ignored_scripts_event_carries_returned_names() {
 async fn write_path_cache_key_includes_patch_hash() {
     use pnpm_patching::ExtendedPatchInfo;
     use pnpm_store_dir::{
-        CafsFileInfo, HASH_ALGORITHM, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexWriter,
+        CafsFileInfo,
+        HASH_ALGORITHM,
+        PackageFilesIndex,
+        StoreDir,
+        StoreIndex,
+        StoreIndexWriter,
         store_index_key,
     };
 
@@ -281,7 +304,10 @@ new file mode 100644
 #[tokio::test(flavor = "current_thread")]
 async fn patch_only_snapshot_gets_patched_via_build_modules() {
     use pnpm_patching::ExtendedPatchInfo;
-    use pnpm_store_dir::{StoreDir, StoreIndexWriter};
+    use pnpm_store_dir::{
+        StoreDir,
+        StoreIndexWriter,
+    };
 
     let pkg_key = key("is-positive", "1.0.0");
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
@@ -406,7 +432,10 @@ new file mode 100644
 #[tokio::test(flavor = "current_thread")]
 async fn missing_patch_file_path_errors_with_diagnostic() {
     use pnpm_patching::ExtendedPatchInfo;
-    use pnpm_store_dir::{StoreDir, StoreIndexWriter};
+    use pnpm_store_dir::{
+        StoreDir,
+        StoreIndexWriter,
+    };
 
     let pkg_key = key("is-positive", "1.0.0");
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);

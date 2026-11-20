@@ -1,5 +1,14 @@
-use super::{QueryError, Range};
-use serde_saphyr::granit_parser::{Event, Parser, ScalarStyle, Span, Tag};
+use super::{
+    QueryError,
+    Range,
+};
+use serde_saphyr::granit_parser::{
+    Event,
+    Parser,
+    ScalarStyle,
+    Span,
+    Tag,
+};
 use std::collections::HashMap;
 
 pub(super) const MAX_MERGE_DEPTH: usize = 64;

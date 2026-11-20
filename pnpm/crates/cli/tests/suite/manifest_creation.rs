@@ -1,7 +1,15 @@
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use serde_json::Value;
-use std::{env, fs, path::Path, process::Command};
+use std::{
+    env,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn fixture() -> CommandTempCwd<()> {
     let mut fixture = CommandTempCwd::init();

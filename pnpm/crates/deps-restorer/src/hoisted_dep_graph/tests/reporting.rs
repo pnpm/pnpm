@@ -1,12 +1,27 @@
 use super::{
-    super::{LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph},
-    dep_key, host_aware_opts, lockfile_with, metadata_stub, metadata_with_os, pkg_name,
+    super::{
+        LockfileToHoistedDepGraphOptions,
+        lockfile_to_hoisted_dep_graph,
+    },
+    dep_key,
+    host_aware_opts,
+    lockfile_with,
+    metadata_stub,
+    metadata_with_os,
+    pkg_name,
     resolved_dep,
 };
-use pnpm_lockfile::{Lockfile, ResolvedDependencyMap, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    ResolvedDependencyMap,
+    SnapshotEntry,
+};
 use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 #[test]
 fn walker_single_root_dep_emits_one_node() {

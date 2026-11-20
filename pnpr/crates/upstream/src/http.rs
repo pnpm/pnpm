@@ -1,4 +1,11 @@
-use super::{Arc, Duration, HeaderMap, RedirectGuard, ThrottledClient, UpstreamConfig};
+use super::{
+    Arc,
+    Duration,
+    HeaderMap,
+    RedirectGuard,
+    ThrottledClient,
+    UpstreamConfig,
+};
 
 #[derive(Clone)]
 pub(super) struct UpstreamHttp {

@@ -6,8 +6,14 @@
 
 use crate::TarballError;
 use std::{
-    io::{self, Read},
-    sync::{Arc, OnceLock},
+    io::{
+        self,
+        Read,
+    },
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 /// The `Accept-Encoding` an archive request sends.

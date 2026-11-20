@@ -1,7 +1,14 @@
 use crate::{
-    FsRemoveDirent, FsRename, Host, rename_even_across_devices::rename_even_across_devices,
+    FsRemoveDirent,
+    FsRename,
+    Host,
+    rename_even_across_devices::rename_even_across_devices,
 };
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::tempdir;
 
 #[cfg(unix)]

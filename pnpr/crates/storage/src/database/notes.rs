@@ -2,9 +2,15 @@
 //! publication. Notes are not part of any package document, so editing one
 //! changes nothing a resolver or a lockfile reads.
 
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
-use ssri::{Algorithm, IntegrityOpts};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
 
 /// The largest note pnpr accepts, in bytes.
 pub const MAX_NOTE_BYTES: usize = 64 * 1024;

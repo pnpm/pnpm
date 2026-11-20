@@ -1,8 +1,18 @@
 use super::ResolvePeersOptions;
-use crate::{NodeId, ResolvedTree, TreeChildren};
-use pnpm_deps_path::{DepPath, index_of_dep_path_suffix};
+use crate::{
+    NodeId,
+    ResolvedTree,
+    TreeChildren,
+};
+use pnpm_deps_path::{
+    DepPath,
+    index_of_dep_path_suffix,
+};
 use pnpm_lockfile::Lockfile;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 
 pub(crate) fn has_contexts(tree: &ResolvedTree) -> bool {
     tree.dependencies_tree

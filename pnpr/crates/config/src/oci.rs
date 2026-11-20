@@ -3,7 +3,10 @@ use std::num::NonZeroU64;
 use pnpr_error::RegistryError;
 use serde::Deserialize;
 
-use crate::byte_size::{ByteSize, parse_positive_byte_size};
+use crate::byte_size::{
+    ByteSize,
+    parse_positive_byte_size,
+};
 
 /// Authentication and byte limits for the OCI distribution surface.
 #[derive(Debug, Clone)]

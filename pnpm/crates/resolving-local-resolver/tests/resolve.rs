@@ -2,16 +2,32 @@
 //! `#[tokio::test]` per scenario.
 
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+    TarballResolution,
+};
 use pnpm_resolving_local_resolver::{
-    LocalCurrentPkg, LocalFilesystemPolicy, LocalResolverContext, LocalResolverOptions,
-    LocalResolverUpdate, ResolveLocalError, WantedLocalDependency, is_local_filesystem_specifier,
-    local_spec_path, recorded_local_path, resolve_from_local_path, resolve_from_local_scheme,
+    LocalCurrentPkg,
+    LocalFilesystemPolicy,
+    LocalResolverContext,
+    LocalResolverOptions,
+    LocalResolverUpdate,
+    ResolveLocalError,
+    WantedLocalDependency,
+    is_local_filesystem_specifier,
+    local_spec_path,
+    recorded_local_path,
+    resolve_from_local_path,
+    resolve_from_local_scheme,
 };
 use pnpm_resolving_resolver_base::PkgResolutionId;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 

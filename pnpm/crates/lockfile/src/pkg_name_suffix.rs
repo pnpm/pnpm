@@ -1,8 +1,20 @@
-use crate::{ParsePkgNameError, PkgName};
-use derive_more::{Display, Error};
-use serde::{Deserialize, Serialize};
+use crate::{
+    ParsePkgNameError,
+    PkgName,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use split_first_char::SplitFirstChar;
-use std::{borrow::Cow, str::FromStr};
+use std::{
+    borrow::Cow,
+    str::FromStr,
+};
 
 /// Syntax: `{name}@{suffix}`
 ///

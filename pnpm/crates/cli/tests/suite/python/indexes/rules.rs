@@ -1,5 +1,11 @@
 use super::{
-    add_python_settings, assert_failure_contains, pacquet_in, project, python, serve, wheel,
+    add_python_settings,
+    assert_failure_contains,
+    pacquet_in,
+    project,
+    python,
+    serve,
+    wheel,
 };
 use assert_cmd::assert::OutputAssertExt;
 use std::fs;

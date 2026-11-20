@@ -5,16 +5,34 @@ mod overwrite;
 use creation::FileCreation;
 
 use crate::rename_with_retry;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
-    fs::{self, File},
-    hash::{BuildHasher, Hasher},
-    io::{self, Write},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+        File,
+    },
+    hash::{
+        BuildHasher,
+        Hasher,
+    },
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 

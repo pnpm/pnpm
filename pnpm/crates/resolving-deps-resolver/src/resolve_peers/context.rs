@@ -2,9 +2,15 @@
 //! map, the shared ancestor chains threaded down the walk, `link:`
 //! node-id remapping, peer-suffix parsing, and range matching.
 
-pub(crate) use peer_specifier::{ComparablePeerRange, satisfies_with_prereleases};
+pub(crate) use peer_specifier::{
+    ComparablePeerRange,
+    satisfies_with_prereleases,
+};
 pub(super) use peer_specifier::{
-    importer_relative_link_dep_path, link_node_id_as_dep_path, peer_id_pair, peer_segment_names,
+    importer_relative_link_dep_path,
+    link_node_id_as_dep_path,
+    peer_id_pair,
+    peer_segment_names,
     remap_link_node_id,
 };
 pub(crate) use pnpm_lockfile::split_peer_suffix_segments;
@@ -14,15 +20,38 @@ use peer_specifier::version_gte;
 
 use crate::{
     node_id::NodeId,
-    resolve_peers::{ResolvePeersOptions, walker::Walker},
-    resolved_tree::{ResolvedPackage, TreeChildren, pkg_name},
+    resolve_peers::{
+        ResolvePeersOptions,
+        walker::Walker,
+    },
+    resolved_tree::{
+        ResolvedPackage,
+        TreeChildren,
+        pkg_name,
+    },
 };
-use node_semver::{Range, Version};
-use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
-use pnpm_resolving_resolver_base::{ResolveResult, get_peer_version_range};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    index_of_dep_path_suffix,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveResult,
+    get_peer_version_range,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

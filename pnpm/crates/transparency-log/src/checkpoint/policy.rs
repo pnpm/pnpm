@@ -1,10 +1,26 @@
 use super::{
-    CheckpointError, Cosignature, VerifiedCheckpoint, note_error, parse_tree_head,
+    CheckpointError,
+    Cosignature,
+    VerifiedCheckpoint,
+    note_error,
+    parse_tree_head,
     split_cosignature,
 };
-use crate::keys::{KeyAlgorithm, VerifierKey, cosignature_message};
-use derive_more::{Display, Error};
-use signed_note::{Note, Signature, Verifier, VerifierList};
+use crate::keys::{
+    KeyAlgorithm,
+    VerifierKey,
+    cosignature_message,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use signed_note::{
+    Note,
+    Signature,
+    Verifier,
+    VerifierList,
+};
 use std::collections::HashSet;
 
 /// Keys and how many of them must sign.

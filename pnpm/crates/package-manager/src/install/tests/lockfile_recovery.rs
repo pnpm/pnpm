@@ -1,15 +1,45 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
-    InstallDirs, PARTIAL_INSTALL_LOCKFILE, assert_package_absent, assert_package_present,
-    fresh_lockfile_only_with_overrides, install_then_go_offline, install_with_pnpmfile,
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+    },
+    InstallDirs,
+    PARTIAL_INSTALL_LOCKFILE,
+    assert_package_absent,
+    assert_package_present,
+    fresh_lockfile_only_with_overrides,
+    install_then_go_offline,
+    install_with_pnpmfile,
     touch_manifest,
 };
-use crate::{PolicyExcludes, UpToDateFastPathCheck, install_already_up_to_date};
+use crate::{
+    PolicyExcludes,
+    UpToDateFastPathCheck,
+    install_already_up_to_date,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LockfileVerificationMessage, LogEvent, Reporter, SilentReporter};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    write_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LockfileVerificationMessage,
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_testing_utils::registry::TestRegistry;
 use pnpm_workspace_state as workspace_state;
 use std::sync::Mutex;

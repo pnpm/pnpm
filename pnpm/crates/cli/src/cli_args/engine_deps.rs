@@ -2,29 +2,56 @@ pub(super) mod persist;
 pub(super) mod selectors;
 pub(super) mod update;
 
-pub(crate) use update::{EngineUpdateOptions, EngineUpdateOutcome, update_engine_deps};
+pub(crate) use update::{
+    EngineUpdateOptions,
+    EngineUpdateOutcome,
+    update_engine_deps,
+};
 
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
-use node_semver::{Range, Version};
-use pnpm_config::{Config, PmOnFail, RuntimeOnFail};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_config::{
+    Config,
+    PmOnFail,
+    RuntimeOnFail,
+};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manager::parse_update_param;
 use pnpm_package_manifest::{
-    DependencyGroup, PackageManifest, is_runtime_alias,
+    DependencyGroup,
+    PackageManifest,
+    is_runtime_alias,
     package_manager_spec::{
-        dev_engines_package_managers, is_version_request, version_without_build,
+        dev_engines_package_managers,
+        is_version_request,
+        version_without_build,
     },
 };
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
+};
 use serde_json::Value;
 
 use crate::{
     cli_args::package_manager::{
-        PinRoots, exact_version, parse_package_manager, version_satisfies,
+        PinRoots,
+        exact_version,
+        parse_package_manager,
+        version_satisfies,
     },
-    engine_pm::channel::{Channel, PackageManager},
+    engine_pm::channel::{
+        Channel,
+        PackageManager,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

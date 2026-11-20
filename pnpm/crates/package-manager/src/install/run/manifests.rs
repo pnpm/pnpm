@@ -1,9 +1,22 @@
 use super::super::{
-    Arc, HashSet, InstallError, PackageManifest, Path, PathBuf, ProjectScriptsInputs, Reporter,
-    dev_preinstall_already_ran, projects_running_own_scripts, root_preinstall_already_ran,
-    run_root_hook, selected_manifest_freshness_inputs,
+    Arc,
+    HashSet,
+    InstallError,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectScriptsInputs,
+    Reporter,
+    dev_preinstall_already_ran,
+    projects_running_own_scripts,
+    root_preinstall_already_ran,
+    run_root_hook,
+    selected_manifest_freshness_inputs,
 };
-use crate::{ProjectMutation, install::state_options::ProjectScriptSelection};
+use crate::{
+    ProjectMutation,
+    install::state_options::ProjectScriptSelection,
+};
 use pnpm_config::Config;
 use pnpm_executor::DEV_PREINSTALL_STAGE;
 

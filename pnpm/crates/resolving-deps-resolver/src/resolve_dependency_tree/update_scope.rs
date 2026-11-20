@@ -1,4 +1,8 @@
-use super::{BTreeMap, BTreeSet, reuse::real_package_name_of};
+use super::{
+    BTreeMap,
+    BTreeSet,
+    reuse::real_package_name_of,
+};
 use pnpm_resolving_resolver_base::WantedDependency;
 
 /// Which dependencies `pacquet update` excludes from lockfile-resolution

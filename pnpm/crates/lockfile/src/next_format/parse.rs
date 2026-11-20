@@ -2,7 +2,10 @@
 
 use crate::{
     ComVer,
-    json_document::{is_json_document, json_lockfile_version},
+    json_document::{
+        is_json_document,
+        json_lockfile_version,
+    },
 };
 
 /// Which shape a lockfile document's sections have.

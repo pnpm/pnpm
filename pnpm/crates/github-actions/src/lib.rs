@@ -3,23 +3,66 @@
 pub(crate) use pnpm_process as process;
 
 pub use release_age::ReleaseAge;
-pub use selectors::{is_selector, normalize_selector, selector_matcher};
+pub use selectors::{
+    is_selector,
+    normalize_selector,
+    selector_matcher,
+};
 
-use edits::{apply_workflow_edits, planned_edits};
-use futures_util::{StreamExt, stream};
-use node_semver::{Range as SemverRange, Version};
+use edits::{
+    apply_workflow_edits,
+    planned_edits,
+};
+use futures_util::{
+    StreamExt,
+    stream,
+};
+use node_semver::{
+    Range as SemverRange,
+    Version,
+};
 use pnpm_matcher::Matcher;
-use pnpm_network::{redact_and_sanitize, redact_url_for_display};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_resolving_git_resolver::{GitCommandRunner, RealGitRunner, get_repo_refs};
-use release_age::{GitTagDates, ReleaseAgeCheck, ReleaseDates};
+use pnpm_network::{
+    redact_and_sanitize,
+    redact_url_for_display,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_resolving_git_resolver::{
+    GitCommandRunner,
+    RealGitRunner,
+    get_repo_refs,
+};
+use release_age::{
+    GitTagDates,
+    ReleaseAgeCheck,
+    ReleaseDates,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     ops::Range,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tokio::fs;
-use versions::{find_current, parse_comment_version, replaces_comment_version, repo_versions};
+use versions::{
+    find_current,
+    parse_comment_version,
+    replaces_comment_version,
+    repo_versions,
+};
 use workflow::discover;
 use yamlpath::QueryError;
 

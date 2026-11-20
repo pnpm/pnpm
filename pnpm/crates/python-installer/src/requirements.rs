@@ -1,10 +1,18 @@
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pnpm_python_resolver::parse_requirement;
 use std::{
     collections::BTreeSet,
     fs,
     io::Read as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;

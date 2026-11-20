@@ -1,4 +1,8 @@
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
 use pnpm_resolving_git_resolver::HostedGit;
 
 pub(super) fn is_same_source(spec1: &str, spec2: &str, alias: &str) -> bool {

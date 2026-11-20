@@ -1,15 +1,26 @@
 //! Recreating a source symlink in an imported package.
 
 use super::{
-    ImportIndexedDirError, Placement, SymlinkTargets, clear_dir_blocking_file,
+    ImportIndexedDirError,
+    Placement,
+    SymlinkTargets,
+    clear_dir_blocking_file,
     file_matches_store_entry,
 };
-use pnpm_fs::{Host, StoreFile, SymlinkPlacement, SymlinkPlacementContext};
+use pnpm_fs::{
+    Host,
+    StoreFile,
+    SymlinkPlacement,
+    SymlinkPlacementContext,
+};
 use std::{
     borrow::Cow,
     collections::HashSet,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Where [`populate_dir`](super::populate_dir) writes a package whose

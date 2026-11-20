@@ -1,8 +1,16 @@
 use pnpm_config::SkillsPermission;
 
 use super::{
-    Manifest, ManifestTarget, Path, UpdateWorkspaceManifestError, edit, has_control_char,
-    read_manifest_at, read_owning_manifest, unsupported_inline_key, write_or_remove_manifest,
+    Manifest,
+    ManifestTarget,
+    Path,
+    UpdateWorkspaceManifestError,
+    edit,
+    has_control_char,
+    read_manifest_at,
+    read_owning_manifest,
+    unsupported_inline_key,
+    write_or_remove_manifest,
 };
 
 /// The value of one `permissions` entry: the capability the decision is

@@ -1,4 +1,11 @@
-use super::{Config, EnvVar, NoEnv, NpmrcAuth, Path, assert_eq};
+use super::{
+    Config,
+    EnvVar,
+    NoEnv,
+    NpmrcAuth,
+    Path,
+    assert_eq,
+};
 
 #[test]
 fn cascade_legacy_proxy_null_falls_through_to_env() {

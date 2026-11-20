@@ -1,9 +1,17 @@
 use super::{
-    install_v2, install_v2_body, leave_out_unlikely_picks, likely_picks, record_address,
-    release_records::release_record, without_pnpr_facts_in,
+    install_v2,
+    install_v2_body,
+    leave_out_unlikely_picks,
+    likely_picks,
+    record_address,
+    release_records::release_record,
+    without_pnpr_facts_in,
 };
 use pnpr_config::PackageDocumentsConfig;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::time::Duration;
 
 fn version(integrity: &str) -> Value {

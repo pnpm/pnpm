@@ -1,6 +1,12 @@
-use super::{EnvVar, detect_ci};
+use super::{
+    EnvVar,
+    detect_ci,
+};
 use serde_json::Value;
-use std::{cell::RefCell, collections::HashMap};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+};
 
 thread_local! {
     static ENV: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());

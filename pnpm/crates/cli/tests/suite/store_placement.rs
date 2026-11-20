@@ -5,7 +5,11 @@
 
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn commands_without_store_access_do_not_modify_the_project_directory() {
@@ -81,7 +85,10 @@ fn commands_without_store_access_do_not_modify_the_project_directory() {
 /// it, on the platforms whose directory timestamps track entry changes.
 #[cfg(unix)]
 fn freeze_mtime(dir: &Path) -> Option<std::time::SystemTime> {
-    use std::time::{Duration, UNIX_EPOCH};
+    use std::time::{
+        Duration,
+        UNIX_EPOCH,
+    };
     let modified = UNIX_EPOCH + Duration::from_hours(262_968);
     fs::File::open(dir)
         .expect("open project directory")

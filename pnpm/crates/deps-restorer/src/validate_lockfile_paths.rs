@@ -12,9 +12,15 @@
 //! is why it lives here rather than in the verifier crate.
 
 use crate::VirtualStoreLayout;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use pnpm_lockfile_verification::VerifyError;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 
 /// Reject the install when any snapshot's computed virtual-store slot
 /// resolves outside the store root or its package directory. The whole

@@ -1,7 +1,11 @@
 use std::{
-    fs, io,
+    fs,
+    io,
     path::Path,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 const RETRY_BUDGET: Duration = Duration::from_mins(1);

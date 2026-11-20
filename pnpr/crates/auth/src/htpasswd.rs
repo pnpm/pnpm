@@ -1,4 +1,8 @@
-use super::{HashMap, RegistryError, Result};
+use super::{
+    HashMap,
+    RegistryError,
+    Result,
+};
 use crate::validation::validate_username;
 
 // ---------------------------------------------------------------

@@ -1,20 +1,44 @@
 use super::{
-    super::CreateVirtualStore, DUMMY_SHA512, SeededStoreInstall, directory_metadata,
-    git_hosted_tarball_metadata, git_metadata, gvs_layout, key, metadata_with_integrity, name,
-    slot_link, snapshot_with_dep, tarball_metadata_without_integrity,
+    super::CreateVirtualStore,
+    DUMMY_SHA512,
+    SeededStoreInstall,
+    directory_metadata,
+    git_hosted_tarball_metadata,
+    git_metadata,
+    gvs_layout,
+    key,
+    metadata_with_integrity,
+    name,
+    slot_link,
+    snapshot_with_dep,
+    tarball_metadata_without_integrity,
 };
 use crate::{
-    CheckVerdict, ConcurrentCheck, create_virtual_store::cache_keys::snapshot_cache_key,
+    CheckVerdict,
+    ConcurrentCheck,
+    create_virtual_store::cache_keys::snapshot_cache_key,
     install_package_by_snapshot::host_platform_selector,
 };
-use pnpm_lockfile::{LockfileEntries, PackageKey, PkgName, SnapshotEntry};
+use pnpm_lockfile::{
+    LockfileEntries,
+    PackageKey,
+    PkgName,
+    SnapshotEntry,
+};
 use pnpm_reporter::SilentReporter;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicU8,
+            Ordering,
+        },
     },
 };
 
@@ -31,8 +55,16 @@ struct ColdMemCacheBatch {
 
 impl ColdMemCacheBatch {
     fn new(package_count: usize) -> Self {
-        use pnpm_config::{Config, PackageImportMethod};
-        use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
+        use pnpm_config::{
+            Config,
+            PackageImportMethod,
+        };
+        use pnpm_tarball::{
+            CacheValue,
+            CachedTarball,
+            MemCache,
+            package_mem_cache_key,
+        };
 
         let root = tempfile::tempdir().expect("create temp dir");
         let workspace_root = root.path().join("workspace");
@@ -118,7 +150,11 @@ impl ColdMemCacheBatch {
         probe: &crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe,
         check: Option<ConcurrentCheck<'_>>,
     ) -> Result<super::super::CreateVirtualStoreOutput, super::super::CreateVirtualStoreError> {
-        use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+        use crate::{
+            AllowBuildPolicy,
+            SkippedSnapshots,
+            VirtualStoreLayout,
+        };
         use pnpm_config::NodeLinker;
         use pnpm_store_dir::StoreIndexWriter;
         use pnpm_tarball::SharedReportedProgressKeys;
@@ -395,11 +431,23 @@ async fn skipped_warm_slot_with_a_side_effects_row_is_still_checked() {
 /// serialize.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn gvs_link_pass_materializes_shared_slot_once() {
-    use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
-    use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+    use crate::{
+        AllowBuildPolicy,
+        SkippedSnapshots,
+        VirtualStoreLayout,
+    };
+    use pnpm_config::{
+        Config,
+        NodeLinker,
+        PackageImportMethod,
+    };
     use pnpm_store_dir::StoreIndexWriter;
     use pnpm_tarball::{
-        CacheValue, CachedTarball, MemCache, SharedReportedProgressKeys, package_mem_cache_key,
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        SharedReportedProgressKeys,
+        package_mem_cache_key,
     };
 
     let root = tempfile::tempdir().expect("create temp dir");

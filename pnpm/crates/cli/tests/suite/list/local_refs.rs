@@ -1,4 +1,12 @@
-use super::{CommandTempCwd, LEGEND, Value, canonical, fs, json, run_ok};
+use super::{
+    CommandTempCwd,
+    LEGEND,
+    Value,
+    canonical,
+    fs,
+    json,
+    run_ok,
+};
 
 #[test]
 fn list_and_why_format_aliased_file_and_scoped_link_dependencies() {

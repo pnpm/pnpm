@@ -1,13 +1,36 @@
 pub use self::{
-    catalogs::update_config_hook_catalogs, package_settings::apply_config_dependency_settings,
+    catalogs::update_config_hook_catalogs,
+    package_settings::apply_config_dependency_settings,
 };
 
 use self::apply::apply_hook_delta;
 use super::{
-    Arc, BTreeMap, Config, HashMap, HookContext, HookLog, Host, IntoDiagnostic, LogEvent, LogFn,
-    LogLevel, Path, PathBuf, PnpmLog, PnpmfileHooks, Reporter, Result, TrustedSettings, Value,
-    WorkspaceSettings, apply_store_dir_override, default_state_dir, finder,
-    get_catalogs_from_workspace_manifest, install_config_deps, is_known_setting_key,
+    Arc,
+    BTreeMap,
+    Config,
+    HashMap,
+    HookContext,
+    HookLog,
+    Host,
+    IntoDiagnostic,
+    LogEvent,
+    LogFn,
+    LogLevel,
+    Path,
+    PathBuf,
+    PnpmLog,
+    PnpmfileHooks,
+    Reporter,
+    Result,
+    TrustedSettings,
+    Value,
+    WorkspaceSettings,
+    apply_store_dir_override,
+    default_state_dir,
+    finder,
+    get_catalogs_from_workspace_manifest,
+    install_config_deps,
+    is_known_setting_key,
     resolve_configured_state_dir,
 };
 use miette::WrapErr;

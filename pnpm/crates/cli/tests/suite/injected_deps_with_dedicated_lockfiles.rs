@@ -11,8 +11,14 @@
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, os::unix::fs::MetadataExt};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    os::unix::fs::MetadataExt,
+};
 
 #[test]
 fn an_injected_project_with_a_postinstall_script_is_hard_linked() {

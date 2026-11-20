@@ -1,17 +1,34 @@
 use super::{
-    ManifestSpecBumps, OverriddenDeclarations, apply_manifest_spec_bumps, bumped_range,
+    ManifestSpecBumps,
+    OverriddenDeclarations,
+    apply_manifest_spec_bumps,
+    bumped_range,
     split_registry_alias,
 };
 use crate::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::parse_overrides;
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName, ResolvedDependencyMap};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ResolvedDependencyMap,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use serde_json::json;
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn lockfile(source: &str) -> Lockfile {

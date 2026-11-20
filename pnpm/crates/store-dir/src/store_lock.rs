@@ -1,8 +1,15 @@
 use crate::StoreDir;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_fs::LockMode;
-use std::{fs::File, io, path::PathBuf};
+use std::{
+    fs::File,
+    io,
+    path::PathBuf,
+};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum StoreLockError {

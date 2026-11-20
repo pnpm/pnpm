@@ -1,4 +1,8 @@
-use super::{Arc, cjs_hooks, read_package_err};
+use super::{
+    Arc,
+    cjs_hooks,
+    read_package_err,
+};
 use pnpm_hooks::PnpmfileHooks as _;
 
 #[tokio::test]

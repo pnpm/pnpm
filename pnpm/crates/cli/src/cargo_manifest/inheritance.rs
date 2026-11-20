@@ -1,15 +1,33 @@
 use super::{
-    spans::{dotted_prefix, find_entry, line_start, quoted},
-    workspace::{rebase_workspace_path, resolve_local_path, resolve_workspace_dep_for_detach},
+    spans::{
+        dotted_prefix,
+        find_entry,
+        line_start,
+        quoted,
+    },
+    workspace::{
+        rebase_workspace_path,
+        resolve_local_path,
+        resolve_workspace_dep_for_detach,
+    },
 };
-use miette::{Result, bail};
+use miette::{
+    Result,
+    bail,
+};
 use std::{
     ops::Range,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use toml::{
     Spanned,
-    de::{DeTable, DeValue},
+    de::{
+        DeTable,
+        DeValue,
+    },
 };
 
 #[derive(Clone, Copy)]

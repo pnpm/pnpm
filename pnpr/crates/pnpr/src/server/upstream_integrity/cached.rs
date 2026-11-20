@@ -1,4 +1,9 @@
-use super::{Integrity, MissingIntegrityTarball, PackumentIntegrityResolver, RegistryError};
+use super::{
+    Integrity,
+    MissingIntegrityTarball,
+    PackumentIntegrityResolver,
+    RegistryError,
+};
 use tokio::io::AsyncReadExt;
 
 impl PackumentIntegrityResolver<'_> {

@@ -23,29 +23,49 @@ mod offline_store_pick;
 use std::sync::Arc;
 
 use pnpm_network::{
-    AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
+    AuthHeaders,
+    MetadataCacheScope,
+    RetryOpts,
+    ThrottledClient,
+    UpstreamRouteHook,
 };
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use jiff::Timestamp;
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
 };
 use pnpm_version_policy::create_package_version_policy;
 
 use super::{
-    InMemoryPackageMetaCache, PackumentSource, PickPackageContext, PickPackageError,
-    PickPackageOptions, metadata_cache_key, persist_meta_to_mirror, pick_package,
+    InMemoryPackageMetaCache,
+    PackumentSource,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    metadata_cache_key,
+    persist_meta_to_mirror,
+    pick_package,
     shared_packument_fetch_locker,
 };
 use crate::{
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_legacy_pkg_mirror_paths,
-        get_pkg_mirror_path, load_meta,
+        ABBREVIATED_META_DIR,
+        FULL_FILTERED_META_DIR,
+        FULL_META_DIR,
+        get_legacy_pkg_mirror_paths,
+        get_pkg_mirror_path,
+        load_meta,
     },
-    pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
+    pick_package_from_meta::{
+        RegistryPackageSpec,
+        RegistryPackageSpecType,
+    },
     registry_url::to_registry_url,
 };
 

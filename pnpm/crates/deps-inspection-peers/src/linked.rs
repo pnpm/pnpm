@@ -1,11 +1,30 @@
 pub(super) use packages::LinkedPackages;
 
 use super::{
-    BadPeerIssue, CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, Catalogs,
-    LinkedDependency, LinkedLockfileLoader, Lockfile, LockfileResolution, MissingPeerIssue,
-    PackageManifest, ParentPkg, Path, PathBuf, PeerIssues, PkgName, ProjectManifests,
-    ProjectSnapshot, ResolvedDependencySpec, WantedDependency, extract_peer_version,
-    get_peer_version_range, resolve_from_catalog, satisfies,
+    BadPeerIssue,
+    CatalogAnchor,
+    CatalogResolutionError,
+    CatalogResolutionResult,
+    Catalogs,
+    LinkedDependency,
+    LinkedLockfileLoader,
+    Lockfile,
+    LockfileResolution,
+    MissingPeerIssue,
+    PackageManifest,
+    ParentPkg,
+    Path,
+    PathBuf,
+    PeerIssues,
+    PkgName,
+    ProjectManifests,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
+    WantedDependency,
+    extract_peer_version,
+    get_peer_version_range,
+    resolve_from_catalog,
+    satisfies,
 };
 use packages::linked_manifest;
 use std::sync::OnceLock;

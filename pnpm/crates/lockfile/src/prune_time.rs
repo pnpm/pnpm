@@ -1,6 +1,9 @@
 //! The `time:` normalization pnpm applies on its way to disk.
 
-use crate::{ImporterDepVersion, PkgName};
+use crate::{
+    ImporterDepVersion,
+    PkgName,
+};
 use serde_json::Value;
 use std::collections::HashSet;
 

@@ -8,7 +8,13 @@
 //! a stand-in for the shell that leads its session, and Windows runs it on a
 //! private console.
 
-use super::{Leftover, launcher_args, launcher_directly, surviving, write_fixture};
+use super::{
+    Leftover,
+    launcher_args,
+    launcher_directly,
+    surviving,
+    write_fixture,
+};
 #[cfg(windows)]
 use crate::_utils::console::PrivateConsole;
 #[cfg(unix)]
@@ -16,12 +22,21 @@ use crate::_utils::terminal::Terminal;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 #[cfg(windows)]
-use std::process::{ExitStatus, Stdio};
+use std::process::{
+    ExitStatus,
+    Stdio,
+};
 use std::{
     path::Path,
-    process::{Child, Command},
+    process::{
+        Child,
+        Command,
+    },
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 const LEFTOVERS: [Leftover; 2] = [Leftover::Detached, Leftover::Attached];

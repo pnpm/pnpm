@@ -3,18 +3,29 @@
 //! order, and the workspace dependencies a selection reaches.
 
 use super::{
-    RecursiveSelection, filter_graphs, filter_graphs::selector_filter_options,
+    RecursiveSelection,
+    filter_graphs,
+    filter_graphs::selector_filter_options,
     linked_dependencies::LinkedEdgesConfig,
 };
 use crate::cli_args::verify_deps::with_dependencies;
 use indexmap::IndexMap;
 use pnpm_config::Config;
-use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
+use pnpm_package_manager::{
+    GraphSequencerResult,
+    graph_sequencer,
+};
 use pnpm_workspace_projects_graph::ProjectGraph;
 use rayon::prelude::*;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The dependency edges among the `--filter`-selected projects, resolved

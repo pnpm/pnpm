@@ -7,7 +7,10 @@
 use std::{
     env::consts::EXE_SUFFIX,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

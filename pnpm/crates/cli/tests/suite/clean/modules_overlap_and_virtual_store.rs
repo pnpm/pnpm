@@ -1,8 +1,14 @@
-use super::{CommandTempCwd, seed_package};
+use super::{
+    CommandTempCwd,
+    seed_package,
+};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn clean_rootless_wildcard_prefix_preserves_members_under_overlapping_modules_dir() {

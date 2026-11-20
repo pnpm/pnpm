@@ -9,11 +9,18 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     diagnostics::assert_diagnostic_contains,
 };
 use serde_json::json;
-use std::{fmt::Write, fs, path::Path};
+use std::{
+    fmt::Write,
+    fs,
+    path::Path,
+};
 
 mod output;
 mod publish_directory;

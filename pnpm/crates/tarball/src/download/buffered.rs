@@ -1,16 +1,37 @@
 use super::{
-    Algorithm, Arc, ContentCoding, ExtractedResource, IgnoreEntryFilter, Integrity, IntegrityOpts,
-    MAX_UNTRUSTED_PREALLOC_BYTES, PackageFilesIndex, SemaphorePermit, StoreDir, StreamedResource,
-    TarLimits, TarballError, extract_archive_bytes, extract_resource_stream,
-    post_download_semaphore, spawn_extraction, verify_tarball_integrity,
+    Algorithm,
+    Arc,
+    ContentCoding,
+    ExtractedResource,
+    IgnoreEntryFilter,
+    Integrity,
+    IntegrityOpts,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    PackageFilesIndex,
+    SemaphorePermit,
+    StoreDir,
+    StreamedResource,
+    TarLimits,
+    TarballError,
+    extract_archive_bytes,
+    extract_resource_stream,
+    post_download_semaphore,
+    spawn_extraction,
+    verify_tarball_integrity,
 };
 use crate::{
     ArchiveIntegrity,
     archive_integrity::ArchiveVerification,
-    extract::{ExtractedArchiveBytes, GZIP_MAGIC},
+    extract::{
+        ExtractedArchiveBytes,
+        GZIP_MAGIC,
+    },
 };
 use pnpm_package_manifest::PackageBin;
-use std::{collections::BTreeMap, io::Read};
+use std::{
+    collections::BTreeMap,
+    io::Read,
+};
 
 /// A whole archive response held in memory, as it arrived.
 pub(crate) struct BufferedArchive {

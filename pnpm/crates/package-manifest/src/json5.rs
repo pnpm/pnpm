@@ -2,10 +2,20 @@ pub(super) use comments::restore_comments;
 pub(super) use stringify::stringify;
 
 use serde::{
-    Deserialize, Deserializer,
-    de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor},
+    Deserialize,
+    Deserializer,
+    de::{
+        self,
+        DeserializeSeed,
+        MapAccess,
+        SeqAccess,
+        Visitor,
+    },
 };
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::fmt;
 
 mod comments;

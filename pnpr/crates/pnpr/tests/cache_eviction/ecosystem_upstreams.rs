@@ -2,23 +2,40 @@
 //! Cargo, Python, and OCI upstream caches.
 
 use super::create_file_with_age;
-use crate::ecosystem::{body_bytes, sha256_hex};
+use crate::ecosystem::{
+    body_bytes,
+    sha256_hex,
+};
 use axum::{
     Router,
     body::Body,
-    http::{Request, StatusCode},
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use pnpr::{
-    AuthState, Command, Config,
+    AuthState,
+    Command,
+    Config,
     cache_maintenance::{
-        CacheGcEffect, CacheGcOptions, CacheGcScope, active_cache_namespaces, collect_cache,
+        CacheGcEffect,
+        CacheGcOptions,
+        CacheGcScope,
+        active_cache_namespaces,
+        collect_cache,
         prune_orphaned_namespaces_startup,
     },
-    router_with_auth, run_command,
+    router_with_auth,
+    run_command,
 };
 use serde_json::json;
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
     time::Duration,
 };

@@ -1,7 +1,13 @@
-pub(super) use validation::{extra_set, requirement_set};
+pub(super) use validation::{
+    extra_set,
+    requirement_set,
+};
 
 pub(super) use approvals::unapproved;
-pub(super) use metadata::{FallbackWheel, MetadataScope};
+pub(super) use metadata::{
+    FallbackWheel,
+    MetadataScope,
+};
 
 mod approvals;
 mod metadata;
@@ -10,15 +16,30 @@ use validation::identify;
 
 use super::{
     environment::PythonPrepare,
-    host::{self, Wheel},
+    host::{
+        self,
+        Wheel,
+    },
     manifest::Manifest,
     resolver,
     workspace::LocalProject,
 };
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep508_rs::PackageName;
-use pnpm_python_resolver::{parse_requirement, wheel_identity};
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use pnpm_python_resolver::{
+    parse_requirement,
+    wheel_identity,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// What PEP 517 says a project means when it declares no build system.
 const DEFAULT_BACKEND: &str = "setuptools.build_meta:__legacy__";

@@ -1,5 +1,12 @@
-use crate::{FsCopyContents, Host};
-use std::{fs, io, path::Path};
+use crate::{
+    FsCopyContents,
+    Host,
+};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// The permission state a copy carries from one file to another.
 ///

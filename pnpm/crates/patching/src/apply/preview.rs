@@ -1,10 +1,23 @@
-use super::{PatchApplyError, package_relative_operation, read_patch_text, tolerant};
+use super::{
+    PatchApplyError,
+    package_relative_operation,
+    read_patch_text,
+    tolerant,
+};
 
-use diffy::patch_set::{FileOperation, FilePatch, ParseOptions, PatchSet};
+use diffy::patch_set::{
+    FileOperation,
+    FilePatch,
+    ParseOptions,
+    PatchSet,
+};
 use indexmap::IndexSet;
 use std::{
     fs,
-    path::{Component, Path},
+    path::{
+        Component,
+        Path,
+    },
 };
 
 /// How a package's manifest is spelled in [`PatchPreview::written_paths`] and

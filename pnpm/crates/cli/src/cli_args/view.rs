@@ -8,27 +8,55 @@
 
 use crate::cli_args::{
     registry_client::{
-        build_registry_client, package_endpoint_url, resolve_registries_with_override,
+        build_registry_client,
+        package_endpoint_url,
+        resolve_registries_with_override,
         resolve_target_registry_for_package,
     },
-    release_notes::{NotesReader, render_upgrade_notes, stores_notes, upgrade_notes_json},
+    release_notes::{
+        NotesReader,
+        render_upgrade_notes,
+        stores_notes,
+        upgrade_notes_json,
+    },
 };
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use jiff::Timestamp;
 use miette::Diagnostic;
-use owo_colors::{OwoColorize, Stream, Style};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+    Style,
+};
 use pnpm_config::Config;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_resolving_npm_resolver::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, PickPackageFromMetaOptions,
-    fetch_full_metadata, parse_bare_specifier, pick_package_from_meta,
+    FetchFullMetadataOptions,
+    FetchFullMetadataOutcome,
+    PickPackageFromMetaOptions,
+    fetch_full_metadata,
+    parse_bare_specifier,
+    pick_package_from_meta,
     pick_version_by_version_range,
 };
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use render::{render_fields, render_summary, to_pretty};
-use serde_json::{Map, Value};
-use std::{path::Path, sync::Arc};
+use render::{
+    render_fields,
+    render_summary,
+    to_pretty,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 /// Errors from `pacquet view`. The codes are the `ERR_PNPM_*` codes pnpm
 /// defines for these failures.

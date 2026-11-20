@@ -1,7 +1,10 @@
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 /// The stored document's content identity, before response projections and overlays.
 pub(in super::super) fn revision(document: &Value) -> String {

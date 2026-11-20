@@ -1,9 +1,26 @@
 use super::{
-    Duration, HashMap, Identity, Mutex, ResolveRequest, RouteContext, StatusCode,
-    cached_resolution, config_for_registry, lockfile, lockfile_tarball_url, package_lockfile,
-    private_alias_footprint, private_hosted_footprint, registry_config, reject_inline_url_auth,
-    set_local_hosted_rules, store_resolution, tarball_router, upstream_with_access,
-    upstream_with_token, user,
+    Duration,
+    HashMap,
+    Identity,
+    Mutex,
+    ResolveRequest,
+    RouteContext,
+    StatusCode,
+    cached_resolution,
+    config_for_registry,
+    lockfile,
+    lockfile_tarball_url,
+    package_lockfile,
+    private_alias_footprint,
+    private_hosted_footprint,
+    registry_config,
+    reject_inline_url_auth,
+    set_local_hosted_rules,
+    store_resolution,
+    tarball_router,
+    upstream_with_access,
+    upstream_with_token,
+    user,
 };
 
 #[test]
@@ -228,15 +245,28 @@ async fn warm_resolve_retains_private_footprint_from_verdict_cache_hit() {
     use crate::resolver::{
         Resolver,
         dispatch::handle_resolve,
-        request_tarball_router, resolution_cache_key,
-        verdict_cache::{VerdictLookup, VerdictRecord},
+        request_tarball_router,
+        resolution_cache_key,
+        verdict_cache::{
+            VerdictLookup,
+            VerdictRecord,
+        },
         verify_lockfile::handle_verify_lockfile,
     };
-    use axum::body::{Bytes, to_bytes};
-    use pnpr_config::{IpNetwork, PublicRoute};
+    use axum::body::{
+        Bytes,
+        to_bytes,
+    };
+    use pnpr_config::{
+        IpNetwork,
+        PublicRoute,
+    };
     use serde_json::json;
     use tokio::{
-        io::{AsyncReadExt as _, AsyncWriteExt as _},
+        io::{
+            AsyncReadExt as _,
+            AsyncWriteExt as _,
+        },
         net::TcpListener,
     };
 

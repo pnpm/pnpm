@@ -1,13 +1,31 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::HashMap,
+    str::FromStr,
+};
 
 use pnpm_lockfile::{
-    ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PackageKey, PkgName, PkgVerPeer,
-    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ComVer,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileVersion,
+    PackageKey,
+    PkgName,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 
 use super::{
-    ImporterDiffKey, LockfileDiff, SnapshotDiff, diff_importer, diff_lockfiles,
-    diff_snapshot_entry, render_dry_run_report,
+    ImporterDiffKey,
+    LockfileDiff,
+    SnapshotDiff,
+    diff_importer,
+    diff_lockfiles,
+    diff_snapshot_entry,
+    render_dry_run_report,
 };
 
 fn pkg(name: &str) -> PkgName {

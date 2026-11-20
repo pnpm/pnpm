@@ -1,9 +1,15 @@
 mod purl;
 
-use crate::{cli_args::add::AddRequest, engine_pm::selector::rust_toolchain_request};
+use crate::{
+    cli_args::add::AddRequest,
+    engine_pm::selector::rust_toolchain_request,
+};
 use miette::Result;
 use percent_encoding::percent_decode_str;
-use purl::{Purl, PurlType};
+use purl::{
+    Purl,
+    PurlType,
+};
 
 const CARGO_PROTOCOL: &str = "crate:";
 const PYTHON_PROTOCOL: &str = "pypi:";

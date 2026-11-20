@@ -1,9 +1,20 @@
 use super::{
-    MAX_INTERPRETER_SIZE, MAX_PROGRAM_HEADERS_SIZE, classify_interpreter, decode_interpreter,
-    elf_layout, interpreter_location, read_elf_interpreter,
+    MAX_INTERPRETER_SIZE,
+    MAX_PROGRAM_HEADERS_SIZE,
+    classify_interpreter,
+    decode_interpreter,
+    elf_layout,
+    interpreter_location,
+    read_elf_interpreter,
 };
 use crate::Implementation;
-use std::io::{self, Cursor, Read, Seek, SeekFrom};
+use std::io::{
+    self,
+    Cursor,
+    Read,
+    Seek,
+    SeekFrom,
+};
 
 struct CountingReader {
     inner: Cursor<Vec<u8>>,

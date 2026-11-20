@@ -6,15 +6,31 @@
 
 pub use inode_map::extend_files_map;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use inode_map::load_inode_map;
 use miette::Diagnostic;
-use pnpm_directory_fetcher::{CopyFiles, DirectoryFetcherError};
-use pnpm_fs::{FsHardLink, Host, LinkFailure, LinkFallback, LinkFallbackPolicy};
+use pnpm_directory_fetcher::{
+    CopyFiles,
+    DirectoryFetcherError,
+};
+use pnpm_fs::{
+    FsHardLink,
+    Host,
+    LinkFailure,
+    LinkFallback,
+    LinkFallbackPolicy,
+};
 use std::{
     collections::BTreeMap,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     time::SystemTime,
 };
 

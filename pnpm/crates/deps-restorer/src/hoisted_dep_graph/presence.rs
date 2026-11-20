@@ -1,10 +1,24 @@
-use super::{DependenciesGraph, HoistedDepGraphError, walk::WalkState};
-use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
+use super::{
+    DependenciesGraph,
+    HoistedDepGraphError,
+    walk::WalkState,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+};
 use pnpm_package_is_installable::{
-    InstallabilityOptions, InstallabilityVerdict, PackageInstallabilityManifest, WantedEngine,
+    InstallabilityOptions,
+    InstallabilityVerdict,
+    PackageInstallabilityManifest,
+    WantedEngine,
     package_is_installable,
 };
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Whether a previous install left this package at `dir`, reached from
 /// `modules` without traversing a link: a real directory holding a

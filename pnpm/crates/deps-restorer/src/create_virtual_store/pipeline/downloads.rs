@@ -2,22 +2,37 @@
 //! lacks, with the remote side-effects resolution alongside.
 
 use super::{
-    CasIndexes, ColdInputs, ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreError,
-    partition, run_checked,
+    CasIndexes,
+    ColdInputs,
+    ConcurrentCheck,
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    partition,
+    run_checked,
 };
 use crate::{
     InstallPackageBySnapshot,
     create_virtual_store::{
         RemoteSideEffectsQuarantineBySnapshot,
-        cold::{ColdBatch, ColdBatchState, run_cold_batch, unlink_fetch_failed_children},
+        cold::{
+            ColdBatch,
+            ColdBatchState,
+            run_cold_batch,
+            unlink_fetch_failed_children,
+        },
     },
     install_package_by_snapshot::runtime_platform_selector,
     shared_side_effects::{
-        PreparedSharedSideEffects, ResolvedSharedSideEffects, resolve_prepared_side_effects,
+        PreparedSharedSideEffects,
+        ResolvedSharedSideEffects,
+        resolve_prepared_side_effects,
     },
 };
 use futures_util::FutureExt;
-use pnpm_lockfile::{PackageKey, PlatformSelector};
+use pnpm_lockfile::{
+    PackageKey,
+    PlatformSelector,
+};
 use pnpm_reporter::Reporter;
 use std::collections::HashSet;
 

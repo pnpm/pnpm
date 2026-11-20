@@ -2,19 +2,39 @@
 //! root manifest's include index declares.
 
 use super::{
-    Manifest, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
-    WORKSPACE_MANIFEST_FILENAME, edit_manifest_file, read_if_present, read_manifest_at,
-    write_atomic, write_or_remove_manifest,
+    Manifest,
+    UpdateWorkspaceManifestError,
+    UpdateWorkspaceManifestOptions,
+    WORKSPACE_MANIFEST_FILENAME,
+    edit_manifest_file,
+    read_if_present,
+    read_manifest_at,
+    write_atomic,
+    write_or_remove_manifest,
 };
-use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
+use pnpm_catalogs_types::{
+    Catalogs,
+    DEFAULT_CATALOG_NAME,
+};
 use pnpm_workspace::{
-    INCLUDE_KEY, IncludeError, IncludeSource, SettingOwner, SettingSlot, WorkspaceIncludes,
-    canonical_setting_name, rebase_path, rebase_setting, rebase_specifier,
+    INCLUDE_KEY,
+    IncludeError,
+    IncludeSource,
+    SettingOwner,
+    SettingSlot,
+    WorkspaceIncludes,
+    canonical_setting_name,
+    rebase_path,
+    rebase_setting,
+    rebase_specifier,
 };
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A file a workspace setting can be written to.

@@ -2,9 +2,22 @@
 //! forgets grants with the registries it adds and removes, and a grant names
 //! only registries the stored graph has.
 
-use super::{GrantContent, StoredGrant, advance_directory, delete_grant, insert_grant, name_owner};
-use crate::database::sql::{adapter::Connection, registry_graph};
-use pnpr_error::{RegistryError, Result};
+use super::{
+    GrantContent,
+    StoredGrant,
+    advance_directory,
+    delete_grant,
+    insert_grant,
+    name_owner,
+};
+use crate::database::sql::{
+    adapter::Connection,
+    registry_graph,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 
 /// What a graph write changes in the grants: the registries it removes leave
 /// every grant, and the registries it adds get their default grants.

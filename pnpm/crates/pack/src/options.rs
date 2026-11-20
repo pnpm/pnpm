@@ -1,6 +1,14 @@
 use super::{
-    Arc, Catalogs, HashMap, HashSet, NodeLinker, Path, PathBuf, PnpmfileHooks,
-    WorkspacePackageManifest, canonicalize_output_key,
+    Arc,
+    Catalogs,
+    HashMap,
+    HashSet,
+    NodeLinker,
+    Path,
+    PathBuf,
+    PnpmfileHooks,
+    WorkspacePackageManifest,
+    canonicalize_output_key,
 };
 
 /// Inputs for [`crate::api`]. The CLI maps the resolved [`pnpm_config::Config`]

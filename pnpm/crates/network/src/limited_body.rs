@@ -2,7 +2,11 @@ use crate::error_chain::is_unclean_tls_close;
 use bytes::Bytes;
 use reqwest::{
     Response,
-    header::{CONTENT_LENGTH, HeaderMap, TRANSFER_ENCODING},
+    header::{
+        CONTENT_LENGTH,
+        HeaderMap,
+        TRANSFER_ENCODING,
+    },
 };
 
 /// A response body read through [`read_limited_body`]: at most the requested

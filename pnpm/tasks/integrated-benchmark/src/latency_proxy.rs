@@ -24,15 +24,33 @@
 //! runtime into the benchmark path.
 
 use std::{
-    io::{Read as _, Write as _},
-    net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream},
+    io::{
+        Read as _,
+        Write as _,
+    },
+    net::{
+        Ipv4Addr,
+        Shutdown,
+        SocketAddr,
+        TcpListener,
+        TcpStream,
+    },
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
         mpsc,
     },
-    thread::{self, JoinHandle},
-    time::{Duration, Instant},
+    thread::{
+        self,
+        JoinHandle,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The emulated link applied to each direction of a proxied connection.

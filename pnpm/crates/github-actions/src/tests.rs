@@ -1,16 +1,46 @@
 use super::{
-    ActionReference, RepoVersion, find_outdated_with_runner, is_selector, normalize_selector,
-    selector_matcher, update_with_runner,
+    ActionReference,
+    RepoVersion,
+    find_outdated_with_runner,
+    is_selector,
+    normalize_selector,
+    selector_matcher,
+    update_with_runner,
 };
 use crate::{
-    edits::{render_target_ref, render_target_value},
-    versions::{find_current, repo_versions as versions_from_refs},
-    workflow::{action_reference, uses_values},
+    edits::{
+        render_target_ref,
+        render_target_value,
+    },
+    versions::{
+        find_current,
+        repo_versions as versions_from_refs,
+    },
+    workflow::{
+        action_reference,
+        uses_values,
+    },
 };
 use node_semver::Version;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
-use pnpm_resolving_git_resolver::{GitCommandRunner, GitRunError};
-use std::{collections::HashMap, fs, future::Future, path::Path, pin::Pin, sync::Mutex};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
+use pnpm_resolving_git_resolver::{
+    GitCommandRunner,
+    GitRunError,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    future::Future,
+    path::Path,
+    pin::Pin,
+    sync::Mutex,
+};
 
 const SHA_V4_1_0: &str = "1111111111111111111111111111111111111111";
 const SHA_V4_2_0: &str = "2222222222222222222222222222222222222222";

@@ -1,6 +1,13 @@
 use super::TEST_CA_PEM;
 #[cfg(all(unix, not(target_vendor = "apple"), not(target_os = "android")))]
-use super::{EnvGuard, NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
+use super::{
+    EnvGuard,
+    NetworkSettings,
+    PerRegistryTls,
+    ProxyConfig,
+    ThrottledClient,
+    TlsConfig,
+};
 
 // `SSL_CERT_FILE` alone switches `rustls-native-certs` to env-only
 // loading, so pointing it at an empty file is a portable stand-in for a
@@ -62,9 +69,16 @@ fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
 #[cfg(all(unix, not(target_vendor = "apple"), not(target_os = "android")))]
 #[test]
 fn node_extra_ca_certs_do_not_hide_an_empty_system_trust_store() {
-    use super::{Arc, NoProxyMatcher};
+    use super::{
+        Arc,
+        NoProxyMatcher,
+    };
     use crate::{
-        client_builder::{ClientBuildInputs, ClientVariant, build_platform_client},
+        client_builder::{
+            ClientBuildInputs,
+            ClientVariant,
+            build_platform_client,
+        },
         native_dns_resolver,
     };
 
@@ -108,7 +122,13 @@ fn a_corrupt_block_does_not_discard_the_rest_of_a_ca_bundle() {
 #[cfg(target_vendor = "apple")]
 #[test]
 fn platform_verifier_detects_unreachable_trustd_under_sandbox() {
-    use super::{NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
+    use super::{
+        NetworkSettings,
+        PerRegistryTls,
+        ProxyConfig,
+        ThrottledClient,
+        TlsConfig,
+    };
 
     if std::env::var("PNPM_TEST_DENIED_TRUSTD").is_ok() {
         assert!(!crate::certificates::is_platform_verifier_available());

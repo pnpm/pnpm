@@ -1,15 +1,34 @@
 use super::super::{
-    AppInner, Ecosystem, Upstream, compute_upstream_cache_namespace,
-    ecosystem::{is_fetchable_artifact_url, upstream_fetch_guard},
+    AppInner,
+    Ecosystem,
+    Upstream,
+    compute_upstream_cache_namespace,
+    ecosystem::{
+        is_fetchable_artifact_url,
+        upstream_fetch_guard,
+    },
 };
 use indexmap::IndexMap;
-use pnpm_network::{AddressGuard, RedirectGuard};
-use pnpr_config::{Config, RoutingConfig, UpstreamConfig};
+use pnpm_network::{
+    AddressGuard,
+    RedirectGuard,
+};
+use pnpr_config::{
+    Config,
+    RoutingConfig,
+    UpstreamConfig,
+};
 use pnpr_route::RouteContext;
 use reqwest::header::HeaderMap;
 use std::{
     ops::Deref,
-    sync::{Arc, OnceLock, PoisonError, RwLock, atomic::Ordering},
+    sync::{
+        Arc,
+        OnceLock,
+        PoisonError,
+        RwLock,
+        atomic::Ordering,
+    },
     time::Duration,
 };
 

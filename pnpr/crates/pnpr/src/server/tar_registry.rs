@@ -8,12 +8,27 @@
 
 pub(super) use pnpr_route::split_package_identifier;
 
-use super::{AppState, CanonicalPackageName, RegistryError, RegistrySource, Value};
-use pnpm_package_manifest::{MAX_PRECALCULATED_BINS_BYTES, serialize_precalculated_bins};
+use super::{
+    AppState,
+    CanonicalPackageName,
+    RegistryError,
+    RegistrySource,
+    Value,
+};
+use pnpm_package_manifest::{
+    MAX_PRECALCULATED_BINS_BYTES,
+    serialize_precalculated_bins,
+};
 use pnpr_config::RoutingConfig;
 use pnpr_storage::DerivedTar;
-use ssri::{Algorithm, Integrity};
-use std::{collections::BTreeMap, sync::Arc};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// Maximum cumulative serialized JSON byte size of `dist.pnpr.bins` across
 /// all versions in a single packument response.

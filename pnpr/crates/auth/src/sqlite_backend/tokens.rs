@@ -1,12 +1,29 @@
 use super::SqliteAuth;
 use crate::{
-    NewToken, TokenBackend, TokenKind, TokenRecord,
-    token_store::{mint_token, sha256_hex, unix_millis},
-    validation::{token_timestamp_from_sql, token_timestamp_to_sql},
+    NewToken,
+    TokenBackend,
+    TokenKind,
+    TokenRecord,
+    token_store::{
+        mint_token,
+        sha256_hex,
+        unix_millis,
+    },
+    validation::{
+        token_timestamp_from_sql,
+        token_timestamp_to_sql,
+    },
 };
 use async_trait::async_trait;
-use pnpr_error::{RegistryError, Result};
-use pnpr_sql::adapter::{Connection, Param, Row};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_sql::adapter::{
+    Connection,
+    Param,
+    Row,
+};
 
 /// The `tokens` columns every token read selects, in the order
 /// [`decode_token`] reads them.

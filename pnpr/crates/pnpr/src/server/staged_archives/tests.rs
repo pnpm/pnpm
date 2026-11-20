@@ -1,7 +1,14 @@
-use super::{MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL, StagedReferences, archive_blob_id};
+use super::{
+    MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL,
+    StagedReferences,
+    archive_blob_id,
+};
 use crate::server::KeyedSemaphores;
 use pnpr_config::HostedStoreConfig;
-use pnpr_storage::{StagedArchiveKey, Storage};
+use pnpr_storage::{
+    StagedArchiveKey,
+    Storage,
+};
 use std::time::Duration;
 
 #[test]

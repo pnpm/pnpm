@@ -1,6 +1,16 @@
-use assert_cmd::{assert::Assert, prelude::*};
-use pnpm_testing_utils::{command_env::CommandTestExt, git_repo::GitRepoFixture};
-use std::{fs, path::Path, process::Command};
+use assert_cmd::{
+    assert::Assert,
+    prelude::*,
+};
+use pnpm_testing_utils::{
+    command_env::CommandTestExt,
+    git_repo::GitRepoFixture,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const ROOT_MANIFEST: &str = r#"{"name":"root","version":"1.0.0","scripts":{"build":"echo root"}}"#;
 

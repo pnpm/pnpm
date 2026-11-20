@@ -16,16 +16,40 @@ mod publishing;
 #[path = "cargo_registry/routing.rs"]
 mod routing;
 
-use crate::{ecosystem as common, multi_ecosystem};
+use crate::{
+    ecosystem as common,
+    multi_ecosystem,
+};
 
 use axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use common::{HostedSource, body_bytes, find_file, mixed_router_config, sha256_hex};
-use pnpr::{AuthState, Config, Ecosystem, router_with_auth};
-use serde_json::{Value, json};
-use std::{io::Write as _, path::PathBuf};
+use common::{
+    HostedSource,
+    body_bytes,
+    find_file,
+    mixed_router_config,
+    sha256_hex,
+};
+use pnpr::{
+    AuthState,
+    Config,
+    Ecosystem,
+    router_with_auth,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    io::Write as _,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 

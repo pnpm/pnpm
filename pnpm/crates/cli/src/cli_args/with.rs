@@ -14,18 +14,38 @@
 //! global virtual store, and spawns.
 
 use crate::{
-    cli_args::{dlx::exit_unless_success, package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS},
-    engine_pm::{channel::PackageManager, provision::provision},
-    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    cli_args::{
+        dlx::exit_unless_success,
+        package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
+    },
+    engine_pm::{
+        channel::PackageManager,
+        provision::provision,
+    },
+    path_env::{
+        BadPathDir,
+        prepend_dirs_to_path,
+        set_command_path,
+    },
     process::Command,
 };
 
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Errors specific to `pacquet with`. The codes carry the shared
 /// `ERR_PNPM_` prefix.

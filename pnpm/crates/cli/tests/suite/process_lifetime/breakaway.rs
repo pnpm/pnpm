@@ -3,10 +3,16 @@
 //! subject.
 #![cfg(windows)]
 
-use super::{node_launching_pacquet, wait_for_file};
+use super::{
+    node_launching_pacquet,
+    wait_for_file,
+};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// PowerShell run with a mode argument:
 ///

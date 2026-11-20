@@ -1,15 +1,28 @@
 //! Ports of the TypeScript `bundledDependencies` install suite
 //! (`installing/deps-installer/test/install/bundledDependencies.ts`).
 
-pub use _utils::{append_workspace_yaml_key, assert_bin_linked, pacquet_in};
+pub use _utils::{
+    append_workspace_yaml_key,
+    assert_bin_linked,
+    pacquet_in,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{BundledDependencies, Lockfile, PackageMetadata};
-use pnpm_testing_utils::{
-    bin::CommandTempCwd, fixtures::tarball_entries, fs::is_symlink_or_junction,
+use pnpm_lockfile::{
+    BundledDependencies,
+    Lockfile,
+    PackageMetadata,
 };
-use std::{fs, path::Path};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    fixtures::tarball_entries,
+    fs::is_symlink_or_junction,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 use crate::_utils;
 

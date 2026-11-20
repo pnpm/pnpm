@@ -9,7 +9,10 @@
 use std::path::Path;
 
 use pnpr_storage::layout::write_local_layout_marker;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 
 // Only asserted for pass-through / `sha512-` prefix, never recomputed.

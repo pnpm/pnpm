@@ -3,9 +3,15 @@
 //! The codes are upstream's, which the install reporter classifies by:
 //! see each variant for the stage it stands for.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use std::{string::FromUtf8Error, sync::Arc};
+use std::{
+    string::FromUtf8Error,
+    sync::Arc,
+};
 
 /// Errors raised by [`crate::fetch_shasums_file`] and [`crate::fetch_shasums_file_raw`].
 ///

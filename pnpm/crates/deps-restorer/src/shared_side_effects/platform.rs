@@ -1,10 +1,26 @@
-use crate::{install_frozen_lockfile::find_runtime_node_major, process::Command};
+use crate::{
+    install_frozen_lockfile::find_runtime_node_major,
+    process::Command,
+};
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use pnpm_lockfile::{PackageKey, ProjectSnapshot};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    ProjectSnapshot,
+};
 use pnpm_pnpr_client::{
-    LinuxGlibcPlatform, MacOsPlatform, WindowsPlatform, linux_glibc_supported_tags,
-    linux_glibc_tag, macos_supported_tags, macos_tag, windows_supported_tags, windows_tag,
+    LinuxGlibcPlatform,
+    MacOsPlatform,
+    WindowsPlatform,
+    linux_glibc_supported_tags,
+    linux_glibc_tag,
+    macos_supported_tags,
+    macos_tag,
+    windows_supported_tags,
+    windows_tag,
 };
 use std::collections::HashMap;
 #[cfg(windows)]

@@ -1,17 +1,32 @@
 //! Reporting the warnings of the configuration a command loads.
 
-use super::{emit_config_warning, key_issues_fail_when_strict, report_workspace_key_issues};
+use super::{
+    emit_config_warning,
+    key_issues_fail_when_strict,
+    report_workspace_key_issues,
+};
 use crate::cli_args::{
     cli_command::CliCommand,
     config::ConfigSubcommand,
-    package_manager::{PinRoots, pins_running_pnpm, read_root_manifest, wanted_package_manager},
-    pre_command::{is_global, should_skip_command},
+    package_manager::{
+        PinRoots,
+        pins_running_pnpm,
+        read_root_manifest,
+        wanted_package_manager,
+    },
+    pre_command::{
+        is_global,
+        should_skip_command,
+    },
 };
 use pnpm_config::Config;
 use pnpm_network::redact_and_sanitize;
 use std::{
     path::Path,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 
 /// What to do about the warnings of the configuration a command loads,

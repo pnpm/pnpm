@@ -1,12 +1,20 @@
 use super::{
-    ConfiguredWorkspace, configured_workspace_state, lookup_inherited_workspace_entry,
+    ConfiguredWorkspace,
+    configured_workspace_state,
+    lookup_inherited_workspace_entry,
     resolve_local_path,
 };
 use pnpm_matcher::WildcardMatcher;
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{
+        HashSet,
+        VecDeque,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(crate) fn workspace_includes_member(workspace_dir: &Path, member_dir: &Path) -> bool {

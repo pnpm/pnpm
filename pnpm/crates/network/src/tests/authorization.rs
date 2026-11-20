@@ -1,7 +1,22 @@
 use super::{
-    Arc, AuthHeaders, Duration, EffectiveTrustRoots, EnvGuard, NetworkSettings, PerRegistryTls,
-    ProxyConfig, TEST_CA_PEM, TEST_CLIENT_PKCS1_CERT, TEST_CLIENT_PKCS1_KEY, ThrottledClient,
-    TlsConfig, TrustRoots, Url, apply_tls, nerf_dart, select_trust_roots,
+    Arc,
+    AuthHeaders,
+    Duration,
+    EffectiveTrustRoots,
+    EnvGuard,
+    NetworkSettings,
+    PerRegistryTls,
+    ProxyConfig,
+    TEST_CA_PEM,
+    TEST_CLIENT_PKCS1_CERT,
+    TEST_CLIENT_PKCS1_KEY,
+    ThrottledClient,
+    TlsConfig,
+    TrustRoots,
+    Url,
+    apply_tls,
+    nerf_dart,
+    select_trust_roots,
 };
 
 /// End-to-end check that `for_installs` actually routes HTTP traffic
@@ -375,7 +390,11 @@ fn node_extra_ca_certs_is_loaded_and_failures_are_non_fatal() {
 
 #[tokio::test]
 async fn default_tls_rejects_an_untrusted_certificate_without_panicking() {
-    use rustls::{ServerConfig, ServerConnection, pki_types::pem::PemObject};
+    use rustls::{
+        ServerConfig,
+        ServerConnection,
+        pki_types::pem::PemObject,
+    };
     use std::net::TcpListener;
 
     let env = EnvGuard::snapshot(["NODE_EXTRA_CA_CERTS"]);

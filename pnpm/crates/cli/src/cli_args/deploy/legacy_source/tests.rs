@@ -1,13 +1,23 @@
 use std::fs;
 
-use pnpm_lockfile::{ImporterDepVersion, Lockfile};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::Project;
 use serde_json::json;
 
 use super::{
-    super::{SelectedProject, index_projects},
-    ConvertCtx, HashMap, LegacyDeploySource, create_file_url_key, relative_file_key,
+    super::{
+        SelectedProject,
+        index_projects,
+    },
+    ConvertCtx,
+    HashMap,
+    LegacyDeploySource,
+    create_file_url_key,
+    relative_file_key,
 };
 
 #[test]

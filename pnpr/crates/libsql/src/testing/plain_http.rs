@@ -2,9 +2,20 @@
 //! libsql sends.
 
 use std::{
-    io::{BufRead, BufReader, Read, Write},
-    net::{TcpListener, TcpStream},
-    sync::mpsc::{self, Receiver},
+    io::{
+        BufRead,
+        BufReader,
+        Read,
+        Write,
+    },
+    net::{
+        TcpListener,
+        TcpStream,
+    },
+    sync::mpsc::{
+        self,
+        Receiver,
+    },
 };
 
 /// The Hrana pipeline response to libsql's request for one statement:

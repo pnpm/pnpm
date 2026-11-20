@@ -9,10 +9,17 @@ use super::symlink_dir;
 #[cfg(windows)]
 use super::to_native_separators;
 use super::{
-    ForceSymlinkOutcome, TriedOnce, force_absolute_symlink_dir, force_symlink_dir, read_symlink_dir,
+    ForceSymlinkOutcome,
+    TriedOnce,
+    force_absolute_symlink_dir,
+    force_symlink_dir,
+    read_symlink_dir,
 };
 #[cfg(windows)]
-use super::{is_reparse_point, relative_target_for};
+use super::{
+    is_reparse_point,
+    relative_target_for,
+};
 use std::fs;
 use tempfile::tempdir;
 
@@ -240,7 +247,10 @@ fn remove_occupant_clears_files_directories_and_missing_paths() {
 
 #[test]
 fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinations() {
-    use std::io::{Error, ErrorKind};
+    use std::io::{
+        Error,
+        ErrorKind,
+    };
 
     for kind in
         [ErrorKind::AlreadyExists, ErrorKind::DirectoryNotEmpty, ErrorKind::PermissionDenied]
@@ -934,7 +944,10 @@ fn windows_read_junction_target_reads_only_junctions() {
 #[test]
 #[ignore = "needs a network share named by PNPM_TEST_NETWORK_SHARE_DIR"]
 fn windows_links_on_a_real_share_can_be_opened() {
-    use super::share_links::{ShareLinks, probe};
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
 
     use super::windows::IO_REPARSE_TAG_MOUNT_POINT;
 
@@ -998,7 +1011,10 @@ fn windows_links_on_a_real_share_can_be_opened() {
 #[cfg(windows)]
 #[test]
 fn windows_share_link_probe_finds_a_working_kind_and_cleans_up() {
-    use super::share_links::{ShareLinks, probe};
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
 
     let root = tempdir().expect("create temp dir");
 
@@ -1017,7 +1033,10 @@ fn windows_share_link_probe_finds_a_working_kind_and_cleans_up() {
 #[cfg(windows)]
 #[test]
 fn windows_share_link_probe_links_to_the_target_directory() {
-    use super::share_links::{ShareLinks, probe};
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
 
     let links = tempdir().expect("create temp dir for the links");
     let targets = tempdir().expect("create temp dir for the targets");
@@ -1039,7 +1058,10 @@ fn windows_share_link_probe_links_to_the_target_directory() {
 #[cfg(windows)]
 #[test]
 fn windows_share_link_probe_to_a_missing_target_is_unusable() {
-    use super::share_links::{ShareLinks, probe};
+    use super::share_links::{
+        ShareLinks,
+        probe,
+    };
 
     let links = tempdir().expect("create temp dir for the links");
     let missing = links.path().join("missing");
@@ -1055,7 +1077,10 @@ fn windows_share_link_probe_to_a_missing_target_is_unusable() {
 #[cfg(windows)]
 #[test]
 fn windows_share_link_attempt_replaces_what_a_locked_attempt_left() {
-    use std::{cell::Cell, io};
+    use std::{
+        cell::Cell,
+        io,
+    };
 
     const ERROR_SHARING_VIOLATION: i32 = 32;
     let root = tempdir().expect("create temp dir");
@@ -1139,7 +1164,10 @@ fn windows_junction_target_resolves_a_relative_path() {
 #[cfg(windows)]
 #[test]
 fn windows_links_on_a_share_are_recognized() {
-    use crate::mapped_drive_path::{NetworkShare, network_share_cached};
+    use crate::mapped_drive_path::{
+        NetworkShare,
+        network_share_cached,
+    };
     use std::path::Path;
 
     let share = Some(NetworkShare::Unc(r"server\share".into()));

@@ -1,7 +1,21 @@
-pub use pnpm_resolving_resolver_base::{PackageExtension, PeerDependencyMeta};
-pub use remote::{RemoteCacheSettings, RemoteSideEffectsCacheSettings};
+pub use pnpm_resolving_resolver_base::{
+    PackageExtension,
+    PeerDependencyMeta,
+};
+pub use remote::{
+    RemoteCacheSettings,
+    RemoteSideEffectsCacheSettings,
+};
 
-use super::{AuditLevel, BTreeMap, Deserialize, Deserializer, HashMap, IndexMap, overlay_some};
+use super::{
+    AuditLevel,
+    BTreeMap,
+    Deserialize,
+    Deserializer,
+    HashMap,
+    IndexMap,
+    overlay_some,
+};
 
 mod remote;
 

@@ -3,12 +3,22 @@
 
 use crate::{
     ResolutionCancel,
-    resolve_dependency_tree::{ResolveDependencyTreeError, WorkspaceTreeCtx},
-    resolve_importer::{ImporterHoistState, OptionalPeerCandidates, ResolveImporterError},
+    resolve_dependency_tree::{
+        ResolveDependencyTreeError,
+        WorkspaceTreeCtx,
+    },
+    resolve_importer::{
+        ImporterHoistState,
+        OptionalPeerCandidates,
+        ResolveImporterError,
+    },
     resolve_peers::PeerHoistDiscovery,
 };
 use pnpm_resolving_resolver_base::Resolver;
-use std::{sync::Arc, task::Poll};
+use std::{
+    sync::Arc,
+    task::Poll,
+};
 
 async fn yield_once() {
     let mut yielded = false;

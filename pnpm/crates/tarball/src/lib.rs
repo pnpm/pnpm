@@ -1,7 +1,10 @@
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
-pub use archive_integrity::{ArchiveIntegrity, IntegrityKind};
+pub use archive_integrity::{
+    ArchiveIntegrity,
+    IntegrityKind,
+};
 pub use archive_options::*;
 pub use archive_request::CacheHeaders;
 pub(crate) use body_hasher::BodyHasher;
@@ -9,27 +12,57 @@ pub use bounded_reader::BoundedReader;
 pub use download::*;
 pub use error::*;
 pub use extract::{
-    ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, MAX_PUBLICATION_ARCHIVE_ENTRIES,
-    MAX_PUBLICATION_MANIFEST_BYTES, MAX_PUBLICATION_PATH_BYTES, PublicationArchive,
-    PublicationArchiveError, TarInspection, TarLimits, inspect_tar, read_buffered_tar_entry,
-    read_publication_archive, tar_requires_build,
+    ArchiveLimit,
+    DEFAULT_MAX_TARBALL_UNPACKED_SIZE,
+    MAX_PUBLICATION_ARCHIVE_ENTRIES,
+    MAX_PUBLICATION_MANIFEST_BYTES,
+    MAX_PUBLICATION_PATH_BYTES,
+    PublicationArchive,
+    PublicationArchiveError,
+    TarInspection,
+    TarLimits,
+    inspect_tar,
+    read_buffered_tar_entry,
+    read_publication_archive,
+    tar_requires_build,
 };
 pub(crate) use extract::{
-    STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
-    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
-    apply_placeholder_manifest, body_chunk_channel, checked_now, clean_archive_entry_path,
-    decompress_gzip, extract_archive_bytes, extract_resource_stream,
-    is_eager_decode_limit_exceeded, oversized_manifest_error, tar_entry_payload,
+    STREAM_ENTRY_BUFFER_MAX,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    allocate_tarball_buffer,
+    apply_append_manifest,
+    apply_placeholder_manifest,
+    body_chunk_channel,
+    checked_now,
+    clean_archive_entry_path,
+    decompress_gzip,
+    extract_archive_bytes,
+    extract_resource_stream,
+    is_eager_decode_limit_exceeded,
+    oversized_manifest_error,
+    tar_entry_payload,
 };
 pub use fetch_for_resolution::{
-    FetchTarballForResolution, NotModifiedResponse, ResolutionStore, ResolvedTarball,
+    FetchTarballForResolution,
+    NotModifiedResponse,
+    ResolutionStore,
+    ResolvedTarball,
     TarballResolutionFetch,
 };
 pub use local_tarball::*;
 pub(crate) use mem_cache::{
-    CacheClaimGuard, CacheSlotClaim, claim_cache_entry, wait_for_cached_tarball,
+    CacheClaimGuard,
+    CacheSlotClaim,
+    claim_cache_entry,
+    wait_for_cached_tarball,
 };
-pub use mem_cache::{CacheValue, CachedTarball, MemCache, alias_available_cache_entry};
+pub use mem_cache::{
+    CacheValue,
+    CachedTarball,
+    MemCache,
+    alias_available_cache_entry,
+};
 pub use pnpm_network::RetryOpts;
 pub use prefetch::*;
 pub use zip_archive::*;
@@ -54,11 +87,29 @@ mod zip_archive;
 
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    io::{self, Cursor, Read},
-    path::{Component, Path, PathBuf},
-    sync::{Arc, LazyLock},
-    time::{Duration, Instant, UNIX_EPOCH},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    io::{
+        self,
+        Cursor,
+        Read,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        LazyLock,
+    },
+    time::{
+        Duration,
+        Instant,
+        UNIX_EPOCH,
+    },
 };
 
 use dashmap::DashSet;
@@ -67,7 +118,10 @@ use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use ssri::Integrity;
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::{
+    RwLock,
+    Semaphore,
+};
 
 /// Ceiling on a single eager buffer reservation sized from untrusted
 /// archive metadata — `dist.unpackedSize` in registry metadata and an

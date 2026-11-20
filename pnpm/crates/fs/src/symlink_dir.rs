@@ -3,12 +3,19 @@ pub use absolute::force_absolute_symlink_dir;
 use std::{
     borrow::Cow,
     error::Error,
-    fmt, fs, io,
-    path::{Path, PathBuf},
+    fmt,
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use crate::retry::{
-    is_transient_file_lock_error, remove_dir_all_with_retry, rename_with_retry,
+    is_transient_file_lock_error,
+    remove_dir_all_with_retry,
+    rename_with_retry,
     retry_transient_file_locks,
 };
 
@@ -338,5 +345,11 @@ mod tests;
 mod absolute;
 mod replace;
 mod reuse;
-use replace::{TriedOnce, replace_unreadable_occupant};
-use reuse::{existing_link_reusable, force_symlink};
+use replace::{
+    TriedOnce,
+    replace_unreadable_occupant,
+};
+use reuse::{
+    existing_link_reusable,
+    force_symlink,
+};

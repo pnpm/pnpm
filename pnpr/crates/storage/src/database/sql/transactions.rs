@@ -4,14 +4,24 @@
 
 use super::{
     SqlDatabase,
-    adapter::{Connection, ReadSource, Snapshot},
+    adapter::{
+        Connection,
+        ReadSource,
+        Snapshot,
+    },
     cache::RenderCache,
     namespace_generation,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     sync::Arc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// How long after its first run a write that keeps meeting conflicts still

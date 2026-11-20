@@ -4,39 +4,78 @@ mod update;
 use super::{
     EcosystemUpdateStepOptions,
     cargo_manifest_ops::{
-        DeclaredCargoDep, apply_manifest_edits, declared_cargo_deps, find_cargo_workspace_root,
-        format_cargo_saved_spec, read_locked_cargo_versions, same_declared_dep,
-        select_locked_version, without_build_metadata,
+        DeclaredCargoDep,
+        apply_manifest_edits,
+        declared_cargo_deps,
+        find_cargo_workspace_root,
+        format_cargo_saved_spec,
+        read_locked_cargo_versions,
+        same_declared_dep,
+        select_locked_version,
+        without_build_metadata,
     },
     cargo_selection::{
-        SelectedCargoDep, SelectedCargoTarget, admits_enabled_features, is_held_as_downgrade,
-        is_held_by_patch, select_cargo_deps_to_update, target_requirement,
+        SelectedCargoDep,
+        SelectedCargoTarget,
+        admits_enabled_features,
+        is_held_as_downgrade,
+        is_held_by_patch,
+        select_cargo_deps_to_update,
+        target_requirement,
     },
-    cargo_workspace_scope::{CargoWorkspaceScope, resolve_cargo_workspace_scope},
+    cargo_workspace_scope::{
+        CargoWorkspaceScope,
+        resolve_cargo_workspace_scope,
+    },
     selectors::CargoUpdateSelector,
 };
 use crate::{
     cargo_deps::{
-        self, CargoLockfilePolicy, cargo_auth_headers, checkout, fetch_crate_index_file,
-        metadata_paths, provision_toolchain, resolve_target_version,
+        self,
+        CargoLockfilePolicy,
+        cargo_auth_headers,
+        checkout,
+        fetch_crate_index_file,
+        metadata_paths,
+        provision_toolchain,
+        resolve_target_version,
     },
     cli_args::outdated::{
-        OutdatedPackage, OutdatedQuery, TargetVersion,
-        query::{OutdatedDisplayVersions, OutdatedMetadata},
+        OutdatedPackage,
+        OutdatedQuery,
+        TargetVersion,
+        query::{
+            OutdatedDisplayVersions,
+            OutdatedMetadata,
+        },
     },
     ecosystem_install::InstallContext,
 };
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pnpm_config::Config;
-use pnpm_install_coordinator::{InstallPlan, InstallTask};
+use pnpm_install_coordinator::{
+    InstallPlan,
+    InstallTask,
+};
 use pnpm_matcher::Matcher;
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::Reporter;
 use semver::Version;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(crate) struct CargoUpdateOptions<'a> {

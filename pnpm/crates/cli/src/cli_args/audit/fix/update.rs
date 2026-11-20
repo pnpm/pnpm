@@ -1,11 +1,37 @@
 use super::{
-    Arc, AuditAdvisory, AuditError, BTreeMap, DependencyGroup, HashMap, HashSet, Lockfile,
-    PackageVersionGuard, PublishInfoLookup, Range, RangeSpecStyle, Reporter, ResolutionObserver,
-    State, Update, Version, blue, color_severity, green, package_semver, red,
-    resolve_minimum_release_age_excludes, satisfies_including_prerelease, severity_name,
-    severity_number, write_age_excludes,
+    Arc,
+    AuditAdvisory,
+    AuditError,
+    BTreeMap,
+    DependencyGroup,
+    HashMap,
+    HashSet,
+    Lockfile,
+    PackageVersionGuard,
+    PublishInfoLookup,
+    Range,
+    RangeSpecStyle,
+    Reporter,
+    ResolutionObserver,
+    State,
+    Update,
+    Version,
+    blue,
+    color_severity,
+    green,
+    package_semver,
+    red,
+    resolve_minimum_release_age_excludes,
+    satisfies_including_prerelease,
+    severity_name,
+    severity_number,
+    write_age_excludes,
 };
-use crate::cli_args::audit::{ReleaseAgeExclusions, patched_range_for_style, report::AdvisoryId};
+use crate::cli_args::audit::{
+    ReleaseAgeExclusions,
+    patched_range_for_style,
+    report::AdvisoryId,
+};
 use pnpm_resolving_deps_resolver::UpdateTargets;
 
 /// The advisories of a `--fix update` run, partitioned by how the update can

@@ -1,12 +1,34 @@
-pub(super) use store::{EnvironmentLink, EnvironmentStore, Generation, publish_link};
+pub(super) use store::{
+    EnvironmentLink,
+    EnvironmentStore,
+    Generation,
+    publish_link,
+};
 
 use super::{
-    Arc, Environments, Index, Inputs, InstallOptions, Interpreter, IntoDiagnostic, Lockfile,
-    PYPI_ECOSYSTEM, Path, PnprClient, PypiResolveOptions, Result, StoreIndexWriter, bail, io,
+    Arc,
+    Environments,
+    Index,
+    Inputs,
+    InstallOptions,
+    Interpreter,
+    IntoDiagnostic,
+    Lockfile,
+    PYPI_ECOSYSTEM,
+    Path,
+    PnprClient,
+    PypiResolveOptions,
+    Result,
+    StoreIndexWriter,
+    bail,
+    io,
     manifest,
 };
 use miette::WrapErr;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 mod store;
 

@@ -1,10 +1,19 @@
 use super::{
-    Arc, FetchMetadataError, Package, PackageMetaCache, PackumentFetchLocker, PickPackageContext,
-    PickPackageError, PickPackageOptions, RegistryPackageSpec, Semaphore,
+    Arc,
+    FetchMetadataError,
+    Package,
+    PackageMetaCache,
+    PackumentFetchLocker,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    RegistryPackageSpec,
+    Semaphore,
     parse_packument_timestamp,
 };
 use crate::{
-    FetchFullMetadataCachedOptions, fetch_full_metadata_cached::fetch_release_age_upgrade,
+    FetchFullMetadataCachedOptions,
+    fetch_full_metadata_cached::fetch_release_age_upgrade,
 };
 
 /// Outcome of [`maybe_upgrade_abbreviated_meta_for_release_age`]. Its `meta`

@@ -1,6 +1,15 @@
-use crate::{StoreDir, WriteCasFileFromReaderError};
-use sha2::{Digest, Sha512};
-use std::{io, path::PathBuf};
+use crate::{
+    StoreDir,
+    WriteCasFileFromReaderError,
+};
+use sha2::{
+    Digest,
+    Sha512,
+};
+use std::{
+    io,
+    path::PathBuf,
+};
 
 #[test]
 fn cas_file_path() {
@@ -384,7 +393,10 @@ fn cas_file_path_by_mode_rejects_invalid_hex() {
 #[test]
 #[cfg(unix)]
 fn a_cas_write_reports_the_mode_of_the_blob() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
     use tempfile::tempdir;
 
     let dir = tempdir().unwrap();

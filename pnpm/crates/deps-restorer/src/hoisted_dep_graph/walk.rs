@@ -1,18 +1,40 @@
 use super::{
-    DepHierarchy, DependenciesGraph, DependenciesGraphNode, DirectDependenciesByImporterId,
-    HoistedDepGraphError, LockfileToDepGraphResult, LockfileToHoistedDepGraphOptions,
-    installability_skip, lookup_package_metadata, package_present_at,
-    path_relative_to_lockfile_dir, resolution_changed_at,
+    DepHierarchy,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    DirectDependenciesByImporterId,
+    HoistedDepGraphError,
+    LockfileToDepGraphResult,
+    LockfileToHoistedDepGraphOptions,
+    installability_skip,
+    lookup_package_metadata,
+    package_present_at,
+    path_relative_to_lockfile_dir,
+    resolution_changed_at,
 };
 use crate::safe_join_modules_dir::safe_join_modules_dir;
 use indexmap::IndexSet;
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
-use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey, PkgIdWithPatchHash};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PkgIdWithPatchHash,
+};
 use pnpm_modules_yaml::DepPath;
-use pnpm_real_hoist::{HoisterResult, RcByPtr};
+use pnpm_real_hoist::{
+    HoisterResult,
+    RcByPtr,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Every directory each package landed in, in visit order. The first

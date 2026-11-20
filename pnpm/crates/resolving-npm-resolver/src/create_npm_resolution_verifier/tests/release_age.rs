@@ -1,8 +1,20 @@
 use super::{
-    ABBREVIATED_META_DIR, FAKE_INTEGRITY, Package, PkgName, ResolutionVerification, TempDir,
-    abbreviated_packument_json, assert_eq, create_npm_resolution_verifier,
-    create_package_version_policy, ctx, default_opts, min_age_packument_json, now_at,
-    persist_meta_to_mirror, registry_resolution,
+    ABBREVIATED_META_DIR,
+    FAKE_INTEGRITY,
+    Package,
+    PkgName,
+    ResolutionVerification,
+    TempDir,
+    abbreviated_packument_json,
+    assert_eq,
+    create_npm_resolution_verifier,
+    create_package_version_policy,
+    ctx,
+    default_opts,
+    min_age_packument_json,
+    now_at,
+    persist_meta_to_mirror,
+    registry_resolution,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 

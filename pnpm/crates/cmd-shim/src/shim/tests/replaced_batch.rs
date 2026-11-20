@@ -1,11 +1,22 @@
-use super::{CmdShimBatch, ScriptRuntime, cmd_encoding::cmd_in_own_console, generate_cmd_shim};
+use super::{
+    CmdShimBatch,
+    ScriptRuntime,
+    cmd_encoding::cmd_in_own_console,
+    generate_cmd_shim,
+};
 use crate::shim::end_replaced_cmd_shim_batch;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Output,
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// A `pnpm.cmd` that runs `pnpm.exe` as a command of its batch, so cmd.exe is
 /// still reading it while `pnpm.exe` runs.

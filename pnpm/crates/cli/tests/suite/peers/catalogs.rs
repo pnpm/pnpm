@@ -1,9 +1,18 @@
-use super::{PEERS_CHECK_HINT, run_peers};
+use super::{
+    PEERS_CHECK_HINT,
+    run_peers,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use serde_json::Value;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn catalog_peer_of_a_linked_workspace_package_is_resolved() {

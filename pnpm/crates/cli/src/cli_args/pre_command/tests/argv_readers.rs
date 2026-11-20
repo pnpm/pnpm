@@ -1,12 +1,20 @@
 //! The entry points reading a command line before dispatch agree on every
 //! bootstrap flag.
 
-use super::{apply_cli_layers, pre_command_input, unparsed_switch_input, version_switch_input};
+use super::{
+    apply_cli_layers,
+    pre_command_input,
+    unparsed_switch_input,
+    version_switch_input,
+};
 use crate::{
     cli_args::{
         grammar,
         pre_command::{
-            EntryPoint, Invocation, input::bootstrap_argv::BootstrapArgv, should_skip_command_name,
+            EntryPoint,
+            Invocation,
+            input::bootstrap_argv::BootstrapArgv,
+            should_skip_command_name,
         },
     },
     config_overrides::ConfigOverrides,
@@ -16,7 +24,10 @@ use pnpm_config::Config;
 use std::{
     collections::HashSet,
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The global flags of [`CliArgs`](super::CliArgs) the pre-command pass does not read. They

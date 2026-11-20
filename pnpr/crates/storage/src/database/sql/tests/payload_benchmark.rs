@@ -1,16 +1,29 @@
 //! Manual comparison of payload layouts with a warm filesystem cache and cold render caches.
 
 use super::{
-    Db, npm, packument,
-    schema::{PAYLOAD_TABLES, execute},
-    storage, write,
+    Db,
+    npm,
+    packument,
+    schema::{
+        PAYLOAD_TABLES,
+        execute,
+    },
+    storage,
+    write,
 };
 use crate::database::sql::{
-    PackageKey, cache::RenderCache, render, schema, transactions::Freshness,
+    PackageKey,
+    cache::RenderCache,
+    render,
+    schema,
+    transactions::Freshness,
 };
 use pnpr_package_name::Ecosystem;
 use serde_json::json;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum Layout {

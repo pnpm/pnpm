@@ -5,17 +5,30 @@
 use super::super::oidc::validate_workloads;
 use pnpm_env_replace::EnvVar;
 use pnpr_config::{
-    Config, GraphSource, RegistryGraphDocument, RegistryKind, RoutingConfig, RoutingOptions,
+    Config,
+    GraphSource,
+    RegistryGraphDocument,
+    RegistryKind,
+    RoutingConfig,
+    RoutingOptions,
 };
 use pnpr_error::RegistryError;
 use pnpr_policy::Action;
 use pnpr_route::RouteContext;
 use pnpr_storage::{
     Storage,
-    database::{GrantContent, HostedNamespace, StoredGrant, StoredRegistryGraph},
+    database::{
+        GrantContent,
+        HostedNamespace,
+        StoredGrant,
+        StoredRegistryGraph,
+    },
 };
 use std::net::IpAddr;
-use url::{Host, Url};
+use url::{
+    Host,
+    Url,
+};
 
 /// Whether building the routing reads the upstream credentials the document
 /// references.

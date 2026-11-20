@@ -14,23 +14,41 @@
 //!
 //! [#431]: https://github.com/pnpm/pacquet/issues/431
 
-pub use membership::{belongs_to_workspace, is_workspace_project_dir, needs_package_patterns};
+pub use membership::{
+    belongs_to_workspace,
+    is_workspace_project_dir,
+    needs_package_patterns,
+};
 
 use crate::{
     directory_patterns::normalize_directory_pattern,
     project_manifest::{
-        PROJECT_MANIFEST_BASENAMES, ReadProjectManifestError, read_exact_project_manifest,
+        PROJECT_MANIFEST_BASENAMES,
+        ReadProjectManifestError,
+        read_exact_project_manifest,
     },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
 use rayon::prelude::*;
 use std::{
     collections::BTreeSet,
-    fs::{self, DirEntry},
+    fs::{
+        self,
+        DirEntry,
+    },
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use wax::Glob;
 
@@ -418,7 +436,10 @@ struct WorkspacePattern<'source> {
 }
 
 mod managed;
-use managed::{ignored_directories_beyond_the_walk, resolve_ignored_directories};
+use managed::{
+    ignored_directories_beyond_the_walk,
+    resolve_ignored_directories,
+};
 
 mod membership;
 mod negations;
@@ -429,7 +450,11 @@ mod tests;
 
 mod walk;
 use walk::{
-    SpecializedPattern, collect_glob_manifests, collect_literal_manifests_in,
-    collect_manifests_in_children, dot_pruning_ignore_template, specialized_pattern,
+    SpecializedPattern,
+    collect_glob_manifests,
+    collect_literal_manifests_in,
+    collect_manifests_in_children,
+    dot_pruning_ignore_template,
+    specialized_pattern,
     split_parent_prefix,
 };

@@ -2,10 +2,20 @@
 
 use super::{
     super::{
-        Arc, AtomicU8, IncludedDependencies, PackageManifest, PathBuf, RebuildOptions,
-        prior_hoisted_dependencies, prior_hoisted_locations,
+        Arc,
+        AtomicU8,
+        IncludedDependencies,
+        PackageManifest,
+        PathBuf,
+        RebuildOptions,
+        prior_hoisted_dependencies,
+        prior_hoisted_locations,
     },
-    Dispatched, InstallScope, Loaded, Lockfiles, Verification,
+    Dispatched,
+    InstallScope,
+    Loaded,
+    Lockfiles,
+    Verification,
 };
 
 /// The install's borrowed and `Copy` inputs, as one value every phase reads.

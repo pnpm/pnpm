@@ -1,7 +1,13 @@
 //! Refusing an optimistic install when a lockfile still carries merge-conflict markers.
 
 use super::{
-    ErrorKind, OptimisticRepeatInstallCheck, Path, PathBuf, Read, file_mtime_from_metadata, fs,
+    ErrorKind,
+    OptimisticRepeatInstallCheck,
+    Path,
+    PathBuf,
+    Read,
+    file_mtime_from_metadata,
+    fs,
     lockfile_modified_since,
 };
 

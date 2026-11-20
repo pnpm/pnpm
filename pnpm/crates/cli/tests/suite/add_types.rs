@@ -1,8 +1,16 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{fmt::Write as _, fs, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fmt::Write as _,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// A mirror stored without an `ETag` is reused for five minutes, so the
 /// tests that count metadata requests serve one to keep every lookup a

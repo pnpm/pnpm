@@ -1,6 +1,21 @@
 use super::{
-    Body, Duration, GzDecoder, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes,
-    body_json, config_for, enable_osv, foo_packument, json, osv_database, router, sha1_hex_of,
+    Body,
+    Duration,
+    GzDecoder,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    body_bytes,
+    body_json,
+    config_for,
+    enable_osv,
+    foo_packument,
+    json,
+    osv_database,
+    router,
+    sha1_hex_of,
     sha512_integrity,
 };
 use std::io::Read;

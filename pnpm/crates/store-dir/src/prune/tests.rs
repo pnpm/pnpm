@@ -1,8 +1,15 @@
-use crate::{InUse, StoreDir, register_project};
+use crate::{
+    InUse,
+    StoreDir,
+    register_project,
+};
 use pnpm_fs::symlink_dir;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 

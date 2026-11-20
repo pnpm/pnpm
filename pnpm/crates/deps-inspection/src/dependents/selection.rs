@@ -4,9 +4,22 @@ use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::LockfileResolution;
 
 use super::{
-    BuildDependentsOptions, DepField, DependencyGraph, DependentNode, DependentsTree, EdgeContext,
-    HashMap, Lockfile, ManifestSource, PkgInfoEnv, PkgNameVerPeer, ReverseEdge, SearchMatch,
-    TreeNodeId, WalkCtx, get_pkg_info,
+    BuildDependentsOptions,
+    DepField,
+    DependencyGraph,
+    DependentNode,
+    DependentsTree,
+    EdgeContext,
+    HashMap,
+    Lockfile,
+    ManifestSource,
+    PkgInfoEnv,
+    PkgNameVerPeer,
+    ReverseEdge,
+    SearchMatch,
+    TreeNodeId,
+    WalkCtx,
+    get_pkg_info,
 };
 
 /// Match the search against the package's canonical name first, then against

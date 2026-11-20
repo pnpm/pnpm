@@ -1,11 +1,24 @@
-use crate::{SkippedSnapshots, VirtualStoreLayout};
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 use pnpm_lockfile::{
-    ImporterDepVersion, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencySpec,
+    ImporterDepVersion,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
 };
 use pnpm_package_manifest::DependencyGroup;
 use std::{
-    collections::{BTreeMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The wire `version` of a dep whose metadata row carries none.

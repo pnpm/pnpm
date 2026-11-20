@@ -1,17 +1,39 @@
 use super::{
-    WindowsDirSecurity, WindowsPathRole, can_write_windows_dir_security, deserialize_vec_or_one,
-    is_safe_windows_dir_security, is_unc_windows_path,
+    WindowsDirSecurity,
+    WindowsPathRole,
+    can_write_windows_dir_security,
+    deserialize_vec_or_one,
+    is_safe_windows_dir_security,
+    is_unc_windows_path,
 };
 use base64::Engine as _;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::{
+    FxHashMap,
+    FxHashSet,
+};
 use serde::Deserialize;
 use std::{
     fs,
     io::Read as _,
-    path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
-    sync::{Mutex, OnceLock, PoisonError},
-    time::{Duration, Instant, SystemTime},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        Stdio,
+    },
+    sync::{
+        Mutex,
+        OnceLock,
+        PoisonError,
+    },
+    time::{
+        Duration,
+        Instant,
+        SystemTime,
+    },
 };
 
 const CACHE_TTL: Duration = Duration::from_secs(60);

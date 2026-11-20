@@ -10,65 +10,178 @@ pub mod protected_settings;
 pub mod proxy_keys;
 pub mod refused_keys;
 pub use crate::{
-    api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
-    ci_detection::{CI_ENV_VARS, is_ci},
+    api::{
+        EnvVar,
+        EnvVarOs,
+        GetCurrentDir,
+        GetHomeDir,
+        Host,
+        LinkProbe,
+    },
+    ci_detection::{
+        CI_ENV_VARS,
+        is_ci,
+    },
     defaults::{
-        GLOBAL_LAYOUT_VERSION, PNPM_VERSION, available_parallelism, default_cache_dir,
-        default_config_dir, default_git_shallow_hosts, default_peers_suffix_max_length,
-        default_pnpm_home_dir, default_registry, default_state_dir, default_unsafe_perm,
-        default_virtual_store_dir_max_length, default_workspace_concurrency, install_command_for,
-        is_unsafe_perm_posix, resolve_child_concurrency, resolve_configured_state_dir,
+        GLOBAL_LAYOUT_VERSION,
+        PNPM_VERSION,
+        available_parallelism,
+        default_cache_dir,
+        default_config_dir,
+        default_git_shallow_hosts,
+        default_peers_suffix_max_length,
+        default_pnpm_home_dir,
+        default_registry,
+        default_state_dir,
+        default_unsafe_perm,
+        default_virtual_store_dir_max_length,
+        default_workspace_concurrency,
+        install_command_for,
+        is_unsafe_perm_posix,
+        resolve_child_concurrency,
+        resolve_configured_state_dir,
         standalone_install_command,
     },
-    global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
-    npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
+    global_bin_check::{
+        CheckGlobalBinDirError,
+        check_global_bin_dir,
+    },
+    npmrc_auth::{
+        BasicAuth,
+        RegistryCreds,
+        is_json_auth_scope,
+        validate_json_auth_registry,
+    },
     source_date_epoch::source_date_epoch,
     store_path::StoreRelocation,
     windows_path_env::{
-        UnexpandedWindowsEnvVar, ensure_windows_dir_envs, ensure_windows_home_dir_env,
+        UnexpandedWindowsEnvVar,
+        ensure_windows_dir_envs,
+        ensure_windows_home_dir_env,
     },
 };
 pub use boot_config::BootConfig;
-pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
-pub use cli_layer::{CliLayer, CommandTarget};
+pub use cas::{
+    CAS_LOADER_FILENAME,
+    CAS_MANIFEST_FILENAME,
+};
+pub use cli_layer::{
+    CliLayer,
+    CommandTarget,
+};
 pub use global_packages::GLOBAL_PACKAGES_UNSUPPORTED_KEYS;
 pub use loading::ConfigLoadFailure;
 pub use macos_backup::MacosBackupConfig;
-pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
+pub use node_linker::{
+    NodeLinkerOptions,
+    NodeLinkerSetting,
+};
 pub use override_version_references::resolve_version_references as resolve_override_version_references;
 pub use pnpm_matcher as matcher;
 pub use pnpm_resolving_resolver_base::{
-    BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, NeedsFullMetadataFn, NeedsFullMetadataFor,
+    BUILTIN_REGISTRIES_BY_PREFIX,
+    DEFAULT_JSR_REGISTRY,
+    NeedsFullMetadataFn,
+    NeedsFullMetadataFor,
     NetworkPolicy,
 };
 pub use pnpm_version_policy as version_policy;
 pub use setting_types::{
-    AuditConfig, AuditLevel, CatalogMode, ColorMode, FilterSource, HoistingLimits, InitType,
-    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
-    PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
+    AuditConfig,
+    AuditLevel,
+    CatalogMode,
+    ColorMode,
+    FilterSource,
+    HoistingLimits,
+    InitType,
+    LinkWorkspacePackages,
+    LogLevel,
+    NodeLinker,
+    NodePackageMapMode,
+    NodePackageMapType,
+    PackageImportMethod,
+    PmOnFail,
+    ReporterType,
+    ResolutionMode,
+    RuntimeOnFail,
+    SaveWorkspaceProtocol,
+    TrustPolicy,
+    VerifyDepsBeforeRun,
+    VirtualStoreType,
 };
-pub use settings::{Config, HoistPatterns, ordered_filter_entries};
-pub use settings_read::{PIN_DECISION_SETTINGS, SettingsRead};
+pub use settings::{
+    Config,
+    HoistPatterns,
+    ordered_filter_entries,
+};
+pub use settings_read::{
+    PIN_DECISION_SETTINGS,
+    SettingsRead,
+};
 pub use shim_policy::{
-    GlobalShims, GlobalShimsSetting, NamedShimPolicy, ShimPolicy, ShimPolicyValue,
+    GlobalShims,
+    GlobalShimsSetting,
+    NamedShimPolicy,
+    ShimPolicy,
+    ShimPolicyValue,
 };
 pub use workspace_yaml::{
-    AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
-    DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, GLOBAL_CONFIG_YAML_FILENAME,
-    LoadWorkspaceYamlError, MachineSettings, MacosBackupSettings, NAMED_UNRECOGNIZED_SETTINGS,
-    NodePackageMapSettings, PackageExtension, PackagePermissions, PeerDependencyMeta,
-    PeerDependencyRules, PermissionCapability, PnpmfileSetting, PythonSettings,
-    RemoteCacheSettings, RemoteSideEffectsCacheSettings, SkillsPermission, SkillsSettings,
-    TaskSettings, Tool, ToolSettings, TrustedSettings, UnrecognizedSettings, UpdateConfig,
-    UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
-    YamlConfigTarget, decided_allow_builds, decided_permissions,
-    package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
-    registries::{
-        self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
-        RegistryLookups, RegistryPrefixes,
+    AllowBuild,
+    AuditSettings,
+    CargoSettings,
+    DEFAULT_CARGO_INDEX_URL,
+    DEFAULT_PYPI_INDEX_URL,
+    DEFAULT_PYTHON_DOWNLOAD_URL,
+    DEFAULT_RUST_DIST_SERVER,
+    GLOBAL_CONFIG_YAML_FILENAME,
+    LoadWorkspaceYamlError,
+    MachineSettings,
+    MacosBackupSettings,
+    NAMED_UNRECOGNIZED_SETTINGS,
+    NodePackageMapSettings,
+    PackageExtension,
+    PackagePermissions,
+    PeerDependencyMeta,
+    PeerDependencyRules,
+    PermissionCapability,
+    PnpmfileSetting,
+    PythonSettings,
+    RemoteCacheSettings,
+    RemoteSideEffectsCacheSettings,
+    SkillsPermission,
+    SkillsSettings,
+    TaskSettings,
+    Tool,
+    ToolSettings,
+    TrustedSettings,
+    UnrecognizedSettings,
+    UpdateConfig,
+    UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceKeyIssues,
+    WorkspaceSettings,
+    YamlConfigTarget,
+    decided_allow_builds,
+    decided_permissions,
+    package_configs::{
+        self,
+        PackageConfigsSetting,
+        ProjectConfig,
+        ProjectConfigMultiMatch,
     },
-    render_yaml_top_level_field, validate_structured_setting, workspace_root_or,
+    registries::{
+        self,
+        Ecosystem,
+        EcosystemIndex,
+        PythonRegistryRoute,
+        RegistryDeclaration,
+        RegistryEntry,
+        RegistryLookups,
+        RegistryPrefixes,
+    },
+    render_yaml_top_level_field,
+    validate_structured_setting,
+    workspace_root_or,
 };
 
 mod api;
@@ -90,32 +203,70 @@ mod workspace_yaml;
 
 use crate::{
     defaults::{
-        default_child_concurrency, default_enable_global_virtual_store,
-        default_fetch_min_speed_ki_bps, default_fetch_retries, default_fetch_retry_factor,
-        default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
-        default_fetch_warn_timeout_ms, default_hoist_pattern, default_install_state_dir,
-        default_max_tarball_unpacked_size, default_modules_cache_max_age, default_modules_dir,
-        default_public_hoist_pattern, default_store_dir, default_tag_version_prefix,
+        default_child_concurrency,
+        default_enable_global_virtual_store,
+        default_fetch_min_speed_ki_bps,
+        default_fetch_retries,
+        default_fetch_retry_factor,
+        default_fetch_retry_maxtimeout,
+        default_fetch_retry_mintimeout,
+        default_fetch_timeout,
+        default_fetch_warn_timeout_ms,
+        default_hoist_pattern,
+        default_install_state_dir,
+        default_max_tarball_unpacked_size,
+        default_modules_cache_max_age,
+        default_modules_dir,
+        default_public_hoist_pattern,
+        default_store_dir,
+        default_tag_version_prefix,
         default_user_agent,
     },
     npmrc_auth::NpmrcAuth,
 };
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
-use pnpm_git_utils::{Host as GitHost, get_branches_containing_head, get_current_branch};
-use pnpm_lockfile::{Lockfile, RegistryOptions, SymlinkedLockfile, WantedLockfileSelection};
+use pnpm_git_utils::{
+    Host as GitHost,
+    get_branches_containing_head,
+    get_current_branch,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    RegistryOptions,
+    SymlinkedLockfile,
+    WantedLockfileSelection,
+};
 use pnpm_matcher::create_matcher;
 use pnpm_patching_config::{
-    CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,
-    create_hex_hash_from_file, group_patched_dependencies, resolve_and_group,
+    CalcPatchHashError,
+    PatchGroupRecord,
+    PatchInput,
+    ResolvePatchedDependenciesError,
+    create_hex_hash_from_file,
+    group_patched_dependencies,
+    resolve_and_group,
 };
-use pnpm_store_dir::{StoreDir, StoreIndexFormat};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndexFormat,
+};
 use pnpm_workspace_state::ConfigDependency;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use smart_default::SmartDefault;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::SystemTime,
 };
@@ -396,7 +547,10 @@ mod auth_sources;
 mod macos_backup;
 mod settings;
 
-use auth_sources::{AuthSources, note_declared_registries};
+use auth_sources::{
+    AuthSources,
+    note_declared_registries,
+};
 
 #[cfg(not(target_family = "wasm"))]
 pub use home::home_dir;

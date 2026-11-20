@@ -1,9 +1,13 @@
 use super::{
-    add_esm_node_path_loader_option, esm_node_path_loader_import_flag,
+    add_esm_node_path_loader_option,
+    esm_node_path_loader_import_flag,
     keep_esm_node_path_loader_option,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// The TypeScript CLI asserts its derived flag against the same file
 /// (`pnpm11/exec/esm-node-path-loader/test/index.ts`), so the two stacks

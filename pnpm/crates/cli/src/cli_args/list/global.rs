@@ -1,8 +1,19 @@
-use super::{ListArgs, RecursionLimit, ReportAs};
+use super::{
+    ListArgs,
+    RecursionLimit,
+    ReportAs,
+};
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_global::{ListReportAs, find_global_install_dirs, list_global_packages};
-use std::path::{Path, PathBuf};
+use pnpm_global::{
+    ListReportAs,
+    find_global_install_dirs,
+    list_global_packages,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 impl ListArgs {
     pub(super) async fn run_global(&self, config: &Config) -> miette::Result<String> {

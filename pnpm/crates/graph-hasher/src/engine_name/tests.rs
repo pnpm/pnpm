@@ -1,5 +1,9 @@
 use super::{
-    ProbeOnce, detect_node_major, detect_node_version, engine_name, parse_node_version_output,
+    ProbeOnce,
+    detect_node_major,
+    detect_node_version,
+    engine_name,
+    parse_node_version_output,
 };
 use pretty_assertions::assert_eq;
 
@@ -67,8 +71,12 @@ fn detect_node_major_matches_detect_node_version_leading_component() {
 #[test]
 fn probe_once_runs_the_probe_once_across_threads() {
     use std::sync::{
-        Arc, Barrier,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Barrier,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     };
 
     let probe_once = Arc::new(ProbeOnce::new());

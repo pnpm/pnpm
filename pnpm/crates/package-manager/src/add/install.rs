@@ -1,20 +1,43 @@
 use super::{
-    AddOptions, AddOwned,
-    manifest::{catalog_version_requests, merge_catalogs},
+    AddOptions,
+    AddOwned,
+    manifest::{
+        catalog_version_requests,
+        merge_catalogs,
+    },
     prepared_manifest::PickedVersion,
 };
 use crate::{
-    ImporterUpdateSeedPolicy, Install, PolicyExcludes, ProjectMutation, UpdateSeedPolicy,
+    ImporterUpdateSeedPolicy,
+    Install,
+    PolicyExcludes,
+    ProjectMutation,
+    UpdateSeedPolicy,
     included_direct_groups,
 };
 use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PkgName, PkgVerPeer, ProjectSnapshot};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    PkgVerPeer,
+    ProjectSnapshot,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_resolving_deps_resolver::{
+    UpdateDepth,
+    UpdateTargets,
+};
 use pnpm_resolving_resolver_base::PreferredVersions;
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashSet,
+};
 
 /// Scoped to this project's importer: a sibling that declares the same package
 /// keeps its pin, so its resolution stands.

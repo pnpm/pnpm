@@ -1,5 +1,10 @@
 use super::{
-    ConcreteKind, Ecosystem, Identity, Resolved, RouteContext, addressed_registry_segment,
+    ConcreteKind,
+    Ecosystem,
+    Identity,
+    Resolved,
+    RouteContext,
+    addressed_registry_segment,
     nerf_dart,
 };
 

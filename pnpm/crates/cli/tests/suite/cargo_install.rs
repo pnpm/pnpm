@@ -4,9 +4,19 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_cargo_resolver::CRATES_IO_SOURCE;
-use pnpm_testing_utils::{diagnostics::assert_diagnostic_contains, git_repo::GitRepoFixture};
-use sha2::{Digest, Sha256};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::{
+    diagnostics::assert_diagnostic_contains,
+    git_repo::GitRepoFixture,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 /// A `.crate` archive holding the one source file a dependent needs, laid

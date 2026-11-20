@@ -1,6 +1,13 @@
 use crate::{
-    AuthState, NewToken, PasswordCollisions, PasswordImport, SqliteAuth, TokenBackend, TokenRecord,
-    UpsertOutcome, UserBackend,
+    AuthState,
+    NewToken,
+    PasswordCollisions,
+    PasswordImport,
+    SqliteAuth,
+    TokenBackend,
+    TokenRecord,
+    UpsertOutcome,
+    UserBackend,
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;

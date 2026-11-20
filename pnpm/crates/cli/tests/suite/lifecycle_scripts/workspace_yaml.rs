@@ -1,4 +1,8 @@
-use std::{fmt::Write as _, fs, path::Path};
+use std::{
+    fmt::Write as _,
+    fs,
+    path::Path,
+};
 
 /// Set `strictDepBuilds`. Tests that intentionally leave builds
 /// ignored and then inspect the filesystem set it to `false` so the

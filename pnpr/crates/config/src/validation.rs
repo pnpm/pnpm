@@ -1,6 +1,12 @@
 use super::{
-    Features, Registry, RegistryError, RoutingConfig, namespace_collision_error, registry_err,
-    validate_namespace, validate_registry_key,
+    Features,
+    Registry,
+    RegistryError,
+    RoutingConfig,
+    namespace_collision_error,
+    registry_err,
+    validate_namespace,
+    validate_registry_key,
 };
 
 impl Features {

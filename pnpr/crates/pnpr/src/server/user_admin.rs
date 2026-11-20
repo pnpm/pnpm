@@ -2,16 +2,37 @@
 //! requires one of the `auth.admins`.
 
 use super::{
-    AppState, AuthedCaller, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode, json,
-    json_response, parse_json_body, private_no_cache, require_admin, team_mutations::respond,
+    AppState,
+    AuthedCaller,
+    MAX_LOGIN_BODY_BYTES,
+    RegistryError,
+    Response,
+    StatusCode,
+    json,
+    json_response,
+    parse_json_body,
+    private_no_cache,
+    require_admin,
+    team_mutations::respond,
     tokens::token_response_object,
 };
-use crate::{PasswordChange, UserCreation, UserRemoval};
+use crate::{
+    PasswordChange,
+    UserCreation,
+    UserRemoval,
+};
 use axum::{
     Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, Path, State},
-    routing::{delete, get},
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        State,
+    },
+    routing::{
+        delete,
+        get,
+    },
 };
 use serde::Deserialize;
 

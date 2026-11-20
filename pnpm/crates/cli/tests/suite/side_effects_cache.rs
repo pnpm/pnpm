@@ -1,10 +1,17 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// Regression for <https://github.com/pnpm/pnpm/issues/12042#issuecomment-4682732058>:
 /// a package approved via `allowBuilds` whose lifecycle script produces

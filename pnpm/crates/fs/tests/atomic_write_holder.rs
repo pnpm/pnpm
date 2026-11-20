@@ -9,11 +9,20 @@
 
 use std::{
     fs,
-    os::unix::{fs::PermissionsExt as _, process::ExitStatusExt as _},
+    os::unix::{
+        fs::PermissionsExt as _,
+        process::ExitStatusExt as _,
+    },
     path::Path,
-    process::{Child, Command},
+    process::{
+        Child,
+        Command,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::tempdir;
 

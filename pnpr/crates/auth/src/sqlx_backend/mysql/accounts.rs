@@ -1,11 +1,25 @@
 use super::{
-    AccountStatus, AuthSqlBackend, MaxUsers, MysqlDatabase, RegistryError, Result, Row, StoredUser,
-    claim_user_slot, decode_sql_account_state, is_unique_violation, username_from_row,
+    AccountStatus,
+    AuthSqlBackend,
+    MaxUsers,
+    MysqlDatabase,
+    RegistryError,
+    Result,
+    Row,
+    StoredUser,
+    claim_user_slot,
+    decode_sql_account_state,
+    is_unique_violation,
+    username_from_row,
 };
 use crate::{
-    AccountLifecycle, AccountStatusOutcome,
+    AccountLifecycle,
+    AccountStatusOutcome,
     account::should_apply_lifecycle,
-    validation::{name_revision_bounds, status_revision_to_sql},
+    validation::{
+        name_revision_bounds,
+        status_revision_to_sql,
+    },
 };
 
 impl MysqlDatabase {

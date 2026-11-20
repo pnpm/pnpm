@@ -4,8 +4,18 @@
 //! leaves unsaid, a `musllinux` wheel baseline, and the Rust target triple
 //! of the same machine.
 
-use super::{Architecture, Libc, LibcFamily, Os, UnknownPlatformError, unknown};
-use crate::node_platform_names::{is_node_cpu, is_node_os};
+use super::{
+    Architecture,
+    Libc,
+    LibcFamily,
+    Os,
+    UnknownPlatformError,
+    unknown,
+};
+use crate::node_platform_names::{
+    is_node_cpu,
+    is_node_os,
+};
 
 /// An entry as a platform tag, with what the tag cannot carry.
 pub(super) struct Spelled {

@@ -1,10 +1,19 @@
 //! Stored revisions of the registry graph.
 
-use super::{Db, packument, storage, try_write, write};
+use super::{
+    Db,
+    packument,
+    storage,
+    try_write,
+    write,
+};
 use crate::{
     Storage,
     database::{
-        HostedNamespace, NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphRevision,
+        HostedNamespace,
+        NewRegistryGraph,
+        REGISTRY_GRAPH_REVISIONS_KEPT,
+        RegistryGraphRevision,
         RegistryGraphWrite,
     },
 };

@@ -1,10 +1,30 @@
 use super::super::{
-    BTreeSet, Config, GlobalLog, HashSet, Host, InstallError, Lockfile, LogEvent, LogLevel,
-    NodeLinker, PackageManifest, Path, PathBuf, ProjectScriptsInputs, Reporter, SummaryLog,
-    drain_settled_projects, project_lifecycle_graph, project_script_stages,
-    projects_running_own_scripts, run_projects_lifecycle_scripts,
+    BTreeSet,
+    Config,
+    GlobalLog,
+    HashSet,
+    Host,
+    InstallError,
+    Lockfile,
+    LogEvent,
+    LogLevel,
+    NodeLinker,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectScriptsInputs,
+    Reporter,
+    SummaryLog,
+    drain_settled_projects,
+    project_lifecycle_graph,
+    project_script_stages,
+    projects_running_own_scripts,
+    run_projects_lifecycle_scripts,
 };
-use crate::peer_dependency_issues::{PeerReportWorkspace, report_peer_dependency_issues};
+use crate::peer_dependency_issues::{
+    PeerReportWorkspace,
+    report_peer_dependency_issues,
+};
 use pnpm_store_dir::VerifiedFileIntegrity;
 use std::time::Duration;
 

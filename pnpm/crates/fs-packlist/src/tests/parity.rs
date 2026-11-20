@@ -1,18 +1,49 @@
-use super::{fs, json, packlist, tempdir, touch, write};
+use super::{
+    fs,
+    json,
+    packlist,
+    tempdir,
+    touch,
+    write,
+};
 use proptest::{
     arbitrary::any,
-    collection, option, proptest,
+    collection,
+    option,
+    proptest,
     sample::select,
-    strategy::{Just, Strategy},
+    strategy::{
+        Just,
+        Strategy,
+    },
     test_runner::Config as ProptestConfig,
 };
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::{BufRead, BufReader, Write},
-    path::{Path, PathBuf},
-    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    io::{
+        BufRead,
+        BufReader,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        ChildStdin,
+        ChildStdout,
+        Command,
+        Stdio,
+    },
     sync::Mutex,
 };
 

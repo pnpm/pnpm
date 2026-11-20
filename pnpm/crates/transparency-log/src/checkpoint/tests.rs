@@ -1,8 +1,19 @@
 use super::{
-    CheckpointError, CheckpointPolicy, Cosignature, KeySet, PolicyError, TreeHead, add_signatures,
+    CheckpointError,
+    CheckpointPolicy,
+    Cosignature,
+    KeySet,
+    PolicyError,
+    TreeHead,
+    add_signatures,
     sign_checkpoint,
 };
-use crate::keys::{Cosigner, KeyAlgorithm, NoteSigner, VerifierKey};
+use crate::keys::{
+    Cosigner,
+    KeyAlgorithm,
+    NoteSigner,
+    VerifierKey,
+};
 use ed25519_dalek::SigningKey;
 use pretty_assertions::assert_eq;
 use signed_note::Signer;

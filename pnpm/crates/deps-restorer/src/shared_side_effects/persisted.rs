@@ -1,15 +1,37 @@
 use super::planning::CandidateGroup;
-use crate::{SideEffectsBySnapshot, SideEffectsMapsBySnapshot};
+use crate::{
+    SideEffectsBySnapshot,
+    SideEffectsMapsBySnapshot,
+};
 use pnpm_lockfile::PackageKey;
-use pnpm_pnpr_client::{ArtifactCandidate, ArtifactManifest, RejectedArtifact, blob_id};
+use pnpm_pnpr_client::{
+    ArtifactCandidate,
+    ArtifactManifest,
+    RejectedArtifact,
+    blob_id,
+};
 use pnpm_shared_artifact_protocol::compatibility_rank;
 use pnpm_store_dir::{
-    CafsFileInfo, SideEffectsDiff, SideEffectsOverlay, StoreDir, StoreIndexWriter,
+    CafsFileInfo,
+    SideEffectsDiff,
+    SideEffectsOverlay,
+    StoreDir,
+    StoreIndexWriter,
 };
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

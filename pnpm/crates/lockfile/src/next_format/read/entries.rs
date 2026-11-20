@@ -1,16 +1,34 @@
 //! The peer-suffixed snapshot entries and importers.
 
 use super::{
-    super::{NextSnapshotEntry, RestoreContext},
-    Graph, Provider, RestoredKey, Sid, child_named,
+    super::{
+        NextSnapshotEntry,
+        RestoreContext,
+    },
+    Graph,
+    Provider,
+    RestoredKey,
+    Sid,
+    child_named,
 };
 use crate::{
-    ImporterDepVersion, PackageKey, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotDepRef,
+    ImporterDepVersion,
+    PackageKey,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    SnapshotDepRef,
     SnapshotEntry,
-    next_format::{NextImporter, NextRef},
+    next_format::{
+        NextImporter,
+        NextRef,
+    },
 };
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 impl Graph<'_> {
     pub(super) fn snapshot_entries(

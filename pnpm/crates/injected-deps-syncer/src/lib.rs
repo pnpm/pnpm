@@ -10,8 +10,18 @@
 //! injected package sees each write.
 
 pub use dir_patcher::{
-    Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, PublishSource, Value, apply_patch,
-    diff_dir, extend_files_map, publish_edits,
+    Change,
+    DirDiff,
+    DirPatcher,
+    FileId,
+    InodeMap,
+    PatchError,
+    PublishSource,
+    Value,
+    apply_patch,
+    diff_dir,
+    extend_files_map,
+    publish_edits,
 };
 pub use injection_records::ProjectModulesDir;
 pub use pnpm_directory_fetcher::CopyFiles;
@@ -23,20 +33,46 @@ mod injection_records;
 #[cfg(test)]
 mod tests;
 
-use bin_links::{SyncBinLinks, bin_names, sync_bin_links};
-use derive_more::{Display, Error};
-use injection_records::{InjectionRecord, copies_of_source, injection_records};
+use bin_links::{
+    SyncBinLinks,
+    bin_names,
+    sync_bin_links,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use injection_records::{
+    InjectionRecord,
+    copies_of_source,
+    injection_records,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsError;
-use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
+use pnpm_modules_yaml::{
+    ReadModulesError,
+    read_modules_manifest,
+};
 use pnpm_package_manifest::PackageManifestError;
 use pnpm_workspace::FindWorkspaceProjectsError;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
-    sync::mpsc::{self, RecvTimeoutError},
-    thread::{self, JoinHandle},
-    time::{Duration, SystemTime},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::mpsc::{
+        self,
+        RecvTimeoutError,
+    },
+    thread::{
+        self,
+        JoinHandle,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// Error type for [`sync_injected_deps`].

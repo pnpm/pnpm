@@ -1,19 +1,44 @@
 mod verification;
 
-use std::{path::Path, time::Duration};
+use std::{
+    path::Path,
+    time::Duration,
+};
 use tempfile::TempDir;
 
 use pnpr::{
     Config,
-    archive_gc::{GcOptions, GcReport, collect_archives},
-    config_check::{check_config, format_report},
-    htpasswd_import::{HtpasswdImportOptions, import_htpasswd},
-    migrate_storage::{MigrateStorageOptions, format_migrate_report, migrate_local_to_s3},
-    verify::{VerifyOptions, format_verify_report, verify_storage},
+    archive_gc::{
+        GcOptions,
+        GcReport,
+        collect_archives,
+    },
+    config_check::{
+        check_config,
+        format_report,
+    },
+    htpasswd_import::{
+        HtpasswdImportOptions,
+        import_htpasswd,
+    },
+    migrate_storage::{
+        MigrateStorageOptions,
+        format_migrate_report,
+        migrate_local_to_s3,
+    },
+    verify::{
+        VerifyOptions,
+        format_verify_report,
+        verify_storage,
+    },
 };
 use pnpr_storage::{
-    BlobId, Ecosystem,
-    layout::{local_archive_path, write_local_layout_marker},
+    BlobId,
+    Ecosystem,
+    layout::{
+        local_archive_path,
+        write_local_layout_marker,
+    },
 };
 
 /// Commit `bytes` as the document of `name` in the default namespace of the

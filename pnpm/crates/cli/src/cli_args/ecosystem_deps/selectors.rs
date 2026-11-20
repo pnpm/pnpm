@@ -1,8 +1,14 @@
 use crate::{
     cli_args::add::AddRequest,
-    package_specifier::{EcosystemPackageSpecifier, PackageSpecifierPlan},
+    package_specifier::{
+        EcosystemPackageSpecifier,
+        PackageSpecifierPlan,
+    },
 };
-use miette::{Result, bail};
+use miette::{
+    Result,
+    bail,
+};
 use pnpm_config::Config;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 

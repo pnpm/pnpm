@@ -9,7 +9,10 @@
 //! the keys we read and write.
 
 use crate::fixtures::PNPM_WORKSPACE;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Default, Serialize, Deserialize)]

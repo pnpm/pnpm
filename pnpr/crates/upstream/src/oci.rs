@@ -1,11 +1,27 @@
-use super::{FetchOutcome, Upstream};
-use pnpm_network::{
-    ThrottledResponse, UNPRIORITIZED, is_url_secure_for_credentials, read_limited_body,
+use super::{
+    FetchOutcome,
+    Upstream,
 };
-use pnpr_error::{RegistryError, Result};
-use reqwest::{StatusCode, Url, header};
+use pnpm_network::{
+    ThrottledResponse,
+    UNPRIORITIZED,
+    is_url_secure_for_credentials,
+    read_limited_body,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use reqwest::{
+    StatusCode,
+    Url,
+    header,
+};
 use serde::Deserialize;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 pub(super) struct CachedToken {
     token: String,

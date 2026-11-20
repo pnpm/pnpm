@@ -1,7 +1,10 @@
 //! Parses a `node@runtime:` bare specifier's body into a release
 //! channel plus a version selector.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// One of nodejs.org's published release channels.

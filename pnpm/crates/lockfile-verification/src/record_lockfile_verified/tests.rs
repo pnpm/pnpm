@@ -1,13 +1,27 @@
-use std::{fs, sync::Arc};
+use std::{
+    fs,
+    sync::Arc,
+};
 
-use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
 };
 use tempfile::TempDir;
 
 use super::record_lockfile_verified;
-use crate::{CACHE_FILE_NAME, CacheRecord, hash_lockfile, try_lockfile_verification_cache};
+use crate::{
+    CACHE_FILE_NAME,
+    CacheRecord,
+    hash_lockfile,
+    try_lockfile_verification_cache,
+};
 
 const LOCKFILE: &str = "lockfileVersion: '9.0'
 

@@ -1,6 +1,12 @@
 //! The walker's and the linker's options, read from the install inputs.
 
-use super::{BTreeSet, HoistedLinkerInputs, Lockfile, LockfileToHoistedDepGraphOptions, PathBuf};
+use super::{
+    BTreeSet,
+    HoistedLinkerInputs,
+    Lockfile,
+    LockfileToHoistedDepGraphOptions,
+    PathBuf,
+};
 
 pub(super) fn hoisted_walker_options<'a>(
     inputs: &HoistedLinkerInputs<'a>,

@@ -2,7 +2,11 @@ use assert_cmd::prelude::*;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const COMMANDS: [&[&str]; 2] = [&["exec", "node", "probe.cjs"], &["run", "probe"]];
 const EMPTY_OVERRIDES: [(Option<&str>, Option<&str>); 4] = [

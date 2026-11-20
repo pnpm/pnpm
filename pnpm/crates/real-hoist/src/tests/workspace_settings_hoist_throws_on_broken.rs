@@ -1,7 +1,24 @@
 use super::{
-    BTreeSet, HashMap, HoistError, HoistOpts, HoisterResult, Lockfile, ProjectSnapshot, Rc,
-    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, assert_eq, dep_key, empty_lockfile,
-    hoist, lockfile_version, pkg_metadata_with_peer, pkg_name, resolved_dep, ver_peer,
+    BTreeSet,
+    HashMap,
+    HoistError,
+    HoistOpts,
+    HoisterResult,
+    Lockfile,
+    ProjectSnapshot,
+    Rc,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+    assert_eq,
+    dep_key,
+    empty_lockfile,
+    hoist,
+    lockfile_version,
+    pkg_metadata_with_peer,
+    pkg_name,
+    resolved_dep,
+    ver_peer,
 };
 
 #[test]

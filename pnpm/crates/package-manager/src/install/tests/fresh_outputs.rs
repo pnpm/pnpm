@@ -1,17 +1,37 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
-    InstallDirs, is_modules_yaml_consistent, is_modules_yaml_layout_consistent,
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+    },
+    InstallDirs,
+    is_modules_yaml_consistent,
+    is_modules_yaml_layout_consistent,
 };
 use crate::PolicyExcludes;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{
-    Host, LayoutVersion, Modules, NodeLinker, read_modules_manifest, write_modules_manifest,
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_modules_yaml::{
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    read_modules_manifest,
+    write_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
-use pnpm_testing_utils::{fs::is_symlink_or_junction, registry::TestRegistry};
+use pnpm_testing_utils::{
+    fs::is_symlink_or_junction,
+    registry::TestRegistry,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 

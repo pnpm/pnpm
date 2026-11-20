@@ -2,9 +2,22 @@
 //! record.
 
 use super::{
-    Arc, CanonicalPackageName, PreparedAttachment, RegistryError, Semaphore, Storage,
-    TarballStorage, Value, Verification, WrittenAttachments, cleanup_tmp_slots, provenance,
-    release_records, serialize_staged_document, verify_published_manifests, write_attachment_slots,
+    Arc,
+    CanonicalPackageName,
+    PreparedAttachment,
+    RegistryError,
+    Semaphore,
+    Storage,
+    TarballStorage,
+    Value,
+    Verification,
+    WrittenAttachments,
+    cleanup_tmp_slots,
+    provenance,
+    release_records,
+    serialize_staged_document,
+    verify_published_manifests,
+    write_attachment_slots,
 };
 
 /// Write every attachment of `prepared` and verify the archives against

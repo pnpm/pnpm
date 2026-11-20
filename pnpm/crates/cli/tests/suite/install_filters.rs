@@ -2,11 +2,20 @@ pub use _utils::*;
 
 use crate::_utils;
 
-use pnpm_lockfile::{PkgName, SnapshotEntry};
+use pnpm_lockfile::{
+    PkgName,
+    SnapshotEntry,
+};
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     fs,
     path::Path,
 };

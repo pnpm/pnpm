@@ -1,9 +1,30 @@
 use super::{
-    AlwaysFail, Arc, AtomicUsize, FailFor, FetchFails, LockfileResolution, LogEvent, Mutex,
-    Ordering, PkgName, ReplacedCandidate, ReplacedEntries, Reporter, ResolutionVerification,
-    ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter, TWO_PKG_LOCKFILE, TempDir, VerifyCtx,
-    VerifyError, VerifyFuture, VerifyLockfileResolutionsOptions,
-    collect_resolution_policy_violations, parse, verify_lockfile_resolutions,
+    AlwaysFail,
+    Arc,
+    AtomicUsize,
+    FailFor,
+    FetchFails,
+    LockfileResolution,
+    LogEvent,
+    Mutex,
+    Ordering,
+    PkgName,
+    ReplacedCandidate,
+    ReplacedEntries,
+    Reporter,
+    ResolutionVerification,
+    ResolutionVerifier,
+    SINGLE_PKG_LOCKFILE,
+    SilentReporter,
+    TWO_PKG_LOCKFILE,
+    TempDir,
+    VerifyCtx,
+    VerifyError,
+    VerifyFuture,
+    VerifyLockfileResolutionsOptions,
+    collect_resolution_policy_violations,
+    parse,
+    verify_lockfile_resolutions,
 };
 
 #[tokio::test]
@@ -141,7 +162,10 @@ async fn collect_returns_data_for_all_violations() {
 /// `snapshots:` — which today's collector doesn't walk.
 #[tokio::test]
 async fn one_packages_entry_yields_one_verification() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    };
 
     static CALLS: AtomicUsize = AtomicUsize::new(0);
     CALLS.store(0, Ordering::SeqCst);

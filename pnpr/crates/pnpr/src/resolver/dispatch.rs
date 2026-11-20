@@ -1,25 +1,62 @@
-use axum::{body::Bytes, http::StatusCode, response::Response};
+use axum::{
+    body::Bytes,
+    http::StatusCode,
+    response::Response,
+};
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
-use pnpr_route::{Footprint, RouteContext};
-use std::sync::{Arc, Mutex};
+use pnpr_route::{
+    Footprint,
+    RouteContext,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 use super::{
-    ObservedDistStats, PacquetConfig, ResolveRequest, Resolver, StreamedResolveInputs,
-    cached_resolution, cargo, json_error,
-    limits::{AdmittedResolve, reject_oversized_graph, request_timeout_response},
-    protocol::{self, EcosystemProbe},
-    pypi, request_tarball_router,
+    ObservedDistStats,
+    PacquetConfig,
+    ResolveRequest,
+    Resolver,
+    StreamedResolveInputs,
+    cached_resolution,
+    cargo,
+    json_error,
+    limits::{
+        AdmittedResolve,
+        reject_oversized_graph,
+        request_timeout_response,
+    },
+    protocol::{
+        self,
+        EcosystemProbe,
+    },
+    pypi,
+    request_tarball_router,
     request_validation::{
-        parse_request, reject_incompatible_lockfile_format, reject_inline_url_auth,
-        reject_invalid_lockfile_dependency_names, reject_invalid_patch_hashes,
-        reject_invalid_registries, reject_local_dependency_specs, reject_off_allowlist_fetches,
+        parse_request,
+        reject_incompatible_lockfile_format,
+        reject_inline_url_auth,
+        reject_invalid_lockfile_dependency_names,
+        reject_invalid_patch_hashes,
+        reject_invalid_registries,
+        reject_local_dependency_specs,
+        reject_off_allowlist_fetches,
         reject_unsafe_publish_directories,
     },
-    resolution_cache_key, resolve, stream_resolve_response, verify_request_lockfile,
+    resolution_cache_key,
+    resolve,
+    stream_resolve_response,
+    verify_request_lockfile,
     wire::{
-        LockfileOrigin, TarballRouter, frozen_package_frames_until, ndjson_frames_until,
-        ndjson_single_frame, osv_violations_for_lockfile_until, try_done_frame_until,
+        LockfileOrigin,
+        TarballRouter,
+        frozen_package_frames_until,
+        ndjson_frames_until,
+        ndjson_single_frame,
+        osv_violations_for_lockfile_until,
+        try_done_frame_until,
         violations_frame,
     },
 };

@@ -1,6 +1,17 @@
-use super::{super::super::InstallError, refuse_drifted_modules_dir, same_path};
-use pnpm_config::{Config, NodeLinker};
-use pnpm_modules_yaml::{LayoutVersion, ModulesLayout, NodeLinker as ModulesNodeLinker};
+use super::{
+    super::super::InstallError,
+    refuse_drifted_modules_dir,
+    same_path,
+};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_modules_yaml::{
+    LayoutVersion,
+    ModulesLayout,
+    NodeLinker as ModulesNodeLinker,
+};
 use std::path::Path;
 
 #[test]

@@ -1,10 +1,21 @@
-use miette::{IntoDiagnostic, Result, WrapErr};
-use pnpm_config::{EnvVar, EnvVarOs, GetHomeDir};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use pnpm_config::{
+    EnvVar,
+    EnvVarOs,
+    GetHomeDir,
+};
 use pnpm_network::AuthHeaders;
 use serde::Deserialize;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

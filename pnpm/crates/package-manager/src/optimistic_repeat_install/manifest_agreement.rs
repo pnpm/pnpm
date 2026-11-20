@@ -1,13 +1,26 @@
 //! Whether the manifests on disk still agree with the lockfile.
 
 use super::{
-    Config, DependencyGroup, ImporterDepVersion, Lockfile, OptimisticRepeatInstallCheck,
-    PackageManifest, Path, ProjectSnapshot, WorkspaceState,
+    Config,
+    DependencyGroup,
+    ImporterDepVersion,
+    Lockfile,
+    OptimisticRepeatInstallCheck,
+    PackageManifest,
+    Path,
+    ProjectSnapshot,
+    WorkspaceState,
     current_lockfile::{
-        CurrentLockfile, OUTDATED_DEPS, current_records_importer, selection_has_dependencies,
+        CurrentLockfile,
+        OUTDATED_DEPS,
+        current_records_importer,
+        selection_has_dependencies,
         selection_matches_wanted_lockfile,
     },
-    freshness::{ProjectStatus, Stale},
+    freshness::{
+        ProjectStatus,
+        Stale,
+    },
     validation::manifest_digest,
 };
 use rayon::prelude::*;

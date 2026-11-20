@@ -1,15 +1,34 @@
-use std::{io::Write, marker::PhantomData, path::Path};
+use std::{
+    io::Write,
+    marker::PhantomData,
+    path::Path,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::{
     Config,
-    version_policy::{VersionPolicyError, merge_package_version_specs},
+    version_policy::{
+        VersionPolicyError,
+        merge_package_version_specs,
+    },
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, PromptAction, PromptLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    PromptAction,
+    PromptLog,
+    Reporter,
+};
 use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
 use pnpm_workspace_manifest_writer::{
-    UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions, update_workspace_manifest,
+    UpdateWorkspaceManifestError,
+    UpdateWorkspaceManifestOptions,
+    update_workspace_manifest,
 };
 
 use pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE;

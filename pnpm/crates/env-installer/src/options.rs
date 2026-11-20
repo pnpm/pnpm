@@ -1,6 +1,14 @@
 use pnpm_config::PackageImportMethod;
-use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreDir, StoreIndexWriter};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    StoreDir,
+    StoreIndexWriter,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// Default npm registry used when neither the config nor a scope entry
 /// names one.

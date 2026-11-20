@@ -4,12 +4,25 @@
 //! protocol — `link:` vs `file:`) and builds the [`LocalPackageSpec`]
 //! the resolver consumes.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_fs::{lexical_normalize, relative_path};
-use pnpm_local_spec::{is_filespec, is_tarball_filename, normalize_specifier};
+use pnpm_fs::{
+    lexical_normalize,
+    relative_path,
+};
+use pnpm_local_spec::{
+    is_filespec,
+    is_tarball_filename,
+    normalize_specifier,
+};
 use pnpm_resolving_resolver_base::PkgResolutionId;
 
 /// The wanted-dependency slice the local resolver consumes.

@@ -1,6 +1,17 @@
 use super::{
-    AncestorPkgIds, Arc, BTreeMap, DependenciesTreeNode, HashMap, HashSet, NodeId,
-    ParentPkgAliases, PeerDep, PkgNameVerPeer, TreeChildren, TreeCtx, UpdateReuseScope,
+    AncestorPkgIds,
+    Arc,
+    BTreeMap,
+    DependenciesTreeNode,
+    HashMap,
+    HashSet,
+    NodeId,
+    ParentPkgAliases,
+    PeerDep,
+    PkgNameVerPeer,
+    TreeChildren,
+    TreeCtx,
+    UpdateReuseScope,
     lock_recoverable,
 };
 

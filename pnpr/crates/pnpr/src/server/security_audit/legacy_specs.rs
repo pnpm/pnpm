@@ -1,7 +1,13 @@
 use std::collections::HashSet;
 
-use node_semver::{Range, Version};
-use serde_json::{Map, Value};
+use node_semver::{
+    Range,
+    Version,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 pub(super) const REDACTED_SCOPE_PREFIX: &str = "pnpr-redacted-scope-";
 

@@ -1,15 +1,39 @@
 use super::{
-    ArchiveStoreProjection, AuthHeaders, SharedVerifiedFilesCache, SilentReporter, TarballError,
-    ThrottledClient, assert_eq, build_zip, extract_tarball_entries, fast_retry_opts,
-    fetch_and_extract_with_retry, gzip_bytes, is_transient_error, tar_resources::sha512,
-    tar_with_raw_entry_name, tempdir_with_leaked_path,
+    ArchiveStoreProjection,
+    AuthHeaders,
+    SharedVerifiedFilesCache,
+    SilentReporter,
+    TarballError,
+    ThrottledClient,
+    assert_eq,
+    build_zip,
+    extract_tarball_entries,
+    fast_retry_opts,
+    fetch_and_extract_with_retry,
+    gzip_bytes,
+    is_transient_error,
+    tar_resources::sha512,
+    tar_with_raw_entry_name,
+    tempdir_with_leaked_path,
 };
-use crate::{IngestZipArchiveToStore, IntegrityKind, archive_integrity::ArchiveVerification};
+use crate::{
+    IngestZipArchiveToStore,
+    IntegrityKind,
+    archive_integrity::ArchiveVerification,
+};
 
 #[cfg(not(target_os = "windows"))]
 use super::{
-    CafsFileInfo, HashMap, IngestTarballToStore, PackageFilesIndex, StoreIndex, UNREACHABLE_URL,
-    fast_fail_client, integrity, store_index_key, test_retry_opts,
+    CafsFileInfo,
+    HashMap,
+    IngestTarballToStore,
+    PackageFilesIndex,
+    StoreIndex,
+    UNREACHABLE_URL,
+    fast_fail_client,
+    integrity,
+    store_index_key,
+    test_retry_opts,
 };
 
 /// A symlink at the CAFS path — even one pointing at a valid regular

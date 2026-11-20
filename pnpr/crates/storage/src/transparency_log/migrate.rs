@@ -2,12 +2,21 @@
 //! migration.
 
 use super::{
-    LOG_NAMESPACE, LogId, Storage, StoredCheckpoint,
-    checkpoint::{tree_head_of, verify_stored_checkpoint},
+    LOG_NAMESPACE,
+    LogId,
+    Storage,
+    StoredCheckpoint,
+    checkpoint::{
+        tree_head_of,
+        verify_stored_checkpoint,
+    },
 };
 use crate::DocumentWrite;
 use pnpm_transparency_log::NoteSigner;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 
 impl Storage {

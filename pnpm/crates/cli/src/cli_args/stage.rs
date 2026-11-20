@@ -12,40 +12,84 @@ mod approve;
 mod summarize_tarball;
 
 use super::{
-    publish::{PublishArgs, PublishFlags},
+    publish::{
+        PublishArgs,
+        PublishFlags,
+    },
     sanitize::body_display_string,
 };
 use crate::cli_args::registry_client::{
-    build_registry_client, resolve_target_registry_for_package, web_auth_fetch_options,
+    build_registry_client,
+    resolve_target_registry_for_package,
+    web_auth_fetch_options,
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, normalize_registry_url, read_limited_body, redact_url_credentials,
+    RetryOpts,
+    ThrottledClient,
+    normalize_registry_url,
+    read_limited_body,
+    redact_url_credentials,
     send_with_retry,
 };
 use pnpm_network_web_auth::{
-    Host as WebAuthHost, OtpChallenge, OtpError, OtpErrorBody, OtpSession, WebAuthFetchOptions,
+    Host as WebAuthHost,
+    OtpChallenge,
+    OtpError,
+    OtpErrorBody,
+    OtpSession,
+    WebAuthFetchOptions,
     WithOtpError,
 };
-use pnpm_publish::{Host, PublishSummary, resolve_otp_from_env};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_publish::{
+    Host,
+    PublishSummary,
+    resolve_otp_from_env,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use registry::{
-    StageContext, fetch_stage_items, fetch_stage_tarball, stage_endpoint_url, stage_json_request,
-    stage_request_in_session, stage_request_with_otp,
+    StageContext,
+    fetch_stage_items,
+    fetch_stage_tarball,
+    stage_endpoint_url,
+    stage_json_request,
+    stage_request_in_session,
+    stage_request_with_otp,
 };
 use render::{
-    json_pretty, render_stage_item, render_stage_publish_summary, render_tarball_summary,
+    json_pretty,
+    render_stage_item,
+    render_stage_publish_summary,
+    render_tarball_summary,
 };
 use serde::Deserialize;
 use serde_json::Value;
-use std::{path::Path, sync::Arc};
-use summarize_tarball::{create_tarball_filename, summarize_tarball};
+use std::{
+    path::Path,
+    sync::Arc,
+};
+use summarize_tarball::{
+    create_tarball_filename,
+    summarize_tarball,
+};
 
 /// The staged-list page size; matches pnpm's paginated `-/stage` reads.
 const PER_PAGE: usize = 100;

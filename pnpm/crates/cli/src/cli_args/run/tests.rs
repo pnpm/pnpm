@@ -1,4 +1,9 @@
-use super::{RunError, ScriptSelector, render_project_commands, throw_or_filter_hidden_scripts};
+use super::{
+    RunError,
+    ScriptSelector,
+    render_project_commands,
+    throw_or_filter_hidden_scripts,
+};
 use clap::Parser;
 use serde_json::json;
 

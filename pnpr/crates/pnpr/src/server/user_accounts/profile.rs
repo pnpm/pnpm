@@ -1,9 +1,23 @@
 use super::super::{
-    AppState, AuthedCaller, Identity, RegistryError, Response, State, TargetRegistry,
-    json_response, parse_json_body, private_no_cache, require_caller,
+    AppState,
+    AuthedCaller,
+    Identity,
+    RegistryError,
+    Response,
+    State,
+    TargetRegistry,
+    json_response,
+    parse_json_body,
+    private_no_cache,
+    require_caller,
     tokens::verify_caller_password,
 };
-use axum::{body::Bytes, extract::Extension, http::StatusCode, response::IntoResponse};
+use axum::{
+    body::Bytes,
+    extract::Extension,
+    http::StatusCode,
+    response::IntoResponse,
+};
 use serde::Deserialize;
 use serde_json::json;
 

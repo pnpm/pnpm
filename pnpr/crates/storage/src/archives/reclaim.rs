@@ -9,13 +9,23 @@
 //! removal that lands late removes bytes nothing can reach.
 
 use crate::{
-    BlobId, Storage, StoredArchive,
-    database::{BlobRef, BlobRow, Uncommitted, Unmapping},
+    BlobId,
+    Storage,
+    StoredArchive,
+    database::{
+        BlobRef,
+        BlobRow,
+        Uncommitted,
+        Unmapping,
+    },
     parse_blob_key,
 };
 use futures_util::TryStreamExt as _;
 use pnpr_error::Result;
-use std::{collections::BTreeMap, time::Duration};
+use std::{
+    collections::BTreeMap,
+    time::Duration,
+};
 
 impl Storage {
     /// Reclaim the blobs among `ids` that are live and that nothing maps.

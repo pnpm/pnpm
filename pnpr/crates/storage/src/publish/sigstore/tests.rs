@@ -1,5 +1,11 @@
-use super::{extract_predicate_type, write_sigstore_bundle};
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use super::{
+    extract_predicate_type,
+    write_sigstore_bundle,
+};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use tempfile::TempDir;
 
 #[test]

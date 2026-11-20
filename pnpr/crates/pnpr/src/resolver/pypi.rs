@@ -25,25 +25,52 @@
 mod metadata;
 mod response;
 use metadata::{
-    CachedDocument, metadata_from_wheel, parse_metadata, parse_page, project_page_url, text,
+    CachedDocument,
+    metadata_from_wheel,
+    parse_metadata,
+    parse_page,
+    project_page_url,
+    text,
     verify_digest,
 };
 
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+    path::{
+        Path,
+        PathBuf,
     },
-    time::{Duration, SystemTime},
+    sync::{
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 use axum::response::Response;
-use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    MetadataCacheScope,
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_python_resolver::{
-    IndexCandidate, Offered, Packages, Step, Target, WheelMetadata, candidates_from_page,
-    metadata_url, validate_url,
+    IndexCandidate,
+    Offered,
+    Packages,
+    Step,
+    Target,
+    WheelMetadata,
+    candidates_from_page,
+    metadata_url,
+    validate_url,
 };
 use pnpr_pypi::archive::MAX_METADATA_BYTES;
 use pnpr_route::Footprint;
@@ -52,7 +79,10 @@ use crate::server::StripedLocks;
 
 use super::{
     Resolver,
-    limits::{AdmittedResolve, request_timeout_response},
+    limits::{
+        AdmittedResolve,
+        request_timeout_response,
+    },
     package_route::PackageRoute,
 };
 

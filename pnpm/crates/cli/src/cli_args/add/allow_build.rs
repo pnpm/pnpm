@@ -1,5 +1,8 @@
 use crate::cli_args::approve_builds::ApprovalStore;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_package_manager::parse_allow_build_selector;

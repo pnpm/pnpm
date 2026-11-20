@@ -1,4 +1,7 @@
-use super::{TempDir, finder};
+use super::{
+    TempDir,
+    finder,
+};
 use pnpm_hooks::PnpmfileHooks as _;
 
 fn write_pnpmfile(dir: &std::path::Path, file_name: &str, source: &str) -> std::path::PathBuf {

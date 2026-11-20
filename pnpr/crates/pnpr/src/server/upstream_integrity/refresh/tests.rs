@@ -1,6 +1,15 @@
-use super::{BlobEviction, reconcile};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use serde_json::{Value, json};
+use super::{
+    BlobEviction,
+    reconcile,
+};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 #[test]
 fn refresh_preserves_matching_pins_and_evicts_removed_or_changed_tarballs() {

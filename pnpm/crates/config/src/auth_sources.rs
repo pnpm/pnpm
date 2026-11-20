@@ -1,7 +1,22 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NpmrcAuth, Path, PathBuf, Pipe, TrustedSettings, WorkspaceSettings, api::FsReadFile,
-    read_npm_env, read_npmrc_file, read_pnpm_env,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    Host,
+    LinkProbe,
+    LoadWorkspaceYamlError,
+    NpmrcAuth,
+    Path,
+    PathBuf,
+    Pipe,
+    TrustedSettings,
+    WorkspaceSettings,
+    api::FsReadFile,
+    read_npm_env,
+    read_npmrc_file,
+    read_pnpm_env,
 };
 
 /// The merged `.npmrc` view, and the same merge restricted to sources

@@ -1,4 +1,12 @@
-use super::{HashMap, HashSet, HoisterResult, IndexMap, Rc, VecDeque, node_ident};
+use super::{
+    HashMap,
+    HashSet,
+    HoisterResult,
+    IndexMap,
+    Rc,
+    VecDeque,
+    node_ident,
+};
 
 /// One entry of the preference map: the set of dependent idents
 /// (and peer-dependent idents) that pull in a given `(name,

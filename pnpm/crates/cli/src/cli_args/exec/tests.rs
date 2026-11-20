@@ -1,6 +1,13 @@
-use super::{ExecDirs, command_search_path, configured_node_options};
+use super::{
+    ExecDirs,
+    command_search_path,
+    configured_node_options,
+};
 use pnpm_config::Config;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[test]
 fn configured_node_options_preserves_extra_env_without_a_node_options_setting() {

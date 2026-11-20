@@ -14,25 +14,50 @@
 //! shape and syntax too, through [`next`].
 
 use crate::{
-    LoadLockfileError, Lockfile, LockfileFormat, LockfileVersion, PackageKey, PackageMetadata,
-    SaveLockfileError, SnapshotEntry, SymlinkedLockfile, declares_next_format,
+    LoadLockfileError,
+    Lockfile,
+    LockfileFormat,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    SaveLockfileError,
+    SnapshotEntry,
+    SymlinkedLockfile,
+    declares_next_format,
     extract_main_document,
-    git_merge_file::{ParsedWantedFile, parse_wanted_file},
+    git_merge_file::{
+        ParsedWantedFile,
+        parse_wanted_file,
+    },
     load_lockfile::yaml_parse_options,
     merge_env_lockfile_changes,
     save_lockfile::lockfile_write_target,
     serialize_yaml,
     yaml_documents::{
-        YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, normalize_lockfile_content,
+        YAML_DOCUMENT_SEPARATOR,
+        YAML_DOCUMENT_START,
+        normalize_lockfile_content,
         read_first_yaml_document,
     },
 };
 use pnpm_fs::write_atomic;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    fs::{self, File},
-    io::{self, ErrorKind},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
     path::Path,
 };
 

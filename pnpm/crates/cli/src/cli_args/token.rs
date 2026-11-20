@@ -3,16 +3,39 @@ mod registry;
 mod tests;
 
 use crate::{
-    cli_args::{registry_client::build_registry_client_with_guard, sanitize::sanitize_inline},
+    cli_args::{
+        registry_client::build_registry_client_with_guard,
+        sanitize::sanitize_inline,
+    },
     confirm_prompt::stdin_is_terminal,
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
-use pnpm_auth_commands::login::{Host, PromptPassword};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_auth_commands::login::{
+    Host,
+    PromptPassword,
+};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient, normalize_registry_url, origins_redirect_guard};
-use registry::{CreateTokenRequest, TokenItem, create_token, delete_token, fetch_token_list};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+    normalize_registry_url,
+    origins_redirect_guard,
+};
+use registry::{
+    CreateTokenRequest,
+    TokenItem,
+    create_token,
+    delete_token,
+    fetch_token_list,
+};
 use std::fmt::Write as _;
 
 pub(crate) const TOKEN_BODY_LIMIT: usize = 1024 * 1024;

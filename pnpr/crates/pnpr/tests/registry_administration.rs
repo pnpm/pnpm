@@ -4,21 +4,45 @@
 //! refuses, and how replicas follow the stored graph.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{AuthState, Config, router_with_auth};
+use pnpr::{
+    AuthState,
+    Config,
+    router_with_auth,
+};
 use pnpr_storage::{
-    HostedDocumentVersion, Storage,
-    database::{NewRegistryGraph, RegistryGraphWrite},
+    HostedDocumentVersion,
+    Storage,
+    database::{
+        NewRegistryGraph,
+        RegistryGraphWrite,
+    },
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };

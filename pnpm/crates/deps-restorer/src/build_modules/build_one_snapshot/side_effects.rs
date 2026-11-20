@@ -1,9 +1,15 @@
 use super::{
     super::{
-        BuildModulesError, PackageKey, Path, Reporter, materialize_side_effects,
+        BuildModulesError,
+        PackageKey,
+        Path,
+        Reporter,
+        materialize_side_effects,
         store_index_key_for_resolution,
     },
-    BuildCandidate, BuildOneSnapshot, report_broken_slot,
+    BuildCandidate,
+    BuildOneSnapshot,
+    report_broken_slot,
 };
 
 /// The side-effects cache key, computed once per snapshot before the

@@ -1,12 +1,37 @@
-use clap::{ArgMatches, CommandFactory as _, FromArgMatches as _, Parser, parser::ValueSource};
+use clap::{
+    ArgMatches,
+    CommandFactory as _,
+    FromArgMatches as _,
+    Parser,
+    parser::ValueSource,
+};
 use pnpm_diagnostics::println;
 use pnpr::{
-    Command, Config, ConfigSource, ConfigSubcommand, LogConfig, RegistryError, ServerArgs,
-    default_cache_dir, logging::log_subscriber, run_command, serve,
+    Command,
+    Config,
+    ConfigSource,
+    ConfigSubcommand,
+    LogConfig,
+    RegistryError,
+    ServerArgs,
+    default_cache_dir,
+    logging::log_subscriber,
+    run_command,
+    serve,
 };
-use pnpr_config::{BackendConfig, DatabaseBackend, default_database_path};
-use std::{io::IsTerminal, path::PathBuf};
-use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
+use pnpr_config::{
+    BackendConfig,
+    DatabaseBackend,
+    default_database_path,
+};
+use std::{
+    io::IsTerminal,
+    path::PathBuf,
+};
+use tracing_subscriber::{
+    EnvFilter,
+    util::SubscriberInitExt as _,
+};
 
 // Rendering a packument makes large, short-lived allocations on many threads.
 // glibc malloc keeps that memory after the requests finish, so the resident

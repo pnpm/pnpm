@@ -11,8 +11,16 @@ pub use staging::staging_dir_name;
 pub use store_dir::*;
 pub use store_index::*;
 pub use store_loader_manifest::*;
-pub use store_lock::{StoreLockError, StoreOperationLock};
-pub use symlinks::{SYMLINK_MODE, SideEffectsOverlay, is_symlink_mode, normalize_symlink_target};
+pub use store_lock::{
+    StoreLockError,
+    StoreOperationLock,
+};
+pub use symlinks::{
+    SYMLINK_MODE,
+    SideEffectsOverlay,
+    is_symlink_mode,
+    normalize_symlink_target,
+};
 pub use upload::*;
 
 pub use loader_references::loader_blob_path;

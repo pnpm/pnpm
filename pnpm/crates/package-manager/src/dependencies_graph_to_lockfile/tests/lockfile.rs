@@ -1,13 +1,30 @@
 use super::{
-    super::{GraphToLockfileOptions, ImporterLockfileInput},
-    EMPTY_CATALOGS, EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, NPM_REGISTRIES,
-    dependencies_graph_to_lockfile, make_link_node, make_node, single_importer_opts,
+    super::{
+        GraphToLockfileOptions,
+        ImporterLockfileInput,
+    },
+    EMPTY_CATALOGS,
+    EMPTY_NAMED_REGISTRIES,
+    EMPTY_REGISTRY_OPTIONS,
+    NPM_REGISTRIES,
+    dependencies_graph_to_lockfile,
+    make_link_node,
+    make_node,
+    single_importer_opts,
     write_manifest,
 };
 use indexmap::IndexMap;
 use pnpm_deps_path::DepPath;
-use pnpm_lockfile::{ImporterDepVersion, PackageKey, PkgName, SnapshotDepRef};
-use pnpm_resolving_deps_resolver::{DependenciesGraph, PeerDep};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+};
+use pnpm_resolving_deps_resolver::{
+    DependenciesGraph,
+    PeerDep,
+};
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::json;
 use std::collections::BTreeMap;

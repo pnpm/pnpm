@@ -1,9 +1,22 @@
 //! The global-virtual-store tests that exercise the build policy.
 
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, StoreDir, StoreIndex, allow_builds_yaml, fs,
-    hash_dirs, is_symlink_or_junction, pacquet, pkg_in_slot, pkg_version_dir,
-    read_modules_manifest, set_gvs_workspace_yaml, sole_hash_dir, write_manifest,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    StoreDir,
+    StoreIndex,
+    allow_builds_yaml,
+    fs,
+    hash_dirs,
+    is_symlink_or_junction,
+    pacquet,
+    pkg_in_slot,
+    pkg_version_dir,
+    read_modules_manifest,
+    set_gvs_workspace_yaml,
+    sole_hash_dir,
+    write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
 use pnpm_testing_utils::git_repo::GitRepoFixture;

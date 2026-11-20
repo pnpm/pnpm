@@ -2,10 +2,16 @@
 //! steps run in order: required-field validation, `bin` normalization,
 //! `peerDependenciesMeta` defaulting, then `repository` normalization.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_package_manifest::is_truthy;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Failures raised while transforming a publish manifest. Both carry
 /// the pnpm error codes published for these conditions.

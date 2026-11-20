@@ -26,8 +26,16 @@
 //! keeps catching the next default that needs porting.
 
 use crate::{
-    CatalogMode, ColorMode, Config, InitType, LinkWorkspacePackages, NodeLinker,
-    NodePackageMapType, ResolutionMode, SaveWorkspaceProtocol, VerifyDepsBeforeRun,
+    CatalogMode,
+    ColorMode,
+    Config,
+    InitType,
+    LinkWorkspacePackages,
+    NodeLinker,
+    NodePackageMapType,
+    ResolutionMode,
+    SaveWorkspaceProtocol,
+    VerifyDepsBeforeRun,
 };
 use std::collections::BTreeSet;
 
@@ -96,7 +104,10 @@ fn divergent_rows(cfg: &Config) -> Vec<(&'static str, Scalar, &'static str)> {
 /// test asserts each pacquet value equals the value pnpm's source
 /// records under the same key.
 fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
-    use Scalar::{Bool, Int};
+    use Scalar::{
+        Bool,
+        Int,
+    };
     vec![
         ("bail", Bool(cfg.bail)),
         ("color", color_mode_scalar(cfg.color)),

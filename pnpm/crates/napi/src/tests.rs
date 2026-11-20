@@ -1,4 +1,7 @@
-use crate::read_config::{ReadConfigOptions, read_config};
+use crate::read_config::{
+    ReadConfigOptions,
+    read_config,
+};
 
 #[test]
 fn addon_entry_point_configures_rayon_pool() {

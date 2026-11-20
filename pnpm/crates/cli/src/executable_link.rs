@@ -1,7 +1,11 @@
 use std::{
-    fs, io,
+    fs,
+    io,
     path::Path,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// Publish `src` at `dest` without pulling an executable out from under a

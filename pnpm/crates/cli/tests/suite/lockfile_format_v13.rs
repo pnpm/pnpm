@@ -2,13 +2,26 @@
 //! frozen install from it, and 3-way `git merge-file` merges across
 //! concurrent branch changes.
 
-use crate::_utils::{pacquet_in, write_manifest_value};
+use crate::_utils::{
+    pacquet_in,
+    write_manifest_value,
+};
 use assert_cmd::assert::OutputAssertExt;
 use command_extra::CommandExtra;
 use pnpm_lockfile::Lockfile;
-use pnpm_testing_utils::{bin::CommandTempCwd, fixtures::tarball_with_manifest};
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    fixtures::tarball_with_manifest,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn install_writes_the_v13_lockfile_and_a_frozen_install_reads_it() {

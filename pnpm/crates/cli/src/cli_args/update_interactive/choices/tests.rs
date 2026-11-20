@@ -5,9 +5,17 @@
 //! these assert the shape the user sees: which groups appear, in what
 //! order, which packages sit in each, and that every column lines up.
 
-use super::{ChoiceGroup, column_widths, pad_row, update_choices};
+use super::{
+    ChoiceGroup,
+    column_widths,
+    pad_row,
+    update_choices,
+};
 use crate::cli_args::{
-    outdated::{OutdatedPackage, TrustChange},
+    outdated::{
+        OutdatedPackage,
+        TrustChange,
+    },
     update_interactive::UpdateDetails,
 };
 use console::measure_text_width;

@@ -5,8 +5,14 @@
 //! same answer before it can install them.
 
 use crate::{
-    config_deps::{ResolvedEngine, resolve_engine_version},
-    engine_pm::{channel::PackageManager, error::EngineError},
+    config_deps::{
+        ResolvedEngine,
+        resolve_engine_version,
+    },
+    engine_pm::{
+        channel::PackageManager,
+        error::EngineError,
+    },
 };
 use miette::Context;
 use pnpm_config::Config;

@@ -1,9 +1,15 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use dashmap::DashMap;
 use pipe_trait::Pipe;
 use pnpm_package_manifest::PackageBin;
-use tokio::sync::{Notify, RwLock};
+use tokio::sync::{
+    Notify,
+    RwLock,
+};
 
 use crate::TarballError;
 

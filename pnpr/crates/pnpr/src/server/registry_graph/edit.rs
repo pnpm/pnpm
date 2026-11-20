@@ -4,16 +4,34 @@
 //! replica before the response.
 
 use super::{
-    super::{AppState, RegistryError, managed_state::WRITE_ATTEMPTS},
+    super::{
+        AppState,
+        RegistryError,
+        managed_state::WRITE_ATTEMPTS,
+    },
     reload::publish_routing,
     stored::{
-        Credentials, DefaultGrants, HostedChange, check_revision, graph_version,
-        occupied_namespace_error, parse_document, stored_document,
+        Credentials,
+        DefaultGrants,
+        HostedChange,
+        check_revision,
+        graph_version,
+        occupied_namespace_error,
+        parse_document,
+        stored_document,
     },
 };
 use crate::audit::Actor;
-use pnpr_config::{RegistryGraphChanges, RegistryGraphDocument, RoutingConfig};
-use pnpr_storage::database::{NewRegistryGraph, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphWrite};
+use pnpr_config::{
+    RegistryGraphChanges,
+    RegistryGraphDocument,
+    RoutingConfig,
+};
+use pnpr_storage::database::{
+    NewRegistryGraph,
+    REGISTRY_GRAPH_REVISIONS_KEPT,
+    RegistryGraphWrite,
+};
 
 /// The version the caller expects the stored graph to have.
 #[derive(Debug, Clone, Copy)]

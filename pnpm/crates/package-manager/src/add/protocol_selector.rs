@@ -1,11 +1,19 @@
 use super::{
-    AddError, AddResolveInputs,
+    AddError,
+    AddResolveInputs,
     registry::resolve_explicit_registry_spec,
-    specifier::{PickedPackage, SaveSpecifier, split_name_spec},
+    specifier::{
+        PickedPackage,
+        SaveSpecifier,
+        split_name_spec,
+    },
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_package_name::is_valid_dependency_alias;
-use pnpm_resolving_jsr_specifier_parser::{JsrSpec, parse_jsr_specifier};
+use pnpm_resolving_jsr_specifier_parser::{
+    JsrSpec,
+    parse_jsr_specifier,
+};
 use pnpm_workspace_spec::WorkspaceSpec;
 
 /// A `pacquet add` argument that spells its package name *inside* a

@@ -1,8 +1,22 @@
 use super::{
-    ArtifactPayload, BACKFILLED_SCOPE, BTreeSet, CompatibilityScopes, ObjectStoreExt,
-    PreparedPublication, RegistryError, Result, ScopeMarker, SharedArtifactStore, UNIVERSAL_SCOPE,
-    blob_id, check_stored_blob_size, compatibility_scopes, protocol_error, scope_marker_path,
-    scope_name, scopes_prefix,
+    ArtifactPayload,
+    BACKFILLED_SCOPE,
+    BTreeSet,
+    CompatibilityScopes,
+    ObjectStoreExt,
+    PreparedPublication,
+    RegistryError,
+    Result,
+    ScopeMarker,
+    SharedArtifactStore,
+    UNIVERSAL_SCOPE,
+    blob_id,
+    check_stored_blob_size,
+    compatibility_scopes,
+    protocol_error,
+    scope_marker_path,
+    scope_name,
+    scopes_prefix,
 };
 use futures_util::StreamExt as _;
 

@@ -22,18 +22,37 @@
 //!   `workspace:` specs so they don't accidentally route to a
 //!   named-registry alias named `link` / `file` / `workspace`.
 
-pub use chain::{LocalPathResolver, LocalResolver, LocalSchemeResolver};
+pub use chain::{
+    LocalPathResolver,
+    LocalResolver,
+    LocalSchemeResolver,
+};
 pub use local_resolver::{
-    LocalCurrentPkg, LocalFilesystemPolicy, LocalResolveResult, LocalResolverContext,
-    LocalResolverOptions, LocalResolverUpdate, LocalSpecError, LocalTarballResolution,
-    ResolveLocalError, resolve_from_local_path, resolve_from_local_scheme,
+    LocalCurrentPkg,
+    LocalFilesystemPolicy,
+    LocalResolveResult,
+    LocalResolverContext,
+    LocalResolverOptions,
+    LocalResolverUpdate,
+    LocalSpecError,
+    LocalTarballResolution,
+    ResolveLocalError,
+    resolve_from_local_path,
+    resolve_from_local_scheme,
     resolve_latest_from_local,
 };
 pub use parse_bare_specifier::{
-    PathProtocolNotSupportedError, WantedLocalDependency, local_file_path, local_spec_path,
-    local_tarball_path, recorded_local_path,
+    PathProtocolNotSupportedError,
+    WantedLocalDependency,
+    local_file_path,
+    local_spec_path,
+    local_tarball_path,
+    recorded_local_path,
 };
-pub use pnpm_local_spec::{is_local_filesystem_specifier, is_tarball_filename};
+pub use pnpm_local_spec::{
+    is_local_filesystem_specifier,
+    is_tarball_filename,
+};
 
 mod chain;
 mod local_resolver;

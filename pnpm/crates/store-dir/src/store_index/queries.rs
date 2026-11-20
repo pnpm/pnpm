@@ -1,5 +1,11 @@
 use super::{
-    Backend, HashMap, HashSet, PackageFilesIndex, StoreIndex, StoreIndexError, decode_index_value,
+    Backend,
+    HashMap,
+    HashSet,
+    PackageFilesIndex,
+    StoreIndex,
+    StoreIndexError,
+    decode_index_value,
 };
 use rusqlite::Connection;
 

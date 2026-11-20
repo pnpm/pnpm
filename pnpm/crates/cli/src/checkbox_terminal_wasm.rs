@@ -1,7 +1,13 @@
 use console::Key;
 use serde::Deserialize;
-use serde_json::{Value, json};
-use std::{fmt::Write as _, io};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fmt::Write as _,
+    io,
+};
 
 pub(super) struct Term {
     handle: u32,

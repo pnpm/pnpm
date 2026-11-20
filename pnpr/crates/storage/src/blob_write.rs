@@ -1,9 +1,20 @@
 use super::{
-    AsyncSeekExt, AsyncWriteExt, CanonicalPackageName, ErrorKind, Path, PathBuf, SeekFrom, fs,
+    AsyncSeekExt,
+    AsyncWriteExt,
+    CanonicalPackageName,
+    ErrorKind,
+    Path,
+    PathBuf,
+    SeekFrom,
+    fs,
 };
 use std::{
     collections::HashSet,
-    sync::{LazyLock, Mutex, PoisonError},
+    sync::{
+        LazyLock,
+        Mutex,
+        PoisonError,
+    },
 };
 
 static ACTIVE_TEMPS: LazyLock<Mutex<HashSet<PathBuf>>> =

@@ -1,11 +1,25 @@
-use super::{nearest_manifest_name, render_fields, render_summary};
+use super::{
+    nearest_manifest_name,
+    render_fields,
+    render_summary,
+};
 use crate::cli_args::view::render::{
-    bin_summary, format_bytes, format_field_value, format_person, format_time_ago_since,
-    get_nested_property, parse_date, published_info, publisher,
+    bin_summary,
+    format_bytes,
+    format_field_value,
+    format_person,
+    format_time_ago_since,
+    get_nested_property,
+    parse_date,
+    published_info,
+    publisher,
 };
 use jiff::Timestamp;
 use miette::Diagnostic;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 #[test]
 fn invalid_project_names_report_format_neutral_diagnostic() {

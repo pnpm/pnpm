@@ -3,8 +3,14 @@
 
 use super::reader::UpgradeNotes;
 use pnpm_release_notes::render_note;
-use pnpm_text_sanitize::{sanitize, sanitize_inline};
-use serde_json::{Value, json};
+use pnpm_text_sanitize::{
+    sanitize,
+    sanitize_inline,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// The notes, newest version first, each publication note once above the
 /// version notes that came out of it.

@@ -10,9 +10,15 @@
 use crate::{
     MachineSettings,
     config_types::is_config_file_key,
-    naming_cases::{to_camel_case, to_kebab_case},
+    naming_cases::{
+        to_camel_case,
+        to_kebab_case,
+    },
 };
-use std::{collections::HashSet, sync::OnceLock};
+use std::{
+    collections::HashSet,
+    sync::OnceLock,
+};
 
 /// The camelCase keys a project's `pnpm-workspace.yaml` does not contribute,
 /// named as in pnpm's `config.reader`: where the machine keeps what it holds

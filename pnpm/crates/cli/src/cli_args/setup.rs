@@ -11,15 +11,37 @@ mod path_extender;
 
 use crate::process::Command;
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use path_extender::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
-    PathExtenderReport, pwsh_quote, sh_quote,
+use miette::{
+    Context,
+    IntoDiagnostic,
 };
-use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir, ensure_windows_home_dir_env};
+use path_extender::{
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    ConfigFileChangeType,
+    ConfigReport,
+    PathExtenderError,
+    PathExtenderReport,
+    pwsh_quote,
+    sh_quote,
+};
+use pnpm_config::{
+    Host,
+    PNPM_VERSION,
+    default_pnpm_home_dir,
+    ensure_windows_home_dir_env,
+};
 use pnpm_fs::write_atomic;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::{fs, path::Path};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[derive(Debug, Args)]
 pub struct SetupArgs {

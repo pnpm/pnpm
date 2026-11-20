@@ -1,10 +1,22 @@
-pub use pnpm_package_name::{PythonNameError, canonicalize_python_name};
+pub use pnpm_package_name::{
+    PythonNameError,
+    canonicalize_python_name,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpr_error::RegistryError;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::fmt;
-use strum::{EnumIter, IntoEnumIterator as _};
+use strum::{
+    EnumIter,
+    IntoEnumIterator as _,
+};
 
 /// The protocol whose naming rules a registry surface follows.
 #[derive(

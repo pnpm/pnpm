@@ -1,11 +1,21 @@
 use crate::{
-    base_project::{BaseProject, DependencyGroups, GraphProject},
+    base_project::{
+        BaseProject,
+        DependencyGroups,
+        GraphProject,
+    },
     create_projects_graph::{
-        CreateProjectsGraphOptions, Unmatched, WorkspaceCatalogs, create_projects_graph,
+        CreateProjectsGraphOptions,
+        Unmatched,
+        WorkspaceCatalogs,
+        create_projects_graph,
     },
     dependency_rewriter::DependencyRewriter,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 struct TestProject {
     root_dir: PathBuf,

@@ -1,6 +1,15 @@
 use super::{
-    DependencyNode, HashSet, LongPkgInfo, Map, Path, ProjectHierarchy, Value, has_pkg_name_prefix,
-    json, plain, read_long_pkg_info,
+    DependencyNode,
+    HashSet,
+    LongPkgInfo,
+    Map,
+    Path,
+    ProjectHierarchy,
+    Value,
+    has_pkg_name_prefix,
+    json,
+    plain,
+    read_long_pkg_info,
 };
 
 // --- parseable ---------------------------------------------------------------

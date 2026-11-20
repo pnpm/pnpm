@@ -7,9 +7,19 @@ use tempfile::TempDir;
 use pnpm_network::MetadataCacheScope;
 
 use super::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, decode_registry_name,
-    encode_pkg_name, get_legacy_pkg_mirror_paths, get_legacy_registry_name, get_pkg_mirror_path,
-    get_registry_name, load_meta, load_meta_headers, load_meta_with_hold_cap, save_meta_indexed,
+    ABBREVIATED_META_DIR,
+    FULL_FILTERED_META_DIR,
+    FULL_META_DIR,
+    decode_registry_name,
+    encode_pkg_name,
+    get_legacy_pkg_mirror_paths,
+    get_legacy_registry_name,
+    get_pkg_mirror_path,
+    get_registry_name,
+    load_meta,
+    load_meta_headers,
+    load_meta_with_hold_cap,
+    save_meta_indexed,
     scoped_meta_dir,
 };
 

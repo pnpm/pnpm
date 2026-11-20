@@ -3,48 +3,105 @@
 
 pub mod oidc;
 
-pub use access::{AccessSpec, validate_access_token, validate_member_name, validate_team_name};
-pub use artifacts::{ArtifactQuota, ArtifactsFeature, StorageAccess};
-pub use backend_config::{
-    AuthConfig, BackendConfig, IdentityConfig, LibsqlSettings, MaxUsers, SqlBackendSettings,
-    TokensConfig, UsersConfig,
+pub use access::{
+    AccessSpec,
+    validate_access_token,
+    validate_member_name,
+    validate_team_name,
 };
-pub use byte_size::{ByteSize, parse_byte_size};
+pub use artifacts::{
+    ArtifactQuota,
+    ArtifactsFeature,
+    StorageAccess,
+};
+pub use backend_config::{
+    AuthConfig,
+    BackendConfig,
+    IdentityConfig,
+    LibsqlSettings,
+    MaxUsers,
+    SqlBackendSettings,
+    TokensConfig,
+    UsersConfig,
+};
+pub use byte_size::{
+    ByteSize,
+    parse_byte_size,
+};
 pub use cdn::CloudflareCdnConfig;
 pub use gc::GcConfig;
 pub use graph_document::{
-    HostedStorage, RegistryGraphChanges, RegistryGraphDocument, RegistryKind, RoutingOptions,
+    HostedStorage,
+    RegistryGraphChanges,
+    RegistryGraphDocument,
+    RegistryKind,
+    RoutingOptions,
 };
-pub use hosted::{GraphSource, HostedConfig};
-pub use ip_network::{IpNetwork, IpNetworkSet, parse_trusted_proxies};
-pub use logging::{LogConfig, LogFormat, LogLevel};
+pub use hosted::{
+    GraphSource,
+    HostedConfig,
+};
+pub use ip_network::{
+    IpNetwork,
+    IpNetworkSet,
+    parse_trusted_proxies,
+};
+pub use logging::{
+    LogConfig,
+    LogFormat,
+    LogLevel,
+};
 pub use metrics::MetricsConfig;
 pub use oci::OciConfig;
 pub use package_documents::PackageDocumentsConfig;
 pub use pnpr_error::redact_connection_url;
 pub use release_records::ReleaseRecordsConfig;
-pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
+pub use s3::{
+    HostedStoreConfig,
+    S3Settings,
+    build_s3_store,
+    normalize_key_prefix,
+};
 pub use scim::ScimConfig;
 pub use secret::Secret;
 pub use secrets::{
-    CACHE_SECRET_MARKER, MIN_SECRET_LEN, cache_secret_fingerprint, derive_subkey, random_secret,
+    CACHE_SECRET_MARKER,
+    MIN_SECRET_LEN,
+    cache_secret_fingerprint,
+    derive_subkey,
+    random_secret,
 };
 pub use storage_config::{
-    CacheConfig, DatabaseBackend, StorageConfig, default_cache_dir, default_database_path,
+    CacheConfig,
+    DatabaseBackend,
+    StorageConfig,
+    default_cache_dir,
+    default_database_path,
     default_osv_path,
 };
 pub use trusted_proxy_header::TrustedProxyHeader;
-pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse_interval};
+pub use upstream::{
+    RedactedHeaders,
+    UpstreamConfig,
+    UpstreamRequestPolicy,
+    parse_interval,
+};
 pub use web_ui::UiConfig;
 
 pub(crate) use secrets::resolve_secrets;
-pub(crate) use storage_config::{resolve_relative, resolve_storage_paths};
+pub(crate) use storage_config::{
+    resolve_relative,
+    resolve_storage_paths,
+};
 
 mod access;
 use access::build_admins;
 
 mod artifacts;
-use artifacts::{parse_artifact_quota, parse_storage_access};
+use artifacts::{
+    parse_artifact_quota,
+    parse_storage_access,
+};
 
 mod backend_config;
 use backend_config::build_identity_config;
@@ -54,13 +111,30 @@ mod cdn;
 
 mod config_file;
 use config_file::{
-    ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, ConfigFile, CorsFile, DefaultRegistryFile,
-    FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile, PipelineFeatureFile,
-    PublicRouteFile, RegistryFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
+    ArtifactQuotaFile,
+    ArtifactsFeatureFile,
+    AuthFile,
+    ConfigFile,
+    CorsFile,
+    DefaultRegistryFile,
+    FeatureFile,
+    HostedFile,
+    LibsqlFile,
+    LogEntryFile,
+    OsvFile,
+    PipelineFeatureFile,
+    PublicRouteFile,
+    RegistryFile,
+    SqlBackendFile,
+    StorageAccessFile,
+    UpstreamFile,
 };
 
 mod gc;
-use gc::{GcFile, build_gc_config};
+use gc::{
+    GcFile,
+    build_gc_config,
+};
 
 mod graph_document;
 
@@ -75,17 +149,30 @@ mod metrics;
 mod null_default;
 
 mod oci;
-use oci::{OciFile, build_oci_config};
+use oci::{
+    OciFile,
+    build_oci_config,
+};
 
 mod package_documents;
-use package_documents::{PackageDocumentsFile, build_package_documents_config};
+use package_documents::{
+    PackageDocumentsFile,
+    build_package_documents_config,
+};
 mod release_records;
-use release_records::{ReleaseRecordsFile, build_release_records_config};
+use release_records::{
+    ReleaseRecordsFile,
+    build_release_records_config,
+};
 
 mod registry_graph;
 use registry_graph::{
-    namespace_collision_error, registry_err, resolve_file_registries, validate_artifact_owner_name,
-    validate_namespace, validate_registry_key,
+    namespace_collision_error,
+    registry_err,
+    resolve_file_registries,
+    validate_artifact_owner_name,
+    validate_namespace,
+    validate_registry_key,
 };
 
 mod s3;
@@ -96,7 +183,12 @@ mod storage_config;
 mod trusted_proxy_header;
 
 mod upstream;
-use upstream::{Interval, UpstreamAuthFile, UpstreamConfigFile, resolve_upstream_config};
+use upstream::{
+    Interval,
+    UpstreamAuthFile,
+    UpstreamConfigFile,
+    resolve_upstream_config,
+};
 
 mod validation;
 
@@ -106,18 +198,44 @@ use web_ui::build_ui_config;
 use indexmap::IndexMap;
 use object_store::{
     ObjectStore,
-    aws::{AmazonS3Builder, AmazonS3ConfigKey},
+    aws::{
+        AmazonS3Builder,
+        AmazonS3ConfigKey,
+    },
 };
-use pnpm_env_replace::{EnvVar, SystemEnv};
-use pnpr_error::{RegistryError, redact_url_credentials};
-use pnpr_policy::{AccessList, AccessToken, Identity, PackageRules};
-use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
-use serde::{Deserialize, Serialize};
+use pnpm_env_replace::{
+    EnvVar,
+    SystemEnv,
+};
+use pnpr_error::{
+    RegistryError,
+    redact_url_credentials,
+};
+use pnpr_policy::{
+    AccessList,
+    AccessToken,
+    Identity,
+    PackageRules,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    RegistryConfigError,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::BTreeSet,
     fmt,
     net::SocketAddr,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };

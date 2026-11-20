@@ -1,13 +1,32 @@
 use super::{
-    FetchShasumsFileError, NodeResolver, NodeResolverError,
-    assets::{bin_spec_for_platform, parse_node_file_name},
-    exact_release_version, normalize_node_runtime_version_specifier, parse_node_specifier,
-    read_musl_assets, read_node_assets_from_mirror,
+    FetchShasumsFileError,
+    NodeResolver,
+    NodeResolverError,
+    assets::{
+        bin_spec_for_platform,
+        parse_node_file_name,
+    },
+    exact_release_version,
+    normalize_node_runtime_version_specifier,
+    parse_node_specifier,
+    read_musl_assets,
+    read_node_assets_from_mirror,
 };
-use pnpm_lockfile::{LockfileResolution, PlatformAssetResolution, VariationsResolution};
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PlatformAssetResolution,
+    VariationsResolution,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, ResolutionRefreshOptions, ResolveOptions, Resolver, UpdateBehavior,
+    CurrentPkg,
+    ResolutionRefreshOptions,
+    ResolveOptions,
+    Resolver,
+    UpdateBehavior,
     WantedDependency,
 };
 use pretty_assertions::assert_eq;

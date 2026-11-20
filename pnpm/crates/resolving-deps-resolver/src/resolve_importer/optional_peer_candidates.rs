@@ -1,15 +1,32 @@
 //! Picks the version a missing optional peer of the importer is hoisted at.
 
 use super::{
-    BTreeMap, CandidatePeer, CandidatePeers, HashMap, HashSet, ImporterHoistState, MissingPeer,
-    MissingPeerInfo, ParentPkgAliases, PreferredVersions, ResolveImporterError, Resolver,
-    accepts_optional_peer_candidate, get_hoistable_optional_peers_with_preferred_versions,
+    BTreeMap,
+    CandidatePeer,
+    CandidatePeers,
+    HashMap,
+    HashSet,
+    ImporterHoistState,
+    MissingPeer,
+    MissingPeerInfo,
+    ParentPkgAliases,
+    PreferredVersions,
+    ResolveImporterError,
+    Resolver,
+    accepts_optional_peer_candidate,
+    get_hoistable_optional_peers_with_preferred_versions,
     hoist_peers,
     hoist_rounds::hoisted_dependency,
-    missing_peers::{MissingPeerKind, classify_missing_peer},
+    missing_peers::{
+        MissingPeerKind,
+        classify_missing_peer,
+    },
     resolve_direct_dependency_detached,
 };
-use crate::{ParentChain, peer_dependents_dedupe::OptionalPeerScope};
+use crate::{
+    ParentChain,
+    peer_dependents_dedupe::OptionalPeerScope,
+};
 use futures_util::future;
 use node_semver::Version;
 use pipe_trait::Pipe;

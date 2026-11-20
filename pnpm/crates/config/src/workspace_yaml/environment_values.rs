@@ -1,5 +1,10 @@
 use super::{
-    BTreeMap, EnvVar, IndexMap, LoadWorkspaceYamlError, RegistryEntry, SentinelPlaceholders,
+    BTreeMap,
+    EnvVar,
+    IndexMap,
+    LoadWorkspaceYamlError,
+    RegistryEntry,
+    SentinelPlaceholders,
     env_replace_lossy,
 };
 use std::ops::Range;

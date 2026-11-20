@@ -1,5 +1,8 @@
 use super::config_dir;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn home(path: &str) -> impl FnOnce() -> Option<PathBuf> + use<'_> {
     move || Some(PathBuf::from(path))

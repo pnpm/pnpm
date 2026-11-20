@@ -1,11 +1,31 @@
 use super::{
-    Arc, ComparablePeerRange, DepPath, HashMap, MissingPeer, MissingPeerInfo, NodeId,
-    NodePeersContext, ParentChain, ParentPkgInfo, PeerDep, PeerDependencyIssue, PeerId,
-    PeerWalkMode, ResolvedPackage, SharedChain, Walker, link_node_id_as_dep_path,
-    link_path_to_peer_version, peer_id_pair,
+    Arc,
+    ComparablePeerRange,
+    DepPath,
+    HashMap,
+    MissingPeer,
+    MissingPeerInfo,
+    NodeId,
+    NodePeersContext,
+    ParentChain,
+    ParentPkgInfo,
+    PeerDep,
+    PeerDependencyIssue,
+    PeerId,
+    PeerWalkMode,
+    ResolvedPackage,
+    SharedChain,
+    Walker,
+    link_node_id_as_dep_path,
+    link_path_to_peer_version,
+    peer_id_pair,
 };
 
-use crate::peer_provider::{PeerScope, ProviderPick, provider_for};
+use crate::peer_provider::{
+    PeerScope,
+    ProviderPick,
+    provider_for,
+};
 
 impl Walker<'_> {
     /// `true` when a missing-peer issue for `peer_name` under the

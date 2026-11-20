@@ -2,23 +2,43 @@
 //! document, newest version first.
 
 use super::{
-    NotesTarget, notes_target,
-    responses::{PublicationLink, with_cache_rules},
+    NotesTarget,
+    notes_target,
+    responses::{
+        PublicationLink,
+        with_cache_rules,
+    },
 };
 use crate::server::{
-    AppState, Identity, PublishTarget,
-    publications::{PublicationNoteLink, readable_publication_note},
-    resolve_publish_target_for, routes_to_upstream,
+    AppState,
+    Identity,
+    PublishTarget,
+    publications::{
+        PublicationNoteLink,
+        readable_publication_note,
+    },
+    resolve_publish_target_for,
+    routes_to_upstream,
 };
 use axum::{
     Json,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::database::Note;
-use serde_json::{Map, Value, json};
-use std::collections::{BTreeMap, BTreeSet};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// Most entries the document lists.
 const MAX_ENTRIES: usize = 100;

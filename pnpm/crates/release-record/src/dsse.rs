@@ -7,11 +7,27 @@
 
 use base64::{
     Engine as _,
-    engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD},
+    engine::general_purpose::{
+        STANDARD,
+        STANDARD_NO_PAD,
+        URL_SAFE,
+        URL_SAFE_NO_PAD,
+    },
 };
-use derive_more::{Display, Error};
-use pnpm_transparency_log::{KeyAlgorithm, KeySet, NoteSigner, VerifierKey};
-use serde::{Deserialize, Serialize};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_transparency_log::{
+    KeyAlgorithm,
+    KeySet,
+    NoteSigner,
+    VerifierKey,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::HashSet;
 
 /// The payload type of an in-toto Statement.

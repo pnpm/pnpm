@@ -1,13 +1,26 @@
 use super::{
-    IndexDiscovery, git_dependency_sources, latest_version, missing_index_names, resolve_inputs,
-    resolve_lockfile, resolve_lockfile_with_preferences, serves_registry, verify_lockfile,
+    IndexDiscovery,
+    git_dependency_sources,
+    latest_version,
+    missing_index_names,
+    resolve_inputs,
+    resolve_lockfile,
+    resolve_lockfile_with_preferences,
+    serves_registry,
+    verify_lockfile,
 };
 use crate::{
     preferences::parse as parse_preferred_versions,
-    registry::{CRATES_IO_SOURCE, Registry},
+    registry::{
+        CRATES_IO_SOURCE,
+        Registry,
+    },
 };
 use cargo_lock::Lockfile;
-use std::{collections::BTreeMap, str::FromStr};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+};
 
 const METADATA: &str = r#"{
   "packages": [{

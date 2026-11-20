@@ -7,19 +7,39 @@ mod linked_copies;
 mod patched_engines;
 mod side_effects;
 mod slot_to_build;
-use lifecycle_scripts::{ScriptRun, run_scripts_in_every_copy};
+use lifecycle_scripts::{
+    ScriptRun,
+    run_scripts_in_every_copy,
+};
 use patched_engines::skip_incompatible_optional;
 use side_effects::{
-    FrozenStoreWrites, SideEffectsUpload, already_built, side_effects_cache_key,
+    FrozenStoreWrites,
+    SideEffectsUpload,
+    already_built,
+    side_effects_cache_key,
     upload_side_effects_cache,
 };
 use slot_to_build::slot_to_build;
 
 use super::{
-    AllowBuildPolicy, BuildModulesError, LogEvent, LogLevel, PackageKey, Path, PathBuf, PkgRoots,
-    RebuildOptions, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-    SkippedOptionalReason, allow_build_key_from_ignored_build, apply_patch_to_dir,
-    discard_skipped_optional_dependency, get_pkg_id_with_patch_hash, parse_name_version_from_key,
+    AllowBuildPolicy,
+    BuildModulesError,
+    LogEvent,
+    LogLevel,
+    PackageKey,
+    Path,
+    PathBuf,
+    PkgRoots,
+    RebuildOptions,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+    allow_build_key_from_ignored_build,
+    apply_patch_to_dir,
+    discard_skipped_optional_dependency,
+    get_pkg_id_with_patch_hash,
+    parse_name_version_from_key,
 };
 
 /// Everything one snapshot's build reads: the lockfile shape it belongs to,

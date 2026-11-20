@@ -2,7 +2,10 @@
 //! workspace state or the wanted lockfile, is derived from the manifest
 //! files. It defers to the check on the files instead.
 
-use super::{OptimisticRepeatInstallCheck, Stale};
+use super::{
+    OptimisticRepeatInstallCheck,
+    Stale,
+};
 
 /// `Err` when the check runs on stand-ins and the step it reached `writes`.
 pub(super) fn refuse(check: &OptimisticRepeatInstallCheck<'_>, writes: bool) -> Result<(), Stale> {

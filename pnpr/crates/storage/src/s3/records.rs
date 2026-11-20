@@ -2,7 +2,12 @@ use super::S3Store;
 use crate::DocumentWrite;
 use futures_util::StreamExt;
 use object_store::{
-    ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion, path::Path as ObjectPath,
+    ObjectStoreExt,
+    PutMode,
+    PutOptions,
+    PutPayload,
+    UpdateVersion,
+    path::Path as ObjectPath,
 };
 use pnpr_error::Result;
 

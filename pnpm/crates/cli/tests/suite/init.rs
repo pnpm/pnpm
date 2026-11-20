@@ -2,12 +2,18 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::get_filenames_in_folder,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// The version the pinning fixture's registry serves as pnpm's `latest`.
 /// Far ahead of any real release, so the no-downgrade guard never picks the

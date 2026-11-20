@@ -1,8 +1,14 @@
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The modules directory of each importer of a lockfile.

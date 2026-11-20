@@ -17,14 +17,24 @@ pub mod upload;
 pub use bounded_cache::BoundedCache;
 
 pub use atomic_write::{
-    TempSweep, count_stale_temps, is_atomic_write_temp_path, remove_atomic_write_temps,
-    sweep_stale_temps, unique_tmp_path, write_atomic, write_atomic_new,
+    TempSweep,
+    count_stale_temps,
+    is_atomic_write_temp_path,
+    remove_atomic_write_temps,
+    sweep_stale_temps,
+    unique_tmp_path,
+    write_atomic,
+    write_atomic_new,
 };
 
 pub use s3::cache_staging_tmp_base;
 
 pub use blob_write::{
-    BlobSlot, BlobWrite, SealedBlob, TempFileGuard, is_active_temp as is_active_blob_temp,
+    BlobSlot,
+    BlobWrite,
+    SealedBlob,
+    TempFileGuard,
+    is_active_temp as is_active_blob_temp,
 };
 
 pub(crate) use local_store::read_dir_if_present;
@@ -33,13 +43,26 @@ pub use object_store::GetRange;
 
 pub(crate) use self::backend::HostedBackend;
 
-pub use self::backend::{HostedDocumentForUpdate, HostedDocumentVersion};
+pub use self::backend::{
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+};
 
-pub use archives::{PackageRemoval, PromotedArchive, archive_temp_bases};
-pub use blob_id::{BlobId, parse_blob_key};
+pub use archives::{
+    PackageRemoval,
+    PromotedArchive,
+    archive_temp_bases,
+};
+pub use blob_id::{
+    BlobId,
+    parse_blob_key,
+};
 
 pub use staged_archives::{
-    INCOMPLETE_MAX_AGE, STAGED_ARCHIVE_MAX_AGE, STAGED_ARCHIVE_RENEWAL_MARGIN, StagedArchiveKey,
+    INCOMPLETE_MAX_AGE,
+    STAGED_ARCHIVE_MAX_AGE,
+    STAGED_ARCHIVE_RENEWAL_MARGIN,
+    StagedArchiveKey,
     StagedArchiveUsage,
 };
 
@@ -87,29 +110,60 @@ use async_trait::async_trait;
 use axum::body::Body;
 use futures_util::{
     StreamExt,
-    stream::{self, BoxStream},
+    stream::{
+        self,
+        BoxStream,
+    },
 };
 use pnpr_config::{
-    DatabaseBackend, HostedStoreConfig, StorageConfig, build_s3_store, normalize_key_prefix,
+    DatabaseBackend,
+    HostedStoreConfig,
+    StorageConfig,
+    build_s3_store,
+    normalize_key_prefix,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
 use std::{
-    io::{ErrorKind, SeekFrom},
-    path::{Path, PathBuf},
+    io::{
+        ErrorKind,
+        SeekFrom,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tokio::{
     fs,
-    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+    io::{
+        AsyncReadExt,
+        AsyncSeekExt,
+        AsyncWriteExt,
+    },
 };
 
 use layout::{
-    ARCHIVES_DIR, BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, blob_segment, package_segments,
+    ARCHIVES_DIR,
+    BLOBS_DIR,
+    DOCUMENT_FILE,
+    PACKAGES_DIR,
+    blob_segment,
+    package_segments,
 };
 pub const DOCUMENT_WRITE_RETRIES: usize = 8;
 const DOCUMENT_WRITE_CONFLICT_DELAY_MS: u64 = 5;

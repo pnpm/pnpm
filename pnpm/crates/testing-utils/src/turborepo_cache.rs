@@ -4,14 +4,29 @@
 use axum::{
     Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, Path, RawQuery, State},
-    http::{HeaderMap, Method, StatusCode},
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        RawQuery,
+        State,
+    },
+    http::{
+        HeaderMap,
+        Method,
+        StatusCode,
+    },
     routing::get,
 };
 use std::{
     collections::HashMap,
-    net::{Ipv4Addr, TcpListener},
-    sync::{Arc, Mutex},
+    net::{
+        Ipv4Addr,
+        TcpListener,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
     thread,
 };
 

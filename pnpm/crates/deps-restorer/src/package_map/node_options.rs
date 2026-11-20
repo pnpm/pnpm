@@ -1,6 +1,9 @@
 use super::PACKAGE_MAP_FILENAME;
 use pnpm_config::Config;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub fn make_node_package_map_option(package_map_path: &Path, node_options: Option<&str>) -> String {
     let node_options = node_options

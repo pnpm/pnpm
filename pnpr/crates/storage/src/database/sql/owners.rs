@@ -3,12 +3,18 @@
 use super::{
     PackageKey,
     adapter::Connection,
-    commit::{Commit, PackageRow},
+    commit::{
+        Commit,
+        PackageRow,
+    },
     transactions::Freshness,
 };
 use crate::database::PackageMetadata;
 use pnpr_error::Result;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_sql::DialectSql;
 use serde_json::Value;
 use std::collections::BTreeMap;

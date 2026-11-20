@@ -1,19 +1,45 @@
 use super::{
-    CliNetworkArgs, ConfigLoad, EntryPoint, Invocation, PackageManagerToSync, PinInput, PinRoots,
-    PreCommandPlan, SwitchProcessState, SwitchSource, SwitchTarget, apply_cli_layers,
-    load_pre_command_config, locked_package_manager_to_fetch, pin::switch_target_from_pin,
-    pre_command_plan_with_state, read_env_lockfile, read_root_manifest, wanted_package_manager,
+    CliNetworkArgs,
+    ConfigLoad,
+    EntryPoint,
+    Invocation,
+    PackageManagerToSync,
+    PinInput,
+    PinRoots,
+    PreCommandPlan,
+    SwitchProcessState,
+    SwitchSource,
+    SwitchTarget,
+    apply_cli_layers,
+    load_pre_command_config,
+    locked_package_manager_to_fetch,
+    pin::switch_target_from_pin,
+    pre_command_plan_with_state,
+    read_env_lockfile,
+    read_root_manifest,
+    wanted_package_manager,
 };
 use crate::{
     cli_args::{
         cli_command::CliPathArgs,
         config_warnings::ConfigWarnings,
-        reporter::{ReporterFlags, ReporterType},
+        reporter::{
+            ReporterFlags,
+            ReporterType,
+        },
     },
     config_overrides::ConfigOverrides,
 };
-use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
-use std::{ffi::OsString, fs, path::Path};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+    PmOnFail,
+};
+use std::{
+    ffi::OsString,
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 fn pre_command_plan_from_input(

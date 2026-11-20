@@ -1,4 +1,11 @@
-use super::{CommandExtra, CommandTempCwd, Path, assert_eq, fs, pacquet_at};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    Path,
+    assert_eq,
+    fs,
+    pacquet_at,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 /// A `node -e` script that waits up to 30 seconds for the mark `other`

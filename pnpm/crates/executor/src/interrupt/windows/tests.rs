@@ -7,16 +7,37 @@
 //! no real console is needed and the children other tests register are
 //! never touched: a `cmd` reading an answer from a pipe pnpm never writes
 //! to stands in for the one at that prompt.
-use super::{STATUS_CONTROL_C_EXIT, WINDOWS_INTERRUPT_GRACE, interrupt_child};
-use crate::interrupt::{SignalRelay, relay_to_child};
+use super::{
+    STATUS_CONTROL_C_EXIT,
+    WINDOWS_INTERRUPT_GRACE,
+    interrupt_child,
+};
+use crate::interrupt::{
+    SignalRelay,
+    relay_to_child,
+};
 use pretty_assertions::assert_eq;
 use std::{
     os::windows::process::CommandExt,
-    path::{Path, PathBuf},
-    process::{Child, Command, ExitStatus, Stdio},
-    sync::{OnceLock, atomic::Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Stdio,
+    },
+    sync::{
+        OnceLock,
+        atomic::Ordering,
+    },
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The node binary itself. The `node` on `PATH` can be a shim that runs

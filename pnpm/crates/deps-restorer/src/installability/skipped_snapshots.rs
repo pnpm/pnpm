@@ -1,5 +1,11 @@
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use std::collections::{HashMap, HashSet};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// The set of snapshot keys skipped on this host.
 ///

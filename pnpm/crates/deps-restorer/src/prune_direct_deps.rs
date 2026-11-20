@@ -7,21 +7,45 @@
 
 use crate::{
     SkippedSnapshots,
-    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
-    symlink_direct_dependencies::{direct_dep_names_for_importer, validate_importer_id},
+    safe_join_modules_dir::{
+        InvalidDependencyAliasError,
+        safe_join_modules_dir,
+    },
+    symlink_direct_dependencies::{
+        direct_dep_names_for_importer,
+        validate_importer_id,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_cmd_shim::{Host, get_bins_from_package_manifest, remove_bin};
+use pnpm_cmd_shim::{
+    Host,
+    get_bins_from_package_manifest,
+    remove_bin,
+};
 use pnpm_config::Config;
-use pnpm_fs::{read_symlink_dir, remove_dirent, remove_symlink_dir};
+use pnpm_fs::{
+    read_symlink_dir,
+    remove_dirent,
+    remove_symlink_dir,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::{DependencyGroup, parse_manifest_bytes};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    parse_manifest_bytes,
+};
 use std::{
     collections::HashSet,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Error type of [`prune_direct_deps_excluded_by_groups`].

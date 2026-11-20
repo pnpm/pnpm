@@ -1,12 +1,22 @@
-use std::{borrow::Cow, io::Read};
+use std::{
+    borrow::Cow,
+    io::Read,
+};
 
 use axum::{
     body::Bytes,
-    http::{HeaderMap, StatusCode, header},
+    http::{
+        HeaderMap,
+        StatusCode,
+        header,
+    },
     response::Response,
 };
 
-use super::{MAX_AUDIT_BODY_BYTES, audit_error_response};
+use super::{
+    MAX_AUDIT_BODY_BYTES,
+    audit_error_response,
+};
 
 const INITIAL_DECODE_CAPACITY_CAP: usize = 64 * 1024;
 

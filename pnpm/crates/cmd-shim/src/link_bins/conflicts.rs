@@ -1,4 +1,7 @@
-use super::{BinOrigin, PackageBinSource};
+use super::{
+    BinOrigin,
+    PackageBinSource,
+};
 use crate::bin_resolver::pkg_owns_bin;
 use node_semver::Version;
 use serde_json::Value;

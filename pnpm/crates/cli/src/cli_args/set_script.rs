@@ -1,8 +1,17 @@
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+};
 use pnpm_package_manifest::PackageManifest;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::path::Path;
 
 /// Keys that must never be written through a property path, because they can

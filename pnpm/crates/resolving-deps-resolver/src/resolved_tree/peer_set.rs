@@ -1,7 +1,13 @@
 use super::PeerDep;
-use crate::parent_pkg_aliases::{declared_peer_dependencies, own_dependency_names};
+use crate::parent_pkg_aliases::{
+    declared_peer_dependencies,
+    own_dependency_names,
+};
 use pnpm_lockfile::PeerDependencyMeta;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// The `peerDependencies` (name → range) and `peerDependenciesMeta`
 /// (name → `{ optional: true }`) blocks of a `packages:` entry.

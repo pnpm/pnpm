@@ -12,8 +12,15 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")

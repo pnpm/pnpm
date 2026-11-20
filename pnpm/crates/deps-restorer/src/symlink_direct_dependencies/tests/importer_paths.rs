@@ -1,7 +1,16 @@
 use super::{
-    super::validate_importer_id, Config, DependencyGroup, HashMap, LinkBinsOptions, PathBuf,
-    ProjectSnapshot, SilentReporter, SkippedSnapshots, SymlinkDirectDependencies,
-    SymlinkDirectDependenciesError, tempdir,
+    super::validate_importer_id,
+    Config,
+    DependencyGroup,
+    HashMap,
+    LinkBinsOptions,
+    PathBuf,
+    ProjectSnapshot,
+    SilentReporter,
+    SkippedSnapshots,
+    SymlinkDirectDependencies,
+    SymlinkDirectDependenciesError,
+    tempdir,
 };
 
 #[test]

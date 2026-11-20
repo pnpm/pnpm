@@ -1,5 +1,9 @@
 use super::StoreFile;
-use std::{cell::Cell, path::PathBuf, sync::Arc};
+use std::{
+    cell::Cell,
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// pnpm/pnpm#17543: the peer variants of a package share one files map, so
 /// a mode the first import reads from disk answers every later import.

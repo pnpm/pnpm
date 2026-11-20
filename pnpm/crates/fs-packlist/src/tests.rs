@@ -1,6 +1,13 @@
-use super::{PacklistOptions, packlist, packlist_with_options};
+use super::{
+    PacklistOptions,
+    packlist,
+    packlist_with_options,
+};
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn touch(root: &Path, rel: &str) {

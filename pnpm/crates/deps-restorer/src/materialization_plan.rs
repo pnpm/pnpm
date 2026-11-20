@@ -10,17 +10,30 @@
 //! [`SkipSetInputs::exclude_optional`].
 
 use crate::{
-    InstallabilityHost, NodeVersionSource, SkippedSnapshots, add_direct_runtime_skips,
-    compute_skipped_snapshots, extend_skipped_with_dependency_closure,
+    InstallabilityHost,
+    NodeVersionSource,
+    SkippedSnapshots,
+    add_direct_runtime_skips,
+    compute_skipped_snapshots,
+    extend_skipped_with_dependency_closure,
     find_root_runtime_node_version,
-    install_frozen_lockfile::{find_runtime_node_major, parse_major_from_version},
+    install_frozen_lockfile::{
+        find_runtime_node_major,
+        parse_major_from_version,
+    },
 };
 use pnpm_config::Config;
 use pnpm_lockfile::ProjectSnapshot;
-use pnpm_package_is_installable::{InstallabilityError, SupportedArchitectures};
+use pnpm_package_is_installable::{
+    InstallabilityError,
+    SupportedArchitectures,
+};
 use std::{
     collections::HashMap,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 /// What a project's target Node.js version decides. [`target_node_version`]

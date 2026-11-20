@@ -15,16 +15,45 @@
 //! as a low-priority auth-file fallback.
 
 use crate::{
-    AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LinkWorkspacePackages, LogLevel,
-    NodeLinkerSetting, NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail,
-    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, StoreIndexFormat,
-    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings,
+    AuditLevel,
+    CatalogMode,
+    ColorMode,
+    HoistingLimits,
+    InitType,
+    LinkWorkspacePackages,
+    LogLevel,
+    NodeLinkerSetting,
+    NodePackageMapMode,
+    NodePackageMapType,
+    PackageImportMethod,
+    PmOnFail,
+    ReporterType,
+    ResolutionMode,
+    RuntimeOnFail,
+    SaveWorkspaceProtocol,
+    StoreIndexFormat,
+    TrustPolicy,
+    VerifyDepsBeforeRun,
+    VirtualStoreType,
+    WorkspaceSettings,
     api::EnvVar,
-    workspace_yaml::{MachineSettings, TrustedSettings},
+    workspace_yaml::{
+        MachineSettings,
+        TrustedSettings,
+    },
 };
-use parse::{parse_json, parse_json_or_string, parse_tri_array};
+use parse::{
+    parse_json,
+    parse_json_or_string,
+    parse_tri_array,
+};
 use std::collections::BTreeMap;
-use string_reader::{StringReader, dotted_value, read_env, read_env_allow_empty};
+use string_reader::{
+    StringReader,
+    dotted_value,
+    read_env,
+    read_env_allow_empty,
+};
 
 mod parse;
 mod string_reader;

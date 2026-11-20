@@ -9,19 +9,44 @@
 //! rules replace root ignore files; required paths and standard package files
 //! are appended at the root. Bundled dependencies use the same selection.
 
-pub use ignore_walk::files_field::{FilesMatcher, build_files_matcher};
-pub use pnpm_fs::{AdmittedSymlink, SymlinkTargetKind};
+pub use ignore_walk::files_field::{
+    FilesMatcher,
+    build_files_matcher,
+};
+pub use pnpm_fs::{
+    AdmittedSymlink,
+    SymlinkTargetKind,
+};
 
-use derive_more::{Display, Error};
-use ignore_walk::{Host, PackageRules, walk_files};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use ignore_walk::{
+    Host,
+    PackageRules,
+    walk_files,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet, VecDeque},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     ffi::OsStr,
     fs,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(test)]
@@ -259,4 +284,7 @@ mod ignore_walk;
 mod symlinks;
 use bundled::collect_bundled_files;
 use ignore_walk::files_field::normalize_field_path;
-use symlinks::{PackableEntry, classify_entry};
+use symlinks::{
+    PackableEntry,
+    classify_entry,
+};

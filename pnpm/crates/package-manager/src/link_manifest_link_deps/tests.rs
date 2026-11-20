@@ -1,11 +1,20 @@
-use super::{WorkspaceLinks, link_manifest_link_deps};
-use pnpm_catalogs_types::{Catalog, Catalogs};
+use super::{
+    WorkspaceLinks,
+    link_manifest_link_deps,
+};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::SilentReporter;
-use pnpm_resolving_resolver_base::{WorkspacePackage, WorkspacePackages};
+use pnpm_resolving_resolver_base::{
+    WorkspacePackage,
+    WorkspacePackages,
+};
 use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::fs;
 use tempfile::tempdir;
@@ -193,7 +202,11 @@ fn relink_replaces_stale_symlink() {
 /// is not undone by the manifest pass.
 #[test]
 fn lockfile_tracked_alias_is_skipped() {
-    use pnpm_lockfile::{ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
+    use pnpm_lockfile::{
+        ProjectSnapshot,
+        ResolvedDependencyMap,
+        ResolvedDependencySpec,
+    };
 
     let dir = tempdir().unwrap();
     let project_dir = dir.path().join("packages/sibling");
@@ -412,7 +425,13 @@ fn bins_of_manifest_linked_deps_are_linked() {
 /// leave it out.
 #[test]
 fn reports_link_target_as_linked_from() {
-    use pnpm_reporter::{AddedRoot, LogEvent, Reporter, RootLog, RootMessage};
+    use pnpm_reporter::{
+        AddedRoot,
+        LogEvent,
+        Reporter,
+        RootLog,
+        RootMessage,
+    };
     use std::sync::Mutex;
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

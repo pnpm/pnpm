@@ -1,9 +1,25 @@
-use axum::{body::Bytes, response::IntoResponse};
+use axum::{
+    body::Bytes,
+    response::IntoResponse,
+};
 
 use super::{
-    AppState, CanonicalPackageName, DistView, DocumentSource, Duration, HeaderMap, Identity,
-    RegistryError, Response, Upstream, authorized_upstream, fetch_coalesced_upstream_packument,
-    not_found, packument_response, read_cached_upstream_packument, upstream_cache_namespace,
+    AppState,
+    CanonicalPackageName,
+    DistView,
+    DocumentSource,
+    Duration,
+    HeaderMap,
+    Identity,
+    RegistryError,
+    Response,
+    Upstream,
+    authorized_upstream,
+    fetch_coalesced_upstream_packument,
+    not_found,
+    packument_response,
+    read_cached_upstream_packument,
+    upstream_cache_namespace,
 };
 
 pub(in crate::server) async fn serve_packument_via_upstream(

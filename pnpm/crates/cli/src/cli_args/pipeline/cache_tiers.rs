@@ -2,8 +2,14 @@
 //! `remoteCache` configures one, the [`RemoteTaskCache`] behind it.
 
 use super::{
-    cache::{StoredTask, TaskCache},
-    remote_cache::{RemoteTaskCache, TaskIdentity},
+    cache::{
+        StoredTask,
+        TaskCache,
+    },
+    remote_cache::{
+        RemoteTaskCache,
+        TaskIdentity,
+    },
 };
 use pnpm_config::Config;
 use pnpm_workspace_task_scheduler::TaskNode;

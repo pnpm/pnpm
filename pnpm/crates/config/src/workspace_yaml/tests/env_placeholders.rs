@@ -1,10 +1,22 @@
 use super::{
-    AuditLevel, ColorMode, Config, EnvVar, LoadWorkspaceYamlError, NodeLinker, Path,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq,
+    AuditLevel,
+    ColorMode,
+    Config,
+    EnvVar,
+    LoadWorkspaceYamlError,
+    NodeLinker,
+    Path,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    assert_eq,
 };
 use crate::{
     SettingsRead,
-    workspace_yaml::{TrustedSettings, parse_settings, parse_settings_file},
+    workspace_yaml::{
+        TrustedSettings,
+        parse_settings,
+        parse_settings_file,
+    },
 };
 use std::fmt::Write as _;
 

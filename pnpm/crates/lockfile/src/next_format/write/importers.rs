@@ -1,10 +1,22 @@
 //! The next format's importers, with references without groups.
 
-use super::{Explicit, snapshots::Snapshots};
+use super::{
+    Explicit,
+    snapshots::Snapshots,
+};
 use crate::{
-    ImporterDepVersion, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
+    ImporterDepVersion,
+    PkgName,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
-    next_format::{NextImporter, NextImporterDep, NextImporterDeps, NextResolvedDep},
+    next_format::{
+        NextImporter,
+        NextImporterDep,
+        NextImporterDeps,
+        NextResolvedDep,
+    },
 };
 use std::collections::HashMap;
 

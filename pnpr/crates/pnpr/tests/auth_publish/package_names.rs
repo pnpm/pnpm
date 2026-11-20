@@ -1,6 +1,14 @@
 use super::{
-    Body, Request, ServiceExt, StatusCode, TempDir, add_user_and_get_token, body_bytes,
-    publish_doc, router, static_config,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    add_user_and_get_token,
+    body_bytes,
+    publish_doc,
+    router,
+    static_config,
 };
 
 #[tokio::test]

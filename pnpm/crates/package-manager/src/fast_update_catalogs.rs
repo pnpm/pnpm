@@ -1,6 +1,9 @@
 use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
 use pnpm_semver_include_prerelease::parse_strict_semver_range;
 use std::collections::BTreeMap;
 

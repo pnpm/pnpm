@@ -1,9 +1,20 @@
 use reqwest::StatusCode;
-use serde::{Deserialize, de::DeserializeOwned};
-use serde_json::{Map, Value};
+use serde::{
+    Deserialize,
+    de::DeserializeOwned,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 use super::{
-    FetchOutcome, RegistryError, Result, UNPRIORITIZED, UPSTREAM_DISCOVERY_BODY_LIMIT, Upstream,
+    FetchOutcome,
+    RegistryError,
+    Result,
+    UNPRIORITIZED,
+    UPSTREAM_DISCOVERY_BODY_LIMIT,
+    Upstream,
     read_limited_body,
 };
 

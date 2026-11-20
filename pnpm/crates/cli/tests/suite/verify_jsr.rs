@@ -2,11 +2,17 @@
 //! verification, the shape reported in
 //! [pnpm/pnpm#14649](https://github.com/pnpm/pnpm/issues/14649).
 
-use crate::_utils::{flatten_report, pacquet_in};
+use crate::_utils::{
+    flatten_report,
+    pacquet_in,
+};
 
 use assert_cmd::prelude::*;
 use std::fs;
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// The integrity is a placeholder: the run fails at the metadata lookup this
 /// test is about, so no artifact is ever fetched or hashed. What matters is

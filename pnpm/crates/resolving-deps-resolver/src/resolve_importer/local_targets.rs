@@ -1,6 +1,13 @@
 use super::{
-    BTreeMap, DirectDep, HashSet, Path, ResolvedTree, WorkspaceRootDep, io,
-    safe_read_package_json_from_dir, unwrap_package_name,
+    BTreeMap,
+    DirectDep,
+    HashSet,
+    Path,
+    ResolvedTree,
+    WorkspaceRootDep,
+    io,
+    safe_read_package_json_from_dir,
+    unwrap_package_name,
 };
 use node_semver::Version;
 use pnpm_package_manifest::PackageManifestError;

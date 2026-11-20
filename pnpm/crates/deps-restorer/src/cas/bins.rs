@@ -1,10 +1,25 @@
-use super::{LOADER_FILENAME, StoreManifest, write_file};
+use super::{
+    LOADER_FILENAME,
+    StoreManifest,
+    write_file,
+};
 use pnpm_cmd_shim::{
-    FsWalkFiles, Host, PackageBinSource, get_bins_from_package_manifest_with_walk,
+    FsWalkFiles,
+    Host,
+    PackageBinSource,
+    get_bins_from_package_manifest_with_walk,
     link_bins_of_packages,
 };
-use sha2::{Digest, Sha256};
-use std::{collections::HashMap, io, path::Path, sync::Arc};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    collections::HashMap,
+    io,
+    path::Path,
+    sync::Arc,
+};
 use url::Url;
 
 pub(crate) struct BinInstall<'a> {

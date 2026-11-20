@@ -14,14 +14,29 @@
 //! publication note, or of the version note when the publication has one
 //! member, since that publication has nothing else in it.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use crate::{
-    changelog::{compose_changelog_section, format_list_item, release_bump_for, section_title},
+    changelog::{
+        compose_changelog_section,
+        format_list_item,
+        release_bump_for,
+        section_title,
+    },
     intents::ChangeIntent,
     parked_publication::ParkedPublication,
-    plan::{PlannedRelease, ProjectRefIndex, ReleasePlan},
-    settings::{ReleaseBumpType, VersioningSettings},
+    plan::{
+        PlannedRelease,
+        ProjectRefIndex,
+        ReleasePlan,
+    },
+    settings::{
+        ReleaseBumpType,
+        VersioningSettings,
+    },
 };
 
 /// The notes composed for the members of a publication.

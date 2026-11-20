@@ -10,29 +10,47 @@
 //!    registry when it isn't already pinned in the lockfile.
 
 use crate::{
-    ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
-    prune_env_lockfile, read_config_dependency_lockfile,
+    ConfigDepError,
+    install_config_deps::install_config_deps,
+    options::ConfigDepsInstallOptions,
+    prune_env_lockfile,
+    read_config_dependency_lockfile,
     resolve_optional_subdeps::resolve_optional_subdeps,
     verify_config_dep_resolutions::verify_config_dep_resolutions,
     verify_env_lockfile::write_verified_env_lockfile,
 };
 use pnpm_lockfile::{
-    EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
-    SnapshotEntry, SpecifierAndResolution, TarballResolution, TarballUrlOptions,
+    EnvLockfile,
+    LockfileFormOptions,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TarballResolution,
+    TarballUrlOptions,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyOptions, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
-    VersionSelectorType, WantedDependency,
+    ResolutionPolicyOptions,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    VersionSelectorType,
+    WantedDependency,
 };
 use pnpm_workspace_state::ConfigDependency;
 use ssri::Integrity;
 use std::collections::BTreeMap;
 
 mod plan;
-use plan::{ToResolve, plan_config_deps};
+use plan::{
+    ToResolve,
+    plan_config_deps,
+};
 
 fn lockfile_form(tarball_url_options: TarballUrlOptions<'_>) -> LockfileFormOptions<'_> {
     let TarballUrlOptions { registry, server_type } = tarball_url_options;

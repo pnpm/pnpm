@@ -1,8 +1,17 @@
 //! The clients one TLS configuration is served by.
 
 use super::{
-    Arc, Client, ClientBuildInputs, ClientVariant, ForInstallsError, NetworkSettings,
-    NoProxyMatcher, RedirectGuard, Resolve, TlsConfig, build_client_with_root_fallback,
+    Arc,
+    Client,
+    ClientBuildInputs,
+    ClientVariant,
+    ForInstallsError,
+    NetworkSettings,
+    NoProxyMatcher,
+    RedirectGuard,
+    Resolve,
+    TlsConfig,
+    build_client_with_root_fallback,
 };
 use std::sync::OnceLock;
 

@@ -1,11 +1,19 @@
 use crate::{
-    LoadLockfileError, LoadedRepairLockfile, LoadedWantedLockfile, Lockfile, ProjectSnapshot,
+    LoadLockfileError,
+    LoadedRepairLockfile,
+    LoadedWantedLockfile,
+    Lockfile,
+    ProjectSnapshot,
     WantedLockfileSelection,
 };
 use std::{
     collections::HashMap,
     path::PathBuf,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{
+        Arc,
+        Mutex,
+        OnceLock,
+    },
 };
 
 /// Wanted lockfile (`pnpm-lock.yaml`) whose read + parse are deferred

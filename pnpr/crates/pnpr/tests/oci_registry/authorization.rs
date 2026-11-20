@@ -1,6 +1,21 @@
 use super::{
-    AccessList, AuthState, Body, Request, ServiceExt, StatusCode, TempDir, Value, basic,
-    body_bytes, get, header, oci_config, push_blob, push_image, router_with_auth, token,
+    AccessList,
+    AuthState,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    basic,
+    body_bytes,
+    get,
+    header,
+    oci_config,
+    push_blob,
+    push_image,
+    router_with_auth,
+    token,
 };
 
 #[tokio::test]
@@ -182,7 +197,10 @@ async fn oci_bearer_updates_parent_token_last_used_at() {
 async fn only_the_owner_pushes_to_a_claimed_repository() {
     use base64::{
         Engine as _,
-        engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+        engine::general_purpose::{
+            STANDARD,
+            URL_SAFE_NO_PAD,
+        },
     };
 
     let tmp = TempDir::new().unwrap();
@@ -248,7 +266,10 @@ async fn only_the_owner_pushes_to_a_claimed_repository() {
 
 #[tokio::test]
 async fn deleting_every_image_keeps_the_repository_owned() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD,
+    };
 
     let tmp = TempDir::new().unwrap();
     let mut config = oci_config(tmp.path().to_path_buf(), "$all");
@@ -292,7 +313,10 @@ async fn deleting_every_image_keeps_the_repository_owned() {
 
 #[tokio::test]
 async fn the_owner_shares_a_repository_through_the_owners_endpoint() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD,
+    };
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();

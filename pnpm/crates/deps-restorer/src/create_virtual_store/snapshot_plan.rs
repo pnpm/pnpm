@@ -3,18 +3,41 @@
 //! derived for it.
 
 mod children;
-use children::{EntryKind, optional_children_match, probe_slot_entry, regular_children_match};
+use children::{
+    EntryKind,
+    optional_children_match,
+    probe_slot_entry,
+    regular_children_match,
+};
 
 use super::{
-    CreateVirtualStoreError, SnapshotCacheKey, SnapshotWithCacheKey, integrity_equal,
+    CreateVirtualStoreError,
+    SnapshotCacheKey,
+    SnapshotWithCacheKey,
+    integrity_equal,
     snapshot_deps_equal,
 };
-use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pnpm_lockfile::{
-    LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
 };
-use pnpm_reporter::{BrokenModulesLog, LogEvent, LogLevel, Reporter};
-use std::collections::{HashMap, HashSet};
+use pnpm_lockfile::{
+    LockfileEntries,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
+use pnpm_reporter::{
+    BrokenModulesLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// `'a` is the lifetime of the lockfile maps the resulting
 /// [`SnapshotPlan`] borrows from; `'b` covers the inputs the plan pass

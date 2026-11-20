@@ -1,9 +1,21 @@
-use super::{DepHierarchy, HeldBackBinsDir, LinkHoistedModulesError, LinkHoistedModulesOpts};
-use crate::{BinCandidates, BinTargets, BinsDirPass};
+use super::{
+    DepHierarchy,
+    HeldBackBinsDir,
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+};
+use crate::{
+    BinCandidates,
+    BinTargets,
+    BinsDirPass,
+};
 use pnpm_cmd_shim::PackageBinSource;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

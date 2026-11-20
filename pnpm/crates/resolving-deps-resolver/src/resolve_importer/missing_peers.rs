@@ -1,4 +1,11 @@
-use super::{BTreeMap, BTreeSet, HashMap, HashSet, MissingPeer, MissingPeerInfo};
+use super::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+    HashSet,
+    MissingPeer,
+    MissingPeerInfo,
+};
 use crate::peer_provider::is_registry_peer_specifier;
 use node_semver::Range;
 use std::borrow::Cow;

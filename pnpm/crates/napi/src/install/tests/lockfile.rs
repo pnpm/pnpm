@@ -1,5 +1,10 @@
 use super::{
-    EngineMode, HashMap, NodeApiProject, TestRegistry, install_options, install_options_for,
+    EngineMode,
+    HashMap,
+    NodeApiProject,
+    TestRegistry,
+    install_options,
+    install_options_for,
     run_install_inner,
 };
 

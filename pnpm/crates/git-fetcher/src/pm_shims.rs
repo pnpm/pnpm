@@ -11,8 +11,12 @@
 
 use pnpm_fs::write_atomic;
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use crate::preferred_pm::WantedPm;

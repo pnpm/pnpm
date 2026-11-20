@@ -16,15 +16,32 @@
 //! the way every other store consumer and prune keep out of each
 //! other's way.
 
-use crate::{StoreDir, StoreLockError};
-use derive_more::{Display, Error};
+use crate::{
+    StoreDir,
+    StoreLockError,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_fs::LockMode;
 use std::{
-    fs::{self, File, TryLockError},
+    fs::{
+        self,
+        File,
+        TryLockError,
+    },
     io,
-    path::{Component, Path, PathBuf},
-    time::{Duration, SystemTime},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// The directory under the store's `tmp/` that holds the private installs.

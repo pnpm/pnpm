@@ -1,27 +1,62 @@
 use super::{
-    BenchId, PNPR_SERVER_REGISTRY_ENV, PNPR_TARBALL_REWRITE_FROM_ENV, PnprServer, PnprServerPaths,
-    RevisionMockRegistry, WorkEnv, append_pnpr_auth_to_npmrc, cold_revision_mock_command,
-    distinct_public_route_registries, mint_pnpr_token,
-    mock_home::{COLD_ORIGIN, REVISION_MOCK, revision_mock_home},
+    BenchId,
+    PNPR_SERVER_REGISTRY_ENV,
+    PNPR_TARBALL_REWRITE_FROM_ENV,
+    PnprServer,
+    PnprServerPaths,
+    RevisionMockRegistry,
+    WorkEnv,
+    append_pnpr_auth_to_npmrc,
+    cold_revision_mock_command,
+    distinct_public_route_registries,
+    mint_pnpr_token,
+    mock_home::{
+        COLD_ORIGIN,
+        REVISION_MOCK,
+        revision_mock_home,
+    },
     registries_home::RegistriesHome,
     revision_mock::{
-        cold_origin_public_url, pnpr_server_command, served_revision_mock_origin,
+        cold_origin_public_url,
+        pnpr_server_command,
+        served_revision_mock_origin,
         spawn_revision_mock,
     },
     server_config::RevisionMockLaunch,
-    serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
+    serves_npm_under_base_path,
+    wait_for_pnpr_ready,
+    write_pnpr_benchmark_config,
 };
 use crate::{
-    cli_args::{BenchmarkScenario, RegistryMode, TargetKind},
-    latency_proxy::{LatencyProxy, LinkProfile, mbps_to_bytes_per_sec},
+    cli_args::{
+        BenchmarkScenario,
+        RegistryMode,
+        TargetKind,
+    },
+    latency_proxy::{
+        LatencyProxy,
+        LinkProfile,
+        mbps_to_bytes_per_sec,
+    },
 };
 use pnpm_registry_mock::pick_unused_port;
 use std::{
     collections::HashMap,
-    fs::{self, File},
-    net::{Ipv4Addr, SocketAddr, TcpListener},
+    fs::{
+        self,
+        File,
+    },
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        TcpListener,
+    },
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{
+        Child,
+        Command,
+        Stdio,
+    },
     time::Duration,
 };
 

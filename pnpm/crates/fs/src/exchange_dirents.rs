@@ -1,4 +1,7 @@
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// Swap the dirents at `first` and `second` in one step, so that neither
 /// path is ever absent and each names one of the two trees throughout.
@@ -13,7 +16,10 @@ pub fn exchange_dirents(first: &Path, second: &Path) -> io::Result<()> {
 
 #[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
 fn exchange(first: &Path, second: &Path) -> io::Result<()> {
-    use std::{ffi::CString, os::unix::ffi::OsStrExt};
+    use std::{
+        ffi::CString,
+        os::unix::ffi::OsStrExt,
+    };
 
     let first = CString::new(first.as_os_str().as_bytes())?;
     let second = CString::new(second.as_os_str().as_bytes())?;

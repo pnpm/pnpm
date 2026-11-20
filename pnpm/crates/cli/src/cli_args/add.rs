@@ -1,9 +1,23 @@
 pub(crate) mod allow_build;
 
-pub use arguments::{AddIncludeArgs, AddInstallArgs, AddRequest, AddSaveArgs, AddTargetArgs};
+pub use arguments::{
+    AddIncludeArgs,
+    AddInstallArgs,
+    AddRequest,
+    AddSaveArgs,
+    AddTargetArgs,
+};
 
-pub(crate) use allow_build::{AllowBuildSelector, apply_allow_build, parse_allow_build_selectors};
-pub(crate) use execution::{AddGroups, add_package, add_packages};
+pub(crate) use allow_build::{
+    AllowBuildSelector,
+    apply_allow_build,
+    parse_allow_build_selectors,
+};
+pub(crate) use execution::{
+    AddGroups,
+    add_package,
+    add_packages,
+};
 
 mod arguments;
 
@@ -11,7 +25,10 @@ use crate::{
     State,
     cargo_manifest::CargoDependencyKind,
     cli_args::{
-        install::{included_dependency_groups, resolve_bool_override},
+        install::{
+            included_dependency_groups,
+            resolve_bool_override,
+        },
         lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection,
         recursive,
@@ -22,25 +39,49 @@ use crate::{
     engine_pm::{
         error::EngineError,
         pin::{
-            declared_package_manager, describe_pin, record_package_manager_pin, resolve_project_pin,
+            declared_package_manager,
+            describe_pin,
+            record_package_manager_pin,
+            resolve_project_pin,
         },
         selector::tool_install_selector,
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_package_manager::{Add, build_workspace_packages_map};
-use pnpm_package_manifest::{DependencyGroup, PROJECT_MANIFEST_BASENAMES};
+use pnpm_package_manager::{
+    Add,
+    build_workspace_packages_map,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PROJECT_MANIFEST_BASENAMES,
+};
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Clone, Args)]

@@ -3,9 +3,16 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::CommandTempCwd,
     diagnostics::assert_diagnostic_contains,
-    fixtures::{minimal_tarball, sha512_integrity},
+    fixtures::{
+        minimal_tarball,
+        sha512_integrity,
+    },
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)

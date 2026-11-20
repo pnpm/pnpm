@@ -1,5 +1,14 @@
-use pnpm_lockfile::{BoundProviders, Lockfile, PackageKey, PkgName, SnapshotEntry};
-use std::collections::{HashMap, HashSet};
+use pnpm_lockfile::{
+    BoundProviders,
+    Lockfile,
+    PackageKey,
+    PkgName,
+    SnapshotEntry,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Aliases supplied as peers by a reachable occurrence of a recorded directory.
 #[derive(Default)]

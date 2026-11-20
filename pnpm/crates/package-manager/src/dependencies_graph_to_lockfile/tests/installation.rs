@@ -1,20 +1,42 @@
 use super::{
-    super::DependenciesGraphToLockfileError, dependencies_graph_to_lockfile,
-    error_from_single_node_graph, make_file_node, make_named_registry_node, make_node,
-    make_node_with_optional, named_registries_with, single_importer_opts, write_manifest,
+    super::DependenciesGraphToLockfileError,
+    dependencies_graph_to_lockfile,
+    error_from_single_node_graph,
+    make_file_node,
+    make_named_registry_node,
+    make_node,
+    make_node_with_optional,
+    named_registries_with,
+    single_importer_opts,
+    write_manifest,
 };
-use crate::dependencies_graph_to_lockfile::packages::{read_engines, read_string_or_list};
+use crate::dependencies_graph_to_lockfile::packages::{
+    read_engines,
+    read_string_or_list,
+};
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
-    ImporterDepVersion, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    RegistryResolution, SnapshotDepRef,
+    ImporterDepVersion,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    RegistryResolution,
+    SnapshotDepRef,
 };
-use pnpm_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode};
+use pnpm_resolving_deps_resolver::{
+    DependenciesGraph,
+    DependenciesGraphNode,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::json;
 use ssri::Integrity;
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::Arc,
+};
 
 /// An install that resolved no publish dates leaves the section out
 /// rather than writing an empty map.

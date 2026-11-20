@@ -5,22 +5,38 @@
 use crate::{
     _utils::enable_gvs_in_workspace_yaml,
     install_runtimes::{
-        prepare_workspace, runtime_fixture, write_runtime_lockfile, write_runtime_manifest,
+        prepare_workspace,
+        runtime_fixture,
+        write_runtime_lockfile,
+        write_runtime_manifest,
     },
     patch::MARKER_PATCH,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_graph_hasher::{host_arch, host_platform};
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndex};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_platform,
+};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

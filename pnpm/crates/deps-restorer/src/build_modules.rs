@@ -3,52 +3,106 @@ pub(crate) mod build_one_snapshot;
 pub(crate) mod skills_policy;
 pub(crate) mod slots;
 pub use allow_build_policy::{
-    AllowBuildPolicy, allow_build_key_from_ignored_build, is_git_hosted_dep_path,
-    normalize_build_dep_path, parse_allow_build_selector, parse_dep_path_name_version,
+    AllowBuildPolicy,
+    allow_build_key_from_ignored_build,
+    is_git_hosted_dep_path,
+    normalize_build_dep_path,
+    parse_allow_build_selector,
+    parse_dep_path_name_version,
     short_package_label,
 };
 pub(crate) use build_one_snapshot::build_one_snapshot;
 pub(crate) use build_requirements::deferred_builds;
-pub use build_requirements::{ScheduledBuilds, ScheduledBuildsInputs};
-pub use skills_policy::{SkillsPolicy, is_local_directory_version, skill_approval_key};
+pub use build_requirements::{
+    ScheduledBuilds,
+    ScheduledBuildsInputs,
+};
+pub use skills_policy::{
+    SkillsPolicy,
+    is_local_directory_version,
+    skill_approval_key,
+};
 pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
-    PkgRoots, bin_dirs_in_all_parent_dirs, discard_skipped_optional_dependency,
+    PkgRoots,
+    bin_dirs_in_all_parent_dirs,
+    discard_skipped_optional_dependency,
     materialize_side_effects,
 };
 
 mod build_requirements;
 
 use build_requirements::{
-    RequiresBuildInputs, SideEffectsCacheGate, requires_build_by_key,
+    RequiresBuildInputs,
+    SideEffectsCacheGate,
+    requires_build_by_key,
     side_effects_cache_gate_active,
 };
 
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, SkippedSnapshots,
+    ImportIndexedDirError,
+    ImportIndexedDirOpts,
+    SkippedSnapshots,
     build_graph::build_graph,
-    find_root_runtime_node_key, import_indexed_dir, store_index_key_for_resolution,
+    find_root_runtime_node_key,
+    import_indexed_dir,
+    store_index_key_for_resolution,
     version_policy::{
-        PackageVersionPolicy, PolicyMatch, VersionPolicyError, create_package_version_policy,
-        expand_package_version_spec, expand_package_version_specs,
+        PackageVersionPolicy,
+        PolicyMatch,
+        VersionPolicyError,
+        create_package_version_policy,
+        expand_package_version_spec,
+        expand_package_version_specs,
     },
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_deps_path::{get_pkg_id_with_patch_hash, remove_suffix};
-use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_postinstall_hooks};
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use pnpm_patching::{PatchApplyError, apply_patch_to_dir};
+use pnpm_deps_path::{
+    get_pkg_id_with_patch_hash,
+    remove_suffix,
+};
+use pnpm_executor::{
+    LifecycleScriptError,
+    RunPostinstallHooks,
+    run_postinstall_hooks,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use pnpm_patching::{
+    PatchApplyError,
+    apply_patch_to_dir,
+};
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
     SkippedOptionalReason,
 };
-use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphOptions,
+    TaskCompletion,
+    schedule_graph,
+};
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 

@@ -25,19 +25,35 @@
 //! | required | current providers, then importer pins | `includePrerelease`, one range |
 //! | optional | [`ProviderTiers::optional`] | strict, every recorded range |
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, path::Path};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
-    get_peer_version_range, is_valid_semver_range, parse_strict_semver_range,
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectors,
+    get_peer_version_range,
+    is_valid_semver_range,
+    parse_strict_semver_range,
 };
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use serde_json::Value;
 
 use crate::{
-    PeerDep, parent_pkg_aliases::ParentPkgAliases, resolve_peers::satisfies_with_prereleases,
+    PeerDep,
+    parent_pkg_aliases::ParentPkgAliases,
+    resolve_peers::satisfies_with_prereleases,
 };
 
 /// One workspace-root dep the loop can satisfy a peer with.

@@ -1,12 +1,32 @@
-use super::{build_has_bin_set, pkg_dir_under};
+use super::{
+    build_has_bin_set,
+    pkg_dir_under,
+};
 use crate::PackageManifests;
-use pnpm_cmd_shim::{LinkBinsError, PackageBinSource, ShimTargetCache};
-use pnpm_lockfile::{PackageKey, PackageMetadata};
-use pnpm_package_manifest::{find_parent_publish_manifest, parse_manifest_bytes};
+use pnpm_cmd_shim::{
+    LinkBinsError,
+    PackageBinSource,
+    ShimTargetCache,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+};
+use pnpm_package_manifest::{
+    find_parent_publish_manifest,
+    parse_manifest_bytes,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

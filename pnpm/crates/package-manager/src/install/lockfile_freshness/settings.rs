@@ -3,8 +3,13 @@
 //! of the settings only the patches decide what it builds.
 
 use super::{
-    super::{Config, Lockfile},
-    FreshnessCheckError, FreshnessScope, LockfileFreshnessInputs,
+    super::{
+        Config,
+        Lockfile,
+    },
+    FreshnessCheckError,
+    FreshnessScope,
+    LockfileFreshnessInputs,
 };
 use crate::RebuildOptions;
 use pnpm_catalogs_types::Catalogs;

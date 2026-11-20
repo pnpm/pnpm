@@ -4,25 +4,58 @@
 
 use super::{
     super::{
-        AppState, AuthedCaller, RegistryError, Response, StatusCode, iso_from_unix_millis,
-        json_response, parse_json_body, private_no_cache, team_mutations::respond,
+        AppState,
+        AuthedCaller,
+        RegistryError,
+        Response,
+        StatusCode,
+        iso_from_unix_millis,
+        json_response,
+        parse_json_body,
+        private_no_cache,
+        team_mutations::respond,
     },
-    edit::{EditOutcome, Effect, GraphEdit, Scope, edit_graph},
-    stored::{graph_version, parse_document, stored_document},
+    edit::{
+        EditOutcome,
+        Effect,
+        GraphEdit,
+        Scope,
+        edit_graph,
+    },
+    stored::{
+        graph_version,
+        parse_document,
+        stored_document,
+    },
 };
 use crate::audit::Actor;
 use axum::{
     Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, Path, Query, State},
-    http::{HeaderMap, HeaderValue, header},
-    routing::{get, post},
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        Query,
+        State,
+    },
+    http::{
+        HeaderMap,
+        HeaderValue,
+        header,
+    },
+    routing::{
+        get,
+        post,
+    },
 };
 use pnpr_config::RegistryGraphDocument;
 use pnpr_policy::Identity;
 use pnpr_storage::database::RegistryGraphRevision;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// The largest registry document or entry the API accepts.
 const MAX_GRAPH_BODY_BYTES: usize = 4 * 1024 * 1024;

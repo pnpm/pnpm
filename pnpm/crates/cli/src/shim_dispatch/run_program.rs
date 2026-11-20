@@ -3,16 +3,30 @@
 //! child this process waits for.
 
 use super::{
-    ShimInvocation, ShimTarget,
-    rust_toolchain::{RUST_SHIM_PACKAGE, run_next_on_path},
+    ShimInvocation,
+    ShimTarget,
+    rust_toolchain::{
+        RUST_SHIM_PACKAGE,
+        run_next_on_path,
+    },
     unmark_preparation,
 };
 use crate::process::Command;
-use pnpm_cmd_shim::{Host as CmdShimHost, ScriptRuntime, search_script_runtime};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    ScriptRuntime,
+    search_script_runtime,
+};
 use pnpm_store_dir::PrivateInstall;
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Run the global target the way a direct cmd-shim would: a script runs

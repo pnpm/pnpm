@@ -2,7 +2,12 @@
 mod tests;
 
 use super::{
-    Config, HoistedLinkerError, NodeLinker, Path, PathBuf, SymlinkDirectDependenciesError,
+    Config,
+    HoistedLinkerError,
+    NodeLinker,
+    Path,
+    PathBuf,
+    SymlinkDirectDependenciesError,
     SymlinkPackageError,
 };
 use std::collections::HashSet;

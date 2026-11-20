@@ -1,9 +1,19 @@
 use crate::{
-    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout,
-    safe_join_modules_dir::safe_join_modules_dir, symlink_package,
+    SkippedSnapshots,
+    SymlinkPackageError,
+    VirtualStoreLayout,
+    safe_join_modules_dir::safe_join_modules_dir,
+    symlink_package,
 };
-use pnpm_lockfile::{PkgName, SnapshotDepRef, join_package_root_link};
-use std::{collections::HashMap, path::Path};
+use pnpm_lockfile::{
+    PkgName,
+    SnapshotDepRef,
+    join_package_root_link,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 /// Create symlink layout of dependencies for a package in a virtual dir.
 ///

@@ -1,10 +1,29 @@
 use super::{
     super::{
-        Arc, HashSet, InstallError, Lockfile, LogEvent, LogLevel, Path, PathBuf, PnpmLog, Reporter,
-        emit_initial_package_manifest, report_merged_lockfile_conflicts,
+        Arc,
+        HashSet,
+        InstallError,
+        Lockfile,
+        LogEvent,
+        LogLevel,
+        Path,
+        PathBuf,
+        PnpmLog,
+        Reporter,
+        emit_initial_package_manifest,
+        report_merged_lockfile_conflicts,
     },
-    HookedManifests, InstallOwned, InstallView, RunMode, resolve_pnpmfile_hook,
-    workspace::{InstallScope, InstallWorkspace, report_install_scope_cycles, workspace_projects},
+    HookedManifests,
+    InstallOwned,
+    InstallView,
+    RunMode,
+    resolve_pnpmfile_hook,
+    workspace::{
+        InstallScope,
+        InstallWorkspace,
+        report_install_scope_cycles,
+        workspace_projects,
+    },
 };
 use pnpm_config::Config;
 

@@ -8,7 +8,10 @@
 //!
 //! Yarn applies the same rule to every package in `normalizePackage`.
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::sync::Arc;
 
 const TYPES_SCOPE: &str = "@types/";

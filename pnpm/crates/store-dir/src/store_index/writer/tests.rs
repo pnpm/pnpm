@@ -1,5 +1,14 @@
-use super::{WriteMsg, apply_write_msg, pending::invalidate_side_effects};
-use crate::store_index::{SideEffectsDiff, StoreIndex, StoreIndexError, tests::sample_index};
+use super::{
+    WriteMsg,
+    apply_write_msg,
+    pending::invalidate_side_effects,
+};
+use crate::store_index::{
+    SideEffectsDiff,
+    StoreIndex,
+    StoreIndexError,
+    tests::sample_index,
+};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 use tempfile::tempdir;

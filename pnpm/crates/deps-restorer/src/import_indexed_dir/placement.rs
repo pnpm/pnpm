@@ -2,21 +2,38 @@ pub(super) mod exact;
 pub(super) mod symlinks;
 
 use super::{
-    ImportIndexedDirError, Placement, SymlinkTargets, remove_non_dir_dirent, staging::import_atomic,
+    ImportIndexedDirError,
+    Placement,
+    SymlinkTargets,
+    remove_non_dir_dirent,
+    staging::import_atomic,
 };
-use crate::{import_into_fresh_target, link_pool::in_link_pool};
+use crate::{
+    import_into_fresh_target,
+    link_pool::in_link_pool,
+};
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{Host, StoreFile};
+use pnpm_fs::{
+    Host,
+    StoreFile,
+};
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
     path::Path,
     sync::atomic::AtomicU8,
 };
 use symlinks::{
-    SymlinkRoots, imported_paths, place_symlink_or_resolve_file, symlink_matches_store_entry,
+    SymlinkRoots,
+    imported_paths,
+    place_symlink_or_resolve_file,
+    symlink_matches_store_entry,
 };
 
 /// Make the parent dir set, then import the entries of `cas_paths`, one

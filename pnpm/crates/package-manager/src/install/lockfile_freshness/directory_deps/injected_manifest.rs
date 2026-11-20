@@ -2,7 +2,10 @@ use crate::install_state::ProjectManifestsByDir;
 use pnpm_package_manifest::PackageManifest;
 use std::{
     borrow::Cow,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Each project's manifest as another importer's injected dependency reads

@@ -1,11 +1,23 @@
 mod rules;
 
 use super::{
-    TINY_BACKEND, add_python_registry, add_python_settings, assert_failure_contains, pacquet_in,
-    project, python, python_project, serve, serve_with_index_auth, wheel,
+    TINY_BACKEND,
+    add_python_registry,
+    add_python_settings,
+    assert_failure_contains,
+    pacquet_in,
+    project,
+    python,
+    python_project,
+    serve,
+    serve_with_index_auth,
+    wheel,
 };
 use assert_cmd::assert::OutputAssertExt;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD,
+};
 use std::fs;
 
 #[tokio::test]

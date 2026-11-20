@@ -1,4 +1,7 @@
-use super::{CanonicalPackageName, TarballRevision};
+use super::{
+    CanonicalPackageName,
+    TarballRevision,
+};
 
 pub(super) fn is_addressable_version(version: &str) -> bool {
     pnpr_package_name::is_safe_path_segment(version)

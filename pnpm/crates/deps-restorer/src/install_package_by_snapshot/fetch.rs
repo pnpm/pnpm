@@ -1,20 +1,48 @@
 mod sources;
 
 use super::{
-    InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
+    InstallPackageBySnapshot,
+    InstallPackageBySnapshotError,
+    InstalledPackage,
     runtime::binary_variant_for_host,
 };
-use crate::{CreateVirtualDirBySnapshot, create_virtual_store::requires_build_from_cas_paths};
+use crate::{
+    CreateVirtualDirBySnapshot,
+    create_virtual_store::requires_build_from_cas_paths,
+};
 use pnpm_config::NodeLinker;
-use pnpm_directory_fetcher::{CopyFiles, DirectoryFetchOutput, DirectoryFetcherError};
+use pnpm_directory_fetcher::{
+    CopyFiles,
+    DirectoryFetchOutput,
+    DirectoryFetcherError,
+};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
+    DirectoryResolution,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::PackageBin;
-use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
-use pnpm_tarball::{CachedCasPaths, IngestTarballToStore, MemCache, TarballError};
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+};
+use pnpm_tarball::{
+    CachedCasPaths,
+    IngestTarballToStore,
+    MemCache,
+    TarballError,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// The per-call inputs of [`InstallPackageBySnapshot::tarball_cas_paths`],
 /// alongside the install-scoped ones it reads off `self`.

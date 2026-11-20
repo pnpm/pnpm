@@ -1,25 +1,46 @@
 use super::{
     CliArgs,
     add::AddArgs,
-    cli_command::{CliCommand, options::WorkspaceRootError},
-    config::{ConfigLocation, ConfigSubcommand},
+    cli_command::{
+        CliCommand,
+        options::WorkspaceRootError,
+    },
+    config::{
+        ConfigLocation,
+        ConfigSubcommand,
+    },
     dedupe::DedupeArgs,
-    install::{InstallArgs, resolve_bool_override},
+    install::{
+        InstallArgs,
+        resolve_bool_override,
+    },
     list::RecursionLimit,
     package_manager::{
-        current_source_pnpm_version, package_manager_to_sync_for_version, parse_package_manager,
+        current_source_pnpm_version,
+        package_manager_to_sync_for_version,
+        parse_package_manager,
         read_manifest_json,
     },
     parse_depth_limit,
     remove::RemoveArgs,
-    reporter::{LogLevelSetting, ReporterType},
+    reporter::{
+        LogLevelSetting,
+        ReporterType,
+    },
     store::StoreCommand,
-    tasks::{TasksArgs, TasksCommand},
+    tasks::{
+        TasksArgs,
+        TasksCommand,
+    },
     unlink::UnlinkArgs,
     version::VersionArgs,
 };
 use clap::Parser;
-use pnpm_config::{ColorMode, PNPM_VERSION, PmOnFail};
+use pnpm_config::{
+    ColorMode,
+    PNPM_VERSION,
+    PmOnFail,
+};
 use pnpm_default_reporter::SummaryScope;
 use std::path::Path;
 use tempfile::TempDir;

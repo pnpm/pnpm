@@ -3,8 +3,19 @@ use std::sync::LazyLock;
 use pnpm_fs::is_subdir;
 
 use super::super::{
-    BTreeMap, Config, HashMap, HashSet, PackageKey, PackageMetadata, Path, PathBuf, Prefix,
-    SkippedSnapshots, SnapshotEntry, build_direct_deps_by_importer, create_matcher,
+    BTreeMap,
+    Config,
+    HashMap,
+    HashSet,
+    PackageKey,
+    PackageMetadata,
+    Path,
+    PathBuf,
+    Prefix,
+    SkippedSnapshots,
+    SnapshotEntry,
+    build_direct_deps_by_importer,
+    create_matcher,
     get_hoisted_dependencies,
 };
 

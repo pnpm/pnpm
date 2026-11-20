@@ -3,7 +3,14 @@
 //! whenever no ignore file excludes them, so they leak local secrets on
 //! publish. Naming a file in `files` is how a package ships one on purpose.
 
-use super::{LogEvent, LogLevel, Path, PathBuf, Reporter, Value};
+use super::{
+    LogEvent,
+    LogLevel,
+    Path,
+    PathBuf,
+    Reporter,
+    Value,
+};
 use pnpm_fs_packlist::build_files_matcher;
 use pnpm_reporter::PnpmLog;
 use pnpm_text_sanitize::sanitize_inline;

@@ -1,13 +1,27 @@
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 
 use super::{
-    ImporterPeerInput, ResolvePeersOptions, WorkspacePeerSettings, resolve_peers_workspace,
+    ImporterPeerInput,
+    ResolvePeersOptions,
+    WorkspacePeerSettings,
+    resolve_peers_workspace,
 };
 use crate::{
     resolve_peers::{
-        test_support::{add_lazy_direct_dep, child_edge, package, walker_for_tests},
+        test_support::{
+            add_lazy_direct_dep,
+            child_edge,
+            package,
+            walker_for_tests,
+        },
         walker::RootWalk,
     },
     resolved_tree::ResolvedTree,

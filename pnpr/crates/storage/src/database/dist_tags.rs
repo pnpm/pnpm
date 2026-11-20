@@ -1,5 +1,11 @@
-use pnpr_error::{RegistryError, Result};
-use serde_json::{Value, json};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::collections::BTreeMap;
 
 /// Reject empty, whitespace-containing, control-containing, and semver-range tag names.

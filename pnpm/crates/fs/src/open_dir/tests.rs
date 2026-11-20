@@ -2,7 +2,11 @@
 
 use super::OpenDir;
 use crate::symlink_dir;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn create_tree(root: &Path) {

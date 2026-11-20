@@ -4,11 +4,17 @@
 
 use crate::{
     cochange::CoChange,
-    graph::{CrateGraph, Edge},
+    graph::{
+        CrateGraph,
+        Edge,
+    },
     layers::Layers,
     modules::TopLevelGraph,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// How a row depends on a column, weakest first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

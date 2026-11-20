@@ -8,13 +8,25 @@
 //! the later rename wins.
 
 use super::StoreIndexError;
-use pnpm_fs::{EnsureFileError, create_exclusive_temp_file, ensure_parent_dir, rename_with_retry};
+use pnpm_fs::{
+    EnsureFileError,
+    create_exclusive_temp_file,
+    ensure_parent_dir,
+    rename_with_retry,
+};
 use rayon::prelude::*;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
-    fs, io,
+    fs,
+    io,
     io::Write,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

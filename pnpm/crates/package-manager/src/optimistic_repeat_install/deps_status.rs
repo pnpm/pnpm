@@ -1,10 +1,21 @@
 //! The pre-run dependency-status check behind `verifyDepsBeforeRun`.
 
 use super::{
-    Config, LockfileConflictCheckFailure, NodeLinker, OptimisticRepeatInstallCheck, Path, Scope,
+    Config,
+    LockfileConflictCheckFailure,
+    NodeLinker,
+    OptimisticRepeatInstallCheck,
+    Path,
+    Scope,
     WorkspaceState,
     freshness::{
-        Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
+        Gate,
+        GatePolicy,
+        MissingWantedLockfile,
+        NewerPatch,
+        RecordedGroups,
+        Stale,
+        check_freshness,
     },
     relocation::relocated_state,
     wanted_lockfile_file_has_content,

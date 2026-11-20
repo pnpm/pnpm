@@ -2,20 +2,40 @@
 use super::is_dir_no_follow;
 #[cfg(windows)]
 use super::windows;
-use super::{ChildFileStat, ChildWrite, OpenDir, validate_child_name};
+use super::{
+    ChildFileStat,
+    ChildWrite,
+    OpenDir,
+    validate_child_name,
+};
 #[cfg(unix)]
-use super::{c_name, unix};
+use super::{
+    c_name,
+    unix,
+};
 #[cfg(unix)]
 use std::os::fd::AsFd as _;
 #[cfg(any(not(unix), test))]
 use std::path::Path;
 use std::{
-    ffi::{OsStr, OsString},
-    io::{self, ErrorKind},
-    sync::atomic::{AtomicU64, Ordering},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 #[cfg(not(any(unix, windows)))]
-use std::{fs, time::SystemTime};
+use std::{
+    fs,
+    time::SystemTime,
+};
 
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 

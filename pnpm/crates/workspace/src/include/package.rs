@@ -1,10 +1,19 @@
 //! The config entry a config dependency declares in its `package.json`.
 
-use super::{INCLUDE_KEY, IncludeError, SettingSlot, parse_mapping, selector::defined_slots};
+use super::{
+    INCLUDE_KEY,
+    IncludeError,
+    SettingSlot,
+    parse_mapping,
+    selector::defined_slots,
+};
 use std::{
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use yaml_serde::Mapping;
 

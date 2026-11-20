@@ -3,8 +3,13 @@ use crate::cli_args::doctor::{
     CheckStatus,
     filesystem::check_filesystem_capabilities,
     probe_path::windows_acl::{
-        WindowsAccessRule, WindowsDirSecurity, WindowsPathRole, can_write_windows_dir_security,
-        is_safe_windows_dir_security, is_trusted_windows_principal, is_unc_windows_path,
+        WindowsAccessRule,
+        WindowsDirSecurity,
+        WindowsPathRole,
+        can_write_windows_dir_security,
+        is_safe_windows_dir_security,
+        is_trusted_windows_principal,
+        is_unc_windows_path,
     },
 };
 use pnpm_config::Config;

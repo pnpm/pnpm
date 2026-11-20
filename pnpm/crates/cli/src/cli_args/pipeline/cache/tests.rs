@@ -1,14 +1,25 @@
 use super::{
-    InputsUnavailable, RecordedFile, TaskCache, TaskKeyInputs, collect_output_files,
+    InputsUnavailable,
+    RecordedFile,
+    TaskCache,
+    TaskKeyInputs,
+    collect_output_files,
     fs_ops::replace_output_file,
 };
 use pnpm_config::TaskSettings;
 #[cfg(unix)]
-use pnpm_crypto_hash::{create_hex_hash_bytes, create_hex_hash_from_file};
+use pnpm_crypto_hash::{
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+};
 use pnpm_lockfile::WantedLockfileSelection;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use pnpm_workspace_task_scheduler::TaskNode;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+};
 
 fn setup() -> (tempfile::TempDir, tempfile::TempDir, TaskCache) {
     let project = tempfile::tempdir().unwrap();

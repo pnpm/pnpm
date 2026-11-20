@@ -1,4 +1,8 @@
-use super::{Config, assert_eq, tempdir};
+use super::{
+    Config,
+    assert_eq,
+    tempdir,
+};
 
 #[test]
 fn patched_dependency_hashes_resolves_and_hashes_each_patch() {

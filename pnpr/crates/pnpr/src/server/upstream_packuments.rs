@@ -1,24 +1,60 @@
 pub(in crate::server) mod purge;
 
 pub(super) use missing_versions::{
-    PackumentRefetches, REFETCH_INTERVAL, reload_source_packument_lacking_version,
-    reload_upstream_packument_for_expired_tarball, reload_upstream_packument_lacking_version,
+    PackumentRefetches,
+    REFETCH_INTERVAL,
+    reload_source_packument_lacking_version,
+    reload_upstream_packument_for_expired_tarball,
+    reload_upstream_packument_lacking_version,
 };
 pub(super) use purge::cache_upstream_packument;
 pub(super) use serving::serve_packument_via_upstream;
-pub(super) use write_order::{PackumentWriteOrder, PurgeRemoval, WriteVerdict};
+pub(super) use write_order::{
+    PackumentWriteOrder,
+    PurgeRemoval,
+    WriteVerdict,
+};
 
 use super::{
-    Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
-    HeaderMap, HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response,
-    Upstream, authorize, authorized_upstream, default_registry_target, hosted_gate,
-    hosted_read_namespace, not_found,
-    package_responses::processing::admission::{DocumentSource, SourceAdmission},
-    packument_response, resolve_registry_source, timed, upstream_cache_namespace,
+    Action,
+    AppState,
+    CacheValidators,
+    CanonicalPackageName,
+    DistView,
+    Duration,
+    Ecosystem,
+    HeaderMap,
+    HostedGate,
+    Identity,
+    PackumentFetch,
+    RegistryError,
+    RegistrySource,
+    Response,
+    Upstream,
+    authorize,
+    authorized_upstream,
+    default_registry_target,
+    hosted_gate,
+    hosted_read_namespace,
+    not_found,
+    package_responses::processing::admission::{
+        DocumentSource,
+        SourceAdmission,
+    },
+    packument_response,
+    resolve_registry_source,
+    timed,
+    upstream_cache_namespace,
 };
 use axum::body::Bytes;
-use purge::{read_unpurged_upstream_document, read_unpurged_upstream_document_any};
-use std::{future::Future, sync::Arc};
+use purge::{
+    read_unpurged_upstream_document,
+    read_unpurged_upstream_document_any,
+};
+use std::{
+    future::Future,
+    sync::Arc,
+};
 
 mod missing_versions;
 mod serving;

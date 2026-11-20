@@ -1,6 +1,9 @@
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
-use std::{fmt::Write as _, path::Path};
+use std::{
+    fmt::Write as _,
+    path::Path,
+};
 
 fn parse(text: &str) -> Lockfile {
     Lockfile::parse(text, Path::new("pnpm-lock.yaml"))

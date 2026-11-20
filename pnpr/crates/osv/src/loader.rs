@@ -1,11 +1,22 @@
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    fs::File,
+    io::Read,
+    path::Path,
+};
 
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 use pnpr_error::RegistryError;
 
 use super::{
-    MAX_OSV_NAME_BYTES, MAX_OSV_RECORD_BYTES, OsvIndex, ingest_record_bytes, invalid_config,
+    MAX_OSV_NAME_BYTES,
+    MAX_OSV_RECORD_BYTES,
+    OsvIndex,
+    ingest_record_bytes,
+    invalid_config,
 };
 
 pub(super) fn load_from_zip(path: &Path) -> Result<OsvIndex, RegistryError> {

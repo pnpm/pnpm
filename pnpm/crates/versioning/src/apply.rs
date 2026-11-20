@@ -1,5 +1,10 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
     fs,
     path::Path,
 };
@@ -7,23 +12,49 @@ use std::{
 use serde::Serialize;
 
 use crate::{
-    changelog::{compose_changelog_section, prepend_changelog_section},
+    changelog::{
+        compose_changelog_section,
+        prepend_changelog_section,
+    },
     error::VersioningError,
-    intents::{ChangeIntent, IntentBumpType},
+    intents::{
+        ChangeIntent,
+        IntentBumpType,
+    },
     ledger::{
-        Ledger, PackageConsumption, append_to_ledger, build_consumption_index,
+        Ledger,
+        PackageConsumption,
+        append_to_ledger,
+        build_consumption_index,
         normalize_project_dir,
     },
-    notes::{ComposedNotes, compose_release_notes},
-    parked_publication::{
-        read_parked_publications, remove_parked_publication, write_parked_publication,
+    notes::{
+        ComposedNotes,
+        compose_release_notes,
     },
-    pending::{pending_changelog_path, remove_pending_changelog, write_pending_changelog},
+    parked_publication::{
+        read_parked_publications,
+        remove_parked_publication,
+        write_parked_publication,
+    },
+    pending::{
+        pending_changelog_path,
+        remove_pending_changelog,
+        write_pending_changelog,
+    },
     plan::{
-        PlannedRelease, ProjectRefIndex, ReleasePlan, WorkspaceProject, index_project_refs,
+        PlannedRelease,
+        ProjectRefIndex,
+        ReleasePlan,
+        WorkspaceProject,
+        index_project_refs,
         private_project_dirs,
     },
-    settings::{ChangelogStorage, VersioningSettings, changelog_storage},
+    settings::{
+        ChangelogStorage,
+        VersioningSettings,
+        changelog_storage,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

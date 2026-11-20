@@ -1,4 +1,9 @@
-use super::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
+use super::{
+    PreferredPm,
+    WantedPm,
+    detect_preferred_pm,
+    detect_wanted_pm,
+};
 use std::fs;
 use tempfile::tempdir;
 

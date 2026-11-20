@@ -1,9 +1,24 @@
 //! The registry audit response, and the report shape derived from it.
 
 use super::{
-    AuditIndexRequest, AuditPathIndex, BTreeMap, ConfigAuditLevel, Deserialize, Diagnostic,
-    Display, EnvLockfile, Error, HashSet, Include, Lockfile, PathInfo, Serialize,
-    build_audit_path_index, infer_patched_versions, lockfile_to_audit_request, parse_audit_level,
+    AuditIndexRequest,
+    AuditPathIndex,
+    BTreeMap,
+    ConfigAuditLevel,
+    Deserialize,
+    Diagnostic,
+    Display,
+    EnvLockfile,
+    Error,
+    HashSet,
+    Include,
+    Lockfile,
+    PathInfo,
+    Serialize,
+    build_audit_path_index,
+    infer_patched_versions,
+    lockfile_to_audit_request,
+    parse_audit_level,
     satisfies_safe,
 };
 

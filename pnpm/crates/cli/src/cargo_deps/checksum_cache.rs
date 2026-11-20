@@ -1,7 +1,14 @@
-use super::{CARGO_CHECKSUM_FILE, add_cargo_checksum};
+use super::{
+    CARGO_CHECKSUM_FILE,
+    add_cargo_checksum,
+};
 use miette::Result;
 use pnpm_store_dir::{
-    PackageFilesIndex, SharedReadonlyStoreIndex, StoreDir, StoreIndexWriter, VerifiedFilesCache,
+    PackageFilesIndex,
+    SharedReadonlyStoreIndex,
+    StoreDir,
+    StoreIndexWriter,
+    VerifiedFilesCache,
     check_pkg_files_integrity,
 };
 use std::collections::HashMap;

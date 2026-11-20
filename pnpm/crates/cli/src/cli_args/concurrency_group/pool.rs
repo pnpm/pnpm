@@ -1,13 +1,36 @@
 use super::{
-    GroupStatus, HolderLine, WaiterLine,
-    stamp::{elapsed_from_mtime, elapsed_since, parse_process_stamp, process_stamp},
+    GroupStatus,
+    HolderLine,
+    WaiterLine,
+    stamp::{
+        elapsed_from_mtime,
+        elapsed_since,
+        parse_process_stamp,
+        process_stamp,
+    },
 };
 use pnpm_fs::LockMode;
 use std::{
-    fs::{self, File, OpenOptions},
-    io::{self, Read, Seek, SeekFrom, Write},
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    fs::{
+        self,
+        File,
+        OpenOptions,
+    },
+    io::{
+        self,
+        Read,
+        Seek,
+        SeekFrom,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 const POLL: Duration = Duration::from_millis(100);

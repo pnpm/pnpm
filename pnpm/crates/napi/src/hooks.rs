@@ -28,13 +28,27 @@
 //! resolve again. [`ChecksummedHooks`] lets the host vouch for its hook with
 //! a checksum instead.
 
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 use async_trait::async_trait;
-use napi::{Status, bindgen_prelude::FnArgs, threadsafe_function::ThreadsafeFunction};
+use napi::{
+    Status,
+    bindgen_prelude::FnArgs,
+    threadsafe_function::ThreadsafeFunction,
+};
 use pnpm_hooks::{
-    CustomFetcher, CustomResolver, HookContext, HookError, IgnoredHook, PnpmfileHooks,
-    PreResolutionHookContext, PreResolutionHookLogger, ReadPackageResult,
+    CustomFetcher,
+    CustomResolver,
+    HookContext,
+    HookError,
+    IgnoredHook,
+    PnpmfileHooks,
+    PreResolutionHookContext,
+    PreResolutionHookLogger,
+    ReadPackageResult,
 };
 use serde_json::Value;
 

@@ -1,5 +1,12 @@
-use node_semver::{Range, Version};
-use pnpm_lockfile::{Lockfile, PackageKey, PkgName};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+};
 use pnpm_package_manifest::DependencyGroup;
 use std::collections::HashMap;
 

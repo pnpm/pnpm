@@ -1,17 +1,36 @@
 use axum::{
     body::Body,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentWrite, wait_after_document_write_conflict};
-use serde_json::{Value, json};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    DocumentWrite,
+    wait_after_document_write_conflict,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::{
-    super::{Action, AppState, WriteTarget, hosted_storage},
-    no_published_packument, read_authorized_packument,
+    super::{
+        Action,
+        AppState,
+        WriteTarget,
+        hosted_storage,
+    },
+    no_published_packument,
+    read_authorized_packument,
 };
 
 pub(super) async fn update_package_maintainers(

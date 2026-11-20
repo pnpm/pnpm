@@ -1,7 +1,24 @@
 use super::{
-    Envelope, FetchingProgressLog, FetchingProgressMessage, LifecycleLog, LifecycleMessage,
-    LifecycleStdio, LogEvent, LogLevel, Mutex, PackageImportMethod, Pipe, ProgressLog,
-    ProgressMessage, Reporter, SilentReporter, Stage, StageLog, SummaryLog, Value, assert_eq,
+    Envelope,
+    FetchingProgressLog,
+    FetchingProgressMessage,
+    LifecycleLog,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+    Mutex,
+    PackageImportMethod,
+    Pipe,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+    SilentReporter,
+    Stage,
+    StageLog,
+    SummaryLog,
+    Value,
+    assert_eq,
 };
 
 /// Summary log serializes with the channel name flattened into the

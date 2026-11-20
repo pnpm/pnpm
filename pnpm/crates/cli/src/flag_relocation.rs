@@ -30,11 +30,20 @@
 //! external commands (`pnpm <script>`) keep their argv untouched, as does
 //! everything after a `--` terminator.
 
-use clap::{Arg, Command};
+use clap::{
+    Arg,
+    Command,
+};
 use invoked_subcommand::find_invoked_subcommand;
 use std::{
-    collections::{HashMap, HashSet},
-    ffi::{OsStr, OsString},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    ffi::{
+        OsStr,
+        OsString,
+    },
 };
 
 /// The long option name before `=` in `--<name>=<value>`, even when

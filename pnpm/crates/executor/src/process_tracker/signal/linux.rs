@@ -1,6 +1,10 @@
 //! Pinning a process and signalling and reaping it through a pidfd.
 
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{
+    AsRawFd,
+    FromRawFd,
+    OwnedFd,
+};
 
 /// A pidfd for `pid` while it is still the child of `parent`. `Some(None)`
 /// when the kernel has no pidfds, which leaves the pid to be signalled as

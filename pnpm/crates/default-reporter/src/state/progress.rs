@@ -1,8 +1,24 @@
 use super::{
-    BigTarball, BlockPlacement, BlockSlot, ContextLog, DownloadState, FetchingProgressMessage,
-    Frame, InstallProgress, PackageImportMethod, ProgressMessage, ProgressOptions,
-    RenderingContext, ReporterState, ScopeLog, Stage, StatsMessage, normalize, pretty_bytes,
-    relative, zoom_out,
+    BigTarball,
+    BlockPlacement,
+    BlockSlot,
+    ContextLog,
+    DownloadState,
+    FetchingProgressMessage,
+    Frame,
+    InstallProgress,
+    PackageImportMethod,
+    ProgressMessage,
+    ProgressOptions,
+    RenderingContext,
+    ReporterState,
+    ScopeLog,
+    Stage,
+    StatsMessage,
+    normalize,
+    pretty_bytes,
+    relative,
+    zoom_out,
 };
 
 impl ReporterState {

@@ -1,11 +1,24 @@
 use super::{
-    super::tarball_url_and_integrity, DUMMY_SHA512, custom_resolution_metadata,
-    leaked_offline_config, run_snapshot_install_with_session, scripted_session,
+    super::tarball_url_and_integrity,
+    DUMMY_SHA512,
+    custom_resolution_metadata,
+    leaked_offline_config,
+    run_snapshot_install_with_session,
+    scripted_session,
 };
 use crate::install_package_by_snapshot::fetch::emit_progress_resolved;
 use pnpm_config::Config;
-use pnpm_lockfile::{LockfileResolution, PackageKey, RegistryResolution, TarballRevision};
-use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+    RegistryResolution,
+    TarballRevision,
+};
+use pnpm_reporter::{
+    LogEvent,
+    ProgressMessage,
+    Reporter,
+};
 use pretty_assertions::assert_eq;
 use std::sync::Mutex;
 

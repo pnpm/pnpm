@@ -1,20 +1,44 @@
 use super::{
-    ImportIndexedDirError, ImportIndexedDirOpts, Placement, PreserveModulesFailure,
-    PreservedModules, SymlinkTargets, existing_dirent_kind, file_matches_store_entry,
-    marker_present, populate_dir,
+    ImportIndexedDirError,
+    ImportIndexedDirOpts,
+    Placement,
+    PreserveModulesFailure,
+    PreservedModules,
+    SymlinkTargets,
+    existing_dirent_kind,
+    file_matches_store_entry,
+    marker_present,
+    populate_dir,
 };
 mod swap;
 use crate::import_into_fresh_target;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{FsRemoveDirent, FsRename, Host, StoreFile, rename_even_across_devices};
+use pnpm_fs::{
+    FsRemoveDirent,
+    FsRename,
+    Host,
+    StoreFile,
+    rename_even_across_devices,
+};
 use pnpm_reporter::Reporter;
 use std::{
     collections::HashSet,
     ffi::OsString,
-    fs, io,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU8, AtomicU64, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU8,
+        AtomicU64,
+        Ordering,
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// Place a file atomically (pnpm's `importFileAtomic`): link it into a

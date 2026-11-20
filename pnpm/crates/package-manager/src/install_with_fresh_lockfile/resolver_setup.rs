@@ -9,7 +9,10 @@
 use super::InstallWithFreshLockfileError;
 #[cfg(feature = "runtime-provisioning")]
 mod runtime_resolvers;
-use crate::{PrefetchContext, PrefetchingResolver};
+use crate::{
+    PrefetchContext,
+    PrefetchingResolver,
+};
 use pnpm_config::Config;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_config::Tool;
@@ -17,19 +20,43 @@ use pnpm_config::Tool;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_lockfile::DeclaredRegistryPrefixes;
 use pnpm_resolving_default_resolver::DefaultResolver;
-use pnpm_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
-use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
+use pnpm_resolving_git_resolver::{
+    GitFetchContext,
+    GitResolver,
+    RealGitProbe,
+    RealGitRunner,
+};
+use pnpm_resolving_local_resolver::{
+    LocalPathResolver,
+    LocalResolverContext,
+    LocalSchemeResolver,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NamedRegistryResolver, NpmResolver, merge_named_registries,
-    shared_packument_fetch_locker, shared_picked_manifest_cache,
+    InMemoryPackageMetaCache,
+    NamedRegistryResolver,
+    NpmResolver,
+    merge_named_registries,
+    shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
-use pnpm_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
+use pnpm_resolving_tarball_resolver::{
+    TarballFetchContext,
+    TarballResolver,
+};
 use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
 };
 use pnpm_tarball::SharedReportedProgressKeys;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// The store index the resolver chain and the install pass share, plus
 /// the batched writer both feed rows into.

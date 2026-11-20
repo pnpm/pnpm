@@ -1,8 +1,19 @@
 use super::{
-    BTreeSet, Config, DEFAULT_REGISTRY_SCOPE, EnvVar, IndexMap, NpmrcAuth, env_replace_lossy,
-    is_package_scope, nerf_dart, split_creds_key,
+    BTreeSet,
+    Config,
+    DEFAULT_REGISTRY_SCOPE,
+    EnvVar,
+    IndexMap,
+    NpmrcAuth,
+    env_replace_lossy,
+    is_package_scope,
+    nerf_dart,
+    split_creds_key,
 };
-use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
+use pnpm_network::{
+    canonicalize_npm_registry_url,
+    normalize_registry_url,
+};
 
 /// What the config files — the `.npmrc` files as much as the yamls —
 /// declared about registry routing, as opposed to what the cascade merely

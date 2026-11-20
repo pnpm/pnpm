@@ -3,29 +3,51 @@ use std::sync::Arc;
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manager::{PickPolicy, create_configured_registry_resolver};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manager::{
+    PickPolicy,
+    create_configured_registry_resolver,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolutionPolicyOptions, ResolveOptions, VersionSelectionOptions,
+    LatestQuery,
+    ResolutionPolicyOptions,
+    ResolveOptions,
+    VersionSelectionOptions,
     WantedDependency as ResolverWantedDependency,
 };
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
+};
 use serde_json::Value;
 
 use super::{
-    DeclaredEngineDep, EngineDepKind, declared_engine_deps,
+    DeclaredEngineDep,
+    EngineDepKind,
+    declared_engine_deps,
     persist::{
-        commit_manifest_engine_updates, compute_updated_engine_spec, record_resolved_engine_update,
+        commit_manifest_engine_updates,
+        compute_updated_engine_spec,
+        record_resolved_engine_update,
     },
     pm_resolver_bare_specifier,
     selectors::{
-        EngineSelectorPlan, build_selector_plan, match_engine_selector, remaining_regular_packages,
+        EngineSelectorPlan,
+        build_selector_plan,
+        match_engine_selector,
+        remaining_regular_packages,
         should_update_engine_dep,
     },
 };
-use crate::{cli_args::pipelines::InstallFamilySelection, state::State};
+use crate::{
+    cli_args::pipelines::InstallFamilySelection,
+    state::State,
+};
 
 pub(crate) struct EngineUpdateOptions<'a> {
     pub(crate) include_direct: &'a [DependencyGroup],

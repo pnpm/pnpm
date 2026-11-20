@@ -1,4 +1,9 @@
-use crate::{Lockfile, PackageKey, PkgName, merge_lockfile_changes};
+use crate::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+    merge_lockfile_changes,
+};
 use std::path::Path;
 
 fn parse(yaml: &str) -> Lockfile {

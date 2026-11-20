@@ -1,6 +1,14 @@
-use super::{DirLock, HeldFile, Liveness};
+use super::{
+    DirLock,
+    HeldFile,
+    Liveness,
+};
 use std::{
-    fs::{self, File, TryLockError},
+    fs::{
+        self,
+        File,
+        TryLockError,
+    },
     io,
     path::Path,
     thread,

@@ -2,22 +2,40 @@
 //! calls this server from the same origin.
 
 use std::{
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 use axum::{
     Router,
     extract::Request,
-    http::{HeaderValue, StatusCode, header},
-    middleware::{self, Next},
-    response::{IntoResponse as _, Redirect, Response},
+    http::{
+        HeaderValue,
+        StatusCode,
+        header,
+    },
+    middleware::{
+        self,
+        Next,
+    },
+    response::{
+        IntoResponse as _,
+        Redirect,
+        Response,
+    },
     routing::get,
 };
 use pnpr_config::UiConfig;
 use pnpr_error::RegistryError;
 
-use super::{AppState, streaming};
+use super::{
+    AppState,
+    streaming,
+};
 
 const UI_PATH: &str = "/-/ui";
 const INDEX_FILE: &str = "index.html";

@@ -1,6 +1,18 @@
 use super::{
-    Config, ConfigOverrides, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, Path,
-    PathBuf, STORE_VERSION, apply_state_dir_override, apply_store_dir_override, argv, assert_eq,
+    Config,
+    ConfigOverrides,
+    EnvVar,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    NodeLinker,
+    Path,
+    PathBuf,
+    STORE_VERSION,
+    apply_state_dir_override,
+    apply_store_dir_override,
+    argv,
+    assert_eq,
 };
 
 #[test]

@@ -1,5 +1,14 @@
-use super::{AccessList, AccessToken, Identity, PackageRule, RuleTable};
-use pnpr_registry::{Ecosystem, PackagePattern};
+use super::{
+    AccessList,
+    AccessToken,
+    Identity,
+    PackageRule,
+    RuleTable,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+};
 
 fn list(token: &str) -> AccessList {
     AccessList::from_tokens([token])
@@ -295,7 +304,11 @@ fn admits_every_identity_requires_universal_access() {
 
 #[test]
 fn a_grant_whose_excludes_leave_no_package_admits_nobody_anywhere() {
-    use crate::{Action, Grant, GrantSpec};
+    use crate::{
+        Action,
+        Grant,
+        GrantSpec,
+    };
     use pnpr_registry::Ecosystem;
 
     let grant = |include: &[&str], exclude: &[&str]| {
@@ -324,7 +337,11 @@ fn a_grant_whose_excludes_leave_no_package_admits_nobody_anywhere() {
 
 #[test]
 fn a_grant_for_one_name_is_found_among_grants_for_other_names() {
-    use crate::{Action, Grant, GrantSpec};
+    use crate::{
+        Action,
+        Grant,
+        GrantSpec,
+    };
     use pnpr_registry::Ecosystem;
 
     let grant = |include: &[&str], exclude: &[&str], subject: &str| {

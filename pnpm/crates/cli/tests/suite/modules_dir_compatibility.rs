@@ -4,15 +4,24 @@
 //! `pnpm11/installing/deps-installer/src/install/`.
 
 use crate::_utils::{
-    append_workspace_yaml_key, enable_gvs_in_workspace_yaml, flatten_report, pacquet_in,
+    append_workspace_yaml_key,
+    enable_gvs_in_workspace_yaml,
+    flatten_report,
+    pacquet_in,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]

@@ -1,5 +1,13 @@
 use super::{
-    Arc, BTreeMap, BTreeSet, FinalPeerContext, HashMap, HashSet, NodeId, PeerNameTarjan, Walker,
+    Arc,
+    BTreeMap,
+    BTreeSet,
+    FinalPeerContext,
+    HashMap,
+    HashSet,
+    NodeId,
+    PeerNameTarjan,
+    Walker,
 };
 
 type PeerSccPass = crate::strongly_connected_components::SccPass<crate::NodeId>;

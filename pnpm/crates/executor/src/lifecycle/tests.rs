@@ -1,14 +1,31 @@
 use super::{
-    LifecycleScriptError, RunPostinstallHooks, StreamedScript, install_stage_script,
-    output::{PumpLink, STREAMED_OUTPUT_CHUNK_BYTES},
-    read_lifecycle_manifest, run_postinstall_hooks,
+    LifecycleScriptError,
+    RunPostinstallHooks,
+    StreamedScript,
+    install_stage_script,
+    output::{
+        PumpLink,
+        STREAMED_OUTPUT_CHUNK_BYTES,
+    },
+    read_lifecycle_manifest,
+    run_postinstall_hooks,
 };
 use pnpm_package_manifest::PackageManifestError;
 use pnpm_reporter::{
-    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter, SilentReporter,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
 };
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, fs, io::Cursor, sync::Mutex};
+use std::{
+    collections::HashMap,
+    fs,
+    io::Cursor,
+    sync::Mutex,
+};
 use tempfile::tempdir;
 
 #[test]

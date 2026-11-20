@@ -3,15 +3,25 @@
 
 use crate::{
     check_engine::{
-        Engine, InvalidNodeVersionError, UnsupportedEngineError, WantedEngine, check_engine,
+        Engine,
+        InvalidNodeVersionError,
+        UnsupportedEngineError,
+        WantedEngine,
+        check_engine,
     },
     check_platform::{
-        UnsupportedPlatformError, WantedPlatformRef, check_platform, platform_is_supported,
+        UnsupportedPlatformError,
+        WantedPlatformRef,
+        check_platform,
+        platform_is_supported,
     },
     infer_platform_from_package_name::inferred_platform,
     supported_architectures::SupportedArchitectures,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use serde::Serialize;
 

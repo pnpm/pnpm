@@ -6,7 +6,10 @@
 //! create a directory whose name is that unexpanded text.
 
 use crate::api::EnvVar;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// A directory environment variable still contains a `%VAR%` reference

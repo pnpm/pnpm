@@ -7,10 +7,19 @@
 use crate::{
     cfg,
     graph::CrateGraph,
-    lexer::{self, Token},
-    surface::{self, Surface},
+    lexer::{
+        self,
+        Token,
+    },
+    surface::{
+        self,
+        Surface,
+    },
     tree::Tree,
-    use_tree::{self, UsePath},
+    use_tree::{
+        self,
+        UsePath,
+    },
 };
 use std::collections::BTreeMap;
 

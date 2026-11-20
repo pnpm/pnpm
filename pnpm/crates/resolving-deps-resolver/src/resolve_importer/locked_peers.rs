@@ -1,10 +1,22 @@
 #[cfg(test)]
 pub(super) mod test_utils;
 
-use super::{Arc, DependencyGroup, HashMap, HashSet, TreeCtx};
-use crate::resolve_dependency_tree::{DependencySpec, direct_dep_specifier_unchanged};
+use super::{
+    Arc,
+    DependencyGroup,
+    HashMap,
+    HashSet,
+    TreeCtx,
+};
+use crate::resolve_dependency_tree::{
+    DependencySpec,
+    direct_dep_specifier_unchanged,
+};
 use hashed_suffix::hashed_peer_keys;
-use pnpm_lockfile::{PeerBindings, PkgName};
+use pnpm_lockfile::{
+    PeerBindings,
+    PkgName,
+};
 
 mod hashed_suffix;
 

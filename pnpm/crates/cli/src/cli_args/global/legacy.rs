@@ -9,28 +9,56 @@
 
 use super::{
     super::reporter::EventFilter,
-    GlobalInstallTarget, check_bin_dir, global_dirs,
-    selectors::{is_pnpm_cli_dependency, resolve_local_param},
+    GlobalInstallTarget,
+    check_bin_dir,
+    global_dirs,
+    selectors::{
+        is_pnpm_cli_dependency,
+        resolve_local_param,
+    },
     warn_global,
 };
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, Host, default_pnpm_home_dir};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    Host,
+    default_pnpm_home_dir,
+};
 use pnpm_fs::{
-    is_subdir, lexical_normalize, realpath_missing, remove_dir_all_with_retry,
+    is_subdir,
+    lexical_normalize,
+    realpath_missing,
+    remove_dir_all_with_retry,
     remove_file_with_retry,
 };
 use pnpm_global::{
-    GlobalPackageInfo, clean_orphaned_install_dirs, get_global_package_details, get_installed_bins,
-    read_direct_dependencies, scan_global_packages,
+    GlobalPackageInfo,
+    clean_orphaned_install_dirs,
+    get_global_package_details,
+    get_installed_bins,
+    read_direct_dependencies,
+    scan_global_packages,
 };
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use std::{
     collections::BTreeSet,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const LEGACY_GLOBAL_LAYOUT: &str = "5";

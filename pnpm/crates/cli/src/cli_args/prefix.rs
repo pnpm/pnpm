@@ -1,9 +1,18 @@
 use super::global::GlobalError;
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_config::{Config, check_global_bin_dir};
-use std::path::{Path, PathBuf};
+use pnpm_config::{
+    Config,
+    check_global_bin_dir,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Print the current package prefix — the nearest ancestor directory
 /// that holds a project.

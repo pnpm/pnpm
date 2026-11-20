@@ -1,14 +1,38 @@
 pub(crate) use gzip_members::stream_extract_gzipped_tarball_with_tar;
 
 use super::{
-    Archive, BTreeMap, BuildTriggers, CafsFileInfo, ExtractedEntries, GZIP_MAGIC, HashMap,
-    IgnoreEntryFilter, PackageBin, PackageFilesIndex, PendingFile, Read, ScriptRuntime, StoreDir,
-    TAR_BLOCK, TarBudget, TarLimits, TarballError, check_trailer, clean_archive_entry_path,
-    file_mode, is_tar_block, write_pending_files,
+    Archive,
+    BTreeMap,
+    BuildTriggers,
+    CafsFileInfo,
+    ExtractedEntries,
+    GZIP_MAGIC,
+    HashMap,
+    IgnoreEntryFilter,
+    PackageBin,
+    PackageFilesIndex,
+    PendingFile,
+    Read,
+    ScriptRuntime,
+    StoreDir,
+    TAR_BLOCK,
+    TarBudget,
+    TarLimits,
+    TarballError,
+    check_trailer,
+    clean_archive_entry_path,
+    file_mode,
+    is_tar_block,
+    write_pending_files,
 };
 use crate::{
-    ArchiveIntegrity, BodyHasher, IntegrityKind,
-    archive_integrity::{ArchiveHashers, ArchiveVerification},
+    ArchiveIntegrity,
+    BodyHasher,
+    IntegrityKind,
+    archive_integrity::{
+        ArchiveHashers,
+        ArchiveVerification,
+    },
     content_coding::ContentCoding,
 };
 use ssri::Integrity;
@@ -472,4 +496,7 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
 
 mod gzip_members;
 
-use gzip_members::{extract_first_member, finish_tar_of};
+use gzip_members::{
+    extract_first_member,
+    finish_tar_of,
+};

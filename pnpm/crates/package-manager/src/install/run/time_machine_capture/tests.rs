@@ -1,7 +1,13 @@
-use super::{InstallScope, project_dirs_to_capture};
+use super::{
+    InstallScope,
+    project_dirs_to_capture,
+};
 use pnpm_package_manifest::PackageManifest;
 use serde_json::json;
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+};
 
 #[test]
 fn captures_unselected_workspace_projects_reached_by_workspace_dependencies() {

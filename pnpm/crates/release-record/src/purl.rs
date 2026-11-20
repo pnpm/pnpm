@@ -2,9 +2,20 @@
 //! packages pnpr serves, built as the purl specification's "How to build a
 //! PURL" describes, with each type's normalization.
 
-use derive_more::{Display, Error};
-use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
-use serde::{Deserialize, Serialize};
+use derive_more::{
+    Display,
+    Error,
+};
+use percent_encoding::{
+    AsciiSet,
+    NON_ALPHANUMERIC,
+    percent_decode_str,
+    utf8_percent_encode,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::fmt;
 
 /// What a PURL component leaves unencoded: alphanumerics, the punctuation

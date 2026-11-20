@@ -1,5 +1,8 @@
 use clap::Args;
-use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
+use pnpm_package_is_installable::{
+    ArchitectureAxes,
+    SupportedArchitectures,
+};
 
 /// Filters which platforms' optional dependencies are installed, via the
 /// `--cpu`, `--os`, and `--libc` flags. Each flag may be repeated

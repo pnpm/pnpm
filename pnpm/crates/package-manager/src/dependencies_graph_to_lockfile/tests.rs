@@ -17,17 +17,30 @@ mod lockfile;
 mod links;
 
 use super::{
-    DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput,
+    DependenciesGraphToLockfileError,
+    GraphToLockfileOptions,
+    ImporterLockfileInput,
     dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile,
 };
 use indexmap::IndexMap;
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PkgNameVer, RegistryResolution, TarballResolution,
+    DirectoryResolution,
+    LockfileResolution,
+    PkgNameVer,
+    RegistryResolution,
+    TarballResolution,
 };
 use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, PeerDep};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_deps_resolver::{
+    DependenciesGraph,
+    DependenciesGraphNode,
+    PeerDep,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 use rustc_hash::FxHashSet as HashSet;
 
 static EMPTY_REGISTRY_OPTIONS: std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions> =
@@ -42,7 +55,11 @@ static NPM_REGISTRIES: std::sync::LazyLock<std::collections::HashMap<String, Str
     });
 use serde_json::json;
 use ssri::Integrity;
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::Arc,
+};
 use tempfile::TempDir;
 
 fn dependencies_graph_to_lockfile(opts: GraphToLockfileOptions<'_>) -> pnpm_lockfile::Lockfile {

@@ -1,6 +1,11 @@
-use super::{DependencyGroup, PackageManifest};
+use super::{
+    DependencyGroup,
+    PackageManifest,
+};
 use crate::resolve_dependency_tree::{
-    DependencySpec, ResolveDependencyTreeError, importer_direct_wanted_specs,
+    DependencySpec,
+    ResolveDependencyTreeError,
+    importer_direct_wanted_specs,
 };
 use pretty_assertions::assert_eq;
 

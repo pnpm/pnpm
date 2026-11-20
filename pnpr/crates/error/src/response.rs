@@ -1,7 +1,13 @@
-use crate::{RegistryError, redact_url_credentials};
+use crate::{
+    RegistryError,
+    redact_url_credentials,
+};
 use axum::{
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 
 /// The safe client message attached to an error response for protocol renderers.

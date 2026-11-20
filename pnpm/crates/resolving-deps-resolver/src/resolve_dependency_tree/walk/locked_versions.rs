@@ -2,9 +2,18 @@ use pnpm_lockfile::RegistryContext;
 use pnpm_resolving_resolver_base::is_valid_semver_range;
 
 use super::{
-    Arc, CurrentPkg, LockfileResolution, PkgNameVerPeer, PreferredVersionsOverlay,
-    ResolveDependencyTreeError, ResolvedPackage, TarballRevision, TreeCtx, WantedDependency,
-    overlay_lookup_names, update_unpins_edge,
+    Arc,
+    CurrentPkg,
+    LockfileResolution,
+    PkgNameVerPeer,
+    PreferredVersionsOverlay,
+    ResolveDependencyTreeError,
+    ResolvedPackage,
+    TarballRevision,
+    TreeCtx,
+    WantedDependency,
+    overlay_lookup_names,
+    update_unpins_edge,
 };
 
 /// The overlay's view for one edge, as it joins the resolve cache key: the

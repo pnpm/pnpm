@@ -1,19 +1,32 @@
 use super::{
-    BelongsTo, Include, PackageDirs, collect_dependencies, compare_package_names, compare_versions,
+    BelongsTo,
+    Include,
+    PackageDirs,
+    collect_dependencies,
+    compare_package_names,
+    compare_versions,
 };
 use crate::cli_args::listed_projects::listed_projects;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PackageKey};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+};
 use pnpm_package_is_installable::InstallabilityOptions;
 use pnpm_package_manager::{
-    AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
+    AllowBuildPolicy,
+    validate_virtual_store_slot_containment,
+    virtual_store_layout_for_lockfile,
 };
 use pnpm_workspace::importer_id_from_root_dir;
 use std::{
     cmp::Ordering,
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The packages a report lists, each paired with the index of the

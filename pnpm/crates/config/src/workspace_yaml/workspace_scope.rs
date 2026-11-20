@@ -1,4 +1,8 @@
-use super::{IndexMap, RegistryEntry, WorkspaceSettings};
+use super::{
+    IndexMap,
+    RegistryEntry,
+    WorkspaceSettings,
+};
 
 macro_rules! define_workspace_only_groups {
     ($( $clear_fn:ident { $( $field:ident ),* $(,)? } )+) => {

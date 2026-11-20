@@ -13,9 +13,18 @@
 //! off, so URLs and paths in a message stay intact and copyable.
 
 use miette::{
-    Diagnostic, LabeledSpan, MietteHandler, MietteHandlerOpts, ReportHandler, Severity, SourceCode,
+    Diagnostic,
+    LabeledSpan,
+    MietteHandler,
+    MietteHandlerOpts,
+    ReportHandler,
+    Severity,
+    SourceCode,
 };
-use std::{error::Error, fmt};
+use std::{
+    error::Error,
+    fmt,
+};
 
 /// Route [`miette::Report`] rendering through the collapsing handler.
 ///

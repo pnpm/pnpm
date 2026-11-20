@@ -1,6 +1,13 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+    HashSet,
+};
 
-use pnpm_lockfile::{PkgName, RegistryOptions};
+use pnpm_lockfile::{
+    PkgName,
+    RegistryOptions,
+};
 use pnpm_resolving_resolver_base::ResolutionVerification;
 
 use crate::{

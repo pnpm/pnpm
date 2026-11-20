@@ -1,13 +1,29 @@
 #[cfg(unix)]
-use super::{InstallPnpmResult, reuse_global_engine};
 use super::{
-    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, PnpmPackageToInstall, assert_release_is_installable,
-    exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, finalize_engine_install,
-    link_exe_platform_binary, package_dir, pnpm_package_to_install, pnpm_package_to_install_on,
-    reuse_cached_engine, run_install,
+    InstallPnpmResult,
+    reuse_global_engine,
+};
+use super::{
+    PNPM_EXE_PACKAGE_NAME,
+    PNPM_PACKAGE_NAME,
+    PnpmPackageToInstall,
+    assert_release_is_installable,
+    exe_platform_pkg_dir_name,
+    exe_platform_pkg_dir_name_next,
+    finalize_engine_install,
+    link_exe_platform_binary,
+    package_dir,
+    pnpm_package_to_install,
+    pnpm_package_to_install_on,
+    reuse_cached_engine,
+    run_install,
 };
 use pnpm_config::Config;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::registry::TestRegistry;

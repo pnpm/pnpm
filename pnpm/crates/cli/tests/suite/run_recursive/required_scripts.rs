@@ -1,4 +1,12 @@
-use super::{CommandExtra, CommandTempCwd, Path, build_writes_marker, fs, json, write_workspace};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    Path,
+    build_writes_marker,
+    fs,
+    json,
+    write_workspace,
+};
 use assert_cmd::assert::OutputAssertExt as _;
 use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
 

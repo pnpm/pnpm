@@ -44,8 +44,15 @@ use crate::api::LinkProbe;
 use pnpm_store_dir::StoreDir;
 use std::{
     fs,
-    path::{Component, Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// A default store that the store resolution moved off the pnpm home

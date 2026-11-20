@@ -1,8 +1,15 @@
-use super::{AutoDedupeBaseline, BaselineInputs, RECORD_DIR};
+use super::{
+    AutoDedupeBaseline,
+    BaselineInputs,
+    RECORD_DIR,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::WorkspaceStateSettings;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 const LOCKFILE: &str = "lockfileVersion: '9.0'

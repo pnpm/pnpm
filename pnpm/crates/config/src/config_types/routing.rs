@@ -1,4 +1,8 @@
-use super::{HashSet, OnceLock, npm_config_type_keys};
+use super::{
+    HashSet,
+    OnceLock,
+    npm_config_type_keys,
+};
 
 /// Keys from `pnpmTypes` that are valid in a global config file
 /// (`pnpmConfigFileKeys` in `configFileKey.ts`).

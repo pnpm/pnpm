@@ -1,4 +1,13 @@
-use super::{Arc, BTreeMap, ChildEdge, HashMap, HashSet, MissingSummary, NodeId, ResolvedTree};
+use super::{
+    Arc,
+    BTreeMap,
+    ChildEdge,
+    HashMap,
+    HashSet,
+    MissingSummary,
+    NodeId,
+    ResolvedTree,
+};
 
 /// The resolved peers an ancestor still has to satisfy: the ones this node
 /// did not itself provide a child for.

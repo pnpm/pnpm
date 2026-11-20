@@ -4,24 +4,43 @@
 //! which occurrence of a package records its children.
 
 pub(super) use children_ownership::{
-    ChildrenOwner, ChildrenOwnerClaim, ChildrenRecording, RecordedChildren,
-    RecordedChildrenContext, children_warmup_claimed, claim_children_owner, claim_children_warmup,
-    insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
-    register_peer_dep_names, register_shadowable_dep_names,
+    ChildrenOwner,
+    ChildrenOwnerClaim,
+    ChildrenRecording,
+    RecordedChildren,
+    RecordedChildrenContext,
+    children_warmup_claimed,
+    claim_children_owner,
+    claim_children_warmup,
+    insert_tree_node,
+    is_current_children_owner,
+    make_non_owner_nodes_lazy,
+    record_children,
+    register_peer_dep_names,
+    register_shadowable_dep_names,
 };
 pub(super) use subtree_split::{
-    claim_recorded_subtree_owners, recorded_children_match, recorded_prior_key,
+    claim_recorded_subtree_owners,
+    recorded_children_match,
+    recorded_prior_key,
 };
 
 pub(super) use cache_keys::{
-    PathKey, SharedWorkspaceWantedKey, WantedKey, WorkspaceFinalWantedKey,
+    PathKey,
+    SharedWorkspaceWantedKey,
+    WantedKey,
+    WorkspaceFinalWantedKey,
     WorkspaceResolutionOptionsKey,
 };
 
 mod reachable_nodes;
 use reachable_nodes::{
-    collect_newly_visited, fold_version, fold_visited_versions, merge_synced_child_spec,
-    walk_reachable_children, walk_reachable_nodes,
+    collect_newly_visited,
+    fold_version,
+    fold_visited_versions,
+    merge_synced_child_spec,
+    walk_reachable_children,
+    walk_reachable_nodes,
 };
 
 mod version_snapshot;
@@ -39,14 +58,34 @@ mod update_scopes;
 
 use jiff::Timestamp;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveOptions, WorkspacePackages};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use pnpm_lockfile::{
+    PkgName,
+    PkgNameVerPeer,
+    RegistryContext,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveOptions,
+    WorkspacePackages,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
     collections::BTreeMap,
-    hash::{Hash, Hasher},
+    hash::{
+        Hash,
+        Hasher,
+    },
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock},
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        OnceLock,
+        RwLock,
+    },
 };
 
 use crate::{
@@ -54,14 +93,27 @@ use crate::{
     parent_pkg_aliases::ParentPkgAliases,
     resolve_peers::MissingNames,
     resolved_tree::{
-        AncestorPkgIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
+        AncestorPkgIds,
+        DependenciesTreeNode,
+        DirectDep,
+        PeerDep,
+        ResolvedPackage,
+        ResolvedTree,
         TreeChildren,
     },
 };
 
 use super::{
-    DependencySpec, DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn,
-    UpdateDepth, UpdateReuseScope, lock_recoverable, reuse::LockfileReuseCache, tree_ctx::TreeCtx,
+    DependencySpec,
+    DeprecationLogFn,
+    FinalizedPackageFn,
+    ManifestHook,
+    SkippedOptionalLogFn,
+    UpdateDepth,
+    UpdateReuseScope,
+    lock_recoverable,
+    reuse::LockfileReuseCache,
+    tree_ctx::TreeCtx,
 };
 
 /// An importer's resolved direct-dependency versions, keyed by package

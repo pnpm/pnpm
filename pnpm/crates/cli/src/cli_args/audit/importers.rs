@@ -1,13 +1,28 @@
 //! The lockfile importers `audit` and `audit signatures` cover.
 
 use super::{
-    AuditError, AuditGraph, EnvLockfile, HashMap, HashSet, Include, Lockfile, PackageKey,
-    PackageMetadata, State, signatures, walk_reachable,
+    AuditError,
+    AuditGraph,
+    EnvLockfile,
+    HashMap,
+    HashSet,
+    Include,
+    Lockfile,
+    PackageKey,
+    PackageMetadata,
+    State,
+    signatures,
+    walk_reachable,
 };
 use crate::cli_args::recursive::{
-    print_no_projects_matched, selected_workspace_importer_ids, selectors_narrow_the_run,
+    print_no_projects_matched,
+    selected_workspace_importer_ids,
+    selectors_narrow_the_run,
 };
-use std::{borrow::Cow, collections::BTreeSet};
+use std::{
+    borrow::Cow,
+    collections::BTreeSet,
+};
 
 /// The lockfile narrowed to the importers of the projects that `--filter`,
 /// `--filter-prod`, or `--workspace-root` selected, or the whole lockfile

@@ -3,13 +3,35 @@
 //!
 //! <https://forge.rust-lang.org/infra/channel-layout.html>
 
-use crate::{Channel, ChannelName, RustToolchainError, ToolchainRequest, channel::parse_date};
-use pnpm_config::{Config, DEFAULT_RUST_DIST_SERVER, Tool};
-use pnpm_crypto_shasums_file::{TrustedReleaseKey, is_signed_by_trusted_key};
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use crate::{
+    Channel,
+    ChannelName,
+    RustToolchainError,
+    ToolchainRequest,
+    channel::parse_date,
+};
+use pnpm_config::{
+    Config,
+    DEFAULT_RUST_DIST_SERVER,
+    Tool,
+};
+use pnpm_crypto_shasums_file::{
+    TrustedReleaseKey,
+    is_signed_by_trusted_key,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use serde::Deserialize;
-use ssri::{Algorithm, Integrity};
-use std::{collections::BTreeMap, sync::Arc};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// The Rust project's tag and release signing key, as
 /// <https://static.rust-lang.org/rust-key.gpg.ascii> publishes it.

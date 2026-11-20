@@ -19,25 +19,45 @@ pub mod diff;
 pub mod format;
 pub mod state;
 
-pub use colors::{colors_enabled, set_color_mode};
+pub use colors::{
+    colors_enabled,
+    set_color_mode,
+};
 pub use progress::set_progress;
 
 mod progress;
 
 use std::{
-    io::{IsTerminal, Write},
-    sync::{LazyLock, Mutex, OnceLock},
-    time::{Duration, Instant},
+    io::{
+        IsTerminal,
+        Write,
+    },
+    sync::{
+        LazyLock,
+        Mutex,
+        OnceLock,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use console::Term;
-use pnpm_reporter::{LogEvent, PromptAction, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    PromptAction,
+    Reporter,
+};
 
 use crate::{
     colors::Colors,
     format::visible_width,
     progress::is_coalesceable,
-    state::{Output, ReporterState},
+    state::{
+        Output,
+        ReporterState,
+    },
 };
 
 static CWD: OnceLock<String> = OnceLock::new();

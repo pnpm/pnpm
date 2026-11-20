@@ -1,14 +1,29 @@
 use assert_cmd::prelude::*;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use p256::{
     SecretKey,
-    pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
+    pkcs8::{
+        EncodePrivateKey as _,
+        EncodePublicKey as _,
+    },
 };
-use pnpm_testing_utils::{command_env::CommandTestExt, turborepo_cache::TurborepoCache};
+use pnpm_testing_utils::{
+    command_env::CommandTestExt,
+    turborepo_cache::TurborepoCache,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+    },
 };
 
 const TEAM: &str = "team_pipeline";

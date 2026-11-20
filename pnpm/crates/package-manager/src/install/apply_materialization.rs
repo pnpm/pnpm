@@ -1,25 +1,51 @@
 pub(in crate::install) mod commit;
 pub(in crate::install) mod completion;
 
-use commit::{CommitModulesStateInputs, commit_modules_state};
+use commit::{
+    CommitModulesStateInputs,
+    commit_modules_state,
+};
 use completion::{
-    MaterializedProjectScriptsInputs, ReportInstallCompletionInputs, ResolveOnlyCompletionInputs,
-    complete_resolve_only, report_install_completion, run_materialized_project_scripts,
+    MaterializedProjectScriptsInputs,
+    ReportInstallCompletionInputs,
+    ResolveOnlyCompletionInputs,
+    complete_resolve_only,
+    report_install_completion,
+    run_materialized_project_scripts,
 };
 
 mod selection;
 use selection::{
-    LinkMaterializedLockfiles, LinkMaterializedManifestLinks, LinkMaterializedProjectsInputs,
-    MaterializedState, SelectMaterializedStateInputs, link_materialized_projects,
+    LinkMaterializedLockfiles,
+    LinkMaterializedManifestLinks,
+    LinkMaterializedProjectsInputs,
+    MaterializedState,
+    SelectMaterializedStateInputs,
+    link_materialized_projects,
     select_materialized_state,
 };
 
 use super::{
-    BTreeMap, CarriedSettings, HoistedDependencies, InstallError, Lockfile, Materialized, Reporter,
-    StateWrite, recorded_workspace_state, update_workspace_state_or_warn,
+    BTreeMap,
+    CarriedSettings,
+    HoistedDependencies,
+    InstallError,
+    Lockfile,
+    Materialized,
+    Reporter,
+    StateWrite,
+    recorded_workspace_state,
+    update_workspace_state_or_warn,
 };
-use crate::install_state::{ResolvedImporters, filesystem_now_ms_in_modules, validation::Vouched};
-use std::{collections::HashSet, path::PathBuf};
+use crate::install_state::{
+    ResolvedImporters,
+    filesystem_now_ms_in_modules,
+    validation::Vouched,
+};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+};
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(crate) completion: crate::install::state_options::ApplyCompletionContext<'a>,

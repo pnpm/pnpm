@@ -1,5 +1,15 @@
-use super::{EnterKeyListener, Host, OpenUrl, OpenUrlAndWait, PromptError, PromptOtp};
-use std::{future, io};
+use super::{
+    EnterKeyListener,
+    Host,
+    OpenUrl,
+    OpenUrlAndWait,
+    PromptError,
+    PromptOtp,
+};
+use std::{
+    future,
+    io,
+};
 
 impl OpenUrl for Host {
     fn open_url(_url: &str) -> io::Result<()> {

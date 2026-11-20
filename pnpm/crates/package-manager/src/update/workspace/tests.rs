@@ -1,9 +1,14 @@
-use super::{UpdateError, workspace_link_targets};
+use super::{
+    UpdateError,
+    workspace_link_targets,
+};
 use crate::update::selectors::parse_update_param;
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::{
-    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
+    WorkspacePackage,
+    WorkspacePackages,
+    WorkspacePackagesByVersion,
 };
 use std::path::PathBuf;
 

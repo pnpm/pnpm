@@ -3,22 +3,45 @@
 
 mod native;
 
-use super::{TarballLocation, failure, fetch_location};
+use super::{
+    TarballLocation,
+    failure,
+    fetch_location,
+};
 use crate::{
-    AllowBuildPolicy, InstallPackageBySnapshotError, install_package_by_snapshot::walk_directory,
+    AllowBuildPolicy,
+    InstallPackageBySnapshotError,
+    install_package_by_snapshot::walk_directory,
 };
 use miette::Diagnostic;
-use pnpm_config::{Config, PmOnFail};
+use pnpm_config::{
+    Config,
+    PmOnFail,
+};
 use pnpm_directory_fetcher::CopyFiles;
 use pnpm_fs::lexical_normalize;
-use pnpm_hooks::{CustomFetcher, FetcherCallback, FetcherMethod};
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_hooks::{
+    CustomFetcher,
+    FetcherCallback,
+    FetcherMethod,
+};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{FetchErrorDetails, FetchedTarball, IngestTarballToStore};
+use pnpm_tarball::{
+    FetchErrorDetails,
+    FetchedTarball,
+    IngestTarballToStore,
+};
 use serde_json::Value;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

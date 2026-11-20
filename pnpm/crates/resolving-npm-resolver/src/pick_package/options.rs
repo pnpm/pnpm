@@ -1,6 +1,12 @@
 use super::{
-    HashSet, PackageMetaCache, PackageVersionPolicy, PackumentFetchLocker, Path, Timestamp,
-    TrustPolicy, VersionSelectors,
+    HashSet,
+    PackageMetaCache,
+    PackageVersionPolicy,
+    PackumentFetchLocker,
+    Path,
+    Timestamp,
+    TrustPolicy,
+    VersionSelectors,
 };
 use node_semver::Version;
 

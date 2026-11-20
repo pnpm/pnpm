@@ -1,4 +1,7 @@
-use super::{Cow, TarballRevision};
+use super::{
+    Cow,
+    TarballRevision,
+};
 
 /// Build the registry-relative tarball path `<name>@<version>+r<revision>`.
 #[must_use]

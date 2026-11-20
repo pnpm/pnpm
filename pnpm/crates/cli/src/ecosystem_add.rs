@@ -1,15 +1,28 @@
 use crate::{
     cargo_deps,
-    cli_args::{add::AddArgs, pipelines::WorkspaceScope},
+    cli_args::{
+        add::AddArgs,
+        pipelines::WorkspaceScope,
+    },
     ecosystem_install::{
-        EcosystemPlan, EcosystemWorkspaceInventory, InstallContext, PythonProjects, python,
+        EcosystemPlan,
+        EcosystemWorkspaceInventory,
+        InstallContext,
+        PythonProjects,
+        python,
     },
     package_specifier::EcosystemPackageSpecifier,
 };
-use pnpm_install_coordinator::{InstallPlan, InstallTask};
+use pnpm_install_coordinator::{
+    InstallPlan,
+    InstallTask,
+};
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(crate) async fn plan<Reporter: pnpm_reporter::Reporter + 'static>(

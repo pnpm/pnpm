@@ -1,8 +1,14 @@
 //! Error types for the npm verifier's network / parsing surface.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_network::{redact_and_sanitize, walk_reqwest_chain};
+use pnpm_network::{
+    redact_and_sanitize,
+    walk_reqwest_chain,
+};
 
 /// Failure to fetch a registry metadata document. Used by
 /// [`crate::fetch_full_metadata()`] and

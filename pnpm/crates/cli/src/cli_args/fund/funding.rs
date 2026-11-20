@@ -1,6 +1,9 @@
 //! The `funding` manifest field, read the way npm's `libnpmfund` reads it.
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use url::Url;
 
 /// One funding source of a package.

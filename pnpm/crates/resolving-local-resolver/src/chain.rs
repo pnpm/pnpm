@@ -12,8 +12,13 @@
 
 use crate::{
     local_resolver::{
-        LocalCurrentPkg, LocalResolverContext, LocalResolverOptions, LocalResolverUpdate,
-        ResolveLocalError, resolve_from_local_path, resolve_from_local_scheme,
+        LocalCurrentPkg,
+        LocalResolverContext,
+        LocalResolverOptions,
+        LocalResolverUpdate,
+        ResolveLocalError,
+        resolve_from_local_path,
+        resolve_from_local_scheme,
         resolve_latest_from_local,
     },
     parse_bare_specifier::WantedLocalDependency,
@@ -22,8 +27,15 @@ use std::sync::Arc;
 
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
-    Resolver, UpdateBehavior, WantedDependency,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
 };
 
 /// `Resolver` for the local-scheme branch (`link:` / `file:` /

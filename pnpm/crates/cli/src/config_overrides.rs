@@ -1,25 +1,61 @@
-pub(crate) use apply::{apply_state_dir_override, apply_store_dir_override};
+pub(crate) use apply::{
+    apply_state_dir_override,
+    apply_store_dir_override,
+};
 pub(crate) use global_conflicts::GlobalConflict;
-pub(crate) use tokens::{bare_boolean_setting_claims, bare_setting_flag_width, parse_bool};
+pub(crate) use tokens::{
+    bare_boolean_setting_claims,
+    bare_setting_flag_width,
+    parse_bool,
+};
 
 use pnpm_network::normalize_registry_url;
 
 use pnpm_config::{
-    CliLayer, ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir,
-    LinkProbe, LinkWorkspacePackages, NodeLinkerSetting, PackageImportMethod, PmOnFail,
-    RuntimeOnFail, SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
-    naming_cases::to_kebab_case, resolve_child_concurrency,
+    CliLayer,
+    ColorMode,
+    Config,
+    EnvVar,
+    GLOBAL_LAYOUT_VERSION,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    LinkWorkspacePackages,
+    NodeLinkerSetting,
+    PackageImportMethod,
+    PmOnFail,
+    RuntimeOnFail,
+    SaveWorkspaceProtocol,
+    TrustPolicy,
+    VerifyDepsBeforeRun,
+    default_state_dir,
+    naming_cases::to_kebab_case,
+    resolve_child_concurrency,
 };
 use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
-    ffi::{OsStr, OsString},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashSet,
+    },
+    ffi::{
+        OsStr,
+        OsString,
+    },
     path::Path,
 };
 use tokens::{
-    ConfigToken, claims_as_value, classify, is_forwarded, parse_bool_or_enum, parse_enum,
-    scoped_registry_key, setting_value, verify_deps_env_is_set,
+    ConfigToken,
+    claims_as_value,
+    classify,
+    is_forwarded,
+    parse_bool_or_enum,
+    parse_enum,
+    scoped_registry_key,
+    setting_value,
+    verify_deps_env_is_set,
 };
 
 /// CLI overrides parsed from pnpm's `--config.<key>=<value>` dotted-key

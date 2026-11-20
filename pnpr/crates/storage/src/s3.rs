@@ -19,23 +19,47 @@ mod hosted_backend;
 mod records;
 
 use crate::{
-    DOCUMENT_FILE, DocumentWrite, HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion,
-    PACKAGES_DIR, layout::ARCHIVES_DIR, package_segments,
+    DOCUMENT_FILE,
+    DocumentWrite,
+    HostedBackend,
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+    PACKAGES_DIR,
+    layout::ARCHIVES_DIR,
+    package_segments,
 };
 use async_trait::async_trait;
 use axum::body::Body;
 use futures_util::StreamExt;
 use object_store::{
-    MultipartUpload, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
+    MultipartUpload,
+    ObjectStore,
+    ObjectStoreExt,
+    PutMode,
+    PutOptions,
+    PutPayload,
+    UpdateVersion,
     path::Path as ObjectPath,
 };
-use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
-use tokio::{fs, io::AsyncReadExt as _};
+use tokio::{
+    fs,
+    io::AsyncReadExt as _,
+};
 
 /// The largest blob sent as one `put`.
 ///
@@ -318,7 +342,10 @@ impl S3Store {
 mod tests;
 
 fn next_verification_id() -> u64 {
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{
+        AtomicU64,
+        Ordering,
+    };
     static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
 }

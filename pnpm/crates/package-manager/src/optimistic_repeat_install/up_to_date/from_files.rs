@@ -1,8 +1,14 @@
 //! The fast path's check on the manifest files, which discovery reads.
 
 use super::{
-    Config, CoveredProjects, FastPathContext, FastPathProjects, UpToDateFastPathCheck,
-    WorkspaceState, build_project_manifests_list, check_fast_path_repeat_install,
+    Config,
+    CoveredProjects,
+    FastPathContext,
+    FastPathProjects,
+    UpToDateFastPathCheck,
+    WorkspaceState,
+    build_project_manifests_list,
+    check_fast_path_repeat_install,
 };
 
 /// The repeat-install check on the manifests discovery reads. Discovery

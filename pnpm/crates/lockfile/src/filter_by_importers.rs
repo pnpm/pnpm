@@ -15,13 +15,28 @@
 //! `link:` references resolve to no snapshot key and end that
 //! branch — they are workspace edges, not entries in the package graph.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{
+    HashMap,
+    HashSet,
+    VecDeque,
+};
 
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 
 use crate::{
-    Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges, PkgNameVerPeer, ProjectSnapshot,
+    Lockfile,
+    PackageKey,
+    PeerEdgeOptions,
+    PeerSatisfactionEdges,
+    PkgNameVerPeer,
+    ProjectSnapshot,
     ResolvedDependencyMap,
 };
 

@@ -16,24 +16,51 @@ pub(crate) mod deps_status;
 pub(crate) mod freshness;
 pub(crate) mod manifest_agreement;
 pub(crate) use conflict_markers::{
-    LockfileConflictCheckFailure, first_lockfile_requiring_conflict_safe_install,
+    LockfileConflictCheckFailure,
+    first_lockfile_requiring_conflict_safe_install,
 };
-pub use deps_status::{RunDepsStatus, check_deps_status_before_run};
-pub(crate) use manifest_agreement::{ManifestStat, held_projects_match_lockfile};
+pub use deps_status::{
+    RunDepsStatus,
+    check_deps_status_before_run,
+};
+pub(crate) use manifest_agreement::{
+    ManifestStat,
+    held_projects_match_lockfile,
+};
 pub(crate) use modules_dirs::project_id;
 pub use up_to_date::{
-    GateWorkspace, UpToDateFastPathCheck, UpToDateWorkspace, check_deps_status_before_run_at,
-    deps_install_root, install_already_up_to_date, install_already_up_to_date_from_records,
+    GateWorkspace,
+    UpToDateFastPathCheck,
+    UpToDateWorkspace,
+    check_deps_status_before_run_at,
+    deps_install_root,
+    install_already_up_to_date,
+    install_already_up_to_date_from_records,
     install_already_up_to_date_per_project,
 };
 
 use crate::install_state::{
-    Decision, LocalFileDependencyStatus, OptimisticRepeatInstallCheck, Scope,
-    catalogs_cache_matches, current_pnpmfiles, file_mtime, file_mtime_from_metadata,
-    filesystem_now_ms_in_modules, first_setting_drift, has_local_file_override,
-    has_local_file_package_extension, local_file_dependency_status, local_file_deps,
-    lockfile_modified_since, manifest_has_required_peers, manifest_has_runtime_deps,
-    materialized_shape_matches, modified_at_or_after, recorded_elsewhere, records_registry_keys_of,
+    Decision,
+    LocalFileDependencyStatus,
+    OptimisticRepeatInstallCheck,
+    Scope,
+    catalogs_cache_matches,
+    current_pnpmfiles,
+    file_mtime,
+    file_mtime_from_metadata,
+    filesystem_now_ms_in_modules,
+    first_setting_drift,
+    has_local_file_override,
+    has_local_file_package_extension,
+    local_file_dependency_status,
+    local_file_deps,
+    lockfile_modified_since,
+    manifest_has_required_peers,
+    manifest_has_runtime_deps,
+    materialized_shape_matches,
+    modified_at_or_after,
+    recorded_elsewhere,
+    records_registry_keys_of,
     validation,
 };
 
@@ -44,31 +71,66 @@ mod relocation;
 mod settle;
 mod up_to_date;
 use freshness::{
-    Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
+    Gate,
+    GatePolicy,
+    MissingWantedLockfile,
+    NewerPatch,
+    RecordedGroups,
+    Stale,
+    check_freshness,
 };
 use modules_dirs::{
-    SelectedReach, direct_dependency_link_dangling, first_project_missing_modules_dir,
-    first_selected_project_missing_modules_dir, reached_project_dirs,
+    SelectedReach,
+    direct_dependency_link_dangling,
+    first_project_missing_modules_dir,
+    first_selected_project_missing_modules_dir,
+    reached_project_dirs,
 };
 use project_structure::project_structure_matches;
-use settle::{current_lockfile_file_has_content, wanted_lockfile_file_has_content};
+use settle::{
+    current_lockfile_file_has_content,
+    wanted_lockfile_file_has_content,
+};
 
 use std::{
     collections::HashSet,
     fs,
-    io::{ErrorKind, Read},
-    path::{Path, PathBuf},
+    io::{
+        ErrorKind,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker};
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, ProjectSnapshot};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    ProjectSnapshot,
+};
 use pnpm_modules_yaml::Host;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_workspace_state::{WorkspaceState, load_workspace_state};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_workspace_state::{
+    WorkspaceState,
+    load_workspace_state,
+};
 
 /// Run the workspace-state freshness fast path. Returns
 /// [`Decision::UpToDate`] when the install can short-circuit.

@@ -1,9 +1,20 @@
 use super::{
-    Delegation, INCLUDE_KEY, Include, IncludeError, IncludeSource, SETTINGS_FORBIDDEN_TO_PACKAGES,
+    Delegation,
+    INCLUDE_KEY,
+    Include,
+    IncludeError,
+    IncludeSource,
+    SETTINGS_FORBIDDEN_TO_PACKAGES,
     UNRESTRICTED,
 };
-use std::{fmt, path::Path};
-use yaml_serde::{Mapping, Value};
+use std::{
+    fmt,
+    path::Path,
+};
+use yaml_serde::{
+    Mapping,
+    Value,
+};
 
 /// The unit of ownership: a setting, or one catalog.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -51,16 +51,29 @@ pub(crate) mod save_fail;
 
 pub use headers::MetaHeaders;
 pub use legacy::{
-    LEGACY_META_DIRS, LEGACY_PRIVATE_META_ROOT, find_legacy_pkg_mirror, get_legacy_pkg_mirror_paths,
+    LEGACY_META_DIRS,
+    LEGACY_PRIVATE_META_ROOT,
+    find_legacy_pkg_mirror,
+    get_legacy_pkg_mirror_paths,
 };
 pub use registry_key::{
-    EncodeRegistryError, decode_registry_name, encode_pkg_name, get_legacy_registry_name,
-    get_registry_name, is_unreadable_registry_key,
+    EncodeRegistryError,
+    decode_registry_name,
+    encode_pkg_name,
+    get_legacy_registry_name,
+    get_registry_name,
+    is_unreadable_registry_key,
 };
-pub use release_records::{RELEASE_RECORDS_DIR, release_record_path};
+pub use release_records::{
+    RELEASE_RECORDS_DIR,
+    release_record_path,
+};
 
 mod read_records;
-use read_records::{held_mirror_file_cap, load_meta_with_hold_cap};
+use read_records::{
+    held_mirror_file_cap,
+    load_meta_with_hold_cap,
+};
 
 mod registry_key;
 
@@ -73,23 +86,64 @@ mod release_records;
 use std::{
     collections::HashMap,
     fmt::Write as _,
-    fs::{self, File, OpenOptions},
-    io::{self, BufWriter, Read, Write},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+        File,
+        OpenOptions,
+    },
+    io::{
+        self,
+        BufWriter,
+        Read,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
-use pnpm_network::{MetadataCacheScope, redact_and_sanitize, redact_url_for_display};
-use pnpm_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions};
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
-use sha2::{Digest, Sha256};
+use percent_encoding::{
+    AsciiSet,
+    NON_ALPHANUMERIC,
+    percent_decode_str,
+    utf8_percent_encode,
+};
+use pnpm_network::{
+    MetadataCacheScope,
+    redact_and_sanitize,
+    redact_url_for_display,
+};
+use pnpm_registry::{
+    DerivedPackuments,
+    MirrorFile,
+    Package,
+    PackageVersions,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 /// Mirror directory for the **abbreviated** metadata cache.
 pub const ABBREVIATED_META_DIR: &str = "v12/metadata";

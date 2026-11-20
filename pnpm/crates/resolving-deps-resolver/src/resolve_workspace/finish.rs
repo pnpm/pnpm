@@ -3,18 +3,30 @@
 //! the workspace-wide peer pass.
 
 use super::{
-    ResolveWorkspaceResult, broken_optional, importers::InitializedImporters, options::PassSettings,
+    ResolveWorkspaceResult,
+    broken_optional,
+    importers::InitializedImporters,
+    options::PassSettings,
 };
 use crate::{
-    resolve_dependency_tree::{ResolveDependencyTreeError, WorkspaceTreeCtx},
+    resolve_dependency_tree::{
+        ResolveDependencyTreeError,
+        WorkspaceTreeCtx,
+    },
     resolve_importer::ResolveImporterError,
     resolve_peers::{
-        ImporterPeerInput, ResolvePeersOptions, WorkspacePeerSettings, WorkspaceResolvePeersResult,
+        ImporterPeerInput,
+        ResolvePeersOptions,
+        WorkspacePeerSettings,
+        WorkspaceResolvePeersResult,
         resolve_peers_workspace,
     },
     resolved_tree::ResolvedTree,
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// Fold every importer's direct deps into the peer inputs, reclaim the
 /// tree and run the workspace-wide peer pass.

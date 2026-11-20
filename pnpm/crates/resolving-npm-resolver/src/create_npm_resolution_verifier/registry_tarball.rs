@@ -1,4 +1,7 @@
-use super::{LockfileResolution, is_git_hosted_tarball_url};
+use super::{
+    LockfileResolution,
+    is_git_hosted_tarball_url,
+};
 
 /// Tarball URL recorded on an npm-registry resolution. The verifier
 /// uses it for prefix-matching against named registries; absence

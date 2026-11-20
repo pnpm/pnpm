@@ -1,4 +1,7 @@
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// The package names directly under `modules_dir`, scoped names
 /// included as `@scope/name`.

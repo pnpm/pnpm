@@ -1,13 +1,27 @@
-use super::{AgentSkillsError, AgentSkillsState, SyncAgentSkills, sync_agent_skills};
-use pnpm_config::{Config, SkillsPermission};
+use super::{
+    AgentSkillsError,
+    AgentSkillsState,
+    SyncAgentSkills,
+    sync_agent_skills,
+};
+use pnpm_config::{
+    Config,
+    SkillsPermission,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 

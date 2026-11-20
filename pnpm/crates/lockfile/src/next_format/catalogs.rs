@@ -7,10 +7,20 @@
 //! implies `name@1.2.3`.
 
 use super::NextFormatError;
-use crate::{CatalogSnapshots, ResolvedCatalogEntry, implied_version::catalog_implied_version};
+use crate::{
+    CatalogSnapshots,
+    ResolvedCatalogEntry,
+    implied_version::catalog_implied_version,
+};
 use serde::{
-    Deserialize, Deserializer, Serialize,
-    de::{self, MapAccess, Visitor},
+    Deserialize,
+    Deserializer,
+    Serialize,
+    de::{
+        self,
+        MapAccess,
+        Visitor,
+    },
 };
 use std::collections::BTreeMap;
 

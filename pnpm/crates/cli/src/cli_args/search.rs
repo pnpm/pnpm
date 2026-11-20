@@ -2,18 +2,40 @@
 
 use crate::cli_args::{
     registry_client::{
-        apply_auth_and_otp, build_registry_client, join_registry_url,
+        apply_auth_and_otp,
+        build_registry_client,
+        join_registry_url,
         resolve_registries_with_override,
     },
-    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body, sanitize},
+    sanitize::{
+        DEFAULT_ERROR_BODY_LIMIT,
+        read_sanitized_error_body,
+        sanitize,
+    },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic, WrapErr};
-use owo_colors::{OwoColorize, Stream};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+    WrapErr,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_config::Config;
-use pnpm_network::{redact_and_sanitize, send_with_retry};
-use serde::{Deserialize, Serialize};
+use pnpm_network::{
+    redact_and_sanitize,
+    send_with_retry,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]

@@ -24,28 +24,89 @@ pub mod migrate_storage;
 pub mod verify;
 
 pub use cli_commands::{
-    Command, ConfigSubcommand, FeatureArgs, GrantsSubcommand, OsvArgs, RegistriesSubcommand,
-    ServerArgs, parse_cli_interval, run_command,
+    Command,
+    ConfigSubcommand,
+    FeatureArgs,
+    GrantsSubcommand,
+    OsvArgs,
+    RegistriesSubcommand,
+    ServerArgs,
+    parse_cli_interval,
+    run_command,
 };
 pub use pnpr_auth::{
-    AuthState, PasswordChange, SqliteAuth, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
-    UserCreation, UserRemoval, identify,
+    AuthState,
+    PasswordChange,
+    SqliteAuth,
+    TokenBackend,
+    TokenRecord,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    identify,
 };
 pub use pnpr_config::{
-    AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource, CorsConfig,
-    DEFAULT_CONFIG_YAML, FeatureOverrides, HostedConfig, HostedStoreConfig, IpNetwork,
-    LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig, PublicRoute,
-    RegistryFeature, ResolverFeature, RoutePolicy, S3Settings, SqlBackendSettings, StorageAccess,
-    TokensConfig, UiConfig, UpstreamConfig, UsersConfig, default_cache_dir,
+    AccessSpec,
+    ArtifactsFeature,
+    AuthConfig,
+    BackendConfig,
+    Config,
+    ConfigSource,
+    CorsConfig,
+    DEFAULT_CONFIG_YAML,
+    FeatureOverrides,
+    HostedConfig,
+    HostedStoreConfig,
+    IpNetwork,
+    LibsqlSettings,
+    LogConfig,
+    LogFormat,
+    LogLevel,
+    MaxUsers,
+    OsvConfig,
+    PublicRoute,
+    RegistryFeature,
+    ResolverFeature,
+    RoutePolicy,
+    S3Settings,
+    SqlBackendSettings,
+    StorageAccess,
+    TokensConfig,
+    UiConfig,
+    UpstreamConfig,
+    UsersConfig,
+    default_cache_dir,
 };
-pub use pnpr_error::{RegistryError, Result};
-pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
+pub use pnpr_error::{
+    RegistryError,
+    Result,
+};
+pub use pnpr_policy::{
+    AccessList,
+    AccessToken,
+    Identity,
+    PackageRule,
+    PackageRules,
+};
 pub use pnpr_registry::{
-    ConcreteKind, Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
+    ConcreteKind,
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    RegistryConfigError,
+    Resolved,
 };
 pub use server::{
-    prepare_storage, router, router_with_auth, serve, serve_listener, serve_listener_with,
-    try_router, try_router_with_auth,
+    prepare_storage,
+    router,
+    router_with_auth,
+    serve,
+    serve_listener,
+    serve_listener_with,
+    try_router,
+    try_router_with_auth,
 };
 
 mod audit;

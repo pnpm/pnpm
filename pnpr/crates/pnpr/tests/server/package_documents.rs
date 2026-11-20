@@ -2,8 +2,22 @@
 //! for `application/vnd.pnpr.install-v2+json` reads them.
 
 use super::{
-    AuthState, Body, PackageRules, Request, ServiceExt, StatusCode, TempDir, access_rule,
-    body_json, config_for, foo_packument, header, header_of, json, router, router_with_auth,
+    AuthState,
+    Body,
+    PackageRules,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    access_rule,
+    body_json,
+    config_for,
+    foo_packument,
+    header,
+    header_of,
+    json,
+    router,
+    router_with_auth,
     sha512_integrity,
 };
 use crate::tokens::issue_token;

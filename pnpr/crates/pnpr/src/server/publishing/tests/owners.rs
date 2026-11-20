@@ -1,19 +1,38 @@
 //! A publish authorized before the package lock is checked again against
 //! the document it is staged onto.
 
-use super::{package_tar, sha512};
+use super::{
+    package_tar,
+    sha512,
+};
 use crate::server::{
-    publishing::{stage_publish, validate_publish_doc},
+    publishing::{
+        stage_publish,
+        validate_publish_doc,
+    },
     routing::state_and_router,
 };
 use base64::Engine;
 use pnpr_auth::AuthState;
 use pnpr_error::RegistryError;
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_policy::{Identity, PackageRules};
-use pnpr_storage::database::{BatchDocument, PublishNotes, ReleaseRecords};
-use serde_json::{Value, json};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use pnpr_policy::{
+    Identity,
+    PackageRules,
+};
+use pnpr_storage::database::{
+    BatchDocument,
+    PublishNotes,
+    ReleaseRecords,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::io::Write;
 use tempfile::TempDir;
 

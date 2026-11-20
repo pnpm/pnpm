@@ -4,13 +4,26 @@ mod skipped_downloads;
 
 use clap::ValueEnum;
 use pnpm_config::ColorMode;
-use pnpm_default_reporter::{DefaultReporter, MaxLogLevel, SummaryScope};
+use pnpm_default_reporter::{
+    DefaultReporter,
+    MaxLogLevel,
+    SummaryScope,
+};
 use pnpm_reporter::{
-    GlobalLog, LogEvent, LogLevel, NdjsonReporter, PnpmLog, Reporter, SilentReporter,
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    NdjsonReporter,
+    PnpmLog,
+    Reporter,
+    SilentReporter,
 };
 use std::{
     path::Path,
-    sync::atomic::{AtomicU8, Ordering},
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 
 /// Output format for progress and log messages.

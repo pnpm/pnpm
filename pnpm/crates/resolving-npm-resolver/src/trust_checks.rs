@@ -9,18 +9,31 @@
 //! signal — and the verifier rejects the entry with
 //! [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`].
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use jiff::Timestamp;
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_registry::{
-    NpmUser, Package, PackageDistribution, PackageVersion, VersionPolicyFields,
+    NpmUser,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+    VersionPolicyFields,
     VersionTrustMetadata,
 };
 use pnpm_resolving_resolver_base::parse_packument_timestamp;
-use pnpm_version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_version_policy::{
+    PackageVersionPolicy,
+    PolicyMatch,
+};
 
-use crate::pick_package::{SkippedTimeCheck, warn_missing_time_once};
+use crate::pick_package::{
+    SkippedTimeCheck,
+    warn_missing_time_once,
+};
 
 /// Rank of supply-chain evidence on a single version. Variants are
 /// declared weakest-first so the derived `Ord` matches `trust_rank`.

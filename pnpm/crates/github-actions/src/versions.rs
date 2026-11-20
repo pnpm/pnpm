@@ -1,4 +1,9 @@
-use super::{ActionReference, HashMap, RepoVersion, Version};
+use super::{
+    ActionReference,
+    HashMap,
+    RepoVersion,
+    Version,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum CommentVersion {

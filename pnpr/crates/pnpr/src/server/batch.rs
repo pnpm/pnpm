@@ -16,35 +16,71 @@
 //! (see `publishing::atomic`).
 
 use super::{
-    AppState, AuthedCaller, Identity,
-    cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
-    oci::{OciPublication, authorize_publication},
+    AppState,
+    AuthedCaller,
+    Identity,
+    cargo::{
+        CratePublication,
+        authorize_crate_publish,
+        verify_crate_archive,
+    },
+    oci::{
+        OciPublication,
+        authorize_publication,
+    },
     oidc::WorkloadScope,
     publishing::{
-        PublishReceipt, StagedPublish, check_body_versions, cleanup_tmp_slots, commit_publication,
-        publication_name, publication_request, publish_committed_response,
-        refuse_notes_of_published_python_versions, replayed_outcome, single_namespace,
-        stage_publish, take_note, take_version_note, validate_publish_doc,
+        PublishReceipt,
+        StagedPublish,
+        check_body_versions,
+        cleanup_tmp_slots,
+        commit_publication,
+        publication_name,
+        publication_request,
+        publish_committed_response,
+        refuse_notes_of_published_python_versions,
+        replayed_outcome,
+        single_namespace,
+        stage_publish,
+        take_note,
+        take_version_note,
+        validate_publish_doc,
     },
-    pypi::{PypiPublication, authorize_upload, verify_upload},
+    pypi::{
+        PypiPublication,
+        authorize_upload,
+        verify_upload,
+    },
     resolve_write_target,
     staged_archives::StagedReferences,
 };
 use axum::{
     Extension,
     body::Bytes,
-    extract::{Path, State},
+    extract::{
+        Path,
+        State,
+    },
     http::HeaderMap,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use pnpr_cargo::PublishMetadata;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_pypi::Upload;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    database::{PublicationRequest, PublishNotes},
+    database::{
+        PublicationRequest,
+        PublishNotes,
+    },
     publish::now_iso,
 };
 use serde::Deserialize;

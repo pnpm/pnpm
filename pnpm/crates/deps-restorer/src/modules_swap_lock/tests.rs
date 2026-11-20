@@ -1,4 +1,7 @@
-use super::{ModulesSwapLock, lock_path};
+use super::{
+    ModulesSwapLock,
+    lock_path,
+};
 use std::fs;
 
 #[test]

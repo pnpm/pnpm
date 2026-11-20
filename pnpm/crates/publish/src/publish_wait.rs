@@ -2,19 +2,31 @@
 
 pub use error::PublishWaitError;
 
-use std::{collections::BTreeMap, time::Duration};
+use std::{
+    collections::BTreeMap,
+    time::Duration,
+};
 
-use futures_util::{StreamExt, stream};
+use futures_util::{
+    StreamExt,
+    stream,
+};
 use pnpm_reporter::Reporter;
 use tokio::time::Instant;
 
 use crate::{
     global_log::global_info,
-    publish_packed_pkg::{PublishNetwork, clean_version},
+    publish_packed_pkg::{
+        PublishNetwork,
+        clean_version,
+    },
     registry_config_keys::NormalizedRegistryUrl,
 };
 
-use probe::{ProbeResult, probe_package};
+use probe::{
+    ProbeResult,
+    probe_package,
+};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
 const CHECK_CONCURRENCY: usize = 4;

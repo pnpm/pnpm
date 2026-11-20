@@ -1,13 +1,22 @@
 use crate::pick_package_from_meta::{
-    PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
-    apply_published_by_policy, pick_version_by_version_range,
+    PickVersionByVersionRangeOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    apply_published_by_policy,
+    pick_version_by_version_range,
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    ResolveOptions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
     VersionSelectors,
 };
-use std::{borrow::Cow, sync::Mutex};
+use std::{
+    borrow::Cow,
+    sync::Mutex,
+};
 
 /// Keep an eligible edge on its own locked version even when its subtree
 /// needs fresh resolution. Other edges combine the workspace and level preferences.

@@ -29,28 +29,63 @@ pub(in crate::resolver) mod solve;
 
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+    path::{
+        Path,
+        PathBuf,
     },
-    time::{Duration, SystemTime},
+    sync::{
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
-use axum::{http::StatusCode, response::Response};
-use futures_util::{StreamExt, TryStreamExt, stream};
-use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
+use futures_util::{
+    StreamExt,
+    TryStreamExt,
+    stream,
+};
+use pnpm_network::{
+    AuthHeaders,
+    MetadataCacheScope,
+    RetryOpts,
+    ThrottledClient,
+};
 
 use pnpr_policy::Identity;
-use pnpr_route::{Footprint, url_has_inline_credentials};
+use pnpr_route::{
+    Footprint,
+    url_has_inline_credentials,
+};
 
 use crate::server::StripedLocks;
 use locked_entry::LockedEntry;
-use solve::{solve_cargo as run_solve_cargo, spawn_init_discovery, spawn_step_discovery};
+use solve::{
+    solve_cargo as run_solve_cargo,
+    spawn_init_discovery,
+    spawn_step_discovery,
+};
 
 use super::{
-    Resolver, json_error,
-    limits::{AdmittedResolve, CancelToken, ResolvePermit, request_timeout_response},
+    Resolver,
+    json_error,
+    limits::{
+        AdmittedResolve,
+        CancelToken,
+        ResolvePermit,
+        request_timeout_response,
+    },
     package_route::PackageRoute,
     parse_request,
     protocol::CargoResolveRequest,

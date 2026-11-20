@@ -5,19 +5,42 @@
 //! it, which is also where its requirements are read from: an sdist
 //! declares them only in the wheel it produces.
 
-use super::{MAX_WHEEL_BYTES, read_manifest};
+use super::{
+    MAX_WHEEL_BYTES,
+    read_manifest,
+};
 use crate::{
-    build::{self, Buildable, Contract},
+    build::{
+        self,
+        Buildable,
+        Contract,
+    },
     host,
     registry::Registry,
 };
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep440_rs::Version;
 use pep508_rs::PackageName;
-use pnpm_python_resolver::{LockedSdist, parse_requirement};
+use pnpm_python_resolver::{
+    LockedSdist,
+    parse_requirement,
+};
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore, IngestZipArchiveToStore};
-use std::path::{Component, Path, PathBuf};
+use pnpm_tarball::{
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+    IngestZipArchiveToStore,
+};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 /// What the store's progress reporting calls a Python download, the
 /// same for every artifact a Python install fetches.

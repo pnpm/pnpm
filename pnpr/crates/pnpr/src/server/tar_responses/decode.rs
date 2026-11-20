@@ -1,12 +1,30 @@
-use super::{CheckedReader, StaleTgz, TarCopy};
-use axum::body::{Body, Bytes};
+use super::{
+    CheckedReader,
+    StaleTgz,
+    TarCopy,
+};
+use axum::body::{
+    Body,
+    Bytes,
+};
 use futures_util::StreamExt;
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityChecker,
+    IntegrityOpts,
+};
 use std::{
-    io::{self, Read},
+    io::{
+        self,
+        Read,
+    },
     sync::Arc,
 };
-use tokio::sync::{Semaphore, mpsc};
+use tokio::sync::{
+    Semaphore,
+    mpsc,
+};
 
 /// The most a `.tgz` may decode to before pnpr stops: what pnpm's default
 /// decoded-output budget admits, 4 GiB of files plus 256 MiB of headers.

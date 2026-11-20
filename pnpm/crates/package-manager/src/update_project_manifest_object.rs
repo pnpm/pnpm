@@ -1,8 +1,15 @@
 use node_semver::Version;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_resolver_base::is_valid_peer_range;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// The dependency fields, in their canonical order. A direct dependency
 /// is written to exactly one of these and removed from the other two.

@@ -2,7 +2,10 @@
 //! `projectScopedOptionalPeers` settings.
 
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 
 /// How peer-dependent variants are shared across workspace projects.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

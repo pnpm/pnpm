@@ -1,11 +1,18 @@
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
 use serde_json::json;
 
-use super::{assert_success, pacquet, write_project};
+use super::{
+    assert_success,
+    pacquet,
+    write_project,
+};
 
 #[test]
 fn publish_with_dir_flag_resolves_relative_tarball_against_target_dir() {

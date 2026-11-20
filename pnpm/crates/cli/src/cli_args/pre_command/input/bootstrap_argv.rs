@@ -1,12 +1,26 @@
 use super::{
-    ArgTable, CliNetworkArgs, CliPathArgs, OsStr, OsString, PathBuf, PresentationArgs,
+    ArgTable,
+    CliNetworkArgs,
+    CliPathArgs,
+    OsStr,
+    OsString,
+    PathBuf,
+    PresentationArgs,
     ReporterFlags,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::{grammar, install::InstallLockfileArgs, install_options::OfflineArgs},
+    cli_args::{
+        grammar,
+        install::InstallLockfileArgs,
+        install_options::OfflineArgs,
+    },
 };
-use clap::{CommandFactory, FromArgMatches, parser::ValueSource};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+    parser::ValueSource,
+};
 use std::sync::OnceLock;
 
 /// The flags the pre-command pass reads from a command line it scans

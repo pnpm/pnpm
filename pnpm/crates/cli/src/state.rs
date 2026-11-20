@@ -1,21 +1,42 @@
-pub(crate) use project_installability::{ProjectHost, host_requirements};
+pub(crate) use project_installability::{
+    ProjectHost,
+    host_requirements,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
-use pnpm_network::{ForInstallsError, ThrottledClient};
+use pnpm_lockfile::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_network::{
+    ForInstallsError,
+    ThrottledClient,
+};
 use pnpm_package_is_installable::InstallabilityError;
 use pnpm_package_manager::{
-    CommandLockfile, DedicatedProjectInstall, ResolvedPackages, SharedInstallCaches,
+    CommandLockfile,
+    DedicatedProjectInstall,
+    ResolvedPackages,
+    SharedInstallCaches,
     WorkspaceDependenciesInstalled,
 };
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_reporter::LogEvent;
 use pnpm_tarball::MemCache;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

@@ -1,8 +1,16 @@
-use super::{CommandTempCwd, seed_package};
+use super::{
+    CommandTempCwd,
+    seed_package,
+};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{fs, io::ErrorKind, path::Path, process::Command};
+use std::{
+    fs,
+    io::ErrorKind,
+    path::Path,
+    process::Command,
+};
 
 fn setup_local_dependency_project(workspace: &Path, store_dir: &Path) {
     let dependency = workspace.join("dependency");

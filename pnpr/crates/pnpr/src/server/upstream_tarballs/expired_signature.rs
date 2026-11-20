@@ -1,6 +1,13 @@
 use super::{
-    AppState, FetchOutcome, RegistryError, TarballDist, Upstream, UpstreamTarball,
-    UpstreamTarballRoute, parse_tarball_dist, timed,
+    AppState,
+    FetchOutcome,
+    RegistryError,
+    TarballDist,
+    Upstream,
+    UpstreamTarball,
+    UpstreamTarballRoute,
+    parse_tarball_dist,
+    timed,
 };
 
 pub(super) fn should_refresh_signed_tarball_url(

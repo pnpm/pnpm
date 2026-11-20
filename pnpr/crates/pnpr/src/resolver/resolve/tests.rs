@@ -1,8 +1,21 @@
-use super::{importer_manifest_name, sanitized_importer_dir};
+use super::{
+    importer_manifest_name,
+    sanitized_importer_dir,
+};
 use crate::resolver::protocol::ResolveRequest;
-use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName};
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_store_dir::StoreDir;
 use std::sync::Arc;
 

@@ -1,6 +1,13 @@
-use super::{RustSelection, find_rust_candidate, next_on_path};
+use super::{
+    RustSelection,
+    find_rust_candidate,
+    next_on_path,
+};
 use crate::shim_dispatch::Candidate;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn the_nearest_toolchain_file_decides() {

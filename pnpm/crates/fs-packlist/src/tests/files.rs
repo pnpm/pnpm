@@ -1,4 +1,10 @@
-use super::{fs, json, packlist, tempdir, touch};
+use super::{
+    fs,
+    json,
+    packlist,
+    tempdir,
+    touch,
+};
 
 #[test]
 fn includes_everything_when_files_field_absent() {

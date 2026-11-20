@@ -1,13 +1,21 @@
 //! Ecosystem index declarations and exclusive Python package routing.
 
 use super::{
-    Ecosystem, EcosystemIndex, LoadWorkspaceYamlError, RegistryDeclaration, RegistryLookups,
-    quote_and_join, redact_registry_url,
+    Ecosystem,
+    EcosystemIndex,
+    LoadWorkspaceYamlError,
+    RegistryDeclaration,
+    RegistryLookups,
+    quote_and_join,
+    redact_registry_url,
 };
 use indexmap::IndexMap;
 use pnpm_lockfile::RegistryOptions;
 use pnpm_network::normalize_registry_url;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// What the map has declared for each ecosystem other than npm, so the rules
 /// that span entries are checked once the whole map has been read: one index

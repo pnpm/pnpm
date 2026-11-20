@@ -1,9 +1,25 @@
 use super::{
-    AuthState, Body, Request, ServiceExt, StatusCode, TempDir, body_bytes, cargo_config,
-    crate_archive, header, metadata, publish_body, publish_request, router_with_auth, sha256_hex,
+    AuthState,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_bytes,
+    cargo_config,
+    crate_archive,
+    header,
+    metadata,
+    publish_body,
+    publish_request,
+    router_with_auth,
+    sha256_hex,
 };
 use crate::tokens::issue_token;
-use axum::{Router, response::Response};
+use axum::{
+    Router,
+    response::Response,
+};
 
 async fn index(app: &Router, path: &str, validators: &[String], token: Option<&str>) -> Response {
     let mut request = Request::get(path);

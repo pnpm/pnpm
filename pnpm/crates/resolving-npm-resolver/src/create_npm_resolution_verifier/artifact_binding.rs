@@ -1,8 +1,16 @@
 use super::{
-    JsonValue, LockfileResolution, PublishedTarballUrlMapper, RegistryArtifact,
-    RegistryArtifactHistory, ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-    TARBALL_URL_MISMATCH_VIOLATION_CODE, TarballRevision, has_complete_sha512_digest,
-    is_revision_registry_tarball_url, redact_url_for_display,
+    JsonValue,
+    LockfileResolution,
+    PublishedTarballUrlMapper,
+    RegistryArtifact,
+    RegistryArtifactHistory,
+    ResolutionVerification,
+    TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+    TARBALL_URL_MISMATCH_VIOLATION_CODE,
+    TarballRevision,
+    has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
+    redact_url_for_display,
 };
 
 pub(super) fn same_tarball_url(left: &str, right: &str) -> bool {

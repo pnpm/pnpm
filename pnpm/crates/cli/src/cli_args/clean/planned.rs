@@ -1,14 +1,32 @@
 use super::{
-    fs_ops::{inspect_existing_path, print_removing, remove_path, resolve_inside},
+    fs_ops::{
+        inspect_existing_path,
+        print_removing,
+        remove_path,
+        resolve_inside,
+    },
     removal::{
-        PNPM_HIDDEN_ENTRIES, PNPM_NARROWED_SHARED_HIDDEN_ENTRIES, clean_modules_dir,
-        invalidate_workspace_state, is_pnpm_entry,
+        PNPM_HIDDEN_ENTRIES,
+        PNPM_NARROWED_SHARED_HIDDEN_ENTRIES,
+        clean_modules_dir,
+        invalidate_workspace_state,
+        is_pnpm_entry,
     },
 };
-use pnpm_fs::{is_subdir, is_symlink_metadata};
+use pnpm_fs::{
+    is_subdir,
+    is_symlink_metadata,
+};
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Component, Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Clone)]

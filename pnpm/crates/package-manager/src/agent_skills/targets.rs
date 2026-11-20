@@ -1,9 +1,16 @@
 use super::recorded_path;
 use pnpm_config::Config;
 use std::{
-    collections::{BTreeSet, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeSet,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Environment variables by which an agent identifies itself, and the

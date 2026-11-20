@@ -1,4 +1,7 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pep508_rs::PackageName as PythonPackageName;
 use std::str::FromStr;
 

@@ -5,16 +5,37 @@
 //! `add_dir_to_posix_env_path`.
 
 use super::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, PathExtenderError, PathGuard,
-    add_dir_to_posix_env_path, find_section, fish_quote,
-    pwsh::{profile_path, render_pwsh_settings, setup_pwsh_shell},
-    render_fish_section, render_fish_settings, render_nu_settings, render_posix_section,
-    render_posix_settings, replace_section, sh_quote, update_shell_config, v11_quote, wrap_section,
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    ConfigFileChangeType,
+    PathExtenderError,
+    PathGuard,
+    add_dir_to_posix_env_path,
+    find_section,
+    fish_quote,
+    pwsh::{
+        profile_path,
+        render_pwsh_settings,
+        setup_pwsh_shell,
+    },
+    render_fish_section,
+    render_fish_settings,
+    render_nu_settings,
+    render_posix_section,
+    render_posix_settings,
+    replace_section,
+    sh_quote,
+    update_shell_config,
+    v11_quote,
+    wrap_section,
 };
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const HOME: &str = "/home/user/.pnpm";

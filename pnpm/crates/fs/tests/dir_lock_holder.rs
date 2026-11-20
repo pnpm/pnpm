@@ -4,9 +4,16 @@
 use pnpm_fs::DirLock;
 use std::{
     fs,
-    io::{BufRead as _, BufReader},
+    io::{
+        BufRead as _,
+        BufReader,
+    },
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{
+        Child,
+        Command,
+        Stdio,
+    },
     time::Duration,
 };
 use tempfile::tempdir;

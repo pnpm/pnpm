@@ -1,8 +1,17 @@
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
-    io::{self, Write as _},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        Write as _,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(in crate::cli_args::doctor) fn random_probe_entry_name(prefix: &str) -> OsString {
@@ -156,7 +165,11 @@ pub(super) fn create_exclusive_file_unix(
     content: &[u8],
 ) -> io::Result<()> {
     use std::os::{
-        fd::{AsRawFd as _, FromRawFd as _, OwnedFd},
+        fd::{
+            AsRawFd as _,
+            FromRawFd as _,
+            OwnedFd,
+        },
         unix::ffi::OsStrExt as _,
     };
 
@@ -220,10 +233,17 @@ fn open_windows_pin_file(
 #[cfg(unix)]
 fn open_verified_unix_child_dir(safe_ancestor: &Path, child_name: &OsStr) -> io::Result<fs::File> {
     use std::os::{
-        fd::{AsRawFd as _, FromRawFd as _, OwnedFd},
+        fd::{
+            AsRawFd as _,
+            FromRawFd as _,
+            OwnedFd,
+        },
         unix::{
             ffi::OsStrExt as _,
-            fs::{MetadataExt as _, OpenOptionsExt as _},
+            fs::{
+                MetadataExt as _,
+                OpenOptionsExt as _,
+            },
         },
     };
 
@@ -250,7 +270,10 @@ fn open_verified_unix_child_dir(safe_ancestor: &Path, child_name: &OsStr) -> io:
 
 #[cfg(unix)]
 pub(super) fn unlink_probe_entry_unix(raw_dir: &fs::File, entry: &OsStr) {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+    use std::os::{
+        fd::AsRawFd as _,
+        unix::ffi::OsStrExt as _,
+    };
 
     let Ok(c_name) = std::ffi::CString::new(entry.as_bytes()) else {
         return;

@@ -1,11 +1,23 @@
-use crate::_utils::{ManifestDeps, WorkspaceFixture, read_v11_bundle_path, write_project_manifest};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+    read_v11_bundle_path,
+    write_project_manifest,
+};
 use serde_json::Value;
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     ffi::OsString,
-    fmt, fs,
-    path::{Path, PathBuf},
+    fmt,
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Output,
 };
 

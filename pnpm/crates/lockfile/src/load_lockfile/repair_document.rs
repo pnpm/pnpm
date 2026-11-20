@@ -9,7 +9,13 @@
 //! types allow.
 
 use crate::{
-    Lockfile, LockfileResolution, NextPackage, NextSettings, PackageKey, SnapshotEntry, VersionPart,
+    Lockfile,
+    LockfileResolution,
+    NextPackage,
+    NextSettings,
+    PackageKey,
+    SnapshotEntry,
+    VersionPart,
 };
 
 pub(super) fn prepare_value_for_fix(value: &mut serde_json::Value) {

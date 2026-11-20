@@ -7,12 +7,22 @@
 
 use std::{
     collections::HashSet,
-    fs, io,
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+};
 
 use crate::SkippedSnapshots;
 

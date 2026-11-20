@@ -5,9 +5,15 @@
 use crate::cli_args::{
     outdated::OutdatedPackage,
     registry_client::{
-        build_registry_client, resolve_registries_with_override, resolve_registry_for_package,
+        build_registry_client,
+        resolve_registries_with_override,
+        resolve_registry_for_package,
     },
-    release_notes::{NotesReader, render_upgrade_notes, stores_notes},
+    release_notes::{
+        NotesReader,
+        render_upgrade_notes,
+        stores_notes,
+    },
 };
 use pnpm_config::Config;
 use std::collections::HashMap;

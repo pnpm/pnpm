@@ -1,17 +1,28 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 use pnpr_fixtures::MockConfigPresets;
 
-use pnpm_resolving_resolver_base::{PackageVersionGuard, PackageVersionGuardDecision};
+use pnpm_resolving_resolver_base::{
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+};
 
 use super::{
     OsvIndex,
     cvss_v4::cvss_v4_score,
-    severity::{OsvSeverity, SeverityLevel, cvss_v2_score, cvss_v3_score},
+    severity::{
+        OsvSeverity,
+        SeverityLevel,
+        cvss_v2_score,
+        cvss_v3_score,
+    },
 };
 
 #[test]

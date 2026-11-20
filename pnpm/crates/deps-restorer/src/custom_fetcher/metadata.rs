@@ -1,16 +1,28 @@
 use super::{
-    CustomFetchOutcome, CustomFetcherSession, FetchedTarball, InstallPackageBySnapshotError,
-    LockfileResolution, ResolvedTarballMetadata, decode_resolution, fetch_custom_tarball,
+    CustomFetchOutcome,
+    CustomFetcherSession,
+    FetchedTarball,
+    InstallPackageBySnapshotError,
+    LockfileResolution,
+    ResolvedTarballMetadata,
+    decode_resolution,
+    fetch_custom_tarball,
     fetch_identity,
 };
 use crate::install_package_by_snapshot::tarball_url_and_integrity;
 use pnpm_config::Config;
 use pnpm_lockfile::PackageKey;
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{IngestTarballToStore, TarballPackage};
+use pnpm_tarball::{
+    IngestTarballToStore,
+    TarballPackage,
+};
 use serde_json::Value;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

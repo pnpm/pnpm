@@ -1,4 +1,7 @@
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::hash::Hash;
 
 /// Iterative Tarjan over a directed graph. The DFS stack is explicit so deep

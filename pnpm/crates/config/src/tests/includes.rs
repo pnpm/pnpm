@@ -1,4 +1,12 @@
-use super::{Config, HostNoHome, LoadWorkspaceYamlError, TrustPolicy, assert_eq, fs, tempdir};
+use super::{
+    Config,
+    HostNoHome,
+    LoadWorkspaceYamlError,
+    TrustPolicy,
+    assert_eq,
+    fs,
+    tempdir,
+};
 use std::path::Path;
 
 fn write(dir: &Path, files: &[(&str, &str)]) {

@@ -11,9 +11,16 @@
 
 use std::{
     future::Future,
-    io::{self, IsTerminal},
+    io::{
+        self,
+        IsTerminal,
+    },
     sync::LazyLock,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 #[cfg(not(target_family = "wasm"))]
@@ -21,18 +28,34 @@ use std::{
     pin::Pin,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
     thread,
 };
 
 #[cfg(not(target_family = "wasm"))]
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use pnpm_network::{LimitedBody, read_limited_body};
+use crossterm::event::{
+    self,
+    Event,
+    KeyCode,
+    KeyEventKind,
+};
+use pnpm_network::{
+    LimitedBody,
+    read_limited_body,
+};
 
 use crate::poll_for_web_auth_token::{
-    WebAuthFetchOptions, WebAuthFetchResponse, body_may_carry_token,
+    WebAuthFetchOptions,
+    WebAuthFetchResponse,
+    body_may_carry_token,
 };
 
 /// Read the current wall-clock time as Unix-epoch milliseconds.

@@ -1,6 +1,12 @@
-use pnpm_lockfile::{Lockfile, LockfileSettings};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileSettings,
+};
 use pnpm_package_manifest::PackageManifest;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::path::PathBuf;
 
 /// Detection and application chained the way the composed pipeline

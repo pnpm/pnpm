@@ -1,9 +1,18 @@
 #[cfg(target_os = "linux")]
 use super::super::AUTO_FIRST_TIER;
 #[cfg(unix)]
-use super::super::{import_into_fresh_target, recover_from_concurrent_import};
+use super::super::{
+    import_into_fresh_target,
+    recover_from_concurrent_import,
+};
 use super::{
-    super::{Host, LINK_STATE_HARDLINK, LinkFileError, auto_link, link_file},
+    super::{
+        Host,
+        LINK_STATE_HARDLINK,
+        LinkFileError,
+        auto_link,
+        link_file,
+    },
     write_source,
 };
 use pnpm_config::PackageImportMethod;
@@ -11,8 +20,12 @@ use pnpm_fs::StoreFile;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::{
-    fs, io,
-    sync::atomic::{AtomicU8, Ordering},
+    fs,
+    io,
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 use tempfile::tempdir;
 

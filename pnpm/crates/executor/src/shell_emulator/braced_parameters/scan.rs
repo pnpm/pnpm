@@ -1,7 +1,10 @@
 //! Forward scans that locate the closing delimiter of `${...}`, `` `...` ``,
 //! and `#` comments within the shared [`WASTED_SCAN_ALLOWANCE`].
 
-use std::{cell::Cell, ops::ControlFlow};
+use std::{
+    cell::Cell,
+    ops::ControlFlow,
+};
 
 /// How much fruitless scanning a script is allowed, as a multiple of its own
 /// length. A delimiter that never closes is scanned to the end of the script,

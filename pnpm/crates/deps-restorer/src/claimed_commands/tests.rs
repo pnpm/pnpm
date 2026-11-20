@@ -1,6 +1,14 @@
 use super::ClaimedCommands;
-use pnpm_cmd_shim::{Host, LinkBinsOptions, link_bins};
-use std::{collections::HashSet, fs, path::Path};
+use pnpm_cmd_shim::{
+    Host,
+    LinkBinsOptions,
+    link_bins,
+};
+use std::{
+    collections::HashSet,
+    fs,
+    path::Path,
+};
 
 fn commands(names: &[&str]) -> HashSet<String> {
     names

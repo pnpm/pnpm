@@ -1,44 +1,78 @@
 pub(super) mod osv;
 
 pub(super) use frozen_frames::frozen_package_frames_until;
-pub(super) use osv::{osv_violations_for_lockfile_until, verify_done_frame};
-pub(super) use tarball_router::{LockfileOrigin, TarballRouter};
+pub(super) use osv::{
+    osv_violations_for_lockfile_until,
+    verify_done_frame,
+};
+pub(super) use tarball_router::{
+    LockfileOrigin,
+    TarballRouter,
+};
 
 mod frozen_frames;
 mod tarball_router;
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     sync::Arc,
 };
 
 use axum::{
     body::Body,
-    http::{StatusCode, header},
+    http::{
+        StatusCode,
+        header,
+    },
     response::Response,
 };
 use osv::is_http_tarball_url;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, TarballResolution,
-    is_git_hosted_tarball_url, pick_registry_for_package,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    TarballResolution,
+    is_git_hosted_tarball_url,
+    pick_registry_for_package,
 };
-use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
+use pnpm_package_manager::{
+    ResolvedPackageHint,
+    tarball_url_and_integrity,
+};
 use pnpm_resolving_npm_resolver::{
-    BUILTIN_REGISTRIES_BY_PREFIX, MappedTarballUrl, PublishedTarballUrlMapper,
-    ReverseRoutedTarballUrl, VerificationRegistryRoutes,
+    BUILTIN_REGISTRIES_BY_PREFIX,
+    MappedTarballUrl,
+    PublishedTarballUrlMapper,
+    ReverseRoutedTarballUrl,
+    VerificationRegistryRoutes,
 };
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
+use pnpr_route::{
+    RouteClass,
+    RouteContext,
+    sanitize_registry_tarball_url,
+    strip_url_credentials,
+};
 use pnpr_upstream::{
-    revision_route_tarball_version, tarball_basename, tarball_basename_for_package,
+    revision_route_tarball_version,
+    tarball_basename,
+    tarball_basename_for_package,
     version_route_tarball_version,
 };
 
 use super::{
-    limits::{CancelToken, GRAPH_TOO_LARGE_CODE, GraphLimitTracker},
+    limits::{
+        CancelToken,
+        GRAPH_TOO_LARGE_CODE,
+        GraphLimitTracker,
+    },
     protocol::LockfileFormat,
 };
 

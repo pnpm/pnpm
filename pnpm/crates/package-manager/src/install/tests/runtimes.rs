@@ -1,22 +1,42 @@
 use super::{
-    InstallDirs, is_modules_yaml_consistent, run_purge_regression_install,
+    InstallDirs,
+    is_modules_yaml_consistent,
+    run_purge_regression_install,
     run_purge_regression_install_with_lockfile,
 };
 use crate::{
     PolicyExcludes,
-    install::{Install, ProjectMutation, effective_node_version},
+    install::{
+        Install,
+        ProjectMutation,
+        effective_node_version,
+    },
 };
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{
-    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, LayoutVersion, Modules, NodeLinker,
-    read_modules_manifest, write_modules_manifest,
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_modules_yaml::{
+    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    read_modules_manifest,
+    write_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_testing_utils::registry::TestRegistry;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 

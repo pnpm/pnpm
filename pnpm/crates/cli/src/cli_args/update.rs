@@ -1,7 +1,10 @@
 pub(crate) mod options;
 
 pub use options::{
-    UpdateDependencyOptions, UpdateInstallArgs, UpdateSaveArgs, UpdateSelectionArgs,
+    UpdateDependencyOptions,
+    UpdateInstallArgs,
+    UpdateSaveArgs,
+    UpdateSelectionArgs,
 };
 
 use crate::{
@@ -11,23 +14,42 @@ use crate::{
         pipelines::InstallFamilySelection,
         recursive,
         supported_architectures::SupportedArchitecturesArgs,
-        update_interactive::{InteractiveUpdateOptions, UpdateDetails, UpdatePrompt},
-        workspace_option::{WorkspaceOptionError, workspace_link_root},
+        update_interactive::{
+            InteractiveUpdateOptions,
+            UpdateDetails,
+            UpdatePrompt,
+        },
+        workspace_option::{
+            WorkspaceOptionError,
+            workspace_link_root,
+        },
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+};
 use pnpm_config::Config;
 use pnpm_github_actions as github_actions;
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_matcher::Matcher;
-use pnpm_package_manager::{Update, build_workspace_packages_map};
+use pnpm_package_manager::{
+    Update,
+    build_workspace_packages_map,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::VersionSelectorType;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// Update package and GitHub Actions dependencies to newer compatible versions.
 #[derive(Debug, Clone, Args)]

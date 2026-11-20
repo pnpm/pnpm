@@ -1,4 +1,11 @@
-use super::{MANIFEST_LIMIT, blob, collect, name, retained_image_with_layers, setup};
+use super::{
+    MANIFEST_LIMIT,
+    blob,
+    collect,
+    name,
+    retained_image_with_layers,
+    setup,
+};
 use pnpr_package_name::Ecosystem;
 use std::time::Duration;
 

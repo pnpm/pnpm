@@ -3,15 +3,48 @@ pub(super) mod key;
 pub(super) use key::create_cache_key;
 
 use super::{
-    BTreeMap, CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Config, Context,
-    DependencyGroup, DlxError, Duration, IntoDiagnostic, Path, PathBuf, RangeSpecStyle, Reporter,
-    State, SupportedArchitecturesArgs, SystemTime, UNIX_EPOCH, Value, add_package,
-    configured_catalogs, force_symlink_dir, fs, json, parse_catalog_protocol, parse_manifest,
-    parse_overrides_iter, parse_wanted_dependency, resolve_from_catalog,
+    BTreeMap,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    CatalogWantedDependency,
+    Config,
+    Context,
+    DependencyGroup,
+    DlxError,
+    Duration,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    RangeSpecStyle,
+    Reporter,
+    State,
+    SupportedArchitecturesArgs,
+    SystemTime,
+    UNIX_EPOCH,
+    Value,
+    add_package,
+    configured_catalogs,
+    force_symlink_dir,
+    fs,
+    json,
+    parse_catalog_protocol,
+    parse_manifest,
+    parse_overrides_iter,
+    parse_wanted_dependency,
+    resolve_from_catalog,
 };
-use crate::cli_args::add::{AllowBuildSelector, parse_allow_build_selectors};
-use key::{CacheKeyInputs, CachePolicyInputs};
-use pnpm_graph_hasher::{detect_node_major, engine_name};
+use crate::cli_args::add::{
+    AllowBuildSelector,
+    parse_allow_build_selectors,
+};
+use key::{
+    CacheKeyInputs,
+    CachePolicyInputs,
+};
+use pnpm_graph_hasher::{
+    detect_node_major,
+    engine_name,
+};
 
 /// Install the packages into a fresh prepare directory and point the
 /// cache link at it.

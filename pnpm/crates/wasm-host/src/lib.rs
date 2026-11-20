@@ -4,7 +4,12 @@
 //! is borrowed only during an import call, never while an operation is pending.
 
 #[cfg(target_family = "wasm")]
-pub use request::{HostError, Request, close_resource, request};
+pub use request::{
+    HostError,
+    Request,
+    close_resource,
+    request,
+};
 
 #[cfg(target_family = "wasm")]
 mod bindings;
@@ -38,4 +43,9 @@ pub fn request_blocking(message: &serde_json::Value) -> Result<serde_json::Value
 #[cfg(target_family = "wasm")]
 mod terminal;
 #[cfg(target_family = "wasm")]
-pub use terminal::{confirm, input, password, stdin_is_terminal};
+pub use terminal::{
+    confirm,
+    input,
+    password,
+    stdin_is_terminal,
+};

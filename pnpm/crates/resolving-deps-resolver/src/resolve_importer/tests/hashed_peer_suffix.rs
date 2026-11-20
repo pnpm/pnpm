@@ -1,6 +1,13 @@
 use super::{
-    HashMap, HashSet, ResolveOptions, assert_eq, importer_locked_peer_versions,
-    peer_context_lockfile, peer_declaring_metadata, plain_dependency, snapshot_with_dependencies,
+    HashMap,
+    HashSet,
+    ResolveOptions,
+    assert_eq,
+    importer_locked_peer_versions,
+    peer_context_lockfile,
+    peer_declaring_metadata,
+    plain_dependency,
+    snapshot_with_dependencies,
 };
 use std::str::FromStr;
 
@@ -91,8 +98,10 @@ fn hashed_and_explicit_suffixes_pin_the_same_peers() {
 
 #[test]
 fn production_pins_preserve_undiscovered_hashed_and_nested_peers() {
-    use crate::resolve_dependency_tree::TreeCtx;
-    use crate::resolve_importer::locked_peers::LockedPeers;
+    use crate::{
+        resolve_dependency_tree::TreeCtx,
+        resolve_importer::locked_peers::LockedPeers,
+    };
     use std::sync::Arc;
 
     let suffix = "(deep@4.0.0)(peer@1.0.0(nested@3.0.0))(transitive@2.0.0)";

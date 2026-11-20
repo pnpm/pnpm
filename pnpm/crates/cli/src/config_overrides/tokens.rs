@@ -1,6 +1,13 @@
 use super::{
-    HashSet, LinkWorkspacePackages, NodeLinkerSetting, OsStr, PackageImportMethod, PmOnFail,
-    RuntimeOnFail, SaveWorkspaceProtocol, TrustPolicy,
+    HashSet,
+    LinkWorkspacePackages,
+    NodeLinkerSetting,
+    OsStr,
+    PackageImportMethod,
+    PmOnFail,
+    RuntimeOnFail,
+    SaveWorkspaceProtocol,
+    TrustPolicy,
 };
 
 /// Whether the token at `index` belongs to the forwarded child command line.

@@ -1,6 +1,9 @@
 pub(super) use local_specs::reject_local_dependency_specs;
 
-use axum::{http::StatusCode, response::Response};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
 use pnpm_lockfile::LockfileResolution;
 use pnpm_lockfile_verification::verify_lockfile_dependency_names;
 
@@ -9,9 +12,13 @@ use pnpr_route::RouteContext;
 mod local_specs;
 
 use super::{
-    json_error, json_error_with_code,
+    json_error,
+    json_error_with_code,
     protocol::{
-        INCOMPATIBLE_LOCKFILE_FORMAT_CODE, LockfileFormat, ProjectDeps, ResolveRequest,
+        INCOMPATIBLE_LOCKFILE_FORMAT_CODE,
+        LockfileFormat,
+        ProjectDeps,
+        ResolveRequest,
         UNSUPPORTED_REQUEST_FIELD_CODE,
     },
 };

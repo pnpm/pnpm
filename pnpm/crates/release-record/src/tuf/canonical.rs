@@ -3,7 +3,11 @@
 //! `\` escaped in strings.
 
 use super::TufError;
-use serde_json::{Map, Number, Value};
+use serde_json::{
+    Map,
+    Number,
+    Value,
+};
 
 /// The canonical encoding of `value`.
 pub(crate) fn encode(value: &Value) -> Result<Vec<u8>, TufError> {

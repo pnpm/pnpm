@@ -5,18 +5,30 @@
 
 #![cfg(unix)]
 
-use crate::_utils::{ManifestDeps, write_project_manifest};
+use crate::_utils::{
+    ManifestDeps,
+    write_project_manifest,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use pnpm_workspace_state::WORKSPACE_STATE_FILENAME;
 use std::{
     fs,
-    os::unix::{fs::PermissionsExt, process::ExitStatusExt},
-    path::{Path, PathBuf},
+    os::unix::{
+        fs::PermissionsExt,
+        process::ExitStatusExt,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

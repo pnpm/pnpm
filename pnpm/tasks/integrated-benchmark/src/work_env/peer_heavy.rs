@@ -8,13 +8,29 @@
 //! carry the same archives, so every target resolves the same lockfile.
 
 use super::{
-    PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER, PEER_HEAVY_VERSION, PEER_HEAVY_WIDTH, WorkEnv,
-    fixtures::peer_heavy_package_name, mint_pnpr_token, serves_npm_under_base_path,
+    PEER_HEAVY_DEPTH,
+    PEER_HEAVY_PROVIDER,
+    PEER_HEAVY_VERSION,
+    PEER_HEAVY_WIDTH,
+    WorkEnv,
+    fixtures::peer_heavy_package_name,
+    mint_pnpr_token,
+    serves_npm_under_base_path,
 };
 use crate::cli_args::BenchmarkScenario;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use flate2::{Compression, write::GzEncoder};
-use serde_json::{Map, Value, json};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::path::Path;
 
 const PUBLISHED_AT: &str = "2020-01-01T00:00:00.000Z";

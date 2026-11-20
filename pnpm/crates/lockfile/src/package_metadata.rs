@@ -1,8 +1,14 @@
 use crate::LockfileResolution;
 use pnpm_package_manifest::DependencyGroup;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     ops::Deref,
 };
 

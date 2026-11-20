@@ -1,4 +1,7 @@
-use super::{movable_override_style, override_pins_one_version};
+use super::{
+    movable_override_style,
+    override_pins_one_version,
+};
 use pnpm_registry::RangeSpecStyle;
 
 #[test]

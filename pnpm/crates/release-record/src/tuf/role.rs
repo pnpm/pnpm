@@ -1,12 +1,28 @@
 //! Role signature thresholds and file length and hash checks.
 
 use super::{
-    TufError, canonical,
-    metadata::{Key, RawSignature, Root, Signed},
+    TufError,
+    canonical,
+    metadata::{
+        Key,
+        RawSignature,
+        Root,
+        Signed,
+    },
 };
-use ed25519_dalek::{Signature, VerifyingKey};
-use sha2::{Digest as _, Sha256, Sha512};
-use std::collections::{BTreeMap, HashSet};
+use ed25519_dalek::{
+    Signature,
+    VerifyingKey,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+    Sha512,
+};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 
 /// Fails unless `metadata` carries valid signatures from the threshold of
 /// distinct keys that `root` assigns to `role`. Keys are told apart by their

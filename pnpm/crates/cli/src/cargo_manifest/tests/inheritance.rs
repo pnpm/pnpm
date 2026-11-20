@@ -1,4 +1,7 @@
-use super::super::{CargoDependencyKind, add_dependencies};
+use super::super::{
+    CargoDependencyKind,
+    add_dependencies,
+};
 use std::fs;
 
 #[test]

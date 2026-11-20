@@ -2,7 +2,10 @@ use clap::Parser;
 use pretty_assertions::assert_eq;
 
 use super::DependencySpecifiers;
-use crate::cli_args::{CliArgs, cli_command::CliCommand};
+use crate::cli_args::{
+    CliArgs,
+    cli_command::CliCommand,
+};
 
 fn dependency_specifiers(argv: &[&str]) -> DependencySpecifiers {
     match CliArgs::try_parse_from(argv).expect("parses").command {

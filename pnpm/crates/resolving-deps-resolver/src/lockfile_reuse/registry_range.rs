@@ -1,7 +1,14 @@
 use std::borrow::Cow;
 
 use node_semver::Range;
-use pnpm_lockfile::{PkgName, PkgNameVerPeer, Prefix, RegistryContext, VersionPart, same_registry};
+use pnpm_lockfile::{
+    PkgName,
+    PkgNameVerPeer,
+    Prefix,
+    RegistryContext,
+    VersionPart,
+    same_registry,
+};
 use pnpm_resolving_resolver_base::parse_strict_semver_range;
 
 /// Whether the version locked as `key` for the child `alias` still satisfies

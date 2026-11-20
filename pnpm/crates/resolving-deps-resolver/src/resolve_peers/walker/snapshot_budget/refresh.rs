@@ -1,6 +1,15 @@
 use super::{
-    CancelState, DirectDep, DirectDepBudget, HashMap, HashSet, NodeId, PeerWalkAbort,
-    PendingBudgetDep, RootWalk, ScopedDiscoveryPaths, Walker,
+    CancelState,
+    DirectDep,
+    DirectDepBudget,
+    HashMap,
+    HashSet,
+    NodeId,
+    PeerWalkAbort,
+    PendingBudgetDep,
+    RootWalk,
+    ScopedDiscoveryPaths,
+    Walker,
 };
 use std::collections::VecDeque;
 

@@ -1,8 +1,16 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, fs, write_manifest, write_workspace_yaml,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    fs,
+    write_manifest,
+    write_workspace_yaml,
 };
 use assert_cmd::assert::OutputAssertExt;
-use std::{os::unix::fs::symlink, path::Path};
+use std::{
+    os::unix::fs::symlink,
+    path::Path,
+};
 
 /// A directory dependency keeps the symlinks inside it when the hoisted
 /// linker copies it into `node_modules`. A hardlink of a symlink is a

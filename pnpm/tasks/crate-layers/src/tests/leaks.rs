@@ -1,15 +1,31 @@
 use super::MemoryTree;
 use crate::{
     dependencies::Reach,
-    graph::{CrateGraph, DependencyKind, Edge},
-    leaks::{self, Leak},
+    graph::{
+        CrateGraph,
+        DependencyKind,
+        Edge,
+    },
+    leaks::{
+        self,
+        Leak,
+    },
     lexer,
-    modules::{self, CrateModules},
-    surface::{self, Surface},
+    modules::{
+        self,
+        CrateModules,
+    },
+    surface::{
+        self,
+        Surface,
+    },
     use_tree::UsePath,
 };
 use pretty_assertions::assert_eq;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 fn exposed(source: &str) -> Vec<String> {
     let surface = surface::scan(&lexer::lex(source).tokens);

@@ -1,6 +1,16 @@
 use super::{
-    Config, ConfigOverrides, NodePackageMapMode, OsString, PackageImportMethod, Path, PmOnFail,
-    RuntimeOnFail, TrustPolicy, argv, assert_eq, config_with_cli_registries,
+    Config,
+    ConfigOverrides,
+    NodePackageMapMode,
+    OsString,
+    PackageImportMethod,
+    Path,
+    PmOnFail,
+    RuntimeOnFail,
+    TrustPolicy,
+    argv,
+    assert_eq,
+    config_with_cli_registries,
 };
 
 #[test]

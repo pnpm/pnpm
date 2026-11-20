@@ -1,4 +1,11 @@
-use super::{CommandCargoExt, CommandExtra, CommandTempCwd, CommandTestExt, Path, fs};
+use super::{
+    CommandCargoExt,
+    CommandExtra,
+    CommandTempCwd,
+    CommandTestExt,
+    Path,
+    fs,
+};
 use std::process::Command;
 
 fn write_pre_resolution_logger(workspace: &Path) {

@@ -1,5 +1,12 @@
-use super::{rust_release, rust_request};
-use pnpm_rust_toolchain::{Channel, Profile, ToolchainRequest};
+use super::{
+    rust_release,
+    rust_request,
+};
+use pnpm_rust_toolchain::{
+    Channel,
+    Profile,
+    ToolchainRequest,
+};
 use std::fs;
 
 #[test]

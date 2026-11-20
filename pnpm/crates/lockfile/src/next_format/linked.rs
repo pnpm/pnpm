@@ -9,9 +9,15 @@
 use super::NextImporter;
 use crate::{
     ImporterDepVersion,
-    implied_version::{link_target, workspace_name},
+    implied_version::{
+        link_target,
+        workspace_name,
+    },
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Each linked project's importer id, by package name. A name that two
 /// importers claim, or an importer that two names claim, has no entry.

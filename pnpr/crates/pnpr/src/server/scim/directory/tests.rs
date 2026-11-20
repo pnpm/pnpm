@@ -1,12 +1,18 @@
 use super::ScimState;
 use pnpr_auth::AuthState;
-use pnpr_config::{Config, ScimConfig};
+use pnpr_config::{
+    Config,
+    ScimConfig,
+};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::database::ScimStatus;
 use std::{
     sync::Arc,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[tokio::test]

@@ -1,9 +1,19 @@
 use crate::{
     cli_args::grammar,
-    flag_relocation::{ArgTable, attached_short_option_prefix, inline_long_option_name},
-    parse_boundary::{option_width, passthrough_from},
+    flag_relocation::{
+        ArgTable,
+        attached_short_option_prefix,
+        inline_long_option_name,
+    },
+    parse_boundary::{
+        option_width,
+        passthrough_from,
+    },
 };
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// The selection flags that override a `pnpm-workspace.yaml` setting,
 /// each with a `--no-` form that turns the setting back off.

@@ -1,11 +1,27 @@
 use crate::{
-    ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PkgName, PkgVerPeer, SnapshotDepRef,
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgVerPeer,
+    SnapshotDepRef,
 };
 use pnpm_patching_config::{
-    PatchGroup, PatchGroupRecord, PatchInput, get_patch_info, group_patched_dependencies, parse_key,
+    PatchGroup,
+    PatchGroupRecord,
+    PatchInput,
+    get_patch_info,
+    group_patched_dependencies,
+    parse_key,
 };
 use segments::split_suffix;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+    HashSet,
+};
 
 /// The version a patch was matched against, when the lockfile records one.
 ///

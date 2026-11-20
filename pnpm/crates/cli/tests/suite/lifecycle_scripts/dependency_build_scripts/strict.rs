@@ -1,8 +1,18 @@
-use super::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds};
+use super::{
+    allow_builds,
+    append_workspace_yaml_key,
+    set_strict_dep_builds,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Regression test for the user-reported gap: `pacquet add <pkg>`
 /// takes the fresh-lockfile path, which never ran the build phase —

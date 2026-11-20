@@ -1,6 +1,12 @@
 use super::super::CreateVirtualStoreError;
-use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use std::path::Path;
 
 /// Whether every child link the symlink layout would create for the

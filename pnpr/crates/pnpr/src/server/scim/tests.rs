@@ -1,5 +1,9 @@
 use super::{
-    directory::{ScimTracker, ScimUser, record_status_deltas},
+    directory::{
+        ScimTracker,
+        ScimUser,
+        record_status_deltas,
+    },
     resources::apply_patch,
 };
 use pnpr_storage::database::ScimStatus;
@@ -115,11 +119,20 @@ fn external_id_is_case_insensitive_but_its_value_is_opaque() {
 #[tokio::test]
 async fn provisioned_subjects_follow_scim_lifecycle_and_reload() {
     use axum::{
-        body::{Body, to_bytes},
-        http::{Request, StatusCode},
+        body::{
+            Body,
+            to_bytes,
+        },
+        http::{
+            Request,
+            StatusCode,
+        },
     };
     use pnpr_auth::AuthState;
-    use pnpr_config::{Config, ScimConfig};
+    use pnpr_config::{
+        Config,
+        ScimConfig,
+    };
     use pnpr_fixtures::MockConfigPresets;
     use tower::ServiceExt;
 

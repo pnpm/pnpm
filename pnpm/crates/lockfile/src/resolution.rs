@@ -1,24 +1,47 @@
 pub use git_hosted::is_git_hosted_tarball_url;
 pub use pnpm_crypto_hash::has_complete_sha512_digest;
 pub use registry::{
-    DeclaredRegistryPrefixes, RegistryContext, RegistryOptions, RegistryServerType,
-    TarballUrlOptions, normalized_registry_key, npm_tarball_url, pick_registry_for_package,
-    registry_for_package, registry_server_type, registry_supports_time_field, same_registry,
+    DeclaredRegistryPrefixes,
+    RegistryContext,
+    RegistryOptions,
+    RegistryServerType,
+    TarballUrlOptions,
+    normalized_registry_key,
+    npm_tarball_url,
+    pick_registry_for_package,
+    registry_for_package,
+    registry_server_type,
+    registry_supports_time_field,
+    same_registry,
 };
 pub use revision_url::{
-    is_on_revision_tarball_route, is_revision_registry_tarball_url, revision_registry_tarball_path,
+    is_on_revision_tarball_route,
+    is_revision_registry_tarball_url,
+    revision_registry_tarball_path,
     revision_registry_tarball_url,
 };
 
 use crate::IntegrityTarget;
-use derive_more::{Display, Error, From, Into, TryInto};
+use derive_more::{
+    Display,
+    Error,
+    From,
+    Into,
+    TryInto,
+};
 use pipe_trait::Pipe;
 use pnpm_diagnostics::miette::Diagnostic;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use ssri::Integrity;
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
 };
 
 /// For tarball hosted remotely or locally.

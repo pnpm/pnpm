@@ -16,52 +16,133 @@
 //! registry omits `/cargo`. Crate keys fold ASCII case and map `_` to `-`;
 //! archives and index entries keep the published name.
 
-pub(super) use publication::{CratePublication, authorize_crate_publish, verify_crate_archive};
+pub(super) use publication::{
+    CratePublication,
+    authorize_crate_publish,
+    verify_crate_archive,
+};
 
 mod owners;
 mod publication;
-use owners::{delete_owners, get_owners, put_owners};
-use publication::{delete_yank, put_publish, put_unyank};
+use owners::{
+    delete_owners,
+    get_owners,
+    put_owners,
+};
+use publication::{
+    delete_yank,
+    put_publish,
+    put_unyank,
+};
 
 use super::{
-    Action, AppState, AuthedCaller, DiscoverySource, Ownership, RegistrySource, SearchPage,
-    TargetRegistry, authorize_package, authorize_with_ownership,
+    Action,
+    AppState,
+    AuthedCaller,
+    DiscoverySource,
+    Ownership,
+    RegistrySource,
+    SearchPage,
+    TargetRegistry,
+    authorize_package,
+    authorize_with_ownership,
     conditional_requests::is_not_modified,
     discovery_sources,
     documents::{
-        lookup_in_hosted_document, read_hosted_document, stage_hosted_artifact,
+        lookup_in_hosted_document,
+        read_hosted_document,
+        stage_hosted_artifact,
         store_hosted_artifact,
     },
     ecosystem::{
-        UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
-        load_upstream_document, mount_bases, registry_endpoint, registry_requires_auth,
-        serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
+        UpstreamDocument,
+        addressed_registry,
+        caller_scoped,
+        is_fetchable_artifact_url,
+        load_upstream_document,
+        mount_bases,
+        registry_endpoint,
+        registry_requires_auth,
+        serve_hosted_blob,
+        serve_upstream_artifact,
+        sha256_hex,
+        sha256_integrity,
+        upstream_for,
     },
-    hosted_search_names, json_response, not_found,
+    hosted_search_names,
+    json_response,
+    not_found,
     package_owners::MAX_OWNER_BODY_BYTES,
     private_no_cache,
-    publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
-    resolve_ecosystem_source, resolve_write_target_for,
+    publishing::{
+        PublishTarget,
+        StagedPublish,
+        resolve_publish_target_for,
+    },
+    resolve_ecosystem_source,
+    resolve_write_target_for,
 };
 use axum::{
     Router,
-    body::{Body, Bytes},
-    extract::{DefaultBodyLimit, Path, RawQuery, State},
-    http::{HeaderMap, StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::{delete, get, put},
+    body::{
+        Body,
+        Bytes,
+    },
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        RawQuery,
+        State,
+    },
+    http::{
+        HeaderMap,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
+    routing::{
+        delete,
+        get,
+        put,
+    },
 };
 use pnpr_cargo::{
-    CrateDocument, IndexConfig, IndexEntry, PublishMetadata, SearchCrate, SearchMeta,
-    SearchResponse, bounded_description, crate_filename, download_url, errors_json, ok_json,
-    parse_index, parse_publish_body, publish_ok_json, sparse_index_path, validate_crate_archive,
+    CrateDocument,
+    IndexConfig,
+    IndexEntry,
+    PublishMetadata,
+    SearchCrate,
+    SearchMeta,
+    SearchResponse,
+    bounded_description,
+    crate_filename,
+    download_url,
+    errors_json,
+    ok_json,
+    parse_index,
+    parse_publish_body,
+    publish_ok_json,
+    sparse_index_path,
+    validate_crate_archive,
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, is_safe_path_segment};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    is_safe_path_segment,
+};
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate};
-use std::{collections::HashMap, fmt::Display};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    DocumentUpdate,
+};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+};
 
 const ECOSYSTEM: Ecosystem = Ecosystem::Cargo;
 /// The largest sparse-index file accepted from an upstream.

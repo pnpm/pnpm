@@ -3,7 +3,11 @@ mod tests;
 
 use super::Host;
 use pnpm_fs::CopyPermissions as Permissions;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 pub(super) trait FsSetPermissions {
     fn set_permissions(path: &Path, permissions: Permissions) -> io::Result<()>;

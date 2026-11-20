@@ -5,19 +5,38 @@
 
 pub(crate) use walk_context::MissingSummary;
 
-pub(super) use snapshot_budget::{SnapshotBudget, SubtreePaths};
+pub(super) use snapshot_budget::{
+    SnapshotBudget,
+    SubtreePaths,
+};
 pub(super) use walk_context::{
-    MissingPeerInfo, NodeOutput, NodeWalkContext, RootWalk, SubtreeMissingByPkg,
+    MissingPeerInfo,
+    NodeOutput,
+    NodeWalkContext,
+    RootWalk,
+    SubtreeMissingByPkg,
     index_peer_provider_children,
 };
 
-pub(crate) use missing_names::{MissingNames, children_scc_ids, index_missing_names};
+pub(crate) use missing_names::{
+    MissingNames,
+    children_scc_ids,
+    index_missing_names,
+};
 
 mod snapshot_budget;
 mod walk_context;
 use walk_context::{
-    ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren, NodeEntry,
-    NodePeers, NodePeersContext, SettledPeers, WalkResult,
+    ChildChains,
+    ChildOutputs,
+    ChildParentRefs,
+    ChildrenWalk,
+    DeferredChildren,
+    NodeEntry,
+    NodePeers,
+    NodePeersContext,
+    SettledPeers,
+    WalkResult,
 };
 
 mod missing_names;
@@ -34,28 +53,67 @@ mod node_walk;
 
 use crate::{
     dependencies_graph::{
-        DependenciesGraph, MissingPeer, ParentChain, PeerDependencyIssue, PeerDependencyIssues,
+        DependenciesGraph,
+        MissingPeer,
+        ParentChain,
+        PeerDependencyIssue,
+        PeerDependencyIssues,
     },
     node_id::NodeId,
     resolve_peers::{
-        ResolvePeersOptions, ResolvePeersResult,
+        ResolvePeersOptions,
+        ResolvePeersResult,
         cache::{
-            CacheHitContext, DeferredChildContext, PeerProviderChildren, PeersCacheItem,
-            UndoRealize, merge_realize_undo,
+            CacheHitContext,
+            DeferredChildContext,
+            PeerProviderChildren,
+            PeersCacheItem,
+            UndoRealize,
+            merge_realize_undo,
         },
         context::{
-            ComparablePeerRange, CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs,
-            SharedChain, importer_relative_link_dep_path, insert_parent_ref,
-            link_node_id_as_dep_path, peer_id_pair, remap_link_node_id,
+            ComparablePeerRange,
+            CurrentProviderSource,
+            ParentPkgInfo,
+            ParentRef,
+            ParentRefs,
+            SharedChain,
+            importer_relative_link_dep_path,
+            insert_parent_ref,
+            link_node_id_as_dep_path,
+            peer_id_pair,
+            remap_link_node_id,
         },
         discovery::PeerDiscoveryCaches,
-        finalize::{NodeRecord, PeerIdRecording, PendingPeerEdge, WalkedNode},
+        finalize::{
+            NodeRecord,
+            PeerIdRecording,
+            PendingPeerEdge,
+            WalkedNode,
+        },
     },
-    resolved_tree::{ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
+    resolved_tree::{
+        ChildEdge,
+        DirectDep,
+        PeerDep,
+        ResolvedPackage,
+        ResolvedTree,
+        TreeChildren,
+    },
 };
-use pnpm_deps_path::{DepPath, PeerId, link_path_to_peer_version};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    link_path_to_peer_version,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 pub(super) struct Walker<'tree> {
     pub(super) tree: &'tree mut ResolvedTree,

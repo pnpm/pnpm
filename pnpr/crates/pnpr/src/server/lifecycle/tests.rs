@@ -1,18 +1,39 @@
 use super::{
-    Config, StartupGraph, Storage, adopt_startup_graph, current_routing_of, load_startup_auth,
-    load_stored_graph, spawn_periodic_archive_temp_sweep, state_and_router,
-    sweep_abandoned_archive_temps, sweep_current_archive_temps,
+    Config,
+    StartupGraph,
+    Storage,
+    adopt_startup_graph,
+    current_routing_of,
+    load_startup_auth,
+    load_stored_graph,
+    spawn_periodic_archive_temp_sweep,
+    state_and_router,
+    sweep_abandoned_archive_temps,
+    sweep_current_archive_temps,
 };
 use object_store::memory::InMemory;
 use pnpr_auth::TokenBackend;
 use pnpr_config::HostedStoreConfig;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use std::{
-    fs::{File, FileTimes},
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    fs::{
+        File,
+        FileTimes,
+    },
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::TempDir;
 
@@ -172,7 +193,13 @@ async fn shutdown_drain_returns_when_requests_finish() {
 
 #[tokio::test]
 async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout() {
-    use axum::{body::Body, http::Request, http::StatusCode};
+    use axum::{
+        body::Body,
+        http::{
+            Request,
+            StatusCode,
+        },
+    };
     use tower::ServiceExt as _;
 
     let tmp = TempDir::new().unwrap();
@@ -223,7 +250,10 @@ async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout()
     assert_eq!(ready_before.status(), StatusCode::OK);
 
     let _slow_client = tokio::spawn(async move {
-        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+        use tokio::io::{
+            AsyncReadExt as _,
+            AsyncWriteExt as _,
+        };
         let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
         stream
             .write_all(b"GET /-/test-slow HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
@@ -250,7 +280,13 @@ async fn shutdown_fails_readiness_at_start_and_honors_configured_drain_timeout()
 }
 
 async fn assert_shutting_down_routes(probe_app: &axum::Router) {
-    use axum::{body::Body, http::Request, http::StatusCode};
+    use axum::{
+        body::Body,
+        http::{
+            Request,
+            StatusCode,
+        },
+    };
     use tower::ServiceExt as _;
 
     for path in ["/-/ready", "/~local/-/ready"] {
@@ -440,7 +476,10 @@ async fn wait_for_http_ping(
 }
 
 async fn try_http_ping(addr: SocketAddr) -> bool {
-    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    use tokio::io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    };
 
     let Ok(mut stream) = tokio::net::TcpStream::connect(addr).await else {
         return false;

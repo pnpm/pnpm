@@ -1,9 +1,20 @@
 use super::{
-    _utils::{ndjson_records, pacquet_in},
-    workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds},
+    _utils::{
+        ndjson_records,
+        pacquet_in,
+    },
+    workspace_yaml::{
+        allow_builds,
+        append_workspace_yaml_key,
+        set_strict_dep_builds,
+    },
 };
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Output};
+use std::{
+    fs,
+    path::Path,
+    process::Output,
+};
 
 const FAILURE: &str = "@pnpm.e2e/failing-postinstall";
 const SUCCESS: &str = "@pnpm.e2e/install-script-example";

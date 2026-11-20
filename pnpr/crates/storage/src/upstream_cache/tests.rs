@@ -1,5 +1,14 @@
-use super::{CanonicalPackageName, Duration, Ecosystem, PURGED_UPSTREAM_DIR, Storage};
-use pnpr_config::{DatabaseBackend, HostedStoreConfig};
+use super::{
+    CanonicalPackageName,
+    Duration,
+    Ecosystem,
+    PURGED_UPSTREAM_DIR,
+    Storage,
+};
+use pnpr_config::{
+    DatabaseBackend,
+    HostedStoreConfig,
+};
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {

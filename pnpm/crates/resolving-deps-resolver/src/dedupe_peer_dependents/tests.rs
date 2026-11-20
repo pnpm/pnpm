@@ -1,15 +1,43 @@
-use super::{DirectByImporter, PeerSuffixes, dedupe_peer_dependents, deduplicate_dep_paths};
+use super::{
+    DirectByImporter,
+    PeerSuffixes,
+    dedupe_peer_dependents,
+    deduplicate_dep_paths,
+};
 use crate::{
     PeerDependentsDedupe,
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
-    peer_dependents_dedupe::{OptionalPeerScope, UnboundOptionalPeers},
+    dependencies_graph::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
+    peer_dependents_dedupe::{
+        OptionalPeerScope,
+        UnboundOptionalPeers,
+    },
     resolve_peers::split_peer_suffix_segments,
 };
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix};
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    create_peer_dep_graph_hash,
+    index_of_dep_path_suffix,
+};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// The peer ids the peer resolution records for every node that resolved
 /// peers, read back from the depPath's text.

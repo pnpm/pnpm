@@ -4,19 +4,37 @@ use crate::{
     cli_args::{
         pipelines::WorkspaceScope,
         recursive::{
-            AutoExcludeRoot, RecursiveSelection, filter_graphs, parse_configured_selectors,
-            recursive_filter_options, select_recursive_projects_deferring_no_match,
+            AutoExcludeRoot,
+            RecursiveSelection,
+            filter_graphs,
+            parse_configured_selectors,
+            recursive_filter_options,
+            select_recursive_projects_deferring_no_match,
         },
     },
-    ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, python},
+    ecosystem_install::{
+        EcosystemManifest,
+        EcosystemWorkspaceInventory,
+        python,
+    },
 };
 use miette::Result;
 use pnpm_config::Config;
-use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    ProjectGraph,
+    ProjectGraphNode,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

@@ -1,7 +1,15 @@
 use super::{
-    AddMockedRegistry, CommandTempCwd, append_unused_filtered_patch, append_workspace_yaml_key, fs,
-    pacquet, setup_configured_patch, setup_configured_patch_with_allow_unused,
-    setup_configured_patch_with_yaml, setup_filtered_patch_workspace, setup_patch_remove_project,
+    AddMockedRegistry,
+    CommandTempCwd,
+    append_unused_filtered_patch,
+    append_workspace_yaml_key,
+    fs,
+    pacquet,
+    setup_configured_patch,
+    setup_configured_patch_with_allow_unused,
+    setup_configured_patch_with_yaml,
+    setup_filtered_patch_workspace,
+    setup_patch_remove_project,
 };
 use assert_cmd::assert::OutputAssertExt;
 

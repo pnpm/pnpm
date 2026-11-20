@@ -1,14 +1,29 @@
 pub(super) mod retry;
 
 pub(super) use atomic::{
-    PublishReceipt, add_npm_notices, commit_publication, publication_name, publication_request,
-    publish_committed_response, replayed_outcome, single_namespace,
+    PublishReceipt,
+    add_npm_notices,
+    commit_publication,
+    publication_name,
+    publication_request,
+    publish_committed_response,
+    replayed_outcome,
+    single_namespace,
 };
 pub(super) use attachments::{
-    StagedBase, StagedPublish, ValidatedPublish, Verification, stage_publish, validate_publish_doc,
+    StagedBase,
+    StagedPublish,
+    ValidatedPublish,
+    Verification,
+    stage_publish,
+    validate_publish_doc,
     validate_staged_publish_name,
 };
-pub(super) use notes::{refuse_notes_of_published_python_versions, take_note, take_version_note};
+pub(super) use notes::{
+    refuse_notes_of_published_python_versions,
+    take_note,
+    take_version_note,
+};
 pub(super) use tombstones::check_publish_tombstone;
 
 mod atomic;
@@ -24,29 +39,58 @@ mod verification;
 
 use std::collections::HashSet;
 
-use axum::response::{IntoResponse, Response};
+use axum::response::{
+    IntoResponse,
+    Response,
+};
 use serde_json::Value;
 use ssri::Integrity;
 
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_registry::{Ecosystem, Registry};
+use pnpr_registry::{
+    Ecosystem,
+    Registry,
+};
 use pnpr_storage::{
-    HostedDocumentVersion, Storage,
-    database::{PublicationRequest, PublishNotes},
+    HostedDocumentVersion,
+    Storage,
+    database::{
+        PublicationRequest,
+        PublishNotes,
+    },
     publish::{
-        PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
-        verify_and_write, write_sigstore_bundle,
+        PendingAttachment,
+        extract_attachments,
+        now_iso,
+        stream_decode_verify_and_write,
+        verify_and_write,
+        write_sigstore_bundle,
     },
 };
 
 use super::{
-    Action, AppState, HostedGate, Ownership, RegistrySource, WriteTarget,
-    authorize_against_packument, authorize_package, authorize_package_write,
-    authorize_with_ownership, authorized_upstream, default_registry_target, hosted_gate,
-    hosted_storage, parse_json_body, resolve_ecosystem_source, resolve_write_target,
-    restore_tgz_integrities, staged_archives::StagedReferences, tar_integrity_of,
+    Action,
+    AppState,
+    HostedGate,
+    Ownership,
+    RegistrySource,
+    WriteTarget,
+    authorize_against_packument,
+    authorize_package,
+    authorize_package_write,
+    authorize_with_ownership,
+    authorized_upstream,
+    default_registry_target,
+    hosted_gate,
+    hosted_storage,
+    parse_json_body,
+    resolve_ecosystem_source,
+    resolve_write_target,
+    restore_tgz_integrities,
+    staged_archives::StagedReferences,
+    tar_integrity_of,
     tgz_integrity_key,
 };
 

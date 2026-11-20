@@ -16,9 +16,13 @@ use default_rules::DirDefaults;
 use rule::IgnoreRule;
 use std::{
     collections::BTreeSet,
-    fs, io,
+    fs,
+    io,
     marker::PhantomData,
-    path::{Component, Path},
+    path::{
+        Component,
+        Path,
+    },
 };
 
 /// Lists the entries of a directory, like [`fs::read_dir`].

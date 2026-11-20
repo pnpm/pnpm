@@ -1,9 +1,28 @@
 use super::{
-    AuditLevel, BTreeMap, Config, GetHomeDir, LoadWorkspaceYamlError, NodeLinker, Path, PathBuf,
-    RegistryDeclaration, RegistryEntry, RegistryOptions, RegistryServerType, ResolutionMode,
-    TrustPolicy, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
+    AuditLevel,
+    BTreeMap,
+    Config,
+    GetHomeDir,
+    LoadWorkspaceYamlError,
+    NodeLinker,
+    Path,
+    PathBuf,
+    RegistryDeclaration,
+    RegistryEntry,
+    RegistryOptions,
+    RegistryServerType,
+    ResolutionMode,
+    TrustPolicy,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    assert_eq,
+    fs,
 };
-use crate::{MachineSettings, RegistryPrefixes, TrustedSettings};
+use crate::{
+    MachineSettings,
+    RegistryPrefixes,
+    TrustedSettings,
+};
 
 /// `trustPolicy` accepts the two upstream string values; an absent
 /// key leaves the [`TrustPolicy::Off`] default in place.

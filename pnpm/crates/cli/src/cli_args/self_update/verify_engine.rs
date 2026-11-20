@@ -16,19 +16,44 @@
 
 use super::{
     SelfUpdateError,
-    install_pnpm::{exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, native_target_name},
+    install_pnpm::{
+        exe_platform_pkg_dir_name,
+        exe_platform_pkg_dir_name_next,
+        native_target_name,
+    },
 };
-use p256::ecdsa::{Signature, VerifyingKey};
+use p256::ecdsa::{
+    Signature,
+    VerifyingKey,
+};
 use pnpm_config::Config;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
-use pnpm_lockfile::{EnvLockfile, PackageKey, PkgName, SnapshotDepRef};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+};
 use pnpm_network::{
-    RetryOpts, ThrottledClient, encode_package_name, redact_and_sanitize, send_with_retry,
+    RetryOpts,
+    ThrottledClient,
+    encode_package_name,
+    redact_and_sanitize,
+    send_with_retry,
 };
 use serde::Deserialize;
 use signatures::{
-    CANONICAL_NPM_REGISTRY, FailureCategory, NPM_SIGNING_KEYS, SignatureFailure, build_client,
-    find_signature_failure, pick_registry,
+    CANONICAL_NPM_REGISTRY,
+    FailureCategory,
+    NPM_SIGNING_KEYS,
+    SignatureFailure,
+    build_client,
+    find_signature_failure,
+    pick_registry,
 };
 use std::collections::HashMap;
 

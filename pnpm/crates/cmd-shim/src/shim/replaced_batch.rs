@@ -10,7 +10,10 @@
 //!
 //! [`CmdShimBatch::Kept`]: super::CmdShimBatch::Kept
 
-use super::{BATCH_END, CODEPAGE_RESTORE_TRAILER};
+use super::{
+    BATCH_END,
+    CODEPAGE_RESTORE_TRAILER,
+};
 
 /// The line a shim starts with when it jumps over the lines that end the
 /// replaced batch.

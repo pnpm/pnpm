@@ -1,5 +1,8 @@
 use crate::Digest;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::cmp::Ordering;
 
 /// One manifest the repository holds, keyed by the digest of its bytes.

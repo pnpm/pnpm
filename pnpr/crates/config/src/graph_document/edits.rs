@@ -6,7 +6,10 @@ use pnpr_error::RegistryError;
 use pnpr_registry::Ecosystem;
 use serde::Serialize;
 
-use super::{RegistryFile, RegistryGraphDocument};
+use super::{
+    RegistryFile,
+    RegistryGraphDocument,
+};
 
 /// The registries a document change adds, removes, and changes, by name.
 /// `changed` also names `defaultRegistry` and `routes` when they change.

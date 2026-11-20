@@ -3,9 +3,17 @@ use crate::_utils::write_executable;
 use crate::_utils::write_fake_bin;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    diagnostics::assert_diagnostic_contains,
+};
 use serde_json::json;
-use std::{fs, io, process::Stdio, time::Duration};
+use std::{
+    fs,
+    io,
+    process::Stdio,
+    time::Duration,
+};
 
 /// `pacquet run <script>` looks up the named entry under
 /// `scripts` in the workspace's `package.json` and spawns it via
@@ -933,7 +941,11 @@ mod shell_emulator {
     use command_extra::CommandExtra;
     use pnpm_testing_utils::bin::CommandTempCwd;
     use serde_json::json;
-    use std::{fmt::Write as _, fs, path::Path};
+    use std::{
+        fmt::Write as _,
+        fs,
+        path::Path,
+    };
 
     fn write_project(workspace: &Path, scripts: &serde_json::Value, shell_emulator: bool) {
         write_configured_project(workspace, scripts, None, shell_emulator);

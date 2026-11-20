@@ -4,24 +4,54 @@
 //! A package the store has no row for is skipped: there is nothing to
 //! compare it against.
 
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_deps_restorer::{
-    AllowBuildPolicy, VirtualStoreLayout, safe_join_modules_dir, store_index_key_for_resolution,
-    validate_importer_id, validate_virtual_store_slot_containment,
+    AllowBuildPolicy,
+    VirtualStoreLayout,
+    safe_join_modules_dir,
+    store_index_key_for_resolution,
+    validate_importer_id,
+    validate_virtual_store_slot_containment,
     virtual_store_layout_for_lockfile,
 };
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::{AllowBuildValue, Host, Modules, read_modules_manifest};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_modules_yaml::{
+    AllowBuildValue,
+    Host,
+    Modules,
+    read_modules_manifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_store_dir::{
-    PackageFilesIndex, StoreDir, StoreIndex, file_content_matches_digest, package_dir_matches_index,
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+    file_content_matches_digest,
+    package_dir_matches_index,
 };
 use rayon::prelude::*;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]

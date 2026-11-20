@@ -1,4 +1,7 @@
-use super::{MissingWithCurrentCommand, plan};
+use super::{
+    MissingWithCurrentCommand,
+    plan,
+};
 use std::ffi::OsString;
 
 /// Build an argv (with a leading program name) from string slices.

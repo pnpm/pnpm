@@ -2,19 +2,49 @@
 //! through the in-memory cache.
 
 use crate::{
-    ArchiveIntegrity, CacheClaimGuard, CacheHeaders, CacheSlotClaim, CacheValue, CachedTarball,
-    MemCache, RetryOpts, TarballError, TarballPackage, apply_placeholder_manifest,
-    archive_integrity::{ArchiveVerification, IntegrityKind},
+    ArchiveIntegrity,
+    CacheClaimGuard,
+    CacheHeaders,
+    CacheSlotClaim,
+    CacheValue,
+    CachedTarball,
+    MemCache,
+    RetryOpts,
+    TarballError,
+    TarballPackage,
+    apply_placeholder_manifest,
+    archive_integrity::{
+        ArchiveVerification,
+        IntegrityKind,
+    },
     claim_cache_entry,
-    download::{AttemptedFetch, fetch_and_extract_conditional},
-    package_mem_cache_key, read_cas_package_json, read_subdir_manifest, wait_for_cached_tarball,
+    download::{
+        AttemptedFetch,
+        fetch_and_extract_conditional,
+    },
+    package_mem_cache_key,
+    read_cas_package_json,
+    read_subdir_manifest,
+    wait_for_cached_tarball,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    UNPRIORITIZED,
+};
 use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter, store_index_key};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndexWriter,
+    store_index_key,
+};
 use ssri::Integrity;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 use tokio::sync::RwLock;
 
 /// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity

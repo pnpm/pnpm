@@ -10,25 +10,58 @@
 //! async runtime, and so these helpers stay easy to unit-test.
 
 pub mod sigstore;
-pub use attachment::{AttachmentPayload, PendingAttachment, extract_attachments};
-pub use sigstore::{extract_predicate_type, sigstore_bundle_bytes, write_sigstore_bundle};
+pub use attachment::{
+    AttachmentPayload,
+    PendingAttachment,
+    extract_attachments,
+};
+pub use sigstore::{
+    extract_predicate_type,
+    sigstore_bundle_bytes,
+    write_sigstore_bundle,
+};
 pub(crate) use time::now_millis;
-pub use time::{iso_from_unix_millis, now_iso};
+pub use time::{
+    iso_from_unix_millis,
+    now_iso,
+};
 
 mod time;
 
 mod attachment;
 
-use crate::streaming::{integrity_checker, parse_integrity};
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64, read::DecoderReader};
-use pnpr_error::{RegistryError, Result};
-use serde_json::{Map, Value};
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use crate::streaming::{
+    integrity_checker,
+    parse_integrity,
+};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+    read::DecoderReader,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityChecker,
+    IntegrityOpts,
+};
 use std::{
     collections::BTreeMap,
     fmt::Write as FmtWrite,
     fs::File,
-    io::{Cursor, Read, Write},
+    io::{
+        Cursor,
+        Read,
+        Write,
+    },
     path::Path,
 };
 

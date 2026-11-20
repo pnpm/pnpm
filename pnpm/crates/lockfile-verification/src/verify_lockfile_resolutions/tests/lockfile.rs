@@ -1,6 +1,14 @@
 use super::{
-    Arc, CapturingVerifier, Mutex, ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter,
-    TWO_PKG_LOCKFILE, VerifyError, VerifyLockfileResolutionsOptions, parse,
+    Arc,
+    CapturingVerifier,
+    Mutex,
+    ResolutionVerifier,
+    SINGLE_PKG_LOCKFILE,
+    SilentReporter,
+    TWO_PKG_LOCKFILE,
+    VerifyError,
+    VerifyLockfileResolutionsOptions,
+    parse,
     verify_lockfile_resolutions,
 };
 

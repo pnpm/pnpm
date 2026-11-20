@@ -7,12 +7,24 @@
 //! command-specific error codes) live in `run/recursive.rs` and
 //! `exec/recursive.rs`.
 
-pub use dependencies::{filtered_projects_dependencies, projects_to_verify, sequence_graph};
+pub use dependencies::{
+    filtered_projects_dependencies,
+    projects_to_verify,
+    sequence_graph,
+};
 pub use execution_args::RecursiveExecutionArgs;
 pub(crate) use filter_graphs::overridden_project_dependencies;
-pub use importer_selection::{selected_workspace_importer_ids, selectors_narrow_the_run};
+pub use importer_selection::{
+    selected_workspace_importer_ids,
+    selectors_narrow_the_run,
+};
 pub use selected_dirs::SelectedProjectDirs;
-pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
+pub use summary::{
+    ExecutionStatus,
+    Status,
+    count_failures,
+    write_recursive_summary,
+};
 pub use unmatched::UnmatchedFilters;
 
 mod dependencies;
@@ -24,26 +36,57 @@ mod selected_dirs;
 mod selection_order;
 mod unmatched;
 
-use crate::state::{ProjectHost, host_requirements};
-use derive_more::{Display, Error};
-use filter_graphs::{FilterGraphs, build_filter_graphs, selector_filter_options};
+use crate::state::{
+    ProjectHost,
+    host_requirements,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use filter_graphs::{
+    FilterGraphs,
+    build_filter_graphs,
+    selector_filter_options,
+};
 use indexmap::IndexMap;
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, FilterSource};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    FilterSource,
+};
 use pnpm_reporter::LogEvent;
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
-    importer_id_from_root_dir, read_workspace_manifest, workspace_package_patterns,
+    FindWorkspaceProjectsOpts,
+    GraphPkg,
+    Project,
+    find_workspace_projects,
+    importer_id_from_root_dir,
+    read_workspace_manifest,
+    workspace_package_patterns,
 };
 use pnpm_workspace_projects_filter::{
-    FilterWorkspaceProjectsOptions, FilteredGraphProjects, ProjectSelector,
-    filter_workspace_projects_with_prod_graph, parse_project_selector,
+    FilterWorkspaceProjectsOptions,
+    FilteredGraphProjects,
+    ProjectSelector,
+    filter_workspace_projects_with_prod_graph,
+    parse_project_selector,
 };
-use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    ProjectGraph,
+};
 use serde::Serialize;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use unmatched::unmatched_filters;
 

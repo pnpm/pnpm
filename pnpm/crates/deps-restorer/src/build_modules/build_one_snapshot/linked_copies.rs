@@ -1,9 +1,16 @@
 //! Removing the links that point at a skipped optional dependency.
 
-use super::{BuildModulesError, BuildOneSnapshot, PackageKey};
+use super::{
+    BuildModulesError,
+    BuildOneSnapshot,
+    PackageKey,
+};
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The directories of a skipped package, resolved once so each candidate

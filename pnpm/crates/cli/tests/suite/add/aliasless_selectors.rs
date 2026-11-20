@@ -1,10 +1,21 @@
-use super::{Path, prod_spec, write_json};
-use crate::_utils::{append_workspace_yaml_key, pacquet_in, read_lockfile};
+use super::{
+    Path,
+    prod_spec,
+    write_json,
+};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    pacquet_in,
+    read_lockfile,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::PkgName;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fixtures::tarball_with_manifest,
 };
 use pretty_assertions::assert_eq;

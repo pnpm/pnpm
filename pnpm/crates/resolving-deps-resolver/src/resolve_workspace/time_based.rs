@@ -1,13 +1,23 @@
 use super::{
     importers::SortedImporters,
-    options::{PassSettings, WorkspaceImporter},
+    options::{
+        PassSettings,
+        WorkspaceImporter,
+    },
 };
 use crate::{
-    resolve_dependency_tree::importer_direct_wanted_specs, resolve_importer::ResolveImporterOptions,
+    resolve_dependency_tree::importer_direct_wanted_specs,
+    resolve_importer::ResolveImporterOptions,
 };
-use jiff::{SignedDuration, Timestamp};
+use jiff::{
+    SignedDuration,
+    Timestamp,
+};
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_resolving_resolver_base::{Resolver, parse_packument_timestamp};
+use pnpm_resolving_resolver_base::{
+    Resolver,
+    parse_packument_timestamp,
+};
 use std::collections::BTreeMap;
 
 /// The `minimumReleaseAge` cutoff is set uniformly on every importer's

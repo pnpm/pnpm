@@ -8,12 +8,27 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     fs,
-    io::{self, BufRead, BufReader, Read},
-    path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    io::{
+        self,
+        BufRead,
+        BufReader,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        Stdio,
+    },
     sync::mpsc,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 const HOLD: Duration = Duration::from_secs(1);

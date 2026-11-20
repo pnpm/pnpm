@@ -1,6 +1,13 @@
 use super::{
-    super::{Config, InstallError, LayoutVersion, NodeLinker, Path},
-    map_node_linker, normalized_pattern,
+    super::{
+        Config,
+        InstallError,
+        LayoutVersion,
+        NodeLinker,
+        Path,
+    },
+    map_node_linker,
+    normalized_pattern,
 };
 use pnpm_modules_yaml::NodeLinker as ModulesNodeLinker;
 

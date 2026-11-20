@@ -3,7 +3,10 @@
 
 use crate::{
     api::EnvVar,
-    naming_cases::{to_camel_case, to_kebab_case},
+    naming_cases::{
+        to_camel_case,
+        to_kebab_case,
+    },
 };
 use std::collections::BTreeMap;
 

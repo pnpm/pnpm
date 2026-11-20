@@ -1,4 +1,7 @@
-use object::{Object, ObjectSection};
+use object::{
+    Object,
+    ObjectSection,
+};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]

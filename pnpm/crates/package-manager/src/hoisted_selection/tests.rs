@@ -1,6 +1,9 @@
 use super::selected_materialization_ids;
 use pnpm_lockfile::Lockfile;
-use std::{collections::HashSet, fmt::Write};
+use std::{
+    collections::HashSet,
+    fmt::Write,
+};
 
 const ONE_DEPENDENCY: &str =
     "\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0";

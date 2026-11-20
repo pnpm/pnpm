@@ -8,19 +8,31 @@
 //! reports.
 
 use crate::{
-    LinkVirtualStoreBins, SkippedSnapshots, SymlinkDirectDependencies,
+    LinkVirtualStoreBins,
+    SkippedSnapshots,
+    SymlinkDirectDependencies,
     install_frozen_lockfile::{
-        HoistPlan, HoistedLinkerError, HoistedLinkerInputs, run_hoisted_linker,
+        HoistPlan,
+        HoistedLinkerError,
+        HoistedLinkerInputs,
+        run_hoisted_linker,
     },
     link_root_component_members,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::PackageKey;
 use pnpm_reporter::Reporter;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
 };
 
@@ -465,6 +477,10 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
 mod hoist_links;
 mod prune;
 use hoist_links::{
-    HoistLinks, PlannedHoist, plan_hoist, public_workspace_bin_deps, write_hoist_links,
+    HoistLinks,
+    PlannedHoist,
+    plan_hoist,
+    public_workspace_bin_deps,
+    write_hoist_links,
 };
 use prune::prune_importer_tree;

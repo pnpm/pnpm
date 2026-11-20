@@ -4,10 +4,24 @@ pub(crate) use purged::PurgedUpstreamPackages;
 mod purged;
 
 use super::{
-    BlobWrite, CachedDocument, CanonicalPackageName, DocumentStamp, Ecosystem, ErrorKind, Path,
-    PathBuf, RegistryError, Result, Storage, Store, write_atomic,
+    BlobWrite,
+    CachedDocument,
+    CanonicalPackageName,
+    DocumentStamp,
+    Ecosystem,
+    ErrorKind,
+    Path,
+    PathBuf,
+    RegistryError,
+    Result,
+    Storage,
+    Store,
+    write_atomic,
 };
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 use tokio::fs;
 
 const FETCH_TIME_FILE: &str = "fetched-at.json";

@@ -1,9 +1,23 @@
-use super::{Command, CommandExtra, TempDir, assert_eq};
+use super::{
+    Command,
+    CommandExtra,
+    TempDir,
+    assert_eq,
+};
 use crate::cargo_install::crate_archive;
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 use pnpm_testing_utils::git_repo::GitRepoFixture;
-use sha2::{Digest, Sha256};
-use std::{fs, path::Path};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn init_git_crate(parent: &Path) -> (GitRepoFixture, String) {
     let repo = GitRepoFixture::init(parent, "git_dep");

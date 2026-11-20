@@ -1,10 +1,20 @@
 use super::{
-    FilterError, FilterProjectsOptions, FilterWorkspaceProjectsOptions, FilteredProjects,
-    WorkspaceFilter, filter_workspace_projects_with_prod_graph,
+    FilterError,
+    FilterProjectsOptions,
+    FilterWorkspaceProjectsOptions,
+    FilteredProjects,
+    WorkspaceFilter,
+    filter_workspace_projects_with_prod_graph,
 };
-use crate::parse_project_selector::{ProjectSelector, parse_project_selector};
+use crate::parse_project_selector::{
+    ProjectSelector,
+    parse_project_selector,
+};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, GraphProject, WorkspaceCatalogs, create_projects_graph,
+    CreateProjectsGraphOptions,
+    GraphProject,
+    WorkspaceCatalogs,
+    create_projects_graph,
 };
 
 /// Parse a list of [`WorkspaceFilter`]s into selectors and apply them

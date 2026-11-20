@@ -1,4 +1,9 @@
-use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, read_v11_bundle_path};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+    assert_success,
+    read_v11_bundle_path,
+};
 use pnpm_lockfile::Lockfile;
 use std::ffi::OsStr;
 

@@ -1,15 +1,30 @@
 //! Production [`GitProbe`] and [`GitCommandRunner`] implementations.
 
 use crate::{
-    git_resolver::{GitProbe, ProbeFuture},
+    git_resolver::{
+        GitProbe,
+        ProbeFuture,
+    },
     pinned_remote::pinned_git_config,
     process::Command,
-    resolve_ref::{GitCommandRunner, GitRunError},
+    resolve_ref::{
+        GitCommandRunner,
+        GitRunError,
+    },
 };
 
-use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+    sync::Arc,
+    time::Duration,
+};
 
-use pnpm_network::{AddressGuard, ThrottledClient};
+use pnpm_network::{
+    AddressGuard,
+    ThrottledClient,
+};
 use reqwest::StatusCode;
 
 /// Production [`GitProbe`]: issues the HEAD via the install-wide

@@ -1,5 +1,13 @@
-use super::{super::cache_keys::SlotReuse, metadata_with_integrity, name};
-use pnpm_lockfile::{PackageKey, PackageMetadata, PkgVerPeer};
+use super::{
+    super::cache_keys::SlotReuse,
+    metadata_with_integrity,
+    name,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PkgVerPeer,
+};
 use std::collections::HashMap;
 
 const OLD: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";

@@ -6,23 +6,44 @@
 
 use crate::cli_args::{
     registry_client::{
-        apply_auth_and_otp, auth_header_for_package, build_registry_client, package_endpoint_url,
-        resolve_registries_with_override, resolve_registry_for_package,
+        apply_auth_and_otp,
+        auth_header_for_package,
+        build_registry_client,
+        package_endpoint_url,
+        resolve_registries_with_override,
+        resolve_registry_for_package,
     },
-    release_notes::{ComposedNotes, notes_registry_of_manifest, registry_holds_notes},
+    release_notes::{
+        ComposedNotes,
+        notes_registry_of_manifest,
+        registry_holds_notes,
+    },
 };
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, redact_url_credentials};
-use pnpm_registry::{Package, PackageVersion};
+use pnpm_network::{
+    ThrottledClient,
+    redact_url_credentials,
+};
+use pnpm_registry::{
+    Package,
+    PackageVersion,
+};
 use pnpm_versioning::{
-    ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
-    read_pending_changelog, render_changelog,
+    ChangelogStorage,
+    ReleasePlan,
+    changelog_storage,
+    list_pending_changelogs,
+    read_pending_changelog,
+    render_changelog,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     io::Read,
     path::Path,
 };

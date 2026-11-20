@@ -1,5 +1,8 @@
 use super::{
-    default_rules::{DEFAULT_PATTERNS, may_match_default_rules},
+    default_rules::{
+        DEFAULT_PATTERNS,
+        may_match_default_rules,
+    },
     rule::IgnoreRule,
 };
 

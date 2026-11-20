@@ -1,7 +1,16 @@
-use crate::types::{ExtendedPatchInfo, PatchGroupRecord};
-use derive_more::{Display, Error};
+use crate::types::{
+    ExtendedPatchInfo,
+    PatchGroupRecord,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 
 /// Raised when a `name@version` pair satisfies more than one
 /// configured version range. The user must add an exact-version

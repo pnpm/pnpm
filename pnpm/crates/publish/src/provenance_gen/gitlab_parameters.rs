@@ -4,7 +4,10 @@
 //! <https://github.com/npm/cli/blob/b317f16c80df02ea3628cfa77170d5ae9b59720c/workspaces/libnpmpublish/lib/provenance.js#L83-L161>.
 
 use pipe_trait::Pipe;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 use crate::capabilities::EnvVar;
 

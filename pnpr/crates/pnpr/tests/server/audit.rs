@@ -2,8 +2,23 @@
 mod routing_and_osv;
 
 use super::{
-    Body, Config, Ecosystem, PackagePattern, Registries, Registry, Request, ServiceExt, StatusCode,
-    TempDir, body_json, config_for, enable_osv, header, hosted_with_access, json, router,
+    Body,
+    Config,
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_json,
+    config_for,
+    enable_osv,
+    header,
+    hosted_with_access,
+    json,
+    router,
     router_config,
 };
 use std::fs;

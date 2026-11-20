@@ -1,22 +1,40 @@
 use super::{
-    OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage, render_json,
-    render_recursive_json, render_recursive_table, sort_outdated, workspace::DependentProject,
+    OutdatedDependencyOptions,
+    OutdatedInWorkspace,
+    OutdatedPackage,
+    render_json,
+    render_recursive_json,
+    render_recursive_table,
+    sort_outdated,
+    workspace::DependentProject,
 };
 use crate::cli_args::{
     outdated::{
         OutdatedFormat,
         notes::with_notes,
         query::current_versions_from_importer,
-        render::{Change, DEPENDENTS_COLUMN_WIDTH, classify, render_dependents, render_latest},
+        render::{
+            Change,
+            DEPENDENTS_COLUMN_WIDTH,
+            classify,
+            render_dependents,
+            render_latest,
+        },
     },
-    release_notes::{UpgradeNotes, reader::VersionNote},
+    release_notes::{
+        UpgradeNotes,
+        reader::VersionNote,
+    },
 };
 use node_semver::Version;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::DependencyGroup;
 use std::path::PathBuf;
 #[cfg(unix)]
-use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+use std::{
+    ffi::OsString,
+    os::unix::ffi::OsStringExt,
+};
 use text_block_macros::text_block;
 
 fn v(text: &str) -> Version {
@@ -223,7 +241,10 @@ fn assert_borders_aligned(table: &str) {
 #[test]
 fn colored_table_borders_stay_aligned() {
     use owo_colors::OwoColorize;
-    use tabled::{builder::Builder, settings::Style};
+    use tabled::{
+        builder::Builder,
+        settings::Style,
+    };
 
     let header = ["Package", "Current", "Latest"].map(|name| name.bright_blue().to_string());
     let rows = [

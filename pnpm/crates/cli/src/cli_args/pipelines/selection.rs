@@ -2,23 +2,42 @@
 //! `--filter` / `-r` selection, and how it is dispatched.
 
 use super::{
-    DedicatedProjects, InstallFamilyPlan, InstallFamilySelection, configuration,
-    nested_workspace_manifests::report_nested_workspace_manifests, precomputed_workspace_cycles,
-    project_dependencies, sequence_project_dependencies,
+    DedicatedProjects,
+    InstallFamilyPlan,
+    InstallFamilySelection,
+    configuration,
+    nested_workspace_manifests::report_nested_workspace_manifests,
+    precomputed_workspace_cycles,
+    project_dependencies,
+    sequence_project_dependencies,
 };
 use crate::{
     cli_args::recursive::{
-        AutoExcludeRoot, RecursiveSelection, UnmatchedFilters, discover_workspace_projects,
+        AutoExcludeRoot,
+        RecursiveSelection,
+        UnmatchedFilters,
+        discover_workspace_projects,
         select_recursive_projects_deferring_no_match,
     },
-    state::{ProjectHost, host_requirements},
+    state::{
+        ProjectHost,
+        host_requirements,
+    },
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    ScopeLog,
+};
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

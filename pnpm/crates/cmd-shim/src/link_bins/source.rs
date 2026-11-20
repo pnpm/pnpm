@@ -1,5 +1,11 @@
 use super::{
-    BTreeMap, Command, FsWalkFiles, PackageBin, PathBuf, Value, commands_from_precalculated_bins,
+    BTreeMap,
+    Command,
+    FsWalkFiles,
+    PackageBin,
+    PathBuf,
+    Value,
+    commands_from_precalculated_bins,
     get_bins_from_package_manifest,
 };
 use std::sync::Arc;

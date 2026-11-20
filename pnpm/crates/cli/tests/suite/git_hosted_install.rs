@@ -17,18 +17,38 @@
 
 use crate::_utils;
 
-use std::{fmt::Write as _, fs, path::Path, process::Command};
+use std::{
+    fmt::Write as _,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, LockfileResolution};
-use pnpm_testing_utils::{bin::CommandTempCwd, git_repo::GitRepoFixture};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    git_repo::GitRepoFixture,
+};
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use _utils::{
-    append_workspace_yaml_key, assert_success, importer_specifier, importer_version,
-    ndjson_records, read_lockfile, read_manifest, write_manifest_value,
+    append_workspace_yaml_key,
+    assert_success,
+    importer_specifier,
+    importer_version,
+    ndjson_records,
+    read_lockfile,
+    read_manifest,
+    write_manifest_value,
 };
 
 /// The `hi` package upstream installs under the `say-hi` alias. Two bin

@@ -1,11 +1,18 @@
-use super::{CargoWorkspaceScope, RootManifest, read_root_manifest};
+use super::{
+    CargoWorkspaceScope,
+    RootManifest,
+    read_root_manifest,
+};
 use crate::{
     cargo_deps::CargoWorkspaceDependency,
     cli_args::ecosystem_deps::cargo_manifest_ops::DeclaredCargoDep,
 };
 use pnpm_package_manifest::DependencyGroup;
 use semver::VersionReq;
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{
+    collections::BTreeSet,
+    path::PathBuf,
+};
 
 const CRATES_IO: &str = "registry+https://github.com/rust-lang/crates.io-index";
 

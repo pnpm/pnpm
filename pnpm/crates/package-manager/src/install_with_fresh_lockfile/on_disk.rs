@@ -2,16 +2,30 @@ pub(super) use projects::OnDiskProjects;
 
 mod projects;
 
-use super::{FreshInputs, errors::InstallWithFreshLockfileError, resolver_setup};
-use crate::{CreateVirtualStore, CreateVirtualStoreOutput, SkippedSnapshots};
-use pnpm_config::{Config, NodeLinker};
+use super::{
+    FreshInputs,
+    errors::InstallWithFreshLockfileError,
+    resolver_setup,
+};
+use crate::{
+    CreateVirtualStore,
+    CreateVirtualStoreOutput,
+    SkippedSnapshots,
+};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::LockfileEntries;
 use pnpm_reporter::Reporter;
 use pnpm_tarball::MemCache;
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 /// Write the freshly-built wanted lockfile to `target`, first running the

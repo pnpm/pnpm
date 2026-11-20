@@ -1,16 +1,50 @@
 use super::{
     super::{
-        documents::{HostedTarget, stage_hosted_artifacts},
+        documents::{
+            HostedTarget,
+            stage_hosted_artifacts,
+        },
         publishing::commit_publishes,
     },
-    Action, AppState, AuthedCaller, BTreeMap, Bytes, CanonicalPackageName, DistributionKind,
-    ECOSYSTEM, HeaderMap, Identity, ProjectDocument, ProjectFile, PublishTarget, RegistryError,
-    RegistrySource, Request, Response, StagedPublish, State, StatusCode, TargetRegistry, Upload,
-    Yanked, authorize_package, bad_request, header, multipart, normalize_version, now_iso,
-    parse_distribution_filename, parse_upload, private_no_cache, resolve_publish_target_for,
+    Action,
+    AppState,
+    AuthedCaller,
+    BTreeMap,
+    Bytes,
+    CanonicalPackageName,
+    DistributionKind,
+    ECOSYSTEM,
+    HeaderMap,
+    Identity,
+    ProjectDocument,
+    ProjectFile,
+    PublishTarget,
+    RegistryError,
+    RegistrySource,
+    Request,
+    Response,
+    StagedPublish,
+    State,
+    StatusCode,
+    TargetRegistry,
+    Upload,
+    Yanked,
+    authorize_package,
+    bad_request,
+    header,
+    multipart,
+    normalize_version,
+    now_iso,
+    parse_distribution_filename,
+    parse_upload,
+    private_no_cache,
+    resolve_publish_target_for,
     sha256_hex,
 };
-use axum::{extract::FromRequest as _, response::IntoResponse};
+use axum::{
+    extract::FromRequest as _,
+    response::IntoResponse,
+};
 use pnpr_pypi::CoreMetadata;
 
 /// `POST legacy/` — the legacy upload API `twine` speaks.

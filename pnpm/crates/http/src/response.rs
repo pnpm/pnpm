@@ -1,12 +1,26 @@
 use crate::{
-    Error, Result, StatusCode, Url,
+    Error,
+    Result,
+    StatusCode,
+    Url,
     error::Kind,
-    header::{CONTENT_LENGTH, HeaderMap, HeaderName, HeaderValue},
+    header::{
+        CONTENT_LENGTH,
+        HeaderMap,
+        HeaderName,
+        HeaderValue,
+    },
 };
 use bytes::Bytes;
-use futures_util::{Stream, stream};
+use futures_util::{
+    Stream,
+    stream,
+};
 use serde::de::DeserializeOwned;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::pin::Pin;
 
 #[derive(Debug)]

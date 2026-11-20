@@ -1,7 +1,14 @@
-use super::{ACTIVE_WALKS, remove_pending_temp_files, track_temp_file};
+use super::{
+    ACTIVE_WALKS,
+    remove_pending_temp_files,
+    track_temp_file,
+};
 use std::{
     fs,
-    sync::{Mutex, atomic::Ordering},
+    sync::{
+        Mutex,
+        atomic::Ordering,
+    },
 };
 
 /// The registry is process-global and `cargo test` runs these tests on
@@ -79,8 +86,12 @@ fn slot_released_during_a_walk_stays_usable() {
 #[test]
 fn die_from_signal_does_not_dump_core() {
     use std::{
-        env, io,
-        os::unix::process::{CommandExt, ExitStatusExt},
+        env,
+        io,
+        os::unix::process::{
+            CommandExt,
+            ExitStatusExt,
+        },
         path::Path,
         process::Command,
     };

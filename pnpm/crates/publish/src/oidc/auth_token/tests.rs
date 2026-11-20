@@ -1,6 +1,15 @@
-use super::{AuthTokenError, fetch_auth_token};
+use super::{
+    AuthTokenError,
+    fetch_auth_token,
+};
 use crate::{
-    capabilities::{OidcFetch, OidcFetchError, OidcMethod, OidcRequest, OidcResponse},
+    capabilities::{
+        OidcFetch,
+        OidcFetchError,
+        OidcMethod,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
 };
 use pretty_assertions::assert_eq;

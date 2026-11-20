@@ -13,20 +13,40 @@
 use crate::_utils::console::PrivateConsole;
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use serde_json::json;
 use std::{
     fs,
-    io::{Read, Write},
+    io::{
+        Read,
+        Write,
+    },
     os::windows::process::CommandExt,
-    path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+        Stdio,
+    },
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::TempDir;
 use windows_sys::Win32::System::{
-    Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT, GenerateConsoleCtrlEvent},
+    Console::{
+        CTRL_BREAK_EVENT,
+        CTRL_C_EVENT,
+        GenerateConsoleCtrlEvent,
+    },
     Threading::CREATE_NEW_PROCESS_GROUP,
 };
 

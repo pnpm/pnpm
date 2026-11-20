@@ -1,4 +1,7 @@
-use super::{sanitize_component, sanitize_filenames};
+use super::{
+    sanitize_component,
+    sanitize_filenames,
+};
 use std::path::PathBuf;
 
 fn entries(names: &[&str]) -> pnpm_fs::CasPaths {

@@ -1,12 +1,25 @@
 use crate::{
-    ExitStatus, host,
-    pipe::{ReadPipe, WritePipe},
+    ExitStatus,
+    host,
+    pipe::{
+        ReadPipe,
+        WritePipe,
+    },
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    io::{self, Read},
-    ops::{Deref, DerefMut},
+    io::{
+        self,
+        Read,
+    },
+    ops::{
+        Deref,
+        DerefMut,
+    },
     sync::Arc,
     thread,
 };

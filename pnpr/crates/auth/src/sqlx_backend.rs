@@ -8,13 +8,26 @@ pub(super) mod postgres;
 pub(super) mod mysql;
 
 use super::{
-    AccountCredential, AccountStatus, DEFAULT_BCRYPT_COST, PasswordChange, TokenRecord,
-    UpsertOutcome, UserBackend, UserCreation, UserRemoval,
-    account::{decode_sql_account_state, deprovisioned_login_error},
-    dummy_verify, hash_bcrypt, is_sha_hash,
+    AccountCredential,
+    AccountStatus,
+    DEFAULT_BCRYPT_COST,
+    PasswordChange,
+    TokenRecord,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    account::{
+        decode_sql_account_state,
+        deprovisioned_login_error,
+    },
+    dummy_verify,
+    hash_bcrypt,
+    is_sha_hash,
     token_store::unix_millis,
     validation::token_timestamp_to_sql,
-    verify_returning_user, with_auth_timeout,
+    verify_returning_user,
+    with_auth_timeout,
 };
 mod request_pool;
 mod tokens;
@@ -24,9 +37,15 @@ use request_pool::RequestPool;
 use crate::validation::validate_username;
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
     time::Duration,
 };
 

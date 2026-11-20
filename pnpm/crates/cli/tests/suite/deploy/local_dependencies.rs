@@ -3,7 +3,12 @@ use std::process::Command;
 use assert_cmd::assert::OutputAssertExt;
 
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, append_workspace_yaml_key, fs, pacquet_cmd,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    append_workspace_yaml_key,
+    fs,
+    pacquet_cmd,
 };
 
 /// A `file:` dependency may live outside the lockfile directory. Install

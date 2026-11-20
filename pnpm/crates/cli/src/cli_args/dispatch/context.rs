@@ -1,16 +1,32 @@
 use super::{
-    CliArgs, Invocation,
-    configuration::{RunAnchors, RunSetup, apply_update_config},
+    CliArgs,
+    Invocation,
+    configuration::{
+        RunAnchors,
+        RunSetup,
+        apply_update_config,
+    },
     seed_config,
 };
-use crate::{State, cli_args::reporter::ReporterFlags, config_overrides::ConfigOverrides};
+use crate::{
+    State,
+    cli_args::reporter::ReporterFlags,
+    config_overrides::ConfigOverrides,
+};
 use miette::Context;
-use pnpm_config::{Config, ConfigLoadFailure, Host};
+use pnpm_config::{
+    Config,
+    ConfigLoadFailure,
+    Host,
+};
 use std::{
     future::Future,
     path::Path,
     pin::Pin,
-    sync::{Mutex, atomic::AtomicBool},
+    sync::{
+        Mutex,
+        atomic::AtomicBool,
+    },
 };
 
 pub(crate) type CommandFuture<'a, Output = ()> =

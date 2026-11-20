@@ -1,4 +1,9 @@
-use crate::{ParsePkgNameSuffixError, ParsePkgVerPeerError, PkgNameSuffix, PkgVerPeer};
+use crate::{
+    ParsePkgNameSuffixError,
+    ParsePkgVerPeerError,
+    PkgNameSuffix,
+    PkgVerPeer,
+};
 
 /// Syntax: `{name}@{version}({peers})`
 ///

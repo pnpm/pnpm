@@ -1,8 +1,22 @@
 use super::super::{
-    Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules,
-    PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest,
-    current_contains_ignored_build, keep_recorded_layout, merge_filtered_modules_metadata,
-    merge_pending_builds, project_requires_lifecycle_scripts, write_modules_manifest,
+    Config,
+    Host,
+    InstallError,
+    InstallWithFreshLockfileError,
+    Lockfile,
+    Modules,
+    PROJECT_LIFECYCLE_STAGES,
+    PackageManifest,
+    Path,
+    PathBuf,
+    SystemTime,
+    build_modules_manifest,
+    current_contains_ignored_build,
+    keep_recorded_layout,
+    merge_filtered_modules_metadata,
+    merge_pending_builds,
+    project_requires_lifecycle_scripts,
+    write_modules_manifest,
 };
 
 pub(super) struct CommitModulesStateInputs<'a> {

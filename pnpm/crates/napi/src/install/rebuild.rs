@@ -1,6 +1,14 @@
 use super::{
-    EngineCallGuard, EngineMode, InstallOptions, LogSink, NativeRenderer, OutputSink,
-    build_renderer, engine_call_lock, napi, run_install_inner,
+    EngineCallGuard,
+    EngineMode,
+    InstallOptions,
+    LogSink,
+    NativeRenderer,
+    OutputSink,
+    build_renderer,
+    engine_call_lock,
+    napi,
+    run_install_inner,
 };
 use pnpm_package_manager::RebuildOptions;
 

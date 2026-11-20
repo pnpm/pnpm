@@ -10,7 +10,11 @@ use std::sync::atomic::AtomicU8;
 /// other tests.
 #[test]
 fn log_method_once_emits_first_call_per_method_only() {
-    use pnpm_reporter::{LogEvent, PackageImportMethod as WireImportMethod, Reporter};
+    use pnpm_reporter::{
+        LogEvent,
+        PackageImportMethod as WireImportMethod,
+        Reporter,
+    };
     use std::sync::Mutex;
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

@@ -2,13 +2,36 @@ use std::cell::Cell;
 
 use pnpr_config::Config;
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_policy::{AccessList, Identity, PackageRule, PackageRules};
-use pnpr_registry::{Ecosystem, PackagePattern};
-use pnpr_route::{Footprint, PrivateAccessDescriptor, RouteContext, headers_credential_digest};
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
+use pnpr_policy::{
+    AccessList,
+    Identity,
+    PackageRule,
+    PackageRules,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+};
+use pnpr_route::{
+    Footprint,
+    PrivateAccessDescriptor,
+    RouteContext,
+    headers_credential_digest,
+};
+use reqwest::header::{
+    AUTHORIZATION,
+    HeaderMap,
+    HeaderValue,
+};
 use tempfile::TempDir;
 
-use super::{Map, Value, VerdictCache, VerdictLookup, VerdictRecord};
+use super::{
+    Map,
+    Value,
+    VerdictCache,
+    VerdictLookup,
+    VerdictRecord,
+};
 
 const SECRET: &[u8] = b"0123456789abcdef0123456789abcdef";
 

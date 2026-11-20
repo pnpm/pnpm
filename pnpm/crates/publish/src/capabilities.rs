@@ -21,11 +21,19 @@
 /// Both are defined in the `pnpm-git-utils` crate — the git queries need
 /// the same seam — and re-exported here so this crate's callers keep
 /// importing them from `pnpm_publish` alongside the rest.
-pub use pnpm_git_utils::{CommandOutput, Host, RunCommand};
+pub use pnpm_git_utils::{
+    CommandOutput,
+    Host,
+    RunCommand,
+};
 
 use std::{
     sync::LazyLock,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// Read an environment variable.

@@ -14,21 +14,43 @@
 pub use fatal_error::FatalErrorLog;
 
 pub use dependencies::{
-    AddedRoot, DependencyType, PackageManifestLog, PackageManifestMessage, RemovedRoot, RootLog,
-    RootMessage, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
+    AddedRoot,
+    DependencyType,
+    PackageManifestLog,
+    PackageManifestMessage,
+    RemovedRoot,
+    RootLog,
+    RootMessage,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalParent,
     SkippedOptionalReason,
 };
 pub use progress::{
-    ContextLog, FetchingProgressLog, FetchingProgressMessage, PackageImportMethod,
-    PackageImportMethodLog, ProgressLog, ProgressMessage, PromptAction, PromptLog, Stage, StageLog,
-    StatsLog, StatsMessage, SummaryLog,
+    ContextLog,
+    FetchingProgressLog,
+    FetchingProgressMessage,
+    PackageImportMethod,
+    PackageImportMethodLog,
+    ProgressLog,
+    ProgressMessage,
+    PromptAction,
+    PromptLog,
+    Stage,
+    StageLog,
+    StatsLog,
+    StatsMessage,
+    SummaryLog,
 };
 
 use serde::Serialize;
 use std::{
     io::Write,
     sync::LazyLock,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// One log channel from `@pnpm/core-loggers`.

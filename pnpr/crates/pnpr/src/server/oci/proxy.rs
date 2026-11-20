@@ -1,16 +1,38 @@
 use super::{
-    DOCKER_CONTENT_DIGEST, Digest, ErrorCode, Manifest, Request, ResponseBody, api_version, error,
-    registry_error, server_error,
+    DOCKER_CONTENT_DIGEST,
+    Digest,
+    ErrorCode,
+    Manifest,
+    Request,
+    ResponseBody,
+    api_version,
+    error,
+    registry_error,
+    server_error,
 };
 use crate::server::{
     RegistrySource,
-    ecosystem::{UpstreamCacheSubtree, addressed_registry, sha256_integrity, upstream_for},
-    resolve_ecosystem_source, tarball_response, tarball_stream_error,
+    ecosystem::{
+        UpstreamCacheSubtree,
+        addressed_registry,
+        sha256_integrity,
+        upstream_for,
+    },
+    resolve_ecosystem_source,
+    tarball_response,
+    tarball_stream_error,
 };
 use axum::{
     body::Body,
-    http::{Method, StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        Method,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use futures_util::StreamExt as _;
 use pnpr_error::RegistryError;

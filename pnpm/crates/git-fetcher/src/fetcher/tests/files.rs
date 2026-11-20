@@ -1,5 +1,11 @@
 use super::{
-    GitFetcher, SilentReporter, StoreDir, deny_all_builds, exec_git, fs, make_monorepo_bare_repo,
+    GitFetcher,
+    SilentReporter,
+    StoreDir,
+    deny_all_builds,
+    exec_git,
+    fs,
+    make_monorepo_bare_repo,
     tempdir,
 };
 

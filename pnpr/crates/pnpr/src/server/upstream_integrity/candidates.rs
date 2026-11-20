@@ -1,6 +1,11 @@
 use super::{
-    CanonicalPackageName, Integrity, RegistryError, UpstreamTarballRoute,
-    is_osv_vulnerable_packument_version, tarball_cache_name, tarball_integrity_error,
+    CanonicalPackageName,
+    Integrity,
+    RegistryError,
+    UpstreamTarballRoute,
+    is_osv_vulnerable_packument_version,
+    tarball_cache_name,
+    tarball_integrity_error,
 };
 use serde_json::Value;
 use std::collections::HashSet;

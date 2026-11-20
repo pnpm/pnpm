@@ -9,13 +9,17 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::CommandTempCwd, command_env::CommandTestExt,
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
     diagnostics::assert_diagnostic_contains as assert_contains,
 };
 use std::{
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{
+        Command,
+        Output,
+    },
 };
 
 /// The notice the converting install prints, as it reaches a terminal,

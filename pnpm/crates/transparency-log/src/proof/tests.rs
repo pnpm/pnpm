@@ -4,15 +4,30 @@
 //! `c39fbf350a405f68571bf4c42a6a518eb0a46a4b`, each tagged with its file.
 
 use super::{
-    LogError, advance, prove_consistency, prove_inclusion, verify_consistency,
-    verify_consistency_hashes, verify_inclusion, verify_inclusion_hash,
+    LogError,
+    advance,
+    prove_consistency,
+    prove_inclusion,
+    verify_consistency,
+    verify_consistency_hashes,
+    verify_inclusion,
+    verify_inclusion_hash,
 };
-use crate::{checkpoint::TreeHead, integrate::integrate};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use crate::{
+    checkpoint::TreeHead,
+    integrate::integrate,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD,
+};
 use pretty_assertions::assert_eq;
 use serde::Deserialize;
 use std::collections::BTreeMap;
-use tlog_tiles::{Hash, HashReader};
+use tlog_tiles::{
+    Hash,
+    HashReader,
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -17,22 +17,39 @@
 //! file descriptor the host has already redirected at the JS level.
 
 use std::{
-    io::{IsTerminal, Write},
-    time::{Duration, Instant},
+    io::{
+        IsTerminal,
+        Write,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use napi::{
     Status,
-    threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode, UnknownReturnValue},
+    threadsafe_function::{
+        ThreadsafeFunction,
+        ThreadsafeFunctionCallMode,
+        UnknownReturnValue,
+    },
 };
 use napi_derive::napi;
 use pnpm_default_reporter::{
     MaxLogLevel,
     colors::Colors,
     diff::Diff,
-    state::{Output, ReporterOptions as StateOptions, ReporterState},
+    state::{
+        Output,
+        ReporterOptions as StateOptions,
+        ReporterState,
+    },
 };
-use pnpm_reporter::{FetchingProgressMessage, LogEvent};
+use pnpm_reporter::{
+    FetchingProgressMessage,
+    LogEvent,
+};
 
 /// A JS `(chunk: string) => void` callback. Same shape as the log sink:
 /// `CalleeHandled = false`, return value discarded, never blocking.

@@ -1,8 +1,13 @@
 //! Whether a recorded registry-key verification still covers the lockfile.
 
 use super::{
-    super::{OptimisticRepeatInstallCheck, WorkspaceState},
-    GatePolicy, InputDrift, Stale,
+    super::{
+        OptimisticRepeatInstallCheck,
+        WorkspaceState,
+    },
+    GatePolicy,
+    InputDrift,
+    Stale,
 };
 
 /// A recorded registry-key verification covers the lockfile it was made for,

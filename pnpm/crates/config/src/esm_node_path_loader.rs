@@ -26,7 +26,10 @@
 //! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`) — the two must
 //! stay in sync so both CLIs inject the same `NODE_OPTIONS` value.
 
-use std::{fmt::Write, sync::LazyLock};
+use std::{
+    fmt::Write,
+    sync::LazyLock,
+};
 
 const RESOLVE_HELPERS: &str = r"const nodePaths = (process.env.NODE_PATH ?? '').split(delimiter).filter(Boolean)
 const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !specifier.includes(':')

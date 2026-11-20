@@ -1,13 +1,31 @@
-use super::{EarlyMaterializer, early_link_pool_size, lock};
+use super::{
+    EarlyMaterializer,
+    early_link_pool_size,
+    lock,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    TarballResolution,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_resolving_deps_resolver::FinalizedPackage;
-use pnpm_resolving_resolver_base::{ResolveResult, ResolvedPackageInfo};
-use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
+use pnpm_resolving_resolver_base::{
+    ResolveResult,
+    ResolvedPackageInfo,
+};
+use pnpm_tarball::{
+    CacheValue,
+    CachedTarball,
+    MemCache,
+    package_mem_cache_key,
+};
 use std::{
     collections::HashMap,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 use tokio::sync::RwLock;
 

@@ -1,13 +1,28 @@
 use super::{
-    Config, Context, EnvLockfile, PackageManifest, Path, Value, infer_range_spec_style, version_lt,
+    Config,
+    Context,
+    EnvLockfile,
+    PackageManifest,
+    Path,
+    Value,
+    infer_range_spec_style,
+    version_lt,
 };
 use crate::{
     cli_args::{
         package_manager::{
-            PinRoots, WantedPackageManager, version_satisfies, wanted_package_manager,
+            PinRoots,
+            WantedPackageManager,
+            version_satisfies,
+            wanted_package_manager,
         },
         pre_command::{
-            Invocation, PinDecision, PinInput, SwitchProcessState, decide, read_pin_lockfile,
+            Invocation,
+            PinDecision,
+            PinInput,
+            SwitchProcessState,
+            decide,
+            read_pin_lockfile,
         },
     },
     config_deps,

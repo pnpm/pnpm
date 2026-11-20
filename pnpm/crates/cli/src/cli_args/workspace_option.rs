@@ -1,6 +1,9 @@
 //! The `--workspace` flag shared by `pnpm add` and `pnpm update`.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::path::Path;
 

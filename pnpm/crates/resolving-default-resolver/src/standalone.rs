@@ -33,19 +33,38 @@ use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::NodeResolver;
-use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_resolving_git_resolver::{GitResolver, RealGitProbe, RealGitRunner};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_resolving_git_resolver::{
+    GitResolver,
+    RealGitProbe,
+    RealGitRunner,
+};
 use pnpm_resolving_local_resolver::{
-    LocalFilesystemPolicy, LocalPathResolver, LocalResolverContext, LocalSchemeResolver,
+    LocalFilesystemPolicy,
+    LocalPathResolver,
+    LocalResolverContext,
+    LocalSchemeResolver,
 };
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, MergeNamedRegistriesError, NamedRegistryResolver, NpmResolver,
-    OfflineStoreView, merge_named_registries, shared_in_memory_cache,
-    shared_packument_fetch_locker, shared_picked_manifest_cache,
+    InMemoryPackageMetaCache,
+    MergeNamedRegistriesError,
+    NamedRegistryResolver,
+    NpmResolver,
+    OfflineStoreView,
+    merge_named_registries,
+    shared_in_memory_cache,
+    shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
 use pnpm_resolving_tarball_resolver::TarballResolver;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// Inputs of [`build_standalone_chain`].
 pub struct StandaloneChainOptions<'a> {

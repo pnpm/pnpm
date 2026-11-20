@@ -10,7 +10,10 @@ use super::super::settings_field_keys;
 use std::{
     collections::BTreeSet,
     fmt::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 // Each list below holds today's gaps of one kind, one name per gap. A gap

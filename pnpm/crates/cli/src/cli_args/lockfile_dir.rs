@@ -7,11 +7,20 @@
 //! install — the lockfile, the root `node_modules`, the virtual store, and
 //! the importer ids — is anchored at the pinned directory.
 
-use clap::{Args, ValueHint};
-use derive_more::{Display, Error};
+use clap::{
+    Args,
+    ValueHint,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 // Doc comments on a clap-derived type reach `--help`, so the contract
 // lives in the module doc above rather than in intra-doc links here.

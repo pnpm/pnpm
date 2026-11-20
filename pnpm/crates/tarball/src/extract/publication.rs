@@ -9,10 +9,24 @@
 //! [`MAX_PUBLICATION_ARCHIVE_ENTRIES`], or file paths longer in total than
 //! [`MAX_PUBLICATION_PATH_BYTES`]. The caller bounds the decoded size.
 
-use super::{archive_entry_segments, check_trailer, clean_archive_entry_path};
-use derive_more::{Display, Error};
-use ssri::{Algorithm, Integrity, IntegrityOpts};
-use std::{collections::BTreeSet, io::Read};
+use super::{
+    archive_entry_segments,
+    check_trailer,
+    clean_archive_entry_path,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityOpts,
+};
+use std::{
+    collections::BTreeSet,
+    io::Read,
+};
 
 /// The most entries a published archive may hold.
 pub const MAX_PUBLICATION_ARCHIVE_ENTRIES: u64 = 200_000;

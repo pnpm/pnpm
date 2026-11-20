@@ -1,4 +1,11 @@
-use super::{Config, HostNoHome, PathBuf, assert_eq, fs, tempdir};
+use super::{
+    Config,
+    HostNoHome,
+    PathBuf,
+    assert_eq,
+    fs,
+    tempdir,
+};
 
 fn workspace() -> PathBuf {
     std::env::temp_dir().join("workspace")

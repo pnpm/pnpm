@@ -7,13 +7,28 @@
 
 use indexmap::IndexMap;
 use pnpr_config::RoutingConfig;
-use pnpr_policy::{AccessList, AccessToken, PackageRule, RuleTable};
-use pnpr_registry::{Ecosystem, PackagePattern};
+use pnpr_policy::{
+    AccessList,
+    AccessToken,
+    PackageRule,
+    RuleTable,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+};
 use pnpr_storage::{
     Storage,
-    database::{GrantContent, GrantWrite, StoredGrant},
+    database::{
+        GrantContent,
+        GrantWrite,
+        StoredGrant,
+    },
 };
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// The rules of one registry of a document.
 #[derive(Clone)]

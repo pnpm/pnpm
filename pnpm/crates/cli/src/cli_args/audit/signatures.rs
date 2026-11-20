@@ -11,23 +11,48 @@
 //! signature is present but does not validate is **invalid** — a tamper
 //! signal.
 
-use super::{bold, red, sanitize_response_body};
-use owo_colors::{OwoColorize, Stream};
+use super::{
+    bold,
+    red,
+    sanitize_response_body,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_config::Config;
 use pnpm_network::{
-    ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry,
+    ThrottledClient,
+    encode_package_name,
+    redact_url_credentials,
+    send_with_retry,
     walk_reqwest_chain,
 };
 mod keys;
 mod tar_binding;
 
-use keys::{key_is_expired, verify_one};
+use keys::{
+    key_is_expired,
+    verify_one,
+};
 
 use registry::{
-    PackageSignature, Packument, RegistryKey, fetch_packument, fetch_registry_keys, parse_timestamp,
+    PackageSignature,
+    Packument,
+    RegistryKey,
+    fetch_packument,
+    fetch_registry_keys,
+    parse_timestamp,
 };
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
 /// One installed package to check, already routed to the registry it was
 /// installed from.
@@ -446,7 +471,10 @@ fn push_invalid_signatures(lines: &mut Vec<String>, invalid: &[SignatureIssue]) 
 }
 
 fn issue_table(issues: &[SignatureIssue], with_reason: bool) -> String {
-    use tabled::{builder::Builder, settings::Style};
+    use tabled::{
+        builder::Builder,
+        settings::Style,
+    };
 
     let mut builder = Builder::default();
     for issue in issues {

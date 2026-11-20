@@ -2,8 +2,14 @@
 //! lockfile on disk still answers the project.
 
 use super::Target;
-use pep508_rs::{MarkerEnvironment, Requirement};
-use serde::{Deserialize, Serialize};
+use pep508_rs::{
+    MarkerEnvironment,
+    Requirement,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::BTreeMap;
 
 /// Everything a resolution depended on: what the project asked for, and

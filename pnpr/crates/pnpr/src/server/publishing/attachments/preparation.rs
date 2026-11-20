@@ -2,8 +2,13 @@
 //! integrity its bytes are verified against.
 
 use super::{
-    AttachmentKind, CanonicalPackageName, HashSet, PendingAttachment, PreparedAttachment,
-    RegistryError, Value,
+    AttachmentKind,
+    CanonicalPackageName,
+    HashSet,
+    PendingAttachment,
+    PreparedAttachment,
+    RegistryError,
+    Value,
 };
 
 pub(super) fn prepare_attachments(

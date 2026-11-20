@@ -1,8 +1,17 @@
 use pnpm_semver_include_prerelease::is_valid_semver_range;
 
 use super::{
-    BTreeMap, HashMap, HashSet, InternalDep, Participant, Path, Version, VersioningError,
-    VersioningSettings, WorkspaceProject, normalize_project_dir,
+    BTreeMap,
+    HashMap,
+    HashSet,
+    InternalDep,
+    Participant,
+    Path,
+    Version,
+    VersioningError,
+    VersioningSettings,
+    WorkspaceProject,
+    normalize_project_dir,
 };
 
 /// Whether a package reference is a workspace-relative directory path rather

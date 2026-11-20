@@ -1,6 +1,14 @@
-use super::{BENCHMARK_OUTPUT_LOG, BenchId, PREWARM_SCRIPT, unlocked_deps::unlock_direct_deps};
+use super::{
+    BENCHMARK_OUTPUT_LOG,
+    BenchId,
+    PREWARM_SCRIPT,
+    unlocked_deps::unlock_direct_deps,
+};
 use crate::{
-    cli_args::{BenchmarkScenario, Cleanup},
+    cli_args::{
+        BenchmarkScenario,
+        Cleanup,
+    },
     fixtures::LOCKFILE,
     verify::executor,
 };
@@ -10,9 +18,18 @@ use pipe_trait::Pipe;
 use pnpm_fs::file_mode::make_file_executable;
 use std::{
     borrow::Cow,
-    fs::{self, File},
-    io::{ErrorKind, Write},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        ErrorKind,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     thread,
     time::Duration,

@@ -3,20 +3,60 @@
 pub(super) mod overrides;
 pub(super) mod update;
 
-pub(crate) use overrides::{create_overrides_from_pruned, prune_subsumed_advisories};
+pub(crate) use overrides::{
+    create_overrides_from_pruned,
+    prune_subsumed_advisories,
+};
 pub(crate) use update::{
-    AuditFixObserver, VulnerabilityGuard, fix_with_update, format_fix_with_update_output,
+    AuditFixObserver,
+    VulnerabilityGuard,
+    fix_with_update,
+    format_fix_with_update_output,
 };
 
 use super::{
-    Arc, AuditAdvisory, AuditError, AuditReport, BTreeMap, Config, ConfigAuditLevel,
-    DependencyGroup, Deserialize, FixContext, HashMap, HashSet, IntoDiagnostic, Lockfile,
-    MultiSelect, PackageVersionGuard, Range, RangeSpecStyle, ReleaseAgeExclusions, Reporter,
-    ResolutionObserver, State, Timestamp, Update, Version, blue, color_severity,
-    encode_package_name, green, normalize_ghsa_id, package_semver, parse_packument_timestamp, red,
-    satisfies_including_prerelease, send_with_retry, severity_name, severity_number,
+    Arc,
+    AuditAdvisory,
+    AuditError,
+    AuditReport,
+    BTreeMap,
+    Config,
+    ConfigAuditLevel,
+    DependencyGroup,
+    Deserialize,
+    FixContext,
+    HashMap,
+    HashSet,
+    IntoDiagnostic,
+    Lockfile,
+    MultiSelect,
+    PackageVersionGuard,
+    Range,
+    RangeSpecStyle,
+    ReleaseAgeExclusions,
+    Reporter,
+    ResolutionObserver,
+    State,
+    Timestamp,
+    Update,
+    Version,
+    blue,
+    color_severity,
+    encode_package_name,
+    green,
+    normalize_ghsa_id,
+    package_semver,
+    parse_packument_timestamp,
+    red,
+    satisfies_including_prerelease,
+    send_with_retry,
+    severity_name,
+    severity_number,
 };
-use pnpm_network::{normalize_registry_url, redact_url_credentials};
+use pnpm_network::{
+    normalize_registry_url,
+    redact_url_credentials,
+};
 use update::advisory_choices;
 
 /// Filter `report`'s advisories down to the set both fix methods and the

@@ -1,4 +1,7 @@
-use super::{ResolvedOverride, VersionsOverrider};
+use super::{
+    ResolvedOverride,
+    VersionsOverrider,
+};
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_package_manifest::DependencyGroup;
 

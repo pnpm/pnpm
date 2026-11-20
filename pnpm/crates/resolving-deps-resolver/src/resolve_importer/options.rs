@@ -1,14 +1,26 @@
 use crate::{
-    DependencyOverrider, ResolveDependencyTreeError, ResolvePeersResult, ResolvedTree,
-    resolve_dependency_tree::{TreeCtx, WorkspaceTreeCtx},
+    DependencyOverrider,
+    ResolveDependencyTreeError,
+    ResolvePeersResult,
+    ResolvedTree,
+    resolve_dependency_tree::{
+        TreeCtx,
+        WorkspaceTreeCtx,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use jiff::Timestamp;
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_package_manifest::PackageManifestError;
 use pnpm_patching::PatchGroupRecord;
-use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    ResolveOptions,
+};
 use std::sync::Arc;
 
 /// Options threaded into [`fn@crate::resolve_importer`].

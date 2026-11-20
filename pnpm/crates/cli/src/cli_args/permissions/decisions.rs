@@ -1,16 +1,33 @@
 use super::{
-    ALL_CAPABILITIES, Capabilities, IgnoredBuildsScan, PermissionCapability, disambiguated_labels,
-    emit_global_warning, partition_params,
+    ALL_CAPABILITIES,
+    Capabilities,
+    IgnoredBuildsScan,
+    PermissionCapability,
+    disambiguated_labels,
+    emit_global_warning,
+    partition_params,
 };
 use indexmap::IndexSet;
 use miette::IntoDiagnostic;
 use pnpm_config::SkillsPermission;
-use pnpm_modules_yaml::{Host, write_modules_manifest};
-use pnpm_package_manager::{allow_build_key_from_ignored_build, skill_approval_key};
+use pnpm_modules_yaml::{
+    Host,
+    write_modules_manifest,
+};
+use pnpm_package_manager::{
+    allow_build_key_from_ignored_build,
+    skill_approval_key,
+};
 use pnpm_reporter::Reporter;
-use pnpm_workspace_manifest_writer::{PermissionValue, set_permissions};
+use pnpm_workspace_manifest_writer::{
+    PermissionValue,
+    set_permissions,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::Path,
 };
 

@@ -12,7 +12,10 @@ use std::{
     path::Path,
     process::Command,
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 mod breakaway;

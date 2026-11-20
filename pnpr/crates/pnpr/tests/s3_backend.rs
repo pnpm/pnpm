@@ -6,18 +6,47 @@
 use crate::npm;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use futures_util::StreamExt;
-use npm::{npm_tgz, publish_doc, sri_sha512};
-use object_store::{ObjectStore, memory::InMemory, path::Path as ObjectPath};
-use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
+use npm::{
+    npm_tgz,
+    publish_doc,
+    sri_sha512,
+};
+use object_store::{
+    ObjectStore,
+    memory::InMemory,
+    path::Path as ObjectPath,
+};
+use pnpr::{
+    Config,
+    HostedStoreConfig,
+    MaxUsers,
+    router,
+};
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;

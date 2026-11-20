@@ -1,6 +1,15 @@
 use super::{
-    CommandExtra, CommandTempCwd, ManifestDeps, WorkspaceFixture, append_workspace_yaml_key, fs,
-    pacquet_in, read_current_lockfile, read_skipped, read_wanted_lockfile, sorted_keys,
+    CommandExtra,
+    CommandTempCwd,
+    ManifestDeps,
+    WorkspaceFixture,
+    append_workspace_yaml_key,
+    fs,
+    pacquet_in,
+    read_current_lockfile,
+    read_skipped,
+    read_wanted_lockfile,
+    sorted_keys,
     write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;

@@ -1,11 +1,24 @@
 //! Reading the worker's stdout: routing each line to the request it answers.
 
-use super::{ChildStdin, ChildStdout, FetcherCallback, PendingMap, WorkerError};
+use super::{
+    ChildStdin,
+    ChildStdout,
+    FetcherCallback,
+    PendingMap,
+    WorkerError,
+};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    sync::{Mutex, oneshot},
+    io::{
+        AsyncBufReadExt,
+        AsyncWriteExt,
+        BufReader,
+    },
+    sync::{
+        Mutex,
+        oneshot,
+    },
 };
 
 /// Dispatch every line the worker writes; once it exits, fail every

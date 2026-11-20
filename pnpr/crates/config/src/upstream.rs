@@ -1,9 +1,20 @@
-use std::{fmt, time::Duration};
+use std::{
+    fmt,
+    time::Duration,
+};
 
 use indexmap::IndexMap;
 use pnpm_env_replace::EnvVar;
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
-use serde::{Deserialize, Serialize};
+use reqwest::header::{
+    AUTHORIZATION,
+    HeaderMap,
+    HeaderName,
+    HeaderValue,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use pnpr_error::RegistryError;
 use pnpr_policy::PackageRules;

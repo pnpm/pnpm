@@ -5,12 +5,28 @@
 //! Static-mode (no upstream) to keep the tests hermetic.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{Config, router};
-use serde_json::{Value, json};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use pnpr::{
+    Config,
+    router,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::net::{
+    Ipv4Addr,
+    SocketAddr,
+    SocketAddrV4,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 

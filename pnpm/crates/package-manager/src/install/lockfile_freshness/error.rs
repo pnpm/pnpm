@@ -1,5 +1,11 @@
-use crate::{InstallError, install::InstallWithFreshLockfileError};
-use derive_more::{Display, Error};
+use crate::{
+    InstallError,
+    install::InstallWithFreshLockfileError,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_lockfile::StalenessReason;
 

@@ -5,14 +5,25 @@
 //! current shell's rc file is edited. The Windows changes are rendered into
 //! the same `old_settings` / `new_settings` shape the POSIX path reports.
 
-pub(super) use posix::{detect_current_shell, pwsh_quote, render_shell_settings, sh_quote};
+pub(super) use posix::{
+    detect_current_shell,
+    pwsh_quote,
+    render_shell_settings,
+    sh_quote,
+};
 
 mod posix;
 mod windows;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Where the new directory is inserted into `PATH` (defaulting to `start`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

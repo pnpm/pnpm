@@ -1,23 +1,40 @@
 use std::{
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
 use axum::{
-    body::{Body, Bytes, to_bytes},
+    body::{
+        Body,
+        Bytes,
+        to_bytes,
+    },
     http::StatusCode,
 };
 use pnpm_lockfile::Lockfile;
-use pnpr_config::{IpNetwork, PublicRoute};
+use pnpr_config::{
+    IpNetwork,
+    PublicRoute,
+};
 use pnpr_policy::Identity;
 use pnpr_route::Footprint;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    },
     net::TcpListener,
     sync::Notify,
     time::Instant,
@@ -26,18 +43,38 @@ use tokio::{
 use super::{
     super::{
         Resolver,
-        cargo::{IndexFetcher, solve::solve_cargo},
+        cargo::{
+            IndexFetcher,
+            solve::solve_cargo,
+        },
         dispatch::handle_resolve,
-        limits::{CancelToken, GraphLimitTracker, RESOLVE_TIMEOUT_CODE, STREAM_CHANNEL_CAPACITY},
-        protocol::{AppliedPolicies, ResolveRequest},
-        request_tarball_router, serve_resolve_request,
+        limits::{
+            CancelToken,
+            GraphLimitTracker,
+            RESOLVE_TIMEOUT_CODE,
+            STREAM_CHANNEL_CAPACITY,
+        },
+        protocol::{
+            AppliedPolicies,
+            ResolveRequest,
+        },
+        request_tarball_router,
+        serve_resolve_request,
         streaming::{
-            CacheScope, StreamCacheTarget, StreamedResolve, StreamedResolveInputs, TerminalSender,
+            CacheScope,
+            StreamCacheTarget,
+            StreamedResolve,
+            StreamedResolveInputs,
+            TerminalSender,
             finish_before_deadline,
         },
-        wire::{StreamObserver, try_done_frame_until},
+        wire::{
+            StreamObserver,
+            try_done_frame_until,
+        },
     },
-    deps, registry_config,
+    deps,
+    registry_config,
 };
 
 fn caller(id: &str, name: &str) -> Identity {

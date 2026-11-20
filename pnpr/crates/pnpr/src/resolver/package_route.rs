@@ -1,4 +1,7 @@
-use pnpm_network::{MetadataCacheScope, UpstreamRouteHook};
+use pnpm_network::{
+    MetadataCacheScope,
+    UpstreamRouteHook,
+};
 use pnpr_route::RouteHook;
 use std::sync::Arc;
 

@@ -1,11 +1,39 @@
 use super::{
-    Action, BlobUpload, Body, CanonicalPackageName, Digest, ECOSYSTEM, ErrorCode, Method,
-    OciTarget, Refusal, RegistryError, RegistrySource, Request, Response, StatusCode, Storage,
-    accepted, append_body, created, error, hash_upload, header, hosted_read_namespace,
-    method_not_allowed, no_content, parse_content_range, query_param, range_not_satisfiable,
-    registry_error, upload_lock_key,
+    Action,
+    BlobUpload,
+    Body,
+    CanonicalPackageName,
+    Digest,
+    ECOSYSTEM,
+    ErrorCode,
+    Method,
+    OciTarget,
+    Refusal,
+    RegistryError,
+    RegistrySource,
+    Request,
+    Response,
+    StatusCode,
+    Storage,
+    accepted,
+    append_body,
+    created,
+    error,
+    hash_upload,
+    header,
+    hosted_read_namespace,
+    method_not_allowed,
+    no_content,
+    parse_content_range,
+    query_param,
+    range_not_satisfiable,
+    registry_error,
+    upload_lock_key,
 };
-use crate::server::{AuthorizationDecision, authorize_without_owners};
+use crate::server::{
+    AuthorizationDecision,
+    authorize_without_owners,
+};
 
 impl Request {
     pub(super) async fn mount_blob(

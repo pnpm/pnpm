@@ -1,13 +1,34 @@
 //! This replica's copy of the instance's grants, which the database holds,
 //! and their application to the registries it serves.
 
-use super::{AppState, RegistryError, managed_state::read_with_deadline};
-use pnpr_config::{GraphSource, RoutingConfig};
-use pnpr_policy::{Action, Grant, GrantSpec};
-use pnpr_storage::database::{GrantContent, GrantWrite, StoredGrant, StoredGrants};
+use super::{
+    AppState,
+    RegistryError,
+    managed_state::read_with_deadline,
+};
+use pnpr_config::{
+    GraphSource,
+    RoutingConfig,
+};
+use pnpr_policy::{
+    Action,
+    Grant,
+    GrantSpec,
+};
+use pnpr_storage::database::{
+    GrantContent,
+    GrantWrite,
+    StoredGrant,
+    StoredGrants,
+};
 use std::sync::{
-    Arc, PoisonError, RwLock,
-    atomic::{AtomicU64, Ordering},
+    Arc,
+    PoisonError,
+    RwLock,
+    atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// The key that names every registry in a grant.

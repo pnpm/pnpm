@@ -2,7 +2,10 @@ use super::parse;
 use std::{
     collections::BTreeMap,
     io::Write,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// What `node --env-file` would set for each input, read through

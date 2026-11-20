@@ -2,7 +2,11 @@
 //! install: the `pnpm install` shortcut the CLI takes before starting the
 //! async runtime, and the verify-deps gate before `pnpm run` and `pnpm exec`.
 
-pub use discovery::{GateWorkspace, check_deps_status_before_run_at, deps_install_root};
+pub use discovery::{
+    GateWorkspace,
+    check_deps_status_before_run_at,
+    deps_install_root,
+};
 pub use per_project::install_already_up_to_date_per_project;
 
 mod discovery;
@@ -15,24 +19,51 @@ mod stand_ins;
 
 mod nothing_to_install;
 
-use super::{check_optimistic_repeat_install_with_state, config_blocks_fast_path};
+use super::{
+    check_optimistic_repeat_install_with_state,
+    config_blocks_fast_path,
+};
 use crate::{
     install::{
-        build_project_manifests_list, check_strict_dep_builds_for_fast_path,
-        configured_or_discovered_workspace_dir, included_dependencies, load_workspace_projects,
-        lockfile_root_for, project_requires_lifecycle_scripts, register_workspace_in_store,
+        build_project_manifests_list,
+        check_strict_dep_builds_for_fast_path,
+        configured_or_discovered_workspace_dir,
+        included_dependencies,
+        load_workspace_projects,
+        lockfile_root_for,
+        project_requires_lifecycle_scripts,
+        register_workspace_in_store,
     },
-    install_state::{Decision, OptimisticRepeatInstallCheck, Scope},
+    install_state::{
+        Decision,
+        OptimisticRepeatInstallCheck,
+        Scope,
+    },
 };
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_executor::PROJECT_LIFECYCLE_STAGES;
-use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_workspace_state::{WorkspaceState, load_workspace_state};
-use std::path::{Path, PathBuf};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_workspace_state::{
+    WorkspaceState,
+    load_workspace_state,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Inputs for [`install_already_up_to_date`].
 pub struct UpToDateFastPathCheck<'a> {

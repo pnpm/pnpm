@@ -6,7 +6,11 @@
 
 use indexmap::IndexMap;
 use serde::Deserialize;
-use serde_saphyr::granit_parser::{Scanner, StrInput, TokenType};
+use serde_saphyr::granit_parser::{
+    Scanner,
+    StrInput,
+    TokenType,
+};
 use std::collections::HashSet;
 
 /// The `catalog:` / `catalogs:` slice of a `pnpm-workspace.yaml`, decoded

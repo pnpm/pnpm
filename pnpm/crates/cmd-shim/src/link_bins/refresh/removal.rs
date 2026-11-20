@@ -1,4 +1,9 @@
-use super::{FsReadDir, HashSet, LinkBinsError, Path};
+use super::{
+    FsReadDir,
+    HashSet,
+    LinkBinsError,
+    Path,
+};
 use crate::link_bins::shim_writer::remove_if_exists;
 
 pub(super) fn remove_unclaimed(

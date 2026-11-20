@@ -1,4 +1,9 @@
-use super::{project, python, serve, wheel};
+use super::{
+    project,
+    python,
+    serve,
+    wheel,
+};
 use assert_cmd::prelude::*;
 use std::fs;
 

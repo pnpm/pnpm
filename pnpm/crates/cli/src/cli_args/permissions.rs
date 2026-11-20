@@ -8,24 +8,53 @@ use crate::{
     State,
     cli_args::{
         approve_builds::{
-            ApprovalStore, ApproveBuildsArgs, confirm, disambiguated_labels, partition_params,
+            ApprovalStore,
+            ApproveBuildsArgs,
+            confirm,
+            disambiguated_labels,
+            partition_params,
             prompt_for_choices,
         },
-        ignored_builds::{IgnoredBuildsScan, get_automatically_ignored_builds},
-        rebuild::{RebuildSelection, run_rebuild},
+        ignored_builds::{
+            IgnoredBuildsScan,
+            get_automatically_ignored_builds,
+        },
+        rebuild::{
+            RebuildSelection,
+            run_rebuild,
+        },
     },
     confirm_prompt::PromptAvailability,
 };
-use clap::{Args, Subcommand};
-use miette::{Context, IntoDiagnostic, Report};
-use pnpm_config::{Config, PermissionCapability, SkillsPermission};
-use pnpm_package_manager::{
-    resync_installed_agent_skills, skill_approval_key, skill_approval_options,
+use clap::{
+    Args,
+    Subcommand,
 };
-use pnpm_reporter::{Reporter, emit_global_warning};
+use miette::{
+    Context,
+    IntoDiagnostic,
+    Report,
+};
+use pnpm_config::{
+    Config,
+    PermissionCapability,
+    SkillsPermission,
+};
+use pnpm_package_manager::{
+    resync_installed_agent_skills,
+    skill_approval_key,
+    skill_approval_options,
+};
+use pnpm_reporter::{
+    Reporter,
+    emit_global_warning,
+};
 use pnpm_workspace_manifest_writer::set_skills_dirs;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::Path,
 };
 
@@ -97,8 +126,14 @@ pub(crate) fn pending_permissions(config: &Config) -> miette::Result<PendingPerm
 }
 
 use decisions::{
-    capability_list, clear_decided, confirmation, decisions_by_approval, decisions_for_all,
-    named_decisions, pending_builds_approved, write_decisions,
+    capability_list,
+    clear_decided,
+    confirmation,
+    decisions_by_approval,
+    decisions_for_all,
+    named_decisions,
+    pending_builds_approved,
+    write_decisions,
 };
 
 impl ApproveArgs {

@@ -1,12 +1,21 @@
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use crate::install::InstallError;
 use indexmap::IndexMap;
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 
 pub(in crate::install) struct ProjectLifecycleGraph<'a> {
     pub(in crate::install) projects_by_dir: HashMap<PathBuf, (PathBuf, &'a PackageManifest)>,

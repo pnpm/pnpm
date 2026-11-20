@@ -19,9 +19,21 @@
 //! ends the children when pnpm does.
 
 use std::{
-    io::{self, Write},
-    process::{Child, ChildStdin, Stdio},
-    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
+    io::{
+        self,
+        Write,
+    },
+    process::{
+        Child,
+        ChildStdin,
+        Stdio,
+    },
+    sync::{
+        Mutex,
+        MutexGuard,
+        RwLock,
+        RwLockReadGuard,
+    },
 };
 
 #[cfg(target_os = "linux")]

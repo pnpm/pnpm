@@ -23,18 +23,44 @@
 //! on the blocking pool and waits there for libsql's async client.
 
 use crate::{
-    adapter::{Adapter, Connection, ReadSource, Snapshot},
+    adapter::{
+        Adapter,
+        Connection,
+        ReadSource,
+        Snapshot,
+    },
     schema,
 };
 use pnpr_config::LibsqlSettings;
-use pnpr_error::{RegistryError, Result};
-use pnpr_libsql::{Checkout, ConnectionPool};
-use statements::{Statements, StreamState};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_libsql::{
+    Checkout,
+    ConnectionPool,
+};
+use statements::{
+    Statements,
+    StreamState,
+};
 use std::{
-    cell::{Cell, RefCell},
+    cell::{
+        Cell,
+        RefCell,
+    },
     fmt,
-    sync::{Arc, Mutex, MutexGuard, PoisonError, Weak},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        PoisonError,
+        Weak,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tokio::runtime::Handle;
 

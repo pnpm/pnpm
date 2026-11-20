@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use super::{MAX_DECODE_THREADS, run_decode};
+use super::{
+    MAX_DECODE_THREADS,
+    run_decode,
+};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn every_decode_runs_on_the_same_few_threads() {

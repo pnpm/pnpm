@@ -1,12 +1,30 @@
 use super::{
-    Arc, DepPath, DependencyGroup, HashMap, Mutex, PreferredVersions, SnapshotEntry, StubResolver,
-    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
-    default_opts, fake_manifest, fake_result, peer_context_lockfile,
+    Arc,
+    DepPath,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    PreferredVersions,
+    SnapshotEntry,
+    StubResolver,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
+    default_opts,
+    fake_manifest,
+    fake_result,
+    peer_context_lockfile,
 };
 use crate::{
-    ResolveImporterResult, WorkspaceTreeCtx, resolve_importer::resolve_importer_with_workspace,
+    ResolveImporterResult,
+    WorkspaceTreeCtx,
+    resolve_importer::resolve_importer_with_workspace,
 };
-use pnpm_resolving_resolver_base::{DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT};
+use pnpm_resolving_resolver_base::{
+    DIRECT_DEP_SELECTOR_WEIGHT,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+};
 use serde_json::json;
 
 #[tokio::test]

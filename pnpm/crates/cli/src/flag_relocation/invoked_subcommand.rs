@@ -1,6 +1,12 @@
-use super::{ArgTable, find_positional};
+use super::{
+    ArgTable,
+    find_positional,
+};
 use clap::Command;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// The invoked subcommand and its argv index, read first with the union's
 /// arities. The union reads an option whose arity differs between

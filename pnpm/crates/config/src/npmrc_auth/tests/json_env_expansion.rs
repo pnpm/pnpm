@@ -1,4 +1,10 @@
-use super::{EnvVar, NpmrcAuth, assert_eq, default_auth_token, scoped_auth_token};
+use super::{
+    EnvVar,
+    NpmrcAuth,
+    assert_eq,
+    default_auth_token,
+    scoped_auth_token,
+};
 
 #[test]
 fn trusted_json_auth_expands_only_tokens_after_source_precedence() {

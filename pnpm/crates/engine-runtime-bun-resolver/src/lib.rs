@@ -9,7 +9,10 @@
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
-pub use bun_resolver::{BunResolver, BunResolverError};
+pub use bun_resolver::{
+    BunResolver,
+    BunResolverError,
+};
 pub use read_bun_assets::ReadBunAssetsError;
 
 mod bun_resolver;

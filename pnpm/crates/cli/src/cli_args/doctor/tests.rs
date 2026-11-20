@@ -1,22 +1,44 @@
 mod security;
 
 use super::{
-    CheckResult, CheckStatus, DoctorArgs, DoctorReport, check_versions,
+    CheckResult,
+    CheckStatus,
+    DoctorArgs,
+    DoctorReport,
+    check_versions,
     filesystem::{
-        ProbeWorkspaces, check_filesystem_capabilities,
-        check_filesystem_capabilities_in_workspaces, probe_link_capabilities,
+        ProbeWorkspaces,
+        check_filesystem_capabilities,
+        check_filesystem_capabilities_in_workspaces,
+        probe_link_capabilities,
     },
     last_line,
-    probe_path::{ProbeDir, can_write_to_dir},
-    render_report, status_mark,
+    probe_path::{
+        ProbeDir,
+        can_write_to_dir,
+    },
+    render_report,
+    status_mark,
 };
-use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
-use pnpm_fs::{FsHardLink, FsReflink, Host};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PNPM_VERSION,
+};
+use pnpm_fs::{
+    FsHardLink,
+    FsReflink,
+    Host,
+};
 use pnpm_store_dir::StoreDir;
 use pretty_assertions::assert_eq;
 use std::{
-    fs, io,
-    path::{Component, Path},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+    },
 };
 
 fn report(checks: Vec<CheckResult>) -> DoctorReport {

@@ -1,4 +1,8 @@
-use std::{fs::File, io, path::Path};
+use std::{
+    fs::File,
+    io,
+    path::Path,
+};
 
 pub(super) struct FileCreation<'parent> {
     #[cfg(not(target_os = "wasi"))]

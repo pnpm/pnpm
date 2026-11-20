@@ -1,12 +1,24 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 use pnpm_package_manifest::{
-    PackageBin, ScriptRuntime, manifest_declares_bins, normalize_bundled_manifest,
-    parse_shebang_from_bytes, resolve_package_bins_with,
+    PackageBin,
+    ScriptRuntime,
+    manifest_declares_bins,
+    normalize_bundled_manifest,
+    parse_shebang_from_bytes,
+    resolve_package_bins_with,
 };
 
 use super::{
-    BuildTriggers, HashMap, PackageFilesIndex, StoreDir, TarballError, parse_manifest_bytes,
+    BuildTriggers,
+    HashMap,
+    PackageFilesIndex,
+    StoreDir,
+    TarballError,
+    parse_manifest_bytes,
 };
 
 /// Reads a TAR entry that must fit in memory, rejecting oversized payloads

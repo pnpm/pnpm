@@ -2,18 +2,41 @@
 
 use std::sync::Arc;
 
-use derive_more::{Display, Error};
-use miette::Diagnostic;
-use pnpm_lockfile::{LockfileResolution, VariationsResolution};
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
-use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+use derive_more::{
+    Display,
+    Error,
 };
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
+use miette::Diagnostic;
+use pnpm_lockfile::{
+    LockfileResolution,
+    VariationsResolution,
+};
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
+};
+use pnpm_resolving_resolver_base::{
+    LatestInfo,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
+};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
+};
 
 use crate::read_yarn_releases::{
-    ReadYarnReleasesError, YarnRelease, asset_variants, fetch_yarn_releases,
+    ReadYarnReleasesError,
+    YarnRelease,
+    asset_variants,
+    fetch_yarn_releases,
 };
 
 const RESOLVED_VIA: &str = "github.com/yarnpkg/zpm";

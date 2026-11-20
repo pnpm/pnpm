@@ -1,9 +1,19 @@
-use super::{CreateVirtualStoreError, CreateVirtualStoreOutput, retain_dependency_closure};
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use super::{
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+    retain_dependency_closure,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn retain_filesystem_packages(

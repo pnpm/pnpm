@@ -1,7 +1,18 @@
 use super::{
-    CredentialKind, DEFAULT_BCRYPT_COST, LibsqlAuth, PasswordChange, Result, UserCreation,
-    UserRemoval, hash_bcrypt, is_unique_violation, params, retry_database_conflicts,
-    token_timestamp_to_sql, unix_millis, validate_username,
+    CredentialKind,
+    DEFAULT_BCRYPT_COST,
+    LibsqlAuth,
+    PasswordChange,
+    Result,
+    UserCreation,
+    UserRemoval,
+    hash_bcrypt,
+    is_unique_violation,
+    params,
+    retry_database_conflicts,
+    token_timestamp_to_sql,
+    unix_millis,
+    validate_username,
 };
 use pnpr_error::RegistryError;
 

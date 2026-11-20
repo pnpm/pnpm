@@ -1,6 +1,12 @@
-use super::{Deserialize, RegistryError};
+use super::{
+    Deserialize,
+    RegistryError,
+};
 use pnpm_transparency_log::NoteSigner;
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::Arc,
+};
 
 /// How pnpr logs the release records of the versions it hosts
 /// ([release records](https://github.com/pnpm/rfcs/blob/92d2b281af321ecf8f1e5fea63f698716ba4e9e7/pnpr/text/0000-release-records.md)).

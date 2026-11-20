@@ -1,6 +1,9 @@
 //! What a package's snapshots share, written once in its entry.
 
-use super::super::{NextRef, NextSnapshotEntry};
+use super::super::{
+    NextRef,
+    NextSnapshotEntry,
+};
 use crate::PkgName;
 use std::collections::HashMap;
 

@@ -14,20 +14,41 @@
 //! pnpm v11 too when `PNPM_V11_BUNDLE` names its bundle.
 
 use crate::{
-    _utils::{inotify::record_opens, pacquet_in, v11_in},
+    _utils::{
+        inotify::record_opens,
+        pacquet_in,
+        v11_in,
+    },
     repeat_install_oracle::Input,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd, read_v11_bundle_path};
-use pnpm_workspace_state::{Validation, WorkspaceState, load_workspace_state};
-use serde_json::{Value, json};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+    read_v11_bundle_path,
+};
+use pnpm_workspace_state::{
+    Validation,
+    WorkspaceState,
+    load_workspace_state,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     ffi::OsString,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use strum::IntoEnumIterator as _;
 

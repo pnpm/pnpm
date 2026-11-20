@@ -8,14 +8,23 @@ pub(crate) use crate::login_fake;
 
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use pipe_trait::Pipe;
-use pnpm_network::{ThrottledClient, nerf_dart};
+use pnpm_network::{
+    ThrottledClient,
+    nerf_dart,
+};
 
 use super::LoginOptions;
-use crate::{config_yaml::GLOBAL_CONFIG_YAML_FILENAME, ini::IniSettings};
+use crate::{
+    config_yaml::GLOBAL_CONFIG_YAML_FILENAME,
+    ini::IniSettings,
+};
 
 /// A scripted response for a credential prompt, keyed on the prompt message.
 /// The error half is `dialoguer::Error` — exactly what the real terminal read

@@ -1,6 +1,11 @@
 #[cfg(unix)]
 use super::write_executable;
-use super::{CommandExtra, CommandTempCwd, fs, json};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    fs,
+    json,
+};
 use assert_cmd::assert::OutputAssertExt;
 #[cfg(unix)]
 use assert_cmd::cargo::CommandCargoExt;

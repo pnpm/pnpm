@@ -1,6 +1,12 @@
 use crate::tree::Tree;
-use std::collections::{BTreeMap, BTreeSet};
-use toml::{Table, Value};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
+use toml::{
+    Table,
+    Value,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DependencyKind {

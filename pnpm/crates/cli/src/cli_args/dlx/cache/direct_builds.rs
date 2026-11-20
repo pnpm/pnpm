@@ -1,8 +1,18 @@
 use crate::State;
-use miette::{Context as _, IntoDiagnostic as _};
+use miette::{
+    Context as _,
+    IntoDiagnostic as _,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, ResolvedDependencyMap};
-use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest, write_modules_manifest};
+use pnpm_lockfile::{
+    Lockfile,
+    ResolvedDependencyMap,
+};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    read_modules_manifest,
+    write_modules_manifest,
+};
 use pnpm_package_manager::allow_build_key_from_ignored_build;
 use pnpm_reporter::Reporter;
 use std::path::Path;

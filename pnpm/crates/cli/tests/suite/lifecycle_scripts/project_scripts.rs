@@ -3,8 +3,14 @@ mod uninstall;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// A `node -e` lifecycle script that appends `<stage>\n` to
 /// `order.txt` in the script's cwd (the project root). pacquet
@@ -558,11 +564,20 @@ fn latest_update_without_selectors_does_not_run_project_lifecycle_scripts() {
 /// schedule: before every other stage, only for the root, and only
 /// when scripts are not suppressed and `devDependencies` are installed.
 mod dev_preinstall {
-    use super::{append_order_script, project_with_lifecycle_scripts};
+    use super::{
+        append_order_script,
+        project_with_lifecycle_scripts,
+    };
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-    use std::{fs, process::Command};
+    use pnpm_testing_utils::bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    };
+    use std::{
+        fs,
+        process::Command,
+    };
 
     fn project_with_dev_preinstall() -> serde_json::Value {
         let mut manifest = project_with_lifecycle_scripts();
@@ -937,8 +952,15 @@ mod dev_preinstall {
 mod root_preinstall {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-    use std::{fs, path::Path, process::Command};
+    use pnpm_testing_utils::bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    };
+    use std::{
+        fs,
+        path::Path,
+        process::Command,
+    };
 
     /// Published at 100.0.0, 100.1.0, and 101.0.0.
     const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";

@@ -1,17 +1,44 @@
-use std::{fmt::Display, time::Instant};
+use std::{
+    fmt::Display,
+    time::Instant,
+};
 
 use bytes::Bytes;
-use futures_util::{Stream, StreamExt as _};
-use object_store::{ObjectStoreExt as _, PutPayload, WriteMultipart};
-use pnpm_shared_artifact_protocol::{
-    ArtifactBlobRequest, MAX_BLOB_SIZE, OwnerScope, blob_id, verify_blob_digest,
+use futures_util::{
+    Stream,
+    StreamExt as _,
 };
-use pnpr_error::{RegistryError, Result};
-use sha2::{Digest as _, Sha512};
+use object_store::{
+    ObjectStoreExt as _,
+    PutPayload,
+    WriteMultipart,
+};
+use pnpm_shared_artifact_protocol::{
+    ArtifactBlobRequest,
+    MAX_BLOB_SIZE,
+    OwnerScope,
+    blob_id,
+    verify_blob_digest,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 
 use super::{
-    ACTIVE_PUBLICATION_EXPIRY, OwnerAccess, PUBLICATION_RENEWAL_INTERVAL, SharedArtifactStore,
-    artifact_operation_id, bad_request, owner_key, protocol_error, publisher_owner_key,
+    ACTIVE_PUBLICATION_EXPIRY,
+    OwnerAccess,
+    PUBLICATION_RENEWAL_INTERVAL,
+    SharedArtifactStore,
+    artifact_operation_id,
+    bad_request,
+    owner_key,
+    protocol_error,
+    publisher_owner_key,
     staged_record_path,
 };
 

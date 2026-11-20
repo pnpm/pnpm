@@ -9,7 +9,12 @@
 
 use std::cmp::Ordering;
 
-use serde_saphyr::granit_parser::{ScalarStyle, Scanner, StrInput, TokenType};
+use serde_saphyr::granit_parser::{
+    ScalarStyle,
+    Scanner,
+    StrInput,
+    TokenType,
+};
 
 /// The quoting style for string scalars that require quotes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

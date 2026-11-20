@@ -1,11 +1,20 @@
 use super::{
     _utils,
-    workspace_yaml::{allow_builds, append_workspace_yaml_key},
+    workspace_yaml::{
+        allow_builds,
+        append_workspace_yaml_key,
+    },
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn enable_shell_emulator(workspace: &Path) {
     append_workspace_yaml_key(workspace, "shellEmulator", true);

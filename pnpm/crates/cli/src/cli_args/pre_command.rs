@@ -7,24 +7,59 @@
 //!
 //! Mirrors the block at the top of pnpm's `pnpm/src/main.ts`.
 
-pub(crate) use execute::{PlanExecution, execute_plan, execute_plan_reusing_config};
-pub(crate) use input::{EntryPoint, Invocation, is_global, should_skip_command};
-pub(in crate::cli_args) use load_config::{apply_cli_layers, seed_config};
-pub(crate) use pin::{PinDecision, PinInput, decide};
+pub(crate) use execute::{
+    PlanExecution,
+    execute_plan,
+    execute_plan_reusing_config,
+};
+pub(crate) use input::{
+    EntryPoint,
+    Invocation,
+    is_global,
+    should_skip_command,
+};
+pub(in crate::cli_args) use load_config::{
+    apply_cli_layers,
+    seed_config,
+};
+pub(crate) use pin::{
+    PinDecision,
+    PinInput,
+    decide,
+};
 
 mod system_runtime_version;
 
 use super::{
-    cli_command::{CliCommand, CliNetworkArgs},
-    package_manager::{
-        PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, PinRoots, WantedPackageManager,
-        package_manager_to_sync_for_version, read_root_manifest,
-        should_persist_package_manager_lockfile, version_satisfies, wanted_package_manager,
+    cli_command::{
+        CliCommand,
+        CliNetworkArgs,
     },
-    reporter::{ReporterFlags, ReporterType, reporter_emit},
+    package_manager::{
+        PACKAGE_MANAGER_SWITCH_ENV_VARS,
+        PackageManagerToSync,
+        PinRoots,
+        WantedPackageManager,
+        package_manager_to_sync_for_version,
+        read_root_manifest,
+        should_persist_package_manager_lockfile,
+        version_satisfies,
+        wanted_package_manager,
+    },
+    reporter::{
+        ReporterFlags,
+        ReporterType,
+        reporter_emit,
+    },
     sanitize::sanitize_inline,
-    self_update::install_pnpm::{assert_release_is_installable, pnpm_package_to_install},
-    with::{PackageManagerCheck, spawn_pnpm},
+    self_update::install_pnpm::{
+        assert_release_is_installable,
+        pnpm_package_to_install,
+    },
+    with::{
+        PackageManagerCheck,
+        spawn_pnpm,
+    },
 };
 use crate::{
     cli_args::config_warnings::emit_config_warning,
@@ -32,33 +67,86 @@ use crate::{
     config_overrides::ConfigOverrides,
     engine_pm::{
         channel::PackageManager,
-        install::{InstalledEngine, install_engine_from_env, install_engine_to_store},
+        install::{
+            InstalledEngine,
+            install_engine_from_env,
+            install_engine_to_store,
+        },
     },
     flag_relocation::ArgTable,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 
 use input::should_skip_command_name;
-use load_config::{ConfigLoad, load_pre_command_config, try_load_record_config};
-use lockfile::{
-    env_lockfile_sync_from_loaded, env_lockfile_sync_plan, locked_package_manager_to_fetch,
-    locked_package_manager_version, locked_switch_source, read_env_lockfile, switch_env_root,
+use load_config::{
+    ConfigLoad,
+    load_pre_command_config,
+    try_load_record_config,
 };
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pin::{package_manager_switch_disabled, should_read_pin_lockfile};
-use pnpm_config::{ColorMode, Config, ConfigLoadFailure, Host, PNPM_VERSION, PmOnFail};
+use lockfile::{
+    env_lockfile_sync_from_loaded,
+    env_lockfile_sync_plan,
+    locked_package_manager_to_fetch,
+    locked_package_manager_version,
+    locked_switch_source,
+    read_env_lockfile,
+    switch_env_root,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pin::{
+    package_manager_switch_disabled,
+    should_read_pin_lockfile,
+};
+use pnpm_config::{
+    ColorMode,
+    Config,
+    ConfigLoadFailure,
+    Host,
+    PNPM_VERSION,
+    PmOnFail,
+};
 use pnpm_default_reporter::MaxLogLevel;
 use pnpm_env_installer::is_package_manager_resolved;
-use pnpm_lockfile::{EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, VersionPart};
+use pnpm_lockfile::{
+    EnvLockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    VersionPart,
+};
 use pnpm_network::redact_and_sanitize;
-use pnpm_package_manifest::{apply_runtime_on_fail_override, is_runtime_alias};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
-use runtime::{RUNTIME_ON_FAIL_HINT, check_runtimes, declares_runtime};
+use pnpm_package_manifest::{
+    apply_runtime_on_fail_override,
+    is_runtime_alias,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+};
+use runtime::{
+    RUNTIME_ON_FAIL_HINT,
+    check_runtimes,
+    declares_runtime,
+};
 use serde_json::Value;
 use std::{
     collections::HashSet,
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     slice,
 };
 use system_runtime_version::system_runtime_version;

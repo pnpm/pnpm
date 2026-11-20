@@ -1,6 +1,19 @@
-use super::{CargoCache, prepend_path, restore::invalidate_fingerprints};
-use Fingerprint::{Invalidated, Kept};
-use std::{collections::BTreeMap, env, fs, path::PathBuf, process::Command};
+use super::{
+    CargoCache,
+    prepend_path,
+    restore::invalidate_fingerprints,
+};
+use Fingerprint::{
+    Invalidated,
+    Kept,
+};
+use std::{
+    collections::BTreeMap,
+    env,
+    fs,
+    path::PathBuf,
+    process::Command,
+};
 
 fn project() -> tempfile::TempDir {
     let project = tempfile::tempdir().unwrap();

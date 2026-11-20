@@ -13,13 +13,25 @@
 //! release, and runs each pending step in order.
 
 use crate::{
-    adapter::{Adapter, Connection, Value, WriteTransaction},
+    adapter::{
+        Adapter,
+        Connection,
+        Value,
+        WriteTransaction,
+    },
     dialect::DialectSql,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     fmt,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// How many times schema migration retries a transient transaction conflict.

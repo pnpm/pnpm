@@ -4,16 +4,27 @@
 use std::time::Duration;
 
 #[cfg(not(target_family = "wasm"))]
-use pnpm_network::{RetryOpts, redact_url_credentials};
+use pnpm_network::{
+    RetryOpts,
+    redact_url_credentials,
+};
 #[cfg(not(target_family = "wasm"))]
 use sigstore_sign::{
-    SigningContext, SigningServices,
+    SigningContext,
+    SigningServices,
     oidc::IdentityToken,
     rekor::RekorApiVersion,
-    trust_root::{SigningConfig, TufConfig},
+    trust_root::{
+        SigningConfig,
+        TufConfig,
+    },
 };
 
-use super::{ProvenanceGenError, SignProvenance, SignedProvenance};
+use super::{
+    ProvenanceGenError,
+    SignProvenance,
+    SignedProvenance,
+};
 use crate::capabilities::Host;
 
 /// Loaded once per process, so a recursive publish fetches the signing

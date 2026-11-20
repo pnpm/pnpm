@@ -1,4 +1,8 @@
-use super::{FakeGitRunner, SilentReporter, find_outdated_with_runner};
+use super::{
+    FakeGitRunner,
+    SilentReporter,
+    find_outdated_with_runner,
+};
 use crate::validate_server_url;
 use std::fs;
 

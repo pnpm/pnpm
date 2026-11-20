@@ -1,4 +1,13 @@
-use super::{Reuse, config, fixture, graph, in_order, lockfile_with_settings, model, resolve_with};
+use super::{
+    Reuse,
+    config,
+    fixture,
+    graph,
+    in_order,
+    lockfile_with_settings,
+    model,
+    resolve_with,
+};
 use proptest::prelude::*;
 
 #[derive(Debug, Clone)]
@@ -70,9 +79,15 @@ fn check_changes(
 #[test]
 fn changed_optional_provider_is_stable() {
     use model::{
-        Edge, PackageVersion, Peer,
-        PeerRange::{Any, Major},
-        Settings, Workspace,
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange::{
+            Any,
+            Major,
+        },
+        Settings,
+        Workspace,
     };
     let workspace = Workspace {
         packages: vec![
@@ -143,9 +158,15 @@ fn changed_optional_provider_is_stable() {
 #[test]
 fn changed_injected_provider_is_stable() {
     use model::{
-        Edge, PackageVersion, Peer,
-        PeerRange::{Any, Major},
-        Settings, Workspace,
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange::{
+            Any,
+            Major,
+        },
+        Settings,
+        Workspace,
     };
     let workspace = Workspace {
         packages: vec![
@@ -235,7 +256,14 @@ fn changed_injected_provider_is_stable() {
 
 #[test]
 fn changed_catalog_provider_is_frozen_fresh() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -287,7 +315,14 @@ fn changed_catalog_provider_is_frozen_fresh() {
 
 #[test]
 fn changed_catalog_provider_with_peers_is_frozen_fresh() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -346,7 +381,14 @@ fn changed_catalog_provider_with_peers_is_frozen_fresh() {
 
 #[test]
 fn required_catalog_peer_keeps_the_owners_child_classification() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -390,7 +432,14 @@ fn required_catalog_peer_keeps_the_owners_child_classification() {
 
 #[test]
 fn changed_required_provider_on_a_dependency_cycle_is_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     for provider_major in [1, 2] {
         let workspace = Workspace {
@@ -453,7 +502,14 @@ fn changed_required_provider_on_a_dependency_cycle_is_stable() {
 
 #[test]
 fn many_required_catalog_peers_are_frozen_fresh() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = PackageVersion { dependencies: vec![], peers: vec![] };
     let mut packages = vec![vec![leaf.clone(), leaf]; 14];
     packages[0][0] = PackageVersion {
@@ -490,7 +546,13 @@ fn many_required_catalog_peers_are_frozen_fresh() {
 
 #[test]
 fn missing_required_catalog_peer_child_is_outdated() {
-    use model::{PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -553,7 +615,14 @@ fn missing_required_catalog_peer_child_is_outdated() {
 
 #[test]
 fn removed_direct_provider_is_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -583,7 +652,14 @@ fn removed_direct_provider_is_stable() {
 
 #[test]
 fn removed_nested_optional_provider_is_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, major, optional| Peer {
         target,
@@ -630,7 +706,14 @@ fn removed_nested_optional_provider_is_stable() {
 
 #[test]
 fn added_provider_updates_optional_candidates_child_owner() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -686,7 +769,14 @@ fn added_provider_updates_optional_candidates_child_owner() {
 
 #[test]
 fn adding_a_provider_with_a_required_peer_cycle_is_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -736,7 +826,14 @@ fn adding_a_provider_with_a_required_peer_cycle_is_stable() {
 
 #[test]
 fn removing_a_direct_provider_preserves_nested_injected_peer_pins() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -798,7 +895,14 @@ fn removing_a_direct_provider_preserves_nested_injected_peer_pins() {
 
 #[test]
 fn adding_a_consumer_to_a_peer_cycle_preserves_required_pins() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, range| Peer { target, range, optional: false, also_dependency: false };
     let workspace = Workspace {
@@ -849,7 +953,14 @@ fn adding_a_consumer_to_a_peer_cycle_preserves_required_pins() {
 
 #[test]
 fn adding_a_ranged_provider_keeps_injected_peers_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -880,7 +991,14 @@ fn adding_a_ranged_provider_keeps_injected_peers_stable() {
 
 #[test]
 fn adding_a_ranged_cyclic_provider_keeps_injected_peers_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -922,7 +1040,14 @@ fn adding_a_ranged_cyclic_provider_keeps_injected_peers_stable() {
 
 #[test]
 fn removing_a_retargeted_provider_keeps_injected_peers_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -960,7 +1085,14 @@ fn removing_a_retargeted_provider_keeps_injected_peers_stable() {
 
 #[test]
 fn removing_an_injected_consumer_keeps_optional_providers_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, range, optional, also_dependency| Peer {
         target,
@@ -1017,7 +1149,14 @@ fn removing_an_injected_consumer_keeps_optional_providers_stable() {
 
 #[test]
 fn removing_a_direct_provider_keeps_its_consumers_context() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, range| Peer { target, range, optional: false, also_dependency: false };
     let workspace = Workspace {
@@ -1058,7 +1197,14 @@ fn removing_a_direct_provider_keeps_its_consumers_context() {
 
 #[test]
 fn removing_a_consumer_keeps_optional_cycle_context() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, range, optional, also_dependency| Peer {
         target,
@@ -1116,7 +1262,14 @@ fn removing_a_consumer_keeps_optional_cycle_context() {
 
 #[test]
 fn adding_a_direct_provider_keeps_injected_peer_bindings_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange::Major, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange::Major,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -1180,7 +1333,14 @@ fn adding_a_direct_provider_keeps_injected_peer_bindings_stable() {
 
 #[test]
 fn new_parent_keeps_optional_provider_stable() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let workspace = Workspace {
         packages: vec![
@@ -1238,9 +1398,15 @@ fn new_parent_keeps_optional_provider_stable() {
 #[test]
 fn removing_injected_root_preserves_nested_cycle_context() {
     use model::{
-        Edge, PackageVersion, Peer,
-        PeerRange::{Any, Major},
-        Settings, Workspace,
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange::{
+            Any,
+            Major,
+        },
+        Settings,
+        Workspace,
     };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, range, optional, also_dependency| Peer {

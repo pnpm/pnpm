@@ -1,12 +1,27 @@
-use super::{commit_all, diff_selector, git, graph_of, init_repo, node_at, selected, touch};
+use super::{
+    commit_all,
+    diff_selector,
+    git,
+    graph_of,
+    init_repo,
+    node_at,
+    selected,
+    touch,
+};
 use crate::{
     filter::FilterWorkspaceProjectsOptions,
-    parse_project_selector::{DependencyTraversal, ProjectSelector},
+    parse_project_selector::{
+        DependencyTraversal,
+        ProjectSelector,
+    },
 };
 use indexmap::IndexMap;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 

@@ -1,8 +1,25 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, LinkProbe, OsString, Path, PathBuf,
-    StoreDir, TrustPolicy, assert_eq, fs, io, tempdir, write_file,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    OsString,
+    Path,
+    PathBuf,
+    StoreDir,
+    TrustPolicy,
+    assert_eq,
+    fs,
+    io,
+    tempdir,
+    write_file,
 };
-use crate::{CliLayer, CommandTarget};
+use crate::{
+    CliLayer,
+    CommandTarget,
+};
 
 fn dlx_load() -> Config {
     Config {

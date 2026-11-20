@@ -2,22 +2,48 @@ use super::{
     super::{
         super::recursive::discover_workspace_projects,
         removal::{
-            configured_modules_leaf, configured_virtual_store_dir, modules_leaf_for_project,
+            configured_modules_leaf,
+            configured_virtual_store_dir,
+            modules_leaf_for_project,
         },
     },
-    pattern_reachability::{literal_pattern_subpaths, patterns_entering_root_dir},
+    pattern_reachability::{
+        literal_pattern_subpaths,
+        patterns_entering_root_dir,
+    },
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_fs::{is_symlink_metadata, lexical_normalize};
-use pnpm_modules_yaml::{Host, ReadModulesError, read_modules_manifest};
+use pnpm_fs::{
+    is_symlink_metadata,
+    lexical_normalize,
+};
+use pnpm_modules_yaml::{
+    Host,
+    ReadModulesError,
+    read_modules_manifest,
+};
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts, Project, find_workspace_projects, read_workspace_manifest,
+    FindWorkspaceProjectsOpts,
+    Project,
+    find_workspace_projects,
+    read_workspace_manifest,
     workspace_package_patterns,
 };
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
-    path::{Component, Path, PathBuf},
+    collections::{
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn discover_workspace_for_clean(

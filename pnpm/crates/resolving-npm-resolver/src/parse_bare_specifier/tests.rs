@@ -4,11 +4,15 @@ use pnpm_resolving_jsr_specifier_parser::ParseJsrSpecifierError;
 
 use crate::{
     parse_bare_specifier::{
-        ParseNamedRegistrySpecifierError, parse_bare_specifier,
+        ParseNamedRegistrySpecifierError,
+        parse_bare_specifier,
         parse_jsr_specifier_to_registry_package_spec,
         parse_named_registry_specifier_to_registry_package_spec,
     },
-    pick_package_from_meta::{RegistryPackageSpecType, RegistryRevisionSelector},
+    pick_package_from_meta::{
+        RegistryPackageSpecType,
+        RegistryRevisionSelector,
+    },
 };
 
 const DEFAULT_TAG: &str = "latest";

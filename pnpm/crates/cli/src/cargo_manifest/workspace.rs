@@ -2,10 +2,18 @@ pub(crate) use membership::workspace_includes_member;
 
 mod membership;
 
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(crate) struct WorkspaceCargoDep {

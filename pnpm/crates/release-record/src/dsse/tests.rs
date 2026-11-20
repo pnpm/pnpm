@@ -1,6 +1,20 @@
-use super::{DsseError, Envelope, EnvelopeSignature, IN_TOTO_PAYLOAD_TYPE, pae};
-use crate::test_support::{key, registry};
-use pnpm_transparency_log::{Cosigner, KeySet, NoteSigner, VerifierKey};
+use super::{
+    DsseError,
+    Envelope,
+    EnvelopeSignature,
+    IN_TOTO_PAYLOAD_TYPE,
+    pae,
+};
+use crate::test_support::{
+    key,
+    registry,
+};
+use pnpm_transparency_log::{
+    Cosigner,
+    KeySet,
+    NoteSigner,
+    VerifierKey,
+};
 use pretty_assertions::assert_eq;
 
 /// The statement key of [`registry`] and an envelope it signed, produced by

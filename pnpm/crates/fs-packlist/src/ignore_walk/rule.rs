@@ -3,9 +3,15 @@
 
 mod sequence;
 
-use super::segment::{LiteralCase, SegmentPattern};
+use super::segment::{
+    LiteralCase,
+    SegmentPattern,
+};
 use sequence::Sequence;
-use std::{collections::HashSet, iter};
+use std::{
+    collections::HashSet,
+    iter,
+};
 
 /// Brace expansion stops after this many alternatives, or once it has
 /// produced this many bytes, so a short rule of repeated `{a,b}` groups

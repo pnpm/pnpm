@@ -1,19 +1,43 @@
 use super::{
     super::{
-        InstallPackageBySnapshot, InstallPackageBySnapshotError, PNPM_EXECPATH,
-        runtime::{archive_filter_for, fetch_binary_resolution_to_cas},
-        tarball_resolution::{local_file_tarball_install_url, tarball_url_and_integrity},
+        InstallPackageBySnapshot,
+        InstallPackageBySnapshotError,
+        PNPM_EXECPATH,
+        runtime::{
+            archive_filter_for,
+            fetch_binary_resolution_to_cas,
+        },
+        tarball_resolution::{
+            local_file_tarball_install_url,
+            tarball_url_and_integrity,
+        },
     },
-    CustomFetched, ExtractedPackageMetadata, SnapshotFetch, TarballFetch, download_tarball,
+    CustomFetched,
+    ExtractedPackageMetadata,
+    SnapshotFetch,
+    TarballFetch,
+    download_tarball,
 };
 use crate::custom_fetcher::CustomFetchOutcome;
 use pnpm_config::PmOnFail;
-use pnpm_git_fetcher::{GitFetchOutput, GitFetcher, GitHostedTarballFetcher};
-use pnpm_lockfile::{BinaryResolution, LockfileResolution, PackageKey, PackageMetadata};
+use pnpm_git_fetcher::{
+    GitFetchOutput,
+    GitFetcher,
+    GitHostedTarballFetcher,
+};
+use pnpm_lockfile::{
+    BinaryResolution,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::git_hosted_store_index_key;
 use pnpm_tarball::IngestTarballToStore;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 fn is_revision_addressed(resolution: &LockfileResolution) -> bool {
     match resolution {

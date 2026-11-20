@@ -1,16 +1,33 @@
 //! Downloading a release's archives and unpacking them into one toolchain
 //! directory.
 
-use crate::{Channel, RustToolchainError, ToolchainRequest, manifest::Archive};
+use crate::{
+    Channel,
+    RustToolchainError,
+    ToolchainRequest,
+    manifest::Archive,
+};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pnpm_tarball::BoundedReader;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
     fmt::Write as _,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };

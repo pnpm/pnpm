@@ -26,23 +26,51 @@ mod dir_clone;
 mod orphans;
 
 use crate::{
-    DepHierarchy, DependenciesGraph, DependenciesGraphNode, ImportIndexedDirError,
-    ImportIndexedDirOpts, import_indexed_dir,
+    DepHierarchy,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    ImportIndexedDirError,
+    ImportIndexedDirOpts,
+    import_indexed_dir,
 };
-use bins::{link_bundled_bins, link_hierarchy_bins};
-use derive_more::{Display, Error};
+use bins::{
+    link_bundled_bins,
+    link_hierarchy_bins,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use orphans::remove_orphans;
-use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
-use pnpm_lockfile::{PackageKey, PkgIdWithPatchHash};
+use pnpm_cmd_shim::{
+    LinkBinsError,
+    LinkBinsOptions,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PkgIdWithPatchHash,
+};
 use pnpm_reporter::{
-    LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+    StatsLog,
+    StatsMessage,
 };
 use rayon::prelude::*;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

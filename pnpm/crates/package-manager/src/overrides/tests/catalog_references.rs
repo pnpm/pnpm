@@ -1,7 +1,17 @@
-use super::{pairs, prod_only, rewritten};
-use crate::{overrides_catalog_reference_rewriter, overrides_dependency_rewriter};
+use super::{
+    pairs,
+    prod_only,
+    rewritten,
+};
+use crate::{
+    overrides_catalog_reference_rewriter,
+    overrides_dependency_rewriter,
+};
 use indexmap::IndexMap;
-use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 use pnpm_config::Config;
 use std::path::Path;
 

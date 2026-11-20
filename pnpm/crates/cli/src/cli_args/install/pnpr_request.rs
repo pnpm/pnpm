@@ -1,8 +1,24 @@
 use super::{
-    Catalogs, Context, DependencyGroup, Diagnostic, Display, Error, InstallFamilySelection,
-    IntoDiagnostic, Lockfile, LockfileResolution, PathBuf, PnprLink, PnprSession, PublishConfig,
-    ResolveProject, ResolveProjectsOptions, State, discover_workspace_projects,
-    get_catalogs_from_workspace_manifest, prefetch_allowed,
+    Catalogs,
+    Context,
+    DependencyGroup,
+    Diagnostic,
+    Display,
+    Error,
+    InstallFamilySelection,
+    IntoDiagnostic,
+    Lockfile,
+    LockfileResolution,
+    PathBuf,
+    PnprLink,
+    PnprSession,
+    PublishConfig,
+    ResolveProject,
+    ResolveProjectsOptions,
+    State,
+    discover_workspace_projects,
+    get_catalogs_from_workspace_manifest,
+    prefetch_allowed,
 };
 use pnpm_network::normalize_registry_url;
 

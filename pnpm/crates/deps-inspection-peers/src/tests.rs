@@ -1,7 +1,16 @@
 use super::{
-    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues,
-    filter::parse_allowed_versions, filter_peer_issues, intersect_multiple_ranges,
-    linked::LinkRoots, merge_missing_peers, ranges::normalize_version_str, render::format_range,
+    BadPeerIssue,
+    IssuesByProjects,
+    MissingPeerIssue,
+    ParentPkg,
+    PeerIssues,
+    filter::parse_allowed_versions,
+    filter_peer_issues,
+    intersect_multiple_ranges,
+    linked::LinkRoots,
+    merge_missing_peers,
+    ranges::normalize_version_str,
+    render::format_range,
     satisfies,
 };
 use pnpm_config::PeerDependencyRules;

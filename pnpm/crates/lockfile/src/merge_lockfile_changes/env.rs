@@ -1,9 +1,22 @@
 use crate::{
-    EnvImporterSnapshot, EnvLockfile, PackageKey, PackageMetadata, SpecifierAndResolution,
+    EnvImporterSnapshot,
+    EnvLockfile,
+    PackageKey,
+    PackageMetadata,
+    SpecifierAndResolution,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
-use super::{Winner, merge_snapshot, spread, take_changed, winner};
+use super::{
+    Winner,
+    merge_snapshot,
+    spread,
+    take_changed,
+    winner,
+};
 
 /// [`crate::merge_lockfile_changes()`] for the env document — the config and
 /// package-manager dependencies pnpm records ahead of the project

@@ -1,24 +1,61 @@
 pub(super) use slot_writes::write_attachment_slots;
 
 use super::{
-    Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
-    Integrity, Ownership, PendingAttachment, RegistryError, RegistrySource, Storage, Value,
-    WriteTarget, authorize_against_packument, authorize_package, authorize_package_write,
-    authorize_with_ownership, cleanup_tmp_slots, extract_attachments, hosted_storage,
+    Action,
+    AppState,
+    CanonicalPackageName,
+    Ecosystem,
+    HashSet,
+    HostedDocumentVersion,
+    Identity,
+    Integrity,
+    Ownership,
+    PendingAttachment,
+    RegistryError,
+    RegistrySource,
+    Storage,
+    Value,
+    WriteTarget,
+    authorize_against_packument,
+    authorize_package,
+    authorize_package_write,
+    authorize_with_ownership,
+    cleanup_tmp_slots,
+    extract_attachments,
+    hosted_storage,
     manifest::{
-        check_publishable_versions, parse_hosted_packument, prepare_staged_document,
-        record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
+        check_publishable_versions,
+        parse_hosted_packument,
+        prepare_staged_document,
+        record_publisher,
+        restore_submitted_tgz_integrities,
+        serialize_staged_document,
     },
-    provenance, release_records, resolve_write_target,
-    tombstones::{check_publish_tombstone, check_staged_tombstone},
+    provenance,
+    release_records,
+    resolve_write_target,
+    tombstones::{
+        check_publish_tombstone,
+        check_staged_tombstone,
+    },
     verification::verify_published_manifests,
 };
 use pnpr_storage::{
     BlobId,
-    database::{ArtifactBlob, BlobLookup, BlobRow},
-    publish::{now_iso, sigstore_bundle_bytes},
+    database::{
+        ArtifactBlob,
+        BlobLookup,
+        BlobRow,
+    },
+    publish::{
+        now_iso,
+        sigstore_bundle_bytes,
+    },
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 use tokio::sync::Semaphore;
 
 mod preparation;

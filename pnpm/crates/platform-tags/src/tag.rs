@@ -1,6 +1,13 @@
 //! The string form of platform tags.
 
-use super::{Floor, Libc, NodeAbi, Platform, TagError, parse_number};
+use super::{
+    Floor,
+    Libc,
+    NodeAbi,
+    Platform,
+    TagError,
+    parse_number,
+};
 use std::iter::Peekable;
 
 /// `<prefix><major>_<minor>`, such as `manylinux_2_28`.

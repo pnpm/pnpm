@@ -16,22 +16,45 @@ mod tarball_peers;
 mod snapshot_budget;
 
 use super::{
-    ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult, WorkspacePeerSettings,
+    ImporterPeerInput,
+    ResolvePeersOptions,
+    ResolvePeersResult,
+    WorkspacePeerSettings,
     context::peer_id_pair,
-    resolve_peers, resolve_peers_workspace,
+    resolve_peers,
+    resolve_peers_workspace,
     test_support::{
-        add_lazy_direct_dep, child_edge, linked_package, package, package_with_peer_dependencies,
-        resolve_result, tree_node, walker_for_tests,
+        add_lazy_direct_dep,
+        child_edge,
+        linked_package,
+        package,
+        package_with_peer_dependencies,
+        resolve_result,
+        tree_node,
+        walker_for_tests,
     },
 };
 use crate::{
     node_id::NodeId,
-    resolved_tree::{DirectDep, ResolvedTree, TreeChildren},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+        TreeChildren,
+    },
 };
-use pnpm_deps_path::{DepPath, PeerId};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+};
 use pnpm_resolving_resolver_base::PkgResolutionId;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// A tree with a `consumer` whose peer on `types@1.0.0` is declared with the
 /// given named-registry specifier. Returns the tree and the expected dep path.
@@ -163,10 +186,27 @@ fn assert_cyclic_alias_peer_graph_is_closed(result: &ResolvePeersResult) {
 /// preferences` suite: a second resolution pass receives the first
 /// pass's `paths_by_node_id` and re-pins compatible locked providers.
 mod locked_peer_provider_preferences {
-    use super::{DepPath, DirectDep, NodeId, ResolvePeersOptions, ResolvedTree, resolve_peers};
-    use crate::resolve_peers::test_support::{package, package_with_peer_dependencies, tree_node};
-    use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-    use std::{collections::BTreeMap, sync::Arc};
+    use super::{
+        DepPath,
+        DirectDep,
+        NodeId,
+        ResolvePeersOptions,
+        ResolvedTree,
+        resolve_peers,
+    };
+    use crate::resolve_peers::test_support::{
+        package,
+        package_with_peer_dependencies,
+        tree_node,
+    };
+    use rustc_hash::{
+        FxHashMap as HashMap,
+        FxHashSet as HashSet,
+    };
+    use std::{
+        collections::BTreeMap,
+        sync::Arc,
+    };
 
     struct LockedTreeIds {
         current_peer: NodeId,

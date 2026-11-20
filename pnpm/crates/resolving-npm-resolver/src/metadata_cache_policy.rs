@@ -12,11 +12,17 @@ use std::path::Path;
 
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::NetworkPolicy;
-use reqwest::header::{self, HeaderMap};
+use reqwest::header::{
+    self,
+    HeaderMap,
+};
 
 use crate::{
     fetch_full_metadata::{
-        ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC, ACCEPT_PNPR_DOC, is_abbreviated_content_type,
+        ACCEPT_ABBREVIATED_DOC,
+        ACCEPT_FULL_DOC,
+        ACCEPT_PNPR_DOC,
+        is_abbreviated_content_type,
         metadata_response_is_uncacheable,
     },
     mirror::MetaHeaders,

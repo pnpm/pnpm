@@ -5,17 +5,32 @@
 //! than the POSIX programs Windows has none of.
 
 #[cfg(unix)]
-use crate::_utils::terminal::{Terminal, spawn_without_terminal};
-use crate::_utils::{CHILD_DEADLINE, wait_for_child};
+use crate::_utils::terminal::{
+    Terminal,
+    spawn_without_terminal,
+};
+use crate::_utils::{
+    CHILD_DEADLINE,
+    wait_for_child,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
-use serde_json::{Value, json};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::HashMap,
     fs,
     path::Path,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a

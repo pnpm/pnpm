@@ -2,17 +2,37 @@
 mod tests;
 
 use super::{
-    LatestResolverChain, LatestRewriteCtx, UpdateError, latest_version_for_spec,
-    rewrite::{KeptRangeVerdict, MatchedRewrite, judge_against_kept_range, kept_range_rewrite},
-    seed_policy::{UpdatePlan, UpdateScope},
+    LatestResolverChain,
+    LatestRewriteCtx,
+    UpdateError,
+    latest_version_for_spec,
+    rewrite::{
+        KeptRangeVerdict,
+        MatchedRewrite,
+        judge_against_kept_range,
+        kept_range_rewrite,
+    },
+    seed_policy::{
+        UpdatePlan,
+        UpdateScope,
+    },
 };
 use crate::package_manifest_prefix;
 use node_semver::Version;
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style, range_of_specifier};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_resolving_npm_resolver::{
+    calc_version_range,
+    infer_range_spec_style,
+    range_of_specifier,
+};
 use pnpm_resolving_resolver_base::VersionSelectorType;
 
 pub(super) struct OverriddenDirect {

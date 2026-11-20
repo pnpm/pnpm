@@ -4,14 +4,27 @@ pub use format::StoreIndexFormat;
 pub use writer::StoreIndexWriter;
 
 use crate::StoreDir;
-use rusqlite::{Connection, OpenFlags};
-use serde::{Deserialize, Serialize};
+use rusqlite::{
+    Connection,
+    OpenFlags,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 use url::Url;

@@ -1,7 +1,15 @@
-use super::{Error, inline, serialize};
+use super::{
+    Error,
+    inline,
+    serialize,
+};
 use serde_json::Value;
 use std::ops::Range;
-use yamlpath::{Document, FeatureKind, Route};
+use yamlpath::{
+    Document,
+    FeatureKind,
+    Route,
+};
 
 pub(super) type Edit = (Range<usize>, String);
 

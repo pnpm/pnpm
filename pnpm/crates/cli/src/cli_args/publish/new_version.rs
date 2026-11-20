@@ -6,19 +6,34 @@
 use super::PublishArgs;
 use crate::cli_args::{
     recursive::{
-        AutoExcludeRoot, SelectedProjectDirs, discover_workspace_projects,
+        AutoExcludeRoot,
+        SelectedProjectDirs,
+        discover_workspace_projects,
         select_recursive_projects,
     },
-    version::{parse_exact_version, set_manifest_version},
+    version::{
+        parse_exact_version,
+        set_manifest_version,
+    },
 };
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+};
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_publish::is_tarball_path;
 use pnpm_workspace::Project;
 use serde_json::Value;
-use std::{collections::HashSet, path::Path, sync::Arc};
+use std::{
+    collections::HashSet,
+    path::Path,
+    sync::Arc,
+};
 
 #[derive(Debug, Display, Error, Diagnostic)]
 enum NewVersionError {

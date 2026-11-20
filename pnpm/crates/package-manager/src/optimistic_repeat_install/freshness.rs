@@ -4,23 +4,44 @@
 //! recorded which projects are still proven installed, checks the rest that
 //! the gate covers against the lockfile, and records a passing check.
 
-pub(crate) use drift::{InputDrift, ProjectStatus};
+pub(crate) use drift::{
+    InputDrift,
+    ProjectStatus,
+};
 use missing_lockfile::settle_missing_wanted_lockfile;
 use registry_keys::state_unverified_by_changed_lockfile;
 
 use super::{
-    LockfileConflictCheckFailure, OptimisticRepeatInstallCheck, PathBuf, Scope, WorkspaceState,
+    LockfileConflictCheckFailure,
+    OptimisticRepeatInstallCheck,
+    PathBuf,
+    Scope,
+    WorkspaceState,
     catalogs_cache_matches,
     current_lockfile::CurrentLockfile,
     current_lockfile_file_has_content,
     deps_status::config_dependencies_drifted,
-    direct_dependency_link_dangling, filesystem_now_ms_in_modules,
-    first_held_project_missing_modules_dir, first_lockfile_requiring_conflict_safe_install,
-    first_setting_drift, held_project_dirs, held_projects_match_lockfile,
-    local_file_blocks_fast_path, pnpmfiles_drift, project_structure_matches,
-    relocation::{prove_move, rekeyed_validation_now},
+    direct_dependency_link_dangling,
+    filesystem_now_ms_in_modules,
+    first_held_project_missing_modules_dir,
+    first_lockfile_requiring_conflict_safe_install,
+    first_setting_drift,
+    held_project_dirs,
+    held_projects_match_lockfile,
+    local_file_blocks_fast_path,
+    pnpmfiles_drift,
+    project_structure_matches,
+    relocation::{
+        prove_move,
+        rekeyed_validation_now,
+    },
     settle::current_lockfile_unusable_with_non_empty_wanted,
-    validation::{FileDigest, Vouched, records_need_refresh, trusts_every_file},
+    validation::{
+        FileDigest,
+        Vouched,
+        records_need_refresh,
+        trusts_every_file,
+    },
 };
 use std::collections::HashSet;
 

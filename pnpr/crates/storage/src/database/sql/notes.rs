@@ -3,22 +3,42 @@
 //! A version note is keyed by its package and version, a publication note by
 //! its namespace and publication id.
 
-pub(super) use publish_time::{store_publish_notes, version_note_query};
+pub(super) use publish_time::{
+    store_publish_notes,
+    version_note_query,
+};
 
 use super::{
     PackageKey,
-    adapter::{Connection, Query, Row},
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
     batch::WriteTransaction,
     commit::package_row_query,
     to_column,
     transactions::Freshness,
 };
 use crate::{
-    database::{Note, NoteChange, validate_note},
-    publish::{iso_from_unix_millis, now_millis},
+    database::{
+        Note,
+        NoteChange,
+        validate_note,
+    },
+    publish::{
+        iso_from_unix_millis,
+        now_millis,
+    },
 };
-use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_sql::DialectSql;
 
 mod publish_time;

@@ -1,4 +1,8 @@
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
 use pnpm_text_sanitize::sanitize_inline;
 
 /// The warning for a package that is about to be depended on through

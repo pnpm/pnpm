@@ -11,32 +11,65 @@
 //! instead, and one neither can edit is reported through [`Inline`] so the
 //! caller can refuse the write.
 
-pub(crate) use allow_builds::{add_allow_build, add_undecided_allow_build, prune_allow_builds};
-pub(crate) use catalogs::{CatalogReferences, add_catalogs, remove_unused_catalogs};
+pub(crate) use allow_builds::{
+    add_allow_build,
+    add_undecided_allow_build,
+    prune_allow_builds,
+};
+pub(crate) use catalogs::{
+    CatalogReferences,
+    add_catalogs,
+    remove_unused_catalogs,
+};
 pub(crate) use permissions::{
-    remove_allow_build, set_global_packages_build_permission, set_permission,
+    remove_allow_build,
+    set_global_packages_build_permission,
+    set_permission,
 };
 pub(crate) use policies::{
-    prune_minimum_release_age_excludes, prune_trust_policy_excludes, set_audit_ignore_ghsas,
+    prune_minimum_release_age_excludes,
+    prune_trust_policy_excludes,
+    set_audit_ignore_ghsas,
     set_minimum_release_age_excludes,
 };
-pub(crate) use scanning::{Inline, document_root_is_inline, has_unsupported_inline_value};
+pub(crate) use scanning::{
+    Inline,
+    document_root_is_inline,
+    has_unsupported_inline_value,
+};
 pub(crate) use skills_dirs::set_skills_dirs;
 pub(crate) use spacing::uses_blank_line_style;
 
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     ops::Range,
 };
 
 use indexmap::IndexMap;
-use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
-use yamlpatch::{Op, Patch};
-use yamlpath::{Component, Document, Route};
+use pnpm_catalogs_types::{
+    Catalogs,
+    DEFAULT_CATALOG_NAME,
+};
+use yamlpatch::{
+    Op,
+    Patch,
+};
+use yamlpath::{
+    Component,
+    Document,
+    Route,
+};
 
 use crate::{
     flow,
-    model::{AllowBuildValue, Manifest},
+    model::{
+        AllowBuildValue,
+        Manifest,
+    },
     render,
 };
 
@@ -456,7 +489,9 @@ mod policies;
 
 mod sequences;
 use sequences::{
-    detect_sequence_indent, reconcile_sequence_items, render_top_level_sequence,
+    detect_sequence_indent,
+    reconcile_sequence_items,
+    render_top_level_sequence,
     upsert_sequence_entry,
 };
 
@@ -465,7 +500,11 @@ use allow_builds::render_bool;
 
 mod mapping;
 use mapping::{
-    replace_value_at, replace_value_text_at, upsert, write_entry_at, write_rendered_entry_at,
+    replace_value_at,
+    replace_value_text_at,
+    upsert,
+    write_entry_at,
+    write_rendered_entry_at,
 };
 
 mod nested;
@@ -477,11 +516,29 @@ mod skills_dirs;
 mod scanning;
 
 use scanning::{
-    Line, Mapping, TopLevelSpan, comment_start, is_sequence_item_line, is_top_level_block_boundary,
-    is_top_level_key, leading_comment_start, lines, locate, locate_mapping, locate_sequence,
-    mapping_keys, structural_colon_index, structural_indent, top_level_key_line, top_level_span,
+    Line,
+    Mapping,
+    TopLevelSpan,
+    comment_start,
+    is_sequence_item_line,
+    is_top_level_block_boundary,
+    is_top_level_key,
+    leading_comment_start,
+    lines,
+    locate,
+    locate_mapping,
+    locate_sequence,
+    mapping_keys,
+    structural_colon_index,
+    structural_indent,
+    top_level_key_line,
+    top_level_span,
 };
 
 mod spacing;
 
-use spacing::{blank_run_start, blanks_belong_to_kept_scalar, ends_with_blank_line};
+use spacing::{
+    blank_run_start,
+    blanks_belong_to_kept_scalar,
+    ends_with_blank_line,
+};

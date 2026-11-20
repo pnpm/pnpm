@@ -4,8 +4,14 @@ use crate::retry::retry_transient_file_locks;
 #[cfg(not(target_os = "wasi"))]
 use std::fs::OpenOptions;
 use std::{
-    fs::{self, File},
-    io::{self, Seek},
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        self,
+        Seek,
+    },
     path::Path,
 };
 

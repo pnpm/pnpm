@@ -1,14 +1,21 @@
 use crate::importer_root_dir;
 use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::{
-    ImporterModulesDirs, is_local_directory_version, link_target_dir, normalize_build_dep_path,
-    parse_dep_path_name_version, validate_importer_id,
+    ImporterModulesDirs,
+    is_local_directory_version,
+    link_target_dir,
+    normalize_build_dep_path,
+    parse_dep_path_name_version,
+    validate_importer_id,
 };
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use super::SyncAgentSkills;

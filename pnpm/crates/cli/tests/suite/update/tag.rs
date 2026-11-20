@@ -2,7 +2,14 @@
 //! matched direct dependencies move to the version behind the named
 //! dist-tag rather than `latest`.
 use super::{
-    DEP, FOO, PEER_A, assert_eq, dep_spec, lockfile_package_keys, pacquet, setup_with_own_registry,
+    DEP,
+    FOO,
+    PEER_A,
+    assert_eq,
+    dep_spec,
+    lockfile_package_keys,
+    pacquet,
+    setup_with_own_registry,
     write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;

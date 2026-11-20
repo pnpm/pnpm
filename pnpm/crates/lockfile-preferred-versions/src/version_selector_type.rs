@@ -3,8 +3,14 @@
 //! isn't one of those — those have no place in the version-picker
 //! tie-break table the preferred-versions map feeds.
 
-use node_semver::{Range, Version};
-use pnpm_resolving_resolver_base::{VersionSelectorType, is_any_version_range};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_resolving_resolver_base::{
+    VersionSelectorType,
+    is_any_version_range,
+};
 
 /// Classify a manifest spec as `Version`, `Range`, or `Tag`, using the
 /// loose precedence that tries an exact version first, then a range,

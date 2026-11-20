@@ -2,10 +2,17 @@ use std::{
     collections::HashMap,
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff};
+use crate::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+};
 
 use super::file_content_matches_digest;
 
@@ -144,9 +151,13 @@ fn is_hardlinked_metadata(_path: &Path, metadata: &fs::Metadata) -> bool {
 
 #[cfg(windows)]
 fn is_hardlinked_metadata(path: &Path, metadata: &fs::Metadata) -> bool {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use std::{
+        mem::MaybeUninit,
+        os::windows::io::AsRawHandle as _,
+    };
     use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+        BY_HANDLE_FILE_INFORMATION,
+        GetFileInformationByHandle,
     };
 
     if !metadata.is_file() {

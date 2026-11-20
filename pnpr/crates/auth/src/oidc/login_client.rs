@@ -2,9 +2,21 @@
 //! discovered metadata and the client-secret method it advertises.
 
 use super::{
-    AuthType, ClientId, ClientSecret, CoreClient, CoreClientAuthMethod, CoreProviderMetadata,
-    EndpointMaybeSet, EndpointNotSet, EndpointSet, OidcState, Provider, RedirectUrl, Result,
-    invalid_config, rejected,
+    AuthType,
+    ClientId,
+    ClientSecret,
+    CoreClient,
+    CoreClientAuthMethod,
+    CoreProviderMetadata,
+    EndpointMaybeSet,
+    EndpointNotSet,
+    EndpointSet,
+    OidcState,
+    Provider,
+    RedirectUrl,
+    Result,
+    invalid_config,
+    rejected,
 };
 
 pub(super) type LoginClient = CoreClient<

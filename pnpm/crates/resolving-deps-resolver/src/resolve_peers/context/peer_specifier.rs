@@ -1,8 +1,18 @@
 use pnpm_resolving_resolver_base::parse_strict_semver_range;
 
 use super::{
-    DepPath, NodeId, Path, PathBuf, PeerId, Range, ResolvePeersOptions, ResolveResult, Version,
-    get_peer_version_range, index_of_dep_path_suffix, pkg_name,
+    DepPath,
+    NodeId,
+    Path,
+    PathBuf,
+    PeerId,
+    Range,
+    ResolvePeersOptions,
+    ResolveResult,
+    Version,
+    get_peer_version_range,
+    index_of_dep_path_suffix,
+    pkg_name,
 };
 
 pub(super) fn version_gte(left: &str, right: &str) -> bool {

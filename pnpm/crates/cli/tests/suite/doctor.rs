@@ -1,7 +1,12 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use serde::Deserialize;
-use std::{ffi::OsString, fs, path::Path, process::Command};
+use std::{
+    ffi::OsString,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

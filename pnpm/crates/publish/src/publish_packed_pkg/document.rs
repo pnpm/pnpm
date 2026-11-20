@@ -1,6 +1,11 @@
 use super::{
-    Access, Map, NormalizedRegistryUrl, PublishPackedPkgError, Value,
-    is_valid_old_npm_package_name, join_registry,
+    Access,
+    Map,
+    NormalizedRegistryUrl,
+    PublishPackedPkgError,
+    Value,
+    is_valid_old_npm_package_name,
+    join_registry,
 };
 
 /// The tarball digests written into the document's `dist`, already computed by

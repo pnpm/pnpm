@@ -1,14 +1,31 @@
 use super::{
-    AppState, CanonicalPackageName, ProjectFile, RegistryError, UpstreamCacheSubtree, not_found,
+    AppState,
+    CanonicalPackageName,
+    ProjectFile,
+    RegistryError,
+    UpstreamCacheSubtree,
+    not_found,
 };
 use axum::{
     http::header,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpm_python_resolver::metadata_url;
-use pnpr_pypi::{CoreMetadata, archive::MAX_METADATA_BYTES};
-use pnpr_upstream::{FetchOutcome, Upstream};
-use ssri::{Algorithm, Integrity};
+use pnpr_pypi::{
+    CoreMetadata,
+    archive::MAX_METADATA_BYTES,
+};
+use pnpr_upstream::{
+    FetchOutcome,
+    Upstream,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 
 pub(super) async fn serve(
     state: &AppState,

@@ -15,16 +15,31 @@
 //! time it is served, so it changes only when the package does.
 
 pub(super) use release_records::{
-    accepted_record_response, record_address, release_record, version_document_response,
+    accepted_record_response,
+    record_address,
+    release_record,
+    version_document_response,
     without_pnpr_facts_in,
 };
 
-use axum::http::{HeaderMap, header};
-use jiff::{SignedDuration, Timestamp};
+use axum::http::{
+    HeaderMap,
+    header,
+};
+use jiff::{
+    SignedDuration,
+    Timestamp,
+};
 use node_semver::Version;
 use pnpr_config::PackageDocumentsConfig;
-use serde_json::{Map, Value};
-use std::collections::{BTreeMap, HashSet};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 mod release_records;
 
 /// The media type of pnpr's package document.

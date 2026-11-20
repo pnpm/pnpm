@@ -1,7 +1,10 @@
 use pnpm_fs::is_non_link_read_error;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(test)]

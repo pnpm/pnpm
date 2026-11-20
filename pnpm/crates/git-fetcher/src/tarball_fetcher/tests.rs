@@ -1,11 +1,22 @@
 use super::GitHostedTarballFetcher;
 use crate::{
-    error::{GitFetcherError, PreparePackageError},
+    error::{
+        GitFetcherError,
+        PreparePackageError,
+    },
     prepare_package::AllowBuildRef,
 };
 use pnpm_reporter::SilentReporter;
-use pnpm_store_dir::{StoreDir, StoreIndex, StoreIndexWriter};
-use std::{collections::HashMap, fs, sync::Arc};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    sync::Arc,
+};
 use tempfile::tempdir;
 
 fn deny_all_builds<'a>() -> AllowBuildRef<'a> {

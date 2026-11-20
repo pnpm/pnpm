@@ -1,8 +1,18 @@
-use super::{CacheGcEffect, CacheReport, HashSet, Path, PathBuf, Result};
+use super::{
+    CacheGcEffect,
+    CacheReport,
+    HashSet,
+    Path,
+    PathBuf,
+    Result,
+};
 use pnpm_fs::OpenDir;
 use std::{
     ffi::OsStr,
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
 };
 
 pub(super) struct OrphanPruneOutcome {

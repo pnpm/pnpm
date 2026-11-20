@@ -5,10 +5,17 @@ use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{PackageExtension, RegistryDeclaration};
+use pnpm_config::{
+    PackageExtension,
+    RegistryDeclaration,
+};
 use pnpm_network::AuthHeadersByScope;
 use pnpr_registry::Ecosystem;
-use serde::{Deserialize, Serialize, de::IgnoredAny};
+use serde::{
+    Deserialize,
+    Serialize,
+    de::IgnoredAny,
+};
 
 pub type DepMap = BTreeMap<String, String>;
 

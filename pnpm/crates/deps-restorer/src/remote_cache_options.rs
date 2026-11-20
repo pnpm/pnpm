@@ -1,6 +1,12 @@
-pub use pnpm_pnpr_client::{ArtifactSignerSettings, ArtifactStoreOptions};
+pub use pnpm_pnpr_client::{
+    ArtifactSignerSettings,
+    ArtifactStoreOptions,
+};
 
-use pnpm_config::{Config, RemoteCacheSettings};
+use pnpm_config::{
+    Config,
+    RemoteCacheSettings,
+};
 
 /// The [`ArtifactStoreOptions`] that `remoteCache` and `pnprServer` configure.
 #[must_use]

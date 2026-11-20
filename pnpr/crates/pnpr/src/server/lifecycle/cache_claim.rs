@@ -1,15 +1,23 @@
 use crate::{
     Config,
     config_validation::{
-        CacheDirCheck, MAX_CACHE_SECRET_MARKER_BYTES, PENDING_CACHE_CLAIM,
+        CacheDirCheck,
+        MAX_CACHE_SECRET_MARKER_BYTES,
+        PENDING_CACHE_CLAIM,
         ensure_only_ignorable_entries,
     },
 };
 use pnpm_fs::OpenDir;
-use pnpr_config::{CACHE_SECRET_MARKER, cache_secret_fingerprint};
+use pnpr_config::{
+    CACHE_SECRET_MARKER,
+    cache_secret_fingerprint,
+};
 use std::{
     ffi::OsStr,
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
     path::Path,
     sync::Arc,
     time::Duration,

@@ -8,7 +8,10 @@ use pnpm_matcher::create_matcher;
 use pnpm_package_manager::parse_update_param;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::UpdateBehavior;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 impl UpdateArgs {
     /// Update the config dependencies [`Self::config_dependency_updates`]

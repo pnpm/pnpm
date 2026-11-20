@@ -1,11 +1,25 @@
-use crate::{remove_dirent, test_support::with_retry_observer};
+use crate::{
+    remove_dirent,
+    test_support::with_retry_observer,
+};
 use std::{
-    env, fs, io,
+    env,
+    fs,
+    io,
     os::windows::fs::OpenOptionsExt,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
     sync::mpsc,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::tempdir;
 

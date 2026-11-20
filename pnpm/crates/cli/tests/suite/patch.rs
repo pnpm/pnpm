@@ -4,14 +4,26 @@ use _utils::append_workspace_yaml_key;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_patching::create_hex_hash_from_file;
-use pnpm_store_dir::{StoreDir, StoreIndex};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndex,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
     git_repo::GitRepoFixture,
 };
 use serde_json::Value;
-use std::{ffi::OsStr, fmt::Write as _, fs, path::Path, process::Command};
+use std::{
+    ffi::OsStr,
+    fmt::Write as _,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const IS_POSITIVE_PATCH: &str = include_str!(

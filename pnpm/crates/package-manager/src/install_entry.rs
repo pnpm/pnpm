@@ -3,22 +3,36 @@
 //! repeat-install fast path.
 
 use crate::{
-    LockfileCheckSink, LockfileVerificationOverride, RebuildOptions, ResolvedPackages,
+    LockfileCheckSink,
+    LockfileVerificationOverride,
+    RebuildOptions,
+    ResolvedPackages,
     install::{
-        Install, InstallError, InstallManifestOptions, InstallRunOptions, InstallSaveOptions,
-        ProjectMutation, WorkspaceInstallSelection,
+        Install,
+        InstallError,
+        InstallManifestOptions,
+        InstallRunOptions,
+        InstallSaveOptions,
+        ProjectMutation,
+        WorkspaceInstallSelection,
     },
     optimistic_repeat_install::check_optimistic_repeat_install_in,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::MemCache;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

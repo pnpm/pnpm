@@ -1,4 +1,7 @@
-use semver::{Version, VersionReq};
+use semver::{
+    Version,
+    VersionReq,
+};
 
 /// The requirement `pnpm update` writes for `resolved`, without build
 /// metadata, which Cargo ignores and warns about.

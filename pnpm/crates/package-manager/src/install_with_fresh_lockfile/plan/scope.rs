@@ -2,7 +2,10 @@ use super::super::FreshInputs;
 use crate::SkippedSnapshots;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 
 /// Which importers a selected install materializes, and the lockfile
 /// closed over them.

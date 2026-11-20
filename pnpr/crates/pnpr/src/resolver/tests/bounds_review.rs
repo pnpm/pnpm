@@ -1,22 +1,37 @@
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
 use axum::{
-    body::{Bytes, to_bytes},
+    body::{
+        Bytes,
+        to_bytes,
+    },
     http::StatusCode,
     response::Response,
 };
-use pnpr_config::{IpNetwork, PublicRoute};
+use pnpr_config::{
+    IpNetwork,
+    PublicRoute,
+};
 use pnpr_policy::Identity;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    },
     net::TcpListener,
     sync::Notify,
     time::Instant,
@@ -26,11 +41,19 @@ use super::{
     super::{
         Resolver,
         dispatch::handle_resolve,
-        limits::{GRAPH_TOO_LARGE_CODE, RESOLVE_TIMEOUT_CODE, request_timeout_response},
-        streaming::{TerminalSender, send_before_deadline},
+        limits::{
+            GRAPH_TOO_LARGE_CODE,
+            RESOLVE_TIMEOUT_CODE,
+            request_timeout_response,
+        },
+        streaming::{
+            TerminalSender,
+            send_before_deadline,
+        },
         wire::MAX_NDJSON_FRAME_BYTES,
     },
-    cargo_done_frame, registry_config,
+    cargo_done_frame,
+    registry_config,
 };
 
 fn test_integrity() -> String {

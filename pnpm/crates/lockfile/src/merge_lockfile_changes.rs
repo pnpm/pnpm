@@ -5,13 +5,27 @@
 pub use env::merge_env_lockfile_changes;
 
 use crate::{
-    Lockfile, LockfileExtra, LockfileVersion, PackageKey, PackageMetadata, ProjectSnapshot,
-    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    Lockfile,
+    LockfileExtra,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use node_semver::Version;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{
+    Serialize,
+    de::DeserializeOwned,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     hash::Hash,
 };
 
@@ -19,7 +33,11 @@ mod config;
 mod env;
 
 use config::{
-    merge_catalogs, merge_overrides, merge_patched_dependencies, merge_settings, merge_time,
+    merge_catalogs,
+    merge_overrides,
+    merge_patched_dependencies,
+    merge_settings,
+    merge_time,
 };
 
 /// Merge `theirs` into `ours`, preferring the higher version wherever the

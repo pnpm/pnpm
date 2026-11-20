@@ -1,9 +1,25 @@
-use super::{build_deps_graph, build_deps_graph_for_platform, build_deps_subgraph};
+use super::{
+    build_deps_graph,
+    build_deps_graph_for_platform,
+    build_deps_subgraph,
+};
 use pnpm_graph_hasher::calc_dep_state_input_key;
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PackageMetadata,
-    PkgName, PkgVerPeer, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry, VariationsResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgVerPeer,
+    PlatformAssetResolution,
+    PlatformAssetTarget,
+    PlatformSelector,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    VariationsResolution,
 };
 use pretty_assertions::assert_eq;
 use ssri::Integrity;

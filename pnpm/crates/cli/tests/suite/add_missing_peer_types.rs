@@ -5,11 +5,17 @@
 //! `@pnpm.e2e/abc-optional-peers` peer-depends on `@pnpm.e2e/peer-a`, whose
 //! types package is `@types/pnpm.e2e__peer-a`.
 
-use crate::_utils::{ManifestDeps, WorkspaceFixture};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+};
 
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const ABC: &str = "@pnpm.e2e/abc-optional-peers";

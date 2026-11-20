@@ -1,14 +1,28 @@
 use super::{
-    CacheGcEffect, CachedFile, HashSet, Path,
-    inventory::{CachedFileRemoval, check_unmodified_cached_files_sync, remove_cached_files_sync},
+    CacheGcEffect,
+    CachedFile,
+    HashSet,
+    Path,
+    inventory::{
+        CachedFileRemoval,
+        check_unmodified_cached_files_sync,
+        remove_cached_files_sync,
+    },
 };
 use pnpm_fs::OpenDir;
 use pnpm_store_dir::{
-    PackageFilesIndex, STORE_VERSION, StoreIndex, StoreIndexError, decode_package_files_index,
+    PackageFilesIndex,
+    STORE_VERSION,
+    StoreIndex,
+    StoreIndexError,
+    decode_package_files_index,
 };
 use std::{
     ffi::OsStr,
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
     sync::Arc,
 };
 

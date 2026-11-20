@@ -1,8 +1,18 @@
 use pnpm_semver_include_prerelease::parse_strict_semver_range;
 
 use super::{
-    BTreeMap, BumpState, Identifier, IntentBumpType, Participant, PlannedRelease, ReleaseBumpType,
-    ResolvedEpic, Version, VersioningError, VersioningSettings, parse_workspace_spec_alias,
+    BTreeMap,
+    BumpState,
+    Identifier,
+    IntentBumpType,
+    Participant,
+    PlannedRelease,
+    ReleaseBumpType,
+    ResolvedEpic,
+    Version,
+    VersioningError,
+    VersioningSettings,
+    parse_workspace_spec_alias,
 };
 
 pub(super) fn bump_release_order(bump_type: IntentBumpType) -> u8 {

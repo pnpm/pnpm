@@ -1,7 +1,10 @@
 use super::exec_git;
 use crate::checkout_submodules;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn submodule_checkout(root: &Path, url: &str) -> PathBuf {
     let repo = GitRepoFixture::init(root, "parent");

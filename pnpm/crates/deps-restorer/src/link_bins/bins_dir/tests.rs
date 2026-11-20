@@ -1,6 +1,15 @@
 use super::{
-    BinCandidates, BinsDirPass, HashMap, HashSet, Host, LinkBinsOptions, Path, PathBuf,
-    PreparedPackageBins, TopLevelCandidates, link_bins_dir,
+    BinCandidates,
+    BinsDirPass,
+    HashMap,
+    HashSet,
+    Host,
+    LinkBinsOptions,
+    Path,
+    PathBuf,
+    PreparedPackageBins,
+    TopLevelCandidates,
+    link_bins_dir,
 };
 use pnpm_cmd_shim::DirectoryBinPlan;
 use std::fs;

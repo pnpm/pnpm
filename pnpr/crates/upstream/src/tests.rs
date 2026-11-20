@@ -9,20 +9,36 @@ mod circuit_breaker;
 mod metadata_requests;
 
 use super::{
-    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, TarballRevision, Upstream,
-    abbreviate_packument, extract_upstream_revision_integrity, extract_version_manifest,
-    http::UPSTREAM_ERROR_BODY_LIMIT, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
+    CacheValidators,
+    CircuitBreaker,
+    FetchOutcome,
+    PackumentFetch,
+    TarballRevision,
+    Upstream,
+    abbreviate_packument,
+    extract_upstream_revision_integrity,
+    extract_version_manifest,
+    http::UPSTREAM_ERROR_BODY_LIMIT,
+    rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls,
     tarball_basename,
 };
 use jiff::Timestamp;
 use pnpr_config::UpstreamConfig;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
+use reqwest::header::{
+    AUTHORIZATION,
+    HeaderMap,
+    HeaderValue,
+};
 use serde_json::json;
 use std::time::Duration;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
     net::TcpListener,
 };
 

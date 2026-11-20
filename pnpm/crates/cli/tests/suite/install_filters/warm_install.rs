@@ -1,7 +1,20 @@
 use super::{
-    CATALOG_FOO, DEP, HELLO, ManifestDeps, NO_DEPS, PARENT, WorkspaceFixture, assert_eq, fs,
-    has_link, has_snapshot, importer_version, importing_started_count, reports_up_to_date,
-    set_dependency, set_version,
+    CATALOG_FOO,
+    DEP,
+    HELLO,
+    ManifestDeps,
+    NO_DEPS,
+    PARENT,
+    WorkspaceFixture,
+    assert_eq,
+    fs,
+    has_link,
+    has_snapshot,
+    importer_version,
+    importing_started_count,
+    reports_up_to_date,
+    set_dependency,
+    set_version,
 };
 
 #[test]

@@ -1,14 +1,24 @@
 //! The pnpmfile's `preResolution` hook.
 
 use super::{
-    super::{Arc, InstallError, Lockfile, Path, Reporter},
+    super::{
+        Arc,
+        InstallError,
+        Lockfile,
+        Path,
+        Reporter,
+    },
     InstallView,
     lockfile_load::Loaded,
     validate_frozen::PreparedFrozenRun,
     wanted::WantedLockfile,
     workspace::InstallWorkspace,
 };
-use pnpm_reporter::{HookLog, LogEvent, LogLevel};
+use pnpm_reporter::{
+    HookLog,
+    LogEvent,
+    LogLevel,
+};
 use serde_json::Value;
 
 pub(super) async fn apply_or_run_pre_resolution_hook<Reporter: self::Reporter>(

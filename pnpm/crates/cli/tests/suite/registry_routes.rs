@@ -3,16 +3,26 @@
 //! locked children again from the new registry, so a version the new
 //! registry does not serve is not pinned from the old one.
 
-use crate::_utils::{append_workspace_yaml_key, pacquet_in, read_lockfile};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    pacquet_in,
+    read_lockfile,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::Lockfile;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     registry::TestRegistry,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 /// `@pnpm.e2e/foobar@100.0.0` declares `@pnpm.e2e/foo: ^100.0.0`, a plain

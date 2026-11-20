@@ -5,20 +5,38 @@
 //! store-index lookups entirely.
 
 pub use cached_rows::CachedCasPaths;
-pub(crate) use cached_rows::{load_cached_cas_paths, load_legacy_synthesized_cas_paths};
+pub(crate) use cached_rows::{
+    load_cached_cas_paths,
+    load_legacy_synthesized_cas_paths,
+};
 
 use super::{
-    Arc, ArchiveStoreProjection, HashMap, IntoParallelIterator, PackageContentCheck,
-    ParallelIterator, TarballError,
+    Arc,
+    ArchiveStoreProjection,
+    HashMap,
+    IntoParallelIterator,
+    PackageContentCheck,
+    ParallelIterator,
+    TarballError,
 };
 use pnpm_package_manifest::{
-    requires_build_from_cas_paths, requires_build_from_files,
+    requires_build_from_cas_paths,
+    requires_build_from_files,
     stored_requires_build_needs_manifest_check,
 };
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+};
 use pnpm_store_dir::{
-    PackageFilesIndex, PendingFilesCheck, PkgContentMismatch, SharedReadonlyStoreIndex,
-    SharedVerifiedFilesCache, StoreDir, files_maps,
+    PackageFilesIndex,
+    PendingFilesCheck,
+    PkgContentMismatch,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    files_maps,
 };
 
 /// Pre-fetched cas-paths map shared across all per-snapshot futures.

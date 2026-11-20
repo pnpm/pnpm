@@ -5,12 +5,19 @@
 use std::{
     borrow::Cow,
     fs::File,
-    sync::{Arc, OnceLock},
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 use serde_json::value::RawValue;
 
-use super::{FragmentSource, PackageVersions, VersionSlot};
+use super::{
+    FragmentSource,
+    PackageVersions,
+    VersionSlot,
+};
 
 /// A mirror file held open for on-demand fragment reads, counted
 /// against a caller-supplied cap so a fleet of held handles can never

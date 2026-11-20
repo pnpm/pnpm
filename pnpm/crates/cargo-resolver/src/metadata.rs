@@ -1,8 +1,20 @@
 use crate::{
-    features::{DependencyOptions, dependencies_from_parts},
-    model::{CargoMetadata, FeatureSelection, MetadataPackage, RegistryDependency},
+    features::{
+        DependencyOptions,
+        dependencies_from_parts,
+    },
+    model::{
+        CargoMetadata,
+        FeatureSelection,
+        MetadataPackage,
+        RegistryDependency,
+    },
 };
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use std::collections::BTreeMap;
 
 pub(crate) fn parse_metadata(metadata: &str) -> Result<CargoMetadata> {

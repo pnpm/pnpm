@@ -1,14 +1,33 @@
 use super::{
-    AppState, AuthedCaller, Deserialize, MAX_TEAM_BODY_BYTES, Path, Response, State,
-    TargetRegistry, TeamScope, add_team_member, create_team, destroy_team, get_org_teams,
-    get_team_members, grant_team_access, list_team_packages, private_no_cache, remove_team_member,
-    revoke_team_access, serve_org_packages,
+    AppState,
+    AuthedCaller,
+    Deserialize,
+    MAX_TEAM_BODY_BYTES,
+    Path,
+    Response,
+    State,
+    TargetRegistry,
+    TeamScope,
+    add_team_member,
+    create_team,
+    destroy_team,
+    get_org_teams,
+    get_team_members,
+    grant_team_access,
+    list_team_packages,
+    private_no_cache,
+    remove_team_member,
+    revoke_team_access,
+    serve_org_packages,
 };
 use axum::{
     Router,
     body::Bytes,
     extract::DefaultBodyLimit,
-    routing::{delete, get},
+    routing::{
+        delete,
+        get,
+    },
 };
 
 pub(super) fn team_routes(router: Router<AppState>, base: &str) -> Router<AppState> {

@@ -2,16 +2,25 @@
 
 use super::{
     FundError,
-    funding::{FundingSource, funding_sources},
+    funding::{
+        FundingSource,
+        funding_sources,
+    },
     projects::ProjectDependencies,
     report::InstalledPackage,
 };
-use crate::cli_args::{deps_tree::DependencyNode, sanitize::sanitize_inline};
+use crate::cli_args::{
+    deps_tree::DependencyNode,
+    sanitize::sanitize_inline,
+};
 use pnpm_network_web_auth::OpenUrl;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::Value;
-use std::{num::NonZeroUsize, path::Path};
+use std::{
+    num::NonZeroUsize,
+    path::Path,
+};
 
 pub fn open_package_funding<Sys: OpenUrl>(
     spec: &str,

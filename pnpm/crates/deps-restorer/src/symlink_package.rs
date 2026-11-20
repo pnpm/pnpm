@@ -1,10 +1,19 @@
 use crate::safe_join_modules_dir::InvalidDependencyAliasError;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_fs::{ForceSymlinkOutcome, force_symlink_dir};
+use pnpm_fs::{
+    ForceSymlinkOutcome,
+    force_symlink_dir,
+};
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Error type for [`symlink_package`].

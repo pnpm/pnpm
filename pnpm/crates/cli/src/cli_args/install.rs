@@ -1,11 +1,20 @@
 pub(crate) use arguments::InstallEntryMode;
 pub use arguments::{
-    InstallFetchArgs, InstallLockfileArgs, InstallMaterializationArgs, LockfileUpdateArgs,
+    InstallFetchArgs,
+    InstallLockfileArgs,
+    InstallMaterializationArgs,
+    LockfileUpdateArgs,
 };
 
-pub(crate) use pnpr_pnpmfile::{PnprTarget, pnpr_target, uses_pnpr_server};
+pub(crate) use pnpr_pnpmfile::{
+    PnprTarget,
+    pnpr_target,
+    uses_pnpr_server,
+};
 pub(crate) use pnpr_resolution::{
-    install_selected_via_pnpr, install_via_pnpr, resolves_locally_after,
+    install_selected_via_pnpr,
+    install_via_pnpr,
+    resolves_locally_after,
 };
 
 mod arguments;
@@ -13,52 +22,104 @@ mod arguments;
 use crate::{
     State,
     cli_args::{
-        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields, lockfile_dir::LockfileDirArg,
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
+        lockfile_dir::LockfileDirArg,
         override_version_references::warn_deprecated_override_version_references,
-        package_manager::read_root_manifest_json, pipelines::InstallFamilySelection,
+        package_manager::read_root_manifest_json,
+        pipelines::InstallFamilySelection,
         recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
     },
 };
-use clap::{Args, ValueEnum};
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use clap::{
+    Args,
+    ValueEnum,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    MaybeLazyLockfile,
+};
 use pnpm_lockfile_verification::{
-    VerifiedOfflineLockfile, VerifyLockfileResolutionsOptions, record_lockfile_verified,
+    VerifiedOfflineLockfile,
+    VerifyLockfileResolutionsOptions,
+    record_lockfile_verified,
     verify_lockfile_resolutions,
 };
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manager::{
-    InstallFrozenLockfileError, LockfileVerificationOverride, PolicyExcludes, SkippedSnapshots,
-    TarballPrefetcher, UpToDateFastPathCheck, UpdateSeedPolicy, WantedLockfileSatisfactionCheck,
-    WorkspaceInstallSelection, build_resolution_verifiers, install_already_up_to_date,
-    install_already_up_to_date_from_records, install_already_up_to_date_per_project,
-    materialization_closure, merge_filtered_wanted_lockfile, report_merged_lockfile_conflicts,
+    InstallFrozenLockfileError,
+    LockfileVerificationOverride,
+    PolicyExcludes,
+    SkippedSnapshots,
+    TarballPrefetcher,
+    UpToDateFastPathCheck,
+    UpdateSeedPolicy,
+    WantedLockfileSatisfactionCheck,
+    WorkspaceInstallSelection,
+    build_resolution_verifiers,
+    install_already_up_to_date,
+    install_already_up_to_date_from_records,
+    install_already_up_to_date_per_project,
+    materialization_closure,
+    merge_filtered_wanted_lockfile,
+    report_merged_lockfile_conflicts,
     wanted_lockfile_satisfies_workspace,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_pnpr_client::{
-    PnprClient, PnprClientError, PublishConfig, ResolveProject, ResolveProjectsOptions,
+    PnprClient,
+    PnprClientError,
+    PublishConfig,
+    ResolveProject,
+    ResolveProjectsOptions,
     VerifyLockfileOptions,
 };
 use pnpm_reporter::Reporter;
 use pnpr_config_validation::DryRunIncompatibleWithPnpr;
 use pnpr_lockfile::{
-    LocalLockfileInstall, full_workspace_importer_ids, install_from_local_lockfile,
-    link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_lockfile_dir, selection_importer_ids,
+    LocalLockfileInstall,
+    full_workspace_importer_ids,
+    install_from_local_lockfile,
+    link_pnpr_lockfile,
+    merge_and_save_pnpr_lockfile,
+    pnpr_lockfile_dir,
+    selection_importer_ids,
 };
-use pnpr_pnpmfile::{check_frozen_pnpmfile, record_pnpmfile};
+use pnpr_pnpmfile::{
+    check_frozen_pnpmfile,
+    record_pnpmfile,
+};
 use pnpr_request::{
-    PnprBenchmarkRegistryOverride, PnprRequestInputs, check_pnpr_applied_settings, pnpr_catalogs,
-    pnpr_request_inputs, resolve_projects_for_pnpr, resolve_projects_options,
+    PnprBenchmarkRegistryOverride,
+    PnprRequestInputs,
+    check_pnpr_applied_settings,
+    pnpr_catalogs,
+    pnpr_request_inputs,
+    resolve_projects_for_pnpr,
+    resolve_projects_options,
 };
-use pnpr_resolution::{PnprSession, install_via_pnpr_inner, prefetch_allowed};
+use pnpr_resolution::{
+    PnprSession,
+    install_via_pnpr_inner,
+    prefetch_allowed,
+};
 use pnpr_verification::{
-    local_lockfile_verification, verify_pnpr_input_lockfile, verify_settled_pnpr_lockfile,
+    local_lockfile_verification,
+    verify_pnpr_input_lockfile,
+    verify_settled_pnpr_lockfile,
 };
 
 use std::path::PathBuf;

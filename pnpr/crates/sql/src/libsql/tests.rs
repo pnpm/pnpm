@@ -1,7 +1,13 @@
 use super::{
-    SyncStart, SyncState,
+    SyncStart,
+    SyncState,
     statements::{
-        StepKind, StreamState, TxStatus, classify_sql, script_transition, step_transition,
+        StepKind,
+        StreamState,
+        TxStatus,
+        classify_sql,
+        script_transition,
+        step_transition,
     },
 };
 use std::time::Duration;

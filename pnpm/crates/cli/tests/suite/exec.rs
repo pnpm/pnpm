@@ -3,9 +3,15 @@ use crate::_utils::write_executable;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 #[cfg(target_os = "windows")]
-use std::{thread, time::Duration};
+use std::{
+    thread,
+    time::Duration,
+};
 
 #[test]
 fn exec_sets_package_manager_environment() {
@@ -47,7 +53,10 @@ fn exec_sets_package_manager_environment() {
 #[cfg(unix)]
 #[test]
 fn exec_sets_node_environment_with_non_utf8_path() {
-    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+    use std::{
+        ffi::OsString,
+        os::unix::ffi::OsStringExt,
+    };
 
     let CommandTempCwd { mut pacquet, root, .. } = CommandTempCwd::init();
     let mut path = OsString::from_vec(b"/non-utf8-\xff:".to_vec());
@@ -69,7 +78,10 @@ fn exec_sets_node_environment_with_non_utf8_path() {
 fn exec_preserves_non_utf8_node_paths() {
     use std::{
         ffi::OsString,
-        os::unix::{ffi::OsStringExt, fs::symlink},
+        os::unix::{
+            ffi::OsStringExt,
+            fs::symlink,
+        },
     };
 
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -390,7 +402,11 @@ const WAITER_PID_ENV: &str = "PNPM_TEST_DETACHED_WAITER_PID";
 #[cfg(target_os = "windows")]
 #[test]
 fn exec_output_ends_while_a_detached_grandchild_runs() {
-    use std::{io::Read, process::Stdio, sync::mpsc};
+    use std::{
+        io::Read,
+        process::Stdio,
+        sync::mpsc,
+    };
 
     if let Some(waiter_pid_path) = std::env::var_os(WAITER_PID_ENV) {
         start_detached_waiter(Path::new(&waiter_pid_path));
@@ -440,12 +456,26 @@ fn exec_output_ends_while_a_detached_grandchild_runs() {
 /// runs under `pnpm exec`.
 #[cfg(target_os = "windows")]
 fn start_detached_waiter(waiter_pid_path: &Path) {
-    use std::{os::windows::process::CommandExt, process::Stdio};
+    use std::{
+        os::windows::process::CommandExt,
+        process::Stdio,
+    };
     use windows_sys::Win32::{
-        Foundation::{HANDLE_FLAG_INHERIT, SetHandleInformation},
+        Foundation::{
+            HANDLE_FLAG_INHERIT,
+            SetHandleInformation,
+        },
         System::{
-            Console::{GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE},
-            Threading::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS},
+            Console::{
+                GetStdHandle,
+                STD_ERROR_HANDLE,
+                STD_INPUT_HANDLE,
+                STD_OUTPUT_HANDLE,
+            },
+            Threading::{
+                CREATE_NEW_PROCESS_GROUP,
+                DETACHED_PROCESS,
+            },
         },
     };
 

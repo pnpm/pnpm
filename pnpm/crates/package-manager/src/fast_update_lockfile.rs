@@ -3,10 +3,19 @@ pub(crate) use peer_contexts::peer_sensitive_packages;
 mod peer_contexts;
 
 use pnpm_lockfile::{
-    Lockfile, PkgName, PkgNameVerPeer, Prefix, ResolvedDependencySpec, SnapshotDepRef,
-    SnapshotEntry, VersionPart,
+    Lockfile,
+    PkgName,
+    PkgNameVerPeer,
+    Prefix,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
+    VersionPart,
 };
-use std::collections::{HashSet, VecDeque};
+use std::collections::{
+    HashSet,
+    VecDeque,
+};
 
 /// What the fast-update handlers did to the dependency graph, so the
 /// maintenance that keeps the lockfile consistent — pruning, the

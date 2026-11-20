@@ -1,10 +1,19 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
-use std::{collections::HashSet, ffi::OsStr, fs, path::Path, process::Command};
+use std::{
+    collections::HashSet,
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn copy_fixture(name: &str) -> TempDir {

@@ -3,11 +3,24 @@
 //! install did. Covers the configurations reported in
 //! <https://github.com/pnpm/pnpm/issues/17889>.
 
-use super::{write_manifest, yaml_path};
-use crate::_utils::{append_workspace_yaml_key, pacquet_in};
+use super::{
+    write_manifest,
+    yaml_path,
+};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn frozen_offline_install_keeps_links_in_an_external_modules_dir() {

@@ -1,6 +1,13 @@
 use super::{
-    HashMap, HashSet, ImporterDepVersion, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotDepRef,
-    SnapshotEntry, VecDeque,
+    HashMap,
+    HashSet,
+    ImporterDepVersion,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    SnapshotDepRef,
+    SnapshotEntry,
+    VecDeque,
 };
 
 /// The pruned deployed lockfile, indexed for binding the peers of linked

@@ -1,21 +1,44 @@
 use axum::{
-    extract::{Path, State},
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    extract::{
+        Path,
+        State,
+    },
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use serde::Deserialize;
 use serde_json::json;
 
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_policy::Identity;
 use pnpr_storage::publish::extract_predicate_type;
 use pnpr_upstream::FetchOutcome;
 
 use super::{
-    Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, addressed_registry, authorize,
-    authorized_upstream, ecosystem::upstream_sources, ensure_osv_allowed, hosted_read_namespace,
-    not_found, private_no_cache, resolve_registry_source,
+    Action,
+    AppState,
+    AuthedCaller,
+    RegistrySource,
+    TargetRegistry,
+    addressed_registry,
+    authorize,
+    authorized_upstream,
+    ecosystem::upstream_sources,
+    ensure_osv_allowed,
+    hosted_read_namespace,
+    not_found,
+    private_no_cache,
+    resolve_registry_source,
 };
 
 #[derive(Deserialize)]

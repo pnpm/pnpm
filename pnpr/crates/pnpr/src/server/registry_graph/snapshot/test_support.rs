@@ -1,6 +1,10 @@
 //! Hooks the resolver tests use to swap the routing snapshot.
 
-use super::{RoutingConfig, RoutingSnapshot, build_snapshot};
+use super::{
+    RoutingConfig,
+    RoutingSnapshot,
+    build_snapshot,
+};
 
 impl super::super::super::AppState {
     /// The resolver engine of `routing`, for tests outside the server.

@@ -4,9 +4,16 @@
 //! [`LogoutOptions`].
 
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
+use pnpm_auth_commands::logout::{
+    Host as AuthHost,
+    LogoutOptions,
+    logout,
+};
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
 use std::collections::HashMap;

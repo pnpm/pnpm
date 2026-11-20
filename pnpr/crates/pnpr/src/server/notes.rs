@@ -10,20 +10,43 @@
 //! publication.
 
 pub(super) use listing::serve_package_notes;
-pub(super) use responses::{NoteRequest, PublicationLink, note_text_response, read_note_body};
+pub(super) use responses::{
+    NoteRequest,
+    PublicationLink,
+    note_text_response,
+    read_note_body,
+};
 
 mod listing;
 mod responses;
 
 use super::{
-    Action, AppState, Identity, RegistrySource, WriteTarget, authorize_package, not_found,
-    publications::{PublicationNoteLink, readable_publication_note},
+    Action,
+    AppState,
+    Identity,
+    RegistrySource,
+    WriteTarget,
+    authorize_package,
+    not_found,
+    publications::{
+        PublicationNoteLink,
+        readable_publication_note,
+    },
     resolve_write_target,
 };
-use axum::response::{IntoResponse, Response};
+use axum::response::{
+    IntoResponse,
+    Response,
+};
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::database::{NoteChange, SqlDatabase};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use pnpr_storage::database::{
+    NoteChange,
+    SqlDatabase,
+};
 use responses::version_note_response;
 use std::sync::Arc;
 

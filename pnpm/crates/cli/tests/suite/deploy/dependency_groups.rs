@@ -1,6 +1,16 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Lockfile, dangling_links, deploy_graph_keys,
-    deploy_optional_edges, fs, pacquet_cmd, virtual_store_entries, write_project, write_workspace,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    Lockfile,
+    dangling_links,
+    deploy_graph_keys,
+    deploy_optional_edges,
+    fs,
+    pacquet_cmd,
+    virtual_store_entries,
+    write_project,
+    write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 

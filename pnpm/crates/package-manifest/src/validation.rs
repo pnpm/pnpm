@@ -1,4 +1,8 @@
-use super::{DependencyGroup, PackageManifest, PackageManifestError};
+use super::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
 
 impl PackageManifest {
     /// Reject dependency specifiers that an install cannot resolve. A group

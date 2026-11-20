@@ -7,9 +7,15 @@
 //!   type list includes `Number` (used by `castField` to coerce a value).
 //! - [`is_ini_config_key`] / [`is_config_file_key`].
 
-pub use routing::{is_config_file_key, is_ini_config_key};
+pub use routing::{
+    is_config_file_key,
+    is_ini_config_key,
+};
 
-use std::{collections::HashSet, sync::OnceLock};
+use std::{
+    collections::HashSet,
+    sync::OnceLock,
+};
 
 /// `(kebab-key, type-includes-Number)` for pnpm's own settings (`pnpmTypes`).
 const PNPM_TYPES: &[(&str, bool)] = &[

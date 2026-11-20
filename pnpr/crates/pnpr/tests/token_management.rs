@@ -1,16 +1,37 @@
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
     sync::Arc,
 };
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode, header},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use pnpr::{AuthState, Config, MaxUsers, TokensConfig, router, router_with_auth};
+use pnpr::{
+    AuthState,
+    Config,
+    MaxUsers,
+    TokensConfig,
+    router,
+    router_with_auth,
+};
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 

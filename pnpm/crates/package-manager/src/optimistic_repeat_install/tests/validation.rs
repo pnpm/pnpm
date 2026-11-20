@@ -3,19 +3,32 @@
 use super::super::{
     pnpmfiles_drift,
     validation::{
-        FileDigest, FileDigests, RecordValidation, Vouched, manifest_digest, manifest_stand_ins,
-        project_bins_match, record_validation,
+        FileDigest,
+        FileDigests,
+        RecordValidation,
+        Vouched,
+        manifest_digest,
+        manifest_stand_ins,
+        project_bins_match,
+        record_validation,
     },
 };
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::ProjectManifestPaths;
-use pnpm_workspace_state::{FileSignature, Validation, WorkspaceState};
+use pnpm_workspace_state::{
+    FileSignature,
+    Validation,
+    WorkspaceState,
+};
 use std::{
     collections::HashSet,
     fs,
     path::Path,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::tempdir;
 

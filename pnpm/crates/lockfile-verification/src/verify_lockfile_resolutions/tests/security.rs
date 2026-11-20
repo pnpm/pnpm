@@ -1,8 +1,19 @@
 use super::{
-    Arc, CapturingVerifier, FetchFails, Mutex, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-    ResolutionVerifier, SilentReporter, TempDir, VerifyError, VerifyLockfileResolutionsOptions,
-    collect_resolution_policy_violations, lockfile_verification_is_cached,
-    lockfile_verification_is_cached_by_content, parse, verify_lockfile_resolutions,
+    Arc,
+    CapturingVerifier,
+    FetchFails,
+    Mutex,
+    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+    ResolutionVerifier,
+    SilentReporter,
+    TempDir,
+    VerifyError,
+    VerifyLockfileResolutionsOptions,
+    collect_resolution_policy_violations,
+    lockfile_verification_is_cached,
+    lockfile_verification_is_cached_by_content,
+    parse,
+    verify_lockfile_resolutions,
 };
 
 #[tokio::test]

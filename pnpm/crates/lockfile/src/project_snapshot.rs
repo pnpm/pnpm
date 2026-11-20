@@ -1,6 +1,13 @@
-use crate::{PkgName, ResolvedDependencyMap, ResolvedDependencySpec};
+use crate::{
+    PkgName,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+};
 use pnpm_package_manifest::DependencyGroup;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::HashMap;
 
 /// Snapshot of a single project.

@@ -3,15 +3,27 @@ mod capabilities;
 mod temporary_builds;
 
 use super::{
-    ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
-    SnapshotCacheKey, cas_paths_key, settle_check,
+    ConcurrentCheck,
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+    SnapshotCacheKey,
+    cas_paths_key,
+    settle_check,
 };
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{PackageKey, Prefix, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    Prefix,
+    SnapshotEntry,
+};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 

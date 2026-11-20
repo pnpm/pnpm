@@ -7,8 +7,14 @@
 
 use std::{
     fs,
-    path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 use pnpm_tarball::CacheHeaders;

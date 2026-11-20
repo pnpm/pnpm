@@ -1,12 +1,31 @@
 use super::{
-    Arc, HashSet, Package, PackageVersion, PackageVersionPolicy, PickPackageError,
-    PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck,
-    Timestamp, VersionSelectors, filter_pkg_metadata_versions, offline_store::tarball_key,
-    pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
+    Arc,
+    HashSet,
+    Package,
+    PackageVersion,
+    PackageVersionPolicy,
+    PickPackageError,
+    PickPackageFromMetaOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    SkippedTimeCheck,
+    Timestamp,
+    VersionSelectors,
+    filter_pkg_metadata_versions,
+    offline_store::tarball_key,
+    pick_lowest_version_by_version_range,
+    pick_package_from_meta,
+    pick_version_by_version_range,
     warn_missing_time_once,
 };
-use crate::{OfflineStoreView, PickPackageFromMetaError};
-use node_semver::{Identifier, Version};
+use crate::{
+    OfflineStoreView,
+    PickPackageFromMetaError,
+};
+use node_semver::{
+    Identifier,
+    Version,
+};
 
 /// Same fields as [`super::PickPackageOptions`] minus the dispatcher-only
 /// ones (registry, `dry_run`); plus the `ignore_missing_time_field`

@@ -17,13 +17,26 @@
 //! companion that re-issues the whole request when consuming or parsing
 //! the body fails. See its docs for why that second layer exists.
 
-use std::{future::Future, time::Duration};
+use std::{
+    future::Future,
+    time::Duration,
+};
 
-use reqwest::{Client, RequestBuilder, Response, StatusCode};
+use reqwest::{
+    Client,
+    RequestBuilder,
+    Response,
+    StatusCode,
+};
 
 use crate::{
-    AuthHeaders, SecureAuthResponse, ThrottledClient, ThrottledClientGuard, is_permanent_error,
-    redact_url_credentials, redact_url_for_display,
+    AuthHeaders,
+    SecureAuthResponse,
+    ThrottledClient,
+    ThrottledClientGuard,
+    is_permanent_error,
+    redact_url_credentials,
+    redact_url_for_display,
 };
 
 /// Settings for the per-request retry loop. Maps to the

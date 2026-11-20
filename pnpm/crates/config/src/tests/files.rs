@@ -1,4 +1,12 @@
-use super::{Config, HostNoHome, assert_eq, fs, load_with_project_and_user, tempdir, write_file};
+use super::{
+    Config,
+    HostNoHome,
+    assert_eq,
+    fs,
+    load_with_project_and_user,
+    tempdir,
+    write_file,
+};
 
 #[test]
 pub fn user_username_password_pins_to_its_own_file_registry() {

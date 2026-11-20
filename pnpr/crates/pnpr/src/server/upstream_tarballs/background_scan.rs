@@ -1,13 +1,27 @@
 use super::UpstreamTarball;
 use crate::server::{
-    AppState, CanonicalPackageName, Integrity, expected_tarball_dist, tar_decode_limit,
+    AppState,
+    CanonicalPackageName,
+    Integrity,
+    expected_tarball_dist,
+    tar_decode_limit,
     tar_integrity_within,
 };
 use std::{
     collections::HashSet,
-    io::{BufReader, Read},
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, PoisonError},
+    io::{
+        BufReader,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        PoisonError,
+    },
 };
 
 /// Concurrent and queued background `.tgz` scans after an upstream tarball is

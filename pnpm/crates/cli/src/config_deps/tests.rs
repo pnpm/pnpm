@@ -1,10 +1,31 @@
 use super::{
-    hooks::{legacy_registries_warning, warn_legacy_registries},
-    resolve_engine_version, run_update_config_hooks,
+    hooks::{
+        legacy_registries_warning,
+        warn_legacy_registries,
+    },
+    resolve_engine_version,
+    run_update_config_hooks,
 };
-use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
-use std::{collections::BTreeMap, fs, path::Path, sync::Mutex};
+use pnpm_config::{
+    Config,
+    Host,
+    NodeLinker,
+    PNPM_VERSION,
+    TrustPolicy,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+    sync::Mutex,
+};
 
 #[test]
 fn legacy_registries_warning_names_routes_left_unchanged() {

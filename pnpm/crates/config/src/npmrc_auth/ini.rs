@@ -1,9 +1,24 @@
 use super::{
-    Cow, EnvVar, NpmrcAuth, NpmrcRoutes, Path, apply_creds_field, apply_tls_field,
-    env_replace_lossy, expand_inline_pem, is_auth_value_key, parse_bool, redact_npm_auth_key,
-    resolve_cafile, split_ini_creds_key, split_ssl_key,
+    Cow,
+    EnvVar,
+    NpmrcAuth,
+    NpmrcRoutes,
+    Path,
+    apply_creds_field,
+    apply_tls_field,
+    env_replace_lossy,
+    expand_inline_pem,
+    is_auth_value_key,
+    parse_bool,
+    redact_npm_auth_key,
+    resolve_cafile,
+    split_ini_creds_key,
+    split_ssl_key,
 };
-use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
+use pnpm_network::{
+    canonicalize_npm_registry_url,
+    normalize_registry_url,
+};
 
 #[derive(Clone, Copy)]
 struct ParseOptions {

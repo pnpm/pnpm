@@ -1,7 +1,16 @@
 use super::{
-    ARTIFACTORY_REGISTRY, LockfileFormOptions, LockfileResolution, RegistryResolution,
-    RegistryServerType, SHA512, TarballResolution, artifactory_form, assert_eq, integrity,
-    text_block, undeclared_form,
+    ARTIFACTORY_REGISTRY,
+    LockfileFormOptions,
+    LockfileResolution,
+    RegistryResolution,
+    RegistryServerType,
+    SHA512,
+    TarballResolution,
+    artifactory_form,
+    assert_eq,
+    integrity,
+    text_block,
+    undeclared_form,
 };
 
 /// A malformed built-in resolution must stay a parse error: the custom

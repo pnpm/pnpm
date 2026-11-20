@@ -24,10 +24,16 @@ fn local_package_uses_the_serving_path() {
 
 #[test]
 fn local_fetch_rejects_urls_that_classification_does_not_recognize() {
-    use crate::{Footprint, RouteHook};
+    use crate::{
+        Footprint,
+        RouteHook,
+    };
     use pnpm_network::UpstreamRouteHook;
     use pnpr_policy::Identity;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{
+        Arc,
+        Mutex,
+    };
 
     let mut config = Config::proxy("127.0.0.1:7677".parse().unwrap(), PathBuf::from("unused"));
     config.http.public_url = "https://registry.example/base".to_string();
@@ -59,10 +65,24 @@ fn local_fetch_rejects_urls_that_classification_does_not_recognize() {
 
 #[test]
 fn denied_own_origin_package_does_not_share_public_or_authorized_metadata_scope() {
-    use crate::{Footprint, PrivateAccessDescriptor, RouteHook};
-    use pnpm_network::{MetadataCacheScope, UpstreamRouteHook};
-    use pnpr_policy::{AccessList, Identity, RuleOverride};
-    use std::sync::{Arc, Mutex};
+    use crate::{
+        Footprint,
+        PrivateAccessDescriptor,
+        RouteHook,
+    };
+    use pnpm_network::{
+        MetadataCacheScope,
+        UpstreamRouteHook,
+    };
+    use pnpr_policy::{
+        AccessList,
+        Identity,
+        RuleOverride,
+    };
+    use std::sync::{
+        Arc,
+        Mutex,
+    };
 
     let mut config = Config::proxy("127.0.0.1:7677".parse().unwrap(), PathBuf::from("unused"));
     config.http.public_url = "https://pnpr.example".to_string();
@@ -135,7 +155,10 @@ fn denied_own_origin_package_does_not_share_public_or_authorized_metadata_scope(
 
 #[test]
 fn footprint_serde_roundtrip_and_extend_preserve_descriptors() {
-    use crate::{Footprint, PrivateAccessDescriptor};
+    use crate::{
+        Footprint,
+        PrivateAccessDescriptor,
+    };
 
     let hosted = PrivateAccessDescriptor::Hosted { policy_id: "local\0@acme/a".to_string() };
     let alias = PrivateAccessDescriptor::Alias {

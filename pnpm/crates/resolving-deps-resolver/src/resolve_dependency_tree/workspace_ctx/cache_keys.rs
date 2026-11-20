@@ -1,5 +1,12 @@
 use super::{
-    Arc, Hash, Hasher, PathBuf, PkgNameVerPeer, PkgResolutionId, ResolveOptions, Timestamp,
+    Arc,
+    Hash,
+    Hasher,
+    PathBuf,
+    PkgNameVerPeer,
+    PkgResolutionId,
+    ResolveOptions,
+    Timestamp,
     WorkspacePackages,
 };
 

@@ -1,5 +1,12 @@
-use super::{package_manager_to_sync_for_version, version_satisfies, wanted_package_manager};
-use pnpm_config::{PNPM_VERSION, PmOnFail};
+use super::{
+    package_manager_to_sync_for_version,
+    version_satisfies,
+    wanted_package_manager,
+};
+use pnpm_config::{
+    PNPM_VERSION,
+    PmOnFail,
+};
 use std::path::Path;
 
 fn package_manager_to_sync(

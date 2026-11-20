@@ -20,16 +20,28 @@
 //! profiling shows it's worth the complexity.
 
 use crate::{
-    GetRegisteredProjectsError, StoreDir, StoreLockError, get_registered_projects,
+    GetRegisteredProjectsError,
+    StoreDir,
+    StoreLockError,
+    get_registered_projects,
     prune_cas::PruneCasError,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
     collections::HashSet,
     fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 mod mark;

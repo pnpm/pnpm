@@ -1,8 +1,14 @@
 use crate::{
     cycles::CycleReport,
-    modules::{CrateModules, TopLevelGraph},
+    modules::{
+        CrateModules,
+        TopLevelGraph,
+    },
 };
-use std::{collections::BTreeMap, fmt::Write as _};
+use std::{
+    collections::BTreeMap,
+    fmt::Write as _,
+};
 
 /// The module graph and largest cycle of every workspace crate.
 pub fn read_all(modules: &BTreeMap<String, CrateModules>) -> Vec<(CycleReport, TopLevelGraph)> {

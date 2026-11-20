@@ -4,19 +4,40 @@
 pub use crate::graph::DepField;
 
 pub use selection::{
-    compare_versions, merge_trees, name_ver_from_dep_path, resolve_package_nodes, sort_trees,
+    compare_versions,
+    merge_trees,
+    name_ver_from_dep_path,
+    resolve_package_nodes,
+    sort_trees,
 };
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+};
 
 use super::{
     TreeNodeId,
-    graph::{DependencyGraph, ImporterDependency},
+    graph::{
+        DependencyGraph,
+        ImporterDependency,
+    },
     peers_suffix_hash,
-    pkg_info::{EdgeContext, ManifestSource, PkgInfoEnv, get_pkg_info},
-    search::{SearchMatch, Searcher},
+    pkg_info::{
+        EdgeContext,
+        ManifestSource,
+        PkgInfoEnv,
+        get_pkg_info,
+    },
+    search::{
+        SearchMatch,
+        Searcher,
+    },
 };
 
 /// One node of the reverse tree: a package or workspace project that
@@ -454,7 +475,11 @@ mod manifest;
 mod selection;
 
 use manifest::ManifestProjector;
-use selection::{has_snapshot, match_package, package_merge_id};
+use selection::{
+    has_snapshot,
+    match_package,
+    package_merge_id,
+};
 
 #[cfg(test)]
 mod tests;

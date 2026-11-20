@@ -1,7 +1,9 @@
 #[cfg(any(unix, target_os = "wasi"))]
 pub use directory::grant_inherited_dir_mode;
 pub use directory::{
-    create_dir_all_inheriting_mode, inherited_dir_bits, nearest_existing_ancestor,
+    create_dir_all_inheriting_mode,
+    inherited_dir_bits,
+    nearest_existing_ancestor,
 };
 
 mod directory;
@@ -11,7 +13,10 @@ use directory::is_unchangeable;
 #[cfg(target_os = "linux")]
 use pipe_trait::Pipe;
 
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// The POSIX mode `metadata` carries, or `None` off Unix.
 #[must_use]
@@ -272,7 +277,10 @@ pub fn restore_exec_bit_from_cas_suffix(cas_path: &Path, target: &Path) -> io::R
 pub fn set_path_permissions(path: &Path, mode: u32) -> io::Result<()> {
     #[cfg(unix)]
     {
-        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+        use std::{
+            fs::Permissions,
+            os::unix::fs::PermissionsExt,
+        };
         let file = crate::ensure_file::retry_on_fd_pressure(|| open_without_following(path))?;
         if file.metadata()?.permissions().mode() & 0o7777 != mode {
             file.set_permissions(Permissions::from_mode(mode))?;
@@ -302,7 +310,10 @@ pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     return {
         use std::{
             fs::Permissions,
-            os::unix::fs::{MetadataExt, PermissionsExt},
+            os::unix::fs::{
+                MetadataExt,
+                PermissionsExt,
+            },
         };
         let mode = file.metadata()?.mode();
         if mode & EXEC_MASK == EXEC_MASK {
@@ -415,7 +426,10 @@ impl UnixCreationMode {
 /// not be read.
 #[cfg(unix)]
 pub fn grant_mode_bits(file: &std::fs::File, wanted: u32) -> io::Result<Option<u32>> {
-    use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+    use std::{
+        fs::Permissions,
+        os::unix::fs::PermissionsExt,
+    };
     let current = match file.metadata() {
         Ok(meta) => meta.permissions().mode() & 0o777,
         Err(error) if is_unchangeable(&error) => return Ok(None),

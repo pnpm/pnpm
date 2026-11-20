@@ -2,16 +2,30 @@
 //! protocol: which reads go to the replica, which to the primary, and what a
 //! replica that lags the primary may serve.
 
-use super::{npm, packument};
+use super::{
+    npm,
+    packument,
+};
 use crate::{
-    DocumentWrite, HostedDocumentVersion,
-    database::{NoteChange, PackageMetadata, SqlDatabase},
+    DocumentWrite,
+    HostedDocumentVersion,
+    database::{
+        NoteChange,
+        PackageMetadata,
+        SqlDatabase,
+    },
 };
 use pnpr_config::LibsqlSettings;
-use pnpr_libsql::testing::{Primary, serve_primary};
+use pnpr_libsql::testing::{
+    Primary,
+    serve_primary,
+};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::{
-    adapter::{Adapter, WriteTransaction},
+    adapter::{
+        Adapter,
+        WriteTransaction,
+    },
     libsql::LibsqlAdapter,
 };
 use serde_json::Value;
@@ -20,7 +34,10 @@ use std::{
     path::Path,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
 use tempfile::TempDir;
@@ -289,7 +306,12 @@ fn round_trips(server: &Server) -> Vec<Vec<String>> {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_write_makes_two_round_trips_however_much_it_carries() {
     use crate::database::{
-        BatchDocument, PublicationRequest, PublishNotes, ReleaseRecords, TagChange, VersionNote,
+        BatchDocument,
+        PublicationRequest,
+        PublishNotes,
+        ReleaseRecords,
+        TagChange,
+        VersionNote,
     };
     let server = server().await;
     let database = server.instance(None, 60);
@@ -402,11 +424,19 @@ async fn a_write_makes_two_round_trips_however_much_it_carries() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_unsynced_replica_reads_exact_versions_and_blobs_from_the_primary() {
     use super::{
-        blobs::{id, tgz},
+        blobs::{
+            id,
+            tgz,
+        },
         log::record_of,
     };
     use crate::database::{
-        BatchDocument, BlobFence, BlobRef, HostedLookup, PublicationRequest, PublishNotes,
+        BatchDocument,
+        BlobFence,
+        BlobRef,
+        HostedLookup,
+        PublicationRequest,
+        PublishNotes,
         ReleaseRecords,
     };
 

@@ -31,14 +31,27 @@
 
 use std::{
     path::Path,
-    sync::{Mutex, PoisonError},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    sync::{
+        Mutex,
+        PoisonError,
+    },
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 use pnpr_policy::Identity;
-use pnpr_route::{Footprint, RouteContext};
+use pnpr_route::{
+    Footprint,
+    RouteContext,
+};
 use rusqlite::Connection;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Soft cap on cached verdicts; the oldest rows (by `verified_at_ms`)
 /// are evicted past this.

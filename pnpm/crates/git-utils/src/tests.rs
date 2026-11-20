@@ -1,7 +1,15 @@
 use super::{
-    CommandOutput, RunCommand, get_branches_containing_head, get_current_branch, is_head_detached,
+    CommandOutput,
+    RunCommand,
+    get_branches_containing_head,
+    get_current_branch,
+    is_head_detached,
 };
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::TempDir;
 
 // The real provider is only reached by the FIFO tests, which need a

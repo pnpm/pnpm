@@ -1,21 +1,45 @@
-use std::{net::IpAddr, sync::Arc, time::Instant};
+use std::{
+    net::IpAddr,
+    sync::Arc,
+    time::Instant,
+};
 
 use axum::{
     Router,
-    extract::{ConnectInfo, Request, State},
-    http::{HeaderName, HeaderValue, Method, header},
+    extract::{
+        ConnectInfo,
+        Request,
+        State,
+    },
+    http::{
+        HeaderName,
+        HeaderValue,
+        Method,
+        header,
+    },
     middleware::Next,
     response::Response,
 };
 use tower_http::compression::{
     CompressionLayer,
-    predicate::{DefaultPredicate, NotForContentType, Predicate as _},
+    predicate::{
+        DefaultPredicate,
+        NotForContentType,
+        Predicate as _,
+    },
 };
 use tracing::Instrument;
 
 use crate::server::{
-    AppState, AuthedCaller, ClientIp, PeerAddr, RequestId, generate_request_id,
-    is_valid_request_id, loggable_uri, resolve_client_ip,
+    AppState,
+    AuthedCaller,
+    ClientIp,
+    PeerAddr,
+    RequestId,
+    generate_request_id,
+    is_valid_request_id,
+    loggable_uri,
+    resolve_client_ip,
 };
 
 pub(super) fn with_observability_layers(

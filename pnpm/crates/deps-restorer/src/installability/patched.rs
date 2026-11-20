@@ -1,6 +1,16 @@
-use super::platform::{check_installability, manifest_from_metadata};
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
-use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions};
+use super::platform::{
+    check_installability,
+    manifest_from_metadata,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
+use pnpm_package_is_installable::{
+    InstallabilityError,
+    InstallabilityOptions,
+};
 
 /// Returns whether the snapshot has an applied patch.
 ///

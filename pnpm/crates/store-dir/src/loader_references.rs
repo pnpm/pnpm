@@ -1,8 +1,20 @@
-use crate::{CAS_MANIFEST_FILENAME, StoreDir, StoreLoaderManifest, get_registered_projects};
+use crate::{
+    CAS_MANIFEST_FILENAME,
+    StoreDir,
+    StoreLoaderManifest,
+    get_registered_projects,
+};
 use std::{
-    collections::{BTreeMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Default)]

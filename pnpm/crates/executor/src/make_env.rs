@@ -1,9 +1,18 @@
-use crate::lifecycle::{DEV_PREINSTALL_ALREADY_RAN_ENV, ROOT_PREINSTALL_ALREADY_RAN_ENV};
+use crate::lifecycle::{
+    DEV_PREINSTALL_ALREADY_RAN_ENV,
+    ROOT_PREINSTALL_ALREADY_RAN_ENV,
+};
 use serde_json::Value;
 use std::{
     collections::HashMap,
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Env var pnpm stamps as `false` into every spawned script and exec

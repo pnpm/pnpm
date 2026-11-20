@@ -1,4 +1,7 @@
-use std::ffi::{c_int, c_long};
+use std::ffi::{
+    c_int,
+    c_long,
+};
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;

@@ -1,6 +1,17 @@
-use super::{byte_range, invalid};
-use serde_saphyr::granit_parser::{Event, Parser, Span, StrInput};
-use std::collections::{HashMap, HashSet};
+use super::{
+    byte_range,
+    invalid,
+};
+use serde_saphyr::granit_parser::{
+    Event,
+    Parser,
+    Span,
+    StrInput,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 use yamlpath::Component;
 
 pub(super) struct ScalarPath {

@@ -9,18 +9,35 @@
 //! they hold back only releases that carry their real date.
 
 use crate::{
-    ActionReference, GIT_CONCURRENCY, RepoVersion, find_current, global_warn,
-    process::{Command, Stdio},
+    ActionReference,
+    GIT_CONCURRENCY,
+    RepoVersion,
+    find_current,
+    global_warn,
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
-use futures_util::{StreamExt, stream};
+use futures_util::{
+    StreamExt,
+    stream,
+};
 use jiff::Timestamp;
 use node_semver::Version;
-use pnpm_config::version_policy::{PackageVersionPolicy, PolicyMatch};
+use pnpm_config::version_policy::{
+    PackageVersionPolicy,
+    PolicyMatch,
+};
 use pnpm_network::redact_and_sanitize;
 use pnpm_reporter::Reporter;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
     future::Future,
     io::Write,
     path::Path,

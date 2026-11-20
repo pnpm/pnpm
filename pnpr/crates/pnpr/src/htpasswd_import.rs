@@ -1,11 +1,25 @@
 use miette::IntoDiagnostic as _;
 use pnpr_auth::{
-    ImportMode::{Apply, Preview},
-    PasswordCollisions::{Keep, Overwrite},
-    is_bcrypt_hash, is_sha_hash, parse_htpasswd_line,
+    ImportMode::{
+        Apply,
+        Preview,
+    },
+    PasswordCollisions::{
+        Keep,
+        Overwrite,
+    },
+    is_bcrypt_hash,
+    is_sha_hash,
+    parse_htpasswd_line,
 };
-use pnpr_config::{BackendConfig, Config};
-use std::{collections::HashMap, path::PathBuf};
+use pnpr_config::{
+    BackendConfig,
+    Config,
+};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 #[derive(Debug, Clone)]
 pub struct HtpasswdImportOptions {

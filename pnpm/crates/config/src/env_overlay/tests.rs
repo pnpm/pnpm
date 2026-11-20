@@ -1,7 +1,19 @@
-use super::{TrustedSettings, WorkspaceSettings, parse_json_or_string, parse_tri_array};
+use super::{
+    TrustedSettings,
+    WorkspaceSettings,
+    parse_json_or_string,
+    parse_tri_array,
+};
 use crate::{
-    ColorMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType,
-    SaveWorkspaceProtocol, TrustPolicy, VirtualStoreType, api::EnvVar,
+    ColorMode,
+    Config,
+    LinkWorkspacePackages,
+    NodeLinker,
+    NodePackageMapType,
+    SaveWorkspaceProtocol,
+    TrustPolicy,
+    VirtualStoreType,
+    api::EnvVar,
 };
 use pnpm_store_dir::StoreIndexFormat;
 use pretty_assertions::assert_eq;

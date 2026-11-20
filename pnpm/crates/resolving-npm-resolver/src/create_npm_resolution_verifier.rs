@@ -28,7 +28,10 @@ mod registry_routes;
 mod trust_check;
 
 mod policy_snapshot;
-use policy_snapshot::{build_policy_snapshot, cached_policy_patterns};
+use policy_snapshot::{
+    build_policy_snapshot,
+    cached_policy_patterns,
+};
 
 mod registry_artifact;
 
@@ -38,15 +41,26 @@ mod age_check;
 
 mod artifact_binding;
 use artifact_binding::{
-    current_history_violation, current_revision_number, lockfile_revision,
-    mapped_tarball_url_violation, missing_artifact_violation, select_revision,
+    current_history_violation,
+    current_revision_number,
+    lockfile_revision,
+    mapped_tarball_url_violation,
+    missing_artifact_violation,
+    select_revision,
 };
 
 mod metadata_projection;
-use metadata_projection::{load_local_meta_time, project_abbreviated_meta, project_trust_meta};
+use metadata_projection::{
+    load_local_meta_time,
+    project_abbreviated_meta,
+    project_trust_meta,
+};
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::PathBuf,
     sync::Arc,
 };
@@ -56,36 +70,69 @@ use jiff::Timestamp;
 use miette::Diagnostic as _;
 use pipe_trait::Pipe;
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, TarballRevision, has_complete_sha512_digest,
-    is_git_hosted_tarball_url, is_revision_registry_tarball_url, normalized_registry_key,
+    LockfileResolution,
+    PkgName,
+    TarballRevision,
+    has_complete_sha512_digest,
+    is_git_hosted_tarball_url,
+    is_revision_registry_tarball_url,
+    normalized_registry_key,
 };
 use pnpm_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, redact_url_for_display,
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+    redact_url_credentials,
+    redact_url_for_display,
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, TrustPolicy, VerifyCtx, VerifyFuture,
+    ResolutionVerification,
+    ResolutionVerifier,
+    TrustPolicy,
+    VerifyCtx,
+    VerifyFuture,
     parse_packument_timestamp,
 };
 use pnpm_version_policy::PackageVersionPolicy;
 use serde_json::Value as JsonValue;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use tokio::sync::OnceCell;
 
 use crate::{
-    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustEvidence,
-    TrustHistory, TrustViolation, fetch_attestation_published_at, fetch_full_metadata_cached,
+    FetchAttestationOptions,
+    FetchFullMetadataCachedOptions,
+    TrustCheckOptions,
+    TrustEvidence,
+    TrustHistory,
+    TrustViolation,
+    fetch_attestation_published_at,
+    fetch_full_metadata_cached,
     fetch_full_metadata_cached::fetch_full_metadata_projected,
     lookup_context::{
-        PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,
-        TrustHistoryProjection, package_key, version_key,
+        PublishedAtLookupContext,
+        PublishedAtTimeMap,
+        RegistryArtifact,
+        RegistryArtifactHistory,
+        TrustHistoryProjection,
+        package_key,
+        version_key,
     },
-    pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},
+    pick_package::{
+        PackageMetaCache,
+        SkippedTimeCheck,
+        warn_missing_time_once,
+    },
     registry_url::to_registry_url,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
-        MINIMUM_RELEASE_AGE_VIOLATION_CODE, MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
-        TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+        MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
+        TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+        TARBALL_URL_MISMATCH_VIOLATION_CODE,
         TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };

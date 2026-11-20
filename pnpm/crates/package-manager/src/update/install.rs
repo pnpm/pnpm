@@ -1,28 +1,56 @@
 pub(super) mod persistence;
-pub(super) use persistence::{finish_single_update, settle_selected_update};
+pub(super) use persistence::{
+    finish_single_update,
+    settle_selected_update,
+};
 
 use super::{
-    SelectedProjects, UpdateError, UpdateOptions, UpdateResources, UpdateSite,
-    hook::{ReadPackageHook, apply_read_package_hook_to_update_manifest},
+    SelectedProjects,
+    UpdateError,
+    UpdateOptions,
+    UpdateResources,
+    UpdateSite,
+    hook::{
+        ReadPackageHook,
+        apply_read_package_hook_to_update_manifest,
+    },
     manifest_dir,
-    prepare::{SelectedUpdatePreparation, UpdatePreparation},
+    prepare::{
+        SelectedUpdatePreparation,
+        UpdatePreparation,
+    },
     update_mutation,
 };
 use crate::{
-    Install, PolicyExcludes, UpdateSeedPolicy, WorkspaceInstallSelection,
-    catalog_cleanup::{write_workspace_catalogs, write_workspace_catalogs_selected},
+    Install,
+    PolicyExcludes,
+    UpdateSeedPolicy,
+    WorkspaceInstallSelection,
+    catalog_cleanup::{
+        write_workspace_catalogs,
+        write_workspace_catalogs_selected,
+    },
     defer_ignored_builds,
     manifest_spec_bumps::ManifestSpecBumps,
 };
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 pub(super) async fn run_prepared_selected_update<Reporter: self::Reporter + 'static>(

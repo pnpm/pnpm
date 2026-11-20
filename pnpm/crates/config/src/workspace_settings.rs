@@ -1,10 +1,28 @@
 use super::{
-    Arc, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
-    LoadWorkspaceYamlError, MachineSettings, Path, PathBuf, TrustedSettings, WorkspaceSettings,
-    collect_explicit_settings, collect_explicit_trusted_settings, default_pnpm_home_dir,
+    Arc,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    ExplicitPaths,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    LoadWorkspaceYamlError,
+    MachineSettings,
+    Path,
+    PathBuf,
+    TrustedSettings,
+    WorkspaceSettings,
+    collect_explicit_settings,
+    collect_explicit_trusted_settings,
+    default_pnpm_home_dir,
     naming_cases::to_camel_case,
-    note_declared_registries, resolve_configured_state_dir,
-    workspace_yaml::{parse_settings_file, read_workspace_document},
+    note_declared_registries,
+    resolve_configured_state_dir,
+    workspace_yaml::{
+        parse_settings_file,
+        read_workspace_document,
+    },
 };
 
 impl Config {

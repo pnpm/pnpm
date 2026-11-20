@@ -35,23 +35,43 @@
 //! threaded through [`MetadataRequestContext::fetch_locker`].
 
 pub use errors::PickPackageError;
-pub use mirror_persistence::{MirrorPersistError, persist_meta_to_mirror};
+pub use mirror_persistence::{
+    MirrorPersistError,
+    persist_meta_to_mirror,
+};
 pub use options::{
-    MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES, MetadataCachePolicy, MetadataPickRequest,
-    MetadataRequestContext, PackagePickPolicy, PickPackageContext, PickPackageOptions,
+    MAX_PNPR_FORMAT_RELEASE_AGE_MINUTES,
+    MetadataCachePolicy,
+    MetadataPickRequest,
+    MetadataRequestContext,
+    PackagePickPolicy,
+    PickPackageContext,
+    PickPackageOptions,
     PnprFormatPolicy,
 };
 
 pub use metadata_cache::{
-    CachedPackument, InMemoryPackageMetaCache, PackageMetaCache, PackumentFetchLocker,
-    PackumentSource, PickedManifestCache, shared_in_memory_cache, shared_packument_fetch_locker,
+    CachedPackument,
+    InMemoryPackageMetaCache,
+    PackageMetaCache,
+    PackumentFetchLocker,
+    PackumentSource,
+    PickedManifestCache,
+    shared_in_memory_cache,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
 
 pub use offline_store::OfflineStoreView;
 
-pub(crate) use mirror_persistence::{SkippedTimeCheck, warn_missing_time_once};
-pub(crate) use release_records::{ReleaseRecordError, ReleaseRecordRequest};
+pub(crate) use mirror_persistence::{
+    SkippedTimeCheck,
+    warn_missing_time_once,
+};
+pub(crate) use release_records::{
+    ReleaseRecordError,
+    ReleaseRecordRequest,
+};
 
 mod cache_hit;
 
@@ -67,43 +87,78 @@ mod mirror_pick;
 mod fetch_pick;
 
 mod mirror_persistence;
-use mirror_persistence::{get_file_mtime, metadata_cache_key, validate_package_name};
+use mirror_persistence::{
+    get_file_mtime,
+    metadata_cache_key,
+    validate_package_name,
+};
 
 mod release_age_upgrade;
 mod release_records;
 mod route;
-use release_age_upgrade::{UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age};
+use release_age_upgrade::{
+    UpgradeOutcome,
+    maybe_upgrade_abbreviated_meta_for_release_age,
+};
 use route::DiskFirst;
 
 mod version_pick;
 use cache_hit::handle_cache_hit;
 use state::PickState;
-use version_pick::{PickerOpts, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline};
+use version_pick::{
+    PickerOpts,
+    pick_from_meta,
+    pick_from_meta_fast,
+    pick_from_meta_offline,
+};
 
 mod metadata_cache;
 
 use crate::{
     FetchMetadataError,
-    mirror::{get_pkg_mirror_path, load_meta_async, save_meta_indexed},
+    mirror::{
+        get_pkg_mirror_path,
+        load_meta_async,
+        save_meta_indexed,
+    },
     pick_package_from_meta::{
-        PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
-        cached_meta_misses_preferred_version, dominant_lockfile_version,
-        filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
-        pick_stable_cached_range_version, pick_version_by_version_range,
+        PickPackageFromMetaOptions,
+        RegistryPackageSpec,
+        RegistryPackageSpecType,
+        cached_meta_misses_preferred_version,
+        dominant_lockfile_version,
+        filter_pkg_metadata_versions,
+        pick_lowest_version_by_version_range,
+        pick_package_from_meta,
+        pick_stable_cached_range_version,
+        pick_version_by_version_range,
     },
 };
 use dashmap::DashMap;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use jiff::Timestamp;
 use miette::Diagnostic;
 use pnpm_network::MetadataCacheScope;
-use pnpm_registry::{Package, PackageVersion};
-use pnpm_resolving_resolver_base::{TrustPolicy, VersionSelectors, parse_packument_timestamp};
+use pnpm_registry::{
+    Package,
+    PackageVersion,
+};
+use pnpm_resolving_resolver_base::{
+    TrustPolicy,
+    VersionSelectors,
+    parse_packument_timestamp,
+};
 use pnpm_version_policy::PackageVersionPolicy;
 use std::{
     collections::HashSet,
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tokio::sync::Semaphore;
 

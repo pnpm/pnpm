@@ -3,7 +3,11 @@
 //! `pnpm/CODE_STYLE_GUIDE.md`.
 
 use crate::remove_dirent;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// Move a filesystem entry from `src` to `dst`, as [`fs::rename`].
 ///

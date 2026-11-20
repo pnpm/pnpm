@@ -1,8 +1,19 @@
 use super::{
-    BTreeMap, Config, ConfigOverlay, HashMap, Host, Path, StoreDir, default_registry, nerf_dart,
+    BTreeMap,
+    Config,
+    ConfigOverlay,
+    HashMap,
+    Host,
+    Path,
+    StoreDir,
+    default_registry,
+    nerf_dart,
     normalize_auth_key,
 };
-use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
+use pnpm_network::{
+    canonicalize_npm_registry_url,
+    normalize_registry_url,
+};
 
 /// Store, home and cache directories.
 pub(super) fn apply_store_dirs(config: &mut Config, overlay: &ConfigOverlay, dir: &Path) {

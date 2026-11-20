@@ -2,17 +2,29 @@
 //! installs take: the lockfile dir is one capsule, and the capsules dir
 //! above it is a second project whose importer id is `..`.
 
-use super::super::{Install, InstallError};
+use super::super::{
+    Install,
+    InstallError,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_testing_utils::registry::TestRegistry;
 use std::{
     fmt::Write,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use tempfile::tempdir;

@@ -1,10 +1,25 @@
 use super::{
-    HANDOFF_COOKIE_PREFIX, LoginReturn, LoginSession, OidcState, WorkloadScope,
-    check_workload_request, redeem, signed_in, validate_workloads,
+    HANDOFF_COOKIE_PREFIX,
+    LoginReturn,
+    LoginSession,
+    OidcState,
+    WorkloadScope,
+    check_workload_request,
+    redeem,
+    signed_in,
+    validate_workloads,
 };
 use axum::{
     body::Body,
-    http::{HeaderMap, HeaderValue, Method, Request, StatusCode, Uri, header},
+    http::{
+        HeaderMap,
+        HeaderValue,
+        Method,
+        Request,
+        StatusCode,
+        Uri,
+        header,
+    },
 };
 use pnpr_config::Config;
 use std::net::SocketAddr;

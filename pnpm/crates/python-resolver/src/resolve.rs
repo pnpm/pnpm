@@ -5,19 +5,42 @@ mod rules;
 mod sources;
 
 use crate::{
-    candidates::{Refusal, read_requirement},
+    candidates::{
+        Refusal,
+        read_requirement,
+    },
     metadata::WheelMetadata,
     packages::Packages,
     requires_python::declared_range,
 };
-use miette::{Result, bail, miette};
-use pep440_rs::Version;
-use pep508_rs::{ExtraName, MarkerEnvironment, PackageName, Requirement, VersionOrUrl};
-use pubgrub::{
-    DefaultStringReporter, Dependencies, DependencyConstraints, DependencyProvider, DerivationTree,
-    PackageResolutionStatistics, PubGrubError, Ranges, Reporter as _,
+use miette::{
+    Result,
+    bail,
+    miette,
 };
-use std::{collections::BTreeMap, fmt};
+use pep440_rs::Version;
+use pep508_rs::{
+    ExtraName,
+    MarkerEnvironment,
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
+use pubgrub::{
+    DefaultStringReporter,
+    Dependencies,
+    DependencyConstraints,
+    DependencyProvider,
+    DerivationTree,
+    PackageResolutionStatistics,
+    PubGrubError,
+    Ranges,
+    Reporter as _,
+};
+use std::{
+    collections::BTreeMap,
+    fmt,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Package {

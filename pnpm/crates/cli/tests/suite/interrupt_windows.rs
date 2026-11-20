@@ -18,9 +18,17 @@ use std::{
     fs,
     io::Read,
     path::Path,
-    process::{Child, Command, ExitStatus, Stdio},
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Stdio,
+    },
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The status of a process the console's `Ctrl+C` ended, which `cmd`

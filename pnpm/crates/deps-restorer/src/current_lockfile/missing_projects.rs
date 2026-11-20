@@ -1,10 +1,16 @@
 //! The importers a previous wanted lockfile records for projects outside the
 //! workspace walk, such as projects a sparse checkout leaves off disk.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+};
 use pnpm_package_manifest::DependencyGroup;
 
 /// The importers `previous_wanted` records outside `real_importer_ids`. Their

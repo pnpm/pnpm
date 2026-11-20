@@ -1,8 +1,18 @@
 use super::{
-    Catalogs, Config, IncludedDependencies, MaybeLazyLockfile, OptimisticRepeatInstallCheck,
-    PackageManifest, Path, PathBuf, build_project_manifests_list,
-    configured_or_discovered_workspace_dir, get_catalogs_from_workspace_manifest,
-    lazy_wanted_lockfile, lockfile_root_for, nothing_to_install::projects_have_nothing_to_install,
+    Catalogs,
+    Config,
+    IncludedDependencies,
+    MaybeLazyLockfile,
+    OptimisticRepeatInstallCheck,
+    PackageManifest,
+    Path,
+    PathBuf,
+    build_project_manifests_list,
+    configured_or_discovered_workspace_dir,
+    get_catalogs_from_workspace_manifest,
+    lazy_wanted_lockfile,
+    lockfile_root_for,
+    nothing_to_install::projects_have_nothing_to_install,
     stand_ins,
 };
 use std::borrow::Cow;

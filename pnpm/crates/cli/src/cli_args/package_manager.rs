@@ -1,9 +1,16 @@
 use miette::IntoDiagnostic;
-use pnpm_config::{Config, PNPM_VERSION, PmOnFail};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+    PmOnFail,
+};
 use pnpm_package_manifest::{
     PackageManifest,
     package_manager_spec::{
-        dev_engines_package_managers, is_version_request, split_spec, version_without_build,
+        dev_engines_package_managers,
+        is_version_request,
+        split_spec,
+        version_without_build,
     },
     parse_manifest,
 };
@@ -12,7 +19,10 @@ use serde_json::Value;
 use std::{
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(crate) const PACKAGE_MANAGER_SWITCH_ENV_VARS: [&str; 4] = [

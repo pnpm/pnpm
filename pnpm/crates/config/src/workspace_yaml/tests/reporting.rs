@@ -1,4 +1,7 @@
-use super::{WorkspaceSettings, assert_eq};
+use super::{
+    WorkspaceSettings,
+    assert_eq,
+};
 
 /// An empty `scope` is a value like any other — it would clear a scope the
 /// global `config.yaml` set — so it is refused like a non-empty one, while a

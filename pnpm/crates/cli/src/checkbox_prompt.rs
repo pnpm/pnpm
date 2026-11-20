@@ -11,8 +11,14 @@ mod wasm;
 use crate::checkbox_terminal_wasm::Term;
 #[cfg(not(target_family = "wasm"))]
 use console::Term;
-use console::{Key, measure_text_width};
-use owo_colors::{OwoColorize, Stream};
+use console::{
+    Key,
+    measure_text_width,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use std::io;
 
 /// One line of a [`CheckboxPrompt`].

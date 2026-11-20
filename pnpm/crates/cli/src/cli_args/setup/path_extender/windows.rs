@@ -6,7 +6,11 @@
 //! be picked up by future processes. Switching the console to code page
 //! 65001 makes `reg` emit UTF-8 so non-ASCII values survive the round-trip.
 
-use super::{AddDirToEnvPathOpts, AddingPosition, PathExtenderError};
+use super::{
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    PathExtenderError,
+};
 use crate::process::Command;
 use std::path::Path;
 

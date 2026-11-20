@@ -5,37 +5,62 @@ pub(crate) mod selectors;
 pub(crate) mod standalone;
 
 pub(crate) use outdated::{
-    collect_ecosystem_outdated, declared_ecosystem_dep_names, ecosystem_project_name,
+    collect_ecosystem_outdated,
+    declared_ecosystem_dep_names,
+    ecosystem_project_name,
     requires_ecosystem_lockfile,
 };
 pub(crate) use selectors::{
-    EcosystemFilterKind, excludes_only, is_ecosystem_prefixed, patterns_for_ecosystem,
+    EcosystemFilterKind,
+    excludes_only,
+    is_ecosystem_prefixed,
+    patterns_for_ecosystem,
     validate_ecosystem_selectors,
 };
 pub(crate) use standalone::{
-    select_recursive_and_standalone_projects, select_standalone_ecosystem_dirs,
+    select_recursive_and_standalone_projects,
+    select_standalone_ecosystem_dirs,
 };
 
 mod outdated;
 
 use crate::ecosystem_install::InstallContext;
-use cargo::{CargoUpdateOptions, update_cargo_projects, validate_explicit_cargo_requests};
+use cargo::{
+    CargoUpdateOptions,
+    update_cargo_projects,
+    validate_explicit_cargo_requests,
+};
 use miette::Result;
 use pnpm_config::Config;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use python::{
-    PythonUpdateOptions, PythonUpdateTargets, resolve_python_update_targets,
-    update_python_projects, validate_explicit_python_requests,
+    PythonUpdateOptions,
+    PythonUpdateTargets,
+    resolve_python_update_targets,
+    update_python_projects,
+    validate_explicit_python_requests,
 };
 use selectors::{
-    is_cargo_prefixed, is_python_prefixed, parse_update_selectors, updates_all_except_exclusions,
+    is_cargo_prefixed,
+    is_python_prefixed,
+    parse_update_selectors,
+    updates_all_except_exclusions,
 };
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{
+        BTreeSet,
+        HashSet,
+    },
     path::PathBuf,
     sync::Arc,
 };

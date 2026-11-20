@@ -18,23 +18,46 @@ use crate::{
     SkippedSnapshots,
     hoist::HoistedDependencies,
     prune_direct_deps::{
-        PruneDirectDepsError, UnlinkedDependency, is_real_dir, remove_direct_dep_link,
+        PruneDirectDepsError,
+        UnlinkedDependency,
+        is_real_dir,
+        remove_direct_dep_link,
     },
-    symlink_direct_dependencies::{importer_root_dir, link_target_dir, validate_importer_id},
+    symlink_direct_dependencies::{
+        importer_root_dir,
+        link_target_dir,
+        validate_importer_id,
+    },
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
 use pnpm_modules_yaml::HoistKind;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    DependencyType, LogEvent, LogLevel, RemovedRoot, Reporter, RootLog, RootMessage,
+    DependencyType,
+    LogEvent,
+    LogLevel,
+    RemovedRoot,
+    Reporter,
+    RootLog,
+    RootMessage,
 };
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Remove what a previous install materialized that the wanted lockfile

@@ -1,7 +1,14 @@
 //! The `bin` field, with `directories.bin` expanded into it.
 
-use crate::{declared_bin_entries, normalize_bin_path, normalize_package_relative_path};
-use serde_json::{Map, Value};
+use crate::{
+    declared_bin_entries,
+    normalize_bin_path,
+    normalize_package_relative_path,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::collections::BTreeSet;
 
 /// The commands the manifest declares, as an object of command name to

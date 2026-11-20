@@ -1,22 +1,57 @@
 use super::{
-    CasIndexes, CasPrefetch, ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreError,
-    CreateVirtualStoreOutput, CreateVirtualStoreStoreContext, LinkPlan, PrefetchTask,
+    CasIndexes,
+    CasPrefetch,
+    ConcurrentCheck,
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+    CreateVirtualStoreStoreContext,
+    LinkPlan,
+    PrefetchTask,
     WantedEntries,
-    cache_keys::{SlotReuse, SnapshotCacheKey},
-    cas::{retain_fetch_pass_rows, retained_cache_keys},
+    cache_keys::{
+        SlotReuse,
+        SnapshotCacheKey,
+    },
+    cas::{
+        retain_fetch_pass_rows,
+        retained_cache_keys,
+    },
     cold::ColdInputs,
-    init_store_dir_unless_frozen, nothing_to_materialize, partition,
-    publish_planned_canonical_fetches, removed_aliases_by_key, run_checked,
+    init_store_dir_unless_frozen,
+    nothing_to_materialize,
+    partition,
+    publish_planned_canonical_fetches,
+    removed_aliases_by_key,
+    run_checked,
     slot_linking::LinkSlotsParallel,
     snapshot_plan,
-    warm::{SlotBuilds, WarmLinkBatch, link_warm_batch},
+    warm::{
+        SlotBuilds,
+        WarmLinkBatch,
+        link_warm_batch,
+    },
 };
 
 mod downloads;
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry};
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache};
+use pnpm_lockfile::{
+    LockfileEntries,
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    StatsLog,
+    StatsMessage,
+};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+};
 use pnpm_tarball::PrefetchResult;
 use std::collections::HashMap;
 

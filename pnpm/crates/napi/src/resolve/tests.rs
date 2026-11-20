@@ -7,7 +7,11 @@
 
 use std::collections::HashMap;
 
-use super::{ResolveDependencyOptions, WantedDependencyInput, run_resolve_blocking};
+use super::{
+    ResolveDependencyOptions,
+    WantedDependencyInput,
+    run_resolve_blocking,
+};
 
 /// Options anchored at `dir`, pinned `offline` so a stray registry-shaped
 /// spec can't reach the network from a unit test.

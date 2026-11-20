@@ -1,15 +1,36 @@
 use super::{
-    Arc, BodyChunkSender, Duration, IgnoreEntryFilter, Instant, NetworkError, Reporter,
-    STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SemaphorePermit,
-    StoreDir, Stream, StreamExt, TarballError, ThrottledClient, allocate_tarball_buffer,
-    body_chunk_channel, fetch_error, redact_url_for_display, spawn_extraction,
+    Arc,
+    BodyChunkSender,
+    Duration,
+    IgnoreEntryFilter,
+    Instant,
+    NetworkError,
+    Reporter,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    SemaphorePermit,
+    StoreDir,
+    Stream,
+    StreamExt,
+    TarballError,
+    ThrottledClient,
+    allocate_tarball_buffer,
+    body_chunk_channel,
+    fetch_error,
+    redact_url_for_display,
+    spawn_extraction,
 };
 use crate::{
     TarLimits,
     archive_integrity::ArchiveVerification,
     content_coding::ContentCoding,
     download::buffered::ExtractedFiles,
-    extract::{BodyChunkReceiver, ExtractedResource, StreamedResource, stream_extract_channel},
+    extract::{
+        BodyChunkReceiver,
+        ExtractedResource,
+        StreamedResource,
+        stream_extract_channel,
+    },
 };
 
 /// How a body extracted while it downloads is decoded, checked, and stored.

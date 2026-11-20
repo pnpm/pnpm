@@ -1,6 +1,20 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, HostNoHome, LinkProbe, OsString, Path,
-    PathBuf, assert_eq, fs, io, safe_host_var, tempdir, write_file,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    HostNoHome,
+    LinkProbe,
+    OsString,
+    Path,
+    PathBuf,
+    assert_eq,
+    fs,
+    io,
+    safe_host_var,
+    tempdir,
+    write_file,
 };
 
 /// End-to-end: the env-inferred default registry wins over a

@@ -1,14 +1,30 @@
 //! The HTML pages of the CLI web login: the code form and, for a pnpr with
 //! several OIDC login providers, the provider choice.
 
-use std::{fmt::Write as _, sync::LazyLock};
+use std::{
+    fmt::Write as _,
+    sync::LazyLock,
+};
 
 use axum::{
-    http::{HeaderValue, StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        HeaderValue,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use sha2::{Digest as _, Sha256};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 
 use super::super::oidc::protect;
 

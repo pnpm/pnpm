@@ -1,10 +1,24 @@
-use super::{EnvImporterSnapshot, EnvLockfile, SpecifierAndResolution};
+use super::{
+    EnvImporterSnapshot,
+    EnvLockfile,
+    SpecifierAndResolution,
+};
 use crate::{
-    EnvDocumentFormat, Lockfile, LockfileResolution, PackageKey, PackageMetadata,
-    RegistryResolution, SnapshotEntry, SymlinkedLockfile, extract_env_document,
+    EnvDocumentFormat,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    RegistryResolution,
+    SnapshotEntry,
+    SymlinkedLockfile,
+    extract_env_document,
     extract_main_document,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 use tempfile::TempDir;
 use text_block_macros::text_block_fnl;
 

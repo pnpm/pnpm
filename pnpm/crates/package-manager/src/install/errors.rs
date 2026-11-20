@@ -1,13 +1,27 @@
-use crate::{BuildVerifiersError, InstallFrozenLockfileError, InstallWithFreshLockfileError};
-use derive_more::{Display, Error};
+use crate::{
+    BuildVerifiersError,
+    InstallFrozenLockfileError,
+    InstallWithFreshLockfileError,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
 use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_executor::LifecycleScriptError;
-use pnpm_lockfile::{LoadLockfileError, SaveLockfileError, StalenessReason};
+use pnpm_lockfile::{
+    LoadLockfileError,
+    SaveLockfileError,
+    StalenessReason,
+};
 use pnpm_lockfile_verification::VerifyError;
-use pnpm_modules_yaml::{ReadModulesError, WriteModulesError};
+use pnpm_modules_yaml::{
+    ReadModulesError,
+    WriteModulesError,
+};
 use std::path::PathBuf;
 
 pub(super) fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError {

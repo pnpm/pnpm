@@ -1,9 +1,15 @@
 #[cfg(not(target_family = "wasm"))]
-use dialoguer::{Confirm, MultiSelect};
+use dialoguer::{
+    Confirm,
+    MultiSelect,
+};
 #[cfg(not(target_family = "wasm"))]
 use miette::IntoDiagnostic;
 use pnpm_package_manager::short_package_label;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// Given package keys, format each into a short label, appending
 /// `[{key}]` if the short label collides with another key's. A key given

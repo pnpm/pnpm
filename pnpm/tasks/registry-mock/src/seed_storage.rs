@@ -16,11 +16,21 @@
 //! it is copied rather than linked, once, and never replaced under a mock that
 //! has it open.
 
-use crate::{registry_mock_storage, runtime_storage};
+use crate::{
+    registry_mock_storage,
+    runtime_storage,
+};
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// The proxy cache's directory in a storage directory, as pnpr defaults it.

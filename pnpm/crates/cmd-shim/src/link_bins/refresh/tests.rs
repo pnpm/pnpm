@@ -1,9 +1,25 @@
-use super::{DirectoryBinPlan, HashSet, LinkBinsOptions, Path};
-use crate::{Host, link_bins};
-use std::{fs, path::PathBuf};
+use super::{
+    DirectoryBinPlan,
+    HashSet,
+    LinkBinsOptions,
+    Path,
+};
+use crate::{
+    Host,
+    link_bins,
+};
+use std::{
+    fs,
+    path::PathBuf,
+};
 
 mod counting;
-use counting::{Counting, READ_DIRS, READ_HEADS, READ_MANIFESTS};
+use counting::{
+    Counting,
+    READ_DIRS,
+    READ_HEADS,
+    READ_MANIFESTS,
+};
 
 #[test]
 fn discovers_once_and_refreshes_only_changed_winners() {

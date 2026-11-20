@@ -1,14 +1,34 @@
 use super::{
-    Command, Config, GetChangedProjectsOptions, GraphPkg, HashMap, HashSet, LogEvent, LogLevel,
-    Path, PathBuf, PnpmLog, Project, ProjectGraph, get_changed_projects,
+    Command,
+    Config,
+    GetChangedProjectsOptions,
+    GraphPkg,
+    HashMap,
+    HashSet,
+    LogEvent,
+    LogLevel,
+    Path,
+    PathBuf,
+    PnpmLog,
+    Project,
+    ProjectGraph,
+    get_changed_projects,
 };
 use crate::cli_args::{
-    catalogs::{configured_catalogs, workspace_catalogs},
+    catalogs::{
+        configured_catalogs,
+        workspace_catalogs,
+    },
     recursive::overridden_project_dependencies,
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, create_projects_graph,
+    BaseProject,
+    CreateProjectsGraphOptions,
+    create_projects_graph,
 };
 
 /// The identity runs are recorded under on the server: the workspace

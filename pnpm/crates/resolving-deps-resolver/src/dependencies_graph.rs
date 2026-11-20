@@ -1,10 +1,19 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use pnpm_deps_path::DepPath;
 use pnpm_resolving_resolver_base::ResolveResult;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 
-use crate::{resolve_peers::SharedChain, resolved_tree::PeerSet};
+use crate::{
+    resolve_peers::SharedChain,
+    resolved_tree::PeerSet,
+};
 
 /// Post-peer-resolution graph keyed by depPath.
 ///

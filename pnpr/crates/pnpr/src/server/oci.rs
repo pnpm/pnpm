@@ -17,27 +17,56 @@
 
 pub(super) mod tokens;
 
-pub(super) use response::{Refusal, error};
+pub(super) use response::{
+    Refusal,
+    error,
+};
 
-pub(super) use publication::{OciPublication, OciTarget, authorize_publication};
+pub(super) use publication::{
+    OciPublication,
+    OciTarget,
+    authorize_publication,
+};
 
 mod response;
 use response::{
-    ResponseBody, accepted, api_version, created, hosted_manifest_response, insert_header, json,
-    method_not_allowed, no_content, range_not_satisfiable, ranged_blob_response, registry_error,
-    server_error, unknown_repository,
+    ResponseBody,
+    accepted,
+    api_version,
+    created,
+    hosted_manifest_response,
+    insert_header,
+    json,
+    method_not_allowed,
+    no_content,
+    range_not_satisfiable,
+    ranged_blob_response,
+    registry_error,
+    server_error,
+    unknown_repository,
 };
 
 mod upload_body;
 use upload_body::{
-    append_body, collect_body, hash_upload, now_millis, parse_content_range, read_manifest_bytes,
+    append_body,
+    collect_body,
+    hash_upload,
+    now_millis,
+    parse_content_range,
+    read_manifest_bytes,
     upload_lock_key,
 };
 
 mod referrer_page;
 use referrer_page::{
-    ReferrerDescriptor, ReferrerFilter, ReferrerPage, ReferrerStep, Referrers, indexed_referrer,
-    read_image_document, referrer_entry_step,
+    ReferrerDescriptor,
+    ReferrerFilter,
+    ReferrerPage,
+    ReferrerStep,
+    Referrers,
+    indexed_referrer,
+    read_image_document,
+    referrer_entry_step,
 };
 
 mod discovery;
@@ -53,37 +82,88 @@ mod proxy;
 mod publication;
 
 use super::{
-    Action, AppState, AuthedCaller, Ownership, RegistrySource, TargetRegistry, authorize,
-    authorize_package, authorize_with_ownership,
-    documents::{lookup_in_hosted_document, read_hosted_document},
-    ecosystem::{addressed_registry, caller_scoped, hosted_sources, mount_bases},
+    Action,
+    AppState,
+    AuthedCaller,
+    Ownership,
+    RegistrySource,
+    TargetRegistry,
+    authorize,
+    authorize_package,
+    authorize_with_ownership,
+    documents::{
+        lookup_in_hosted_document,
+        read_hosted_document,
+    },
+    ecosystem::{
+        addressed_registry,
+        caller_scoped,
+        hosted_sources,
+        mount_bases,
+    },
     hosted_read_namespace,
     package_owners::owner_routes,
-    private_no_cache, resolve_ecosystem_source,
+    private_no_cache,
+    resolve_ecosystem_source,
 };
 use axum::{
     Router,
-    body::{Body, Bytes},
-    extract::{DefaultBodyLimit, OriginalUri, Path, State},
-    http::{HeaderMap, HeaderValue, Method, StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::{any, get},
+    body::{
+        Body,
+        Bytes,
+    },
+    extract::{
+        DefaultBodyLimit,
+        OriginalUri,
+        Path,
+        State,
+    },
+    http::{
+        HeaderMap,
+        HeaderValue,
+        Method,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
+    routing::{
+        any,
+        get,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_oci::{
-    API_SEGMENT, Digest, ErrorBody, ErrorCode, ImageDocument, Manifest, ManifestEntry,
-    ReferrerMetadata, media_type,
+    API_SEGMENT,
+    Digest,
+    ErrorBody,
+    ErrorCode,
+    ImageDocument,
+    Manifest,
+    ManifestEntry,
+    ReferrerMetadata,
+    media_type,
 };
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
 use pnpr_search::percent_decode;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, Storage, upload::BlobUpload};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    DocumentUpdate,
+    Storage,
+    upload::BlobUpload,
+};
 use serde::Serialize;
 use sha2::Sha256;
 use std::{
     collections::HashMap,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 const ECOSYSTEM: Ecosystem = Ecosystem::Oci;

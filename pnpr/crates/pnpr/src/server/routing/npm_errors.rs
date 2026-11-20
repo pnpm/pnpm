@@ -1,11 +1,19 @@
 use axum::{
     body::Body,
     extract::Request,
-    http::{HeaderValue, Method, StatusCode, header},
+    http::{
+        HeaderValue,
+        Method,
+        StatusCode,
+        header,
+    },
     middleware::Next,
     response::Response,
 };
-use pnpr_error::{PublicErrorCode, PublicErrorMessage};
+use pnpr_error::{
+    PublicErrorCode,
+    PublicErrorMessage,
+};
 
 use super::super::authentication::InvalidToken;
 

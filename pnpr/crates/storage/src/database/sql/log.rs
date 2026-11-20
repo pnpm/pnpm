@@ -1,9 +1,19 @@
 //! The sequenced entries of each namespace's transparency logs, one log per
 //! namespace and ecosystem.
 
-use super::{PackageKey, adapter::Connection};
-use crate::transparency_log::{ImportedLogEntry, LogId, RawLogState};
-use pnpr_error::{RegistryError, Result};
+use super::{
+    PackageKey,
+    adapter::Connection,
+};
+use crate::transparency_log::{
+    ImportedLogEntry,
+    LogId,
+    RawLogState,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
 use std::ops::Range;

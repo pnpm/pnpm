@@ -1,14 +1,33 @@
 use super::{
-    MAX_CHUNKS, RemoteUploadStore, UploadPrincipal, UploadRecord, VersionedRecord,
+    MAX_CHUNKS,
+    RemoteUploadStore,
+    UploadPrincipal,
+    UploadRecord,
+    VersionedRecord,
     same_object_version,
 };
 use futures_util::stream::BoxStream;
 use object_store::{
-    CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    PutMode, PutMultipartOptions, PutOptions, PutPayload, PutResult, UpdateVersion,
-    memory::InMemory, path::Path,
+    CopyOptions,
+    GetOptions,
+    GetResult,
+    ListResult,
+    MultipartUpload,
+    ObjectMeta,
+    ObjectStore,
+    PutMode,
+    PutMultipartOptions,
+    PutOptions,
+    PutPayload,
+    PutResult,
+    UpdateVersion,
+    memory::InMemory,
+    path::Path,
 };
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use std::sync::Arc;
 
 #[tokio::test]

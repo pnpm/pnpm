@@ -38,7 +38,11 @@
 use crate::process::Child;
 
 #[cfg(windows)]
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{
+    Arc,
+    Mutex,
+    PoisonError,
+};
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::HANDLE;
 
@@ -70,11 +74,15 @@ unsafe impl Sync for JobHandle {}
 #[cfg(windows)]
 fn set_limits(job: HANDLE, flags: u32) -> bool {
     use std::{
-        mem::{size_of, zeroed},
+        mem::{
+            size_of,
+            zeroed,
+        },
         ptr,
     };
     use windows_sys::Win32::System::JobObjects::{
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JobObjectExtendedLimitInformation,
         SetInformationJobObject,
     };
 
@@ -96,7 +104,10 @@ fn set_limits(job: HANDLE, flags: u32) -> bool {
 #[cfg(windows)]
 fn create_job(flags: u32) -> Option<HANDLE> {
     use std::ptr;
-    use windows_sys::Win32::{Foundation::CloseHandle, System::JobObjects::CreateJobObjectW};
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::JobObjects::CreateJobObjectW,
+    };
 
     // SAFETY: both pointer arguments are null, and the handle is checked
     // before use and closed if the limits cannot be set.
@@ -121,7 +132,10 @@ fn create_job(flags: u32) -> Option<HANDLE> {
 pub fn arm_process_tree_cleanup() {
     use windows_sys::Win32::{
         Foundation::CloseHandle,
-        System::JobObjects::{JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE},
+        System::JobObjects::{
+            JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        },
     };
 
     let mut armed = ARMED_JOB.lock().unwrap_or_else(PoisonError::into_inner);
@@ -155,7 +169,8 @@ pub fn arm_process_tree_cleanup() {
 #[cfg(windows)]
 fn join_job(job: HANDLE) -> bool {
     use windows_sys::Win32::System::{
-        JobObjects::AssignProcessToJobObject, Threading::GetCurrentProcess,
+        JobObjects::AssignProcessToJobObject,
+        Threading::GetCurrentProcess,
     };
 
     // SAFETY: `job` is a valid job handle the caller owns, and
@@ -174,7 +189,8 @@ pub fn arm_process_tree_cleanup() {}
 #[cfg(windows)]
 pub(crate) fn release_process_tree_cleanup() {
     use windows_sys::Win32::{
-        Foundation::CloseHandle, System::JobObjects::JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+        Foundation::CloseHandle,
+        System::JobObjects::JOB_OBJECT_LIMIT_BREAKAWAY_OK,
     };
 
     // Take the locks in the order arming takes them, and hold the armed job's
@@ -208,14 +224,22 @@ pub(crate) fn release_process_tree_cleanup() {}
 #[cfg(windows)]
 fn enclosing_job_releases_children() -> bool {
     use std::{
-        mem::{size_of, zeroed},
+        mem::{
+            size_of,
+            zeroed,
+        },
         ptr,
     };
-    use windows_sys::Win32::System::JobObjects::{
-        IsProcessInJob, JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JobObjectExtendedLimitInformation, QueryInformationJobObject,
+    use windows_sys::Win32::System::{
+        JobObjects::{
+            IsProcessInJob,
+            JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JobObjectExtendedLimitInformation,
+            QueryInformationJobObject,
+        },
+        Threading::GetCurrentProcess,
     };
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
     // SAFETY: every pointer argument is null or a stack local that outlives
     // the call. A null job handle addresses the immediate job of the calling
@@ -291,7 +315,8 @@ impl TaskJob {
     pub(crate) fn contain(child: &Child) -> Option<Self> {
         use std::os::windows::io::AsRawHandle;
         use windows_sys::Win32::System::JobObjects::{
-            AssignProcessToJobObject, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+            AssignProcessToJobObject,
+            JOB_OBJECT_LIMIT_BREAKAWAY_OK,
         };
 
         // Breakaway must be allowed by every job of the hierarchy, or a

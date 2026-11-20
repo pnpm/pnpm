@@ -19,7 +19,10 @@ mod tests;
 use pipe_trait::Pipe;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Read up to `buf.len()` bytes of `path` starting at byte `offset`.
@@ -192,7 +195,11 @@ pub struct Host;
 
 impl FsReadHead for Host {
     fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
-        use std::io::{Read, Seek, SeekFrom};
+        use std::io::{
+            Read,
+            Seek,
+            SeekFrom,
+        };
         let mut file = std::fs::File::open(path)?;
         if offset > 0 {
             file.seek(SeekFrom::Start(offset))?;

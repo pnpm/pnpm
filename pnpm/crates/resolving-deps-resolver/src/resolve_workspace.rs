@@ -15,10 +15,17 @@
 //! at a time. The peer-walker share captures the hot path; the
 //! resolved-pkgs share is a follow-up perf win.
 
-pub use dependencies::{ResolvedWorkspaceDependencies, resolve_workspace_dependencies};
+pub use dependencies::{
+    ResolvedWorkspaceDependencies,
+    resolve_workspace_dependencies,
+};
 pub use options::{
-    WorkspaceImporter, WorkspaceLockfileReuse, WorkspacePeerResolutionOptions,
-    WorkspaceResolveHooks, WorkspaceResolveOptions, WorkspaceVersionResolution,
+    WorkspaceImporter,
+    WorkspaceLockfileReuse,
+    WorkspacePeerResolutionOptions,
+    WorkspaceResolveHooks,
+    WorkspaceResolveOptions,
+    WorkspaceVersionResolution,
 };
 
 mod broken_optional;
@@ -30,7 +37,10 @@ mod options;
 mod time_based;
 
 use crate::{
-    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
+    resolve_importer::{
+        ResolveImporterError,
+        ResolveImporterOptions,
+    },
     resolve_peers::WorkspaceResolvePeersResult,
     resolved_tree::ResolvedTree,
 };

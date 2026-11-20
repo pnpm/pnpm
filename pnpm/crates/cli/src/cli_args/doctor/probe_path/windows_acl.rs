@@ -1,11 +1,17 @@
 #[cfg(windows)]
 pub(super) use powershell::{
-    can_access_windows_writable_dir, is_safe_windows_ancestor_chain, prefetch_windows_dir_security,
+    can_access_windows_writable_dir,
+    is_safe_windows_ancestor_chain,
+    prefetch_windows_dir_security,
 };
 
 use rustc_hash::FxHashSet;
 use serde::Deserialize;
-use std::path::{Component, Path, Prefix};
+use std::path::{
+    Component,
+    Path,
+    Prefix,
+};
 
 #[cfg(windows)]
 mod powershell;

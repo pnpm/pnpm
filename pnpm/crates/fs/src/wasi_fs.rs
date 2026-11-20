@@ -1,4 +1,8 @@
-use std::{ffi::CString, io, path::Path};
+use std::{
+    ffi::CString,
+    io,
+    path::Path,
+};
 
 pub(crate) fn symlink(target: &Path, link: &Path) -> io::Result<()> {
     let target = CString::new(target.as_os_str().as_encoded_bytes())

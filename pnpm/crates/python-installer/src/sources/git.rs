@@ -1,18 +1,33 @@
 use super::{
     super::{
-        build::{self, Buildable, Contract},
+        build::{
+            self,
+            Buildable,
+            Contract,
+        },
         host,
         registry::Registry,
     },
     read_manifest,
 };
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep508_rs::PackageName;
-use pnpm_python_resolver::{Candidate, LockedVcs, parse_requirement};
+use pnpm_python_resolver::{
+    Candidate,
+    LockedVcs,
+    parse_requirement,
+};
 use pnpm_reporter::Reporter;
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl Registry<'_> {

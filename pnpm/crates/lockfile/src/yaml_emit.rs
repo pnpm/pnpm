@@ -24,7 +24,10 @@
 //! [`@zkochan/js-yaml`]: https://github.com/pnpm/js-yaml
 
 use rayon::prelude::*;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::cmp::Ordering;
 
 /// Entry count from which a map's independent per-entry work (deep key
@@ -41,7 +44,11 @@ const INDENT: usize = 2;
 mod flow;
 mod nesting;
 mod next_order;
-use nesting::{Format, is_single_line_key, is_single_line_map};
+use nesting::{
+    Format,
+    is_single_line_key,
+    is_single_line_map,
+};
 use next_order::sort_next_sections;
 
 /// Per-package / per-snapshot key priority, matching pnpm's lockfile
@@ -467,7 +474,12 @@ fn write_flow_sequence(seq: &[Value], level: usize) -> String {
 mod tests;
 
 mod style;
-use style::{CollectionStyle, EntrySpacing, FirstEntry, ScalarLines};
+use style::{
+    CollectionStyle,
+    EntrySpacing,
+    FirstEntry,
+    ScalarLines,
+};
 
 mod implicit;
 use implicit::resolves_implicitly;

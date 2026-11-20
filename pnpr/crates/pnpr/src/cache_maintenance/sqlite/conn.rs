@@ -1,6 +1,13 @@
-use super::{Duration, Path, PathBuf};
+use super::{
+    Duration,
+    Path,
+    PathBuf,
+};
 use pnpm_fs::OpenDir;
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{
+    Connection,
+    OpenFlags,
+};
 use std::ffi::OsStr;
 
 const SQLITE_BUSY_WAIT: Duration = Duration::from_secs(5);

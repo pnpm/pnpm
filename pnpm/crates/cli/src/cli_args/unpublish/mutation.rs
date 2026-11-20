@@ -1,10 +1,28 @@
 use super::{
-    AuthType, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, Diagnostic, Display,
-    Error, Method, OtpChallenge, OtpError, OtpSession, Reporter, StatusCode, WithOtpError,
-    otp_challenge_from_unauthorized_body, read_limited_body, registry_operation_failed,
-    send_with_retry, write_error_for_status,
+    AuthType,
+    DEPRECATION_ERROR_BODY_LIMIT,
+    DeprecateContext,
+    DeprecateError,
+    Diagnostic,
+    Display,
+    Error,
+    Method,
+    OtpChallenge,
+    OtpError,
+    OtpSession,
+    Reporter,
+    StatusCode,
+    WithOtpError,
+    otp_challenge_from_unauthorized_body,
+    read_limited_body,
+    registry_operation_failed,
+    send_with_retry,
+    write_error_for_status,
 };
-use crate::cli_args::registry_client::{OtpHost, apply_auth_and_otp};
+use crate::cli_args::registry_client::{
+    OtpHost,
+    apply_auth_and_otp,
+};
 
 /// Everything a registry mutation of one package needs. The OTP session is
 /// shared by every mutation of the run, so a partial unpublish (one `PUT`

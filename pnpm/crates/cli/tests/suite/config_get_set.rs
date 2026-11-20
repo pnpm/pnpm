@@ -4,12 +4,18 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::CommandTempCwd, command_env::CommandTestExt, diagnostics::assert_diagnostic_contains,
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+    diagnostics::assert_diagnostic_contains,
 };
 use pretty_assertions::assert_eq;
 use std::{
-    fs, io,
-    process::{Command, Stdio},
+    fs,
+    io,
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 fn pacquet_in(workspace: &std::path::Path) -> Command {

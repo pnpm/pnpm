@@ -1,10 +1,16 @@
 use super::expand_universal_shorthands;
 use crate::{
     boolean_negations::with_boolean_negations,
-    cli_args::{CliArgs, reporter::ReporterType},
+    cli_args::{
+        CliArgs,
+        reporter::ReporterType,
+    },
     flag_relocation::relocate_pre_subcommand_flags,
 };
-use clap::{CommandFactory, FromArgMatches};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
 use pretty_assertions::assert_eq;
 use std::ffi::OsString;
 

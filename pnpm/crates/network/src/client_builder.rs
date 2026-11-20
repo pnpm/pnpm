@@ -1,12 +1,36 @@
 #[cfg(not(target_family = "wasm"))]
 use super::Addrs;
 use super::{
-    AppliedTls, Arc, Client, DEFAULT_USER_AGENT, Duration, ForInstallsError, HeaderMap,
-    HeaderValue, LazyLock, Name, NetworkSettings, NoProxyMatcher, NonZeroUsize, Proxy,
-    RedirectGuard, Resolve, Resolving, Semaphore, TlsConfig, TrustRoots, USER_AGENT, apply_tls,
-    bundled_root_certs, parse_proxy_url, strip_userinfo,
+    AppliedTls,
+    Arc,
+    Client,
+    DEFAULT_USER_AGENT,
+    Duration,
+    ForInstallsError,
+    HeaderMap,
+    HeaderValue,
+    LazyLock,
+    Name,
+    NetworkSettings,
+    NoProxyMatcher,
+    NonZeroUsize,
+    Proxy,
+    RedirectGuard,
+    Resolve,
+    Resolving,
+    Semaphore,
+    TlsConfig,
+    TrustRoots,
+    USER_AGENT,
+    apply_tls,
+    bundled_root_certs,
+    parse_proxy_url,
+    strip_userinfo,
 };
-use crate::redirect_guard::{BlockedRedirect, MAX_REDIRECT_HOPS};
+use crate::redirect_guard::{
+    BlockedRedirect,
+    MAX_REDIRECT_HOPS,
+};
 
 /// Everything a client build shares across the per-registry variants.
 ///

@@ -10,12 +10,22 @@
 use crate::Config;
 use indexmap::IndexMap;
 use serde::{
-    Deserialize, Deserializer, Serialize,
-    de::{MapAccess, SeqAccess, Visitor, value::SeqAccessDeserializer},
+    Deserialize,
+    Deserializer,
+    Serialize,
+    de::{
+        MapAccess,
+        SeqAccess,
+        Visitor,
+        value::SeqAccessDeserializer,
+    },
 };
 use std::{
     fmt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The settings one `packageConfigs` entry may set.

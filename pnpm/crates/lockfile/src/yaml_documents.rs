@@ -20,7 +20,10 @@
 
 use std::{
     borrow::Cow,
-    io::{self, Read},
+    io::{
+        self,
+        Read,
+    },
 };
 
 /// Document-stream marker that ends one YAML document and starts the

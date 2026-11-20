@@ -1,11 +1,26 @@
-use crate::{port_to_url::port_to_url, seed_storage::seed_runtime_storage, workspace_root};
+use crate::{
+    port_to_url::port_to_url,
+    seed_storage::seed_runtime_storage,
+    workspace_root,
+};
 use std::{
-    env, fs,
-    hash::{DefaultHasher, Hash, Hasher},
+    env,
+    fs,
+    hash::{
+        DefaultHasher,
+        Hash,
+        Hasher,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 // The tests stand in for `pnpr` with a shell script.

@@ -1,6 +1,17 @@
 use super::{
-    _utils, DEP, add_workspace_package, assert_eq, fs, importer_specifier, importer_version,
-    lockfile_package_keys, pacquet, read_lockfile, set_overrides, setup, write_manifest,
+    _utils,
+    DEP,
+    add_workspace_package,
+    assert_eq,
+    fs,
+    importer_specifier,
+    importer_version,
+    lockfile_package_keys,
+    pacquet,
+    read_lockfile,
+    set_overrides,
+    setup,
+    write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
 use std::collections::HashMap;

@@ -1,7 +1,13 @@
 use super::importer_root_dir;
 use std::{
-    collections::{BTreeMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn merge_claimed_bins(

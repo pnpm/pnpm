@@ -6,7 +6,11 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
 use std::{
     env::consts::EXE_SUFFIX,
-    fs::{self, File, FileTimes},
+    fs::{
+        self,
+        File,
+        FileTimes,
+    },
     path::Path,
     process::Command,
 };

@@ -1,8 +1,12 @@
 //! Whether the workspace still has the projects the last install recorded.
 
 use super::{
-    Config, LinkWorkspacePackages, PackageManifest, PathBuf,
-    local_file_deps::is_workspace_path_spec, manifest_string_field,
+    Config,
+    LinkWorkspacePackages,
+    PackageManifest,
+    PathBuf,
+    local_file_deps::is_workspace_path_spec,
+    manifest_string_field,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PackageExtension;

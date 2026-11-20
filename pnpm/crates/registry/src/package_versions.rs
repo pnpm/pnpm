@@ -25,22 +25,38 @@
 //! refetch, and the etag lives in the intact headers record, so nothing
 //! else would ever repair the file.
 
-pub use mirror::{MirrorFile, read_exact_at};
+pub use mirror::{
+    MirrorFile,
+    read_exact_at,
+};
 
 use std::{
     borrow::Cow,
     collections::HashMap,
     sync::{
-        Arc, OnceLock,
-        atomic::{AtomicBool, Ordering},
+        Arc,
+        OnceLock,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de::DeserializeOwned};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+    Serializer,
+    de::DeserializeOwned,
+};
 use serde_json::value::RawValue;
 
 use crate::package_version::{
-    PackageVersion, PolicyFieldsProbe, VersionPolicyFields, VersionTrustMetadata,
+    PackageVersion,
+    PolicyFieldsProbe,
+    VersionPolicyFields,
+    VersionTrustMetadata,
     deserialize_deprecated_field,
 };
 

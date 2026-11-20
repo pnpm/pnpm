@@ -1,8 +1,16 @@
-use super::{ArgQuoting, build_command, posix_quote, quote_for_cmd};
+use super::{
+    ArgQuoting,
+    build_command,
+    posix_quote,
+    quote_for_cmd,
+};
 use std::{
     ffi::OsStr,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 

@@ -1,6 +1,10 @@
 pub(super) use namespace::{
-    ecosystem_package_keys, namespace_collision_error, validate_artifact_owner_name,
-    validate_namespace, validate_registry_key, validate_registry_name,
+    ecosystem_package_keys,
+    namespace_collision_error,
+    validate_artifact_owner_name,
+    validate_namespace,
+    validate_registry_key,
+    validate_registry_name,
 };
 
 mod namespace;
@@ -11,9 +15,23 @@ use std::collections::BTreeSet;
 use rules::claimed;
 
 use super::{
-    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, PackagePattern,
-    Registries, Registry, RegistryConfigError, RegistryError, RegistryFile, TarballFormat,
-    UpstreamConfig, UpstreamConfigFile, UpstreamFile, resolve_upstream_config,
+    DefaultRegistryFile,
+    Ecosystem,
+    EnvVar,
+    HostedConfig,
+    HostedFile,
+    IndexMap,
+    PackagePattern,
+    Registries,
+    Registry,
+    RegistryConfigError,
+    RegistryError,
+    RegistryFile,
+    TarballFormat,
+    UpstreamConfig,
+    UpstreamConfigFile,
+    UpstreamFile,
+    resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a

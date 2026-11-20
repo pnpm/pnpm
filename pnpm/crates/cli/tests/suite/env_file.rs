@@ -3,11 +3,20 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
-    stall_report::{STALL_DEADLINE, output_within},
+    stall_report::{
+        STALL_DEADLINE,
+        output_within,
+    },
 };
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 fn pacquet_in(workspace: &std::path::Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)

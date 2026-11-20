@@ -5,25 +5,49 @@
 
 pub use filesystem_policy::LocalFilesystemPolicy;
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
-use derive_more::{Display, Error};
-use filesystem_policy::{check_scheme_spec_allowed, find_bounded_parent_publish_manifest};
+use derive_more::{
+    Display,
+    Error,
+};
+use filesystem_policy::{
+    check_scheme_spec_allowed,
+    find_bounded_parent_publish_manifest,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{DirectoryResolution, IntegrityTarget, LockfileResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    IntegrityTarget,
+    LockfileResolution,
+};
 use pnpm_package_manifest::{
-    PackageManifestError, publishes_from_directory, safe_read_package_json_from_dir,
+    PackageManifestError,
+    publishes_from_directory,
+    safe_read_package_json_from_dir,
     safe_read_project_manifest_from_dir,
 };
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PkgResolutionId, ResolveResult, UnsupportedProtocolError,
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveResult,
+    UnsupportedProtocolError,
 };
 use pnpm_tarball::TarballError;
 use tarball::resolve_file_spec;
 
 use crate::parse_bare_specifier::{
-    LocalPackageSpec, LocalSpecKind, ParseOptions, PathProtocolNotSupportedError,
-    WantedLocalDependency, parse_local_path, parse_local_scheme,
+    LocalPackageSpec,
+    LocalSpecKind,
+    ParseOptions,
+    PathProtocolNotSupportedError,
+    WantedLocalDependency,
+    parse_local_path,
+    parse_local_scheme,
 };
 
 /// Per-install knobs the dispatcher threads into every resolver call.

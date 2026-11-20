@@ -1,16 +1,36 @@
 //! The connections a libSQL database's operations run on.
 
-use crate::{is_stale_stream, with_deadline};
-use libsql::{Connection, Database, Error as LibsqlError, Row};
-use pnpr_error::{RegistryError, Result};
+use crate::{
+    is_stale_stream,
+    with_deadline,
+};
+use libsql::{
+    Connection,
+    Database,
+    Error as LibsqlError,
+    Row,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     future::Future,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tokio::{
     runtime::Handle,
-    sync::{OwnedSemaphorePermit, Semaphore},
+    sync::{
+        OwnedSemaphorePermit,
+        Semaphore,
+    },
 };
 
 /// `read` applied to the first of `rows`, which are then read to their end.

@@ -1,11 +1,27 @@
 use super::{
-    super::{TINY_BACKEND, assert_failure_contains, python, running_platform, serve, wheel},
-    approve, declare_platforms, project, repository,
+    super::{
+        TINY_BACKEND,
+        assert_failure_contains,
+        python,
+        running_platform,
+        serve,
+        wheel,
+    },
+    approve,
+    declare_platforms,
+    project,
+    repository,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
-use sha2::{Digest, Sha256};
-use std::{fs, path::Path};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[tokio::test]
 async fn git_wheels_must_be_compatible_with_every_declared_target() {

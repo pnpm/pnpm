@@ -1,17 +1,34 @@
 use crate::{
     State,
     cli_args::{
-        add::{AddRequest, add_package},
+        add::{
+            AddRequest,
+            add_package,
+        },
         global::handle_global_add,
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_config::{Config, GlobalShims};
-use pnpm_package_manifest::{DependencyGroup, is_runtime_alias};
+use pnpm_config::{
+    Config,
+    GlobalShims,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    is_runtime_alias,
+};
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use std::path::Path;
 
 /// Manage runtimes.

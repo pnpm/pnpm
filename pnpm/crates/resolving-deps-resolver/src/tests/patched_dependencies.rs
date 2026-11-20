@@ -1,20 +1,44 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
-use pnpm_lockfile::{DirectoryResolution, GitResolution, LockfileResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    GitResolution,
+    LockfileResolution,
+};
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem, PatchGroupRecord};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveOptions};
+use pnpm_patching::{
+    ExtendedPatchInfo,
+    PatchGroup,
+    PatchGroupRangeItem,
+    PatchGroupRecord,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveOptions,
+};
 use pretty_assertions::assert_eq;
 
-use super::{StubResolver, fake_manifest, fake_result};
+use super::{
+    StubResolver,
+    fake_manifest,
+    fake_result,
+};
 use crate::{
     resolve_dependency_tree::{
-        ResolveDependencyTreeError, ResolveDependencyTreeOptions, resolve_dependency_tree,
+        ResolveDependencyTreeError,
+        ResolveDependencyTreeOptions,
+        resolve_dependency_tree,
     },
-    resolve_peers::{ResolvePeersOptions, resolve_peers},
+    resolve_peers::{
+        ResolvePeersOptions,
+        resolve_peers,
+    },
 };
 use pnpm_deps_path::DepPath;
 

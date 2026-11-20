@@ -1,7 +1,10 @@
 //! The version an importer's specifier implies in the next lockfile format,
 //! where a dependency can be written as its specifier alone.
 
-use crate::{PackageKey, VersionPart};
+use crate::{
+    PackageKey,
+    VersionPart,
+};
 use std::collections::HashMap;
 
 /// The path of each injected workspace package, by name: the `<path>` of

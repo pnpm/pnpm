@@ -1,17 +1,45 @@
 use super::{
-    Arc, DepPath, DependencyGroup, EXISTING_VERSION_SELECTOR_WEIGHT, HashMap, HashSet, Mutex,
-    PreferredVersions, SnapshotEntry, StubResolver, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors, alias_dependency, assert_eq, default_opts,
-    fake_manifest, fake_result, importer_locked_peer_versions, link_dependency, locked_peer_names,
-    peer_context_lockfile, peer_declaring_metadata, plain_dependency, resolve_importer,
-    snapshot_with_dependencies, snapshot_with_dependency,
+    Arc,
+    DepPath,
+    DependencyGroup,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    HashMap,
+    HashSet,
+    Mutex,
+    PreferredVersions,
+    SnapshotEntry,
+    StubResolver,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
+    alias_dependency,
+    assert_eq,
+    default_opts,
+    fake_manifest,
+    fake_result,
+    importer_locked_peer_versions,
+    link_dependency,
+    locked_peer_names,
+    peer_context_lockfile,
+    peer_declaring_metadata,
+    plain_dependency,
+    resolve_importer,
+    snapshot_with_dependencies,
+    snapshot_with_dependency,
 };
 
 #[test]
 fn locked_peer_versions_are_recorded_for_direct_deps() {
     use pnpm_lockfile::{
-        ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PkgName, PkgVerPeer,
-        ProjectSnapshot, ResolvedDependencySpec,
+        ComVer,
+        ImporterDepVersion,
+        Lockfile,
+        LockfileVersion,
+        PkgName,
+        PkgVerPeer,
+        ProjectSnapshot,
+        ResolvedDependencySpec,
     };
 
     let consumer = PkgName::parse("consumer").unwrap();
@@ -286,8 +314,16 @@ fn a_hashed_peer_suffix_without_package_metadata_records_nothing() {
 #[test]
 fn importers_missing_from_the_lockfile_share_one_locked_peer_scan() {
     use super::super::locked_peers::LockedPeers;
-    use crate::resolve_dependency_tree::{TreeCtx, WorkspaceTreeCtx};
-    use pnpm_lockfile::{ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencySpec};
+    use crate::resolve_dependency_tree::{
+        TreeCtx,
+        WorkspaceTreeCtx,
+    };
+    use pnpm_lockfile::{
+        ImporterDepVersion,
+        PkgName,
+        ProjectSnapshot,
+        ResolvedDependencySpec,
+    };
     use pnpm_resolving_resolver_base::ResolveOptions;
 
     let mut lockfile = peer_context_lockfile(
@@ -823,7 +859,10 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
 #[test]
 fn recorded_hashed_pins_match_explicit_pins() {
     use pnpm_deps_path::PeerId;
-    use pnpm_lockfile::{PeerBindings, RecordedPeerBindings};
+    use pnpm_lockfile::{
+        PeerBindings,
+        RecordedPeerBindings,
+    };
 
     for snapshot in [
         SnapshotEntry::default(),
@@ -856,7 +895,10 @@ fn recorded_hashed_pins_match_explicit_pins() {
 #[test]
 fn retained_transitive_peer_pins_keep_descendant_aliases() {
     use pnpm_deps_path::PeerId;
-    use pnpm_lockfile::{PeerBindings, RecordedPeerBindings};
+    use pnpm_lockfile::{
+        PeerBindings,
+        RecordedPeerBindings,
+    };
 
     let peers = [PeerId::DepPath("provider@1.0.0".into())];
     let suffix = PeerBindings::suffix_of(&peers, 3);

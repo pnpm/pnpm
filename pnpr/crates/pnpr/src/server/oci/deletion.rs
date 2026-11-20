@@ -1,13 +1,28 @@
 use super::{
-    Action, Digest, ErrorCode, HostedRepo, ImageDocument, Ownership, RegistrySource, Request,
-    authorize_with_ownership, error, no_content, registry_error,
+    Action,
+    Digest,
+    ErrorCode,
+    HostedRepo,
+    ImageDocument,
+    Ownership,
+    RegistrySource,
+    Request,
+    authorize_with_ownership,
+    error,
+    no_content,
+    registry_error,
 };
 use crate::archive_gc::liveness::referenced_document_blobs;
-use axum::{http::StatusCode, response::Response};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
-    DOCUMENT_WRITE_RETRIES, database::BlobLookup, wait_after_document_write_conflict,
+    DOCUMENT_WRITE_RETRIES,
+    database::BlobLookup,
+    wait_after_document_write_conflict,
 };
 
 impl Request {

@@ -1,13 +1,22 @@
 use crate::{
     cli_args::{
         pre_command::{
-            ConfigLoad, EntryPoint, Invocation, load_pre_command_config, pre_command_plan,
+            ConfigLoad,
+            EntryPoint,
+            Invocation,
+            load_pre_command_config,
+            pre_command_plan,
         },
         verify_deps::install_config_args,
     },
     config_overrides::ConfigOverrides,
 };
-use std::{cell::RefCell, ffi::OsString, fs, path::PathBuf};
+use std::{
+    cell::RefCell,
+    ffi::OsString,
+    fs,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 std::thread_local! {

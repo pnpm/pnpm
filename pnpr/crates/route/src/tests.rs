@@ -1,16 +1,40 @@
 use std::{
     net::SocketAddr,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
-use pnpm_network::{MetadataCacheScope, UpstreamRouteHook};
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
+use pnpm_network::{
+    MetadataCacheScope,
+    UpstreamRouteHook,
+};
+use reqwest::header::{
+    AUTHORIZATION,
+    HeaderMap,
+    HeaderValue,
+};
 
-use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
-use pnpr_config::{Config, PublicRoute, UpstreamConfig};
+use super::{
+    Footprint,
+    PrivateAccessDescriptor,
+    RouteClass,
+    RouteContext,
+    RouteHook,
+};
+use pnpr_config::{
+    Config,
+    PublicRoute,
+    UpstreamConfig,
+};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_policy::{AccessList, Identity, RuleOverride};
+use pnpr_policy::{
+    AccessList,
+    Identity,
+    RuleOverride,
+};
 
 fn base_config() -> Config {
     Config::proxy("127.0.0.1:7677".parse::<SocketAddr>().unwrap(), PathBuf::from("/tmp/pnpr-route"))
@@ -376,7 +400,11 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
 
 #[test]
 fn a_fetch_keeps_its_package_when_readers_differ_between_packages() {
-    use pnpr_policy::{Action, Grant, GrantSpec};
+    use pnpr_policy::{
+        Action,
+        Grant,
+        GrantSpec,
+    };
     use pnpr_registry::Ecosystem;
 
     let grant = |name: &str, include: &[&str], subject: &str| {
@@ -440,8 +468,14 @@ fn a_fetch_keeps_its_package_when_readers_differ_between_packages() {
 
 #[test]
 fn upstream_per_package_rules_gate_alias_selection() {
-    use pnpr_policy::{PackageRule, PackageRules};
-    use pnpr_registry::{Ecosystem, PackagePattern};
+    use pnpr_policy::{
+        PackageRule,
+        PackageRules,
+    };
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+    };
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
@@ -480,7 +514,12 @@ fn upstream_per_package_rules_gate_alias_selection() {
 
 #[test]
 fn upstream_credential_is_bounded_by_its_packages_claim() {
-    use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+        Registries,
+        Registry,
+    };
 
     let mut config = base_config();
     config.routing.upstreams.insert(
@@ -522,7 +561,12 @@ fn upstream_credential_is_bounded_by_its_packages_claim() {
 
 #[test]
 fn a_resolution_through_an_alias_an_earlier_one_skips_replays() {
-    use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+        Registries,
+        Registry,
+    };
 
     let mut config = base_config();
     for name in ["scoped", "fallback"] {
@@ -683,7 +727,11 @@ fn upstream_without_access_is_an_anonymous_route() {
 
 #[test]
 fn proxied_alias_accepts_team_member_identity() {
-    use pnpr_policy::{AccessList, AccessToken, Identity};
+    use pnpr_policy::{
+        AccessList,
+        AccessToken,
+        Identity,
+    };
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");

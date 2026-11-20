@@ -9,19 +9,44 @@
 //! match pnpm exactly, and reads parse JSON first, falling back to a YAML
 //! parser for manifests written by old pnpm versions.
 
-pub use capabilities::{Clock, FsCreateDirAll, FsReadToString, FsWrite, Host};
+pub use capabilities::{
+    Clock,
+    FsCreateDirAll,
+    FsReadToString,
+    FsWrite,
+    Host,
+};
 pub use hoisted_dir::hoisted_dir;
 
-use derive_more::{Display, Error, From, Into};
-use indexmap::{IndexMap, IndexSet};
+use derive_more::{
+    Display,
+    Error,
+    From,
+    Into,
+};
+use indexmap::{
+    IndexMap,
+    IndexSet,
+};
 use pipe_trait::Pipe;
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_fs::lexical_normalize;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{
+    Deserialize,
+    Serialize,
+    de::DeserializeOwned,
+};
 use std::{
     collections::BTreeMap,
-    io, iter,
-    path::{Path, PathBuf},
+    io,
+    iter,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Filename of the modules manifest inside `node_modules/`.

@@ -9,17 +9,35 @@
 
 pub use cache_key::create_global_cache_key;
 pub use check_bin_conflicts::{
-    CheckGlobalBinConflictsError, GlobalBinConflictError, bin_slot_exists,
+    CheckGlobalBinConflictsError,
+    GlobalBinConflictError,
+    bin_slot_exists,
     check_global_bin_conflicts,
 };
 pub use global_package_dir::{
-    create_install_dir, get_hash_link, is_global_install_subdir, resolve_install_dir,
+    create_install_dir,
+    get_hash_link,
+    is_global_install_subdir,
+    resolve_install_dir,
 };
-pub use list::{GlobalTool, ListReportAs, find_global_install_dirs, list_global_packages};
+pub use list::{
+    GlobalTool,
+    ListReportAs,
+    find_global_install_dirs,
+    list_global_packages,
+};
 pub use scan::{
-    GlobalPackageInfo, InstalledGlobalPackage, clean_orphaned_install_dirs, find_global_package,
-    get_global_package_details, get_installed_bin_names, get_installed_bins, installed_versions,
-    read_direct_dependencies, read_direct_dependency_aliases, read_installed_packages,
+    GlobalPackageInfo,
+    InstalledGlobalPackage,
+    clean_orphaned_install_dirs,
+    find_global_package,
+    get_global_package_details,
+    get_installed_bin_names,
+    get_installed_bins,
+    installed_versions,
+    read_direct_dependencies,
+    read_direct_dependency_aliases,
+    read_installed_packages,
     scan_global_packages,
 };
 
@@ -29,7 +47,10 @@ mod global_package_dir;
 mod list;
 mod scan;
 
-use pnpm_package_manifest::{convert_engines_runtime_to_dependencies, parse_manifest};
+use pnpm_package_manifest::{
+    convert_engines_runtime_to_dependencies,
+    parse_manifest,
+};
 use serde_json::Value;
 use std::path::Path;
 

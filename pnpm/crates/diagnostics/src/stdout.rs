@@ -10,8 +10,12 @@
 use std::{
     io,
     sync::{
-        Mutex, PoisonError,
-        atomic::{AtomicBool, Ordering},
+        Mutex,
+        PoisonError,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 

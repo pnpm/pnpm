@@ -1,11 +1,23 @@
 use super::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, ROOT_PREINSTALL_ALREADY_RAN_ENV,
-    VERIFY_DEPS_BEFORE_RUN_ENV, build_env, build_env_for_platform, escape_newlines,
-    is_delegation_marker, is_stamping_key, path_value, sanitize_env_key, stamp_package,
+    DEV_PREINSTALL_ALREADY_RAN_ENV,
+    EnvOptions,
+    ROOT_PREINSTALL_ALREADY_RAN_ENV,
+    VERIFY_DEPS_BEFORE_RUN_ENV,
+    build_env,
+    build_env_for_platform,
+    escape_newlines,
+    is_delegation_marker,
+    is_stamping_key,
+    path_value,
+    sanitize_env_key,
+    stamp_package,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 fn empty_extra() -> HashMap<String, String> {
     HashMap::new()
@@ -512,7 +524,11 @@ fn escape_newlines_json_encodes_multi_line_only() {
 #[cfg(unix)]
 #[test]
 fn package_manager_environment_preserves_native_node_paths() {
-    use std::{ffi::OsStr, os::unix::ffi::OsStrExt, process::Command};
+    use std::{
+        ffi::OsStr,
+        os::unix::ffi::OsStrExt,
+        process::Command,
+    };
 
     let node = b"/node-\xff/node";
     let env = super::package_manager_env(

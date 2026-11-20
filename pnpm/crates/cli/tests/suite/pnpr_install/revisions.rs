@@ -1,7 +1,18 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Ecosystem, configure_pnpr_auth,
-    declare_pnpr_registries, fs, pacquet_at, point_npmrc_registry_at, revision_fixture_tarball,
-    revision_fixture_tarball_with_value, revision_packument, start_pnpr, start_pnpr_registry,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    Ecosystem,
+    configure_pnpr_auth,
+    declare_pnpr_registries,
+    fs,
+    pacquet_at,
+    point_npmrc_registry_at,
+    revision_fixture_tarball,
+    revision_fixture_tarball_with_value,
+    revision_packument,
+    start_pnpr,
+    start_pnpr_registry,
 };
 use assert_cmd::assert::OutputAssertExt;
 

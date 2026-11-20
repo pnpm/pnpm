@@ -1,19 +1,37 @@
-pub use preview::{MANIFEST_FILE_NAME, PatchPreview, preview_patch};
+pub use preview::{
+    MANIFEST_FILE_NAME,
+    PatchPreview,
+    preview_patch,
+};
 
 mod atomic_write;
 mod preview;
 mod tolerant;
 
 use atomic_write::write_atomic_with_mode;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use diffy::{
     Patch,
-    patch_set::{FileMode, FileOperation, FilePatch, ParseOptions, PatchSet},
+    patch_set::{
+        FileMode,
+        FileOperation,
+        FilePatch,
+        ParseOptions,
+        PatchSet,
+    },
 };
 use miette::Diagnostic;
 use std::{
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// Error from [`apply_patch_to_dir`].

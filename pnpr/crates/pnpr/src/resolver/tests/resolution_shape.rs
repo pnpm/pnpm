@@ -1,16 +1,25 @@
 use std::sync::Arc;
 
 use axum::{
-    body::{Bytes, to_bytes},
+    body::{
+        Bytes,
+        to_bytes,
+    },
     http::StatusCode,
     response::Response,
 };
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::with_offline_check_cache_identities;
 use pnpm_package_manager::build_resolution_verifiers;
-use pnpr_config::{IpNetwork, PublicRoute};
+use pnpr_config::{
+    IpNetwork,
+    PublicRoute,
+};
 use pnpr_route::Footprint;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 
 use super::{
@@ -18,13 +27,20 @@ use super::{
         Resolver,
         dispatch::handle_resolve,
         request_tarball_router,
-        verdict_cache::{VerdictLookup, VerdictRecord},
+        verdict_cache::{
+            VerdictLookup,
+            VerdictRecord,
+        },
         verify_lockfile::{
-            cached_verdict::{merge_policies, past_verdict_footprint},
+            cached_verdict::{
+                merge_policies,
+                past_verdict_footprint,
+            },
             handle_verify_lockfile,
         },
     },
-    registry_config, user,
+    registry_config,
+    user,
 };
 
 fn test_resolver(origin: &str, dir: &TempDir) -> Resolver {

@@ -1,5 +1,8 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{
+        HashMap,
+        VecDeque,
+    },
     hash::Hash,
 };
 

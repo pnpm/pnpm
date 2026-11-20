@@ -1,22 +1,59 @@
 pub(super) use filesystem::hash_linked_packages;
 pub(super) use slots::replace_global_bin_slots;
-pub(super) use targets::{ActivationBinSets, get_actual_bin_names};
+pub(super) use targets::{
+    ActivationBinSets,
+    get_actual_bin_names,
+};
 
-use derive_more::{Display, Error};
-use filesystem::{io_error_report, remove_dir_all_if_exists, swap_hash_link_atomically};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{FsWalkFiles, Host, PackageBinSource, remove_bin};
-use pnpm_fs::{read_symlink_dir, relative_path, remove_symlink_dir};
+use derive_more::{
+    Display,
+    Error,
+};
+use filesystem::{
+    io_error_report,
+    remove_dir_all_if_exists,
+    swap_hash_link_atomically,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_cmd_shim::{
+    FsWalkFiles,
+    Host,
+    PackageBinSource,
+    remove_bin,
+};
+use pnpm_fs::{
+    read_symlink_dir,
+    relative_path,
+    remove_symlink_dir,
+};
 use slots::{
-    SavedBinSlot, backup_bin_slots, read_hash_target, remove_slots_of_missing_bins,
+    SavedBinSlot,
+    backup_bin_slots,
+    read_hash_target,
+    remove_slots_of_missing_bins,
     restore_bin_slots,
 };
-use targets::{ensure_required_bin_names, ensure_required_bin_targets, get_actual_bins};
+use targets::{
+    ensure_required_bin_names,
+    ensure_required_bin_targets,
+    get_actual_bins,
+};
 
 use std::{
-    collections::{BTreeMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 

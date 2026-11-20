@@ -1,8 +1,13 @@
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{
-    ReplacedCandidate, ReplacedEntries, VerifyLockfileResolutionsOptions,
+    ReplacedCandidate,
+    ReplacedEntries,
+    VerifyLockfileResolutionsOptions,
     verify_lockfile_resolutions,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;

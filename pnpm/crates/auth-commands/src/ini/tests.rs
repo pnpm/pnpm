@@ -1,4 +1,7 @@
-use super::{IniSettings, encode_value};
+use super::{
+    IniSettings,
+    encode_value,
+};
 
 /// One `auth.ini` line holding `key = value`, quoted the way the writer
 /// quotes it, so a test can start from a file an earlier `pnpm login` — or a

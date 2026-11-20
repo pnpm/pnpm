@@ -9,15 +9,27 @@
 //! (`pnpm_config` is not a dependency of this crate, so it is not
 //! linked here.)
 
-use crate::include::{IncludeError, read_workspace_manifest_document};
-use derive_more::{Display, Error};
+use crate::include::{
+    IncludeError,
+    read_workspace_manifest_document,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 use pnpm_env_replace::SentinelPlaceholders;
 use serde::Deserialize;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Basename of the workspace manifest.

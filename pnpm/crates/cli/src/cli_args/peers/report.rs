@@ -1,13 +1,22 @@
 use super::PeersOutcome;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::{
-    IssuesByProjects, UndeclaredPeer, UndeclaredPeerInspector, render_peer_issues,
+    IssuesByProjects,
+    UndeclaredPeer,
+    UndeclaredPeerInspector,
+    render_peer_issues,
 };
 use pnpm_lockfile::Lockfile;
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) type UndeclaredWarnings = BTreeMap<String, Vec<UndeclaredPeer>>;

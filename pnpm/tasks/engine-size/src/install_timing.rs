@@ -7,7 +7,10 @@ use std::{
     fs,
     path::Path,
     process::Command,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Directories that hold install output, not install input, at any depth.

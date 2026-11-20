@@ -1,20 +1,41 @@
-pub(in crate::install) use graph::{ProjectLifecycleGraph, project_lifecycle_graph};
-pub(super) use uninstall::{project_script_stages, run_pre_uninstall_scripts};
+pub(in crate::install) use graph::{
+    ProjectLifecycleGraph,
+    project_lifecycle_graph,
+};
+pub(super) use uninstall::{
+    project_script_stages,
+    run_pre_uninstall_scripts,
+};
 
 mod graph;
 mod project_script_runner;
 mod uninstall;
 
-use project_script_runner::{ProjectScriptRunner, run_project_stages};
+use project_script_runner::{
+    ProjectScriptRunner,
+    run_project_stages,
+};
 
 use super::{
-    Config, DEV_PREINSTALL_ALREADY_RAN_ENV, HashMap, InstallError, NodeLinker, Path, PathBuf,
-    ROOT_PREINSTALL_ALREADY_RAN_ENV, Reporter, RunPostinstallHooks,
+    Config,
+    DEV_PREINSTALL_ALREADY_RAN_ENV,
+    HashMap,
+    InstallError,
+    NodeLinker,
+    Path,
+    PathBuf,
+    ROOT_PREINSTALL_ALREADY_RAN_ENV,
+    Reporter,
+    RunPostinstallHooks,
     project_requires_lifecycle_scripts,
 };
 
 use pnpm_executor::LifecycleScriptError;
-use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphOptions,
+    TaskCompletion,
+    schedule_graph,
+};
 use std::sync::Mutex;
 
 /// Walk every workspace project's `package.json`. Returns `Ok(None)`

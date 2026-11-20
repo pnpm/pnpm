@@ -1,15 +1,29 @@
 use crate::optimistic_repeat_install::{
-    CatalogAnchor, CatalogResolutionResult, Catalogs, OptimisticRepeatInstallCheck,
-    WantedDependency, manifest_string_field, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    Catalogs,
+    OptimisticRepeatInstallCheck,
+    WantedDependency,
+    manifest_string_field,
+    resolve_from_catalog,
 };
 use pnpm_fs::lexical_normalize;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use pnpm_workspace_state::WorkspaceState;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 struct WorkspaceProjectIndex<'a> {

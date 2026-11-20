@@ -1,5 +1,11 @@
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use std::path::PathBuf;
 
 /// Error type of [`crate::DirectoryFetcher`].

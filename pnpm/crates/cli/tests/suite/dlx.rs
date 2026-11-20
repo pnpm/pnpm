@@ -1,4 +1,7 @@
-use crate::_utils::{append_workspace_yaml_key, flatten_report};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    flatten_report,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -280,7 +283,10 @@ fn dlx_installs_and_runs_packages_bin() {
 #[test]
 fn dlx_does_not_reuse_the_cache_across_node_majors() {
     use pnpm_testing_utils::command_env::CommandTestExt;
-    use std::{os::unix::fs::PermissionsExt, process::Command};
+    use std::{
+        os::unix::fs::PermissionsExt,
+        process::Command,
+    };
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

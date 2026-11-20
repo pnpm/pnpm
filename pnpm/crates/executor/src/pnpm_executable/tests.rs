@@ -1,4 +1,7 @@
-use super::{is_pnpx_alias, pnpm_exe_beside};
+use super::{
+    is_pnpx_alias,
+    pnpm_exe_beside,
+};
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 

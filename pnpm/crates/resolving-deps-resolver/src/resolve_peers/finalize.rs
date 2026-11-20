@@ -4,30 +4,61 @@
 //! suffix, and the [`DependenciesGraph`] built from the per-node records
 //! keyed by those depPaths.
 
-pub(crate) use final_paths::{FinalDepPaths, PeerIdRecording};
+pub(crate) use final_paths::{
+    FinalDepPaths,
+    PeerIdRecording,
+};
 pub(crate) use graph_edges::merge_additional_edges;
 
 mod peer_scc;
 
 mod graph_edges;
-use graph_edges::{PeerNameTarjan, insert_graph_node, transitive_peer_names};
+use graph_edges::{
+    PeerNameTarjan,
+    insert_graph_node,
+    transitive_peer_names,
+};
 
 mod final_paths;
 
 use crate::{
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+    dependencies_graph::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
     node_id::NodeId,
     resolve_peers::{
-        context::{SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names},
-        walker::{MissingPeerInfo, Walker},
+        context::{
+            SharedChain,
+            link_node_id_as_dep_path,
+            peer_id_pair,
+            peer_segment_names,
+        },
+        walker::{
+            MissingPeerInfo,
+            Walker,
+        },
     },
-    resolved_tree::{ResolvedPackage, pkg_name_version},
+    resolved_tree::{
+        ResolvedPackage,
+        pkg_name_version,
+    },
 };
-use pnpm_deps_path::{DepPath, PeerId, link_path_to_peer_version};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    link_path_to_peer_version,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     sync::Arc,
 };
 

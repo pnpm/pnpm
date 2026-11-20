@@ -1,7 +1,11 @@
 use std::ops::Range;
 use toml::{
     Spanned,
-    de::{DeString, DeTable, DeValue},
+    de::{
+        DeString,
+        DeTable,
+        DeValue,
+    },
 };
 
 pub(super) fn collect_header_spans(

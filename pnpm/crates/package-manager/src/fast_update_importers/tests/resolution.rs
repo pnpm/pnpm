@@ -1,12 +1,26 @@
 use super::{
-    WITH_NESTED_PEER_ON_REMOVABLE_DEP, WITH_NON_ASCII_PEER_SUFFIX, WITH_PEER_ON_ANOTHER_VERSION,
-    WITH_PEER_ON_REMOVABLE_DEP, WITH_PEER_ON_REMOVABLE_LINK, WITH_REMOVABLE_DEP,
-    WITH_REMOVABLE_PEER_PAIR, WITH_TWO_LOCKED_VERSIONS, lockfile, manifest, manifest_from,
-    parsed_lockfile, sorted_snapshot_keys, try_fast_update_importers, with_a_direct_foo_at,
+    WITH_NESTED_PEER_ON_REMOVABLE_DEP,
+    WITH_NON_ASCII_PEER_SUFFIX,
+    WITH_PEER_ON_ANOTHER_VERSION,
+    WITH_PEER_ON_REMOVABLE_DEP,
+    WITH_PEER_ON_REMOVABLE_LINK,
+    WITH_REMOVABLE_DEP,
+    WITH_REMOVABLE_PEER_PAIR,
+    WITH_TWO_LOCKED_VERSIONS,
+    lockfile,
+    manifest,
+    manifest_from,
+    parsed_lockfile,
+    sorted_snapshot_keys,
+    try_fast_update_importers,
+    with_a_direct_foo_at,
     with_a_lower_peerless_foo,
 };
 use pnpm_config::ResolutionMode::LowestDirect as LOWEST_DIRECT;
-use pnpm_lockfile::{PackageKey, PkgName};
+use pnpm_lockfile::{
+    PackageKey,
+    PkgName,
+};
 use serde_json::json;
 
 #[test]

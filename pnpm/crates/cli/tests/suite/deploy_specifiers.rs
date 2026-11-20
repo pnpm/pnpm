@@ -1,9 +1,20 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, ResolvedDependencySpec, SnapshotEntry};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    ResolvedDependencySpec,
+    SnapshotEntry,
+};
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{fs, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn deployed_peer_dependencies_can_install_with_a_fresh_lockfile() {

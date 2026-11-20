@@ -2,7 +2,11 @@ use std::{
     collections::HashSet,
     fs::File,
     io::Read,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 use indexmap::IndexMap;
@@ -13,9 +17,13 @@ use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use super::{
-    PackError, PackOptions,
+    PackError,
+    PackOptions,
     contents::executable_sources,
-    output::{normalize_tarball_name, strip_build_metadata},
+    output::{
+        normalize_tarball_name,
+        strip_build_metadata,
+    },
     prevent_bundled_dependencies_with_pnp,
 };
 

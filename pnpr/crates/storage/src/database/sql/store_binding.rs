@@ -1,7 +1,14 @@
 //! Binding a database to its hosted store's `store_id`.
 
-use super::{Connection, Freshness, SqlDatabase};
-use pnpr_error::{RegistryError, Result};
+use super::{
+    Connection,
+    Freshness,
+    SqlDatabase,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_sql::DialectSql;
 use std::sync::Arc;
 

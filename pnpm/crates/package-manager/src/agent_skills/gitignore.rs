@@ -1,10 +1,20 @@
 //! The `# pnpm` block of each agent skill directory's `.gitignore`.
 
-use super::{AgentSkillsError, links::recorded_parent_is_within_workspace};
+use super::{
+    AgentSkillsError,
+    links::recorded_parent_is_within_workspace,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The ignore rule that older pnpm versions added for links named

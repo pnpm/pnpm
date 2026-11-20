@@ -1,6 +1,15 @@
-use crate::{State, cli_args::recursive::discover_workspace_projects};
-use indexmap::{IndexMap, map::Entry};
-use miette::{Context, IntoDiagnostic};
+use crate::{
+    State,
+    cli_args::recursive::discover_workspace_projects,
+};
+use indexmap::{
+    IndexMap,
+    map::Entry,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use node_semver::Range;
 use percent_encoding::percent_decode_str;
 use pnpm_config::Config;
@@ -8,7 +17,10 @@ use pnpm_fs::lexical_normalize;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::Reporter;
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const DEPENDENCY_FIELDS: [&str; 3] = ["dependencies", "devDependencies", "optionalDependencies"];
 

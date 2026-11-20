@@ -3,16 +3,24 @@
 //! invoke the helper directly with a hand-built
 //! [`WorkspacePackages`] map.
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
-    WantedDependency, WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
+    WantedDependency,
+    WorkspacePackage,
+    WorkspacePackages,
+    WorkspacePackagesByVersion,
 };
 use serde_json::json;
 
 use super::{
-    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, SavedSpecifierOptions,
+    ResolveFromWorkspaceError,
+    ResolveFromWorkspaceOptions,
+    SavedSpecifierOptions,
     try_resolve_from_workspace,
 };
 

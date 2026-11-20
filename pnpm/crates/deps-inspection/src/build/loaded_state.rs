@@ -1,7 +1,20 @@
 use super::{
-    BTreeMap, Context, DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, HashMap, HashSet, Host,
-    IntoDiagnostic, Lockfile, Modules, Path, PathBuf, PkgInfoEnv, RegistryOptions,
-    detect_dep_types, lexical_normalize, read_modules_manifest,
+    BTreeMap,
+    Context,
+    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    HashMap,
+    HashSet,
+    Host,
+    IntoDiagnostic,
+    Lockfile,
+    Modules,
+    Path,
+    PathBuf,
+    PkgInfoEnv,
+    RegistryOptions,
+    detect_dep_types,
+    lexical_normalize,
+    read_modules_manifest,
 };
 
 /// The lockfiles and modules-manifest state one tree build runs

@@ -1,4 +1,9 @@
-use super::{Config, SettingsComparison, WorkspaceState, WorkspaceStateSettings};
+use super::{
+    Config,
+    SettingsComparison,
+    WorkspaceState,
+    WorkspaceStateSettings,
+};
 
 /// Whether the `extendNodePath` the last install recorded matches `live`.
 /// The frozen path's up-to-date early return reads it: the lockfile and

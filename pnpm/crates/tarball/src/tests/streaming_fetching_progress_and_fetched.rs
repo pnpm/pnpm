@@ -1,13 +1,38 @@
 use super::{
-    AuthHeaders, Cursor, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL, Integrity,
-    MAX_THROUGHPUT_PRIORITY, PackageFilesIndex, Read, STREAM_ENTRY_BUFFER_MAX,
-    STREAM_EXTRACT_COMPRESSED_THRESHOLD, SilentReporter, TarballError, ThrottledClient,
-    UNPRIORITIZED, assert_eq, build_zip, download_priority, extract_tarball_entries,
-    extract_zip_entries, fast_retry_opts, fetch_and_extract_with_retry, gzip_bytes,
-    incompressible_tarball, integrity, stream_extract_gzipped_tarball, tar_with_raw_entry_name,
-    tar_with_root_level_entries, tempdir_with_leaked_path, write_zip_entry_to_cas,
+    AuthHeaders,
+    Cursor,
+    FASTIFY_ERROR_INTEGRITY,
+    FASTIFY_ERROR_TARBALL,
+    Integrity,
+    MAX_THROUGHPUT_PRIORITY,
+    PackageFilesIndex,
+    Read,
+    STREAM_ENTRY_BUFFER_MAX,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    SilentReporter,
+    TarballError,
+    ThrottledClient,
+    UNPRIORITIZED,
+    assert_eq,
+    build_zip,
+    download_priority,
+    extract_tarball_entries,
+    extract_zip_entries,
+    fast_retry_opts,
+    fetch_and_extract_with_retry,
+    gzip_bytes,
+    incompressible_tarball,
+    integrity,
+    stream_extract_gzipped_tarball,
+    tar_with_raw_entry_name,
+    tar_with_root_level_entries,
+    tempdir_with_leaked_path,
+    write_zip_entry_to_cas,
 };
-use crate::{ArchiveLimit, TarLimits};
+use crate::{
+    ArchiveLimit,
+    TarLimits,
+};
 
 /// `pnpm:fetching-progress` and `pnpm:progress` fire from inside the
 /// tarball pipeline:
@@ -29,7 +54,11 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     use std::sync::Mutex;
 
     use pnpm_reporter::{
-        FetchingProgressLog, FetchingProgressMessage, LogEvent, ProgressMessage, Reporter as _,
+        FetchingProgressLog,
+        FetchingProgressMessage,
+        LogEvent,
+        ProgressMessage,
+        Reporter as _,
     };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -498,7 +527,10 @@ fn extract_joins_nested_entry_paths_with_forward_slashes() {
 async fn in_progress_events_fire_only_for_big_tarballs() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{FetchingProgressMessage, LogEvent};
+    use pnpm_reporter::{
+        FetchingProgressMessage,
+        LogEvent,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 

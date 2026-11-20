@@ -3,46 +3,97 @@ pub(crate) use clean::clean_expired_dlx_cache;
 use crate::{
     State,
     cli_args::{
-        add::add_package, catalogs::configured_catalogs, exec::set_package_manager_env,
+        add::add_package,
+        catalogs::configured_catalogs,
+        exec::set_package_manager_env,
         package_spec::resolve_local_package_spec,
         supported_architectures::SupportedArchitecturesArgs,
     },
-    engine_pm::{channel::PackageManager, provision::provision},
-    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    engine_pm::{
+        channel::PackageManager,
+        provision::provision,
+    },
+    path_env::{
+        BadPathDir,
+        prepend_dirs_to_path,
+        set_command_path,
+    },
     process::Command,
     shim_dispatch::materialize_runtime,
 };
 
-use cache::{read_json, resolve_catalog_specs};
+use cache::{
+    read_json,
+    resolve_catalog_specs,
+};
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency as CatalogWantedDependency,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency as CatalogWantedDependency,
     resolve_from_catalog,
 };
-use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    get_bins_from_package_manifest,
+};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
-use pnpm_fs::{force_symlink_dir, remove_dirent};
+use pnpm_fs::{
+    force_symlink_dir,
+    remove_dirent,
+};
 use pnpm_package_manifest::{
-    DependencyGroup, convert_engines_runtime_to_dependencies, is_runtime_alias,
-    package_manager_spec::{is_version_request, split_spec},
+    DependencyGroup,
+    convert_engines_runtime_to_dependencies,
+    is_runtime_alias,
+    package_manager_spec::{
+        is_version_request,
+        split_spec,
+    },
     parse_manifest,
 };
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use provision::{ProvisionedTool, provisioned_tool, run_package_manager, run_runtime};
+use provision::{
+    ProvisionedTool,
+    provisioned_tool,
+    run_package_manager,
+    run_runtime,
+};
 use rust::run_rust;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     ffi::OsStr,
-    fs, io,
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// Run a package in a temporary environment.

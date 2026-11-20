@@ -19,9 +19,15 @@
 
 pub use host_filesystem::is_host_filesystem_specifier;
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use pnpm_fs::{lexical_normalize, relative_path};
+use pnpm_fs::{
+    lexical_normalize,
+    relative_path,
+};
 
 mod host_filesystem;
 

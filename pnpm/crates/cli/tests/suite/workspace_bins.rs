@@ -1,8 +1,17 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{collections::BTreeSet, fs, io, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeSet,
+    fs,
+    io,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn repeat_install_relinks_changed_workspace_bins() {

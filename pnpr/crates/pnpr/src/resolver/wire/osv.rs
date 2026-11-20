@@ -1,10 +1,20 @@
-use pnpm_lockfile::{Lockfile, LockfileResolution, is_git_hosted_tarball_url};
-use pnpr_osv::{OsvIndex, format_advisory_ids};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    is_git_hosted_tarball_url,
+};
+use pnpr_osv::{
+    OsvIndex,
+    format_advisory_ids,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_upstream::version_route_tarball_version;
 
 use super::{
-    super::protocol::{AppliedPolicies, ResolveRequest},
+    super::protocol::{
+        AppliedPolicies,
+        ResolveRequest,
+    },
     serialize_bounded_frame,
 };
 

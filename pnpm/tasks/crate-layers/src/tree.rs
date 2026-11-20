@@ -1,7 +1,11 @@
 use std::{
     collections::BTreeSet,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

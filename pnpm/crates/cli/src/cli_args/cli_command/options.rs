@@ -1,12 +1,26 @@
 use super::{
-    CliArgs, CliCommand, CommandFactory, Diagnostic, Display, Error, ErrorKind, Pipe, ReporterType,
+    CliArgs,
+    CliCommand,
+    CommandFactory,
+    Diagnostic,
+    Display,
+    Error,
+    ErrorKind,
+    Pipe,
+    ReporterType,
 };
 
 use crate::{
     cli_args::reporter::ReporterFlags,
-    config_overrides::{ConfigOverrides, GlobalConflict},
+    config_overrides::{
+        ConfigOverrides,
+        GlobalConflict,
+    },
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Error type of [`CliArgs::apply_workspace_root`].
 #[derive(Debug, Display, Error, Diagnostic)]

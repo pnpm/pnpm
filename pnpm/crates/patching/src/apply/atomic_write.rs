@@ -1,13 +1,22 @@
 use pnpm_fs::CopyPermissions as Permissions;
 #[cfg(not(target_os = "wasi"))]
 use std::{
-    fs::{self, OpenOptions},
-    sync::atomic::{AtomicU64, Ordering},
+    fs::{
+        self,
+        OpenOptions,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 use diffy::patch_set::FileMode;
 use std::{
-    io::{self, Write},
+    io::{
+        self,
+        Write,
+    },
     path::Path,
 };
 

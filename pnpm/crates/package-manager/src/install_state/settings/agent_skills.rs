@@ -1,4 +1,8 @@
-use super::{Config, SettingsComparison, WorkspaceStateSettings};
+use super::{
+    Config,
+    SettingsComparison,
+    WorkspaceStateSettings,
+};
 
 /// The agent skills settings, recorded only when set. pnpm v11 has no such
 /// settings.

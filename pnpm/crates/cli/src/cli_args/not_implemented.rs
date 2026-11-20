@@ -5,7 +5,10 @@
 //! of being taken for a package script and failing as a missing binary.
 
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// Everything after the command name is swallowed, so

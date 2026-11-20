@@ -1,16 +1,34 @@
 use super::{
-    install_then_link, link_engine_bins, linked_bins, package_dir, package_manager_engine_config,
+    install_then_link,
+    link_engine_bins,
+    linked_bins,
+    package_dir,
+    package_manager_engine_config,
     resolve_slot,
 };
-use crate::cli_args::reporter::{CliReporter, EventFilter};
+use crate::cli_args::reporter::{
+    CliReporter,
+    EventFilter,
+};
 use pnpm_config::Config;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 use pnpm_store_dir::StoreDir;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn cache_hit_relinks_missing_pnpm_bin() {

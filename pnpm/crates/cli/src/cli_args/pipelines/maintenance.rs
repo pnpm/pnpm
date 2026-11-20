@@ -1,7 +1,21 @@
 use super::{
-    Config, Context, DedicatedProjectRuns, DedicatedProjects, DedupeArgs, InstallFamilyPlan, Path,
-    PathBuf, PruneArgs, Reporter, RuntimePolicy, State, anchor_active_project, dedupe,
-    prepare_root_config, resolve_bool_override, select_install_family_plan,
+    Config,
+    Context,
+    DedicatedProjectRuns,
+    DedicatedProjects,
+    DedupeArgs,
+    InstallFamilyPlan,
+    Path,
+    PathBuf,
+    PruneArgs,
+    Reporter,
+    RuntimePolicy,
+    State,
+    anchor_active_project,
+    dedupe,
+    prepare_root_config,
+    resolve_bool_override,
+    select_install_family_plan,
 };
 
 /// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile

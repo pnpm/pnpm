@@ -2,22 +2,51 @@
 //! them anywhere.
 
 use crate::cli_args::registry_client::build_registry_client;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use futures_util::StreamExt;
-use miette::{Diagnostic, WrapErr};
+use miette::{
+    Diagnostic,
+    WrapErr,
+};
 use pnpm_config::Config;
-use pnpm_deps_restorer::{manifest_file_count, manifest_unpacked_size};
+use pnpm_deps_restorer::{
+    manifest_file_count,
+    manifest_unpacked_size,
+};
 use pnpm_lockfile::LockfileResolution;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, emit_global_warning};
-use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_standalone_chain};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    emit_global_warning,
+};
+use pnpm_resolving_default_resolver::standalone::{
+    StandaloneChainOptions,
+    build_standalone_chain,
+};
 use pnpm_resolving_local_resolver::LocalTarballResolution;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, WantedDependency};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    ResolveResult,
+    WantedDependency,
+};
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache,
+    StoreIndex,
+    StoreIndexWriter,
+};
 use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 use tokio::sync::OnceCell;
 
 mod downloaded_tarball;

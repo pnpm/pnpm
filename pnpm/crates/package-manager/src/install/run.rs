@@ -1,11 +1,20 @@
-pub(crate) use fast_path::{check_strict_dep_builds_for_fast_path, register_workspace_in_store};
+pub(crate) use fast_path::{
+    check_strict_dep_builds_for_fast_path,
+    register_workspace_in_store,
+};
 pub(crate) use manifests::hook_one_manifest;
 pub(crate) use validate_frozen::PreparedFrozenRun;
-pub use validate_frozen::{FrozenVirtualStoreClean, PreparedFrozenInstall};
+pub use validate_frozen::{
+    FrozenVirtualStoreClean,
+    PreparedFrozenInstall,
+};
 
 mod fast_path;
 use fast_path::{
-    RepeatInstallVerdict, UpToDateCheck, lock_store, repeat_install_verdict,
+    RepeatInstallVerdict,
+    UpToDateCheck,
+    lock_store,
+    repeat_install_verdict,
     report_already_up_to_date,
 };
 
@@ -13,17 +22,31 @@ mod dispatch;
 use dispatch::Dispatched;
 
 mod manifests;
-use manifests::{HookedManifests, manifest_freshness_inputs, resolve_pnpmfile_hook};
+use manifests::{
+    HookedManifests,
+    manifest_freshness_inputs,
+    resolve_pnpmfile_hook,
+};
 
 mod wanted;
-use wanted::{Lockfiles, settle_wanted_lockfile};
+use wanted::{
+    Lockfiles,
+    settle_wanted_lockfile,
+};
 
 mod lockfile_load;
-use lockfile_load::{Loaded, load_lockfiles};
+use lockfile_load::{
+    Loaded,
+    load_lockfiles,
+};
 
 mod importer_selection;
 mod workspace;
-use workspace::{InstallScope, InstallWorkspace, workspace_projects};
+use workspace::{
+    InstallScope,
+    InstallWorkspace,
+    workspace_projects,
+};
 
 mod auto_dedupe;
 mod custom_fetcher_reuse;
@@ -32,7 +55,10 @@ mod manifest_validation;
 mod materialization_inputs;
 mod mode;
 mod store_fetch;
-use mode::{RunMode, WorkspaceManifestRollbackGuard};
+use mode::{
+    RunMode,
+    WorkspaceManifestRollbackGuard,
+};
 mod frozen_local_tarballs;
 mod owned;
 use owned::InstallOwned;
@@ -45,16 +71,32 @@ mod validate_frozen;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
 use super::{
-    Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
-    Lockfile, PackageManifest, Path, PathBuf, Reporter, UpdateSeedPolicy,
-    build_resolution_verifiers, configured_or_discovered_workspace_dir, lockfile_root_dir,
+    Arc,
+    DependencyGroup,
+    InMemoryPackageMetaCache,
+    Install,
+    InstallError,
+    InstallRunOptions,
+    Lockfile,
+    PackageManifest,
+    Path,
+    PathBuf,
+    Reporter,
+    UpdateSeedPolicy,
+    build_resolution_verifiers,
+    configured_or_discovered_workspace_dir,
+    lockfile_root_dir,
 };
 use pnpm_config::Config;
 
 use crate::{
-    PolicyExcludes, PreferredVersionsOverride, ProjectMutation,
+    PolicyExcludes,
+    PreferredVersionsOverride,
+    ProjectMutation,
     catalog_cleanup::{
-        lockfile_catalogs, post_install_prune, write_workspace_catalogs,
+        lockfile_catalogs,
+        post_install_prune,
+        write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
 };

@@ -16,8 +16,16 @@
 //! - failure:  `{"id": N, "err": "message"}`
 
 use crate::{
-    FetcherCallback, FetcherCallbackSender, HookError, IgnoredHook,
-    async_process::{Child, ChildStdin, ChildStdout, Command},
+    FetcherCallback,
+    FetcherCallbackSender,
+    HookError,
+    IgnoredHook,
+    async_process::{
+        Child,
+        ChildStdin,
+        ChildStdout,
+        Command,
+    },
     process::Stdio,
 };
 
@@ -26,14 +34,25 @@ use std::{
     collections::HashMap,
     path::Path,
     sync::{
-        Arc, Mutex as StdMutex,
-        atomic::{AtomicU64, Ordering},
+        Arc,
+        Mutex as StdMutex,
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 use tokio::{
     io::AsyncWriteExt,
-    sync::{Mutex, Semaphore, oneshot},
-    time::{Duration, timeout},
+    sync::{
+        Mutex,
+        Semaphore,
+        oneshot,
+    },
+    time::{
+        Duration,
+        timeout,
+    },
 };
 
 const HOOK_TIMEOUT: Duration = Duration::from_secs(30);

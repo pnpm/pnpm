@@ -15,7 +15,11 @@
 //! actually run.
 
 pub use missing_projects::missing_project_importers;
-pub use reachability::{GroupSelection, ReachableLockfileGraph, collect_reachable};
+pub use reachability::{
+    GroupSelection,
+    ReachableLockfileGraph,
+    collect_reachable,
+};
 pub use runtime_dependencies::runtime_dependency_alias;
 
 mod missing_projects;
@@ -23,13 +27,25 @@ mod reachability;
 mod runtime_dependencies;
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{Lockfile, PackageKey, Prefix, ProjectSnapshot, ResolvedDependencyMap};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    Prefix,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 
 use crate::SkippedSnapshots;

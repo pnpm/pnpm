@@ -1,10 +1,19 @@
-use super::{Lockfile, StalenessReason, text_block};
+use super::{
+    Lockfile,
+    StalenessReason,
+    text_block,
+};
 use crate::{
-    DeclaredRegistryPrefixes, RegistryContext, check_lockfile_registry_keys,
+    DeclaredRegistryPrefixes,
+    RegistryContext,
+    check_lockfile_registry_keys,
     check_lockfile_registry_routes,
 };
 use pretty_assertions::assert_eq;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 const INTEGRITY: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
 

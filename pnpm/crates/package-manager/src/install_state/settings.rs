@@ -2,12 +2,19 @@
 
 pub(crate) use install_policy::recorded_extend_node_path_matches;
 pub(crate) use recorded_values::{
-    catalogs_to_json, empty_json_object, filter_null_object_values,
-    link_workspace_packages_to_json, map_node_linker,
+    catalogs_to_json,
+    empty_json_object,
+    filter_null_object_values,
+    link_workspace_packages_to_json,
+    map_node_linker,
 };
 pub(crate) use registry_prefixes::{
-    ResolvedImporters, recorded_default_registry, recorded_registry_prefixes,
-    recorded_registry_routes, recorded_registry_routes_after_install, records_registry_keys_of,
+    ResolvedImporters,
+    recorded_default_registry,
+    recorded_registry_prefixes,
+    recorded_registry_routes,
+    recorded_registry_routes_after_install,
+    records_registry_keys_of,
     registry_key_settings_differ,
 };
 
@@ -19,17 +26,25 @@ mod registry_prefixes;
 mod store_location;
 use agent_skills::agent_skills_settings;
 use equivalence::{
-    allow_builds_match, enable_global_virtual_store_match, package_extensions_match,
+    allow_builds_match,
+    enable_global_virtual_store_match,
+    package_extensions_match,
     patched_dependencies_match,
 };
 use install_policy::install_policy_settings;
 use recorded_values::map_trust_policy;
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_is_installable::SupportedArchitectures;
-use pnpm_workspace_state::{WorkspaceState, WorkspaceStateSettings};
+use pnpm_workspace_state::{
+    WorkspaceState,
+    WorkspaceStateSettings,
+};
 use std::path::Path;
 
 /// Whether the `supportedArchitectures` recorded by the last install

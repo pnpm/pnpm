@@ -1,13 +1,24 @@
-use std::{fs, io::Write as _};
+use std::{
+    fs,
+    io::Write as _,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::get_all_files,
 };
 
-use super::{configure_pnpr_auth, pacquet_at, pnpr_done_frame, start_pnpr};
+use super::{
+    configure_pnpr_auth,
+    pacquet_at,
+    pnpr_done_frame,
+    start_pnpr,
+};
 
 fn build_tarball_with_postinstall(name: &str, version: &str) -> (Vec<u8>, String) {
     let manifest = serde_json::json!({

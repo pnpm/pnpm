@@ -1,13 +1,37 @@
 use crate::{
-    candidates::{candidates_from_page, source_version, wheel_identity},
-    lockfile::{Inputs, LockedSdist, Lockfile, Metadata, Solved, Target},
+    candidates::{
+        candidates_from_page,
+        source_version,
+        wheel_identity,
+    },
+    lockfile::{
+        Inputs,
+        LockedSdist,
+        Lockfile,
+        Metadata,
+        Solved,
+        Target,
+    },
     metadata::WheelMetadata,
-    packages::{Excluded, Packages},
-    resolve::{Step, step},
+    packages::{
+        Excluded,
+        Packages,
+    },
+    resolve::{
+        Step,
+        step,
+    },
 };
 use pep440_rs::Version;
-use pep508_rs::{MarkerEnvironment, PackageName, Requirement};
-use std::{collections::BTreeMap, str::FromStr};
+use pep508_rs::{
+    MarkerEnvironment,
+    PackageName,
+    Requirement,
+};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+};
 use url::Url;
 
 /// A `CPython` 3.12 target that takes a pure-Python wheel, preferring a

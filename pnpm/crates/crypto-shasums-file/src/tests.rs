@@ -1,15 +1,29 @@
 use pretty_assertions::assert_eq;
 
 use super::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError, MAX_CACHED_SHASUMS_LEN,
-    PickFileChecksumError, ShasumsFileItem, ShasumsTrust, fetch_shasums_file_cached,
-    fetch_shasums_file_cached_with_auth_headers, fetch_shasums_file_cached_with_retry,
-    fetch_verified_node_shasums, fetch_verified_node_shasums_file_cached,
+    FetchShasumsFileError,
+    FetchVerifiedNodeShasumsError,
+    MAX_CACHED_SHASUMS_LEN,
+    PickFileChecksumError,
+    ShasumsFileItem,
+    ShasumsTrust,
+    fetch_shasums_file_cached,
+    fetch_shasums_file_cached_with_auth_headers,
+    fetch_shasums_file_cached_with_retry,
+    fetch_verified_node_shasums,
+    fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers,
-    is_signed_by_trusted_node_release_key, parse_shasums_file,
-    pick_file_checksum_from_shasums_file, read_cached_shasums, write_cached_shasums,
+    is_signed_by_trusted_node_release_key,
+    parse_shasums_file,
+    pick_file_checksum_from_shasums_file,
+    read_cached_shasums,
+    write_cached_shasums,
 };
-use pnpm_network::{AuthHeaders, RetryOpts, nerf_dart};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    nerf_dart,
+};
 
 #[test]
 fn parses_rows_into_sri_encoded_integrities() {
@@ -581,7 +595,10 @@ async fn auth_aware_plain_fetch_bypasses_cache_before_authenticated_redirect() {
 /// read. The refetched genuine pair then replaces the seeded one.
 #[tokio::test]
 async fn seeded_verified_cache_without_valid_signature_is_refetched() {
-    use crate::disk_cache::{ShasumsTrust, write_cached_shasums};
+    use crate::disk_cache::{
+        ShasumsTrust,
+        write_cached_shasums,
+    };
 
     let mut server = mockito::Server::new_async().await;
     let shasums = server
@@ -632,7 +649,10 @@ async fn seeded_verified_cache_without_valid_signature_is_refetched() {
 }
 
 fn node_22_11_0_signature() -> Vec<u8> {
-    use base64::{Engine, engine::general_purpose::STANDARD as BASE64_STANDARD};
+    use base64::{
+        Engine,
+        engine::general_purpose::STANDARD as BASE64_STANDARD,
+    };
 
     BASE64_STANDARD.decode(NODE_22_11_0_SIGNATURE_B64).expect("valid base64")
 }

@@ -2,13 +2,29 @@
 //! version.
 
 use super::{
-    AdmittedPackument, AppState, CanonicalPackageName, DocumentSource, Duration, Identity,
-    PackumentFlightKind, RegistryError, RegistrySource, Upstream, authorized_upstream,
-    coalesce_upstream_packument, coalesce_upstream_packument_keyed,
-    fetch_and_cache_upstream_packument, read_unpurged_upstream_document,
-    read_unpurged_upstream_document_any, upstream_cache_namespace,
+    AdmittedPackument,
+    AppState,
+    CanonicalPackageName,
+    DocumentSource,
+    Duration,
+    Identity,
+    PackumentFlightKind,
+    RegistryError,
+    RegistrySource,
+    Upstream,
+    authorized_upstream,
+    coalesce_upstream_packument,
+    coalesce_upstream_packument_keyed,
+    fetch_and_cache_upstream_packument,
+    read_unpurged_upstream_document,
+    read_unpurged_upstream_document_any,
+    upstream_cache_namespace,
 };
-use std::{collections::HashMap, sync::Mutex, time::Instant};
+use std::{
+    collections::HashMap,
+    sync::Mutex,
+    time::Instant,
+};
 
 #[cfg(test)]
 mod tests;

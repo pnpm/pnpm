@@ -1,7 +1,17 @@
 use super::{
-    InstallFamilySelection, Lockfile, MaybeLazyLockfile, PnprLink, Reporter, State, pnpr_catalogs,
-    pnpr_local_specs::{check_no_local_lockfile_specs_for_pnpr, check_no_local_specs_for_pnpr},
-    pnpr_lockfile_dir, resolve_projects_for_pnpr,
+    InstallFamilySelection,
+    Lockfile,
+    MaybeLazyLockfile,
+    PnprLink,
+    Reporter,
+    State,
+    pnpr_catalogs,
+    pnpr_local_specs::{
+        check_no_local_lockfile_specs_for_pnpr,
+        check_no_local_specs_for_pnpr,
+    },
+    pnpr_lockfile_dir,
+    resolve_projects_for_pnpr,
 };
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::redact_url_for_display;

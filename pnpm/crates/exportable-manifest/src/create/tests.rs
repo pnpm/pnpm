@@ -1,9 +1,21 @@
 use super::{
-    CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
+    CreateExportableManifestError,
+    CreateExportableManifestOptions,
+    create_exportable_manifest,
 };
-use pnpm_catalogs_types::{Catalog, Catalogs};
-use serde_json::{Value, json};
-use std::{collections::BTreeMap, fs, path::Path};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn empty_catalogs() -> Catalogs {

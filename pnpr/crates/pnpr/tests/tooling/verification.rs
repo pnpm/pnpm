@@ -1,8 +1,19 @@
-use super::{create_test_config, seed_archive, seed_document};
-use pnpr::verify::{VerifyOptions, verify_storage};
+use super::{
+    create_test_config,
+    seed_archive,
+    seed_document,
+};
+use pnpr::verify::{
+    VerifyOptions,
+    verify_storage,
+};
 use pnpr_storage::{
-    BlobId, Ecosystem,
-    layout::{local_archive_path, write_local_layout_marker},
+    BlobId,
+    Ecosystem,
+    layout::{
+        local_archive_path,
+        write_local_layout_marker,
+    },
 };
 use tempfile::TempDir;
 

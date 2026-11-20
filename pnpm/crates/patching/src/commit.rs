@@ -1,13 +1,27 @@
 use crate::process::Command;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_fs::{LinkFailure, LinkFallback, LinkFallbackPolicy};
+use pnpm_fs::{
+    LinkFailure,
+    LinkFallback,
+    LinkFallbackPolicy,
+};
 use pnpm_fs_packlist::PacklistError;
 use pnpm_package_manifest::PackageManifestError;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 mod diff_output;

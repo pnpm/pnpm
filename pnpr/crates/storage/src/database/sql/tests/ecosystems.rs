@@ -1,11 +1,28 @@
-use super::{Db, npm, packument, read, schema::execute, storage, write};
+use super::{
+    Db,
+    npm,
+    packument,
+    read,
+    schema::execute,
+    storage,
+    write,
+};
 use crate::{
     DocumentWrite,
-    database::{TagChange, TagUpdate},
+    database::{
+        TagChange,
+        TagUpdate,
+    },
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use serde_json::{Value, json};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 fn cargo_document(name: &str, versions: &[(&str, bool)]) -> Vec<u8> {
     let entries: Vec<Value> = versions

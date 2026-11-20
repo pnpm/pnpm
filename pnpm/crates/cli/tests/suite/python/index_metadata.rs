@@ -1,11 +1,23 @@
-use super::{assert_failure_contains, pacquet_in, project, wheel};
+use super::{
+    assert_failure_contains,
+    pacquet_in,
+    project,
+    wheel,
+};
 use assert_cmd::prelude::*;
 use serde_json::json;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
     fs,
     io::Write,
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        Arc,
+        Condvar,
+        Mutex,
+    },
     time::Duration,
 };
 

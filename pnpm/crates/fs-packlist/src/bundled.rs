@@ -1,6 +1,16 @@
 use super::{
-    HashMap, HashSet, OsStr, PacklistError, Path, PathBuf, SelectedPackageFiles, Value, VecDeque,
-    collect_own_files, fs, safe_read_package_json_from_dir,
+    HashMap,
+    HashSet,
+    OsStr,
+    PacklistError,
+    Path,
+    PathBuf,
+    SelectedPackageFiles,
+    Value,
+    VecDeque,
+    collect_own_files,
+    fs,
+    safe_read_package_json_from_dir,
 };
 
 /// Cap on `bundleDependencies` closure depth. Real packages bundle

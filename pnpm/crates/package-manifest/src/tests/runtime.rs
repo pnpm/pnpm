@@ -1,6 +1,11 @@
 use super::{
-    DependencyGroup, PackageManifest, assert_eq, convert_engines_runtime_to_dependencies, json,
-    read_to_string, tempdir,
+    DependencyGroup,
+    PackageManifest,
+    assert_eq,
+    convert_engines_runtime_to_dependencies,
+    json,
+    read_to_string,
+    tempdir,
 };
 
 #[test]

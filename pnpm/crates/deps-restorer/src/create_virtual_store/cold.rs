@@ -1,28 +1,64 @@
 use super::{
-    ConcurrentCheck, CreateVirtualStoreError, CreateVirtualStoreStoreContext, LinkPlan,
-    PackageBins, PackageManifests, RequiresBuildBySnapshot, WantedEntries,
+    ConcurrentCheck,
+    CreateVirtualStoreError,
+    CreateVirtualStoreStoreContext,
+    LinkPlan,
+    PackageBins,
+    PackageManifests,
+    RequiresBuildBySnapshot,
+    WantedEntries,
     cache_keys::SlotReuse,
-    cas_paths_key, requires_build_from_cas_paths, run_checked,
-    slot_linking::{LinkSlotsParallel, link_cold_chunk},
+    cas_paths_key,
+    requires_build_from_cas_paths,
+    run_checked,
+    slot_linking::{
+        LinkSlotsParallel,
+        link_cold_chunk,
+    },
     snapshot_needs_build_marker,
     warm::SlotBuilds,
 };
-use crate::{CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError};
-use futures_util::{StreamExt, stream::FuturesUnordered};
+use crate::{
+    CasPathsByPkgId,
+    InstallPackageBySnapshot,
+    InstallPackageBySnapshotError,
+};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    SnapshotEntry,
+};
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 use pnpm_store_dir::store_index_key;
-use pnpm_tarball::{PrefetchResult, pending_progress_key};
+use pnpm_tarball::{
+    PrefetchResult,
+    pending_progress_key,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     ops::ControlFlow,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 

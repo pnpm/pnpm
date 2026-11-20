@@ -1,15 +1,33 @@
 use super::{
-    funding::{FundingSource, funding_sources, is_valid_funding, normalize_funding},
+    funding::{
+        FundingSource,
+        funding_sources,
+        is_valid_funding,
+        normalize_funding,
+    },
     human::render_human,
     open::open_package_funding,
     projects::ProjectDependencies,
     report::FundingReport,
 };
-use crate::cli_args::deps_tree::{DependencyNode, DependencyPackage, DependencyStatus};
+use crate::cli_args::deps_tree::{
+    DependencyNode,
+    DependencyPackage,
+    DependencyStatus,
+};
 use pnpm_network_web_auth::OpenUrl;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
-use std::{cell::RefCell, fs, io, num::NonZeroUsize, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    cell::RefCell,
+    fs,
+    io,
+    num::NonZeroUsize,
+    path::Path,
+};
 
 thread_local! {
     static OPENED_URLS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };

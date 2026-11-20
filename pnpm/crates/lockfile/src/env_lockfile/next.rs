@@ -7,22 +7,53 @@
 //! through the same writer and reader, and is split back into its groups
 //! by the names each group had.
 
-use super::{EnvImporterSnapshot, EnvLockfile, SpecifierAndResolution};
+use super::{
+    EnvImporterSnapshot,
+    EnvLockfile,
+    SpecifierAndResolution,
+};
 use crate::{
-    ImporterDepVersion, LoadLockfileError, Lockfile, LockfileVersion, NextFormatError, PkgName,
-    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SaveLockfileError,
+    ImporterDepVersion,
+    LoadLockfileError,
+    Lockfile,
+    LockfileVersion,
+    NextFormatError,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SaveLockfileError,
     implied_version::injected_paths,
-    json_document::{from_json_str, is_json_document},
+    json_document::{
+        from_json_str,
+        is_json_document,
+    },
     load_lockfile::yaml_parse_options,
     next_format::{
-        Implied, LinkedImporters, NextImporter, NextImporterDeps, NextPackage, NextPackageOut,
-        NextSections, RestoreContext, merge_packages, restore_sections, split_packages,
+        Implied,
+        LinkedImporters,
+        NextImporter,
+        NextImporterDeps,
+        NextPackage,
+        NextPackageOut,
+        NextSections,
+        RestoreContext,
+        merge_packages,
+        restore_sections,
+        split_packages,
     },
     serialize_yaml,
 };
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 

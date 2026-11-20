@@ -2,30 +2,59 @@ pub(super) mod selection;
 use selection::should_reject_unmatched_selection;
 
 use super::{
-    UpdateError, UpdateOptions, UpdateResources, UpdateSeed,
+    UpdateError,
+    UpdateOptions,
+    UpdateResources,
+    UpdateSeed,
     catalogs::{
-        CatalogCtx, CatalogUpdates, ensure_catalog_ctx, merge_catalogs,
-        read_catalog_ctx_with_catalogs, reconcile_catalog_rewrites,
+        CatalogCtx,
+        CatalogUpdates,
+        ensure_catalog_ctx,
+        merge_catalogs,
+        read_catalog_ctx_with_catalogs,
+        reconcile_catalog_rewrites,
     },
-    latest::{LatestResolverChain, LatestRewriteCtx},
-    overrides::{BareOverrideEntry, OverriddenDirect},
-    seed_policy::{LockedImporter, UpdatePlan, UpdateScope, select_seed_policy},
+    latest::{
+        LatestResolverChain,
+        LatestRewriteCtx,
+    },
+    overrides::{
+        BareOverrideEntry,
+        OverriddenDirect,
+    },
+    seed_policy::{
+        LockedImporter,
+        UpdatePlan,
+        UpdateScope,
+        select_seed_policy,
+    },
     selectors::{
-        ParsedSelector, parse_selectors, reject_versioned_selectors,
+        ParsedSelector,
+        parse_selectors,
+        reject_versioned_selectors,
         reject_versions_of_indirect_update_specs,
     },
     workspace::workspace_targets,
 };
 use crate::{
-    DIRECT_GROUPS, ImporterUpdateSeedPolicy, UpdateSeedPolicy, VersionsOverrider,
+    DIRECT_GROUPS,
+    ImporterUpdateSeedPolicy,
+    UpdateSeedPolicy,
+    VersionsOverrider,
     emit_initial_package_manifest,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 pub(super) struct UpdatePreparation {
     seed_policy: UpdateSeedPolicy,

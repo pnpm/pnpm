@@ -19,10 +19,25 @@
 //!   final key.
 
 use crate::{
-    cas_io::{ImportedFiles, import_into_cas, materialize_into, synthesize_files_index},
+    cas_io::{
+        ImportedFiles,
+        import_into_cas,
+        materialize_into,
+        synthesize_files_index,
+    },
     error::GitFetcherError,
-    fetcher::{GitFetchOutput, NO_EXTRA_ENV, packlist_of, queue_files_index},
-    prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
+    fetcher::{
+        GitFetchOutput,
+        NO_EXTRA_ENV,
+        packlist_of,
+        queue_files_index,
+    },
+    prepare_package::{
+        AllowBuildRef,
+        PreparePackageOptions,
+        PreparedPackage,
+        prepare_package,
+    },
 };
 use pnpm_reporter::Reporter;
 

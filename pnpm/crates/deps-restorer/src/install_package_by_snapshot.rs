@@ -1,7 +1,16 @@
-pub(crate) use runtime::{archive_filter_for, fetch_binary_resolution_to_cas};
-pub use runtime::{binary_store_index_key, host_platform_selector, runtime_platform_selector};
+pub(crate) use runtime::{
+    archive_filter_for,
+    fetch_binary_resolution_to_cas,
+};
+pub use runtime::{
+    binary_store_index_key,
+    host_platform_selector,
+    runtime_platform_selector,
+};
 pub use tarball_resolution::{
-    local_file_tarball_install_url, tarball_url_and_integrity, unverified_fetch_is_allowed,
+    local_file_tarball_install_url,
+    tarball_url_and_integrity,
+    unverified_fetch_is_allowed,
 };
 
 pub(crate) use fetch::walk_directory;
@@ -17,7 +26,10 @@ mod runtime;
 mod tarball_resolution;
 
 use crate::CreateVirtualDirError;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_directory_fetcher::DirectoryFetcherError;
 use pnpm_git_fetcher::GitFetcherError;
@@ -27,7 +39,10 @@ use pnpm_tarball::TarballError;
 use std::{
     collections::BTreeMap,
     path::PathBuf,
-    sync::{Arc, LazyLock},
+    sync::{
+        Arc,
+        LazyLock,
+    },
 };
 
 /// The running pnpm, which a git-hosted dependency's build is given so it

@@ -1,10 +1,21 @@
 use super::{
-    Config, Context, Host, InstallArgs, Path, PathBuf, ReporterType, read_manifest_json,
-    reporter_emit, warn_deprecated_override_version_references, warn_ignored_pnpm_manifest_fields,
-    warn_unapplied_package_configs, warn_unmatched_registry_options,
+    Config,
+    Context,
+    Host,
+    InstallArgs,
+    Path,
+    PathBuf,
+    ReporterType,
+    read_manifest_json,
+    reporter_emit,
+    warn_deprecated_override_version_references,
+    warn_ignored_pnpm_manifest_fields,
+    warn_unapplied_package_configs,
+    warn_unmatched_registry_options,
 };
 use crate::cli_args::yarn_workspaces_field::{
-    create_workspace_yaml_from_yarn_workspaces, warn_about_workspaces_field,
+    create_workspace_yaml_from_yarn_workspaces,
+    warn_about_workspaces_field,
 };
 
 /// Shared workspace-root and package-manager policy derivation.

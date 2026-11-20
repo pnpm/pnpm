@@ -8,8 +8,14 @@ use pnpm_deps_path::DepPath;
 use rustc_hash::FxHashSet as HashSet;
 
 use crate::{
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
-    peer_dependents_dedupe::{CollapseGuard, OptionalPeerScope},
+    dependencies_graph::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
+    peer_dependents_dedupe::{
+        CollapseGuard,
+        OptionalPeerScope,
+    },
 };
 
 /// Number of edges a variant carries: its child dependencies plus the

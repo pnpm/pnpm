@@ -1,12 +1,25 @@
 #[cfg(unix)]
-use super::{super::import_into_fresh_target, FreshClone, STORE_EXEC_ENTRY};
+use super::{
+    super::import_into_fresh_target,
+    FreshClone,
+    STORE_EXEC_ENTRY,
+};
 use super::{
     super::{
-        AUTO_FIRST_TIER, Host, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
-        clone_or_copy_link, downgrade_auto_tier, link_file, next_auto_tier,
+        AUTO_FIRST_TIER,
+        Host,
+        LINK_STATE_CLONE,
+        LINK_STATE_HARDLINK,
+        LinkFileError,
+        auto_link,
+        clone_or_copy_link,
+        downgrade_auto_tier,
+        link_file,
+        next_auto_tier,
         recover_from_concurrent_import,
     },
-    STORE_ENTRY, write_source,
+    STORE_ENTRY,
+    write_source,
 };
 use pnpm_config::PackageImportMethod;
 #[cfg(unix)]
@@ -14,8 +27,12 @@ use pnpm_reporter::PackageImportMethod as WireImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use std::{
-    fs, io,
-    sync::atomic::{AtomicU8, Ordering},
+    fs,
+    io,
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 use tempfile::tempdir;
 

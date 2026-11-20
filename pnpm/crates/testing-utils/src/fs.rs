@@ -1,9 +1,16 @@
 use pipe_trait::Pipe;
 use pnpm_workspace_state::load_workspace_state;
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::TempDir;
 use walkdir::WalkDir;
@@ -79,7 +86,10 @@ pub fn symlink_file(original: &Path, link: &Path) -> io::Result<()> {
 #[cfg(unix)]
 #[must_use]
 pub fn is_path_executable(path: &Path) -> bool {
-    use std::{fs::File, os::unix::prelude::*};
+    use std::{
+        fs::File,
+        os::unix::prelude::*,
+    };
     let mode = File::open(path)
         .expect("open the file")
         .metadata()

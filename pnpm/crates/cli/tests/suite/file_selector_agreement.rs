@@ -3,21 +3,43 @@
 //! `deploy`, and the injected-copy install and sync writers) agrees on the
 //! selected file and link set (pnpm/tasks#223).
 
-use crate::_utils::{WorkspaceFixture, assert_success};
+use crate::_utils::{
+    WorkspaceFixture,
+    assert_success,
+};
 use flate2::read::GzDecoder;
 use pnpm_directory_fetcher::DirectoryFetcher;
 use pnpm_git_fetcher::{
-    GitFetcher, GitSource, GitSourceCache, GitStoreContext, PrepareScriptOptions, RunningPnpm,
+    GitFetcher,
+    GitSource,
+    GitSourceCache,
+    GitStoreContext,
+    PrepareScriptOptions,
+    RunningPnpm,
 };
-use pnpm_injected_deps_syncer::{CopyFiles, DirPatcher, PublishSource, publish_edits};
-use pnpm_patching::{PkgFilesForDiff, prepare_pkg_files_for_diff};
+use pnpm_injected_deps_syncer::{
+    CopyFiles,
+    DirPatcher,
+    PublishSource,
+    publish_edits,
+};
+use pnpm_patching::{
+    PkgFilesForDiff,
+    prepare_pkg_files_for_diff,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
 use serde_json::json;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     time::SystemTime,
 };

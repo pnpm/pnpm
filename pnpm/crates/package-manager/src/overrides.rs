@@ -12,27 +12,46 @@
 
 pub use dependency_matcher::OverriddenDependencyMatcher;
 pub use dependency_rewriter::{
-    overrides_catalog_reference_rewriter, overrides_dependency_rewriter,
+    overrides_catalog_reference_rewriter,
+    overrides_dependency_rewriter,
 };
-pub(crate) use selectors::{matches_target, parse_declared_range};
+pub(crate) use selectors::{
+    matches_target,
+    parse_declared_range,
+};
 
 mod dependency_matcher;
 mod dependency_rewriter;
 mod meta_only_peers;
 mod selectors;
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use pnpm_config_parse_overrides::{
+    PackageSelector,
+    VersionOverride,
+};
 use pnpm_local_spec::LocalSpec;
 use pnpm_matcher::WildcardMatcher;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::is_valid_peer_range;
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 /// In-memory hook that applies the parsed `pnpm.overrides` set to a

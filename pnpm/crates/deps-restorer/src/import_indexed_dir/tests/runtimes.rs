@@ -1,10 +1,19 @@
 #[cfg(unix)]
 use super::super::ImportIndexedDirError;
-use super::{super::import_indexed_dir, FORCE_KEEP, FORCE_ONLY, cas_map, write_source};
+use super::{
+    super::import_indexed_dir,
+    FORCE_KEEP,
+    FORCE_ONLY,
+    cas_map,
+    write_source,
+};
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{fs, sync::atomic::AtomicU8};
+use std::{
+    fs,
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -135,8 +144,14 @@ fn node_modules_collision_in_file_map_merges() {
 #[test]
 #[cfg(unix)]
 fn undeletable_stale_subtree_does_not_block_the_forced_replacement() {
-    use pnpm_reporter::{LogEvent, Reporter};
-    use std::{os::unix::fs::PermissionsExt, sync::Mutex};
+    use pnpm_reporter::{
+        LogEvent,
+        Reporter,
+    };
+    use std::{
+        os::unix::fs::PermissionsExt,
+        sync::Mutex,
+    };
 
     static WARNINGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
     struct RecordingReporter;

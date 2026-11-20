@@ -1,7 +1,14 @@
 //! Reading a file as a git revision holds it.
 
-use crate::{filter::FilterError, get_changed_projects::strip_final_newline, process::Command};
-use std::{collections::HashSet, path::Path};
+use crate::{
+    filter::FilterError,
+    get_changed_projects::strip_final_newline,
+    process::Command,
+};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// How many symlinks resolving one path may follow, as on Linux.
 const MAX_SYMLINK_HOPS: usize = 40;

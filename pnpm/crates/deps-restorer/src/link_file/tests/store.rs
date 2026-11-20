@@ -1,9 +1,16 @@
 #[cfg(unix)]
 use super::{
     super::{
-        Host, LINK_STATE_CLONE, LINK_STATE_COPY, LINK_STATE_HARDLINK, auto_link, clone_or_copy_link,
+        Host,
+        LINK_STATE_CLONE,
+        LINK_STATE_COPY,
+        LINK_STATE_HARDLINK,
+        auto_link,
+        clone_or_copy_link,
     },
-    ModeDroppingClone, STORE_ENTRY, write_source,
+    ModeDroppingClone,
+    STORE_ENTRY,
+    write_source,
 };
 #[cfg(unix)]
 use pnpm_fs::StoreFile;
@@ -14,7 +21,10 @@ use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::{
     fs,
-    sync::atomic::{AtomicU8, Ordering},
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 #[cfg(unix)]
 use tempfile::tempdir;

@@ -1,13 +1,21 @@
 pub use routes::{
-    revision_route_tarball_version, tarball_basename, tarball_basename_for_package,
+    revision_route_tarball_version,
+    tarball_basename,
+    tarball_basename_for_package,
     version_route_tarball_version,
 };
 
 mod routes;
 
 use super::{
-    CanonicalPackageName, Integrity, MAX_TARBALL_REVISION, TarballRevision, Value,
-    has_complete_sha512_digest, is_revision_registry_tarball_url, revision_registry_tarball_url,
+    CanonicalPackageName,
+    Integrity,
+    MAX_TARBALL_REVISION,
+    TarballRevision,
+    Value,
+    has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
+    revision_registry_tarball_url,
 };
 use routes::is_addressable_version;
 

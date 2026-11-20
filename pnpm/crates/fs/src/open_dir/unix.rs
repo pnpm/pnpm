@@ -4,20 +4,39 @@
 pub(super) use self::write::write_file_at;
 mod write;
 use std::{
-    ffi::{CStr, OsStr, OsString},
-    io::{self, ErrorKind},
+    ffi::{
+        CStr,
+        OsStr,
+        OsString,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
     mem::MaybeUninit,
     os::{
-        fd::{AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, OwnedFd},
+        fd::{
+            AsRawFd,
+            BorrowedFd,
+            FromRawFd,
+            IntoRawFd,
+            OwnedFd,
+        },
         raw::c_int,
         unix::ffi::OsStrExt,
     },
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 use super::{
     ChildFileStat,
-    child_ops::{ensure_within_max_bytes, read_bounded_bytes},
+    child_ops::{
+        ensure_within_max_bytes,
+        read_bounded_bytes,
+    },
 };
 
 /// Open the directory `name` inside `parent` without following a link.

@@ -1,14 +1,33 @@
 use super::{
     super::{
-        json_error, json_error_with_code, parse_request,
+        json_error,
+        json_error_with_code,
+        parse_request,
         protocol::PypiResolveRequest,
         request_validation::forbidden_off_allowlist,
-        wire::{error_frame, error_frame_with_code, ndjson_single_frame, pypi_done_frame},
+        wire::{
+            error_frame,
+            error_frame_with_code,
+            ndjson_single_frame,
+            pypi_done_frame,
+        },
     },
-    IndexReader, MAX_REQUIREMENTS, MAX_TAGS, Resolver, index_url, resolve,
+    IndexReader,
+    MAX_REQUIREMENTS,
+    MAX_TAGS,
+    Resolver,
+    index_url,
+    resolve,
 };
-use axum::{http::StatusCode, response::Response};
-use pnpm_python_resolver::{Inputs, Lockfile, parse_requirement};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
+use pnpm_python_resolver::{
+    Inputs,
+    Lockfile,
+    parse_requirement,
+};
 use pnpr_route::url_has_inline_credentials;
 
 pub(super) struct ValidatedPypiRequest {

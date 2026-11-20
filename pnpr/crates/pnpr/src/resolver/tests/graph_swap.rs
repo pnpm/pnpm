@@ -1,4 +1,10 @@
-use super::{Duration, Identity, cached_resolution, lockfile, store_resolution};
+use super::{
+    Duration,
+    Identity,
+    cached_resolution,
+    lockfile,
+    store_resolution,
+};
 use pnpr_auth::AuthState;
 use pnpr_route::Footprint;
 
@@ -51,7 +57,10 @@ async fn a_resolution_cached_under_one_graph_is_not_served_under_the_next() {
 
 #[tokio::test]
 async fn forget_results_clears_verdicts_and_rotates_cache_generation() {
-    use crate::resolver::verdict_cache::{VerdictLookup, VerdictRecord};
+    use crate::resolver::verdict_cache::{
+        VerdictLookup,
+        VerdictRecord,
+    };
 
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("pnpr.yaml");

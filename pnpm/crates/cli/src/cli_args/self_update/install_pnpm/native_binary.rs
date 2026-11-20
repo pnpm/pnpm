@@ -1,6 +1,18 @@
 use super::{
-    Context, IntoDiagnostic, Path, PathBuf, Value, format_global_virtual_store_path, fs, host_arch,
-    host_libc, host_platform, installed_version, package_dir, parse_manifest, replace_executable,
+    Context,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    Value,
+    format_global_virtual_store_path,
+    fs,
+    host_arch,
+    host_libc,
+    host_platform,
+    installed_version,
+    package_dir,
+    parse_manifest,
+    replace_executable,
 };
 
 /// Scope-local directory name of the `@pnpm/exe` platform package under

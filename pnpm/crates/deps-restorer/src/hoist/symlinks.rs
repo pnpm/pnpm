@@ -3,7 +3,10 @@ pub(super) use stale::update_stale_hoist_symlink;
 use super::HoistGraphNode;
 use pnpm_lockfile::PackageKey;
 use pnpm_modules_yaml::HoistKind;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 mod parents;
 mod stale;

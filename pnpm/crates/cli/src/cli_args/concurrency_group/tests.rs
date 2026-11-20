@@ -1,17 +1,34 @@
 use super::{
-    GroupStatus, HELD_CONCURRENCY_GROUPS_ENV, HolderLine, SlotOutcome, WaiterLine, acquire_slot,
-    add_held_group, format_wait_notice, inspect_group,
-    pool::{SlotPool, WaitSnapshot},
-    render_group, with_held_group,
+    GroupStatus,
+    HELD_CONCURRENCY_GROUPS_ENV,
+    HolderLine,
+    SlotOutcome,
+    WaiterLine,
+    acquire_slot,
+    add_held_group,
+    format_wait_notice,
+    inspect_group,
+    pool::{
+        SlotPool,
+        WaitSnapshot,
+    },
+    render_group,
+    with_held_group,
 };
-use pnpm_config::{Config, TaskSettings};
+use pnpm_config::{
+    Config,
+    TaskSettings,
+};
 use pnpm_reporter::LogEvent;
 use std::{
     collections::HashMap,
     fs,
     sync::mpsc,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 fn no_emit(_: &LogEvent) {}

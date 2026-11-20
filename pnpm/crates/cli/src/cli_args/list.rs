@@ -11,25 +11,48 @@ mod linked_projects;
 use crate::cli_args::{
     deps_tree::{
         build::{
-            BuildTreeOptions, DependenciesHierarchy, LoadedState, build_dependencies_tree,
+            BuildTreeOptions,
+            DependenciesHierarchy,
+            LoadedState,
+            build_dependencies_tree,
             importer_root_ids,
         },
         get_tree::MaxDepth,
-        graph::{BuildGraphOptions, build_dependency_graph},
+        graph::{
+            BuildGraphOptions,
+            build_dependency_graph,
+        },
         search::Searcher,
     },
-    deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
+    deps_tree_finders::{
+        evaluate_finders,
+        finder_candidates,
+        resolve_finders,
+    },
     install::resolve_bool_override,
 };
 use clap::Args;
 use linked_projects::SharedLinkedProjects;
 use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
-use render::{ProjectHierarchy, RenderParseableOptions, RenderTreeOptions};
+use render::{
+    ProjectHierarchy,
+    RenderParseableOptions,
+    RenderTreeOptions,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-    sync::{Arc, OnceLock},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -2,10 +2,17 @@
 pub(crate) mod tests;
 
 use icu_normalizer::{
-    DecomposingNormalizerBorrowed, properties::CanonicalCombiningClassMapBorrowed,
+    DecomposingNormalizerBorrowed,
+    properties::CanonicalCombiningClassMapBorrowed,
 };
-use pnpr_error::{RegistryError, Result};
-use unicode_security::{GeneralSecurityProfile as _, MixedScript as _};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use unicode_security::{
+    GeneralSecurityProfile as _,
+    MixedScript as _,
+};
 
 /// Maximum password length accepted by pnpr to prevent bcrypt 72-byte truncation issues.
 pub const MAX_PASSWORD_BYTES: usize = 71;

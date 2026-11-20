@@ -1,9 +1,19 @@
 use super::{
-    BTreeMap, BTreeSet, DependencyGroup, PackageManifest, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SpecDiff, StalenessReason, git_specifiers_are_equivalent,
+    BTreeMap,
+    BTreeSet,
+    DependencyGroup,
+    PackageManifest,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SpecDiff,
+    StalenessReason,
+    git_specifiers_are_equivalent,
 };
 use pnpm_semver_include_prerelease::{
-    ANY_VERSION_RANGE, is_any_version_range, parse_strict_semver_range,
+    ANY_VERSION_RANGE,
+    is_any_version_range,
+    parse_strict_semver_range,
 };
 use pnpm_tool_protocol::tool_specifiers_equal;
 

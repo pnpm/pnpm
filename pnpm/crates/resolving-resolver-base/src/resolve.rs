@@ -2,18 +2,37 @@
 //! the [`WantedDependency`] → [`ResolveResult`] contract and the
 //! [`Resolver`] trait every per-protocol resolver implements.
 
-use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+    sync::Arc,
+};
 
-use derive_more::{Display, From};
+use derive_more::{
+    Display,
+    From,
+};
 use jiff::Timestamp;
-use pnpm_lockfile::{LockfileResolution, PkgNameVer};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgNameVer,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_version_policy::PackageVersionPolicy;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use crate::{
-    SaveWorkspaceProtocol, TrustPolicy,
-    preferred_versions::{PreferredVersions, PreferredVersionsOverlay},
+    SaveWorkspaceProtocol,
+    TrustPolicy,
+    preferred_versions::{
+        PreferredVersions,
+        PreferredVersionsOverlay,
+    },
     verifier::ResolutionPolicyViolation,
 };
 

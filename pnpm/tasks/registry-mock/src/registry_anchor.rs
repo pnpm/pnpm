@@ -1,14 +1,32 @@
-use crate::{MockInstanceOptions, RegistryInfo, process_kill::kill_process_by_pid};
+use crate::{
+    MockInstanceOptions,
+    RegistryInfo,
+    process_kill::kill_process_by_pid,
+};
 use pipe_trait::Pipe;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     env::temp_dir,
-    fs::{self, File, OpenOptions, TryLockError},
+    fs::{
+        self,
+        File,
+        OpenOptions,
+        TryLockError,
+    },
     mem::forget,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::LazyLock,
 };
-use sysinfo::{Pid, Signal};
+use sysinfo::{
+    Pid,
+    Signal,
+};
 
 /// Count references and automatically manage a single shared mocked registry server instance that is spawned
 /// by the first test to run.

@@ -1,9 +1,23 @@
-use super::{HashMap, Mutex, fake_manifest, fake_result};
-use crate::resolve_dependency_tree::{ResolveDependencyTreeOptions, resolve_dependency_tree};
+use super::{
+    HashMap,
+    Mutex,
+    fake_manifest,
+    fake_result,
+};
+use crate::resolve_dependency_tree::{
+    ResolveDependencyTreeOptions,
+    resolve_dependency_tree,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
-    Resolver, WantedDependency,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use pretty_assertions::assert_eq;
 

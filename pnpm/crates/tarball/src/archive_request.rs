@@ -1,6 +1,22 @@
-use crate::{HttpStatusError, NetworkError, TarballError, auth_header_for_package_download};
-use pnpm_network::{AuthHeaders, ThrottledClient, ThrottledClientGuard, is_permanent_error};
-use pnpm_reporter::{FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, Reporter};
+use crate::{
+    HttpStatusError,
+    NetworkError,
+    TarballError,
+    auth_header_for_package_download,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    ThrottledClientGuard,
+    is_permanent_error,
+};
+use pnpm_reporter::{
+    FetchingProgressLog,
+    FetchingProgressMessage,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 
 /// The HTTP caching headers of an archive response, kept verbatim so the
 /// caller can decide whether and for how long the response may be reused.

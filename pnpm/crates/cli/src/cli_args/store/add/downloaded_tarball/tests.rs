@@ -1,7 +1,14 @@
-use super::{expand_tarball_directories, registry_package_ids, tarball_on_disk};
+use super::{
+    expand_tarball_directories,
+    registry_package_ids,
+    tarball_on_disk,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn a_semver_version_names_one_registry_package() {

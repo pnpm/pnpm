@@ -1,8 +1,16 @@
 use super::write_file;
 use pnpm_cmd_shim::{
-    Host, PackageBinSource, get_bins_from_package_manifest, is_safe_bin_name, remove_bin,
+    Host,
+    PackageBinSource,
+    get_bins_from_package_manifest,
+    is_safe_bin_name,
+    remove_bin,
 };
-use std::{collections::BTreeSet, io, path::Path};
+use std::{
+    collections::BTreeSet,
+    io,
+    path::Path,
+};
 
 pub(super) fn reconcile_bins(sources: &[PackageBinSource], directory: &Path) -> io::Result<()> {
     let current: BTreeSet<_> = sources

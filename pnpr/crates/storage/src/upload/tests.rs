@@ -1,9 +1,17 @@
 use crate::{
-    BlobId, Storage,
-    upload::{UploadPrincipal, UploadSession, is_upload_id},
+    BlobId,
+    Storage,
+    upload::{
+        UploadPrincipal,
+        UploadSession,
+        is_upload_id,
+    },
 };
 use pnpr_config::HostedStoreConfig;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use std::time::Duration;
 use tempfile::TempDir;
 

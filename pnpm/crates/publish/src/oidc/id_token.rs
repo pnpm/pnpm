@@ -1,15 +1,27 @@
 //! retrieve an OIDC id-token from the CI
 //! environment.
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
 use url::Url;
 
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+    },
     oidc::{
-        GitHubRequestTokenError, OidcHttpOptions, github_request_token, is_github_actions,
-        provenance::id_token_payload, truthy_env,
+        GitHubRequestTokenError,
+        OidcHttpOptions,
+        github_request_token,
+        is_github_actions,
+        provenance::id_token_payload,
+        truthy_env,
     },
 };
 

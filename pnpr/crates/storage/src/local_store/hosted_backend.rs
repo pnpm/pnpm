@@ -1,10 +1,34 @@
 use futures_util::TryStreamExt as _;
 
 use super::{
-    ARCHIVES_DIR, Arc, AsyncReadExt, AsyncSeekExt, Body, BoxStream, CanonicalPackageName,
-    DocumentWrite, Ecosystem, ErrorKind, GetRange, HostedBackend, HostedDocumentForUpdate,
-    HostedDocumentVersion, Path, PathBuf, RangedBlob, Result, SeekFrom, Store, StoredArchive,
-    StreamExt, async_trait, fs, read_dir_if_present, stream, streaming, unique_tmp_path,
+    ARCHIVES_DIR,
+    Arc,
+    AsyncReadExt,
+    AsyncSeekExt,
+    Body,
+    BoxStream,
+    CanonicalPackageName,
+    DocumentWrite,
+    Ecosystem,
+    ErrorKind,
+    GetRange,
+    HostedBackend,
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+    Path,
+    PathBuf,
+    RangedBlob,
+    Result,
+    SeekFrom,
+    Store,
+    StoredArchive,
+    StreamExt,
+    async_trait,
+    fs,
+    read_dir_if_present,
+    stream,
+    streaming,
+    unique_tmp_path,
 };
 
 /// The single-node filesystem backend. It owns its directory tree

@@ -1,4 +1,7 @@
-use super::{children_context, settle_one_seed};
+use super::{
+    children_context,
+    settle_one_seed,
+};
 use crate::{
     NodeId,
     parent_pkg_aliases::ParentPkgAliases,
@@ -6,10 +9,18 @@ use crate::{
         TreeCtx,
         test_support::manifest_result,
         walk::{
-            NodeKind, NodeSeed, PendingNode, PendingNodeAncestry, PendingNodeIdentity,
+            NodeKind,
+            NodeSeed,
+            PendingNode,
+            PendingNodeAncestry,
+            PendingNodeIdentity,
             PendingNodeLockfile,
         },
-        workspace_ctx::{WorkspaceTreeCtx, claim_children_owner, record_children},
+        workspace_ctx::{
+            WorkspaceTreeCtx,
+            claim_children_owner,
+            record_children,
+        },
     },
     resolved_tree::LockedResolution,
 };

@@ -1,5 +1,12 @@
-use super::{CreateVirtualStoreOutput, immutable_download, retain_dependency_closure};
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use super::{
+    CreateVirtualStoreOutput,
+    immutable_download,
+    retain_dependency_closure,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use std::collections::HashMap;
 
 struct CachedBuildInputs<'a> {

@@ -1,7 +1,15 @@
 //! The project manifest the content check compares with the lockfile.
 
-use super::{ManifestStat, OptimisticRepeatInstallCheck, PackageManifest, Path};
-use std::{borrow::Cow, sync::Arc};
+use super::{
+    ManifestStat,
+    OptimisticRepeatInstallCheck,
+    PackageManifest,
+    Path,
+};
+use std::{
+    borrow::Cow,
+    sync::Arc,
+};
 
 /// The transforms the resolver applies to a project manifest:
 /// `packageExtensions`, the pnpmfile's `readPackage`, then the overrides.

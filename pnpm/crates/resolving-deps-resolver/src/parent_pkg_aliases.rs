@@ -17,7 +17,10 @@
 use crate::resolved_tree::PeerDep;
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::Value;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// One level's aliases, chained onto the levels above it.
 #[derive(Debug, Default)]

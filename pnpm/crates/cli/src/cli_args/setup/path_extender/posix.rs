@@ -8,13 +8,23 @@
 pub(in crate::cli_args::setup) use pwsh::pwsh_quote;
 
 use super::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    ConfigFileChangeType,
+    ConfigReport,
+    PathExtenderError,
     PathExtenderReport,
 };
-use pnpm_text_section::{find_sections, wrap_section};
+use pnpm_text_section::{
+    find_sections,
+    wrap_section,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn add_dir_to_posix_env_path(

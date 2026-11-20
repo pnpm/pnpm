@@ -1,6 +1,11 @@
 use super::{
-    EngineMode, HashMap, NodeApiProject, TestRegistry, install_options,
-    reject_non_object_manifests, run_install_inner,
+    EngineMode,
+    HashMap,
+    NodeApiProject,
+    TestRegistry,
+    install_options,
+    reject_non_object_manifests,
+    run_install_inner,
 };
 
 #[test]

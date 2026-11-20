@@ -1,4 +1,8 @@
-use super::{CodeSymbol, crate_of_path, fill_sizes};
+use super::{
+    CodeSymbol,
+    crate_of_path,
+    fill_sizes,
+};
 use pretty_assertions::assert_eq;
 
 fn symbol(address: u64, size: u64, name: &str) -> CodeSymbol {

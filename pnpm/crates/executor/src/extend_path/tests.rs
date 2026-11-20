@@ -3,7 +3,10 @@ use pretty_assertions::assert_eq;
 use std::{
     env,
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(unix)]

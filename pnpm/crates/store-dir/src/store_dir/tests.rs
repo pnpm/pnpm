@@ -1,7 +1,13 @@
-use super::{STORE_VERSION, StoreDir};
+use super::{
+    STORE_VERSION,
+    StoreDir,
+};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[test]
 fn file_path_by_head_tail() {
@@ -126,7 +132,10 @@ fn init_rejects_non_directory_files_path() {
 #[cfg(unix)]
 #[test]
 fn init_new_shards_inherit_group_write_and_setgid() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
     use tempfile::tempdir;
 
     let tempdir = tempdir().unwrap();

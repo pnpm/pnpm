@@ -7,12 +7,25 @@
 //! events into per-`(project, stage)` buffers and forwards everything to
 //! the real reporter emit installed by [`install_forward`].
 
-use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel};
-use serde::{Deserialize, Serialize};
+use pnpm_reporter::{
+    LifecycleLog,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{LazyLock, Mutex, OnceLock},
+    sync::{
+        LazyLock,
+        Mutex,
+        OnceLock,
+    },
 };
 
 /// One captured lifecycle stage: what replaying needs to reconstruct the

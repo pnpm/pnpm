@@ -1,21 +1,44 @@
 use super::{
-    CreateVirtualStoreError, SnapshotWithCacheKey,
-    cache_keys::{SlotReuse, dir_clone_cacheable},
-    cas_paths_key, partition, removed_aliases_for,
+    CreateVirtualStoreError,
+    SnapshotWithCacheKey,
+    cache_keys::{
+        SlotReuse,
+        dir_clone_cacheable,
+    },
+    cas_paths_key,
+    partition,
+    removed_aliases_for,
     slot_linking::{
-        LinkSlotsParallel, SlotLink, emit_warm_snapshot_progress, link_slots_parallel,
+        LinkSlotsParallel,
+        SlotLink,
+        emit_warm_snapshot_progress,
+        link_slots_parallel,
         warm_progress_already_reported,
     },
 };
-use crate::{CasPathsByPkgId, InstallPackageBySnapshotError};
-use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
-use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName};
+use crate::{
+    CasPathsByPkgId,
+    InstallPackageBySnapshotError,
+};
+use pnpm_git_fetcher::{
+    GitFetcherError,
+    resolve_package_build_permission,
+};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+};
 use pnpm_package_manifest::read_package_json_from_cas_paths;
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 

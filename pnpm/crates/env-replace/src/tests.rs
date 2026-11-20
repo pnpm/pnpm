@@ -1,4 +1,7 @@
-use super::{EnvVar, env_replace_lossy};
+use super::{
+    EnvVar,
+    env_replace_lossy,
+};
 use pretty_assertions::assert_eq;
 
 /// Empty env: no variable is ever set. Used by tests that only

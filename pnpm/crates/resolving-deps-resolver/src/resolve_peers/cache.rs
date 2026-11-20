@@ -13,17 +13,36 @@ use crate::{
     dependencies_graph::MissingPeer,
     node_id::NodeId,
     resolve_peers::{
-        context::{ParentRef, ParentRefs, SharedChain},
+        context::{
+            ParentRef,
+            ParentRefs,
+            SharedChain,
+        },
         walker::{
-            MissingPeerInfo, NodeOutput, NodeWalkContext, PeerWalkMode, SubtreeMissingByPkg, Walker,
+            MissingPeerInfo,
+            NodeOutput,
+            NodeWalkContext,
+            PeerWalkMode,
+            SubtreeMissingByPkg,
+            Walker,
         },
     },
-    resolved_tree::{ChildEdge, DependenciesTreeNode, TreeChildren},
+    resolved_tree::{
+        ChildEdge,
+        DependenciesTreeNode,
+        TreeChildren,
+    },
 };
 use pnpm_deps_path::DepPath;
 use pnpm_resolving_resolver_base::get_peer_version_range;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// One cached resolution of a non-pure subtree: the part of a walk's
 /// verdict that holds in any compatible parent context, so a revisit —

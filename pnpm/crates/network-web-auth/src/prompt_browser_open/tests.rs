@@ -1,18 +1,39 @@
 use std::{
-    cell::{Cell, RefCell},
-    future::{self, Future},
+    cell::{
+        Cell,
+        RefCell,
+    },
+    future::{
+        self,
+        Future,
+    },
     io,
     pin::Pin,
     sync::Mutex,
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
 };
 
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pretty_assertions::assert_eq;
-use tokio::{sync::oneshot, task::LocalSet};
+use tokio::{
+    sync::oneshot,
+    task::LocalSet,
+};
 
 use super::prompt_browser_open;
-use crate::capabilities::{EnterKeyListener, OpenUrl, StdinIsTty};
+use crate::capabilities::{
+    EnterKeyListener,
+    OpenUrl,
+    StdinIsTty,
+};
 
 #[derive(Clone, Copy)]
 enum Outcome {

@@ -1,9 +1,18 @@
 #[cfg(unix)]
-use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::os::unix::ffi::{
+    OsStrExt,
+    OsStringExt,
+};
 #[cfg(target_os = "wasi")]
-use std::os::wasi::ffi::{OsStrExt, OsStringExt};
+use std::os::wasi::ffi::{
+    OsStrExt,
+    OsStringExt,
+};
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     path::PathBuf,
 };
 

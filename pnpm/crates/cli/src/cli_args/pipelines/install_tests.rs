@@ -1,5 +1,8 @@
 use super::dedicated_injected_source_dirs;
-use std::{collections::HashSet, fs};
+use std::{
+    collections::HashSet,
+    fs,
+};
 
 #[test]
 fn includes_the_publish_directory_of_an_undiscovered_workspace_root() {

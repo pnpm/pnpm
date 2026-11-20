@@ -2,7 +2,12 @@
 //! judges a manifest by its content, so neither a missing `package.json` nor
 //! an untouched one stands in for it.
 
-use super::{super::Decision, FOO_MANIFEST, content_check_decision, setup_content_check_project};
+use super::{
+    super::Decision,
+    FOO_MANIFEST,
+    content_check_decision,
+    setup_content_check_project,
+};
 use pnpm_package_manifest::PackageManifest;
 use std::fs;
 

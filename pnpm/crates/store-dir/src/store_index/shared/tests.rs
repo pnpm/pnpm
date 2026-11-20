@@ -1,7 +1,14 @@
-use super::{Detached, StoreIndex};
+use super::{
+    Detached,
+    StoreIndex,
+};
 use crate::{
-    StoreDir, StoreIndexFormat,
-    store_index::{store_index_key, tests::sample_index},
+    StoreDir,
+    StoreIndexFormat,
+    store_index::{
+        store_index_key,
+        tests::sample_index,
+    },
 };
 use tempfile::tempdir;
 

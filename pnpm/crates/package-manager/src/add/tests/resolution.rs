@@ -1,6 +1,10 @@
 use super::{
-    super::{install::same_build, normalized_save_specifier},
-    add_jsr_selector, add_npm_selector,
+    super::{
+        install::same_build,
+        normalized_save_specifier,
+    },
+    add_jsr_selector,
+    add_npm_selector,
 };
 
 #[tokio::test]
@@ -120,7 +124,11 @@ fn test_is_same_source() {
 #[test]
 fn test_collect_dependency_warnings() {
     use crate::add::source::collect_dependency_warnings;
-    use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+    use pnpm_reporter::{
+        LogEvent,
+        LogLevel,
+        PnpmLog,
+    };
 
     let catalog_warning = LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,

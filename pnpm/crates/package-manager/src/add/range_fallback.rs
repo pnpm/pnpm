@@ -1,11 +1,19 @@
 use super::{
-    AddError, AddOptions, AddResolveInputs,
+    AddError,
+    AddOptions,
+    AddResolveInputs,
     protocol_selector::ProtocolSelector,
-    registry::{package_registry, parse_explicit_registry_spec},
+    registry::{
+        package_registry,
+        parse_explicit_registry_spec,
+    },
     specifier::listing_catalog_name,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use serde_json::Value;
 use std::path::Path;

@@ -1,14 +1,33 @@
-use std::{collections::BTreeSet, fs, ops::Range, path::Path};
+use std::{
+    collections::BTreeSet,
+    fs,
+    ops::Range,
+    path::Path,
+};
 
-use miette::{IntoDiagnostic, Result, WrapErr};
-use pep508_rs::{PackageName, Requirement};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+};
 use pnpm_python_resolver::parse_requirement;
 use toml::{
     Spanned,
-    de::{DeTable, DeValue},
+    de::{
+        DeTable,
+        DeValue,
+    },
 };
 
-use crate::{manifest, outdated::PythonDependencyGroup, workspace::Workspace};
+use crate::{
+    manifest,
+    outdated::PythonDependencyGroup,
+    workspace::Workspace,
+};
 
 #[cfg(test)]
 mod tests;

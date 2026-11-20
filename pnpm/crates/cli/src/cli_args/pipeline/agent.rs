@@ -14,7 +14,10 @@ use pnpm_crypto_hash::create_short_hash;
 use pnpm_fs::LockMode;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 

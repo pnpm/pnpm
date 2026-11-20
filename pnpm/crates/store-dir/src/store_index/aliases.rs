@@ -7,9 +7,18 @@
 //! with it keeps a row layout that pnpm v11 understands.
 
 use super::{
-    Backend, Connection, HashMap, HashSet, StoreIndex, StoreIndexError,
+    Backend,
+    Connection,
+    HashMap,
+    HashSet,
+    StoreIndex,
+    StoreIndexError,
     files::FilesIndex,
-    queries::{GET_MANY_CHUNK, ends_with_pkg_id, pkg_id_key_suffix},
+    queries::{
+        GET_MANY_CHUNK,
+        ends_with_pkg_id,
+        pkg_id_key_suffix,
+    },
 };
 
 pub(super) const CREATE_ALIAS_TABLE: &str = "

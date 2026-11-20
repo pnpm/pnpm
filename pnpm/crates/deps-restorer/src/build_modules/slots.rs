@@ -1,11 +1,20 @@
 //! Locating and repairing the virtual-store slot a build runs in.
 
 use super::{
-    BuildModulesError, HashMap, ImportIndexedDirOpts, PackageKey, Path, PathBuf, Reporter,
+    BuildModulesError,
+    HashMap,
+    ImportIndexedDirOpts,
+    PackageKey,
+    Path,
+    PathBuf,
+    Reporter,
     import_indexed_dir,
 };
 use pnpm_store_dir::SideEffectsOverlay;
-use std::{fs, io};
+use std::{
+    fs,
+    io,
+};
 
 /// Compute the package directory inside the virtual store for a snapshot key.
 ///

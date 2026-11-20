@@ -1,14 +1,33 @@
 use super::{
-    CommandTempCwd, Matcher, advisory_entry, advisory_response, assert_failure, assert_success, fs,
+    CommandTempCwd,
+    Matcher,
+    advisory_entry,
+    advisory_response,
+    assert_failure,
+    assert_success,
+    fs,
     pacquet_cmd,
     signatures::{
-        keys_mock, packument_body, public_key_b64, sign_b64, signatures_json, signing_key,
+        keys_mock,
+        packument_body,
+        public_key_b64,
+        sign_b64,
+        signatures_json,
+        signing_key,
     },
-    stderr, stdout, write_minimal_manifest,
+    stderr,
+    stdout,
+    write_minimal_manifest,
 };
-use crate::_utils::{append_workspace_yaml_key, gzipped_tarball};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    gzipped_tarball,
+};
 use assert_cmd::assert::OutputAssertExt;
-use pnpm_testing_utils::{bin::AddMockedRegistry, git_repo::GitRepoFixture};
+use pnpm_testing_utils::{
+    bin::AddMockedRegistry,
+    git_repo::GitRepoFixture,
+};
 
 #[test]
 fn audit_reports_vulnerabilities_after_installing_tarball_file_git_and_named_registry_deps() {

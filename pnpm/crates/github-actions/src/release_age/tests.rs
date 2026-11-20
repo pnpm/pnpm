@@ -1,5 +1,11 @@
-use super::{GitTagDates, TagDateReader};
-use std::{path::Path, process::Command};
+use super::{
+    GitTagDates,
+    TagDateReader,
+};
+use std::{
+    path::Path,
+    process::Command,
+};
 
 fn git(dir: &Path, args: &[&str], date: &str) {
     // The user's own git config may sign tags or commits.

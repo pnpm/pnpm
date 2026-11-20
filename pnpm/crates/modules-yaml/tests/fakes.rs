@@ -8,11 +8,21 @@
 
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{
-    Clock, DepPath, FsCreateDirAll, FsReadToString, FsWrite, Modules, read_modules_layout,
-    read_modules_manifest, write_modules_manifest,
+    Clock,
+    DepPath,
+    FsCreateDirAll,
+    FsReadToString,
+    FsWrite,
+    Modules,
+    read_modules_layout,
+    read_modules_manifest,
+    write_modules_manifest,
 };
 use pretty_assertions::assert_eq;
-use std::{path::Path, time::SystemTime};
+use std::{
+    path::Path,
+    time::SystemTime,
+};
 use text_block_macros::text_block;
 
 /// `read_modules_manifest` should map a non-`NotFound` I/O error from

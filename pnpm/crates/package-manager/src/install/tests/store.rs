@@ -1,15 +1,38 @@
 use super::{
-    super::{Install, ProjectMutation},
+    super::{
+        Install,
+        ProjectMutation,
+    },
     InstallDirs,
 };
-use crate::{AllowBuildPolicy, PolicyExcludes, VirtualStoreLayout};
+use crate::{
+    AllowBuildPolicy,
+    PolicyExcludes,
+    VirtualStoreLayout,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{Host, read_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    read_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{fs::is_symlink_or_junction, registry::TestRegistry};
+use pnpm_testing_utils::{
+    fs::is_symlink_or_junction,
+    registry::TestRegistry,
+};
 use std::sync::Mutex;
 use tempfile::tempdir;
 use text_block_macros::text_block;

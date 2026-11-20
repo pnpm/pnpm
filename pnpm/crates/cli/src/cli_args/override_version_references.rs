@@ -4,7 +4,11 @@
 //! once per command about every selector still using it.
 
 use pnpm_config::Config;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+};
 use serde_json::Value;
 
 /// Warn about the `overrides` selectors whose configured value is a

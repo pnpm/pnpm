@@ -3,10 +3,16 @@ mod map_resolve_error;
 mod shared_workspace_resolution_cache;
 mod stale_pin_refresh;
 
-use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, RegistryResolution, TarballRevision};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgNameVerPeer,
+    RegistryResolution,
+    TarballRevision,
+};
 
 use super::locked_versions::{
-    exact_registry_specifier_for_revision_refresh, registry_revisions_conflict,
+    exact_registry_specifier_for_revision_refresh,
+    registry_revisions_conflict,
 };
 
 /// `corp` and `zeta` both declare one registry; its keys carry `corp`.
@@ -211,8 +217,15 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
 /// A resolver that hands back no manifest still has to give the package
 /// an identity — see <https://github.com/pnpm/pnpm/issues/13410>.
 mod fallback_manifest {
-    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-    use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, WantedDependency};
+    use pnpm_lockfile::{
+        DirectoryResolution,
+        LockfileResolution,
+    };
+    use pnpm_resolving_resolver_base::{
+        CurrentPkg,
+        PkgResolutionId,
+        WantedDependency,
+    };
 
     fn wanted(alias: Option<&str>, bare_specifier: Option<&str>) -> WantedDependency {
         WantedDependency {
@@ -315,7 +328,9 @@ mod fallback_manifest {
 mod overlay_view {
     use super::super::locked_versions::overlay_version_view;
     use pnpm_resolving_resolver_base::{
-        DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersionsOverlay, RESOLVED_VERSION_SELECTOR_WEIGHT,
+        DIRECT_DEP_SELECTOR_WEIGHT,
+        PreferredVersionsOverlay,
+        RESOLVED_VERSION_SELECTOR_WEIGHT,
         WantedDependency,
     };
     use std::collections::BTreeMap;

@@ -1,6 +1,14 @@
 use super::{
-    FAKE_INTEGRITY, LockfileResolution, PkgName, ResolutionVerification, TarballResolution,
-    assert_eq, create_npm_resolution_verifier, ctx, default_opts, fake_integrity,
+    FAKE_INTEGRITY,
+    LockfileResolution,
+    PkgName,
+    ResolutionVerification,
+    TarballResolution,
+    assert_eq,
+    create_npm_resolution_verifier,
+    ctx,
+    default_opts,
+    fake_integrity,
     registry_resolution,
 };
 use jiff::Timestamp;

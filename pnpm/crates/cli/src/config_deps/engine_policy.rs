@@ -2,9 +2,17 @@
 //! a package manager for itself.
 
 use super::{
-    Config, EnvInstallerContext, PNPM_VERSION, ResolveOptions, Result, resolve_engine_with,
+    Config,
+    EnvInstallerContext,
+    PNPM_VERSION,
+    ResolveOptions,
+    Result,
+    resolve_engine_with,
 };
-use miette::{IntoDiagnostic, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    WrapErr,
+};
 
 /// The pnpm version to record for a range pin that `running_version`
 /// satisfies.

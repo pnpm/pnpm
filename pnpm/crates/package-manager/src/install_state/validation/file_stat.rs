@@ -1,8 +1,14 @@
 //! A file's stat, and whether a recorded stat still stands for the file's
 //! content.
 
-use pnpm_workspace_state::{FileSignature, Validation};
-use std::{fs, path::Path};
+use pnpm_workspace_state::{
+    FileSignature,
+    Validation,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// A filesystem that keeps whole seconds may round an mtime down by up to
 /// this much (FAT rounds to two seconds).
@@ -91,10 +97,18 @@ fn ctime_ns(_path: &Path, metadata: &fs::Metadata) -> Option<i64> {
 /// is what Node.js reports as `ctime` on Windows.
 #[cfg(windows)]
 fn ctime_ns(path: &Path, _metadata: &fs::Metadata) -> Option<i64> {
-    use std::os::windows::{fs::OpenOptionsExt as _, io::AsRawHandle as _};
+    use std::os::windows::{
+        fs::OpenOptionsExt as _,
+        io::AsRawHandle as _,
+    };
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_BASIC_INFO, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
-        FILE_SHARE_WRITE, FileBasicInfo, GetFileInformationByHandleEx,
+        FILE_BASIC_INFO,
+        FILE_READ_ATTRIBUTES,
+        FILE_SHARE_DELETE,
+        FILE_SHARE_READ,
+        FILE_SHARE_WRITE,
+        FileBasicInfo,
+        GetFileInformationByHandleEx,
     };
     /// 100-nanosecond intervals between 1601-01-01 and the Unix epoch.
     const UNIX_EPOCH_TICKS: i64 = 116_444_736_000_000_000;

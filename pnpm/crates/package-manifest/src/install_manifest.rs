@@ -21,8 +21,14 @@ mod bin_field;
 mod comparison;
 mod fields;
 
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::collections::BTreeSet;
 
 /// The name of the interpretation profile this module implements.

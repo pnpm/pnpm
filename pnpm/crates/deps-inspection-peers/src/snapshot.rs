@@ -1,19 +1,38 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
-    LockfileResolution, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef,
+    LockfileResolution,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    SnapshotDepRef,
     SnapshotEntry,
 };
 use pnpm_resolving_resolver_base::get_peer_version_range;
 
 use crate::{
-    ParentPkg, PeerIssues,
+    ParentPkg,
+    PeerIssues,
     linked::{
-        LinkRoots, record_bad_peer, record_missing_peer, resolve_link_version, resolve_peer_range,
+        LinkRoots,
+        record_bad_peer,
+        record_missing_peer,
+        resolve_link_version,
+        resolve_peer_range,
     },
-    ranges::{parse_range_to_intervals, preprocess_hyphen_ranges},
+    ranges::{
+        parse_range_to_intervals,
+        preprocess_hyphen_ranges,
+    },
 };
 
 pub(super) fn walk_snapshot(

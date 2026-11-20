@@ -1,6 +1,15 @@
 use super::{
-    Arc, AtomicBool, CafsFileInfo, HashMap, Ordering, PackageFilesIndex, SideEffectsDiff, StoreDir,
-    StoreIndex, StoreIndexError, StoreIndexFormat,
+    Arc,
+    AtomicBool,
+    CafsFileInfo,
+    HashMap,
+    Ordering,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    StoreDir,
+    StoreIndex,
+    StoreIndexError,
+    StoreIndexFormat,
 };
 mod pending;
 use pending::apply_write_msg;

@@ -1,22 +1,42 @@
 #![cfg(unix)]
 
 use crate::{
-    _utils::{ManifestDeps, append_workspace_yaml_key, pacquet_in, write_project_manifest},
+    _utils::{
+        ManifestDeps,
+        append_workspace_yaml_key,
+        pacquet_in,
+        write_project_manifest,
+    },
     repeat_install::version_of,
 };
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::{MTIME_STEP_MS, set_mtime_ms},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fs::{
+        MTIME_STEP_MS,
+        set_mtime_ms,
+    },
 };
-use pnpm_workspace_state::{WORKSPACE_STATE_FILENAME, load_workspace_state};
+use pnpm_workspace_state::{
+    WORKSPACE_STATE_FILENAME,
+    load_workspace_state,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fs,
     os::unix::fs::MetadataExt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use walkdir::WalkDir;

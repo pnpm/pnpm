@@ -1,4 +1,10 @@
-use super::{MetadataRecord, RegistryError, Result, Storage, validated_record_name};
+use super::{
+    MetadataRecord,
+    RegistryError,
+    Result,
+    Storage,
+    validated_record_name,
+};
 
 /// Reserved directory (fs) / key segment (S3) holding staged publishes.
 pub(crate) const STAGED_DIR: &str = ".staged";

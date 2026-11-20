@@ -1,7 +1,21 @@
 use super::{
-    BundleDependencies, DependencyGroup, InitAuthor, InitOptions, NamedTempFile, PackageManifest,
-    PackageManifestError, Pipe, Write, assert_eq, assert_snapshot, extract_license, json,
-    parse_manifest_bytes, read_to_string, safe_read_package_json_from_dir, tempdir,
+    BundleDependencies,
+    DependencyGroup,
+    InitAuthor,
+    InitOptions,
+    NamedTempFile,
+    PackageManifest,
+    PackageManifestError,
+    Pipe,
+    Write,
+    assert_eq,
+    assert_snapshot,
+    extract_license,
+    json,
+    parse_manifest_bytes,
+    read_to_string,
+    safe_read_package_json_from_dir,
+    tempdir,
 };
 
 #[cfg(unix)]

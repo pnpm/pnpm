@@ -2,8 +2,14 @@ use super::relocated_state;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
-use std::path::{Path, PathBuf};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WorkspaceState,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn state_recording(dirs: &[PathBuf], pnpmfiles: Vec<String>) -> WorkspaceState {
     WorkspaceState {

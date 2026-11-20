@@ -6,15 +6,34 @@
 pub(crate) use download::check_zip_size;
 
 use super::{
-    Arc, ArchiveStoreProjection, Component, Cursor, HashMap, IgnoreEntryFilter, NetworkError, Read,
-    STREAM_ENTRY_BUFFER_MAX, TarLimits, TarballError, allocate_tarball_buffer, checked_now,
+    Arc,
+    ArchiveStoreProjection,
+    Component,
+    Cursor,
+    HashMap,
+    IgnoreEntryFilter,
+    NetworkError,
+    Read,
+    STREAM_ENTRY_BUFFER_MAX,
+    TarLimits,
+    TarballError,
+    allocate_tarball_buffer,
+    checked_now,
     post_download_semaphore,
 };
 use pnpm_fs::file_mode;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError, WrittenFile,
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    WriteCasFileFromReaderError,
+    WrittenFile,
 };
 use ssri::Integrity;
 

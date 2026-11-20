@@ -5,7 +5,11 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS";
@@ -306,7 +310,10 @@ const BUN_VERSION: &str = "1.2.19";
 /// archive's `bun` is a script that prints nothing.
 #[cfg(unix)]
 fn mock_bun_release(server: &mut mockito::Server, version: &str) -> [mockito::Mock; 3] {
-    use sha2::{Digest, Sha256};
+    use sha2::{
+        Digest,
+        Sha256,
+    };
     use std::io::Write;
 
     let arch = match pnpm_graph_hasher::host_arch() {

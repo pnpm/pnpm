@@ -1,10 +1,19 @@
 use crate::{
     hash_object,
-    object_hasher::{digest_base64, serialize_str},
+    object_hasher::{
+        digest_base64,
+        serialize_str,
+    },
 };
 use indexmap::IndexMap;
-use serde_json::{Value, json};
-use std::collections::{HashMap, HashSet};
+use serde_json::{
+    Value,
+    json,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
 

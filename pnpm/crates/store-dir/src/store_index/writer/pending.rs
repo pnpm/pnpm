@@ -1,5 +1,10 @@
 use super::{
-    CafsFileInfo, HashMap, PackageFilesIndex, SideEffectsDiff, StoreIndex, StoreIndexError,
+    CafsFileInfo,
+    HashMap,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    StoreIndex,
+    StoreIndexError,
     WriteMsg,
 };
 

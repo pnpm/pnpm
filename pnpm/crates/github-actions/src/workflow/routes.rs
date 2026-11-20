@@ -1,6 +1,14 @@
 use super::{
-    HashSet, QueryError, Range,
-    graph::{KeyKind, MAX_MERGE_DEPTH, NodeId, YamlGraph, YamlNode},
+    HashSet,
+    QueryError,
+    Range,
+    graph::{
+        KeyKind,
+        MAX_MERGE_DEPTH,
+        NodeId,
+        YamlGraph,
+        YamlNode,
+    },
 };
 use std::collections::HashMap;
 

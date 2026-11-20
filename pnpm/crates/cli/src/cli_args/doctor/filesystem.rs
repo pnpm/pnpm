@@ -1,12 +1,26 @@
 use super::{
     CheckResult,
-    probe_path::{ProbeAncestor, ProbeDir, prefetch_candidate_paths, resolve_probe_ancestor},
+    probe_path::{
+        ProbeAncestor,
+        ProbeDir,
+        prefetch_candidate_paths,
+        resolve_probe_ancestor,
+    },
 };
-use pnpm_config::{Config, NodeLinker};
-use pnpm_fs::{FsHardLink, FsReflink};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_fs::{
+    FsHardLink,
+    FsReflink,
+};
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Probe which link strategies work between the store and the project, since

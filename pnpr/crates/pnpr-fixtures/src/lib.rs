@@ -1,16 +1,38 @@
 pub mod presets;
 pub use database::{
-    deprecate_version, read_hosted_document, read_hosted_file, read_packument, remove_version,
-    set_dist_tag, tarball_path, write_hosted_document, write_hosted_file, write_packuments,
+    deprecate_version,
+    read_hosted_document,
+    read_hosted_file,
+    read_packument,
+    remove_version,
+    set_dist_tag,
+    tarball_path,
+    write_hosted_document,
+    write_hosted_file,
+    write_packuments,
     write_packuments_into,
 };
 pub use presets::{
-    MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, REGISTRY_MOCK_UPSTREAM_TIMEOUT, TAR_REGISTRY,
-    proxy_config, registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
+    MockConfigPresets,
+    REGISTRY_MOCK_LOCAL_PATTERNS,
+    REGISTRY_MOCK_UPSTREAM_TIMEOUT,
+    TAR_REGISTRY,
+    proxy_config,
+    registry_mock_graph,
+    registry_mock_rules,
+    static_serve_config,
+    with_tar_registry,
 };
 pub use registries::{
-    MOCK_GRANTS_YAML, MOCK_REGISTRIES_YAML, load_seeded_config, registries_routing,
-    registry_mock_routing, seed_registries, split_graph, store_document, write_document,
+    MOCK_GRANTS_YAML,
+    MOCK_REGISTRIES_YAML,
+    load_seeded_config,
+    registries_routing,
+    registry_mock_routing,
+    seed_registries,
+    split_graph,
+    store_document,
+    write_document,
     write_graph,
 };
 
@@ -18,27 +40,66 @@ mod database;
 mod registries;
 mod rules;
 mod tarball;
-use tarball::{build_tarball, fixture_files};
+use tarball::{
+    build_tarball,
+    fixture_files,
+};
 
-use base64::{Engine, engine::general_purpose};
-use flate2::{Compression, write::GzEncoder};
-use node_semver::{Range, Version};
+use base64::{
+    Engine,
+    engine::general_purpose,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     BlobId,
-    database::{ArtifactBlob, BlobRef},
-    layout::{local_archive_path, write_local_layout_marker},
+    database::{
+        ArtifactBlob,
+        BlobRef,
+    },
+    layout::{
+        local_archive_path,
+        write_local_layout_marker,
+    },
 };
-use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256, Sha512};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha256,
+    Sha512,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    env, fs,
-    io::{self, Write},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    env,
+    fs,
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         LazyLock,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 use walkdir::WalkDir;

@@ -12,17 +12,29 @@ mod metadata_cache_filtered_write_failure;
 mod release_age_upgrade;
 
 use mockito::Matcher;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use tempfile::TempDir;
 
 use super::{
-    FetchFullMetadataCachedOptions, fetch_full_metadata_cached, fetch_full_metadata_projected,
+    FetchFullMetadataCachedOptions,
+    fetch_full_metadata_cached,
+    fetch_full_metadata_projected,
 };
 use crate::{
     FetchMetadataError,
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_legacy_pkg_mirror_paths,
-        get_pkg_mirror_path, load_meta, load_meta_headers, save_meta_indexed,
+        ABBREVIATED_META_DIR,
+        FULL_FILTERED_META_DIR,
+        FULL_META_DIR,
+        get_legacy_pkg_mirror_paths,
+        get_pkg_mirror_path,
+        load_meta,
+        load_meta_headers,
+        save_meta_indexed,
     },
 };
 

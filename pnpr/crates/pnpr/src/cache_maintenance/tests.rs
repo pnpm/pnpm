@@ -1,16 +1,26 @@
 use super::{
     CacheGcEffect,
     inventory::{
-        cas_digest_of_store_file, inventory_cache_dir, is_cache_tmp_file, is_managed_sqlite_file,
+        cas_digest_of_store_file,
+        inventory_cache_dir,
+        is_cache_tmp_file,
+        is_managed_sqlite_file,
     },
     is_abandoned_tmp_age,
-    orphans::{PrivateScopePolicy, count_dir_contents, prune_orphaned_namespaces},
+    orphans::{
+        PrivateScopePolicy,
+        count_dir_contents,
+        prune_orphaned_namespaces,
+    },
 };
 use crate::server::ecosystem::UpstreamCacheSubtree;
 use pnpm_fs::OpenDir;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 

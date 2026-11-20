@@ -1,6 +1,15 @@
 use super::{
-    Action, AppState, AuthedCaller, HeaderMap, Identity, Next, RegistryError, Request, Response,
-    Upstream, header,
+    Action,
+    AppState,
+    AuthedCaller,
+    HeaderMap,
+    Identity,
+    Next,
+    RegistryError,
+    Request,
+    Response,
+    Upstream,
+    header,
 };
 use axum::response::IntoResponse;
 use pnpr_config::RoutingConfig;

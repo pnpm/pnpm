@@ -12,21 +12,39 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{
-    LinkWorkspacePackages, ResolveOptions, VersionSelectorType, WantedDependency,
+    LinkWorkspacePackages,
+    ResolveOptions,
+    VersionSelectorType,
+    WantedDependency,
 };
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    path::{Path, PathBuf},
-    sync::{Arc, OnceLock},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 use crate::{
     peer_provider::ProviderTiers,
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+    },
 };
 
 use super::{
-    ManifestHook, UpdateReuseScope, reuse::TargetDistances, update_scope::UpdateScope,
+    ManifestHook,
+    UpdateReuseScope,
+    reuse::TargetDistances,
+    update_scope::UpdateScope,
     workspace_ctx::WorkspaceTreeCtx,
 };
 

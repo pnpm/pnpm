@@ -1,6 +1,13 @@
 use super::{
-    AsyncReadExt, AsyncWriteExt, CacheValidators, CanonicalPackageName, CircuitBreaker, Duration,
-    RegistryError, TcpListener, breaking_upstream,
+    AsyncReadExt,
+    AsyncWriteExt,
+    CacheValidators,
+    CanonicalPackageName,
+    CircuitBreaker,
+    Duration,
+    RegistryError,
+    TcpListener,
+    breaking_upstream,
 };
 
 #[tokio::test]

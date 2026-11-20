@@ -1,5 +1,8 @@
 use super::SaveLockfileError;
-use crate::{Lockfile, SymlinkedLockfile};
+use crate::{
+    Lockfile,
+    SymlinkedLockfile,
+};
 use pretty_assertions::assert_eq;
 use std::path::Path;
 use tempfile::tempdir;

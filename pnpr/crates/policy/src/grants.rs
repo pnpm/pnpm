@@ -1,7 +1,15 @@
 //! Grants: what a subject may do to the packages of one registry.
 
-use super::{AccessList, AccessToken, Identity, PackageRule};
-use pnpr_registry::{Ecosystem, PackagePattern};
+use super::{
+    AccessList,
+    AccessToken,
+    Identity,
+    PackageRule,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+};
 use std::collections::HashMap;
 
 /// What a grant lets a subject do to a package.

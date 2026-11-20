@@ -1,6 +1,9 @@
 //! Error surface for the lockfile-verification gate.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::fmt::Write as _;
 

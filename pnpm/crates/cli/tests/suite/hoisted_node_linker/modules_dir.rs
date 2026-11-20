@@ -1,6 +1,12 @@
 use super::{
-    AddMockedRegistry, CommandTempCwd, fs, fs_remove_dir_all, is_real_dir, pacquet_at,
-    read_pkg_version, write_workspace_yaml,
+    AddMockedRegistry,
+    CommandTempCwd,
+    fs,
+    fs_remove_dir_all,
+    is_real_dir,
+    pacquet_at,
+    read_pkg_version,
+    write_workspace_yaml,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

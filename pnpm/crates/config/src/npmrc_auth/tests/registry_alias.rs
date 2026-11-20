@@ -1,4 +1,10 @@
-use super::{Config, NoEnv, NpmrcAuth, Path, assert_eq};
+use super::{
+    Config,
+    NoEnv,
+    NpmrcAuth,
+    Path,
+    assert_eq,
+};
 
 #[test]
 fn npm_alias_normalizes_routes_and_credentials() {

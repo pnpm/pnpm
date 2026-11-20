@@ -1,13 +1,30 @@
 use super::{
-    Access, CreatePublishOptionsError, CreatePublishOptionsInput, OidcTokenProvenance,
-    create_publish_options, fetch_token_and_provenance_by_oidc, find_registry_info,
-    publish_config_registry, resolve_access, scope_of,
+    Access,
+    CreatePublishOptionsError,
+    CreatePublishOptionsInput,
+    OidcTokenProvenance,
+    create_publish_options,
+    fetch_token_and_provenance_by_oidc,
+    find_registry_info,
+    publish_config_registry,
+    resolve_access,
+    scope_of,
 };
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
 };
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{
+    Engine,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;

@@ -1,11 +1,19 @@
 use super::drop_shadowed_aliases;
 use crate::{
-    boolean_negations::with_boolean_negations, cli_args::CliArgs,
-    flag_relocation::relocate_pre_subcommand_flags, shorthands::expand_universal_shorthands,
+    boolean_negations::with_boolean_negations,
+    cli_args::CliArgs,
+    flag_relocation::relocate_pre_subcommand_flags,
+    shorthands::expand_universal_shorthands,
 };
-use clap::{CommandFactory, FromArgMatches};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
 use pretty_assertions::assert_eq;
-use std::{ffi::OsString, path::Path};
+use std::{
+    ffi::OsString,
+    path::Path,
+};
 
 fn drop_aliases(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());

@@ -1,15 +1,38 @@
 use super::{
-    Arc, MetadataCacheScope, Package, PackageMetaCache, PickPackageContext, PickPackageError,
-    PickPackageOptions, PickPackageResult, PickState, RegistryPackageSpec, Timestamp,
-    cached_meta_misses_preferred_version, dominant_lockfile_version, get_file_mtime,
-    load_meta_async, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline,
+    Arc,
+    MetadataCacheScope,
+    Package,
+    PackageMetaCache,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    PickPackageResult,
+    PickState,
+    RegistryPackageSpec,
+    Timestamp,
+    cached_meta_misses_preferred_version,
+    dominant_lockfile_version,
+    get_file_mtime,
+    load_meta_async,
+    pick_from_meta,
+    pick_from_meta_fast,
+    pick_from_meta_offline,
     pick_stable_cached_range_version,
-    route::{MirrorShortcuts, RouteInputs, RouteRequest, unvalidated_mirror_is_fresh},
+    route::{
+        MirrorShortcuts,
+        RouteInputs,
+        RouteRequest,
+        unvalidated_mirror_is_fresh,
+    },
 };
 use crate::{
     errors::legacy_mirror_hint,
     metadata_cache_policy::mirror_may_answer,
-    mirror::{MetaHeaders, find_legacy_pkg_mirror, load_meta_headers_async},
+    mirror::{
+        MetaHeaders,
+        find_legacy_pkg_mirror,
+        load_meta_headers_async,
+    },
 };
 
 impl PickState<'_> {

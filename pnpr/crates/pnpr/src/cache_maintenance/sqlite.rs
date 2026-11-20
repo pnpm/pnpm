@@ -1,17 +1,40 @@
 mod conn;
 
 use self::conn::{
-    AnchoredVerdictDb, SQLITE_PAGE_BYTES, compact_sqlite, freelist_bytes, open_sqlite,
-    open_verdict_dir, open_verdict_readonly, page_size_bytes, pragma_u64, should_vacuum,
-    should_vacuum_counts, verdict_db_and_wal_bytes, verdict_family_bytes,
-    verdict_family_bytes_in_cache, verdict_wal_bytes,
+    AnchoredVerdictDb,
+    SQLITE_PAGE_BYTES,
+    compact_sqlite,
+    freelist_bytes,
+    open_sqlite,
+    open_verdict_dir,
+    open_verdict_readonly,
+    page_size_bytes,
+    pragma_u64,
+    should_vacuum,
+    should_vacuum_counts,
+    verdict_db_and_wal_bytes,
+    verdict_family_bytes,
+    verdict_family_bytes_in_cache,
+    verdict_wal_bytes,
 };
 use super::{
-    CacheGcEffect, Duration, Path, PathBuf, SystemTime, store_index::store_index_family_bytes,
+    CacheGcEffect,
+    Duration,
+    Path,
+    PathBuf,
+    SystemTime,
+    store_index::store_index_family_bytes,
 };
 use pnpm_fs::OpenDir;
-use rusqlite::{Connection, OpenFlags};
-use std::{io, sync::Arc, time::UNIX_EPOCH};
+use rusqlite::{
+    Connection,
+    OpenFlags,
+};
+use std::{
+    io,
+    sync::Arc,
+    time::UNIX_EPOCH,
+};
 
 const EMPTY_VERDICT_DB_BYTES: u64 = 12 * 1024;
 

@@ -1,9 +1,21 @@
 use super::{
-    Arc, AuthHeaders, BTreeMap, Config, DEFAULT_REGISTRY, DEFAULT_REGISTRY_SCOPE, HashMap,
-    LoadWorkspaceYamlError, NpmrcAuth, base64_encode_bytes, parse_token_helper_field,
+    Arc,
+    AuthHeaders,
+    BTreeMap,
+    Config,
+    DEFAULT_REGISTRY,
+    DEFAULT_REGISTRY_SCOPE,
+    HashMap,
+    LoadWorkspaceYamlError,
+    NpmrcAuth,
+    base64_encode_bytes,
+    parse_token_helper_field,
     split_scope_from_uri,
 };
-use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
+use pnpm_network::{
+    canonicalize_npm_registry_url,
+    normalize_registry_url,
+};
 
 /// Raw (unparsed) credential fields for a given registry URI.
 /// Each `Option` stores the post-`${VAR}`-substitution value when set.

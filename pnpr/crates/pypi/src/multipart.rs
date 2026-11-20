@@ -7,7 +7,10 @@
 #[cfg(test)]
 pub(crate) mod tests;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use regex::bytes::Regex;
 
 /// One part of a `multipart/form-data` body.

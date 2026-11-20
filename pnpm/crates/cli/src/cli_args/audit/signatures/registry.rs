@@ -1,6 +1,15 @@
 use super::{
-    BTreeMap, Config, Deserialize, HashMap, SignaturesError, ThrottledClient, encode_package_name,
-    redact_url_credentials, sanitize_response_body, send_with_retry, walk_reqwest_chain,
+    BTreeMap,
+    Config,
+    Deserialize,
+    HashMap,
+    SignaturesError,
+    ThrottledClient,
+    encode_package_name,
+    redact_url_credentials,
+    sanitize_response_body,
+    send_with_retry,
+    walk_reqwest_chain,
 };
 use pnpm_network::normalize_registry_url;
 

@@ -2,12 +2,20 @@
 //! `setup` writes to it.
 
 use super::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigReport, PathExtenderError, PathExtenderReport,
-    update_shell_config, wrap_section,
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    ConfigReport,
+    PathExtenderError,
+    PathExtenderReport,
+    update_shell_config,
+    wrap_section,
 };
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Write the block to `config_file`, the path [`profile_path`] resolves.

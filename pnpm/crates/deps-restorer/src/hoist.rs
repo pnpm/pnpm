@@ -9,21 +9,37 @@
 //! alias-list inputs that pass needs.
 
 pub use symlinks::symlink_hoisted_dependencies;
-pub use workspace_packages::{WorkspaceHoists, hoist_workspace_packages_to_root};
+pub use workspace_packages::{
+    WorkspaceHoists,
+    hoist_workspace_packages_to_root,
+};
 
 mod symlinks;
 mod workspace_aliases;
 mod workspace_packages;
 
-use workspace_packages::{pattern_hoist_kind, place_workspace_packages};
+use workspace_packages::{
+    pattern_hoist_kind,
+    place_workspace_packages,
+};
 
 use indexmap::IndexMap;
-use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
 use pnpm_matcher::Matcher;
 use pnpm_modules_yaml::HoistKind;
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
 };
 

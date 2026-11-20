@@ -132,7 +132,10 @@ fn find_hash_works_with_base64() {
     let store_index = StoreIndex::open_readonly_in(&store_dir).unwrap();
     let (hex_hash, expected_name, expected_version) = find_hash_fixture(&store_index);
 
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
     let bytes = (0..hex_hash.len())
         .step_by(2)
         .map(|i| u8::from_str_radix(&hex_hash[i..i + 2], 16).unwrap())

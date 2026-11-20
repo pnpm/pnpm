@@ -1,4 +1,7 @@
-use super::{TempDir, finder};
+use super::{
+    TempDir,
+    finder,
+};
 use pnpm_hooks::PnpmfileHooks as _;
 
 #[tokio::test]

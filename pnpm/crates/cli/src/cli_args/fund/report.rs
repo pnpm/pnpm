@@ -1,7 +1,10 @@
 //! The funding report of one project, shaped like `npm fund --json`.
 
 use super::{
-    funding::{is_valid_funding, normalize_funding},
+    funding::{
+        is_valid_funding,
+        normalize_funding,
+    },
     projects::ProjectDependencies,
 };
 use crate::cli_args::deps_tree::DependencyNode;
@@ -9,7 +12,10 @@ use indexmap::IndexMap;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use serde::Serialize;
 use serde_json::Value;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 pub type FundedDependencies = IndexMap<String, FundedPackage>;
 

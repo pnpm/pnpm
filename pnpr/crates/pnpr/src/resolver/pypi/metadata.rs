@@ -1,4 +1,10 @@
-use super::{BTreeMap, Offered, Target, WheelMetadata, candidates_from_page};
+use super::{
+    BTreeMap,
+    Offered,
+    Target,
+    WheelMetadata,
+    candidates_from_page,
+};
 use pnpm_python_resolver::matches_published_digest;
 
 /// What a project page offers, refusing a page that is not one. The

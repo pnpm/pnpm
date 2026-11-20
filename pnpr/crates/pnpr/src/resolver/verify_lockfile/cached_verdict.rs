@@ -1,7 +1,19 @@
 use super::{
-    Arc, Footprint, Identity, Lockfile, LockfileVerifyContext, Mutex, OsvIndex, ResolutionVerifier,
-    Resolver, VerifyFailure, request_timeout_response,
-    verdict_cache::{VerdictLookup, VerdictRecord},
+    Arc,
+    Footprint,
+    Identity,
+    Lockfile,
+    LockfileVerifyContext,
+    Mutex,
+    OsvIndex,
+    ResolutionVerifier,
+    Resolver,
+    VerifyFailure,
+    request_timeout_response,
+    verdict_cache::{
+        VerdictLookup,
+        VerdictRecord,
+    },
 };
 
 pub(super) fn compute_verdict_hash(

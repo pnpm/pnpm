@@ -1,8 +1,16 @@
 //! Durable, coalesced CDN invalidations committed with the data they invalidate.
 
-use super::{SqlDatabase, adapter::Connection, batch::WriteTransaction, transactions::Freshness};
+use super::{
+    SqlDatabase,
+    adapter::Connection,
+    batch::WriteTransaction,
+    transactions::Freshness,
+};
 use crate::Storage;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_sql::DialectSql;
 use std::sync::Arc;
 

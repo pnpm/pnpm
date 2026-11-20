@@ -1,4 +1,7 @@
-use super::{MACOS_LINK_THREADS, link_threads};
+use super::{
+    MACOS_LINK_THREADS,
+    link_threads,
+};
 
 #[test]
 fn link_threads_parses_a_positive_count() {

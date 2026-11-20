@@ -15,7 +15,10 @@ use std::{
     fmt::Write as _,
     fs,
     io::Write,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

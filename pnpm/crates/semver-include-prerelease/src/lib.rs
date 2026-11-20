@@ -1,13 +1,22 @@
 //! npm `semver` range semantics, built on `node_semver`.
 
 pub use semver_range::{
-    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range, parse_strict_semver_range,
+    ANY_VERSION_RANGE,
+    is_any_version_range,
+    is_valid_semver_range,
+    parse_strict_semver_range,
 };
-pub use subset::{ParsedSemverRange, is_semver_subset};
+pub use subset::{
+    ParsedSemverRange,
+    is_semver_subset,
+};
 
 use std::borrow::Cow;
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 
 mod semver_range;
 mod subset;

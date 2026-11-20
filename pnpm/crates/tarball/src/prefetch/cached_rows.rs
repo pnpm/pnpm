@@ -1,7 +1,16 @@
 use super::{
-    Arc, ArchiveStoreProjection, GlobalLog, LogEvent, LogLevel, PackageContentCheck,
-    PackageFilesIndex, PkgContentMismatch, SharedReadonlyStoreIndex, SharedVerifiedFilesCache,
-    StoreDir, TarballError,
+    Arc,
+    ArchiveStoreProjection,
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    PackageContentCheck,
+    PackageFilesIndex,
+    PkgContentMismatch,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    TarballError,
 };
 use pnpm_package_manifest::PackageBin;
 use std::collections::BTreeMap;

@@ -1,12 +1,24 @@
-pub use redact_url::{redact_connection_url, redact_url_credentials};
+pub use redact_url::{
+    redact_connection_url,
+    redact_url_credentials,
+};
 
 mod redact_url;
 #[cfg(feature = "server")]
 mod response;
 #[cfg(feature = "server")]
-pub use response::{PublicErrorCode, PublicErrorMessage, error_body, json_error};
+pub use response::{
+    PublicErrorCode,
+    PublicErrorMessage,
+    error_body,
+    json_error,
+};
 
-use derive_more::{Display, Error, From};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 
 #[derive(Debug, Display, Error, From)]
 #[non_exhaustive]

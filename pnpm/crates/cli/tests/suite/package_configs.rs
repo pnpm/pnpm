@@ -6,11 +6,17 @@ pub use _utils::*;
 use crate::_utils;
 
 use indexmap::IndexMap;
-use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    read_modules_manifest,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";

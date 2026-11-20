@@ -1,16 +1,40 @@
-use super::{AllowlistedProbe, GitProbe, GitResolver, ProbeFuture};
-use crate::resolve_ref::{GitCommandRunner, GitRunError};
+use super::{
+    AllowlistedProbe,
+    GitProbe,
+    GitResolver,
+    ProbeFuture,
+};
+use crate::resolve_ref::{
+    GitCommandRunner,
+    GitRunError,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{GitResolution, LockfileResolution};
-use pnpm_network::{AuthHeaders, UpstreamRouteHook};
+use pnpm_lockfile::{
+    GitResolution,
+    LockfileResolution,
+};
+use pnpm_network::{
+    AuthHeaders,
+    UpstreamRouteHook,
+};
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, GitResolveError, PkgResolutionId, ResolutionRefreshOptions, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    CurrentPkg,
+    GitResolveError,
+    PkgResolutionId,
+    ResolutionRefreshOptions,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
 };
 use std::{
     future::Future,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 struct FakeProbe {

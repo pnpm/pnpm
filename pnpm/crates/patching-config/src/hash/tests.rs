@@ -1,4 +1,7 @@
-use super::{calc_patch_hashes, create_hex_hash_from_file};
+use super::{
+    calc_patch_hashes,
+    create_hex_hash_from_file,
+};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::tempdir;

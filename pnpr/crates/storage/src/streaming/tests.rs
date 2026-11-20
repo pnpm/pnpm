@@ -1,16 +1,30 @@
 use super::{
-    BlobStreamError, download_computing_sha512, integrity_checker, parse_integrity,
+    BlobStreamError,
+    download_computing_sha512,
+    integrity_checker,
+    parse_integrity,
     stream_verified_to_cache,
 };
 use crate::Storage;
 use futures_util::StreamExt;
 use pnpr_config::HostedStoreConfig;
 use pnpr_package_name::CanonicalPackageName;
-use ssri::{Algorithm, Integrity, IntegrityOpts};
-use std::{path::Path, sync::Arc, time::Duration};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityOpts,
+};
+use std::{
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
     net::TcpListener,
     sync::Notify,
 };

@@ -1,11 +1,27 @@
-use super::{report, track};
-use axum::{Router, body::Body, routing::get};
+use super::{
+    report,
+    track,
+};
+use axum::{
+    Router,
+    body::Body,
+    routing::get,
+};
 use bytes::Bytes;
 use futures_util::stream;
-use std::{convert::Infallible, time::Duration};
+use std::{
+    convert::Infallible,
+    time::Duration,
+};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
+    net::{
+        TcpListener,
+        TcpStream,
+    },
 };
 
 const FULL_BODY: &str = "a complete body";

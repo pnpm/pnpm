@@ -1,11 +1,18 @@
 use super::{
-    CalcDepStateOptions, DepsGraphNode, build_required_dep_paths, calc_dep_graph_hash,
-    calc_dep_state, calc_dep_state_input_key,
+    CalcDepStateOptions,
+    DepsGraphNode,
+    build_required_dep_paths,
+    calc_dep_graph_hash,
+    calc_dep_state,
+    calc_dep_state_input_key,
 };
 use crate::hash_object;
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 #[test]
 fn engine_only_key() {

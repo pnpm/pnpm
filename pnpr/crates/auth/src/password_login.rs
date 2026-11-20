@@ -2,10 +2,21 @@
 pub(crate) mod tests;
 
 use crate::{
-    AccountCredential, AuthState, DEFAULT_BCRYPT_COST, NewToken, PasswordChange, TokenRecord,
-    UpsertOutcome, UserCreation, UserPut, verify_returning_user,
+    AccountCredential,
+    AuthState,
+    DEFAULT_BCRYPT_COST,
+    NewToken,
+    PasswordChange,
+    TokenRecord,
+    UpsertOutcome,
+    UserCreation,
+    UserPut,
+    verify_returning_user,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 
 struct LoginSnapshot {
     credential: Option<AccountCredential>,

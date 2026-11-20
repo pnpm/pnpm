@@ -13,11 +13,18 @@
 
 #[cfg(windows)]
 pub fn disable() {
-    use windows_sys::Win32::Foundation::{
-        HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
-    };
-    use windows_sys::Win32::System::Console::{
-        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    use windows_sys::Win32::{
+        Foundation::{
+            HANDLE_FLAG_INHERIT,
+            INVALID_HANDLE_VALUE,
+            SetHandleInformation,
+        },
+        System::Console::{
+            GetStdHandle,
+            STD_ERROR_HANDLE,
+            STD_INPUT_HANDLE,
+            STD_OUTPUT_HANDLE,
+        },
     };
 
     // SAFETY: `GetStdHandle` returns a borrowed handle that must not be

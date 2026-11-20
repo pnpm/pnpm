@@ -1,4 +1,8 @@
-use super::{WildcardMatcher, create_matcher, create_matcher_with_index};
+use super::{
+    WildcardMatcher,
+    create_matcher,
+    create_matcher_with_index,
+};
 
 fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
     patterns

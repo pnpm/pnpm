@@ -1,7 +1,8 @@
 use crate::{
     State,
     cli_args::{
-        install::resolve_bool_override, lockfile_dir::LockfileDirArg,
+        install::resolve_bool_override,
+        lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection,
     },
     state::command_lockfile,

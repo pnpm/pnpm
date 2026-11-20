@@ -1,11 +1,30 @@
 use super::{
-    HashMap, HashSet, HostedGit, HostedOpts, InstallabilityOptions, LockfileResolution,
-    PackageMetadata, PkgNameVerPeer, RegistryContext, RegistryServerType, TarballUrlOptions,
-    WalkContext, WantedPlatformRef, extract_author, extract_homepage, npm_tarball_url,
-    platform_is_supported_with_inference, registry_server_type, revision_registry_tarball_url,
+    HashMap,
+    HashSet,
+    HostedGit,
+    HostedOpts,
+    InstallabilityOptions,
+    LockfileResolution,
+    PackageMetadata,
+    PkgNameVerPeer,
+    RegistryContext,
+    RegistryServerType,
+    TarballUrlOptions,
+    WalkContext,
+    WantedPlatformRef,
+    extract_author,
+    extract_homepage,
+    npm_tarball_url,
+    platform_is_supported_with_inference,
+    registry_server_type,
+    revision_registry_tarball_url,
     safe_read_package_json_from_dir,
 };
-use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
+use percent_encoding::{
+    AsciiSet,
+    NON_ALPHANUMERIC,
+    utf8_percent_encode,
+};
 
 /// The manifest's `repository` field as a URL an SBOM may publish.
 /// `CycloneDX` requires an `iri-reference` here, so a raw value like the npm
@@ -369,8 +388,13 @@ pub(super) fn platform_incompatible_optional(
 }
 
 pub(super) fn generate_uuid_v4() -> String {
-    use std::collections::hash_map::RandomState;
-    use std::hash::{BuildHasher, Hasher};
+    use std::{
+        collections::hash_map::RandomState,
+        hash::{
+            BuildHasher,
+            Hasher,
+        },
+    };
     let state = RandomState::new();
     let mut hasher = state.build_hasher();
     hasher.write_u64(

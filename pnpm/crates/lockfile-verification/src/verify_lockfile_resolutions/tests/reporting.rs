@@ -1,11 +1,30 @@
 use super::{
-    AlwaysFail, Arc, FailFor, LockfileVerificationMessage, LogEvent, Mutex, Path, Reporter,
-    ResolutionVerifier, SINGLE_PKG_LOCKFILE, SilentReporter, TWO_PKG_LOCKFILE, TempDir,
-    VerifyError, VerifyLockfileResolutionsOptions, collect_candidates, parse, run_fan_out,
+    AlwaysFail,
+    Arc,
+    FailFor,
+    LockfileVerificationMessage,
+    LogEvent,
+    Mutex,
+    Path,
+    Reporter,
+    ResolutionVerifier,
+    SINGLE_PKG_LOCKFILE,
+    SilentReporter,
+    TWO_PKG_LOCKFILE,
+    TempDir,
+    VerifyError,
+    VerifyLockfileResolutionsOptions,
+    collect_candidates,
+    parse,
+    run_fan_out,
     verify_lockfile_resolutions,
 };
 use pnpm_lockfile::LockfileResolution;
-use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx, VerifyFuture};
+use pnpm_resolving_resolver_base::{
+    ResolutionVerification,
+    VerifyCtx,
+    VerifyFuture,
+};
 
 const FOUR_PKG_LOCKFILE: &str = "lockfileVersion: '9.0'
 

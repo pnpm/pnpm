@@ -1,5 +1,10 @@
 use super::{
-    BTreeMap, Lockfile, StalenessReason, assert_eq, manifest_from_json, satisfies_package_manifest,
+    BTreeMap,
+    Lockfile,
+    StalenessReason,
+    assert_eq,
+    manifest_from_json,
+    satisfies_package_manifest,
     text_block,
 };
 

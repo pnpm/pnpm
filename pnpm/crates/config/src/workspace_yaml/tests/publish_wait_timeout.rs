@@ -1,4 +1,9 @@
-use super::{Config, Path, WorkspaceSettings, assert_eq};
+use super::{
+    Config,
+    Path,
+    WorkspaceSettings,
+    assert_eq,
+};
 
 #[test]
 fn publish_wait_timeout_defaults_to_disabled_and_supports_configuration_layers() {

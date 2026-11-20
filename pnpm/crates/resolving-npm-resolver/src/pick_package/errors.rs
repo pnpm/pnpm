@@ -2,10 +2,16 @@
 
 use std::path::PathBuf;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
-use crate::{FetchMetadataError, pick_package_from_meta::PickPackageFromMetaError};
+use crate::{
+    FetchMetadataError,
+    pick_package_from_meta::PickPackageFromMetaError,
+};
 
 /// Failure modes for [`crate::pick_package()`]. Distinguishes the pure-pick
 /// errors ([`PickPackageError::Pick`]) from the fetch / IO errors so

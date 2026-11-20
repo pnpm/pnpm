@@ -1,10 +1,19 @@
 use super::{
-    BadWorkspaceManifestNameError, FindWorkspaceDirError, INVALID_WORKSPACE_MANIFEST_FILENAMES,
-    find_workspace_dir, find_workspace_dir_from_env_with,
+    BadWorkspaceManifestNameError,
+    FindWorkspaceDirError,
+    INVALID_WORKSPACE_MANIFEST_FILENAMES,
+    find_workspace_dir,
+    find_workspace_dir_from_env_with,
 };
-use crate::{WORKSPACE_MANIFEST_FILENAME, api::EnvVarOs};
+use crate::{
+    WORKSPACE_MANIFEST_FILENAME,
+    api::EnvVarOs,
+};
 use pretty_assertions::assert_eq;
-use std::{ffi::OsString, fs};
+use std::{
+    ffi::OsString,
+    fs,
+};
 use tempfile::TempDir;
 
 #[test]
@@ -162,7 +171,12 @@ fn empty_pnpm_config_env_var_falls_back_to_npm_config() {
 
 /// <https://github.com/pnpm/pnpm/issues/3561>
 mod workspace_membership {
-    use super::{TempDir, WORKSPACE_MANIFEST_FILENAME, find_workspace_dir, fs};
+    use super::{
+        TempDir,
+        WORKSPACE_MANIFEST_FILENAME,
+        find_workspace_dir,
+        fs,
+    };
     use pretty_assertions::assert_eq;
 
     fn prepare_workspace(packages: &str) -> TempDir {

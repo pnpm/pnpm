@@ -1,16 +1,34 @@
 use base64::{
     Engine as _,
-    engine::general_purpose::{STANDARD as BASE64, STANDARD_NO_PAD as BASE64_NO_PAD},
+    engine::general_purpose::{
+        STANDARD as BASE64,
+        STANDARD_NO_PAD as BASE64_NO_PAD,
+    },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use std::{
     fmt::Write as _,
     fs::File,
-    io::{self, BufRead as _, BufReader, Write as _},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        BufRead as _,
+        BufReader,
+        Write as _,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]

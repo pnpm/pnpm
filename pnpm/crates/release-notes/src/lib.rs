@@ -9,12 +9,22 @@
 //! <https://github.com/pnpm/rfcs/blob/12e86ef2bb6d942aaa3adec4e7ec42df22b7d763/pnpr/text/0000-release-notes.md>.
 
 pub use changelog_section::find_changelog_section;
-pub use content::{MAX_NOTE_BYTES, NoteContentError, normalize_line_endings, validate_note};
+pub use content::{
+    MAX_NOTE_BYTES,
+    NoteContentError,
+    normalize_line_endings,
+    validate_note,
+};
 pub use digest::note_digest;
 pub use display::render_note;
 pub use notes_list::{
-    MAX_PUBLICATION_NAME_BYTES, NoteEntry, NotesList, PublicationRef, is_in_upgrade_range,
-    is_publication_name, is_publication_segment,
+    MAX_PUBLICATION_NAME_BYTES,
+    NoteEntry,
+    NotesList,
+    PublicationRef,
+    is_in_upgrade_range,
+    is_publication_name,
+    is_publication_segment,
 };
 
 mod changelog_section;

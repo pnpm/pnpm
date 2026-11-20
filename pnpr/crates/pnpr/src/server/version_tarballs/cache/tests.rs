@@ -1,8 +1,18 @@
-use super::{CAPACITY, CanonicalPackageName, DistOrigin, VersionTgz, VersionTgzCache};
+use super::{
+    CAPACITY,
+    CanonicalPackageName,
+    DistOrigin,
+    VersionTgz,
+    VersionTgzCache,
+};
 use pnpr_storage::DocumentStamp;
 use std::{
     sync::Arc,
-    time::{Duration, Instant, SystemTime},
+    time::{
+        Duration,
+        Instant,
+        SystemTime,
+    },
 };
 
 const TTL: Duration = Duration::from_mins(1);

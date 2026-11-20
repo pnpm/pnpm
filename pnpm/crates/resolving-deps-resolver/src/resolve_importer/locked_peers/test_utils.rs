@@ -1,4 +1,11 @@
-use super::{HashMap, HashSet, PkgName, all_peer_versions, hashed_suffix, retained_peer_versions};
+use super::{
+    HashMap,
+    HashSet,
+    PkgName,
+    all_peer_versions,
+    hashed_suffix,
+    retained_peer_versions,
+};
 
 pub(in crate::resolve_importer) fn importer_locked_peer_versions(
     wanted_lockfile: Option<&pnpm_lockfile::Lockfile>,

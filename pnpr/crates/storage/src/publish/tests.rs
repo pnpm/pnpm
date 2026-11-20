@@ -1,10 +1,23 @@
 use super::{
-    extract_attachments, merge_manifest, now_iso, sha1_hex_from_integrity_opts,
-    stream_decode_verify_and_write, verify_and_write,
+    extract_attachments,
+    merge_manifest,
+    now_iso,
+    sha1_hex_from_integrity_opts,
+    stream_decode_verify_and_write,
+    verify_and_write,
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde_json::{Value, json};
-use ssri::{Algorithm, IntegrityOpts};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
 use std::path::PathBuf;
 use tempfile::TempDir;
 

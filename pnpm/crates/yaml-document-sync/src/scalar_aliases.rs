@@ -4,10 +4,28 @@
 
 pub(crate) mod paths;
 
-use self::paths::{ScalarPath, changed_scalar_paths, scalar_paths};
-use serde_saphyr::granit_parser::{Event, Parser, ScalarStyle, Scanner, Span, StrInput, TokenType};
-use std::{collections::HashMap, ops::Range};
-use yamlpath::{Document, Route};
+use self::paths::{
+    ScalarPath,
+    changed_scalar_paths,
+    scalar_paths,
+};
+use serde_saphyr::granit_parser::{
+    Event,
+    Parser,
+    ScalarStyle,
+    Scanner,
+    Span,
+    StrInput,
+    TokenType,
+};
+use std::{
+    collections::HashMap,
+    ops::Range,
+};
+use yamlpath::{
+    Document,
+    Route,
+};
 
 /// Scalar alias identities retained while edits operate on independent values.
 #[derive(Default)]

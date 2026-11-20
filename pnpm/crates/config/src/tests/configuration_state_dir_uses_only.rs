@@ -1,7 +1,25 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, HostNoHome,
-    LinkProbe, LoadWorkspaceYamlError, OsString, Path, PathBuf, assert_eq, capture_warnings,
-    default_store_dir, display_store_dir, fs, io, safe_host_var, tempdir, write_file,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GLOBAL_LAYOUT_VERSION,
+    GetCurrentDir,
+    GetHomeDir,
+    HostNoHome,
+    LinkProbe,
+    LoadWorkspaceYamlError,
+    OsString,
+    Path,
+    PathBuf,
+    assert_eq,
+    capture_warnings,
+    default_store_dir,
+    display_store_dir,
+    fs,
+    io,
+    safe_host_var,
+    tempdir,
+    write_file,
 };
 
 #[test]

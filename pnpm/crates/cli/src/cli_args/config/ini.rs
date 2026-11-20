@@ -6,7 +6,11 @@
 //! parses the INI file into a document model that preserves untouched lines verbatim
 //! while allowing in-place replacement or removal of targeted keys.
 
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// The line ending for a line in an INI file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

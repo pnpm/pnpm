@@ -1,7 +1,20 @@
 use super::{
-    BTreeMap, Config, HashMap, Host, IntoDiagnostic, Path, PathBuf, Result, TrustedSettings, Value,
-    WorkspaceSettings, apply_store_dir_override, config_delta, default_state_dir,
-    is_known_setting_key, resolve_configured_state_dir,
+    BTreeMap,
+    Config,
+    HashMap,
+    Host,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    Result,
+    TrustedSettings,
+    Value,
+    WorkspaceSettings,
+    apply_store_dir_override,
+    config_delta,
+    default_state_dir,
+    is_known_setting_key,
+    resolve_configured_state_dir,
 };
 use miette::WrapErr;
 

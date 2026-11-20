@@ -1,14 +1,33 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_policy::Identity;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 use super::{
-    Action, AppState, PackageDestination, RegistrySource, authorize, classify_package,
+    Action,
+    AppState,
+    PackageDestination,
+    RegistrySource,
+    authorize,
+    classify_package,
     legacy_report::InstalledNode,
-    legacy_specs::{entry_bool, node_modules_segments, parse_name_and_spec, parse_npm_alias},
+    legacy_specs::{
+        entry_bool,
+        node_modules_segments,
+        parse_name_and_spec,
+        parse_npm_alias,
+    },
     resolve_registry_source,
 };
 

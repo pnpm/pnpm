@@ -1,10 +1,23 @@
 //! The version a `.python-version` file asks for.
 
-use miette::{IntoDiagnostic, Result, WrapErr};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The version a `.python-version` file asks for, as a prefix of an

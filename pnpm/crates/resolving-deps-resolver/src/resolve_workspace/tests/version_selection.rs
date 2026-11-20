@@ -1,6 +1,16 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, RecordingResolver, WorkspaceImporter, assert_eq,
-    fake_manifest, fake_result, importer_opts, recorded_time, resolve_workspace, workspace_opts,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    RecordingResolver,
+    WorkspaceImporter,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    importer_opts,
+    recorded_time,
+    resolve_workspace,
+    workspace_opts,
 };
 
 #[tokio::test]

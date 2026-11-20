@@ -1,4 +1,8 @@
-use super::{pacquet, prepend_binary_dir_to_path, stdout};
+use super::{
+    pacquet,
+    prepend_binary_dir_to_path,
+    stdout,
+};
 use std::process::Command;
 use tempfile::TempDir;
 

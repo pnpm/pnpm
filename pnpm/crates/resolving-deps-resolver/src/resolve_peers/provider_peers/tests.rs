@@ -1,4 +1,9 @@
-use super::{CandidatePeer, ComparablePeerRange, missing_peers, peers_accept_versions};
+use super::{
+    CandidatePeer,
+    ComparablePeerRange,
+    missing_peers,
+    peers_accept_versions,
+};
 use serde_json::json;
 
 #[test]

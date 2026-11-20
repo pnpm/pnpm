@@ -35,13 +35,27 @@ pub(crate) mod locked;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-pub(crate) use context::{SharedChain, satisfies_with_prereleases, split_peer_suffix_segments};
-pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
+pub(crate) use context::{
+    SharedChain,
+    satisfies_with_prereleases,
+    split_peer_suffix_segments,
+};
+pub(crate) use discovery::{
+    PeerDiscoveryResult,
+    PeerHoistDiscovery,
+    apply_hoist_missing_scope,
+};
 pub(crate) use finalize::merge_additional_edges;
 pub(crate) use provider_peers::{
-    CandidatePeer, CandidatePeers, accepts_optional_peer_candidate, resolved_name_and_version,
+    CandidatePeer,
+    CandidatePeers,
+    accepts_optional_peer_candidate,
+    resolved_name_and_version,
 };
-pub(crate) use walker::{MissingNames, index_missing_names};
+pub(crate) use walker::{
+    MissingNames,
+    index_missing_names,
+};
 
 mod cache;
 mod context;
@@ -53,21 +67,41 @@ mod walker;
 mod workspace_graph;
 
 use crate::{
-    dependencies_graph::{DependenciesGraph, PeerDependencyIssues},
+    dependencies_graph::{
+        DependenciesGraph,
+        PeerDependencyIssues,
+    },
     node_id::NodeId,
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+    },
 };
-use context::{ChainSuffixMemo, CurrentProviderSource, ParentRefs};
+use context::{
+    ChainSuffixMemo,
+    CurrentProviderSource,
+    ParentRefs,
+};
 use discovery::PeerDiscoveryCaches;
 use locked::build_node_ids_by_previous_dep_path;
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
-use walker::{NodeWalkContext, PeerWalkMode, Walker};
+use walker::{
+    NodeWalkContext,
+    PeerWalkMode,
+    Walker,
+};
 use workspace_graph::finish_workspace_graph;
 
 /// Options threaded into [`fn@resolve_peers`].

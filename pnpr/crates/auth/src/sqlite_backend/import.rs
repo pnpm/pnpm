@@ -1,10 +1,25 @@
 use super::{
     SqliteAuth,
-    accounts::{NameCheck, check_name, insert_account, set_password_hash, stored_account},
+    accounts::{
+        NameCheck,
+        check_name,
+        insert_account,
+        set_password_hash,
+        stored_account,
+    },
 };
-use pnpr_error::{RegistryError, Result};
-use pnpr_sql::adapter::{Adapter as _, WriteTransaction};
-use std::{collections::HashMap, sync::Arc};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_sql::adapter::{
+    Adapter as _,
+    WriteTransaction,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// How an import handles a login name with different credentials.
 #[derive(Debug, Clone, Copy)]

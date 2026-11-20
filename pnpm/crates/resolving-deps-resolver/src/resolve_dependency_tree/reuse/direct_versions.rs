@@ -1,6 +1,16 @@
 use super::{
-    Arc, BTreeMap, DependencySpec, DirectDepVersion, DirectDepVersions, PkgName, PkgNameVerPeer,
-    ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, TreeCtx,
+    Arc,
+    BTreeMap,
+    DependencySpec,
+    DirectDepVersion,
+    DirectDepVersions,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TreeCtx,
     lock_recoverable,
 };
 

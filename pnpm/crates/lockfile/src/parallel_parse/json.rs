@@ -5,9 +5,17 @@
 //! document laid out otherwise does not split, and is parsed whole.
 
 use super::{
-    CHUNKED_SECTION_BYTES, Importers, Packages, char_boundary_at_or_after, chunk_count, pool,
+    CHUNKED_SECTION_BYTES,
+    Importers,
+    Packages,
+    char_boundary_at_or_after,
+    chunk_count,
+    pool,
 };
-use crate::{LockfileDocument, json_document::from_json_str};
+use crate::{
+    LockfileDocument,
+    json_document::from_json_str,
+};
 use rayon::prelude::*;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;

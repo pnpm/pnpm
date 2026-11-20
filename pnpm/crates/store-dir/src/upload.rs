@@ -4,13 +4,25 @@
 //! [`StoreIndexWriter`].
 
 use crate::{
-    AddFilesFromDirError, BundledPackageDirs, CafsFileInfo, SideEffectsDiff, StoreDir,
-    StoreIndexError, StoreIndexWriter, add_files_from_dir_with_bundled,
+    AddFilesFromDirError,
+    BundledPackageDirs,
+    CafsFileInfo,
+    SideEffectsDiff,
+    StoreDir,
+    StoreIndexError,
+    StoreIndexWriter,
+    add_files_from_dir_with_bundled,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     path::Path,
 };
 

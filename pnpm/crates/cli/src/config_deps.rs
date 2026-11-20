@@ -7,11 +7,18 @@
 //! lockfile. Plugin-hook loading (the `updateConfig` half) is wired in
 //! separately.
 
-pub use declarations::{add_config_dependencies, update_config_dependencies};
+pub use declarations::{
+    add_config_dependencies,
+    update_config_dependencies,
+};
 pub use engine_policy::mature_pnpm_version_for_range;
 pub use hooks::{
-    apply_config_dependency_settings, load_before_packing_hooks, may_update_config, prepare_config,
-    run_update_config_hooks, update_config_hook_catalogs,
+    apply_config_dependency_settings,
+    load_before_packing_hooks,
+    may_update_config,
+    prepare_config,
+    run_update_config_hooks,
+    update_config_hook_catalogs,
 };
 
 pub(crate) use declarations::declared_specifier;
@@ -22,33 +29,71 @@ mod network;
 mod store;
 
 use crate::{
-    cli_args::config_warnings::emit_config_warning, config_overrides::apply_store_dir_override,
+    cli_args::config_warnings::emit_config_warning,
+    config_overrides::apply_store_dir_override,
 };
 use engine_policy::engine_resolve_options;
 use env_installer_context::EnvInstallerContext;
 
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_config::{
-    Config, Host, PNPM_VERSION, TrustedSettings, WorkspaceSettings, default_state_dir,
-    known_settings::is_known_setting_key, resolve_configured_state_dir,
+    Config,
+    Host,
+    PNPM_VERSION,
+    TrustedSettings,
+    WorkspaceSettings,
+    default_state_dir,
+    known_settings::is_known_setting_key,
+    resolve_configured_state_dir,
 };
 use pnpm_env_installer::{
-    ConfigDepUpdates, ConfigDepsInstallMode, pnpm_engine_packages, read_config_dependency_lockfile,
-    resolve_and_install_config_deps_updating, resolve_package_manager_integrities,
+    ConfigDepUpdates,
+    ConfigDepsInstallMode,
+    pnpm_engine_packages,
+    read_config_dependency_lockfile,
+    resolve_and_install_config_deps_updating,
+    resolve_package_manager_integrities,
     running_version_unpublished,
 };
-use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
-use pnpm_lockfile::{EnvDocumentFormat, EnvLockfile};
-use pnpm_reporter::{HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_hooks::{
+    HookContext,
+    LogFn,
+    PnpmfileHooks,
+    finder,
+};
+use pnpm_lockfile::{
+    EnvDocumentFormat,
+    EnvLockfile,
+};
+use pnpm_reporter::{
+    HookLog,
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyOptions, ResolveOptions, Resolver, WantedDependency,
+    ResolutionPolicyOptions,
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
 };
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

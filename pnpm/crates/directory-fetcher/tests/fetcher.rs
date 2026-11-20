@@ -3,9 +3,15 @@
 //! exercises the full request/response shape upstream callers depend
 //! on (`manifest`, `requires_build`, `files_map` keys).
 
-use pnpm_directory_fetcher::{CopyFiles, DirectoryFetcher};
+use pnpm_directory_fetcher::{
+    CopyFiles,
+    DirectoryFetcher,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn touch(root: &Path, rel: &str, body: &str) {

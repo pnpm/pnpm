@@ -1,5 +1,11 @@
-use super::{ProjectManifestsByDir, SpecDirs};
-use std::path::{Path, PathBuf};
+use super::{
+    ProjectManifestsByDir,
+    SpecDirs,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// No project manifest is loaded, so every target is read from disk.
 fn dirs<'a>(workspace_root: &'a Path, lockfile_dir: &'a Path) -> SpecDirs<'a> {

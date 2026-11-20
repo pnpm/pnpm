@@ -6,9 +6,19 @@
 
 use crate::_utils::pacquet_in;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_manifest(dir: &Path, manifest: &Value) {
     fs::create_dir_all(dir).expect("create package directory");

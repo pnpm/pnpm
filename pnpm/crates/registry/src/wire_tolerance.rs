@@ -14,10 +14,21 @@
 //! [`PackageDistribution::integrity`](crate::PackageDistribution), where
 //! an unusable value has to reach the install as an error.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
-use pnpm_package_manifest::{PackageBin, is_safe_bin_name, is_truthy};
-use serde::{Deserialize, Deserializer, de::DeserializeOwned};
+use pnpm_package_manifest::{
+    PackageBin,
+    is_safe_bin_name,
+    is_truthy,
+};
+use serde::{
+    Deserialize,
+    Deserializer,
+    de::DeserializeOwned,
+};
 use serde_json::Value;
 
 /// Deserialize a field pnpm reads for presence alone, keeping the typed

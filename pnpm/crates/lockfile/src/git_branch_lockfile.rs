@@ -9,8 +9,13 @@
 
 use crate::Lockfile;
 use std::{
-    fs, io, iter,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    iter,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl Lockfile {

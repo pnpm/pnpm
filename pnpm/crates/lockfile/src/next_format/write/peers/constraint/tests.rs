@@ -1,5 +1,8 @@
 use super::ProviderConstraint;
-use crate::{BoundProviders, PeerBindings};
+use crate::{
+    BoundProviders,
+    PeerBindings,
+};
 
 #[test]
 fn recorded_link_binding_matches_the_alias_and_path() {

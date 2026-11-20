@@ -1,6 +1,14 @@
 use super::{
-    Arc, DistStats, HashMap, JsonValue, Package, Pipe, PublishedAtTimeMap, TrustEvidence,
-    TrustHistory, TrustHistoryProjection,
+    Arc,
+    DistStats,
+    HashMap,
+    JsonValue,
+    Package,
+    Pipe,
+    PublishedAtTimeMap,
+    TrustEvidence,
+    TrustHistory,
+    TrustHistoryProjection,
 };
 use crate::trust_checks::get_policy_trust_evidence;
 

@@ -1,15 +1,35 @@
 pub(super) use self::cleanup::{
-    CachedFileRemoval, check_unmodified_cached_files_sync, prune_empty_cache_dirs,
-    remove_cached_files, remove_cached_files_sync,
+    CachedFileRemoval,
+    check_unmodified_cached_files_sync,
+    prune_empty_cache_dirs,
+    remove_cached_files,
+    remove_cached_files_sync,
 };
 
 mod cleanup;
-use super::{CachedFile, HashSet, Path, PathBuf, Result, SystemTime, stat_effective_time};
-use pnpm_fs::{ChildFileStat, OpenDir};
+use super::{
+    CachedFile,
+    HashSet,
+    Path,
+    PathBuf,
+    Result,
+    SystemTime,
+    stat_effective_time,
+};
+use pnpm_fs::{
+    ChildFileStat,
+    OpenDir,
+};
 use pnpm_store_dir::STORE_VERSION;
 use std::{
-    ffi::{OsStr, OsString},
-    io::{self, ErrorKind},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
     sync::Arc,
     vec::IntoIter,
 };

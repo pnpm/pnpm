@@ -1,18 +1,65 @@
 pub(super) mod npm_errors;
 
 pub(super) use super::{
-    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_LOGIN_BODY_BYTES,
-    MAX_PUBLISH_BODY_BYTES, MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, authenticate,
-    authorize_package, authorize_package_write, batch, caller_scoped, cargo,
-    check_publish_tombstone, delete_package, delete_tarball, get_dist_tags, get_org_teams,
+    Action,
+    AppInner,
+    AppState,
+    AuthedCaller,
+    CanonicalPackageName,
+    MAX_LOGIN_BODY_BYTES,
+    MAX_PUBLISH_BODY_BYTES,
+    MAX_TEAM_BODY_BYTES,
+    RegistrySource,
+    TargetRegistry,
+    authenticate,
+    authorize_package,
+    authorize_package_write,
+    batch,
+    caller_scoped,
+    cargo,
+    check_publish_tombstone,
+    delete_package,
+    delete_tarball,
+    get_dist_tags,
+    get_org_teams,
     get_team_members,
-    health::{serve_live, serve_ping, serve_ready},
-    hosted_storage, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
-    pypi, remove_dist_tag, resolve_write_target, serve_metrics, serve_org_packages,
-    serve_package_tarball, serve_packument, serve_pnpr_handshake, serve_search, serve_tarball,
-    serve_version_manifest, set_dist_tag, split_package_identifier, staged,
-    team_access::{grant_team_access, list_team_packages, revoke_team_access},
-    team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
+    health::{
+        serve_live,
+        serve_ping,
+        serve_ready,
+    },
+    hosted_storage,
+    not_found,
+    oci,
+    pnpr_protocols_disabled,
+    private_no_cache,
+    publish_package,
+    pypi,
+    remove_dist_tag,
+    resolve_write_target,
+    serve_metrics,
+    serve_org_packages,
+    serve_package_tarball,
+    serve_packument,
+    serve_pnpr_handshake,
+    serve_search,
+    serve_tarball,
+    serve_version_manifest,
+    set_dist_tag,
+    split_package_identifier,
+    staged,
+    team_access::{
+        grant_team_access,
+        list_team_packages,
+        revoke_team_access,
+    },
+    team_mutations::{
+        TeamScope,
+        add_team_member,
+        create_team,
+        destroy_team,
+        remove_team_member,
+    },
     update_packument,
 };
 pub(crate) use request_timeout::RequestDeadline;
@@ -21,7 +68,12 @@ mod account_handlers;
 use account_handlers::account_routes;
 
 mod protocol_routes;
-use protocol_routes::{artifacts_routes, pipeline_routes, resolver_routes, staged_archive_routes};
+use protocol_routes::{
+    artifacts_routes,
+    pipeline_routes,
+    resolver_routes,
+    staged_archive_routes,
+};
 
 mod team_handlers;
 use team_handlers::team_routes;
@@ -29,11 +81,23 @@ use team_handlers::team_routes;
 mod note_handlers;
 mod npm_handlers;
 use npm_handlers::{
-    delete_package_dist_tag, delete_scoped_package, get_package_dist_tags, get_packument,
-    get_packument_or_version_manifest, get_scoped_tarball, get_search, get_tarball, put_package,
-    put_package_dist_tag, put_packument_revision, put_scoped_package,
-    put_scoped_packument_revision, unpublish_package, unpublish_scoped_package,
-    unpublish_scoped_tarball, unpublish_tarball,
+    delete_package_dist_tag,
+    delete_scoped_package,
+    get_package_dist_tags,
+    get_packument,
+    get_packument_or_version_manifest,
+    get_scoped_tarball,
+    get_search,
+    get_tarball,
+    put_package,
+    put_package_dist_tag,
+    put_packument_revision,
+    put_scoped_package,
+    put_scoped_packument_revision,
+    unpublish_package,
+    unpublish_scoped_package,
+    unpublish_scoped_tarball,
+    unpublish_tarball,
 };
 
 mod observability;
@@ -46,16 +110,42 @@ use std::sync::Arc;
 
 use axum::{
     Router,
-    extract::{DefaultBodyLimit, Path, RawQuery, State},
-    http::{HeaderMap, HeaderValue, Method, StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::{any, delete, get, post, put},
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        RawQuery,
+        State,
+    },
+    http::{
+        HeaderMap,
+        HeaderValue,
+        Method,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
+    routing::{
+        any,
+        delete,
+        get,
+        post,
+        put,
+    },
 };
 use pnpr_storage::database::MAX_NOTE_BYTES;
-use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::cors::{
+    AllowOrigin,
+    CorsLayer,
+};
 
 use pnpr_auth::AuthState;
-use pnpr_config::{Config, RoutingConfig};
+use pnpr_config::{
+    Config,
+    RoutingConfig,
+};
 use pnpr_registry::Ecosystem;
 use serde::Deserialize;
 

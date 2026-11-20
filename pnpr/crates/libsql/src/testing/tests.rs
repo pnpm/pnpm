@@ -1,6 +1,10 @@
 use super::serve_primary;
 use crate::LibsqlConnector;
-use libsql::{Builder, Connection, Database};
+use libsql::{
+    Builder,
+    Connection,
+    Database,
+};
 use std::path::Path;
 
 /// A replica at `path`, bootstrapped from the primary's export.

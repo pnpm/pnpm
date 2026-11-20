@@ -1,5 +1,10 @@
 use super::{
-    HashSet, copy_fixture, dedicated_workspace_with_reachable_project, fs, pacquet, run_sbom_json,
+    HashSet,
+    copy_fixture,
+    dedicated_workspace_with_reachable_project,
+    fs,
+    pacquet,
+    run_sbom_json,
     split_root_names,
 };
 

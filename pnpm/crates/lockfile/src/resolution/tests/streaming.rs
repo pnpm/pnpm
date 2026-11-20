@@ -1,6 +1,11 @@
 use super::{
-    ARTIFACTORY_REGISTRY, GIT_COMMIT, RegistryServerType, TarballUrlOptions, assert_eq,
-    is_git_hosted_tarball_url, npm_tarball_url,
+    ARTIFACTORY_REGISTRY,
+    GIT_COMMIT,
+    RegistryServerType,
+    TarballUrlOptions,
+    assert_eq,
+    is_git_hosted_tarball_url,
+    npm_tarball_url,
 };
 
 #[test]

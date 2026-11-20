@@ -3,22 +3,40 @@
 use crate::cli_args::{
     deps_tree::{
         DependencyNode,
-        build::{DependenciesHierarchy, LoadedState, importer_id_for},
+        build::{
+            DependenciesHierarchy,
+            LoadedState,
+            importer_id_for,
+        },
         get_tree::MaxDepth,
         pkg_info::PkgInfoEnv,
     },
-    list::{ListArgs, TreeRequest, recursive::dedicated_project_config},
+    list::{
+        ListArgs,
+        TreeRequest,
+        recursive::dedicated_project_config,
+    },
     recursive::discover_workspace_projects,
 };
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use pnpm_workspace::Project;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     future::Future,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     pin::Pin,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{
+        Arc,
+        Mutex,
+        PoisonError,
+    },
 };
 
 type BoxedResult<'a, Output> = Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;

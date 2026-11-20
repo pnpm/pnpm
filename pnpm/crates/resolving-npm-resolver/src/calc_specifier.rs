@@ -7,10 +7,19 @@
 //! is pinned.
 
 use node_semver::Version;
-use pnpm_registry::{PackageVersion, RangeSpecStyle};
-use pnpm_resolving_resolver_base::{is_valid_semver_range, parse_strict_semver_range};
+use pnpm_registry::{
+    PackageVersion,
+    RangeSpecStyle,
+};
+use pnpm_resolving_resolver_base::{
+    is_valid_semver_range,
+    parse_strict_semver_range,
+};
 
-use crate::infer_range_spec_style::{infer_range_spec_style, range_of_specifier};
+use crate::infer_range_spec_style::{
+    infer_range_spec_style,
+    range_of_specifier,
+};
 
 /// The manifest range that pins `version` for a dependency whose existing
 /// manifest entry, if it already had one, read `prev_specifier`, and that

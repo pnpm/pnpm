@@ -1,4 +1,7 @@
-use super::{Channel, ChannelName};
+use super::{
+    Channel,
+    ChannelName,
+};
 use pretty_assertions::assert_eq;
 
 fn version(major: u64, minor: u64, patch: Option<u64>) -> Channel {

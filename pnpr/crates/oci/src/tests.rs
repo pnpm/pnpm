@@ -1,5 +1,11 @@
 use crate::{
-    Digest, ImageDocument, Manifest, ManifestEntry, ManifestRemoval, TagEntry, media_type,
+    Digest,
+    ImageDocument,
+    Manifest,
+    ManifestEntry,
+    ManifestRemoval,
+    TagEntry,
+    media_type,
 };
 
 fn digest_of(body: &str) -> Digest {

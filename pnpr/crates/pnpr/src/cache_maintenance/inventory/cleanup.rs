@@ -1,9 +1,19 @@
 use super::{
-    DirPolicy, OpenDir, Path, PathBuf, Result, STORE_VERSION, SystemTime, root_dir_policy,
+    DirPolicy,
+    OpenDir,
+    Path,
+    PathBuf,
+    Result,
+    STORE_VERSION,
+    SystemTime,
+    root_dir_policy,
 };
 use std::{
     cmp::Reverse,
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     io,
     sync::Arc,
     vec::IntoIter,

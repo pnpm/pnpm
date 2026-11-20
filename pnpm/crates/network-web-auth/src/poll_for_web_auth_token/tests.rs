@@ -1,6 +1,12 @@
 use std::{
-    cell::{Cell, RefCell},
-    future::{self, Future},
+    cell::{
+        Cell,
+        RefCell,
+    },
+    future::{
+        self,
+        Future,
+    },
     rc::Rc,
 };
 
@@ -8,10 +14,19 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 use super::{
-    WebAuthFetchOptions, WebAuthFetchResponse, WebAuthRetryOptions, WebAuthTokenPollParams,
-    body_may_carry_token, poll_for_web_auth_token,
+    WebAuthFetchOptions,
+    WebAuthFetchResponse,
+    WebAuthRetryOptions,
+    WebAuthTokenPollParams,
+    body_may_carry_token,
+    poll_for_web_auth_token,
 };
-use crate::capabilities::{Clock, Sleep, WebAuthFetch, WebAuthFetchError};
+use crate::capabilities::{
+    Clock,
+    Sleep,
+    WebAuthFetch,
+    WebAuthFetchError,
+};
 
 #[test]
 fn body_may_carry_token_only_for_a_successful_non_202() {

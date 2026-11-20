@@ -10,19 +10,46 @@
 //! the npm publish flow uses.
 
 use super::{
-    Action, AppState, Ownership, RegistrySource, authorize_with_ownership, hosted_read_namespace,
-    publishing::{StagedBase, StagedPublish, Verification, cleanup_tmp_slots, commit_publishes},
+    Action,
+    AppState,
+    Ownership,
+    RegistrySource,
+    authorize_with_ownership,
+    hosted_read_namespace,
+    publishing::{
+        StagedBase,
+        StagedPublish,
+        Verification,
+        cleanup_tmp_slots,
+        commit_publishes,
+    },
 };
-use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument};
+use pnpr_cargo::{
+    CRATE_DOCUMENT_FORMAT_VERSION,
+    CrateDocument,
+};
 use pnpr_error::RegistryError;
-use pnpr_oci::{IMAGE_DOCUMENT_FORMAT_VERSION, ImageDocument};
+use pnpr_oci::{
+    IMAGE_DOCUMENT_FORMAT_VERSION,
+    ImageDocument,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
+use pnpr_pypi::{
+    PROJECT_DOCUMENT_FORMAT_VERSION,
+    ProjectDocument,
+};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    BlobId, BlobSlot, HostedDocumentVersion, Storage,
-    database::{ArtifactBlob, BlobLookup, HostedLookup},
+    BlobId,
+    BlobSlot,
+    HostedDocumentVersion,
+    Storage,
+    database::{
+        ArtifactBlob,
+        BlobLookup,
+        HostedLookup,
+    },
 };
 
 /// The per-project document a hosted registry keeps in its document slot: a

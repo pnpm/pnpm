@@ -2,7 +2,10 @@
 
 use std::net::IpAddr;
 
-use super::{RouteContext, nerf_prefix};
+use super::{
+    RouteContext,
+    nerf_prefix,
+};
 
 impl RouteContext {
     /// Whether the resolver may fetch from some URL the `routes.public`

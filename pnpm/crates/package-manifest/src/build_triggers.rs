@@ -1,6 +1,14 @@
-use crate::{is_truthy, parse_manifest, safe_read_package_json_from_dir};
+use crate::{
+    is_truthy,
+    parse_manifest,
+    safe_read_package_json_from_dir,
+};
 use serde_json::Value;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+};
 
 /// The file a package ships to have `node-gyp` build it.
 pub const BINDING_GYP: &str = "binding.gyp";

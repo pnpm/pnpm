@@ -1,4 +1,7 @@
-use crate::{ParsedWantedDependency, parse_wanted_dependency};
+use crate::{
+    ParsedWantedDependency,
+    parse_wanted_dependency,
+};
 
 fn parsed(alias: Option<&str>, bare: Option<&str>) -> ParsedWantedDependency {
     ParsedWantedDependency {

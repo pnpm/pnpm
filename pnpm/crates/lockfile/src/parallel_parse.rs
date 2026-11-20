@@ -7,9 +7,15 @@
 
 pub(crate) use json::parse_json_in_parallel;
 
-use crate::{LockfileDocument, PackageKey};
+use crate::{
+    LockfileDocument,
+    PackageKey,
+};
 use rayon::prelude::*;
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::{
+    Deserialize,
+    de::DeserializeOwned,
+};
 use std::collections::HashMap;
 
 mod json;

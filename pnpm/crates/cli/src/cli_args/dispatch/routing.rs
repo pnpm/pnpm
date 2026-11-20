@@ -1,6 +1,14 @@
 use super::{
-    CliCommand, CommandFuture, ExecutionTimeLog, LogEvent, LogLevel, OtpNonInteractiveError,
-    RunCtx, dispatch_install, dispatch_query, dispatch_script,
+    CliCommand,
+    CommandFuture,
+    ExecutionTimeLog,
+    LogEvent,
+    LogLevel,
+    OtpNonInteractiveError,
+    RunCtx,
+    dispatch_install,
+    dispatch_query,
+    dispatch_script,
 };
 
 /// Route the command and await it, so a routing failure and a command

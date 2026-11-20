@@ -1,12 +1,23 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use axum::response::Response;
 
 use super::{
     super::{
-        limits::{CancelToken, ResolvePermit, request_timeout_response},
+        limits::{
+            CancelToken,
+            ResolvePermit,
+            request_timeout_response,
+        },
         report_message,
-        wire::{cargo_done_frame_until, error_frame, ndjson_single_frame},
+        wire::{
+            cargo_done_frame_until,
+            error_frame,
+            ndjson_single_frame,
+        },
     },
     IndexFetcher,
 };

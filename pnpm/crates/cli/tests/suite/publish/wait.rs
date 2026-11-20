@@ -2,9 +2,17 @@ use std::fs;
 
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
-use super::{assert_success, pacquet, publish, write_project};
+use super::{
+    assert_success,
+    pacquet,
+    publish,
+    write_project,
+};
 
 #[test]
 fn confirms_published_name_and_registry_before_lifecycle_scripts() {

@@ -8,9 +8,18 @@
 //! authoritative one every replica of a deployment shares — rather than on
 //! the replica that happened to receive the submission.
 
-use pnpr_error::{RegistryError, Result};
-use pnpr_storage::{PipelineRunKey, Storage};
-use serde::{Deserialize, Serialize};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_storage::{
+    PipelineRunKey,
+    Storage,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 use std::collections::BTreeSet;
 

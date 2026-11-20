@@ -1,20 +1,36 @@
 use crate::_utils::{
-    append_workspace_yaml_key, read_v11_bundle_path, set_minimum_release_age, v11_in,
+    append_workspace_yaml_key,
+    read_v11_bundle_path,
+    set_minimum_release_age,
+    v11_in,
     write_fake_bin,
 };
 use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    stall_report::{STALL_DEADLINE, output_within},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    stall_report::{
+        STALL_DEADLINE,
+        output_within,
+    },
 };
 use pretty_assertions::assert_eq;
 use std::{
     collections::BTreeMap,
-    fs, io,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 #[test]
@@ -78,7 +94,10 @@ fn version_flag_fails_when_stdout_is_full() {
 #[test]
 #[cfg(unix)]
 fn version_flags_do_not_modify_the_project_directory() {
-    use std::time::{Duration, UNIX_EPOCH};
+    use std::time::{
+        Duration,
+        UNIX_EPOCH,
+    };
 
     for args in [vec!["--version"], vec!["-v"], vec!["--store-dir=", "--version"]] {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

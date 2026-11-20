@@ -1,9 +1,22 @@
-use super::cargo_install::{cargo_workspace, crate_archive, install_in};
+use super::cargo_install::{
+    cargo_workspace,
+    crate_archive,
+    install_in,
+};
 use assert_cmd::prelude::*;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
-use pnpm_testing_utils::{diagnostics::assert_diagnostic_contains, git_repo::GitRepoFixture};
-use sha2::{Digest, Sha256};
-use std::{fs, process::Command};
+use pnpm_testing_utils::{
+    diagnostics::assert_diagnostic_contains,
+    git_repo::GitRepoFixture,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn git_workspace() -> (TempDir, TempDir, GitRepoFixture) {

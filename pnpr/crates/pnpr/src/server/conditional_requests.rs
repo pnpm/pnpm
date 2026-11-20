@@ -1,4 +1,7 @@
-use axum::http::{HeaderMap, header};
+use axum::http::{
+    HeaderMap,
+    header,
+};
 
 pub(super) fn is_not_modified(
     headers: &HeaderMap,

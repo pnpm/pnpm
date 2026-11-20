@@ -5,19 +5,39 @@ use crate::{
     resolve_peers::{
         ResolvePeersOptions,
         discovery::PeerDiscoveryCaches,
-        walker::{PeerWalkMode, Walker},
+        walker::{
+            PeerWalkMode,
+            Walker,
+        },
     },
     resolved_tree::{
-        ChildEdge, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput,
-        ResolvedTree, TreeChildren,
+        ChildEdge,
+        DependenciesTreeNode,
+        DirectDep,
+        PeerDep,
+        ResolvedPackage,
+        ResolvedPackageInput,
+        ResolvedTree,
+        TreeChildren,
     },
 };
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PkgName, PkgNameVer, TarballResolution,
+    DirectoryResolution,
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    TarballResolution,
 };
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 use rustc_hash::FxHashMap as HashMap;
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::Arc,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) enum PeerCacheMode {

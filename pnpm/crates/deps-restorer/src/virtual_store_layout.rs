@@ -28,14 +28,26 @@ use staging::new_staging_token;
 
 use crate::AllowBuildPolicy;
 use pnpm_config::Config;
-use pnpm_graph_hasher::{format_global_virtual_store_path, join_global_virtual_store_path};
+use pnpm_graph_hasher::{
+    format_global_virtual_store_path,
+    join_global_virtual_store_path,
+};
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, PlatformSelector,
-    SnapshotEntry, VersionPart,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgVerPeer,
+    PlatformSelector,
+    SnapshotEntry,
+    VersionPart,
 };
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Precomputed mapping from each snapshot key to the directory where

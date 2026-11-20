@@ -1,4 +1,7 @@
-use pnpr_config::oidc::{OidcLogin, OidcTeamGrant};
+use pnpr_config::oidc::{
+    OidcLogin,
+    OidcTeamGrant,
+};
 use serde_json::Value;
 
 /// The grants whose group the login's groups claim lists in `payload`. A

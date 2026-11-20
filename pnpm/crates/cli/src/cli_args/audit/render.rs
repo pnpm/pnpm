@@ -1,8 +1,16 @@
 //! Human- and machine-readable renderings of an audit report.
 
 use super::{
-    AuditAdvisory, AuditReport, AuditVulnerabilityCounts, ConfigAuditLevel, IntoDiagnostic,
-    MAX_PATHS_COUNT, OwoColorize, Stream, severity_name, severity_number,
+    AuditAdvisory,
+    AuditReport,
+    AuditVulnerabilityCounts,
+    ConfigAuditLevel,
+    IntoDiagnostic,
+    MAX_PATHS_COUNT,
+    OwoColorize,
+    Stream,
+    severity_name,
+    severity_number,
 };
 
 pub(crate) fn render_json_report(
@@ -43,7 +51,10 @@ pub(crate) fn render_text_report(
 }
 
 pub(crate) fn render_advisory(advisory: &AuditAdvisory) -> String {
-    use tabled::{builder::Builder, settings::Style};
+    use tabled::{
+        builder::Builder,
+        settings::Style,
+    };
 
     let rendered_paths = render_advisory_paths(advisory);
 

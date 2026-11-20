@@ -1,4 +1,7 @@
-use super::{Deserialize, Serialize};
+use super::{
+    Deserialize,
+    Serialize,
+};
 
 /// How `pnpm add` / `pnpm update` reconcile a directly-specified version
 /// against a `catalog:` entry for the same package.

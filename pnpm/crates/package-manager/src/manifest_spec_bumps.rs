@@ -2,28 +2,49 @@
 
 #[cfg(feature = "runtime-provisioning")]
 use crate::runtime_specifier::node_runtime_version_spec;
-use crate::{OverriddenDependencyMatcher, VersionsOverrider};
+use crate::{
+    OverriddenDependencyMatcher,
+    VersionsOverrider,
+};
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::{
-    normalize_node_runtime_version_specifier, parse_node_specifier,
+    normalize_node_runtime_version_specifier,
+    parse_node_specifier,
 };
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_package_manifest::is_runtime_alias;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::calc_version_range;
-use pnpm_resolving_resolver_base::{VersionSelectorType, is_valid_semver_range};
+use pnpm_resolving_resolver_base::{
+    VersionSelectorType,
+    is_valid_semver_range,
+};
 #[cfg(feature = "runtime-provisioning")]
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
+};
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     sync::Mutex,
 };
 

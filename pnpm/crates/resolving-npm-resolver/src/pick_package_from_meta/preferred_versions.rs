@@ -1,5 +1,9 @@
 use super::{
-    BTreeMap, Package, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+    BTreeMap,
+    Package,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectors,
     semver_satisfies_loose,
 };
 use pnpm_resolving_resolver_base::RESOLVED_VERSION_SELECTOR_WEIGHT;

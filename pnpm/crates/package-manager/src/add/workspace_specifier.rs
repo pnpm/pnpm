@@ -1,8 +1,15 @@
-use pnpm_config::{Config, SaveWorkspaceProtocol};
+use pnpm_config::{
+    Config,
+    SaveWorkspaceProtocol,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{
-    DeclaredSpecifiers, calc_specifier_for_workspace_dep, can_drop_workspace_protocol,
-    parse_bare_specifier, pick_matching_local_version_or_null, pick_registry_for_package,
+    DeclaredSpecifiers,
+    calc_specifier_for_workspace_dep,
+    can_drop_workspace_protocol,
+    parse_bare_specifier,
+    pick_matching_local_version_or_null,
+    pick_registry_for_package,
 };
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_workspace_range_resolver::resolve_workspace_range;

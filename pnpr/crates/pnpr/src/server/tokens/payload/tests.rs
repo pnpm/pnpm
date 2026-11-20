@@ -1,9 +1,17 @@
 use pnpr_error::RegistryError;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::{
-    CredentialLimits, MAX_TOKEN_TIMESTAMP_MILLIS, MILLIS_PER_DAY, MILLIS_PER_SECOND, TokenAccess,
-    TokenExpiry, parse_and_validate_token_request,
+    CredentialLimits,
+    MAX_TOKEN_TIMESTAMP_MILLIS,
+    MILLIS_PER_DAY,
+    MILLIS_PER_SECOND,
+    TokenAccess,
+    TokenExpiry,
+    parse_and_validate_token_request,
 };
 
 const FIXED_NOW: u64 = 1_700_000_000_000;

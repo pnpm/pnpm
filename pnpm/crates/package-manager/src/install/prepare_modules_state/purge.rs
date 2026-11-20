@@ -1,8 +1,20 @@
 use super::super::{
-    Config, HashSet, IncludedDependencies, InstallError, Lockfile, NodeLinker, Path, PathBuf,
+    Config,
+    HashSet,
+    IncludedDependencies,
+    InstallError,
+    Lockfile,
+    NodeLinker,
+    Path,
+    PathBuf,
     refuse_drifted_modules_dir,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 
 pub(super) fn is_safe_modules_purge_target(modules_dir: &Path, workspace_root: &Path) -> bool {
     modules_dir != workspace_root && modules_dir.starts_with(workspace_root)

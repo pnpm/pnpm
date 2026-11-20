@@ -1,5 +1,8 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fmt::Write,
     path::Path,
 };
@@ -7,10 +10,19 @@ use std::{
 use pretty_assertions::assert_eq;
 
 use super::{
-    PeerEdgeGraph, PeerEdgeOptions, PeerSatisfactionEdges, classify_edges, direct_keys,
+    PeerEdgeGraph,
+    PeerEdgeOptions,
+    PeerSatisfactionEdges,
+    classify_edges,
+    direct_keys,
     optional_peer_candidates,
 };
-use crate::{Lockfile, PackageKey, PeerBindings, PkgName};
+use crate::{
+    Lockfile,
+    PackageKey,
+    PeerBindings,
+    PkgName,
+};
 
 const ABC: &str = "abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)";
 

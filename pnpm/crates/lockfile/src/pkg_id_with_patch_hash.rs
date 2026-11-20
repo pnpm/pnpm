@@ -1,5 +1,11 @@
-use derive_more::{From, Into};
-use serde::{Deserialize, Serialize};
+use derive_more::{
+    From,
+    Into,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// The patch-aware package ident used by pnpm's side-effects cache and
 /// dep-graph hashing. A branded string

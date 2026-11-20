@@ -29,7 +29,10 @@ pub mod pkg_info;
 pub mod render;
 pub mod search;
 
-use pnpm_lockfile::{PackageMetadata, PkgNameVerPeer};
+use pnpm_lockfile::{
+    PackageMetadata,
+    PkgNameVerPeer,
+};
 
 /// Cap on every recursive walk over the dependency graph. The cycle
 /// guards bound the *output*, not the recursion depth, so a hostile

@@ -1,12 +1,35 @@
 use super::{
-    super::{AccountStatus, CredentialKind, PasswordChange, TokenRecord, UserRemoval},
-    AuthSqlBackend, InsertUser, RequestPool, SqlAuth, StoredUser, decode_sql_account_state,
-    sql_max_users, token_timestamp_to_sql, unix_millis, with_auth_timeout,
+    super::{
+        AccountStatus,
+        CredentialKind,
+        PasswordChange,
+        TokenRecord,
+        UserRemoval,
+    },
+    AuthSqlBackend,
+    InsertUser,
+    RequestPool,
+    SqlAuth,
+    StoredUser,
+    decode_sql_account_state,
+    sql_max_users,
+    token_timestamp_to_sql,
+    unix_millis,
+    with_auth_timeout,
 };
 use async_trait::async_trait;
-use pnpr_config::{MaxUsers, SqlBackendSettings};
-use pnpr_error::{RegistryError, Result};
-use sqlx::{PgConnection, Row};
+use pnpr_config::{
+    MaxUsers,
+    SqlBackendSettings,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use sqlx::{
+    PgConnection,
+    Row,
+};
 
 #[derive(Debug)]
 pub(crate) struct PostgresDatabase {

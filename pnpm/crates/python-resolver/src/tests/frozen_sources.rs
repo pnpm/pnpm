@@ -1,5 +1,15 @@
-use super::{name, offered, target, version};
-use crate::{Packages, WheelMetadata, locked_solution, validate_locked};
+use super::{
+    name,
+    offered,
+    target,
+    version,
+};
+use crate::{
+    Packages,
+    WheelMetadata,
+    locked_solution,
+    validate_locked,
+};
 use pep508_rs::Requirement;
 
 #[test]

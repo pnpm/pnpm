@@ -11,12 +11,17 @@
 use crate::{
     cli_args::grammar,
     flag_relocation::{
-        ArgTable, attached_short_option_prefix, inline_long_option_name,
+        ArgTable,
+        attached_short_option_prefix,
+        inline_long_option_name,
         short_cluster_consumes_value,
     },
 };
 use clap::Command;
-use std::{collections::HashSet, ffi::OsString};
+use std::{
+    collections::HashSet,
+    ffi::OsString,
+};
 
 /// Commands whose own arguments are unconditionally a foreign command line.
 ///

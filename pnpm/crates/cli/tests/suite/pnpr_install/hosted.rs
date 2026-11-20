@@ -2,8 +2,15 @@
 
 use super::PnprServer;
 use pnpr::{
-    AccessList, Ecosystem, HostedConfig, PackagePattern, PackageRules, Registries, Registry,
-    TokenBackend as _, UserBackend as _,
+    AccessList,
+    Ecosystem,
+    HostedConfig,
+    PackagePattern,
+    PackageRules,
+    Registries,
+    Registry,
+    TokenBackend as _,
+    UserBackend as _,
 };
 
 /// Start a pnpr that hosts `@acme/*`, readable by anyone, and return its

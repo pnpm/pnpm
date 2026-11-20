@@ -1,6 +1,11 @@
 use super::{
-    CommandExtra, CommandTempCwd, Lockfile, append_workspace_yaml_key, deployed_package_version,
-    fs, pacquet_cmd,
+    CommandExtra,
+    CommandTempCwd,
+    Lockfile,
+    append_workspace_yaml_key,
+    deployed_package_version,
+    fs,
+    pacquet_cmd,
 };
 use assert_cmd::assert::OutputAssertExt;
 

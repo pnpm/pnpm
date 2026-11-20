@@ -1,7 +1,17 @@
-use super::{Db, npm, packument, storage, write};
+use super::{
+    Db,
+    npm,
+    packument,
+    storage,
+    write,
+};
 use crate::{
     Storage,
-    database::{NewRegistryGraph, NewScimUser, RegistryGraphWrite},
+    database::{
+        NewRegistryGraph,
+        NewScimUser,
+        RegistryGraphWrite,
+    },
 };
 use serde_json::Map;
 

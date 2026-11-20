@@ -1,21 +1,44 @@
 pub use pnpm_fs::FsHardLink;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::{
-    FsCopyContents, FsReflink, Host, LinkFailure, LinkFallback, LinkFallbackPolicy, StoreFile,
+    FsCopyContents,
+    FsReflink,
+    Host,
+    LinkFailure,
+    LinkFallback,
+    LinkFallbackPolicy,
+    StoreFile,
 };
 use pnpm_reporter::{
-    LogEvent, LogLevel, PackageImportMethod as WireImportMethod, PackageImportMethodLog, Reporter,
+    LogEvent,
+    LogLevel,
+    PackageImportMethod as WireImportMethod,
+    PackageImportMethodLog,
+    Reporter,
 };
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU8, Ordering},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 use target_mode::{
-    align_reflinked_target_mode, align_target_mode, desired_permissions, source_has_desired_mode,
+    align_reflinked_target_mode,
+    align_target_mode,
+    desired_permissions,
+    source_has_desired_mode,
 };
 
 /// Error type for [`link_file`].

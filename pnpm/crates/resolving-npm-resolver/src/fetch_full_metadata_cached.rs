@@ -13,26 +13,55 @@
 //! only the version fragments a pick consults.
 
 use std::{
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 
-use pnpm_network::{ThrottledClientGuard, redact_url_credentials, retry_async};
+use pnpm_network::{
+    ThrottledClientGuard,
+    redact_url_credentials,
+    retry_async,
+};
 use pnpm_registry::Package;
-use reqwest::{Response, StatusCode};
+use reqwest::{
+    Response,
+    StatusCode,
+};
 
 use crate::{
     FetchMetadataError,
     errors::legacy_mirror_hint,
     fetch_full_metadata::{
-        ACCEPT_PNPR_DOC, MetadataRequestOptions, MetadataResponse, decode_metadata_response,
+        ACCEPT_PNPR_DOC,
+        MetadataRequestOptions,
+        MetadataResponse,
+        decode_metadata_response,
         send_metadata_request,
     },
-    metadata_cache_policy::{DocumentKind, MirrorWrite},
+    metadata_cache_policy::{
+        DocumentKind,
+        MirrorWrite,
+    },
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, MetaHeaders, PNPR_META_DIR,
-        clear_meta, find_legacy_pkg_mirror, get_pkg_mirror_path, load_meta, load_meta_async,
-        load_meta_headers_async, save_meta_indexed_with_headers, save_meta_ndjson_with_headers,
+        ABBREVIATED_META_DIR,
+        FULL_FILTERED_META_DIR,
+        FULL_META_DIR,
+        MetaHeaders,
+        PNPR_META_DIR,
+        clear_meta,
+        find_legacy_pkg_mirror,
+        get_pkg_mirror_path,
+        load_meta,
+        load_meta_async,
+        load_meta_headers_async,
+        save_meta_indexed_with_headers,
+        save_meta_ndjson_with_headers,
         scoped_meta_dir,
     },
     registry_url::to_registry_url,

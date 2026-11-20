@@ -1,6 +1,13 @@
 use super::{
-    Arc, DerivedPackuments, OnceCell, Package, PackageVersionPolicy, PackageVersions, PolicyMatch,
-    Version, parse_packument_timestamp,
+    Arc,
+    DerivedPackuments,
+    OnceCell,
+    Package,
+    PackageVersionPolicy,
+    PackageVersions,
+    PolicyMatch,
+    Version,
+    parse_packument_timestamp,
 };
 
 /// What the `publishedBy` cutoff leaves visible, as computed by

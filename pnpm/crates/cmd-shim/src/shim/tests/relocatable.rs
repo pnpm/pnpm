@@ -1,4 +1,8 @@
-use super::{Path, ScriptRuntime, generate_sh_shim};
+use super::{
+    Path,
+    ScriptRuntime,
+    generate_sh_shim,
+};
 use crate::shim::is_relocatable_shim;
 #[cfg(unix)]
 use crate::shim::is_sh_shim_basedir_anchor_current;
@@ -35,7 +39,10 @@ fn generate_sh_shim_keeps_paths_outside_the_root_absolute() {
 #[test]
 fn relative_node_path_segments_are_sh_escaped() {
     use super::write_executable;
-    use std::{fs, process::Command};
+    use std::{
+        fs,
+        process::Command,
+    };
 
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
@@ -72,7 +79,10 @@ fn relative_node_path_segments_are_sh_escaped() {
 #[test]
 fn shell_metacharacters_in_target_and_node_path_are_literal() {
     use super::write_executable;
-    use std::{fs, process::Command};
+    use std::{
+        fs,
+        process::Command,
+    };
 
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();

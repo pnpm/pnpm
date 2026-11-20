@@ -1,5 +1,14 @@
-use super::{NodeBridgeReporter, begin_stats, take_stats};
-use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, Reporter};
+use super::{
+    NodeBridgeReporter,
+    begin_stats,
+    take_stats,
+};
+use pnpm_reporter::{
+    IgnoredScriptsLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 
 #[test]
 fn ignored_scripts_are_returned_as_dependencies_requiring_build() {

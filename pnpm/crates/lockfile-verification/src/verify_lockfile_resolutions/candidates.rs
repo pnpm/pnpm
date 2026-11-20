@@ -1,7 +1,19 @@
 use super::{
-    Arc, BTreeMap, DEFAULT_CONCURRENCY, FuturesUnordered, Lockfile, LockfileResolution, PkgName,
-    RenderedViolation, ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier,
-    Semaphore, StreamExt, VerifyCtx, VerifyError,
+    Arc,
+    BTreeMap,
+    DEFAULT_CONCURRENCY,
+    FuturesUnordered,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    RenderedViolation,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    Semaphore,
+    StreamExt,
+    VerifyCtx,
+    VerifyError,
 };
 
 /// One `(name, version, resolution)` tuple deduplicated from

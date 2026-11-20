@@ -1,5 +1,9 @@
 use super::{
-    Arc, ResolveDependencyTreeError, ResolveOptions, TreeCtx, link_file_deps_inside_package,
+    Arc,
+    ResolveDependencyTreeError,
+    ResolveOptions,
+    TreeCtx,
+    link_file_deps_inside_package,
 };
 
 pub(super) async fn original_manifest_opts<'a>(

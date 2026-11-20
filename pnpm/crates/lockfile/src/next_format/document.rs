@@ -1,10 +1,25 @@
 //! The next format's document, borrowed from a [`Lockfile`] and its converted
 //! sections, so writing it serializes nothing twice.
 
-use super::{NextImporter, NextPackageOut, settings::NextSettingsOut};
-use crate::{Lockfile, LockfileExtra, LockfileVersion, PackageKey};
-use serde::{Serialize, Serializer};
-use std::collections::{BTreeMap, HashMap};
+use super::{
+    NextImporter,
+    NextPackageOut,
+    settings::NextSettingsOut,
+};
+use crate::{
+    Lockfile,
+    LockfileExtra,
+    LockfileVersion,
+    PackageKey,
+};
+use serde::{
+    Serialize,
+    Serializer,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// The serde attributes mirror those of [`crate::LockfileDocument`].
 #[derive(Serialize)]

@@ -2,7 +2,11 @@ use jiff::Timestamp;
 use pnpm_registry::Package;
 use pnpm_version_policy::create_package_version_policy;
 
-use super::{TrustCheckOptions, TrustViolation, fail_if_trust_downgraded};
+use super::{
+    TrustCheckOptions,
+    TrustViolation,
+    fail_if_trust_downgraded,
+};
 
 #[derive(Clone, Copy)]
 enum Evidence {
@@ -422,7 +426,11 @@ mod ignore_missing_time_field {
     use pnpm_registry::Package;
 
     use super::{
-        Evidence, TrustCheckOptions, TrustViolation, fail_if_trust_downgraded, make_package,
+        Evidence,
+        TrustCheckOptions,
+        TrustViolation,
+        fail_if_trust_downgraded,
+        make_package,
     };
 
     /// A downgrade candidate (provenance → nothing) whose `time` map is
@@ -504,8 +512,14 @@ mod ignore_missing_time_field {
 mod get_trust_evidence {
     use pnpm_registry::PackageVersion;
 
-    use super::{Evidence, version_json};
-    use crate::trust_checks::{TrustEvidence, get_trust_evidence};
+    use super::{
+        Evidence,
+        version_json,
+    };
+    use crate::trust_checks::{
+        TrustEvidence,
+        get_trust_evidence,
+    };
 
     fn parse(version: serde_json::Value) -> PackageVersion {
         serde_json::from_value(version).expect("deserialize fixture PackageVersion")
@@ -566,7 +580,10 @@ mod get_trust_evidence {
 mod get_trust_evidence_compact {
     use pnpm_registry::VersionTrustMetadata;
 
-    use crate::trust_checks::{TrustEvidence, get_trust_evidence_compact};
+    use crate::trust_checks::{
+        TrustEvidence,
+        get_trust_evidence_compact,
+    };
 
     fn classify(version: serde_json::Value) -> Option<TrustEvidence> {
         let metadata: VersionTrustMetadata =
@@ -640,7 +657,11 @@ fn versions_published_at_the_same_time_are_ordered_by_semver() {
 /// read the fields that serialization writes.
 #[test]
 fn manifest_evidence_matches_version_evidence() {
-    use super::{TrustEvidence, get_manifest_trust_evidence, get_trust_evidence};
+    use super::{
+        TrustEvidence,
+        get_manifest_trust_evidence,
+        get_trust_evidence,
+    };
     for (evidence, expected) in [
         (Evidence::None, None),
         (Evidence::Provenance, Some(TrustEvidence::Provenance)),

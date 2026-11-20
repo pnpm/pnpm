@@ -8,7 +8,10 @@ mod installation;
 
 mod resolution;
 
-use pnpm_lockfile::{Lockfile, PackageKey};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+};
 use pnpm_package_manifest::PackageManifest;
 use serde_json::json;
 use std::path::PathBuf;

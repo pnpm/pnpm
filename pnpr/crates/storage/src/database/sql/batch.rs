@@ -4,13 +4,21 @@
 pub(super) use super::adapter::WriteTransaction;
 use super::{
     PackageKey,
-    adapter::{Connection, Query, Row},
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
     advance_namespace,
     commit::Commit,
-    to_column, to_generation,
+    to_column,
+    to_generation,
 };
 use crate::database::ArtifactMember;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::cell::RefCell;
 
 /// Whether a batch refuses to change a package of a hosted namespace that the

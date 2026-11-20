@@ -6,11 +6,21 @@ use super::context::ComparablePeerRange;
 use crate::{
     peer_provider::peer_shadowed_dependency_names,
     resolve_dependency_tree::WorkspaceTreeCtx,
-    resolved_tree::{PeerDep, PeerSet, ResolvedPackage},
+    resolved_tree::{
+        PeerDep,
+        PeerSet,
+        ResolvedPackage,
+    },
 };
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    cell::{OnceCell, RefCell},
+    cell::{
+        OnceCell,
+        RefCell,
+    },
     collections::BTreeMap,
 };
 

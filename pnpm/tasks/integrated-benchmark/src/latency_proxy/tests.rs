@@ -1,9 +1,23 @@
-use super::{LatencyProxy, LinkProfile, mbps_to_bytes_per_sec};
+use super::{
+    LatencyProxy,
+    LinkProfile,
+    mbps_to_bytes_per_sec,
+};
 use std::{
-    io::{ErrorKind, Read as _, Write as _},
-    net::{TcpListener, TcpStream},
+    io::{
+        ErrorKind,
+        Read as _,
+        Write as _,
+    },
+    net::{
+        TcpListener,
+        TcpStream,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[test]

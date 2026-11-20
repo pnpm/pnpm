@@ -1,6 +1,17 @@
 use super::{
-    BlankLines, DEFAULT_INDENT, InitOptions, PackageManifest, PackageManifestError, Path, PathBuf,
-    Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
+    BlankLines,
+    DEFAULT_INDENT,
+    InitOptions,
+    PackageManifest,
+    PackageManifestError,
+    Path,
+    PathBuf,
+    Serialize,
+    Value,
+    Write,
+    convert_engines_runtime_to_dependencies,
+    fs,
+    io,
 };
 
 #[derive(Clone)]

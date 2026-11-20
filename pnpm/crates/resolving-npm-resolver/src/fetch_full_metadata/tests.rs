@@ -1,15 +1,27 @@
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use std::time::Duration;
 
 use super::{
-    ABBREVIATED_META_CONTENT_TYPE, ACCEPT_ABBREVIATED_DOC, FetchFullMetadataOptions,
-    FetchFullMetadataOutcome, fetch_full_metadata, metadata_response_is_uncacheable,
+    ABBREVIATED_META_CONTENT_TYPE,
+    ACCEPT_ABBREVIATED_DOC,
+    FetchFullMetadataOptions,
+    FetchFullMetadataOutcome,
+    fetch_full_metadata,
+    metadata_response_is_uncacheable,
     warn_if_request_is_slow,
 };
 
 #[test]
 fn any_cache_control_field_can_forbid_reuse() {
-    use reqwest::header::{CACHE_CONTROL, HeaderMap, HeaderValue};
+    use reqwest::header::{
+        CACHE_CONTROL,
+        HeaderMap,
+        HeaderValue,
+    };
 
     let mut headers = HeaderMap::new();
     headers.append(CACHE_CONTROL, HeaderValue::from_static("public"));
@@ -23,7 +35,11 @@ fn any_cache_control_field_can_forbid_reuse() {
 
 #[test]
 fn cache_control_directives_match_the_typescript_parser() {
-    use reqwest::header::{CACHE_CONTROL, HeaderMap, HeaderValue};
+    use reqwest::header::{
+        CACHE_CONTROL,
+        HeaderMap,
+        HeaderValue,
+    };
 
     let is_uncacheable = |value: &'static str| {
         let mut headers = HeaderMap::new();
@@ -939,7 +955,10 @@ impl pnpm_network::UpstreamRouteHook for LocalMetadata {
 /// `response` (possibly nothing, or a head promising more body than it
 /// sends), and then holds the socket open without sending another byte.
 async fn start_stalled_registry(response: &'static [u8]) -> String {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    };
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let address = listener.local_addr().expect("local address");
     tokio::spawn(async move {

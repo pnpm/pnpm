@@ -7,19 +7,37 @@
 //! dropped are not pulled back in.
 
 use super::{
-    RecursiveSelection, dependencies::projects_with_workspace_dependencies_filtered,
-    filtered_projects_dependencies, projects_to_verify, sequence_graph,
+    RecursiveSelection,
+    dependencies::projects_with_workspace_dependencies_filtered,
+    filtered_projects_dependencies,
+    projects_to_verify,
+    sequence_graph,
 };
-use pnpm_config::{Config, VerifyDepsBeforeRun};
+use pnpm_config::{
+    Config,
+    VerifyDepsBeforeRun,
+};
 use pnpm_package_manager::graph_sequencer;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::{GraphPkg, Project};
-use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
+use pnpm_workspace_projects_graph::{
+    ProjectGraph,
+    ProjectGraphNode,
+};
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn projects_with_workspace_dependencies<'graph, 'dirs, Pkg>(

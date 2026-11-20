@@ -1,15 +1,35 @@
-use super::{SelfUpdateError, install_pnpm};
-use miette::{Context, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
+use super::{
+    SelfUpdateError,
+    install_pnpm,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    LinkBinsOptions,
+    link_bins_of_packages_with_excludes,
+};
 use pnpm_config::Config;
-use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
+use pnpm_fs::{
+    force_symlink_dir,
+    remove_symlink_dir,
+};
 use pnpm_global::{
-    create_global_cache_key, get_hash_link, read_installed_packages, scan_global_packages,
+    create_global_cache_key,
+    get_hash_link,
+    read_installed_packages,
+    scan_global_packages,
 };
 use std::{
     collections::HashSet,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A standalone pnpm executable copied into a directory on PATH. pnpm links

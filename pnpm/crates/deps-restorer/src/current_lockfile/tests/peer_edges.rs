@@ -1,8 +1,18 @@
-use crate::{GroupSelection, SkippedSnapshots};
-use pnpm_lockfile::{Lockfile, PackageKey, PeerEdgeOptions};
+use crate::{
+    GroupSelection,
+    SkippedSnapshots,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PeerEdgeOptions,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 const ABC: &str = "abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)";
 

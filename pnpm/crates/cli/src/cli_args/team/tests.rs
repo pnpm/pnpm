@@ -1,7 +1,19 @@
 use super::{
-    TeamContext, TeamError, parse_scope_team,
-    registry::{TeamInfo, UserInfo, org_team_url, registry_for_scope, team_url, team_user_url},
-    render::{render_members, render_teams},
+    TeamContext,
+    TeamError,
+    parse_scope_team,
+    registry::{
+        TeamInfo,
+        UserInfo,
+        org_team_url,
+        registry_for_scope,
+        team_url,
+        team_user_url,
+    },
+    render::{
+        render_members,
+        render_teams,
+    },
 };
 use pnpm_config::Config;
 use pnpm_network::normalize_registry_url;

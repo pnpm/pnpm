@@ -1,6 +1,10 @@
 use pretty_assertions::assert_eq;
 
-use super::{GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifact_address};
+use super::{
+    GetNodeArtifactAddressOptions,
+    NodeArtifactAddress,
+    get_node_artifact_address,
+};
 
 /// Table-driven check of the archive-address composition.
 #[test]

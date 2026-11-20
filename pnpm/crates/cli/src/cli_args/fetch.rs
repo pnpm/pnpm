@@ -1,4 +1,7 @@
-use crate::{State, cli_args::pre_command::fetch_locked_package_manager};
+use crate::{
+    State,
+    cli_args::pre_command::fetch_locked_package_manager,
+};
 use clap::Args;
 use miette::Context;
 use pnpm_package_manager::ProjectMutation;

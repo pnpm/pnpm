@@ -1,4 +1,8 @@
-use super::{TempDir, finder, read_package_err};
+use super::{
+    TempDir,
+    finder,
+    read_package_err,
+};
 use pnpm_hooks::PnpmfileHooks as _;
 
 #[test]

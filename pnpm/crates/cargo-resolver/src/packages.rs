@@ -1,12 +1,24 @@
 use crate::{
     features::supports_features,
-    model::{FeatureSelection, PackageKey, RegistryDependency},
+    model::{
+        FeatureSelection,
+        PackageKey,
+        RegistryDependency,
+    },
     preferences::PreferredVersions,
-    registry::{Registry, compatibility_line, matching_lines_with_preferences, matching_versions},
+    registry::{
+        Registry,
+        compatibility_line,
+        matching_lines_with_preferences,
+        matching_versions,
+    },
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
-use semver::{Version, VersionReq};
+use semver::{
+    Version,
+    VersionReq,
+};
 
 /// The solver package a requirement resolves against.
 ///

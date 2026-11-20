@@ -1,6 +1,10 @@
 use std::{
     ffi::OsStr,
-    fs::{self, File, FileTimes},
+    fs::{
+        self,
+        File,
+        FileTimes,
+    },
     io,
     path::Path,
 };

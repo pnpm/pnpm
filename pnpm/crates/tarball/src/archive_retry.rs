@@ -1,6 +1,20 @@
-use crate::{SharedReportedProgressKeys, TarballError, download::emit_progress_fetched};
-use pnpm_network::{RetryOpts, is_permanent_error, redact_url_for_display};
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, RequestRetryError, RequestRetryLog};
+use crate::{
+    SharedReportedProgressKeys,
+    TarballError,
+    download::emit_progress_fetched,
+};
+use pnpm_network::{
+    RetryOpts,
+    is_permanent_error,
+    redact_url_for_display,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    RequestRetryError,
+    RequestRetryLog,
+};
 use std::future::Future;
 
 /// Retry the complete fetch, verification and extraction attempt. Failed

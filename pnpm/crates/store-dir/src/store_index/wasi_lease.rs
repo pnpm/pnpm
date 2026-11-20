@@ -2,8 +2,16 @@ use std::{
     collections::HashMap,
     fs::File,
     io,
-    path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Mutex, Weak},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+        Weak,
+    },
 };
 
 use super::StoreIndexError;

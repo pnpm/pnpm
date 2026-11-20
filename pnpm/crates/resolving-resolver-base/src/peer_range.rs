@@ -5,7 +5,9 @@
 //! sync.
 
 use pnpm_semver_include_prerelease::{
-    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
+    ANY_VERSION_RANGE,
+    is_any_version_range,
+    is_valid_semver_range,
 };
 
 /// Whether `version` is already a valid `peerDependencies` range that needs no

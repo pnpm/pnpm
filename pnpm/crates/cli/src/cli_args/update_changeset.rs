@@ -1,36 +1,80 @@
 mod catalogs;
 mod ignore;
 
-use catalogs::{find_changed_catalog_entries, uses_changed_catalog_entry};
+use catalogs::{
+    find_changed_catalog_entries,
+    uses_changed_catalog_entry,
+};
 use ignore::{
-    ChangesetDirState, IgnoredProjects, ensure_changeset_dir_is_safe, project_reference,
-    read_config_ignore_patterns, write_changeset,
+    ChangesetDirState,
+    IgnoredProjects,
+    ensure_changeset_dir_is_safe,
+    project_reference,
+    read_config_ignore_patterns,
+    write_changeset,
 };
 
-use super::{recursive::discover_workspace_projects, update::UpdateSaveArgs};
-use derive_more::{Display, Error};
+use super::{
+    recursive::discover_workspace_projects,
+    update::UpdateSaveArgs,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_matcher::{Matcher, create_matcher};
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pnpm_versioning::{
-    IntentBumpType, format_change_intent, is_dir_ref, normalize_project_dir, to_project_dir,
+    IntentBumpType,
+    format_change_intent,
+    is_dir_ref,
+    normalize_project_dir,
+    to_project_dir,
 };
 use pnpm_workspace::{
-    ReadProjectManifestOnlyError, ReadWorkspaceManifestError, read_workspace_manifest,
+    ReadProjectManifestOnlyError,
+    ReadWorkspaceManifestError,
+    read_workspace_manifest,
     safe_read_project_manifest_only,
 };
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    fs::{self, OpenOptions},
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    fs::{
+        self,
+        OpenOptions,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]

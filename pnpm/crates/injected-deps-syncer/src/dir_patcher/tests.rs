@@ -1,5 +1,11 @@
 use super::{
-    CopyFiles, DirPatcher, InodeMap, PublishSource, Value, extend_files_map, inode_map::file_id,
+    CopyFiles,
+    DirPatcher,
+    InodeMap,
+    PublishSource,
+    Value,
+    extend_files_map,
+    inode_map::file_id,
     publish_edits,
 };
 use pnpm_fs::LinkFailure;
@@ -9,9 +15,13 @@ use std::os::unix::fs::FileTypeExt as _;
 use std::{
     cell::Cell,
     collections::HashMap,
-    fs, io,
+    fs,
+    io,
     path::PathBuf,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::TempDir;
 

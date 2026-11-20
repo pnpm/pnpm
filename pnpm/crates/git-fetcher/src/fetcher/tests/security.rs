@@ -1,8 +1,17 @@
 use super::{
-    GitFetcherError, GitManifestQuery, PreparePackageError, fs, make_bare_repo, prepare_git_cmd,
-    read_git_manifest, tempdir,
+    GitFetcherError,
+    GitManifestQuery,
+    PreparePackageError,
+    fs,
+    make_bare_repo,
+    prepare_git_cmd,
+    read_git_manifest,
+    tempdir,
 };
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// A `path` that climbs out of the checkout must not reach
 /// `safe_read_package_json_from_dir`, which would read an arbitrary

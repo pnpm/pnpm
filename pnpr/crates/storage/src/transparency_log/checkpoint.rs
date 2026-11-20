@@ -1,12 +1,27 @@
 //! Reading, verifying, signing, and advancing `.transparency-log/<log>/checkpoint`.
 
-use super::{LOG_NAMESPACE, LogId, Storage, TileReader, log_error};
+use super::{
+    LOG_NAMESPACE,
+    LogId,
+    Storage,
+    TileReader,
+    log_error,
+};
 use crate::DocumentWrite;
 use pnpm_transparency_log::{
-    Checkpoint, CheckpointPolicy, KeySet, NoteSigner, TreeHead, prove_consistency, sign_checkpoint,
+    Checkpoint,
+    CheckpointPolicy,
+    KeySet,
+    NoteSigner,
+    TreeHead,
+    prove_consistency,
+    sign_checkpoint,
     verify_consistency,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 
 /// A log's latest checkpoint as it is stored, and the tree head it signs.
 #[derive(Debug, Clone, PartialEq)]

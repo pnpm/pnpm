@@ -1,13 +1,26 @@
 pub(crate) mod format;
 
 pub(crate) use format::mint_token;
-pub use format::{PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, has_valid_personal_token_checksum};
+pub use format::{
+    PERSONAL_TOKEN_LEN,
+    PERSONAL_TOKEN_PREFIX,
+    has_valid_personal_token_checksum,
+};
 pub(super) use pnpm_crypto_hash::create_hex_hash_bytes as sha256_hex;
-pub use record::{NewToken, TokenKind, TokenRecord};
+pub use record::{
+    NewToken,
+    TokenKind,
+    TokenRecord,
+};
 
 mod record;
 
-use super::{RegistryError, Result, SystemTime, UNIX_EPOCH};
+use super::{
+    RegistryError,
+    Result,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 // ---------------------------------------------------------------
 // crypto helpers

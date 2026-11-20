@@ -1,11 +1,20 @@
 //! `engineStrict` against the engines a `patchedDependencies` patch leaves.
 
-use crate::_utils::{enable_gvs_in_workspace_yaml, pacquet_in};
+use crate::_utils::{
+    enable_gvs_in_workspace_yaml,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 const INCOMPATIBLE_ENGINES_PATCH: &str = "\
 diff --git a/package.json b/package.json

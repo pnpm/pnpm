@@ -1,11 +1,32 @@
 use crate::{
-    model::{DependencyKind, RegistryDependency, RegistryVersion, ensure_not_cancelled},
-    preferences::{PreferredVersions, is_selectable},
+    model::{
+        DependencyKind,
+        RegistryDependency,
+        RegistryVersion,
+        ensure_not_cancelled,
+    },
+    preferences::{
+        PreferredVersions,
+        is_selectable,
+    },
 };
-use cargo_util_schemas::index::{IndexPackage, RegistryDependency as IndexDependency};
-use miette::{IntoDiagnostic, Result, WrapErr};
-use semver::{Version, VersionReq};
-use std::collections::{BTreeMap, BTreeSet};
+use cargo_util_schemas::index::{
+    IndexPackage,
+    RegistryDependency as IndexDependency,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use semver::{
+    Version,
+    VersionReq,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// The source identifier `cargo` writes for a crates.io package. A crate is
 /// locked against it when its dependency named crates.io or named no

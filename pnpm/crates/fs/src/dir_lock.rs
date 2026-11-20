@@ -44,12 +44,33 @@
 //! refuses to run.
 
 use std::{
-    fs::{self, File, TryLockError},
-    io::{self, Read as _, Seek as _, SeekFrom, Write as _},
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    fs::{
+        self,
+        File,
+        TryLockError,
+    },
+    io::{
+        self,
+        Read as _,
+        Seek as _,
+        SeekFrom,
+        Write as _,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
     thread::sleep,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        Instant,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// How often the lock directory is retried while another process holds

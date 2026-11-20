@@ -1,6 +1,18 @@
 use super::{
-    Config, EnvVar, LoadWorkspaceYamlError, NoEnv, NoProxySetting, NpmrcAuth, Path, RawCreds,
-    TEST_CA_PEM, assert_eq, base64_decode, base64_encode, base64_encode_bytes, default_auth_token,
+    Config,
+    EnvVar,
+    LoadWorkspaceYamlError,
+    NoEnv,
+    NoProxySetting,
+    NpmrcAuth,
+    Path,
+    RawCreds,
+    TEST_CA_PEM,
+    assert_eq,
+    base64_decode,
+    base64_encode,
+    base64_encode_bytes,
+    default_auth_token,
 };
 
 #[test]

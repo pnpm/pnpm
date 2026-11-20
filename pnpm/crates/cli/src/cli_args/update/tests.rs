@@ -1,4 +1,7 @@
-use super::{UpdateArgs, UpdateDependencyOptions};
+use super::{
+    UpdateArgs,
+    UpdateDependencyOptions,
+};
 use clap::Parser;
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;

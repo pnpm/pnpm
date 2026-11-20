@@ -1,4 +1,8 @@
-use pnpm_deps_inspection::dependents::{DepField, DependentNode, DependentsTree};
+use pnpm_deps_inspection::dependents::{
+    DepField,
+    DependentNode,
+    DependentsTree,
+};
 use pretty_assertions::assert_eq;
 
 use super::render_dependents_ranges;

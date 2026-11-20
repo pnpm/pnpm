@@ -24,34 +24,81 @@
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
-pub use artifact_signer::{ArtifactSigner, ArtifactSignerSettings};
-pub use artifact_store::{ArtifactStore, ArtifactStoreOptions, TurborepoArtifactStore};
-pub use artifacts::{
-    ArtifactBuildPolicy, RejectedArtifact, ResolveArtifactsOptions, VerifiedArtifact,
+pub use artifact_signer::{
+    ArtifactSigner,
+    ArtifactSignerSettings,
 };
-pub use blob_transfer::{ArtifactBlobSource, ArtifactPublication};
+pub use artifact_store::{
+    ArtifactStore,
+    ArtifactStoreOptions,
+    TurborepoArtifactStore,
+};
+pub use artifacts::{
+    ArtifactBuildPolicy,
+    RejectedArtifact,
+    ResolveArtifactsOptions,
+    VerifiedArtifact,
+};
+pub use blob_transfer::{
+    ArtifactBlobSource,
+    ArtifactPublication,
+};
 pub use ecosystem_cache::server_resolves;
-pub use ecosystems::{CARGO_ECOSYSTEM, PYPI_ECOSYSTEM};
+pub use ecosystems::{
+    CARGO_ECOSYSTEM,
+    PYPI_ECOSYSTEM,
+};
 pub use error::PnprClientError;
 pub use pipeline_runs::PublishPipelineRunRequest;
 pub use pnpm_resolving_resolver_base::{
-    PackageExtension, RegistryDeclaration, ResolutionMode, TrustPolicy,
+    PackageExtension,
+    RegistryDeclaration,
+    ResolutionMode,
+    TrustPolicy,
 };
 pub use pnpm_shared_artifact_protocol::{
-    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
-    CompatibilityConstraints, DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
-    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
-    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
-    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
-    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, decode_trusted_keys,
-    linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
-    platform_fingerprint, windows_supported_tags, windows_tag,
+    ARTIFACT_KIND,
+    ArtifactBlobRequest,
+    ArtifactBlobUpload,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactSubject,
+    BuilderProfile,
+    COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints,
+    DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX,
+    INPUT_KEY_PREFIX,
+    LinuxGlibcPlatform,
+    MacOsPlatform,
+    OwnerScope,
+    PackageIdentity,
+    PublishArtifactRequest,
+    ResolveArtifactsRequest,
+    SIGNATURE_ALGORITHM,
+    SignedArtifactEnvelope,
+    WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX,
+    WindowsPlatform,
+    blob_id,
+    decode_trusted_keys,
+    linux_glibc_supported_tags,
+    linux_glibc_tag,
+    macos_supported_tags,
+    macos_tag,
+    platform_fingerprint,
+    windows_supported_tags,
+    windows_tag,
 };
 pub use resolve::AppliedPolicies;
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     time::Duration,
 };
 
@@ -59,18 +106,32 @@ use futures_util::StreamExt as _;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
-use pnpm_lockfile::{Lockfile, TarballRevision};
-use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
+use pnpm_lockfile::{
+    Lockfile,
+    TarballRevision,
+};
+use pnpm_lockfile_verification::{
+    RenderedViolation,
+    VerifyError,
+};
 use pnpm_shared_artifact_protocol::{
-    ArtifactVariant, MAX_CANDIDATES, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
-    ResolveArtifactsResponse, ResolvedArtifact, compatibility_rank_prevalidated,
+    ArtifactVariant,
+    MAX_CANDIDATES,
+    MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE,
+    ResolveArtifactsResponse,
+    ResolvedArtifact,
+    compatibility_rank_prevalidated,
     validate_supported_tags,
 };
 use reqwest::Client;
 
 /// The `registries` a request declares, keyed by registry URL.
 pub type RegistryDeclarations = IndexMap<String, RegistryDeclaration>;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Dependency map (`name` -> `version range`).
 pub type DepMap = BTreeMap<String, String>;
@@ -561,7 +622,10 @@ mod pipeline_runs;
 use artifacts::ARTIFACT_REQUEST_TIMEOUT;
 
 mod resolve;
-use resolve::{NdjsonLimits, read_ndjson_frames};
+use resolve::{
+    NdjsonLimits,
+    read_ndjson_frames,
+};
 
 mod ecosystem_cache;
 mod ecosystems;
@@ -569,4 +633,7 @@ mod error;
 use error::check_status;
 mod lockfile_format;
 
-use ecosystems::{WireViolation, build_verify_error};
+use ecosystems::{
+    WireViolation,
+    build_verify_error,
+};

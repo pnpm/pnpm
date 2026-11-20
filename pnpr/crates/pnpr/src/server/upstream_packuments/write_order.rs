@@ -1,6 +1,9 @@
 use std::{
     collections::HashMap,
-    sync::{Mutex, atomic::AtomicU64},
+    sync::{
+        Mutex,
+        atomic::AtomicU64,
+    },
 };
 
 use pnpr_package_name::CanonicalPackageName;

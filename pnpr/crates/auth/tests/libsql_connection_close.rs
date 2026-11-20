@@ -4,8 +4,15 @@
 
 use libsql::ffi;
 use std::{
-    ffi::{c_char, c_int, c_void},
-    sync::atomic::{AtomicUsize, Ordering},
+    ffi::{
+        c_char,
+        c_int,
+        c_void,
+    },
+    sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 static MISUSES: AtomicUsize = AtomicUsize::new(0);

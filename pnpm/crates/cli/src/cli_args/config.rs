@@ -14,24 +14,54 @@ mod ini;
 #[cfg(test)]
 mod tests;
 
-use clap::{Args, Subcommand, ValueEnum};
+use clap::{
+    Args,
+    Subcommand,
+    ValueEnum,
+};
 use credentials::carries_global_credentials;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, DEFAULT_JSR_REGISTRY, GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME,
-    YamlConfigTarget, config_types, naming_cases, property_path, property_path::Segment,
-    protected_settings, refused_keys, validate_structured_setting,
+    Config,
+    DEFAULT_JSR_REGISTRY,
+    GLOBAL_CONFIG_YAML_FILENAME,
+    WORKSPACE_MANIFEST_FILENAME,
+    YamlConfigTarget,
+    config_types,
+    naming_cases,
+    property_path,
+    property_path::Segment,
+    protected_settings,
+    refused_keys,
+    validate_structured_setting,
 };
 use pnpm_workspace_manifest_writer::{
-    update_manifest_field, update_private_manifest_field, update_workspace_setting,
+    update_manifest_field,
+    update_private_manifest_field,
+    update_workspace_setting,
 };
-use serde_json::{Map, Value};
-use std::path::{Path, PathBuf};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use values::{
-    cast_field, config_get, config_list, is_string_only_ini_key, validate_ini_config_key,
-    validate_simple_key, validate_workspace_key, validate_yaml_config_key,
+    cast_field,
+    config_get,
+    config_list,
+    is_string_only_ini_key,
+    validate_ini_config_key,
+    validate_simple_key,
+    validate_workspace_key,
+    validate_yaml_config_key,
 };
 
 /// Manage the pnpm configuration files.

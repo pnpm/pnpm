@@ -1,13 +1,33 @@
 pub(super) mod json;
 
-pub(super) use json::{render_json, render_recursive_json, report_keys};
+pub(super) use json::{
+    render_json,
+    render_recursive_json,
+    report_keys,
+};
 
 use super::{
-    DependencyGroup, OutdatedInWorkspace, OutdatedPackage, SortBy, Stream, TrustChange, Version,
-    Write, sanitize_inline,
+    DependencyGroup,
+    OutdatedInWorkspace,
+    OutdatedPackage,
+    SortBy,
+    Stream,
+    TrustChange,
+    Version,
+    Write,
+    sanitize_inline,
 };
 use owo_colors::OwoColorize;
 use pnpm_resolving_npm_resolver::TrustEvidence;
+use tabled::{
+    builder::Builder,
+    settings::{
+        Modify,
+        Style,
+        Width,
+        object::Columns,
+    },
+};
 
 pub(super) fn write_output(output: &str) -> miette::Result<()> {
     let mut stdout = std::io::stdout();
@@ -97,9 +117,6 @@ pub(super) fn render_table(outdated: &[OutdatedPackage], long: bool) -> String {
     if outdated.is_empty() {
         return String::new();
     }
-    use tabled::builder::Builder;
-    use tabled::settings::Style;
-
     let mut header: Vec<String> = ["Package", "Current", "Latest"]
         .iter()
         .map(|h| bright_blue(h))
@@ -156,10 +173,6 @@ pub(super) fn render_recursive_table(outdated: &[OutdatedInWorkspace], long: boo
     if outdated.is_empty() {
         return String::new();
     }
-    use tabled::builder::Builder;
-    use tabled::settings::object::Columns;
-    use tabled::settings::{Modify, Style, Width};
-
     const DEPENDENTS_COLUMN: usize = 3;
 
     let mut header: Vec<String> = ["Package", "Current", "Latest", "Dependents"]

@@ -1,9 +1,20 @@
 use super::{
-    GitFetcher, GitManifestQuery, exec_git_with, is_safe_repo_arg, is_valid_commit_hash,
-    prepare_git_cmd, read_git_manifest, remote::extract_host, should_use_shallow, ssh_repo_host,
+    GitFetcher,
+    GitManifestQuery,
+    exec_git_with,
+    is_safe_repo_arg,
+    is_valid_commit_hash,
+    prepare_git_cmd,
+    read_git_manifest,
+    remote::extract_host,
+    should_use_shallow,
+    ssh_repo_host,
 };
 use crate::{
-    error::{GitFetcherError, PreparePackageError},
+    error::{
+        GitFetcherError,
+        PreparePackageError,
+    },
     prepare_package::AllowBuildRef,
 };
 use pnpm_reporter::SilentReporter;
@@ -13,7 +24,10 @@ use pnpm_testing_utils::env_guard::EnvGuard;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 

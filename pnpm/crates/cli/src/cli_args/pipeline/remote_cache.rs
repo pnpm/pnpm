@@ -7,25 +7,65 @@
 //! under `outputs/`. A verified artifact is written into the local tier and
 //! restored from there through the same checks as a local entry.
 
-use super::cache::{StoredTask, TaskCache};
-use futures_util::{StreamExt as _, TryStreamExt as _, stream};
+use super::cache::{
+    StoredTask,
+    TaskCache,
+};
+use futures_util::{
+    StreamExt as _,
+    TryStreamExt as _,
+    stream,
+};
 use pnpm_config::Config;
-use pnpm_deps_restorer::{artifact_signer_settings, artifact_store_options};
+use pnpm_deps_restorer::{
+    artifact_signer_settings,
+    artifact_store_options,
+};
 use pnpm_pnpr_client::{
-    ArtifactBlobRequest, ArtifactBlobSource, ArtifactBuildPolicy, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactPublication, ArtifactSigner, ArtifactStore,
-    ArtifactSubject, CompatibilityConstraints, OwnerScope, ResolveArtifactsOptions,
-    VerifiedArtifact, WORKSPACE_TASK_ARTIFACT_KIND, WORKSPACE_TASK_INPUT_KEY_PREFIX,
+    ArtifactBlobRequest,
+    ArtifactBlobSource,
+    ArtifactBuildPolicy,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactPublication,
+    ArtifactSigner,
+    ArtifactStore,
+    ArtifactSubject,
+    CompatibilityConstraints,
+    OwnerScope,
+    ResolveArtifactsOptions,
+    VerifiedArtifact,
+    WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX,
     decode_trusted_keys,
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     fs,
-    io::{self, Read as _},
-    path::{Component, Path},
-    sync::{Arc, Mutex},
+    io::{
+        self,
+        Read as _,
+    },
+    path::{
+        Component,
+        Path,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
-use tokio::{runtime::Handle, sync::Semaphore, task::JoinHandle};
+use tokio::{
+    runtime::Handle,
+    sync::Semaphore,
+    task::JoinHandle,
+};
 
 /// A task as the artifact's subject names it.
 pub(super) struct TaskIdentity<'a> {

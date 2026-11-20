@@ -3,9 +3,18 @@ use std::{
     panic,
     process::Command,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
-use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System};
+use sysinfo::{
+    Pid,
+    ProcessRefreshKind,
+    ProcessStatus,
+    ProcessesToUpdate,
+    System,
+};
 
 const LONG_RUNNING: &str = "setTimeout(() => {}, 120000)";
 

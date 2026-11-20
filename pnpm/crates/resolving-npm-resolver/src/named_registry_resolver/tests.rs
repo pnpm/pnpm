@@ -1,20 +1,43 @@
 use std::{
-    collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use pnpm_lockfile::LockfileResolution;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pnpm_store_dir::{PackageFilesIndex, StoreIndex, store_index_key};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreIndex,
+    store_index_key,
+};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use crate::{
-    ABBREVIATED_META_DIR, NamedRegistryResolver, OfflineStoreView, merge_named_registries,
+    ABBREVIATED_META_DIR,
+    NamedRegistryResolver,
+    OfflineStoreView,
+    merge_named_registries,
     persist_meta_to_mirror,
     pick_package::{
-        InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+        InMemoryPackageMetaCache,
+        shared_packument_fetch_locker,
+        shared_picked_manifest_cache,
     },
 };
 

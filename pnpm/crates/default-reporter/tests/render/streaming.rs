@@ -1,9 +1,28 @@
 use super::{
-    CWD, ExecutionTimeLog, LogEvent, LogLevel, MaxLogLevel, Output, ReporterOptions, Stage,
-    fetching_in_progress, fetching_started, interleaved_lifecycle_events, lifecycle_stdio_events,
-    pnpm_log, progress, progress_at, render, stage_at, state, state_with_options,
+    CWD,
+    ExecutionTimeLog,
+    LogEvent,
+    LogLevel,
+    MaxLogLevel,
+    Output,
+    ReporterOptions,
+    Stage,
+    fetching_in_progress,
+    fetching_started,
+    interleaved_lifecycle_events,
+    lifecycle_stdio_events,
+    pnpm_log,
+    progress,
+    progress_at,
+    render,
+    stage_at,
+    state,
+    state_with_options,
 };
-use pnpm_reporter::{LifecycleLog, LifecycleMessage};
+use pnpm_reporter::{
+    LifecycleLog,
+    LifecycleMessage,
+};
 
 #[test]
 fn prints_progress_on_first_download() {

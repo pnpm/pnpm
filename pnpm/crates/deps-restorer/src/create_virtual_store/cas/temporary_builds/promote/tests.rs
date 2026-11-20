@@ -1,5 +1,12 @@
-use super::{WhenPlaced, merge_missing_entries, place_package};
-use std::{fs, path::Path};
+use super::{
+    WhenPlaced,
+    merge_missing_entries,
+    place_package,
+};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 #[test]

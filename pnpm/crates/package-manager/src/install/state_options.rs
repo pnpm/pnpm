@@ -1,7 +1,20 @@
 use super::{
-    Arc, Catalogs, Config, HashSet, IncludedDependencies, Lockfile, Modules, NodeLinker,
-    PackageManifest, Path, PathBuf, ProjectMutation, RebuildOptions, ResolutionVerifier,
-    WorkspaceInstallSelection, WorkspaceState,
+    Arc,
+    Catalogs,
+    Config,
+    HashSet,
+    IncludedDependencies,
+    Lockfile,
+    Modules,
+    NodeLinker,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectMutation,
+    RebuildOptions,
+    ResolutionVerifier,
+    WorkspaceInstallSelection,
+    WorkspaceState,
 };
 use pnpm_store_dir::VerifiedFileIntegrity;
 

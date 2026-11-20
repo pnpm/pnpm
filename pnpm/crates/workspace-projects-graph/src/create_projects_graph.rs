@@ -1,13 +1,19 @@
 use crate::{
     base_project::GraphProject,
     dependency_rewriter::DependencyRewriter,
-    graph::{ProjectGraph, ProjectGraphNode},
+    graph::{
+        ProjectGraph,
+        ProjectGraphNode,
+    },
 };
 use indexmap::IndexMap;
 use node_semver::Version;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_fs::lexical_normalize;
@@ -18,7 +24,10 @@ use rayon::prelude::*;
 use std::{
     collections::HashMap,
     fmt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The workspace's catalogs, and the directory their relative paths are

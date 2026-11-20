@@ -1,9 +1,20 @@
-use crate::_utils::{with_colors, without_colors};
+use crate::_utils::{
+    with_colors,
+    without_colors,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use console::strip_ansi_codes;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";

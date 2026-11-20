@@ -1,4 +1,7 @@
-use super::{workspace_dependency_spec, workspace_includes_member};
+use super::{
+    workspace_dependency_spec,
+    workspace_includes_member,
+};
 use crate::cli_args::ecosystem_deps::cargo_manifest_ops::find_cargo_workspace_root;
 use std::fs;
 

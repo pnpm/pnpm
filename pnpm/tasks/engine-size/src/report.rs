@@ -1,5 +1,8 @@
 use crate::{
-    attribution::{Attribution, Entry},
+    attribution::{
+        Attribution,
+        Entry,
+    },
     cli_args::Lto,
     install_timing::InstallTimings,
     sections::Section,

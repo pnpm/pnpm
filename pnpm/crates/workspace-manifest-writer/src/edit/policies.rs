@@ -1,8 +1,20 @@
 use super::{
-    Inline, Manifest, detect_sequence_indent, flow, insert_top_level_block, locate,
-    locate_sequence, mapping_keys, reconcile_sequence_items, remove_mapping_entries,
-    remove_top_level_block, render, render_top_level_sequence, replace_top_level_block,
-    top_level_span, upsert_sequence_entry,
+    Inline,
+    Manifest,
+    detect_sequence_indent,
+    flow,
+    insert_top_level_block,
+    locate,
+    locate_sequence,
+    mapping_keys,
+    reconcile_sequence_items,
+    remove_mapping_entries,
+    remove_top_level_block,
+    render,
+    render_top_level_sequence,
+    replace_top_level_block,
+    top_level_span,
+    upsert_sequence_entry,
 };
 
 /// Set the ignore list to `ghsas` (the complete desired list) in whichever

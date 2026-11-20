@@ -1,12 +1,25 @@
 //! The responses of the note routes.
 
 use axum::{
-    body::{Body, Bytes},
-    http::{HeaderValue, StatusCode, header},
-    response::{IntoResponse, Response},
+    body::{
+        Body,
+        Bytes,
+    },
+    http::{
+        HeaderValue,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
-use pnpr_storage::database::{Note, note_digest};
+use pnpr_storage::database::{
+    Note,
+    note_digest,
+};
 
 /// How long a shared cache may keep a public note response.
 pub(in super::super) const PUBLIC_NOTE_MAX_AGE: u64 = 300;

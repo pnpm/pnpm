@@ -1,8 +1,15 @@
 use crate::_utils::pacquet_in;
 
 use assert_cmd::prelude::*;
-use std::{fs, path::Path, process::Command};
-use tempfile::{TempDir, tempdir};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 const OUTDATED_LOCKFILE: &str = "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      old-dependency:\n        specifier: file:dependency\n        version: link:dependency\n";
 const EMPTY_LOCKFILE: &str = "lockfileVersion: '9.0'\nimporters:\n  .: {}\n";

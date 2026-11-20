@@ -3,8 +3,15 @@ use std::future::Future;
 use pnpm_reporter::Reporter;
 
 use crate::{
-    capabilities::{EnterKeyListener, OpenUrl, StdinIsTty},
-    global_log::{global_info, global_warn},
+    capabilities::{
+        EnterKeyListener,
+        OpenUrl,
+        StdinIsTty,
+    },
+    global_log::{
+        global_info,
+        global_warn,
+    },
 };
 
 #[cfg(test)]

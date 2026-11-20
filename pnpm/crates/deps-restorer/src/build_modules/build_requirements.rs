@@ -1,10 +1,28 @@
-use super::{RebuildOptions, slots::PkgRoots};
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
-use pnpm_package_manifest::{
-    BINDING_GYP, files_build_triggers, parse_manifest, pkg_build_triggers, pkg_requires_build,
+use super::{
+    RebuildOptions,
+    slots::PkgRoots,
 };
-use pnpm_patching::{ExtendedPatchInfo, MANIFEST_FILE_NAME, preview_patch};
-use std::collections::{HashMap, HashSet};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
+use pnpm_package_manifest::{
+    BINDING_GYP,
+    files_build_triggers,
+    parse_manifest,
+    pkg_build_triggers,
+    pkg_requires_build,
+};
+use pnpm_patching::{
+    ExtendedPatchInfo,
+    MANIFEST_FILE_NAME,
+    preview_patch,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 fn is_selected(rebuild: Option<&RebuildOptions>, key: &PackageKey) -> bool {
     rebuild.is_none_or(|rebuild| rebuild.selects_snapshot(key))

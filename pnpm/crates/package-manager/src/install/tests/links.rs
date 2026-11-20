@@ -1,5 +1,8 @@
 use crate::install::lockfile_freshness::manifest::exclude_linked_dependencies;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 
 #[test]
 fn exclude_linked_dependencies_drops_link_deps_from_every_group() {

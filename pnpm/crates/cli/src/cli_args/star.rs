@@ -1,20 +1,42 @@
 use crate::cli_args::{
     registry_client::{
-        apply_auth_and_otp, auth_header_for_package, build_registry_client, join_registry_endpoint,
-        package_endpoint_url, resolve_registries_with_override,
+        apply_auth_and_otp,
+        auth_header_for_package,
+        build_registry_client,
+        join_registry_endpoint,
+        package_endpoint_url,
+        resolve_registries_with_override,
         resolve_target_registry_for_package,
     },
-    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
+    sanitize::{
+        DEFAULT_ERROR_BODY_LIMIT,
+        read_sanitized_error_body,
+    },
     whoami::fetch_whoami,
 };
 use clap::Parser;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, escaped_package_name, normalize_registry_url, send_with_retry,
+    RetryOpts,
+    ThrottledClient,
+    escaped_package_name,
+    normalize_registry_url,
+    send_with_retry,
 };
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
 #[derive(Debug, Parser)]
 pub struct StarArgs {

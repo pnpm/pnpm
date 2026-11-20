@@ -1,14 +1,29 @@
 use super::{
     super::{
-        CreateVirtualStore, CreateVirtualStoreStoreContext, removed_child_aliases,
+        CreateVirtualStore,
+        CreateVirtualStoreStoreContext,
+        removed_child_aliases,
         snapshot_deps_equal,
     },
-    DUMMY_SHA512, SeededStoreInstall, key, metadata_with_integrity, name, snapshot,
+    DUMMY_SHA512,
+    SeededStoreInstall,
+    key,
+    metadata_with_integrity,
+    name,
+    snapshot,
     snapshot_with_dep,
 };
-use pnpm_lockfile::{LockfileEntries, SnapshotDepRef, SnapshotEntry};
+use pnpm_lockfile::{
+    LockfileEntries,
+    SnapshotDepRef,
+    SnapshotEntry,
+};
 use pnpm_reporter::SilentReporter;
-use std::{collections::HashMap, fs, sync::atomic::AtomicU8};
+use std::{
+    collections::HashMap,
+    fs,
+    sync::atomic::AtomicU8,
+};
 
 #[test]
 fn removed_child_aliases_excludes_self_and_unchanged_sets() {
@@ -23,11 +38,24 @@ fn removed_child_aliases_excludes_self_and_unchanged_sets() {
 }
 #[tokio::test]
 async fn shared_store_context_materializes_a_warm_package() {
-    use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
-    use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+    use crate::{
+        AllowBuildPolicy,
+        SkippedSnapshots,
+        VirtualStoreLayout,
+    };
+    use pnpm_config::{
+        Config,
+        NodeLinker,
+        PackageImportMethod,
+    };
     use pnpm_store_dir::{
-        CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
-        StoreIndexWriter, store_index_key,
+        CafsFileInfo,
+        PackageFilesIndex,
+        SharedVerifiedFilesCache,
+        StoreDir,
+        StoreIndex,
+        StoreIndexWriter,
+        store_index_key,
     };
     use pnpm_tarball::SharedReportedProgressKeys;
 
@@ -248,8 +276,14 @@ fn lookup_known_requires_build_matches_peer_variants_and_skips_patched_snapshots
 
 #[test]
 fn needs_deferred_engine_probe_skips_when_every_snapshot_is_verified_plain() {
-    use crate::{AllowBuildPolicy, materialization_plan::needs_deferred_engine_probe};
-    use pnpm_config::{Config, NodeLinker};
+    use crate::{
+        AllowBuildPolicy,
+        materialization_plan::needs_deferred_engine_probe,
+    };
+    use pnpm_config::{
+        Config,
+        NodeLinker,
+    };
 
     let config = Config::new();
     let policy = AllowBuildPolicy::default();

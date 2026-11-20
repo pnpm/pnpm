@@ -1,17 +1,38 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use pnpm_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotDepRef};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    SnapshotDepRef,
+};
 use serde::Serialize;
 
 use crate::{
     linked::LinkRoots,
-    snapshot::{child_keys, resolved_snapshot_version, satisfies, snapshot_dependency},
+    snapshot::{
+        child_keys,
+        resolved_snapshot_version,
+        satisfies,
+        snapshot_dependency,
+    },
 };
 
-use search::{DeclarationGraph, ProviderRequirement};
+use search::{
+    DeclarationGraph,
+    ProviderRequirement,
+};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

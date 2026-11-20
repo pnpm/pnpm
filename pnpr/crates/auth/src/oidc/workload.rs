@@ -1,7 +1,20 @@
 use super::{
-    BASE64_URL_SAFE_NO_PAD, ClientId, CoreIdToken, CoreIdTokenVerifier, CoreJsonWebKeySet,
-    CoreJwsSigningAlgorithm, IssuerUrl, Nonce, OidcBinding, OidcProvider, OidcWorkload, Provider,
-    Result, SessionUser, Value, rejected,
+    BASE64_URL_SAFE_NO_PAD,
+    ClientId,
+    CoreIdToken,
+    CoreIdTokenVerifier,
+    CoreJsonWebKeySet,
+    CoreJwsSigningAlgorithm,
+    IssuerUrl,
+    Nonce,
+    OidcBinding,
+    OidcProvider,
+    OidcWorkload,
+    Provider,
+    Result,
+    SessionUser,
+    Value,
+    rejected,
 };
 use base64::Engine as _;
 use jiff::Timestamp;

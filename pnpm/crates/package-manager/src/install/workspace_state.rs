@@ -1,18 +1,39 @@
 pub(super) use projects::{
-    ProjectScriptsInputs, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
+    ProjectScriptsInputs,
+    build_root_importer_project_manifests_list,
+    build_selected_project_manifests_list,
+    mutated_project_dirs,
+    projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
-pub(crate) use projects::{build_project_manifests_list, replace_project_manifest};
-pub(crate) use write::{CarriedSettings, StateProjects, StateWrite, recorded_workspace_state};
+pub(crate) use projects::{
+    build_project_manifests_list,
+    replace_project_manifest,
+};
+pub(crate) use write::{
+    CarriedSettings,
+    StateProjects,
+    StateWrite,
+    recorded_workspace_state,
+};
 
 mod projects;
 
 mod write;
 
 use super::{
-    BTreeMap, Catalogs, Clock, Config, IncludedDependencies, NodeLinker, PackageManifest, Path,
-    PathBuf, ProjectEntry, WorkspaceState, manifest_string_field,
+    BTreeMap,
+    Catalogs,
+    Clock,
+    Config,
+    IncludedDependencies,
+    NodeLinker,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectEntry,
+    WorkspaceState,
+    manifest_string_field,
 };
 use crate::install_state::last_validated_timestamp;
 use pnpm_deps_restorer::ImporterModulesDirs;

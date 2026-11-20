@@ -8,12 +8,22 @@
 //! invocation that makes no matching request. The mapping from the
 //! command's stdout to a header mirrors pnpm's `executeTokenHelper`.
 
-use crate::process::{Child, Command, Stdio};
+use crate::process::{
+    Child,
+    Command,
+    Stdio,
+};
 
 use std::{
-    io::{self, Read},
+    io::{
+        self,
+        Read,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// Seconds a `tokenHelper` command may run before it is killed.

@@ -3,11 +3,17 @@
 //! peer-variant bookkeeping.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 
-use owo_colors::{OwoColorize, Stream};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_package_manifest::parse_manifest_bytes;
 
 use pnpm_text_sanitize::sanitize;

@@ -6,8 +6,15 @@ mod local_deps;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const PACKAGE: &str = "@pnpm.e2e/with-agent-skills";
 const LINK: &str = ".claude/skills/guide";

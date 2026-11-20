@@ -3,10 +3,26 @@ pub(crate) mod applied_policies;
 pub use applied_policies::AppliedPolicies;
 
 use super::{
-    BTreeMap, Deserialize, HashSet, IndexMap, Lockfile, PnprClient, PnprClientError,
-    ResolveOptions, ResolveOutcome, ResolveProjectsOptions, ResolvedPackage, Stats,
-    TarballRevision, WireViolation, build_verify_error, hash_object_nullable_with_prefix,
-    lockfile_format::{PNPM_LOCK_V9, expect_lockfile_format},
+    BTreeMap,
+    Deserialize,
+    HashSet,
+    IndexMap,
+    Lockfile,
+    PnprClient,
+    PnprClientError,
+    ResolveOptions,
+    ResolveOutcome,
+    ResolveProjectsOptions,
+    ResolvedPackage,
+    Stats,
+    TarballRevision,
+    WireViolation,
+    build_verify_error,
+    hash_object_nullable_with_prefix,
+    lockfile_format::{
+        PNPM_LOCK_V9,
+        expect_lockfile_format,
+    },
 };
 use applied_policies::assert_applied_policies;
 use futures_util::StreamExt as _;

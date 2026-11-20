@@ -1,4 +1,7 @@
-use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
 use pnpm_resolving_tarball_resolver::PriorTarballEntry;
 use pnpm_store_dir::store_index_key;
 use std::collections::HashMap;

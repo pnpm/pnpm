@@ -1,10 +1,27 @@
 use crate::registry_activity;
-use pnpr::{Config, Ecosystem};
-use pnpr_fixtures::{MockConfigPresets, RemovedVersionField};
+use pnpr::{
+    Config,
+    Ecosystem,
+};
+use pnpr_fixtures::{
+    MockConfigPresets,
+    RemovedVersionField,
+};
 use std::{
-    net::{Ipv4Addr, TcpListener},
-    path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Mutex, PoisonError},
+    net::{
+        Ipv4Addr,
+        TcpListener,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+        PoisonError,
+    },
     thread,
 };
 

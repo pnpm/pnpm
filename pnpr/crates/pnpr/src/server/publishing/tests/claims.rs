@@ -1,12 +1,24 @@
 //! Two accounts admitted to first-publish the same name before either
 //! commits: the one that stages second meets the owner the first recorded.
 
-use super::fence::{images, manifest, push_as, put_blob};
-use crate::server::{AppState, publishing::commit_publishes, routing::state_and_router};
+use super::fence::{
+    images,
+    manifest,
+    push_as,
+    put_blob,
+};
+use crate::server::{
+    AppState,
+    publishing::commit_publishes,
+    routing::state_and_router,
+};
 use pnpr_auth::AuthState;
 use pnpr_error::RegistryError;
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_policy::PackageRules;
 use tempfile::TempDir;
 

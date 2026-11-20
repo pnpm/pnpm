@@ -1,14 +1,33 @@
 use super::{
-    inheritance::{ResolvedWorkspaceDep, lookup_workspace_dep_for_detach, parse_workspace_flag},
+    inheritance::{
+        ResolvedWorkspaceDep,
+        lookup_workspace_dep_for_detach,
+        parse_workspace_flag,
+    },
     spans::{
-        find_entry, full_line_range, inline_entry_removal_range, is_inline_table, lookup_table_path,
+        find_entry,
+        full_line_range,
+        inline_entry_removal_range,
+        is_inline_table,
+        lookup_table_path,
     },
 };
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use std::{ops::Range, path::Path};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
+use std::{
+    ops::Range,
+    path::Path,
+};
 use toml::{
     Spanned,
-    de::{DeTable, DeValue},
+    de::{
+        DeTable,
+        DeValue,
+    },
 };
 
 #[derive(Clone, Copy)]

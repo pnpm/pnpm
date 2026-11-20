@@ -1,11 +1,17 @@
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 
 use crate::server::StripedLocks;
 
-use super::{IndexFetcher, StaleEntry};
+use super::{
+    IndexFetcher,
+    StaleEntry,
+};
 
 /// A cached index file whose fetch lock is held: the stripe of its cache
 /// path, released when this is dropped. Only the holder may evict or

@@ -1,5 +1,14 @@
-use super::{OriginGates, OriginPermit};
-use crate::{NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
+use super::{
+    OriginGates,
+    OriginPermit,
+};
+use crate::{
+    NetworkSettings,
+    PerRegistryTls,
+    ProxyConfig,
+    ThrottledClient,
+    TlsConfig,
+};
 use std::time::Duration;
 
 const SLOW_ORIGIN: &str = "https://a.example";

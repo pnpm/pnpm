@@ -3,18 +3,40 @@ mod locator;
 
 use super::SyncAgentSkills;
 use crate::{
-    allow_build_key_from_ignored_build, is_git_hosted_dep_path, normalize_build_dep_path,
-    selected_groups, skill_approval_key,
+    allow_build_key_from_ignored_build,
+    is_git_hosted_dep_path,
+    normalize_build_dep_path,
+    selected_groups,
+    skill_approval_key,
 };
-use local_identity::{is_registry_dep_path, registry_version};
-use locator::{Locator, is_package_name, link_dep_path, resolved_dep_path};
-use pnpm_lockfile::{ImporterDepVersion, PkgName, ProjectSnapshot};
+use local_identity::{
+    is_registry_dep_path,
+    registry_version,
+};
+use locator::{
+    Locator,
+    is_package_name,
+    link_dep_path,
+    resolved_dep_path,
+};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    PkgName,
+    ProjectSnapshot,
+};
 use pnpm_package_manifest::DependencyGroup;
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// How many levels of directories below `skills` are searched for skills.

@@ -1,14 +1,27 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+};
 
-use futures_util::{StreamExt, TryStreamExt, stream};
+use futures_util::{
+    StreamExt,
+    TryStreamExt,
+    stream,
+};
 use pnpm_config::Config;
 use pnpm_publish::{
-    PublishNetwork, PublishPackedPkgOptions, find_registry_info, publish_config_registry,
+    PublishNetwork,
+    PublishPackedPkgOptions,
+    find_registry_info,
+    publish_config_registry,
     wait_for_published_packages,
 };
 use pnpm_reporter::Reporter;
 
-use super::{PublishArgs, recursive::publish_eligible};
+use super::{
+    PublishArgs,
+    recursive::publish_eligible,
+};
 
 impl PublishArgs {
     pub(super) async fn wait_for_existing_projects<Reporter: self::Reporter>(

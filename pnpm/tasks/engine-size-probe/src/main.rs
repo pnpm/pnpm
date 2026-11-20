@@ -7,15 +7,34 @@
 //!
 //! Usage: `engine-size-probe <project-dir> [--frozen-lockfile]`.
 
-use miette::{IntoDiagnostic, WrapErr};
-use pnpm_config::{Config, Host};
-use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
+use miette::{
+    IntoDiagnostic,
+    WrapErr,
+};
+use pnpm_config::{
+    Config,
+    Host,
+};
+use pnpm_lockfile::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_network::ThrottledClient;
-use pnpm_package_manager::{Install, ResolvedPackages};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manager::{
+    Install,
+    ResolvedPackages,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_tarball::MemCache;
-use std::{path::PathBuf, process::ExitCode, sync::Arc};
+use std::{
+    path::PathBuf,
+    process::ExitCode,
+    sync::Arc,
+};
 
 /// The CLI runs installs on a thread with this stack size, because the
 /// install call chain overflows a default stack on some platforms.

@@ -8,7 +8,12 @@
 //! directly. The `auth_counters` row the shared databases keep is not read
 //! here: a shared backend reconciles it with the `users` rows at startup.
 
-pub use import::{ImportMode, ImportedPasswords, PasswordCollisions, PasswordImport};
+pub use import::{
+    ImportMode,
+    ImportedPasswords,
+    PasswordCollisions,
+    PasswordImport,
+};
 
 mod account_reads;
 mod accounts;
@@ -16,20 +21,43 @@ mod import;
 mod tokens;
 
 use crate::{
-    AccountCredential, AccountLifecycle, AccountLogin, AccountStatus, AccountStatusOutcome,
-    AccountStatusRevision, DEFAULT_BCRYPT_COST, PasswordChange, UpsertOutcome, UserAccount,
-    UserBackend, UserCreation, UserRemoval, UserRename,
+    AccountCredential,
+    AccountLifecycle,
+    AccountLogin,
+    AccountStatus,
+    AccountStatusOutcome,
+    AccountStatusRevision,
+    DEFAULT_BCRYPT_COST,
+    PasswordChange,
+    UpsertOutcome,
+    UserAccount,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    UserRename,
 };
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_sql::{
-    adapter::{Adapter as _, Connection, Param, ReadSource, WriteTransaction},
+    adapter::{
+        Adapter as _,
+        Connection,
+        Param,
+        ReadSource,
+        WriteTransaction,
+    },
     sqlite::SqliteAdapter,
 };
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -188,7 +216,10 @@ fn to_param(value: &rusqlite::types::Value) -> Result<Param<'_>> {
 /// `SQLite` creates its sidecars with the database file's permissions.
 #[cfg(unix)]
 fn restrict_to_owner(path: &Path) -> Result<()> {
-    use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
+    use std::os::unix::fs::{
+        OpenOptionsExt as _,
+        PermissionsExt as _,
+    };
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

@@ -5,17 +5,26 @@
 //! `installing/deps-installer/test/install/customResolvers.ts`.
 
 #[cfg(unix)]
-use crate::_utils::{terminal::Terminal, wait_for_child};
+use crate::_utils::{
+    terminal::Terminal,
+    wait_for_child,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     registry::TestRegistry,
 };
 use std::{
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use tempfile::TempDir;

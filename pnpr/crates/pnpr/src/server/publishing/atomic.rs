@@ -11,21 +11,44 @@
 //! A retry is authorized against current permissions
 //! like any publish before its outcome is looked up.
 
-use super::{RegistryError, StagedPublish, Value, promotion::promote_fenced};
-use crate::server::{AppState, Identity};
+use super::{
+    RegistryError,
+    StagedPublish,
+    Value,
+    promotion::promote_fenced,
+};
+use crate::server::{
+    AppState,
+    Identity,
+};
 use axum::{
     body::Body,
-    http::{StatusCode, header},
+    http::{
+        StatusCode,
+        header,
+    },
     response::Response,
 };
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
-    database::{BatchDocument, Generation, PublicationCommit, PublicationRequest, PublishNotes},
+    database::{
+        BatchDocument,
+        Generation,
+        PublicationCommit,
+        PublicationRequest,
+        PublishNotes,
+    },
     transparency_log::LogId,
 };
 use serde_json::json;
-use ssri::{Algorithm, IntegrityOpts};
-use std::io::{self, Write as _};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
+use std::io::{
+    self,
+    Write as _,
+};
 
 /// What a publish committed, as its response reports it.
 #[derive(Debug, Default)]

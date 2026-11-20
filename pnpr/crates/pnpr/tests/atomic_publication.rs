@@ -6,18 +6,44 @@ use crate::npm::publish_doc;
 
 use axum::{
     Router,
-    body::{Body, to_bytes},
-    http::{Request, StatusCode, header},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use pnpr::{Config, MaxUsers, router};
+use pnpr::{
+    Config,
+    MaxUsers,
+    router,
+};
 use pnpr_config::DatabaseBackend;
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_policy::{AccessList, PackageRules, RuleOverride};
-use pnpr_registry::{PackagePattern, Registries, Registry};
+use pnpr_policy::{
+    AccessList,
+    PackageRules,
+    RuleOverride,
+};
+use pnpr_registry::{
+    PackagePattern,
+    Registries,
+    Registry,
+};
 use pnpr_storage::Ecosystem;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
 };
 use tempfile::TempDir;

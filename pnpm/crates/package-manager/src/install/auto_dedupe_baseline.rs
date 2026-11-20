@@ -12,14 +12,24 @@
 //! `<cache_dir>/auto-dedupe-baselines/`, one per lockfile path.
 
 use pnpm_config::PNPM_VERSION;
-use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file};
-use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_crypto_hash::{
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::WorkspaceStateSettings;
 use std::{
     collections::BTreeMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const RECORD_DIR: &str = "auto-dedupe-baselines";

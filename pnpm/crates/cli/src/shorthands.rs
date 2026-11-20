@@ -17,7 +17,11 @@
 //! setting rejects, and nopt only soft-drops them upstream — mapping that
 //! quirk is left for when the family lands.
 
-use crate::flag_relocation::{ArgTable, find_positional, token_width};
+use crate::flag_relocation::{
+    ArgTable,
+    find_positional,
+    token_width,
+};
 use clap::Command;
 use std::ffi::OsString;
 

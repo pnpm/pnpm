@@ -1,6 +1,9 @@
 use crate::StoreDir;
 use pnpm_fs::symlink_dir;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn create_dirs(root: &Path, dirs: &[&str]) {

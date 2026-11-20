@@ -1,4 +1,7 @@
-use super::{HeaderMap, header};
+use super::{
+    HeaderMap,
+    header,
+};
 
 /// The coding a tar response is sent in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

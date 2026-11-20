@@ -1,10 +1,20 @@
 use super::{
-    Config, DependencyGroup, Matcher, OutdatedArgs, OutdatedQuery, PackageManifest, TargetVersion,
-    create_matcher, ignored_dependencies_matcher, project_dir,
+    Config,
+    DependencyGroup,
+    Matcher,
+    OutdatedArgs,
+    OutdatedQuery,
+    PackageManifest,
+    TargetVersion,
+    create_matcher,
+    ignored_dependencies_matcher,
+    project_dir,
 };
 use crate::cli_args::{
     ecosystem_deps::{
-        EcosystemFilterKind, declared_ecosystem_dep_names, patterns_for_ecosystem,
+        EcosystemFilterKind,
+        declared_ecosystem_dep_names,
+        patterns_for_ecosystem,
         validate_ecosystem_selectors,
     },
     engine_deps::declared_engine_deps,

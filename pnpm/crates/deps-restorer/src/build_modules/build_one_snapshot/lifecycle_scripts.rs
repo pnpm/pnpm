@@ -2,11 +2,23 @@
 
 use super::{
     super::{
-        BuildModulesError, LogEvent, LogLevel, PackageKey, Path, PathBuf, Reporter,
-        RunPostinstallHooks, SkippedOptionalDependencyLog, SkippedOptionalPackage,
-        SkippedOptionalReason, bin_dirs_in_all_parent_dirs, run_postinstall_hooks,
+        BuildModulesError,
+        LogEvent,
+        LogLevel,
+        PackageKey,
+        Path,
+        PathBuf,
+        Reporter,
+        RunPostinstallHooks,
+        SkippedOptionalDependencyLog,
+        SkippedOptionalPackage,
+        SkippedOptionalReason,
+        bin_dirs_in_all_parent_dirs,
+        run_postinstall_hooks,
     },
-    BuildOneSnapshot, dependency_bins, linked_copies,
+    BuildOneSnapshot,
+    dependency_bins,
+    linked_copies,
 };
 
 /// The package whose lifecycle scripts a build runs.

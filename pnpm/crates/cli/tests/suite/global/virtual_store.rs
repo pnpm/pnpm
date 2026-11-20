@@ -1,7 +1,15 @@
 //! Global groups link their packages from the global virtual store at
 //! `<storeDir>/links` unless `virtualStoreType` says otherwise.
 
-use super::{CommandExtra, CommandTempCwd, Path, PathBuf, fs, global_command, prepare_global_home};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    Path,
+    PathBuf,
+    fs,
+    global_command,
+    prepare_global_home,
+};
 use assert_cmd::assert::OutputAssertExt;
 use pnpm_store_dir::STORE_VERSION;
 

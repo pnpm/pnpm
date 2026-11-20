@@ -1,4 +1,7 @@
-use super::{CRATES_IO_SPARSE_INDEX, Config};
+use super::{
+    CRATES_IO_SPARSE_INDEX,
+    Config,
+};
 use crate::cargo_deps::lockfile::resolve_via_pnpr_with_preferences;
 use std::collections::BTreeMap;
 

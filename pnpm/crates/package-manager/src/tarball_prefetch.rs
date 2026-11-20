@@ -38,20 +38,47 @@ pub(crate) fn store_keys(
 
 use dashmap::DashSet;
 use lockfile_entries::{
-    PendingPrefetch, fetchable_entries, registry_entries, without_prefetched, without_store_hits,
-    without_verified_rows, without_verified_store_hits,
+    PendingPrefetch,
+    fetchable_entries,
+    registry_entries,
+    without_prefetched,
+    without_store_hits,
+    without_verified_rows,
+    without_verified_store_hits,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_package_is_installable::SupportedArchitectures;
-use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, SilentReporter};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexError, StoreIndexWriter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+    SilentReporter,
+};
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache,
+    StoreIndex,
+    StoreIndexError,
+    StoreIndexWriter,
+};
 use pnpm_tarball::{
-    IngestTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys, TarballError,
+    IngestTarballToStore,
+    MemCache,
+    RetryOpts,
+    SharedReportedProgressKeys,
+    TarballError,
 };
 use ssri::Integrity;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 use tokio::task::JoinSet;
 
 fn resolved(package_id: String, requester: String) -> ProgressMessage {

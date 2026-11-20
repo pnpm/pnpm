@@ -1,12 +1,20 @@
 //! Where a project's environment generations live: in the store, with the
 //! project's `.venv` as its link to the generation it runs.
 
-use super::{project, python, serve, wheel};
+use super::{
+    project,
+    python,
+    serve,
+    wheel,
+};
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The directory of every project the store under `root` holds

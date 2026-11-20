@@ -12,9 +12,16 @@
 //! `},` line, so two branches that change adjacent entries or different fields
 //! of the same entry merge without a conflict.
 
-use super::{PARALLEL_ENTRY_THRESHOLD, is_single_line_key, is_single_line_map};
+use super::{
+    PARALLEL_ENTRY_THRESHOLD,
+    is_single_line_key,
+    is_single_line_map,
+};
 use rayon::prelude::*;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Whether a collection spans lines, one entry per line with a trailing
 /// comma, or sits on one line.

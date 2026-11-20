@@ -1,6 +1,15 @@
-use super::{write_pm_shims, write_running_pnpm_shim};
-use crate::preferred_pm::{PreferredPm, WantedPm};
-use std::{fs, path::Path};
+use super::{
+    write_pm_shims,
+    write_running_pnpm_shim,
+};
+use crate::preferred_pm::{
+    PreferredPm,
+    WantedPm,
+};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn shim_body(dir: &Path, name: &str) -> String {

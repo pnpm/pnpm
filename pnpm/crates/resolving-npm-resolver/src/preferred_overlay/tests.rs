@@ -1,24 +1,49 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     sync::Arc,
 };
 
 use jiff::Timestamp;
 use node_semver::Version;
-use pnpm_lockfile::{LockfileResolution, RegistryResolution};
-use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_lockfile::{
+    LockfileResolution,
+    RegistryResolution,
+};
+use pnpm_registry::{
+    DerivedPackuments,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+};
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersions, PreferredVersionsOverlay,
-    RESOLVED_VERSION_SELECTOR_WEIGHT, ResolveOptions, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors,
+    CurrentPkg,
+    DIRECT_DEP_SELECTOR_WEIGHT,
+    PreferredVersions,
+    PreferredVersionsOverlay,
+    RESOLVED_VERSION_SELECTOR_WEIGHT,
+    ResolveOptions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
 };
 use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 
-use super::{held_back_preferred, overlay_merged_selectors, preferred_selectors};
+use super::{
+    held_back_preferred,
+    overlay_merged_selectors,
+    preferred_selectors,
+};
 use crate::pick_package_from_meta::{
-    PickVersionByVersionRangeOptions, RegistryPackageSpec, RegistryPackageSpecType,
-    apply_published_by_policy, pick_version_by_version_range,
+    PickVersionByVersionRangeOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    apply_published_by_policy,
+    pick_version_by_version_range,
 };
 
 fn parse_iso(input: &str) -> Timestamp {

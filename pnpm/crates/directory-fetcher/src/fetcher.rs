@@ -10,14 +10,22 @@
 
 use crate::{
     error::DirectoryFetcherError,
-    walker::{self, Symlinks},
+    walker::{
+        self,
+        Symlinks,
+    },
 };
 use pnpm_package_manifest::{
-    find_parent_publish_manifest, pkg_requires_build, safe_read_package_json_from_dir,
+    find_parent_publish_manifest,
+    pkg_requires_build,
+    safe_read_package_json_from_dir,
 };
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// One directory-fetch request. The `directory` is the absolute

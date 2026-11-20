@@ -1,15 +1,36 @@
 use super::{
-    super::{Add, AddError},
-    package_body, scoped_package_body, scoped_version_body, version_body,
+    super::{
+        Add,
+        AddError,
+    },
+    package_body,
+    scoped_package_body,
+    scoped_version_body,
+    version_body,
 };
-use crate::{ResolvedPackages, add::specifier::ProtocolSelector};
+use crate::{
+    ResolvedPackages,
+    add::specifier::ProtocolSelector,
+};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
 use std::{
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        Arc,
+        Condvar,
+        Mutex,
+    },
     time::Duration,
 };
 use tempfile::tempdir;

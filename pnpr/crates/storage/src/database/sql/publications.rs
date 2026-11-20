@@ -6,15 +6,32 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, Param, Query, Row},
+    adapter::{
+        Connection,
+        Param,
+        Query,
+        Row,
+    },
     batch::Batch,
-    to_column, to_generation,
+    to_column,
+    to_generation,
 };
 use crate::{
-    database::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome},
-    publish::{iso_from_unix_millis, now_millis},
+    database::{
+        ArtifactMember,
+        Publication,
+        PublicationRequest,
+        RecordedOutcome,
+    },
+    publish::{
+        iso_from_unix_millis,
+        now_millis,
+    },
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
 use std::time::Duration;

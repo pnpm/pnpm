@@ -1,6 +1,18 @@
 use super::{
-    Arc, BTreeMap, DependencyOverrider, DirectDep, DirectSeeds, HashMap, HashSet, HoistSettings,
-    ImporterHoistState, LockedPeers, MissingPeer, PreferredVersions, TreeCtx, WorkspaceRootDep,
+    Arc,
+    BTreeMap,
+    DependencyOverrider,
+    DirectDep,
+    DirectSeeds,
+    HashMap,
+    HashSet,
+    HoistSettings,
+    ImporterHoistState,
+    LockedPeers,
+    MissingPeer,
+    PreferredVersions,
+    TreeCtx,
+    WorkspaceRootDep,
 };
 use pnpm_resolving_resolver_base::DIRECT_DEP_SELECTOR_WEIGHT;
 

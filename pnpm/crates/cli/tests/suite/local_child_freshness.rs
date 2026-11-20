@@ -1,7 +1,11 @@
 use crate::_utils::pacquet_in;
 
 use assert_cmd::prelude::*;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn pnpm_at(workspace: &Path) -> Command {

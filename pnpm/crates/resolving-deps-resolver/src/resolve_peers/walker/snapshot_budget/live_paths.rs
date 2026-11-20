@@ -1,4 +1,10 @@
-use super::{Arc, DepPath, HashMap, HashSet, SubtreePaths};
+use super::{
+    Arc,
+    DepPath,
+    HashMap,
+    HashSet,
+    SubtreePaths,
+};
 
 #[derive(Debug)]
 struct LiveSubtree {

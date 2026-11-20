@@ -1,16 +1,26 @@
 use super::{
-    configure_fetcher_project, fetcher_pnpmfile, mock_fetcher_package, pacquet_at, write_manifest,
+    configure_fetcher_project,
+    fetcher_pnpmfile,
+    mock_fetcher_package,
+    pacquet_at,
+    write_manifest,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::CommandTempCwd,
     diagnostics::assert_diagnostic_contains,
-    fixtures::{minimal_tarball, sha512_integrity},
+    fixtures::{
+        minimal_tarball,
+        sha512_integrity,
+    },
 };
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]

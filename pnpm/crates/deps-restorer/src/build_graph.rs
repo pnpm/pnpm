@@ -1,9 +1,16 @@
 use crate::SkippedSnapshots;
 use indexmap::IndexMap;
-use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::ExtendedPatchInfo;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Compute the dependency graph of packages that need building.
 ///

@@ -1,6 +1,11 @@
 use crate::{
-    LinkVirtualStoreBins, SkippedSnapshots,
-    linking::{LinkPhaseError, LinkPhaseInputs, LinkPhaseOutput},
+    LinkVirtualStoreBins,
+    SkippedSnapshots,
+    linking::{
+        LinkPhaseError,
+        LinkPhaseInputs,
+        LinkPhaseOutput,
+    },
 };
 
 pub(crate) fn link_phase(

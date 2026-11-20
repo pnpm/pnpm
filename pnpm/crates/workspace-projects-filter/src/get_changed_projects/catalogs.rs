@@ -1,11 +1,20 @@
 use crate::{
     filter::FilterError,
-    get_changed_projects::{ChangeType, GetChangedProjectsOptions},
+    get_changed_projects::{
+        ChangeType,
+        GetChangedProjectsOptions,
+    },
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use git_file::read_git_file;

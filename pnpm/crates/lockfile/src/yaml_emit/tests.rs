@@ -1,7 +1,10 @@
 use super::{
     implicit::resolves_float,
     scalars::is_plain_safe,
-    style::CollectionStyle::{Block, Flow},
+    style::CollectionStyle::{
+        Block,
+        Flow,
+    },
     to_string,
 };
 use serde_json::json;

@@ -3,7 +3,13 @@ use std::collections::HashMap;
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
-use super::{AuthHeaders, DerivedPackuments, Package, PackageVersion, ThrottledClient};
+use super::{
+    AuthHeaders,
+    DerivedPackuments,
+    Package,
+    PackageVersion,
+    ThrottledClient,
+};
 use crate::package_distribution::PackageDistribution;
 
 #[test]

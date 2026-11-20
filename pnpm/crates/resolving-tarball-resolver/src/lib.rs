@@ -26,7 +26,10 @@
 extern crate pnpm_http as reqwest;
 
 pub use tarball_resolver::{
-    PriorTarballEntry, TarballFetchContext, TarballResolver, remote_tarball_id,
+    PriorTarballEntry,
+    TarballFetchContext,
+    TarballResolver,
+    remote_tarball_id,
 };
 
 mod http_cache;

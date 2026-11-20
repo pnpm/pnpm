@@ -1,10 +1,16 @@
 //! Build the `PATH` a spawned child sees.
 
 use crate::process::Command;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpm_diagnostics::miette::Diagnostic;
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     path::PathBuf,
 };
 

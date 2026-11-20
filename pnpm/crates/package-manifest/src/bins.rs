@@ -1,8 +1,17 @@
-pub use paths::{normalize_bin_path, normalize_package_relative_path};
+pub use paths::{
+    normalize_bin_path,
+    normalize_package_relative_path,
+};
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 
 mod paths;

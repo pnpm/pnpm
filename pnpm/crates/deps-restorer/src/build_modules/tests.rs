@@ -24,20 +24,37 @@ mod global_slots;
 #[cfg(unix)]
 mod empty_side_effects;
 
-use super::{BuildModules, allow_build_policy::AllowBuildPolicy};
+use super::{
+    BuildModules,
+    allow_build_policy::AllowBuildPolicy,
+};
 // Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
 // unconditionally would be an unused import on Windows.
-use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pnpm_config::{Config, PackageImportMethod};
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
+use pnpm_config::{
+    Config,
+    PackageImportMethod,
+};
 use pnpm_lockfile::{
-    PackageKey, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotEntry,
+    PackageKey,
+    PkgName,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotEntry,
 };
 use pnpm_reporter::SilentReporter;
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 
@@ -370,7 +387,10 @@ fn create_postinstall_with_unreadable_fixture(
 /// what `add_files_from_dir` will compute.
 #[cfg(unix)]
 fn sha512_hex(buf: &[u8]) -> String {
-    use sha2::{Digest, Sha512};
+    use sha2::{
+        Digest,
+        Sha512,
+    };
     let digest = Sha512::digest(buf);
     format!("{digest:x}")
 }

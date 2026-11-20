@@ -1,11 +1,34 @@
-use crate::{CustomFetcherSession, SkippedSnapshots, VirtualStoreLayout};
+use crate::{
+    CustomFetcherSession,
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 use pnpm_cmd_shim::LinkBinsOptions;
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
-use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PkgName,
+    SnapshotEntry,
+};
 use pnpm_network::ThrottledClient;
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
-use pnpm_tarball::{MemCache, PrefetchedCasPaths, SharedReportedProgressKeys};
-use std::sync::{Arc, atomic::AtomicU8};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreIndexWriter,
+};
+use pnpm_tarball::{
+    MemCache,
+    PrefetchedCasPaths,
+    SharedReportedProgressKeys,
+};
+use std::sync::{
+    Arc,
+    atomic::AtomicU8,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PackageImportOptions<'a> {

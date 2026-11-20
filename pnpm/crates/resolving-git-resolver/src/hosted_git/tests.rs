@@ -1,4 +1,8 @@
-use super::{HostedGit, HostedGitType, HostedOpts};
+use super::{
+    HostedGit,
+    HostedGitType,
+    HostedOpts,
+};
 
 #[test]
 fn github_shortcut_user_repo() {

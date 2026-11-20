@@ -1,14 +1,28 @@
 use super::{
-    empty_lockfile, importer_link, importer_map, include_all, key, lockfile_with_top_level,
-    package_metadata, pkg, snapshot_with_deps,
+    empty_lockfile,
+    importer_link,
+    importer_map,
+    include_all,
+    key,
+    lockfile_with_top_level,
+    package_metadata,
+    pkg,
+    snapshot_with_deps,
 };
 use crate::SkippedSnapshots;
 use pnpm_lockfile::{
-    Lockfile, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
+    Lockfile,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 

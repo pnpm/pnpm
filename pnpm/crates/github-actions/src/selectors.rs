@@ -1,4 +1,7 @@
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 
 #[must_use]
 pub fn is_selector(selector: &str) -> bool {

@@ -1,8 +1,19 @@
 use super::{
-    HashMap, IndexMap, LazyLock, Mutex, PacquetConfig, Path, PathBuf, ResolveRequest, StoreDir,
+    HashMap,
+    IndexMap,
+    LazyLock,
+    Mutex,
+    PacquetConfig,
+    Path,
+    PathBuf,
+    ResolveRequest,
+    StoreDir,
 };
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::Instant,
+};
 
 pub(super) const MAX_ACTIVE_CONFIGS: usize = 1024;
 

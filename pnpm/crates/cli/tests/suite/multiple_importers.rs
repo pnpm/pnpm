@@ -15,7 +15,10 @@ pub use _utils::*;
 use crate::_utils;
 
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Where the lifecycle scripts of
 /// [`recursive_install_builds_workspace_projects_in_correct_order`] record

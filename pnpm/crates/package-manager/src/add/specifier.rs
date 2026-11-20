@@ -1,26 +1,43 @@
 pub(super) use super::protocol_selector::ProtocolSelector;
 use super::{
-    AddError, AddResolveInputs,
-    alias::{npm_alias_target, resolve_npm_alias_save_specifier},
+    AddError,
+    AddResolveInputs,
+    alias::{
+        npm_alias_target,
+        resolve_npm_alias_save_specifier,
+    },
     manifest::apply_catalog_decision,
     protocol_selector::resolve_jsr_save_specifier,
     range_fallback::add_range_fallback,
-    registry::{pick_latest_range, resolve_explicit_registry_spec},
+    registry::{
+        pick_latest_range,
+        resolve_explicit_registry_spec,
+    },
     selector::AddSelector,
     workspace_specifier::workspace_save_specifier,
 };
 use crate::{
-    CatalogModeDep, decide_catalog_outcome,
-    runtime_specifier::{node_runtime_version_spec, runtime_save_specifier},
+    CatalogModeDep,
+    decide_catalog_outcome,
+    runtime_specifier::{
+        node_runtime_version_spec,
+        runtime_save_specifier,
+    },
 };
 use pnpm_catalogs_types::Catalogs;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_config::Tool;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::NodeResolver;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::LogEvent;
-use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
+use pnpm_resolving_git_resolver::{
+    HostedGit,
+    HostedOpts,
+};
 
 pub(super) struct ResolvedAddedDependency {
     pub(super) package_name: String,

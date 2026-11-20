@@ -1,11 +1,22 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 use command_extra::CommandExtra;
 use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
-use super::{clear_ci, public_pkg, write_registry_npmrc, write_workspace};
+use super::{
+    clear_ci,
+    public_pkg,
+    write_registry_npmrc,
+    write_workspace,
+};
 
 mod failures;
 
@@ -148,7 +159,10 @@ fn batch_timeout_records_every_accepted_package() {
 fn confirms_a_dependency_before_publishing_its_dependent() {
     use std::sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     };
     let CommandTempCwd { pacquet, root: _root, workspace, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();

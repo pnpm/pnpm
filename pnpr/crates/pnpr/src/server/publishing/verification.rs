@@ -3,15 +3,29 @@
 //! stored and served for the version is derived from the archive.
 
 use pnpm_package_manifest::{
-    ArchiveFacts, INSTALL_MANIFEST_PROFILE, InstallManifest, ManifestComparison, NODE_GYP_REBUILD,
+    ArchiveFacts,
+    INSTALL_MANIFEST_PROFILE,
+    InstallManifest,
+    ManifestComparison,
+    NODE_GYP_REBUILD,
     parse_manifest_bytes,
 };
-use pnpm_tarball::{PublicationArchive, read_publication_archive};
+use pnpm_tarball::{
+    PublicationArchive,
+    read_publication_archive,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::database::ARCHIVE_MANIFEST_FIELD;
-use serde_json::{Map, Value, json};
-use std::{io::Read, path::Path};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use std::{
+    io::Read,
+    path::Path,
+};
 
 use super::attachments::PublishedTar;
 

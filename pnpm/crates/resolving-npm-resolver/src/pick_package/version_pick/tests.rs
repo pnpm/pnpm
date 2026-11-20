@@ -1,4 +1,7 @@
-use super::{Version, prerelease_channel};
+use super::{
+    Version,
+    prerelease_channel,
+};
 
 #[test]
 fn identifies_prerelease_channels() {

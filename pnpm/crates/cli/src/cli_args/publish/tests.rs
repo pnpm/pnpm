@@ -1,12 +1,26 @@
-use super::{PublishArgs, PublishFlags, configured_publish_branch, run_publish_scripts};
+use super::{
+    PublishArgs,
+    PublishFlags,
+    configured_publish_branch,
+    run_publish_scripts,
+};
 use crate::{
     boolean_values::resolve_boolean_values,
-    cli_args::{CliArgs, cli_command::CliCommand},
+    cli_args::{
+        CliArgs,
+        cli_command::CliCommand,
+    },
 };
 use clap::Parser;
 use pnpm_config::Config;
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_publish::{Access, PublishNetwork};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use pnpm_publish::{
+    Access,
+    PublishNetwork,
+};
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;

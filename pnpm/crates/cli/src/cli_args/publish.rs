@@ -8,7 +8,12 @@
 //! `--recursive` (workspace publishing), including pnpr's batch endpoint,
 //! lives in [`recursive`].
 
-pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
+pub use arguments::{
+    PublishGitArgs,
+    PublishManifestArgs,
+    PublishOutputArgs,
+    PublishRegistryArgs,
+};
 mod new_version;
 mod notes;
 mod options;
@@ -25,19 +30,37 @@ mod arguments;
 
 use crate::cli_args::registry_client::build_publish_client;
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
+use pnpm_executor::{
+    RunPostinstallHooks,
+    run_lifecycle_hook,
+};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_publish::{
-    Host, PackedPkg, PublishFailure, PublishNetwork, PublishPackedPkgOptions, PublishSummary,
-    extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
-    resolve_otp_from_env, run_git_checks,
+    Host,
+    PackedPkg,
+    PublishFailure,
+    PublishNetwork,
+    PublishPackedPkgOptions,
+    PublishSummary,
+    extract_publish_manifest_from_packed,
+    is_tarball_path,
+    publish_packed_pkg,
+    resolve_otp_from_env,
+    run_git_checks,
 };
 use pnpm_reporter::Reporter;
 use serde_json::Value;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// Publish a package to the registry.
 #[derive(Debug, Args)]

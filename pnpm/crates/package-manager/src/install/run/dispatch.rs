@@ -1,20 +1,48 @@
 use super::{
     super::{
-        ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions, Lockfile,
-        LogEvent, LogLevel, PackageManifest, PrepareModulesStateInputs, PreparedModulesState,
-        Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
+        ContextLog,
+        FreshnessCheckError,
+        FreshnessScope,
+        InstallError,
+        InstallRunOptions,
+        Lockfile,
+        LogEvent,
+        LogLevel,
+        PackageManifest,
+        PrepareModulesStateInputs,
+        PreparedModulesState,
+        Reporter,
+        Stage,
+        StageLog,
+        SummaryLog,
+        check_lockfile_freshness,
         lockfile_freshness::{
-            LockfileFreshnessInputs, UnresolvedOptionalDependency, check_importer_manifests_exist,
+            LockfileFreshnessInputs,
+            UnresolvedOptionalDependency,
+            check_importer_manifests_exist,
         },
-        map_frozen_lockfile_error, prepare_modules_state, verify_lockfile_eagerly,
+        map_frozen_lockfile_error,
+        prepare_modules_state,
+        verify_lockfile_eagerly,
     },
     Verification,
-    manifests::{RootHooksScope, run_root_hooks},
-    reject_frozen_with_update_checksums, run_pre_uninstall_hooks,
-    settled::{Settled, SettledProjects},
+    manifests::{
+        RootHooksScope,
+        run_root_hooks,
+    },
+    reject_frozen_with_update_checksums,
+    run_pre_uninstall_hooks,
+    settled::{
+        Settled,
+        SettledProjects,
+    },
     up_to_date_scripts::finish_prepared,
 };
-use pnpm_reporter::{SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason};
+use pnpm_reporter::{
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+};
 
 /// Which path the install takes, and the modules state it starts from.
 pub(super) struct Dispatched<'install> {

@@ -1,7 +1,19 @@
-use super::{super::registry::Registry, MAX_WHEEL_BYTES};
-use miette::{IntoDiagnostic, Result, bail};
+use super::{
+    super::registry::Registry,
+    MAX_WHEEL_BYTES,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep508_rs::PackageName;
-use pnpm_python_resolver::{Candidate, IndexCandidate, LockedWheel, WheelFilename};
+use pnpm_python_resolver::{
+    Candidate,
+    IndexCandidate,
+    LockedWheel,
+    WheelFilename,
+};
 use pnpm_reporter::Reporter;
 use std::collections::BTreeMap;
 use url::Url;

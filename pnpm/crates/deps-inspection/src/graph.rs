@@ -1,10 +1,17 @@
 //! Lockfile-backed dependency graph shared by the forward (`list`) and
 //! reverse (`why`) tree builders.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use pnpm_lockfile::{
-    Lockfile, PeerEdgeOptions, PeerSatisfactionEdges, PkgNameVerPeer, ProjectSnapshot,
+    Lockfile,
+    PeerEdgeOptions,
+    PeerSatisfactionEdges,
+    PkgNameVerPeer,
+    ProjectSnapshot,
     SnapshotEntry,
 };
 use pnpm_modules_yaml::IncludedDependencies;

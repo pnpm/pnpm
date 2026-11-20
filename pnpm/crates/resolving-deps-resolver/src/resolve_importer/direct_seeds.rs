@@ -1,9 +1,18 @@
-use crate::resolve_dependency_tree::{DependencySpec, importer_direct_wanted_specs};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use crate::resolve_dependency_tree::{
+    DependencySpec,
+    importer_direct_wanted_specs,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use rustc_hash::FxHashSet as HashSet;
 use std::collections::BTreeMap;
 
-use super::{ResolveImporterError, ResolveImporterOptions};
+use super::{
+    ResolveImporterError,
+    ResolveImporterOptions,
+};
 
 pub(crate) struct DirectSeeds {
     pub(crate) initial_wanted: Vec<DependencySpec>,

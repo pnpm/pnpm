@@ -2,15 +2,22 @@ pub(crate) use peer_heavy::seed_peer_heavy_registry;
 
 mod scripts;
 use scripts::{
-    build_cleanup_command, create_install_script, dir_contains_file, may_create_lockfile,
-    sync_bench_repo, wipe_bench_dir,
+    build_cleanup_command,
+    create_install_script,
+    dir_contains_file,
+    may_create_lockfile,
+    sync_bench_repo,
+    wipe_bench_dir,
 };
 
 mod fixtures;
 mod peer_heavy;
 
 use fixtures::{
-    create_generated_projects, create_npmrc, create_package_json, create_pnpm_workspace,
+    create_generated_projects,
+    create_npmrc,
+    create_package_json,
+    create_pnpm_workspace,
     save_pristine_copies,
 };
 
@@ -24,17 +31,32 @@ mod revision_auth;
 mod revision_mock;
 mod server_config;
 use server_config::{
-    PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,
-    cold_revision_mock_command, distinct_public_route_registries, mint_pnpr_token,
-    serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
+    PnprServer,
+    PnprServerPaths,
+    RevisionMockRegistry,
+    append_pnpr_auth_to_npmrc,
+    cold_revision_mock_command,
+    distinct_public_route_registries,
+    mint_pnpr_token,
+    serves_npm_under_base_path,
+    wait_for_pnpr_ready,
+    write_pnpr_benchmark_config,
 };
 
 mod measurements;
 use measurements::{
-    BenchmarkDiagnostics, BenchmarkTargetDiagnostics, HyperfineCommand, check_peer_heavy_speedup,
-    collect_pnpr_direct_ratios, non_trivial_cold_batch, read_benchmark_diagnostics,
-    read_hyperfine_report, read_phase_events, render_diagnostics_markdown,
-    requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
+    BenchmarkDiagnostics,
+    BenchmarkTargetDiagnostics,
+    HyperfineCommand,
+    check_peer_heavy_speedup,
+    collect_pnpr_direct_ratios,
+    non_trivial_cold_batch,
+    read_benchmark_diagnostics,
+    read_hyperfine_report,
+    read_phase_events,
+    render_diagnostics_markdown,
+    requires_fresh_pnpr_cold_batch_metrics,
+    summarize_phase_events,
 };
 
 mod diagnostics;
@@ -45,7 +67,11 @@ mod servers;
 mod build;
 
 use crate::{
-    cli_args::{RegistryMode, TargetKind, TargetSpec},
+    cli_args::{
+        RegistryMode,
+        TargetKind,
+        TargetSpec,
+    },
     verify::executor,
 };
 use os_display::Quotable;
@@ -53,8 +79,13 @@ use pipe_trait::Pipe;
 use std::{
     collections::HashMap,
     fmt,
-    fs::{self},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

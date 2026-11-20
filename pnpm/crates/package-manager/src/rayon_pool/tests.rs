@@ -1,4 +1,7 @@
-use super::{configure_rayon_pool, rayon_pool_size};
+use super::{
+    configure_rayon_pool,
+    rayon_pool_size,
+};
 
 #[test]
 fn rayon_pool_is_the_scaled_parallelism_between_4_and_16_threads() {

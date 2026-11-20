@@ -6,13 +6,21 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::get_all_files,
     registry::RecordedRequest,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{collections::BTreeMap, fs, path::Path, process::Command};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn store_usable_by_pnpm_offline() {

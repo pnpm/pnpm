@@ -1,4 +1,11 @@
-use super::{IndexMap, TempDir, WORKSPACE_MANIFEST_FILENAME, fs, patched_deps, run_patched_deps};
+use super::{
+    IndexMap,
+    TempDir,
+    WORKSPACE_MANIFEST_FILENAME,
+    fs,
+    patched_deps,
+    run_patched_deps,
+};
 
 #[test]
 fn patched_dependency_creates_block_when_absent() {
@@ -20,7 +27,10 @@ fn patched_dependency_quotes_scoped_keys_and_slash_paths() {
 
 #[test]
 fn patched_dependency_noops_when_unchanged() {
-    use crate::{edit, model::Manifest};
+    use crate::{
+        edit,
+        model::Manifest,
+    };
 
     let original = "patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n";
     let deps = patched_deps(&[("is-positive@1.0.0", "patches/is-positive@1.0.0.patch")]);
@@ -72,7 +82,10 @@ fn patched_dependency_removes_empty_last_block() {
 
 #[test]
 fn patched_dependency_missing_decoded_block_returns_original_text_when_removing_block() {
-    use crate::{edit, model::Manifest};
+    use crate::{
+        edit,
+        model::Manifest,
+    };
 
     let original = "packages:\n  - '*'\n";
     let mut manifest = Manifest::parse(Some(original)).unwrap();
@@ -87,7 +100,10 @@ fn patched_dependency_missing_decoded_block_returns_original_text_when_removing_
 
 #[test]
 fn patched_dependency_missing_decoded_mapping_keeps_text_before_inserting_new_block() {
-    use crate::{edit, model::Manifest};
+    use crate::{
+        edit,
+        model::Manifest,
+    };
 
     let original = "packages:\n  - '*'\n";
     let mut manifest = Manifest::parse(Some(original)).unwrap();

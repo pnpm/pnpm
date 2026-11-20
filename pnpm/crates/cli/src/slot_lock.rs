@@ -11,7 +11,11 @@
 //! installs into a [`pnpm_store_dir::PrivateInstall`] of its own.
 
 use pnpm_fs::DirLock;
-use std::{io, path::PathBuf, time::Duration};
+use std::{
+    io,
+    path::PathBuf,
+    time::Duration,
+};
 
 /// How long a process waits for a held slot lock before installing
 /// privately.

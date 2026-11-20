@@ -1,25 +1,65 @@
-use super::{Endpoint, ErrorCode, Request, error, json, parse_endpoint};
+use super::{
+    Endpoint,
+    ErrorCode,
+    Request,
+    error,
+    json,
+    parse_endpoint,
+};
 use crate::server::{
-    AppState, AuthedCaller, Identity, TargetRegistry,
+    AppState,
+    AuthedCaller,
+    Identity,
+    TargetRegistry,
     authentication::token_credentials,
-    ecosystem::{addressed_registry, sha256_hex},
+    ecosystem::{
+        addressed_registry,
+        sha256_hex,
+    },
 };
 use axum::{
-    extract::{OriginalUri, State},
-    http::{HeaderMap, Method, StatusCode, header},
+    extract::{
+        OriginalUri,
+        State,
+    },
+    http::{
+        HeaderMap,
+        Method,
+        StatusCode,
+        header,
+    },
     response::Response,
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use grants::{GrantQuery, granted_scopes};
+use base64::{
+    Engine as _,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
+use grants::{
+    GrantQuery,
+    granted_scopes,
+};
 use p256::ecdsa::{
-    Signature, SigningKey,
-    signature::{Signer as _, Verifier as _},
+    Signature,
+    SigningKey,
+    signature::{
+        Signer as _,
+        Verifier as _,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_registry::Ecosystem;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest as _, Sha256};
-use std::{collections::BTreeMap, fmt::Write as _};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
+use std::{
+    collections::BTreeMap,
+    fmt::Write as _,
+};
 
 pub(super) const TOKEN_PREFIX: &str = "pnpr_oci_";
 const TTL: u64 = 300;

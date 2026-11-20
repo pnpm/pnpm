@@ -3,15 +3,39 @@
 //! from it. The database stores the graph, the admin API edits it,
 //! and every replica follows it.
 
-pub(super) use admin::{if_match, is_registry_admin_path, registry_admin_routes, versioned};
+pub(super) use admin::{
+    if_match,
+    is_registry_admin_path,
+    registry_admin_routes,
+    versioned,
+};
 pub(crate) use pin::carry_pinned_routing;
-pub(super) use pin::{serves_without_graph, with_pinned_routing};
-pub(crate) use reload::{GraphState, publish_routing, reload_graph};
+pub(super) use pin::{
+    serves_without_graph,
+    with_pinned_routing,
+};
+pub(crate) use reload::{
+    GraphState,
+    publish_routing,
+    reload_graph,
+};
 pub(crate) use seed::seed_default_graph;
-pub(crate) use snapshot::{RoutingSnapshot, UpstreamGuardContext, build_snapshot};
+pub(crate) use snapshot::{
+    RoutingSnapshot,
+    UpstreamGuardContext,
+    build_snapshot,
+};
 pub(crate) use stored::{
-    Credentials, DefaultGrants, FileReferences, HostedChange, check_revision, graph_version,
-    load_stored_routing, occupied_namespace_error, stored_document, with_stored_routing,
+    Credentials,
+    DefaultGrants,
+    FileReferences,
+    HostedChange,
+    check_revision,
+    graph_version,
+    load_stored_routing,
+    occupied_namespace_error,
+    stored_document,
+    with_stored_routing,
 };
 
 mod admin;

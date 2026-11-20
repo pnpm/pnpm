@@ -22,7 +22,11 @@
 
 #![cfg(unix)]
 
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicI32,
+    Ordering,
+};
 
 static REACHED_WITH: AtomicI32 = AtomicI32::new(0);
 static DETAILS_MATCHED: AtomicBool = AtomicBool::new(false);

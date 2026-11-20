@@ -1,5 +1,13 @@
-use super::{CmdShimBatch, ScriptRuntime, generate_cmd_shim};
-use std::{fs, path::Path, process::Command};
+use super::{
+    CmdShimBatch,
+    ScriptRuntime,
+    generate_cmd_shim,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::tempdir;
 
 #[test]

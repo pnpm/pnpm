@@ -1,11 +1,26 @@
 use super::{
-    Arc, BTreeMap, ConfigDepError, EnvLockfile, PackageKey, SilentReporter, SnapshotDepRef,
-    TempDir, build_resolver, clean_spec, contains_entry_named, harness, install_config_deps,
-    options, resolve_and_install_config_deps,
+    Arc,
+    BTreeMap,
+    ConfigDepError,
+    EnvLockfile,
+    PackageKey,
+    SilentReporter,
+    SnapshotDepRef,
+    TempDir,
+    build_resolver,
+    clean_spec,
+    contains_entry_named,
+    harness,
+    install_config_deps,
+    options,
+    resolve_and_install_config_deps,
 };
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
 };
 
 /// Rejects every entry, so a passing install proves the registry was not consulted.

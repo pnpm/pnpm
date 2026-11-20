@@ -2,13 +2,43 @@ mod globs;
 mod lockfile;
 
 use super::{
-    Arc, Command, FileIterator, Glob, InputsUnavailable, IntoDiagnostic, Lockfile, Path, PathBuf,
-    ProjectFiles, ProjectInputHashes, TaskCache, TaskKeyInputs, TaskNode, TaskSettings,
-    WantedLockfileSelection, check_ancestors, check_input_directories, create_hex_hash,
-    create_hex_hash_bytes, create_hex_hash_from_file, env, fs, io, validate_relative_path,
+    Arc,
+    Command,
+    FileIterator,
+    Glob,
+    InputsUnavailable,
+    IntoDiagnostic,
+    Lockfile,
+    Path,
+    PathBuf,
+    ProjectFiles,
+    ProjectInputHashes,
+    TaskCache,
+    TaskKeyInputs,
+    TaskNode,
+    TaskSettings,
+    WantedLockfileSelection,
+    check_ancestors,
+    check_input_directories,
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+    env,
+    fs,
+    io,
+    validate_relative_path,
 };
-use globs::{ConfiguredInputs, InputSelection, ParentGlob, parse_inputs, walk_additive_inputs};
-use wax::{Program, walk::EntryResidue};
+use globs::{
+    ConfiguredInputs,
+    InputSelection,
+    ParentGlob,
+    parse_inputs,
+    walk_additive_inputs,
+};
+use wax::{
+    Program,
+    walk::EntryResidue,
+};
 
 #[derive(Debug, Clone)]
 pub(super) struct HashedFile {

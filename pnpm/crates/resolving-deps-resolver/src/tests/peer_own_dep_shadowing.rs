@@ -1,6 +1,13 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions, StubResolver,
-    fake_manifest, fake_result, resolve_dependency_tree,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    StubResolver,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
 };
 
 fn opts(auto_install_peers: bool) -> ResolveDependencyTreeOptions {

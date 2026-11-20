@@ -1,7 +1,16 @@
 //! Which image blobs of a repository its retained manifests reach.
 
-use crate::{RegistryError, Result};
-use pnpr_oci::{Descriptor, Digest, ImageDocument, Manifest, media_type};
+use crate::{
+    RegistryError,
+    Result,
+};
+use pnpr_oci::{
+    Descriptor,
+    Digest,
+    ImageDocument,
+    Manifest,
+    media_type,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
 use std::collections::HashSet;

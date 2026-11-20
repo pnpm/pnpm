@@ -6,7 +6,10 @@ use pnpm_modules_yaml::Clock;
 use pnpm_package_manifest::PackageManifest;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::SystemTime,
 };
 

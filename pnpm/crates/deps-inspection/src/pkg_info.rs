@@ -3,24 +3,48 @@
 //! Rust counterpart of the TypeScript tree-builder's `getPkgInfo` and
 //! `resolvePackagePath`.
 
-pub use resolve_path::{collect_hoisted_dirs, is_unsafe_path_component, resolve_package_path};
-
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+pub use resolve_path::{
+    collect_hoisted_dirs,
+    is_unsafe_path_component,
+    resolve_package_path,
 };
 
-use pnpm_fs::{is_subdir, lexical_normalize};
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+use pnpm_fs::{
+    is_subdir,
+    lexical_normalize,
+};
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PkgNameVerPeer, RegistryOptions, TarballUrlOptions,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    Lockfile,
+    LockfileResolution,
+    PkgNameVerPeer,
+    RegistryOptions,
+    TarballUrlOptions,
+    npm_tarball_url,
+    pick_registry_for_package,
+    registry_server_type,
 };
 
 use super::{
     DependencyNode,
-    dep_types::{DepType, DepTypes},
+    dep_types::{
+        DepType,
+        DepTypes,
+    },
     graph::GraphEdge,
-    peers_suffix_hash, resolved_pkg_version,
+    peers_suffix_hash,
+    resolved_pkg_version,
 };
 
 /// Everything that stays constant while resolving node metadata across

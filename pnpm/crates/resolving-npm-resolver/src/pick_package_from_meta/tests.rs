@@ -1,20 +1,40 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use jiff::Timestamp;
 use node_semver::Version;
-use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
+use pnpm_registry::{
+    DerivedPackuments,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+};
 use pnpm_resolving_resolver_base::{
-    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT,
-    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
+    DIRECT_DEP_SELECTOR_WEIGHT,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    RESOLVED_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
 };
 use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 
 use super::{
-    PickPackageFromMetaError, PickPackageFromMetaOptions, PickVersionByVersionRangeOptions,
-    RegistryPackageSpec, RegistryPackageSpecType, filter_pkg_metadata_by_publish_date,
-    filter_pkg_metadata_versions, pick_lowest_version_by_version_range, pick_package_from_meta,
-    pick_stable_cached_range_version, pick_version_by_version_range,
+    PickPackageFromMetaError,
+    PickPackageFromMetaOptions,
+    PickVersionByVersionRangeOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    filter_pkg_metadata_by_publish_date,
+    filter_pkg_metadata_versions,
+    pick_lowest_version_by_version_range,
+    pick_package_from_meta,
+    pick_stable_cached_range_version,
+    pick_version_by_version_range,
 };
 
 mod stable_cached_range;
@@ -25,7 +45,11 @@ fn parse_iso(input: &str) -> Timestamp {
 
 #[test]
 fn range_scans_keep_the_first_raw_version_when_precedence_ties() {
-    use super::semver_range::{max_satisfying, max_version, min_satisfying};
+    use super::semver_range::{
+        max_satisfying,
+        max_version,
+        min_satisfying,
+    };
 
     for versions in [["v1.2.3", "1.2.3"], ["1.2.3", "v1.2.3"]] {
         let expected = Some(versions[0].to_string());
@@ -37,7 +61,11 @@ fn range_scans_keep_the_first_raw_version_when_precedence_ties() {
 
 #[test]
 fn range_scans_keep_prerelease_and_build_spelling() {
-    use super::semver_range::{max_satisfying, max_version, min_satisfying};
+    use super::semver_range::{
+        max_satisfying,
+        max_version,
+        min_satisfying,
+    };
 
     let versions = ["invalid", "1.2.3-beta.1+build.7", "1.2.3-beta.2+build.9"];
     assert_eq!(max_version(&versions).as_deref(), Some("1.2.3-beta.2+build.9"));

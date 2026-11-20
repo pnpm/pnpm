@@ -3,16 +3,34 @@
 use super::{
     PackageKey,
     adapter::Connection,
-    commit::{Commit, parse_json, parse_optional_json},
-    packument::{Interpretation, Readme, VersionRows},
+    commit::{
+        Commit,
+        parse_json,
+        parse_optional_json,
+    },
+    packument::{
+        Interpretation,
+        Readme,
+        VersionRows,
+    },
     to_column,
 };
 use crate::database::ArtifactMember;
-use pnpm_release_record::{Purl, RecordIdentity, StoredRecord};
-use pnpr_error::{RegistryError, Result};
+use pnpm_release_record::{
+    Purl,
+    RecordIdentity,
+    StoredRecord,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::collections::BTreeSet;
 
 /// Insert the rows of a version the store has not accepted yet, with the

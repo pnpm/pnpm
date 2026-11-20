@@ -1,10 +1,19 @@
 use super::PruneError;
-use pnpm_fs::{is_non_link_read_error, read_symlink_dir};
+use pnpm_fs::{
+    is_non_link_read_error,
+    read_symlink_dir,
+};
 use std::{
     collections::HashSet,
     fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) trait FsReadLink {

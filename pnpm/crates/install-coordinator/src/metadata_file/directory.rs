@@ -1,6 +1,15 @@
 #[cfg(unix)]
 use super::file_from_descriptor;
-use super::{IntoDiagnostic, OsStr, OsString, Path, PathBuf, Result, fs, io};
+use super::{
+    IntoDiagnostic,
+    OsStr,
+    OsString,
+    Path,
+    PathBuf,
+    Result,
+    fs,
+    io,
+};
 use miette::WrapErr as _;
 
 pub(super) struct PinnedDirectory {
@@ -90,7 +99,10 @@ impl PinnedDirectory {
 
     #[cfg(unix)]
     fn open_child(&self, name: &OsStr) -> io::Result<Self> {
-        use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+        use std::os::{
+            fd::AsRawFd as _,
+            unix::ffi::OsStrExt as _,
+        };
 
         let name = std::ffi::CString::new(name.as_bytes())?;
         // SAFETY: `name` is NUL-terminated, the parent descriptor remains
@@ -124,7 +136,10 @@ impl PinnedDirectory {
 fn open_windows_directory(path: &Path) -> io::Result<fs::File> {
     use std::os::windows::fs::OpenOptionsExt as _;
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_FLAG_OPEN_REPARSE_POINT,
+        FILE_SHARE_READ,
+        FILE_SHARE_WRITE,
     };
 
     // Deliberately omit FILE_SHARE_DELETE. Every component handle remains

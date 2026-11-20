@@ -1,5 +1,14 @@
-use super::{Config, Path, SideEffectsCacheSetting, WorkspaceSettings, assert_eq};
-use crate::{TrustedSettings, api::EnvVar};
+use super::{
+    Config,
+    Path,
+    SideEffectsCacheSetting,
+    WorkspaceSettings,
+    assert_eq,
+};
+use crate::{
+    TrustedSettings,
+    api::EnvVar,
+};
 
 fn exclude_of(setting: Option<&SideEffectsCacheSetting>) -> Option<&Vec<String>> {
     match setting {

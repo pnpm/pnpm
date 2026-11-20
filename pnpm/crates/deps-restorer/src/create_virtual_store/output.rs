@@ -1,6 +1,12 @@
 use super::{
-    CasPathsByPkgId, HashSet, PackageBins, PackageKey, PackageManifests, RequiresBuildBySnapshot,
-    SideEffectsBySnapshot, SideEffectsMapsBySnapshot,
+    CasPathsByPkgId,
+    HashSet,
+    PackageBins,
+    PackageKey,
+    PackageManifests,
+    RequiresBuildBySnapshot,
+    SideEffectsBySnapshot,
+    SideEffectsMapsBySnapshot,
 };
 
 /// Output of [`super::CreateVirtualStore::run`]. Bundles the bin-link

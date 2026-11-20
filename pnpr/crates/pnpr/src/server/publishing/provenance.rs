@@ -7,17 +7,35 @@
 //! checked here.
 
 use super::{
-    attachments::{AttachmentKind, PreparedAttachment, PublishedTar},
+    attachments::{
+        AttachmentKind,
+        PreparedAttachment,
+        PublishedTar,
+    },
     release_records::version_purl,
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use pnpm_release_record::{IN_TOTO_PAYLOAD_TYPE, Purl, STATEMENT_TYPE, decode_base64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use pnpm_release_record::{
+    IN_TOTO_PAYLOAD_TYPE,
+    Purl,
+    STATEMENT_TYPE,
+    decode_base64,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use serde::Deserialize;
 use serde_json::Value;
-use ssri::{Algorithm, Integrity};
-use std::{collections::BTreeMap, fmt::Write as _};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
+use std::{
+    collections::BTreeMap,
+    fmt::Write as _,
+};
 
 /// The in-toto statement types a provenance bundle may carry: npm's older
 /// provenance uses v0.1.

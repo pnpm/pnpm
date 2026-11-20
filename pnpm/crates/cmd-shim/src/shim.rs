@@ -1,12 +1,24 @@
 pub use pnpm_package_manifest::{
-    ScriptRuntime, extension_program, parse_shebang, parse_shebang_from_bytes,
+    ScriptRuntime,
+    extension_program,
+    parse_shebang,
+    parse_shebang_from_bytes,
 };
 pub use powershell::generate_pwsh_shim;
-pub use quoting::{cmd_escape, sh_single_quote};
-pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
+pub use quoting::{
+    cmd_escape,
+    sh_single_quote,
+};
+pub(crate) use relocatable::{
+    is_relocatable_shim,
+    is_within_root,
+};
 pub use replaced_batch::end_replaced_cmd_shim_batch;
 pub use sh::{
-    generate_sh_shim, is_sh_shim_hardened, is_sh_shim_msys_cmd_switch_doubled, is_shim_pointing_at,
+    generate_sh_shim,
+    is_sh_shim_hardened,
+    is_sh_shim_msys_cmd_switch_doubled,
+    is_shim_pointing_at,
 };
 pub use sh_anchored_target::is_sh_shim_basedir_anchor_current;
 #[cfg(target_family = "wasm")]
@@ -14,12 +26,18 @@ pub(crate) use wasm::generate_wasm_shim;
 #[cfg(any(all(test, unix), target_family = "wasm"))]
 mod wasm;
 
-use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
+use crate::{
+    capabilities::FsReadHead,
+    path_util::lexical_normalize,
+};
 use pnpm_package_manifest::infer_script_runtime_from_shebang;
 use std::{
     fmt::Write as _,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Read up to 512 bytes of `path` and infer the runtime.

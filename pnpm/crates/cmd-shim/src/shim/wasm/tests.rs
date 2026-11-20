@@ -1,5 +1,12 @@
-use super::{ScriptRuntime, generate_wasm_shim, json};
-use std::{fs, process::Command};
+use super::{
+    ScriptRuntime,
+    generate_wasm_shim,
+    json,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn javascript_launcher_preserves_arguments_and_relocates() {

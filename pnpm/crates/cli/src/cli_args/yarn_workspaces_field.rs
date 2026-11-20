@@ -7,8 +7,14 @@
 //! field and the file that replaces it.
 
 use super::config_warnings::emit_config_warning;
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, WORKSPACE_MANIFEST_FILENAME};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    WORKSPACE_MANIFEST_FILENAME,
+};
 use serde_json::Value;
 use std::path::Path;
 

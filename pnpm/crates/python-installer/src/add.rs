@@ -1,12 +1,26 @@
 use super::{
-    Discovery, InstallOptions, Lockfile, Prepared, Reporter, manifest, prepare,
+    Discovery,
+    InstallOptions,
+    Lockfile,
+    Prepared,
+    Reporter,
+    manifest,
+    prepare,
     workspace::Workspace,
 };
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pnpm_python_resolver::LockIndex;
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Clone)]

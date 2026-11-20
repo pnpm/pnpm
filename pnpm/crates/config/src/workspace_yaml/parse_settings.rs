@@ -1,5 +1,10 @@
 use super::{
-    DocumentPlaceholders, EnvVar, LoadWorkspaceYamlError, Path, Placeholder, document_placeholders,
+    DocumentPlaceholders,
+    EnvVar,
+    LoadWorkspaceYamlError,
+    Path,
+    Placeholder,
+    document_placeholders,
     env_replace_lossy,
 };
 use restore::deserialize_restoring;

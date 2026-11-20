@@ -4,15 +4,31 @@ mod live_paths;
 mod refresh;
 
 use super::{
-    Arc, DepPath, DirectDep, HashMap, HashSet, NodeId, NodeOutput, ParentRef, ParentRefs,
-    PeerWalkMode, RootWalk, Walker,
+    Arc,
+    DepPath,
+    DirectDep,
+    HashMap,
+    HashSet,
+    NodeId,
+    NodeOutput,
+    ParentRef,
+    ParentRefs,
+    PeerWalkMode,
+    RootWalk,
+    Walker,
 };
-use crate::{PeerWalkAbort, ResolutionCancel};
+use crate::{
+    PeerWalkAbort,
+    ResolutionCancel,
+};
 use evict::PendingBudgetDep;
 use live_paths::LivePaths;
 use std::{
     path::PathBuf,
-    sync::atomic::{AtomicU8, Ordering},
+    sync::atomic::{
+        AtomicU8,
+        Ordering,
+    },
 };
 
 const CANCEL_POLL_MASK: u8 = 63;

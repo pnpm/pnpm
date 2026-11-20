@@ -1,15 +1,28 @@
 use super::{
-    DirCreation, FsReadHead, LinkBinsError, LinkBinsOptions, OwnNodePaths, PackageBinSource,
-    bin_node_paths, remove_bin, shim_writer::with_extension_appended,
+    DirCreation,
+    FsReadHead,
+    LinkBinsError,
+    LinkBinsOptions,
+    OwnNodePaths,
+    PackageBinSource,
+    bin_node_paths,
+    remove_bin,
+    shim_writer::with_extension_appended,
 };
 use crate::bin_resolver::Command;
-use pnpm_fs::{is_subdir, realpath_missing};
+use pnpm_fs::{
+    is_subdir,
+    realpath_missing,
+};
 use rayon::prelude::*;
 use std::{
     borrow::Cow,
     ffi::OsStr,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) struct LinkingPaths<'a> {

@@ -1,22 +1,41 @@
 use super::{
     UpdateError,
-    catalogs::{CatalogCtx, effective_specifier},
+    catalogs::{
+        CatalogCtx,
+        effective_specifier,
+    },
 };
 use crate::{
     package_manifest_prefix,
-    resolution_policy::{PickPolicy, create_configured_registry_resolver},
+    resolution_policy::{
+        PickPolicy,
+        create_configured_registry_resolver,
+    },
 };
 use jiff::Timestamp;
 use node_semver::Version;
-use pnpm_config::{Config, version_policy::PackageVersionPolicy};
+use pnpm_config::{
+    Config,
+    version_policy::PackageVersionPolicy,
+};
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, ResolveResult, Resolver, UpdateBehavior, VersionSelectorType, WantedDependency,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    VersionSelectorType,
+    WantedDependency,
 };
 use std::sync::Arc;
 

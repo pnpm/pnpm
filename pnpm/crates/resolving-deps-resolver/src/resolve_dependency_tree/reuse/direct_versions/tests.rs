@@ -1,9 +1,20 @@
 use super::{
-    DirectDepVersion, DirectDepVersions, cross_importer_changed_version, extend_parsed_versions,
+    DirectDepVersion,
+    DirectDepVersions,
+    cross_importer_changed_version,
+    extend_parsed_versions,
     higher_direct_dep_version,
 };
-use pnpm_lockfile::{DeclaredRegistryPrefixes, PkgName, RegistryContext, SnapshotDepRef};
-use std::collections::{BTreeMap, HashMap};
+use pnpm_lockfile::{
+    DeclaredRegistryPrefixes,
+    PkgName,
+    RegistryContext,
+    SnapshotDepRef,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 const DEFAULT: &str = "https://registry.example.test/";
 const WORK: &str = "https://work.example.test/";

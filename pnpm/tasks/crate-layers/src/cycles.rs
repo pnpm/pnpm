@@ -1,5 +1,8 @@
 use crate::modules::TopLevelGraph;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// The largest group of a crate's top-level modules that all reach each
 /// other through references.

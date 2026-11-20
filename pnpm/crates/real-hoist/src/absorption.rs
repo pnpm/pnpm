@@ -1,6 +1,15 @@
 use super::{
-    HashMap, HashSet, HoistCtx, HoisterResult, Rc, RcByPtr, VecDeque, is_preferred_ident,
-    node_locator, path_shadowed, same_locator,
+    HashMap,
+    HashSet,
+    HoistCtx,
+    HoisterResult,
+    Rc,
+    RcByPtr,
+    VecDeque,
+    is_preferred_ident,
+    node_locator,
+    path_shadowed,
+    same_locator,
 };
 
 use std::collections::hash_map::Entry;
@@ -279,7 +288,11 @@ fn same_inherited_peer_provider(
     left: &InheritedPeerProvider,
     right: &InheritedPeerProvider,
 ) -> bool {
-    use InheritedPeerProvider::{Missing, NotRequired, Resolved};
+    use InheritedPeerProvider::{
+        Missing,
+        NotRequired,
+        Resolved,
+    };
     match (left, right) {
         (NotRequired, NotRequired) | (Missing, Missing) => true,
         (Resolved(left), Resolved(right)) => same_locator(left, right),

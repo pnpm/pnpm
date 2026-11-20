@@ -1,9 +1,22 @@
-use super::{Skill, SkillSource, keep_highest};
-use crate::agent_skills::{SyncAgentSkills, sync_agent_skills};
-use pnpm_config::{Config, SkillsPermission};
+use super::{
+    Skill,
+    SkillSource,
+    keep_highest,
+};
+use crate::agent_skills::{
+    SyncAgentSkills,
+    sync_agent_skills,
+};
+use pnpm_config::{
+    Config,
+    SkillsPermission,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+};
 
 fn top_level() -> Skill {
     Skill { name: "guide".to_string(), dir: PathBuf::from("guide") }

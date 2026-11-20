@@ -1,6 +1,10 @@
 //! Which config a command loads.
 
-use super::configuration::{ConfigTarget, RunAnchors, StoreUse};
+use super::configuration::{
+    ConfigTarget,
+    RunAnchors,
+    StoreUse,
+};
 use crate::cli_args::config_warnings::ConfigWarnings;
 use pnpm_config::CommandTarget;
 

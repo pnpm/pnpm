@@ -1,45 +1,102 @@
 pub(crate) use context::{
-    CommandFuture, CommandLoaders, CommandLocations, RunCtx, WorkspaceInvocation,
+    CommandFuture,
+    CommandLoaders,
+    CommandLocations,
+    RunCtx,
+    WorkspaceInvocation,
 };
 
-pub(super) use super::pre_command::{apply_cli_layers, seed_config};
-pub(super) use configuration::{apply_global_update_config, apply_update_config};
+pub(super) use super::pre_command::{
+    apply_cli_layers,
+    seed_config,
+};
+pub(super) use configuration::{
+    apply_global_update_config,
+    apply_update_config,
+};
 
 use super::{
-    cli_command::{CliArgs, CliCommand},
-    config_warnings::{ConfigWarnings, warn_shared_workspace_lockfile_outside_workspace},
-    dispatch_install, dispatch_query, dispatch_script,
-    install::{InstallArgs, resolve_bool_override},
+    cli_command::{
+        CliArgs,
+        CliCommand,
+    },
+    config_warnings::{
+        ConfigWarnings,
+        warn_shared_workspace_lockfile_outside_workspace,
+    },
+    dispatch_install,
+    dispatch_query,
+    dispatch_script,
+    install::{
+        InstallArgs,
+        resolve_bool_override,
+    },
     pre_command::Invocation,
     reporter::{
-        DefaultReporterSetup, ReporterType, configure_color, configure_default_reporter,
-        configure_max_log_level, reporter_emit,
+        DefaultReporterSetup,
+        ReporterType,
+        configure_color,
+        configure_default_reporter,
+        configure_max_log_level,
+        reporter_emit,
     },
 };
 use crate::{
-    cli_args::reporter::{select_reporter, selected_reporter},
+    cli_args::reporter::{
+        select_reporter,
+        selected_reporter,
+    },
     config_deps::prepare_config,
     config_overrides::ConfigOverrides,
 };
 use config_scope::ConfigScope;
 use configuration::{
-    ConfigTarget, ProjectSelectors, RunAnchors, RunSetup, StoreUse, apply_project_selectors,
-    apply_run_output_config, warn_fast_path_config,
+    ConfigTarget,
+    ProjectSelectors,
+    RunAnchors,
+    RunSetup,
+    StoreUse,
+    apply_project_selectors,
+    apply_run_output_config,
+    warn_fast_path_config,
 };
 use context::take_preloaded_config;
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::{ColorMode, Config, ConfigLoadFailure, Host, default_pnpm_home_dir};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    ColorMode,
+    Config,
+    ConfigLoadFailure,
+    Host,
+    default_pnpm_home_dir,
+};
 use pnpm_default_reporter::SummaryScope;
 use pnpm_network_web_auth::OtpNonInteractiveError;
-use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
+use pnpm_reporter::{
+    ExecutionTimeLog,
+    LogEvent,
+    LogLevel,
+};
 use routing::{
-    emit_execution_time, exit_on_json_error, now_millis, prints_json_errors, run_routed_command,
+    emit_execution_time,
+    exit_on_json_error,
+    now_millis,
+    prints_json_errors,
+    run_routed_command,
 };
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 

@@ -1,12 +1,18 @@
 use std::collections::HashSet;
 
-use axum::{http::StatusCode, response::Response};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
 use pnpm_package_manager::is_host_filesystem_specifier;
 use pnpm_package_manifest::DependencyGroup;
 
 use crate::resolver::{
     json_error,
-    protocol::{DepMap, ResolveRequest},
+    protocol::{
+        DepMap,
+        ResolveRequest,
+    },
 };
 
 /// Reject a request that asks the server to resolve a client-local filesystem

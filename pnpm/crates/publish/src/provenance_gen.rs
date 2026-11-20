@@ -15,17 +15,35 @@ mod sign;
 
 use std::time::Duration;
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
-use serde_json::{Value, json};
-use sha2::{Digest, Sha512};
+use serde_json::{
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha512,
+};
 
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+    },
     global_log::global_info,
     oidc::{
-        GitHubRequestTokenError, OidcHttpOptions, github_request_token, is_github_actions,
-        is_gitlab, truthy_env,
+        GitHubRequestTokenError,
+        OidcHttpOptions,
+        github_request_token,
+        is_github_actions,
+        is_gitlab,
+        truthy_env,
     },
 };
 use gitlab_parameters::gitlab_parameters;

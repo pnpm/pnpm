@@ -1,6 +1,15 @@
 use super::{
-    ArtifactQuota, Config, FeatureOverrides, Identity, LogFormat, LogLevel, Path, PathBuf,
-    RegistryError, listen, parse_log_yaml,
+    ArtifactQuota,
+    Config,
+    FeatureOverrides,
+    Identity,
+    LogFormat,
+    LogLevel,
+    Path,
+    PathBuf,
+    RegistryError,
+    listen,
+    parse_log_yaml,
 };
 
 #[test]

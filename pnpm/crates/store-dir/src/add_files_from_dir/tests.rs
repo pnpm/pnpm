@@ -1,5 +1,8 @@
 use super::{
-    AddFilesFromDirError, BundledPackageDirs, add_files_from_dir, add_files_from_dir_with_bundled,
+    AddFilesFromDirError,
+    BundledPackageDirs,
+    add_files_from_dir,
+    add_files_from_dir_with_bundled,
 };
 #[cfg(unix)]
 use crate::SYMLINK_MODE;
@@ -7,7 +10,10 @@ use crate::StoreDir;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs as unix_fs;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn make_store() -> (tempfile::TempDir, StoreDir) {

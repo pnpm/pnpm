@@ -2,38 +2,83 @@ pub use output::StreamedScript;
 
 use crate::{
     extend_path::extend_path,
-    make_env::{EnvBuild, EnvOptions, build_env, is_path_key, path_value},
-    process::{Command, ExitStatus, Stdio},
-    process_tracker::{SpawnedChild, spawn_child},
+    make_env::{
+        EnvBuild,
+        EnvOptions,
+        build_env,
+        is_path_key,
+        path_value,
+    },
+    process::{
+        Command,
+        ExitStatus,
+        Stdio,
+    },
+    process_tracker::{
+        SpawnedChild,
+        spawn_child,
+    },
     script_exit::ScriptExit,
     script_working_dir::{
-        emulator_working_dir, is_refused_directory, script_working_dir, shorter_working_dirs,
+        emulator_working_dir,
+        is_refused_directory,
+        script_working_dir,
+        shorter_working_dirs,
     },
     shell::{
-        ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell,
+        ScriptShellError,
+        SelectedShell,
+        missing_script_shell,
+        script_body,
+        select_shell,
         use_shell_emulator,
     },
-    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
+    shell_emulator::{
+        EmulatedOutput,
+        ShellEmulatorError,
+        execute_emulated,
+    },
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_package_manifest::{
-    BINDING_GYP, PackageManifestError, manifest_opts_out_of_gyp_build,
+    BINDING_GYP,
+    PackageManifestError,
+    manifest_opts_out_of_gyp_build,
     safe_read_project_manifest_from_dir,
 };
-use pnpm_reporter::{LifecycleLog, LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    LifecycleLog,
+    LifecycleMessage,
+    LifecycleStdio,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     env,
     ffi::OsString,
     fs,
-    io::{self, BufRead, BufReader, Read},
+    io::{
+        self,
+        BufRead,
+        BufReader,
+        Read,
+    },
     path::Path,
     thread,
 };
-use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
+use tokio::io::{
+    AsyncBufReadExt,
+    AsyncRead,
+    BufReader as AsyncBufReader,
+};
 
 /// Error from running lifecycle scripts.
 #[derive(Debug, Display, Error, Diagnostic)]

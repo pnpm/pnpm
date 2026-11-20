@@ -1,6 +1,13 @@
-use crate::cli_args::{CliArgs, Lto, workspace_root};
+use crate::cli_args::{
+    CliArgs,
+    Lto,
+    workspace_root,
+};
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

@@ -1,4 +1,7 @@
-use super::{Deserialize, LogEntryFile};
+use super::{
+    Deserialize,
+    LogEntryFile,
+};
 
 /// Runtime logging configuration. Mirrors the YAML `log:` object
 /// (Verdaccio 6+ shape). Drives the `tracing-subscriber` init in the

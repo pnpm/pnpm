@@ -3,7 +3,10 @@
 use pnpm_fs::StoreFile;
 #[cfg(unix)]
 use std::fs;
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// The permissions the copy tier gives a copy of `source_file`: the
 /// store-entry mode for a store entry, or the source's own permissions.

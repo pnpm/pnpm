@@ -1,11 +1,30 @@
-use super::{is_symlink_at, unlink_at};
-use crate::open_dir::{ChildWrite, unique_child_tmp_name};
+use super::{
+    is_symlink_at,
+    unlink_at,
+};
+use crate::open_dir::{
+    ChildWrite,
+    unique_child_tmp_name,
+};
 use std::{
-    ffi::{CStr, CString, OsStr},
+    ffi::{
+        CStr,
+        CString,
+        OsStr,
+    },
     fs::File,
-    io::{self, ErrorKind, Write as _},
+    io::{
+        self,
+        ErrorKind,
+        Write as _,
+    },
     os::{
-        fd::{AsRawFd, BorrowedFd, FromRawFd, OwnedFd},
+        fd::{
+            AsRawFd,
+            BorrowedFd,
+            FromRawFd,
+            OwnedFd,
+        },
         unix::ffi::OsStrExt,
     },
 };

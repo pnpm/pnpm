@@ -23,14 +23,26 @@
 //! before passing it in (see [`PackageExtender::apply_to_arc`] for the
 //! shared-Arc case).
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_config::PackageExtension;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use serde_json::{Map, Value};
-use std::{collections::HashMap, sync::Arc};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// Returned by [`PackageExtender::new`] when a selector's
 /// `@<range>` half fails to parse as a `node-semver` range. A malformed

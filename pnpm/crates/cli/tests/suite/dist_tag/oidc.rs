@@ -1,8 +1,16 @@
-use super::{configure, nerf, pacquet_at};
+use super::{
+    configure,
+    nerf,
+    pacquet_at,
+};
 use command_extra::CommandExtra;
 use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Output};
+use std::{
+    fs,
+    path::Path,
+    process::Output,
+};
 
 const NPM_ID_TOKEN: &str = "header.eyJhdWQiOiJucG06MTI3LjAuMC4xIn0.signature";
 

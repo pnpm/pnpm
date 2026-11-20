@@ -1,4 +1,8 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// Copy whatever occupies `src` to `dst` without following links: a
 /// symlink is recreated pointing at the same target, a directory is

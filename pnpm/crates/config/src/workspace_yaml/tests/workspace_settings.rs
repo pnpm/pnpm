@@ -1,6 +1,15 @@
 use super::{
-    CatalogMode, Config, EnvVar, HoistingLimits, LinkWorkspacePackages, Path, RegistryEntry,
-    StoreDir, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq,
+    CatalogMode,
+    Config,
+    EnvVar,
+    HoistingLimits,
+    LinkWorkspacePackages,
+    Path,
+    RegistryEntry,
+    StoreDir,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    assert_eq,
 };
 
 /// `scope` is a valid key in the global `config.yaml` (pnpm's

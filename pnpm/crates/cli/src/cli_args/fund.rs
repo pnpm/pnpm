@@ -9,13 +9,19 @@ mod report;
 
 use crate::cli_args::list::print_output;
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_network_web_auth::OpenUrl;
 use projects::load_projects;
 use report::FundingReport;
-use std::{num::NonZeroUsize, path::Path};
+use std::{
+    num::NonZeroUsize,
+    path::Path,
+};
 
 #[derive(Debug, Args)]
 pub struct FundArgs {

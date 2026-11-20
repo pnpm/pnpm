@@ -1,4 +1,7 @@
-use super::{LogLevel, Serialize};
+use super::{
+    LogLevel,
+    Serialize,
+};
 
 /// `pnpm:package-manifest` payload. The bunyan-envelope `level` is a
 /// fixed outer field; the rest is a presence-tagged union — pnpm

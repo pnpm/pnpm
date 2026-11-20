@@ -1,25 +1,60 @@
 use super::{
     super::{
-        Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-        deps_status::{RunDepsStatus, check_deps_status_before_run},
+        Decision,
+        OptimisticRepeatInstallCheck,
+        check_optimistic_repeat_install,
+        deps_status::{
+            RunDepsStatus,
+            check_deps_status_before_run,
+        },
         freshness::InputDrift,
     },
-    FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, MTIME_STEP_MS,
-    backdate_validated_files, check, check_with_lockfile, check_workspace, content_check_decision,
-    date_lockfile_after, isolated_included, lockfile_mtime_after, recorded_timestamp,
-    setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
-    single_project_deps_status, validate_existing_files, write_bare_tarball_lockfile, write_state,
+    FOO_LOCKFILE,
+    FOO_LOCKFILE_WITHOUT_PACKAGES,
+    FOO_MANIFEST,
+    MTIME_STEP_MS,
+    backdate_validated_files,
+    check,
+    check_with_lockfile,
+    check_workspace,
+    content_check_decision,
+    date_lockfile_after,
+    isolated_included,
+    lockfile_mtime_after,
+    recorded_timestamp,
+    setup_content_check_project,
+    setup_fresh_install,
+    setup_fresh_install_with_config,
+    single_project_deps_status,
+    validate_existing_files,
+    write_bare_tarball_lockfile,
+    write_state,
 };
 use crate::install_state::{
     settings::current_settings,
-    timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
+    timestamps::{
+        FileMtime,
+        lockfile_modified_since,
+        modified_at_or_after,
+    },
 };
 use pnpm_config::Config;
-use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    LazyLockfile,
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime_ms;
-use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_state};
-use std::{collections::BTreeMap, fs};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    load_workspace_state,
+    update_workspace_state,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 #[test]

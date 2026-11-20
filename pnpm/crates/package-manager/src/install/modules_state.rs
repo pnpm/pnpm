@@ -1,11 +1,18 @@
 pub(crate) use integrity::{
-    frozen_tree_intact, hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
+    frozen_tree_intact,
+    hoisted_linker_workspace_links_intact,
+    hoisted_workspace_packages_present,
 };
 
 pub(super) use merge_metadata::{
-    current_contains_ignored_build, merge_filtered_modules_metadata, merge_pending_builds,
+    current_contains_ignored_build,
+    merge_filtered_modules_metadata,
+    merge_pending_builds,
 };
-pub(super) use settings_diff::{refuse_drifted_modules_dir, same_path};
+pub(super) use settings_diff::{
+    refuse_drifted_modules_dir,
+    same_path,
+};
 
 mod merge_metadata;
 
@@ -14,12 +21,28 @@ mod settings_diff;
 mod integrity;
 
 use super::{
-    BTreeMap, Config, HoistedDependencies, Host, IncludedDependencies, InstallError, LayoutVersion,
-    Lockfile, Modules, ModulesNodeLinker, NodeLinker, PNPM_VERSION, PackageManifest, Path, PathBuf,
+    BTreeMap,
+    Config,
+    HoistedDependencies,
+    Host,
+    IncludedDependencies,
+    InstallError,
+    LayoutVersion,
+    Lockfile,
+    Modules,
+    ModulesNodeLinker,
+    NodeLinker,
+    PNPM_VERSION,
+    PackageManifest,
+    Path,
+    PathBuf,
     write_modules_manifest,
 };
 use pnpm_cmd_shim::bin_dir_is_relocatable;
-use pnpm_package_manifest::{BINDING_GYP, manifest_opts_out_of_gyp_build};
+use pnpm_package_manifest::{
+    BINDING_GYP,
+    manifest_opts_out_of_gyp_build,
+};
 use rayon::prelude::*;
 
 /// Translate pacquet's [`Config::node_linker`] into the

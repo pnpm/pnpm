@@ -1,10 +1,18 @@
 //! The options [`fn@super::resolve_workspace`] takes, and the split that
 //! hands most of them to the shared tree context.
 
-use crate::resolve_dependency_tree::{UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx};
+use crate::resolve_dependency_tree::{
+    UpdateDepth,
+    UpdateReuseScope,
+    WorkspaceTreeCtx,
+};
 use pnpm_lockfile::RegistryContext;
 use pnpm_package_manifest::PackageManifest;
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// One importer's input to [`fn@super::resolve_workspace`].
 pub struct WorkspaceImporter<'a> {

@@ -1,6 +1,21 @@
 use super::{
-    AuthState, Body, Duration, PackageRules, Request, ServiceExt, StatusCode, TempDir, access_rule,
-    body_bytes, config_for, foo_packument, header, header_of, json, router, router_with_auth,
+    AuthState,
+    Body,
+    Duration,
+    PackageRules,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    access_rule,
+    body_bytes,
+    config_for,
+    foo_packument,
+    header,
+    header_of,
+    json,
+    router,
+    router_with_auth,
 };
 use crate::tokens::issue_token;
 

@@ -1,12 +1,19 @@
 use super::{
     super::{
-        LatestRewriteCtx, latest_subtree::unmatched_direct_names, override_governed,
+        LatestRewriteCtx,
+        latest_subtree::unmatched_direct_names,
+        override_governed,
         warn_pinned_override,
     },
-    UpdatePlan, UpdateScope, widen_drop_targets_by_matcher,
+    UpdatePlan,
+    UpdateScope,
+    widen_drop_targets_by_matcher,
 };
 use crate::UpdateSeedPolicy;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use pnpm_reporter::Reporter;
 use std::collections::HashSet;
 

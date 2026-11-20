@@ -25,7 +25,10 @@ pub use pnpm_env_replace::EnvVar;
 use std::{
     ffi::OsString,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Capability: read a process environment variable as a raw

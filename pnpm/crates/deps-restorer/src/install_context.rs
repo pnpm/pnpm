@@ -1,10 +1,20 @@
 use crate::AllowBuildPolicy;
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Arc, OnceLock, atomic::AtomicU8},
+    sync::{
+        Arc,
+        OnceLock,
+        atomic::AtomicU8,
+    },
 };
 
 /// What every phase of one install reads and none of them changes.

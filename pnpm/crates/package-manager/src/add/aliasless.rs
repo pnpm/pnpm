@@ -1,19 +1,42 @@
-use super::{AddError, AddResolveInputs, normalized_save_specifier};
+use super::{
+    AddError,
+    AddResolveInputs,
+    normalized_save_specifier,
+};
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, redact_and_sanitize, redact_url_for_display};
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
+    redact_url_for_display,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_package_name::is_valid_dependency_alias;
 use pnpm_resolving_git_resolver::{
-    GitFetchContext, GitResolver, HostedGit, RealGitProbe, RealGitRunner,
+    GitFetchContext,
+    GitResolver,
+    HostedGit,
+    RealGitProbe,
+    RealGitRunner,
 };
 use pnpm_resolving_local_resolver::{
-    LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, WantedLocalDependency,
-    is_local_filesystem_specifier, resolve_from_local_path, resolve_from_local_scheme,
+    LocalResolverContext,
+    LocalResolverOptions,
+    LocalResolverUpdate,
+    WantedLocalDependency,
+    is_local_filesystem_specifier,
+    resolve_from_local_path,
+    resolve_from_local_scheme,
 };
 use pnpm_resolving_resolver_base::GitResolveError;
-use pnpm_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
+use pnpm_resolving_tarball_resolver::{
+    TarballFetchContext,
+    TarballResolver,
+};
 use pnpm_store_dir::SharedVerifiedFilesCache;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// The package name and manifest specifier for an add selector that names
 /// no alias: a git URL, a remote tarball URL, or a local directory /

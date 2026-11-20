@@ -1,12 +1,30 @@
-use super::{CachedIndex, MAX_CACHE_BYTES, MAX_INDEX_BYTES, read_cached_index};
+use super::{
+    CachedIndex,
+    MAX_CACHE_BYTES,
+    MAX_INDEX_BYTES,
+    read_cached_index,
+};
 use crate::Index;
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_python_resolver::{IndexCandidate, WheelMetadata, matches_published_digest, metadata_url};
-use std::{collections::BTreeMap, path::Path};
+use pnpm_python_resolver::{
+    IndexCandidate,
+    WheelMetadata,
+    matches_published_digest,
+    metadata_url,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 use tokio::io::AsyncReadExt;
 use url::Url;
 

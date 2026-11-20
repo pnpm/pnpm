@@ -1,6 +1,12 @@
 use super::{
-    CompletionError, CompletionShell, SUPPORTED_SHELLS,
-    paths::{PathCompletionKind, complete_paths, resolve_directory_arg},
+    CompletionError,
+    CompletionShell,
+    SUPPORTED_SHELLS,
+    paths::{
+        PathCompletionKind,
+        complete_paths,
+        resolve_directory_arg,
+    },
     shell_from_args,
 };
 use crate::cli_args::CliArgs;

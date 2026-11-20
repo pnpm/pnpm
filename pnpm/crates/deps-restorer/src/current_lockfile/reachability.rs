@@ -1,7 +1,16 @@
-use pnpm_lockfile::{Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PeerEdgeOptions,
+    PeerSatisfactionEdges,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     path::Path,
     sync::Arc,
 };

@@ -1,8 +1,18 @@
 use super::{
-    Cow, Integrity, InvalidRevisionSpecifierError, InvalidTarballRevisionMetadataError,
-    MalformedRevisionHistoryError, NoMatchingRevisionError, PackageVersion, RegistryPackageSpec,
-    RegistryRevisionSelector, ResolveError, TarballRevision, has_complete_sha512_digest,
-    is_on_revision_tarball_route, is_revision_registry_tarball_url,
+    Cow,
+    Integrity,
+    InvalidRevisionSpecifierError,
+    InvalidTarballRevisionMetadataError,
+    MalformedRevisionHistoryError,
+    NoMatchingRevisionError,
+    PackageVersion,
+    RegistryPackageSpec,
+    RegistryRevisionSelector,
+    ResolveError,
+    TarballRevision,
+    has_complete_sha512_digest,
+    is_on_revision_tarball_route,
+    is_revision_registry_tarball_url,
 };
 
 /// The tarball's revision, when the registry serves one: it must pair

@@ -1,12 +1,26 @@
 use super::{
-    BINDING_GYP, DependencyGroup, InitOptions, NamedTempFile, PackageManifest, Write, assert_eq,
-    files_build_triggers, json, manifest_opts_out_of_gyp_build, manifest_requires_build,
-    pkg_requires_build, read_to_string, tempdir,
+    BINDING_GYP,
+    DependencyGroup,
+    InitOptions,
+    NamedTempFile,
+    PackageManifest,
+    Write,
+    assert_eq,
+    files_build_triggers,
+    json,
+    manifest_opts_out_of_gyp_build,
+    manifest_requires_build,
+    pkg_requires_build,
+    read_to_string,
+    tempdir,
 };
 use crate::BuildTriggers;
 
 #[cfg(unix)]
-use super::{PackageManifestError, safe_read_package_json_from_dir};
+use super::{
+    PackageManifestError,
+    safe_read_package_json_from_dir,
+};
 
 #[cfg(unix)]
 #[test]

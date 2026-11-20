@@ -1,5 +1,13 @@
 use super::{
-    ActionReference, HashSet, Path, PathBuf, QueryError, Range, VecDeque, fs, parse_comment_version,
+    ActionReference,
+    HashSet,
+    Path,
+    PathBuf,
+    QueryError,
+    Range,
+    VecDeque,
+    fs,
+    parse_comment_version,
 };
 
 mod graph;

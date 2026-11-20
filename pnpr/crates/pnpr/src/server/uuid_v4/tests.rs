@@ -1,4 +1,7 @@
-use super::{generate, hyphenate};
+use super::{
+    generate,
+    hyphenate,
+};
 
 #[test]
 fn hyphenate_groups_the_bytes_as_8_4_4_4_12() {

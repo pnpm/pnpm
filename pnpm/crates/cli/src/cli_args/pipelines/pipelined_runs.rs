@@ -14,24 +14,41 @@
 //! install waits for its dependencies before it starts.
 
 use super::{
-    Arc, Config, DedicatedProjectRuns, HashMap, HashSet, Path, PathBuf, State,
-    dedicated_runs::record_dedicated_result, sequence_project_dependencies,
+    Arc,
+    Config,
+    DedicatedProjectRuns,
+    HashMap,
+    HashSet,
+    Path,
+    PathBuf,
+    State,
+    dedicated_runs::record_dedicated_result,
+    sequence_project_dependencies,
 };
 use crate::state::DedicatedCaches;
 use futures_util::{
     FutureExt,
     future::BoxFuture,
-    stream::{FuturesUnordered, StreamExt},
+    stream::{
+        FuturesUnordered,
+        StreamExt,
+    },
 };
 use pnpm_package_manager::WorkspaceDependenciesInstalled;
 use std::{
     future::Future,
     sync::{
         Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
-use tokio::sync::{Semaphore, watch};
+use tokio::sync::{
+    Semaphore,
+    watch,
+};
 
 /// How far a project's install got, for the projects that depend on it.
 #[derive(Clone, Copy, PartialEq, Eq)]

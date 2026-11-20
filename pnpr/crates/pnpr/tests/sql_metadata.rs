@@ -2,19 +2,41 @@
 //! read, retag, deprecate, and unpublish, with no package document written
 //! to the hosted store.
 
-use crate::npm::{npm_tgz, publish_doc, sri_sha512};
+use crate::npm::{
+    npm_tgz,
+    publish_doc,
+    sri_sha512,
+};
 
 use axum::{
     Router,
-    body::{Body, to_bytes},
-    http::{Request, StatusCode, header},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use pnpr::{Config, MaxUsers, router};
+use pnpr::{
+    Config,
+    MaxUsers,
+    router,
+};
 use pnpr_config::DatabaseBackend;
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
 };
 use tempfile::TempDir;

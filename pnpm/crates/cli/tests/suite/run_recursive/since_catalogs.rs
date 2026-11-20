@@ -1,4 +1,11 @@
-use super::{CommandExtra, CommandTempCwd, build_writes_marker, fs, json, write_workspace};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    build_writes_marker,
+    fs,
+    json,
+    write_workspace,
+};
 use assert_cmd::assert::OutputAssertExt;
 use std::path::Path;
 

@@ -1,4 +1,16 @@
-use super::{Compression, GzEncoder, Path, PathBuf, Range, Value, Version, WalkDir, Write, fs, io};
+use super::{
+    Compression,
+    GzEncoder,
+    Path,
+    PathBuf,
+    Range,
+    Value,
+    Version,
+    WalkDir,
+    Write,
+    fs,
+    io,
+};
 
 pub(super) fn build_tarball(
     root: &Path,

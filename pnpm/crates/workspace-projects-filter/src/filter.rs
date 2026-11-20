@@ -1,24 +1,46 @@
 pub mod from_projects;
 
-pub use from_projects::{filter_projects, filter_projects_by_selector_objects};
+pub use from_projects::{
+    filter_projects,
+    filter_projects_by_selector_objects,
+};
 pub use with_prod_graph::{
-    FilteredGraphProjects, filter_workspace_projects, filter_workspace_projects_with_prod_graph,
+    FilteredGraphProjects,
+    filter_workspace_projects,
+    filter_workspace_projects_with_prod_graph,
 };
 
 use crate::{
-    get_changed_projects::{GetChangedProjectsOptions, ProjectDependencies, get_changed_projects},
+    get_changed_projects::{
+        GetChangedProjectsOptions,
+        ProjectDependencies,
+        get_changed_projects,
+    },
     glob,
-    parse_project_selector::{DependencyTraversal, ProjectSelector},
+    parse_project_selector::{
+        DependencyTraversal,
+        ProjectSelector,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_matcher::create_matcher;
-use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    ProjectGraph,
+};
 use std::{
     borrow::Cow,
     collections::HashMap,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// One raw `--filter` / `--filter-prod` entry, before parsing.
@@ -353,4 +375,7 @@ mod tests;
 
 mod subgraph;
 mod with_prod_graph;
-use subgraph::{WalkState, reverse_graph};
+use subgraph::{
+    WalkState,
+    reverse_graph,
+};

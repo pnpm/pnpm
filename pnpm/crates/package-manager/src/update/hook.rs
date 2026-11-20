@@ -3,7 +3,10 @@ use crate::InstallError;
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::Reporter;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 /// A loaded `readPackage` hook paired with the log sink its `context.log`
 /// calls are forwarded to.

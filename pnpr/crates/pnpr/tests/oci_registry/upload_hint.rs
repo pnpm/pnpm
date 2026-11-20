@@ -1,6 +1,18 @@
 use super::{
-    AuthState, Body, Request, ServiceExt, StatusCode, TempDir, basic, body_bytes, digest_of, get,
-    header, oci_config, router_with_auth, token,
+    AuthState,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    basic,
+    body_bytes,
+    digest_of,
+    get,
+    header,
+    oci_config,
+    router_with_auth,
+    token,
 };
 
 use axum::response::Response;

@@ -3,9 +3,25 @@ pub(crate) use profile::post_profile;
 mod profile;
 
 use super::{
-    AppState, AuthedCaller, Body, Deserialize, Identity, Path, RegistryError, Response, State,
-    StatusCode, TargetRegistry, UpsertOutcome, Value, header, json, json_response, parse_json_body,
-    private_no_cache, require_caller,
+    AppState,
+    AuthedCaller,
+    Body,
+    Deserialize,
+    Identity,
+    Path,
+    RegistryError,
+    Response,
+    State,
+    StatusCode,
+    TargetRegistry,
+    UpsertOutcome,
+    Value,
+    header,
+    json,
+    json_response,
+    parse_json_body,
+    private_no_cache,
+    require_caller,
 };
 use axum::response::IntoResponse;
 

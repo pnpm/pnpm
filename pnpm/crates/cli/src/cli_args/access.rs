@@ -1,8 +1,20 @@
 use clap::Args;
-use derive_more::{Display, Error};
-use list::{list_collaborators, list_packages};
+use derive_more::{
+    Display,
+    Error,
+};
+use list::{
+    list_collaborators,
+    list_packages,
+};
 use miette::Diagnostic;
-use permissions::{get_status, grant_access, revoke_access, set_mfa, set_status};
+use permissions::{
+    get_status,
+    grant_access,
+    revoke_access,
+    set_mfa,
+    set_status,
+};
 use pnpm_config::Config;
 use registry::build_access_context;
 

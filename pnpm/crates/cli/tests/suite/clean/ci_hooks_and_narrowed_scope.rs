@@ -1,8 +1,15 @@
-use super::{CommandTempCwd, seed_package};
+use super::{
+    CommandTempCwd,
+    seed_package,
+};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn run_pnpm(cwd: &Path, args: &[&str]) -> std::process::Output {
     Command::cargo_bin("pnpm")

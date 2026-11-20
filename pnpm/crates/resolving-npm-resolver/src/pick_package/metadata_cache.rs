@@ -1,4 +1,10 @@
-use super::{Arc, DashMap, Package, Semaphore, Timestamp};
+use super::{
+    Arc,
+    DashMap,
+    Package,
+    Semaphore,
+    Timestamp,
+};
 
 /// A cached packument together with its source.
 /// The two travel as one value so a reader can never pair a packument

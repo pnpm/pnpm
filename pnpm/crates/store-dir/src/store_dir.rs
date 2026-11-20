@@ -1,9 +1,21 @@
 use dashmap::DashSet;
-use serde::{Deserialize, Serialize};
-use sha2::{Sha512, digest};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use sha2::{
+    Sha512,
+    digest,
+};
 use std::{
-    path::{self, PathBuf},
-    sync::{Arc, OnceLock},
+    path::{
+        self,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        OnceLock,
+    },
 };
 
 /// Content hash of a file.
@@ -296,7 +308,10 @@ fn create_shard_dir(
 /// A directory name no concurrent process produces, so installs that
 /// share a parent directory never collide.
 pub(crate) fn unique_dir_name(label: &str) -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{
+        SystemTime,
+        UNIX_EPOCH,
+    };
     let nanos =
         SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_nanos());
     format!("{label}-{}-{nanos}", pnpm_fs::process_id())

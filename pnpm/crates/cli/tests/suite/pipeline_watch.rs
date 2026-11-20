@@ -4,14 +4,32 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{command_env::CommandTestExt, git_repo::GitRepoFixture};
+use pnpm_testing_utils::{
+    command_env::CommandTestExt,
+    git_repo::GitRepoFixture,
+};
 use std::{
     fs,
-    io::{self, BufRead as _, BufReader},
-    path::{Path, PathBuf},
-    process::{Child, Command, ExitStatus, Stdio},
+    io::{
+        self,
+        BufRead as _,
+        BufReader,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Stdio,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 fn agent_tick(root: &Path, repo: &str) -> assert_cmd::assert::Assert {

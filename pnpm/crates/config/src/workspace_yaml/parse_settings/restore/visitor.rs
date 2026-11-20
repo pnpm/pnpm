@@ -1,10 +1,21 @@
 use super::{
-    DocumentPlaceholders, KeyOrigin, RestoringDeserializer, SeenKeys,
-    access::{RestoringAccess, RestoringMapAccess},
+    DocumentPlaceholders,
+    KeyOrigin,
+    RestoringDeserializer,
+    SeenKeys,
+    access::{
+        RestoringAccess,
+        RestoringMapAccess,
+    },
 };
 use serde::{
     Deserializer,
-    de::{EnumAccess, MapAccess, SeqAccess, Visitor},
+    de::{
+        EnumAccess,
+        MapAccess,
+        SeqAccess,
+        Visitor,
+    },
 };
 use std::fmt;
 

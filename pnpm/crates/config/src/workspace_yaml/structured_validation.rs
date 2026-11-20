@@ -6,11 +6,20 @@
 //! that later commands would reject on load.
 
 use super::{
-    MachineSettings, Path, SystemEnv, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
-    has_env_placeholder, parse_settings, validation::is_valid_concurrency_group_name,
+    MachineSettings,
+    Path,
+    SystemEnv,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    has_env_placeholder,
+    parse_settings,
+    validation::is_valid_concurrency_group_name,
 };
 use serde::de::DeserializeOwned;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Which YAML configuration file `pnpm config set` is targeting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

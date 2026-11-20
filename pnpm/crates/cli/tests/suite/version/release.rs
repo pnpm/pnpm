@@ -1,7 +1,13 @@
 use super::pacquet_version_assuming_published;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn write_release_workspace(workspace: &Path, workspace_yaml: &str) {
     fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml)

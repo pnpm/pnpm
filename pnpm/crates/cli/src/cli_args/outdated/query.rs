@@ -1,21 +1,52 @@
 pub(super) use candidates::current_versions_from_importer;
 
 use super::{
-    Arc, CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Catalogs, Config, Cow,
-    DefaultResolver, DependencyGroup, HashMap, LatestQuery, Lockfile, Matcher, PackageManifest,
-    PickPolicy, ResolveOptions, ResolverWantedDependency, ThrottledClient, Version,
-    VersionsOverrider, configured_catalogs, create_configured_registry_resolver, create_matcher,
-    github_actions, parse_catalog_protocol as dereference_catalog_protocol, parse_overrides_iter,
-    project_dir, resolve_from_catalog,
+    Arc,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    CatalogWantedDependency,
+    Catalogs,
+    Config,
+    Cow,
+    DefaultResolver,
+    DependencyGroup,
+    HashMap,
+    LatestQuery,
+    Lockfile,
+    Matcher,
+    PackageManifest,
+    PickPolicy,
+    ResolveOptions,
+    ResolverWantedDependency,
+    ThrottledClient,
+    Version,
+    VersionsOverrider,
+    configured_catalogs,
+    create_configured_registry_resolver,
+    create_matcher,
+    github_actions,
+    parse_catalog_protocol as dereference_catalog_protocol,
+    parse_overrides_iter,
+    project_dir,
+    resolve_from_catalog,
 };
 use crate::cli_args::{
     ecosystem_deps::{
-        EcosystemFilterKind, collect_ecosystem_outdated, ecosystem_project_name,
+        EcosystemFilterKind,
+        collect_ecosystem_outdated,
+        ecosystem_project_name,
         patterns_for_ecosystem,
     },
-    engine_deps::{DeclaredEngineDep, declared_engine_deps, min_version_of_spec},
+    engine_deps::{
+        DeclaredEngineDep,
+        declared_engine_deps,
+        min_version_of_spec,
+    },
 };
-use candidates::{collect_importer_candidates, outdated_dependency};
+use candidates::{
+    collect_importer_candidates,
+    outdated_dependency,
+};
 use pnpm_config::TrustPolicy;
 use pnpm_resolving_npm_resolver::TrustEvidence;
 

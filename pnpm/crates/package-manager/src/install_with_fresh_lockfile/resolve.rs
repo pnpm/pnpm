@@ -6,7 +6,10 @@
 //! by [`super::resolver_setup`].
 
 pub(super) use reuse::{
-    ReuseSeedInputs, lockfile_reuse_seed, preferred_versions_seeds, stale_override_targets,
+    ReuseSeedInputs,
+    lockfile_reuse_seed,
+    preferred_versions_seeds,
+    stale_override_targets,
 };
 
 mod reuse;
@@ -15,12 +18,26 @@ use super::InstallWithFreshLockfileError;
 use crate::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{
-    DependencyOverrider, PeerDependentsDedupe, ResolveImporterError, ResolveImporterOptions,
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
 };
-use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use pnpm_resolving_deps_resolver::{
+    DependencyOverrider,
+    PeerDependentsDedupe,
+    ResolveImporterError,
+    ResolveImporterOptions,
+};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    ResolveOptions,
+    Resolver,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// The [`ResolveOptions`] fields that are the same for every importer and
 /// for the fast-override pre-pass. Only the consuming project's directory

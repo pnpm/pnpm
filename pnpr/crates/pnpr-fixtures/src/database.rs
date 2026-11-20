@@ -7,18 +7,38 @@
 //! use them too.
 
 use node_semver::Version;
-use pnpr_config::{DatabaseBackend, HostedStoreConfig, default_cache_dir, default_database_path};
+use pnpr_config::{
+    DatabaseBackend,
+    HostedStoreConfig,
+    default_cache_dir,
+    default_database_path,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    HostedDocumentVersion, Storage,
+    HostedDocumentVersion,
+    Storage,
     database::{
-        ArtifactBlob, BatchDocument, BlobFence, PublishNotes, ReleaseRecords, SqlDatabase,
-        TagChange, TagUpdate,
+        ArtifactBlob,
+        BatchDocument,
+        BlobFence,
+        PublishNotes,
+        ReleaseRecords,
+        SqlDatabase,
+        TagChange,
+        TagUpdate,
     },
 };
-use serde_json::{Map, Value, json};
-use std::{future::Future, path::Path, sync::Arc};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use std::{
+    future::Future,
+    path::Path,
+    sync::Arc,
+};
 
 /// How many times an edit retries a write that lost to a concurrent one.
 const EDIT_RETRIES: usize = 8;

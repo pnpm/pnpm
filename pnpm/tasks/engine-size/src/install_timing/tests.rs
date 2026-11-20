@@ -1,6 +1,12 @@
-use super::{benchmark_env, prepare_project};
+use super::{
+    benchmark_env,
+    prepare_project,
+};
 use pretty_assertions::assert_eq;
-use std::{ffi::OsString, path::Path};
+use std::{
+    ffi::OsString,
+    path::Path,
+};
 
 #[test]
 fn benchmark_env_removes_inherited_settings_but_keeps_credentials() {

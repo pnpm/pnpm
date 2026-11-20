@@ -1,16 +1,38 @@
 use super::{
-    AuthHeaders, InMemoryPackageMetaCache, PACKAGE_BODY, PickPackageContext, RetryOpts,
-    ThrottledClient, default_opts, persist_meta_to_mirror, pick_package, range_spec,
+    AuthHeaders,
+    InMemoryPackageMetaCache,
+    PACKAGE_BODY,
+    PickPackageContext,
+    RetryOpts,
+    ThrottledClient,
+    default_opts,
+    persist_meta_to_mirror,
+    pick_package,
+    range_spec,
     shared_packument_fetch_locker,
 };
-use crate::{OfflineStoreView, mirror::ABBREVIATED_META_DIR};
-use pnpm_store_dir::{PackageFilesIndex, StoreIndex, store_index_key};
+use crate::{
+    OfflineStoreView,
+    mirror::ABBREVIATED_META_DIR,
+};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreIndex,
+    store_index_key,
+};
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
 use tempfile::TempDir;

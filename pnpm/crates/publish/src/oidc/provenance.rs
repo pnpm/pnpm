@@ -1,16 +1,36 @@
 //! decide whether to attach provenance based on
 //! the CI context and the package's registry visibility.
 
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{
+    Engine,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
 use pipe_trait::Pipe;
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{escaped_package_name, normalize_registry_url, redact_url_credentials};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_network::{
+    escaped_package_name,
+    normalize_registry_url,
+    redact_url_credentials,
+};
 use serde_json::Value;
 use url::Url;
 
 use crate::{
-    capabilities::{EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
-    oidc::{OidcHttpOptions, is_github_actions, is_gitlab},
+    capabilities::{
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcMethod,
+        OidcRequest,
+    },
+    oidc::{
+        OidcHttpOptions,
+        is_github_actions,
+        is_gitlab,
+    },
 };
 
 #[cfg(test)]

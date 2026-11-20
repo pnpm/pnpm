@@ -1,5 +1,10 @@
 use super::{
-    TempDir, UpdateWorkspaceManifestOptions, WORKSPACE_MANIFEST_FILENAME, catalogs, fs, run,
+    TempDir,
+    UpdateWorkspaceManifestOptions,
+    WORKSPACE_MANIFEST_FILENAME,
+    catalogs,
+    fs,
+    run,
     update_workspace_manifest,
 };
 

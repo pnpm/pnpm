@@ -1,7 +1,10 @@
 //! Expected strings are the "build" vectors of `package-url/purl-spec`
 //! (`tests/types/{npm,cargo,pypi,oci}-test.json`), where they apply.
 
-use super::{Purl, PurlError};
+use super::{
+    Purl,
+    PurlError,
+};
 use pretty_assertions::assert_eq;
 
 #[test]

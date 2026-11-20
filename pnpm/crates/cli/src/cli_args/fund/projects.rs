@@ -4,11 +4,18 @@ use crate::cli_args::{
     deps_tree::{
         DependencyNode,
         build::{
-            BuildTreeOptions, DependenciesHierarchy, LoadedState, build_dependencies_tree,
+            BuildTreeOptions,
+            DependenciesHierarchy,
+            LoadedState,
+            build_dependencies_tree,
             importer_root_ids,
         },
         get_tree::MaxDepth,
-        graph::{BuildGraphOptions, DependencyGraph, build_dependency_graph},
+        graph::{
+            BuildGraphOptions,
+            DependencyGraph,
+            build_dependency_graph,
+        },
         pkg_info::PkgInfoEnv,
     },
     listed_projects::listed_projects,
@@ -18,7 +25,10 @@ use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// One listed project and its whole installed dependency tree.
 pub struct ProjectDependencies {

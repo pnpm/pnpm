@@ -1,16 +1,25 @@
 //! Ports `pnpm11/pnpm/test/withCommand.test.ts`.
 
-use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    set_minimum_release_age,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use std::{
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{
+        Command,
+        Output,
+    },
 };
 
 const PINNED_PNPM_VERSION: &str = "9.3.0";

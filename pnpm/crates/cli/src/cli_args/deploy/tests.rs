@@ -1,33 +1,67 @@
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 #[cfg(unix)]
 use std::{
     ffi::OsStr,
-    os::unix::{ffi::OsStrExt, fs::symlink},
+    os::unix::{
+        ffi::OsStrExt,
+        fs::symlink,
+    },
 };
 
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::{
-    IntegrityTarget, Lockfile, LockfileFormat, LockfileResolution, PackageKey, PackageMetadata,
+    IntegrityTarget,
+    Lockfile,
+    LockfileFormat,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
     TarballResolution,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_workspace::Project;
 use serde_json::json;
 
 use super::{
-    ConvertCtx, DeployWorkspaceSettings, ProjectInfo, ProjectPathKey, SelectedProject,
-    apply_deploy_hook, convert_package_key, convert_package_metadata, create_deploy_files,
-    create_file_url_key, index_projects,
+    ConvertCtx,
+    DeployWorkspaceSettings,
+    ProjectInfo,
+    ProjectPathKey,
+    SelectedProject,
+    apply_deploy_hook,
+    convert_package_key,
+    convert_package_metadata,
+    create_deploy_files,
+    create_file_url_key,
+    index_projects,
 };
 #[cfg(unix)]
-use super::{DeployFiles, write_deploy_files};
+use super::{
+    DeployFiles,
+    write_deploy_files,
+};
 #[cfg(windows)]
-use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
+use super::{
+    is_ancestor_path,
+    is_child_path,
+    same_path,
+    validate_deploy_target,
+};
 use crate::cli_args::deploy::{
-    install::create_deploy_install_config, resolution::split_local_payload,
+    install::create_deploy_install_config,
+    resolution::split_local_payload,
 };
 
 #[test]

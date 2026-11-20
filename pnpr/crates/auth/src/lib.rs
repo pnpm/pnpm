@@ -14,22 +14,49 @@ pub mod oidc;
 pub(crate) mod validation;
 
 pub use account::{
-    AccountCredential, AccountLifecycle, AccountLogin, AccountStatus, AccountStatusOutcome,
-    AccountStatusRevision, CredentialKind, PasswordChange, UpsertOutcome, UserCreation,
-    UserRemoval, UserRename, verify_returning_user,
+    AccountCredential,
+    AccountLifecycle,
+    AccountLogin,
+    AccountStatus,
+    AccountStatusOutcome,
+    AccountStatusRevision,
+    CredentialKind,
+    PasswordChange,
+    UpsertOutcome,
+    UserCreation,
+    UserRemoval,
+    UserRename,
+    verify_returning_user,
 };
 pub use htpasswd::{
-    dummy_verify, is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt,
+    dummy_verify,
+    is_bcrypt_hash,
+    is_sha_hash,
+    parse_htpasswd,
+    parse_htpasswd_line,
+    verify_bcrypt,
 };
 pub use identify::identify;
-pub use last_used::{LAST_USED_GRANULARITY_MILLIS, LastUsedWriter};
+pub use last_used::{
+    LAST_USED_GRANULARITY_MILLIS,
+    LastUsedWriter,
+};
 pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
 pub use sqlite_backend::{
-    ImportMode, ImportedPasswords, PasswordCollisions, PasswordImport, SqliteAuth,
+    ImportMode,
+    ImportedPasswords,
+    PasswordCollisions,
+    PasswordImport,
+    SqliteAuth,
 };
 pub use token_store::{
-    NewToken, PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, TokenKind, TokenRecord,
-    has_valid_personal_token_checksum, unix_millis,
+    NewToken,
+    PERSONAL_TOKEN_LEN,
+    PERSONAL_TOKEN_PREFIX,
+    TokenKind,
+    TokenRecord,
+    has_valid_personal_token_checksum,
+    unix_millis,
 };
 pub use validation::MAX_PASSWORD_BYTES;
 
@@ -39,7 +66,10 @@ mod password_login;
 use htpasswd::hash_bcrypt;
 
 mod token_store;
-use token_store::{fresh_secret, sha256_hex};
+use token_store::{
+    fresh_secret,
+    sha256_hex,
+};
 
 mod identify;
 mod last_used;
@@ -48,8 +78,15 @@ mod sqlite_backend;
 use async_trait::async_trait;
 #[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
-use pnpr_config::{AuthConfig, BackendConfig, MaxUsers};
-use pnpr_error::{RegistryError, Result};
+use pnpr_config::{
+    AuthConfig,
+    BackendConfig,
+    MaxUsers,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 #[cfg(feature = "backend-mysql")]
 use sqlx_backend::mysql::MysqlAuth;
 #[cfg(feature = "backend-postgres")]
@@ -57,7 +94,10 @@ use sqlx_backend::postgres::PostgresAuth;
 use std::{
     collections::HashMap,
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 #[cfg(feature = "backend-libsql")]

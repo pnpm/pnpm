@@ -1,4 +1,11 @@
-use super::{Arc, HashMap, ParentRef, ParentRefs, PeersCacheItem, Walker};
+use super::{
+    Arc,
+    HashMap,
+    ParentRef,
+    ParentRefs,
+    PeersCacheItem,
+    Walker,
+};
 
 impl Walker<'_> {
     /// The version of `parent` when it is restricted: a hoisted provider

@@ -1,12 +1,33 @@
 use super::{
-    Config, Context, EnvLockfileSync, InstalledEngine, OsString, PNPM_VERSION, PackageManager,
-    PackageManagerCheck, Path, PreCommandPlan, SwitchPlan, SwitchSource, SwitchTarget,
-    assert_release_is_installable, config_deps, emit_warning_on_stderr, error_causes, global_warn,
-    install_engine_from_env, install_engine_to_store, slice, spawn_pnpm,
+    Config,
+    Context,
+    EnvLockfileSync,
+    InstalledEngine,
+    OsString,
+    PNPM_VERSION,
+    PackageManager,
+    PackageManagerCheck,
+    Path,
+    PreCommandPlan,
+    SwitchPlan,
+    SwitchSource,
+    SwitchTarget,
+    assert_release_is_installable,
+    config_deps,
+    emit_warning_on_stderr,
+    error_causes,
+    global_warn,
+    install_engine_from_env,
+    install_engine_to_store,
+    slice,
+    spawn_pnpm,
 };
 use crate::cli_args::{
     dlx::exit_unless_success,
-    reporter::{CliReporter, EventFilter},
+    reporter::{
+        CliReporter,
+        EventFilter,
+    },
 };
 
 pub(crate) enum PlanExecution {

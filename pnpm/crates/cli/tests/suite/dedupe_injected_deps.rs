@@ -7,14 +7,23 @@
 
 use crate::_utils;
 
-use _utils::{enable_gvs_in_workspace_yaml, pacquet_in};
+use _utils::{
+    enable_gvs_in_workspace_yaml,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
 };
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// Two-project workspace where `a` injects leaf `b`. With the default
 /// `dedupeInjectedDeps: true`, the install pass rewrites `a`'s direct

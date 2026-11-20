@@ -1,4 +1,9 @@
-use super::{StagedArchive, StagingError, reference_staged_archive, stage_archives};
+use super::{
+    StagedArchive,
+    StagingError,
+    reference_staged_archive,
+    stage_archives,
+};
 use crate::parse_supported_registry_url;
 use mockito::Matcher;
 use pnpm_network::ThrottledClient;

@@ -6,11 +6,27 @@
 
 pub(super) mod snapshots;
 
-use super::{NextFormatError, NextSections, RestoreContext, RestoredSections, read};
-use crate::{Lockfile, PackageKey, PkgName, ProjectSnapshot, SnapshotDepRef, SnapshotEntry};
+use super::{
+    NextFormatError,
+    NextSections,
+    RestoreContext,
+    RestoredSections,
+    read,
+};
+use crate::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotDepRef,
+    SnapshotEntry,
+};
 use rayon::prelude::*;
 use snapshots::Snapshots;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 mod importers;
 mod peers;

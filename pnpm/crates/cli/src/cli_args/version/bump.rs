@@ -1,4 +1,9 @@
-use super::{Identifier, Path, Version, VersionError};
+use super::{
+    Identifier,
+    Path,
+    Version,
+    VersionError,
+};
 
 /// A parsed version argument: an exact version to set, or a release type to
 /// increment by.

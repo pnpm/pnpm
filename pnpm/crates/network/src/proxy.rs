@@ -9,7 +9,10 @@
 //! client constructor.
 
 use crate::percent_decode_str;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use reqwest::Url;
 

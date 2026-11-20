@@ -1,6 +1,13 @@
-use super::{Needed, Provider};
+use super::{
+    Needed,
+    Provider,
+};
 use pep440_rs::Version;
-use pep508_rs::{ExtraName, Requirement, VersionOrUrl};
+use pep508_rs::{
+    ExtraName,
+    Requirement,
+    VersionOrUrl,
+};
 use pubgrub::Ranges;
 
 impl Provider<'_> {

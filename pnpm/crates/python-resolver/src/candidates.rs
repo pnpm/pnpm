@@ -1,13 +1,33 @@
 use crate::{
-    lockfile::{LockedSdist, LockedWheel, Target},
-    packages::{Candidate, Excluded, IndexCandidate, Offered, Releases},
+    lockfile::{
+        LockedSdist,
+        LockedWheel,
+        Target,
+    },
+    packages::{
+        Candidate,
+        Excluded,
+        IndexCandidate,
+        Offered,
+        Releases,
+    },
     requires_python::declared_range,
 };
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{PackageName, Requirement};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+};
 use serde::Deserialize;
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::BTreeMap,
+    fmt,
+};
 use url::Url;
 
 /// The containers a source distribution is published in that pnpm

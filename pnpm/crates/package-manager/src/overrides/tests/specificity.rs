@@ -1,4 +1,10 @@
-use super::{VersionsOverrider, dep_spec, manifest_from_value, parsed, undeclared};
+use super::{
+    VersionsOverrider,
+    dep_spec,
+    manifest_from_value,
+    parsed,
+    undeclared,
+};
 use serde_json::json;
 use std::path::Path;
 

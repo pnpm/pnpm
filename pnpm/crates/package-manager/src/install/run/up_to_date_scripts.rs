@@ -1,19 +1,28 @@
 use super::{
     super::{
-        InstallError, LogEvent, LogLevel, PreparedModulesState, RebuildOptions, Reporter,
+        InstallError,
+        LogEvent,
+        LogLevel,
+        PreparedModulesState,
+        RebuildOptions,
+        Reporter,
         SummaryLog,
     },
     Dispatched,
     dispatch::Decided,
     execution::wait_for_workspace_dependencies,
     manifests::installed_project_manifests,
-    settled::{Settled, SettledProjects},
+    settled::{
+        Settled,
+        SettledProjects,
+    },
 };
 use crate::{
     WorkspaceInstallSelection,
     install::{
         apply_materialization::completion::{
-            MaterializedProjectScriptsInputs, run_materialized_project_scripts,
+            MaterializedProjectScriptsInputs,
+            run_materialized_project_scripts,
         },
         state_options::ProjectScriptSelection,
     },

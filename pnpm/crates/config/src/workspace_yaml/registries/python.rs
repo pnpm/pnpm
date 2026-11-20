@@ -1,4 +1,7 @@
-use super::{LoadWorkspaceYamlError, redact_registry_url};
+use super::{
+    LoadWorkspaceYamlError,
+    redact_registry_url,
+};
 use pnpm_package_name::canonicalize_python_name;
 
 /// One ecosystem index and the Python namespace it owns.

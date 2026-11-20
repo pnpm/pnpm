@@ -1,4 +1,10 @@
-use super::{ReadYarnReleasesError, asset_variants, parse_releases, pick_token, status_help};
+use super::{
+    ReadYarnReleasesError,
+    asset_variants,
+    parse_releases,
+    pick_token,
+    status_help,
+};
 use pnpm_lockfile::LockfileResolution;
 use pretty_assertions::assert_eq;
 

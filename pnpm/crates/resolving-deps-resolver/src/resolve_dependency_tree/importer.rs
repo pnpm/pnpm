@@ -7,14 +7,23 @@
 use std::path::Path;
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::is_acceptable_peer_spec;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use serde_json::Value;
 
 use super::{
-    DependencySpec, ResolveDependencyTreeError, catalogs::catalog_anchor,
-    dependency_meta_is_injected, resolve_catalog_specifiers,
+    DependencySpec,
+    ResolveDependencyTreeError,
+    catalogs::catalog_anchor,
+    dependency_meta_is_injected,
+    resolve_catalog_specifiers,
 };
 
 /// Names the importer in a diagnostic by the directory of its manifest.

@@ -1,5 +1,11 @@
 use super::{
-    Catalogs, DependencyGroup, Display, Error, Lockfile, PnprLink, ResolveProject,
+    Catalogs,
+    DependencyGroup,
+    Display,
+    Error,
+    Lockfile,
+    PnprLink,
+    ResolveProject,
     pnpr_config_validation::validate_pnpr_config,
 };
 use pnpm_local_spec::is_host_filesystem_specifier;

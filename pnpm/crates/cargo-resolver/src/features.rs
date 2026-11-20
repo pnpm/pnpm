@@ -1,13 +1,26 @@
 use crate::{
-    model::{DependencyKind, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    packages::{newest_line_package, selected_package_with_preferences},
+    model::{
+        DependencyKind,
+        FeatureSelection,
+        PackageKey,
+        RegistryDependency,
+        RegistryVersion,
+    },
+    packages::{
+        newest_line_package,
+        selected_package_with_preferences,
+    },
     preferences::PreferredVersions,
     registry::Registry,
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
 use semver::Version;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    VecDeque,
+};
 
 #[derive(Default, Clone, Copy)]
 pub(crate) struct DependencyOptions {

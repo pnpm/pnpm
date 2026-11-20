@@ -4,10 +4,22 @@
 use std::sync::LazyLock;
 
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_policy::{Identity, PackageRules, Permission, RuleTable};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use pnpr_policy::{
+    Identity,
+    PackageRules,
+    Permission,
+    RuleTable,
+};
 
-use super::{Action, AppState, RegistrySource};
+use super::{
+    Action,
+    AppState,
+    RegistrySource,
+};
 
 /// The rules of the concrete registry a request resolved to: the grants that
 /// cover it. Every check consults the one registry that serves the package.

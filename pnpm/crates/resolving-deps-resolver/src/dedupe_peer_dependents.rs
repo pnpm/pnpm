@@ -20,7 +20,10 @@
 pub(crate) use survivor_names::PeerSuffixes;
 pub(crate) use unbound_optional_peers::collect_unbound_optional_peers;
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::collections::BTreeMap;
 
 use pnpm_deps_path::DepPath;
@@ -33,10 +36,20 @@ use cycles::collapse_cycles;
 
 use crate::{
     PeerDependentsDedupe,
-    dedupe_injected_deps::{DirectByImporter, prune_unreachable},
-    dep_path_compatibility::{is_compatible_and_has_more_deps, node_deps_count},
+    dedupe_injected_deps::{
+        DirectByImporter,
+        prune_unreachable,
+    },
+    dep_path_compatibility::{
+        is_compatible_and_has_more_deps,
+        node_deps_count,
+    },
     dependencies_graph::DependenciesGraph,
-    peer_dependents_dedupe::{CollapseGuard, OptionalPeerScope, UnboundOptionalPeers},
+    peer_dependents_dedupe::{
+        CollapseGuard,
+        OptionalPeerScope,
+        UnboundOptionalPeers,
+    },
 };
 
 /// Collapse peer-dependent duplicate variants in `graph` into their

@@ -26,50 +26,115 @@ pub(crate) mod runtime_env;
 pub(crate) mod rust_toolchain;
 
 pub(crate) use native_shim::{
-    ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
-    native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
-    refresh_native_shims, remove_native_shim,
+    ShimTarget,
+    install_native_shim,
+    is_legacy_context_aware_shim,
+    migrate_legacy_shims,
+    native_shim_is_installed,
+    native_shim_paths,
+    native_shim_target,
+    native_shims,
+    refresh_native_shims,
+    remove_native_shim,
 };
-pub(crate) use runtime_env::{MaterializedRuntime, materialize_runtime};
-pub(crate) use settings::{apply_settings_above_global_config, global_shims_setting};
+pub(crate) use runtime_env::{
+    MaterializedRuntime,
+    materialize_runtime,
+};
+pub(crate) use settings::{
+    apply_settings_above_global_config,
+    global_shims_setting,
+};
 
 use crate::{
     cli_args::{
         package_manager::wanted_package_manager,
-        reporter::{CliReporter, EventFilter},
+        reporter::{
+            CliReporter,
+            EventFilter,
+        },
     },
     engine_pm::{
-        channel::{Channel, PackageManager},
-        provision::{ProvisionedEngine, provision},
+        channel::{
+            Channel,
+            PackageManager,
+        },
+        provision::{
+            ProvisionedEngine,
+            provision,
+        },
     },
 };
 use derive_more::Display;
-use identity::{local_bin_identity, provider_of_target};
+use identity::{
+    local_bin_identity,
+    provider_of_target,
+};
 use native_shim::dispatch_legacy_shim;
 use pnpm_config::{
-    Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, MachineSettings,
-    SettingsRead, ShimPolicy, TrustedSettings, default_config_dir, default_pnpm_home_dir,
-    default_state_dir, resolve_configured_state_dir,
+    Config,
+    GlobalShims,
+    GlobalShimsSetting,
+    Host,
+    LoadWorkspaceYamlError,
+    MachineSettings,
+    SettingsRead,
+    ShimPolicy,
+    TrustedSettings,
+    default_config_dir,
+    default_pnpm_home_dir,
+    default_state_dir,
+    resolve_configured_state_dir,
 };
-use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
+use pnpm_crypto_hash::{
+    create_hex_hash,
+    create_hex_hash_bytes,
+};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_package_manifest::is_runtime_alias;
-use pnpm_rust_toolchain::{ToolchainRequest, rustup_settings_file};
-use run_program::{exec_program, exec_program_with_bin_dirs, run_global_target, run_held_program};
-use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
+use pnpm_rust_toolchain::{
+    ToolchainRequest,
+    rustup_settings_file,
+};
+use run_program::{
+    exec_program,
+    exec_program_with_bin_dirs,
+    run_global_target,
+    run_held_program,
+};
+use runtime_env::{
+    PACKAGE_MANAGER_ENVS_DIR_NAME,
+    trusted_runtime_config,
+};
 use rust_toolchain::{
-    RUST_SHIM_PACKAGE, RustSelection, find_rust_candidate, overrides_toolchain, run_global_rust,
-    run_next_on_path, run_rust_toolchain,
+    RUST_SHIM_PACKAGE,
+    RustSelection,
+    find_rust_candidate,
+    overrides_toolchain,
+    run_global_rust,
+    run_next_on_path,
+    run_rust_toolchain,
 };
 use serde_json::Value;
 use settings::{
-    is_automatic_runtime, manifest_package_manager_pin, package_manager_runs_promptless,
-    runtime_pin, trusted_package_manager_config, trusted_shim_settings, validate_candidate,
+    is_automatic_runtime,
+    manifest_package_manager_pin,
+    package_manager_runs_promptless,
+    runtime_pin,
+    trusted_package_manager_config,
+    trusted_shim_settings,
+    validate_candidate,
 };
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 use trust::is_trusted;
 

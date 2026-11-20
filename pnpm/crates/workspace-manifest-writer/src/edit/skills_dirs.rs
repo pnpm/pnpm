@@ -1,6 +1,14 @@
 use super::{
-    Inline, Manifest, insert_top_level_block, locate, locate_mapping, mapping_keys,
-    remove_mapping_entries, remove_top_level_block, render, upsert_sequence_entry,
+    Inline,
+    Manifest,
+    insert_top_level_block,
+    locate,
+    locate_mapping,
+    mapping_keys,
+    remove_mapping_entries,
+    remove_top_level_block,
+    render,
+    upsert_sequence_entry,
 };
 
 const BLOCK: &str = "skills";

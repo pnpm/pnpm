@@ -21,13 +21,25 @@ pub use project_file::ProjectFile;
 mod core_metadata;
 mod project_file;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pep440_rs::Version;
 use pnpr_package_name::canonicalize_python_name;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt::Write as _,
     str::FromStr,
 };

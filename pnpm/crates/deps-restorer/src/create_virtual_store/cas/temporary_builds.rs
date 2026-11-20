@@ -1,6 +1,11 @@
 use super::{
-    CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput, immutable_download,
-    materialized_snapshots, prepare_loaded_packages, retain_dependency_closure,
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+    immutable_download,
+    materialized_snapshots,
+    prepare_loaded_packages,
+    retain_dependency_closure,
 };
 mod build;
 mod capture;
@@ -8,9 +13,16 @@ mod promote;
 
 use crate::ConcurrentCheck;
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{LockfileEntries, PackageKey, SnapshotEntry};
+use pnpm_lockfile::{
+    LockfileEntries,
+    PackageKey,
+    SnapshotEntry,
+};
 use pnpm_reporter::Reporter;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 type Snapshots = HashMap<PackageKey, SnapshotEntry>;
 

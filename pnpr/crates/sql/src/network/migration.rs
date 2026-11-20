@@ -1,8 +1,17 @@
 //! Schema migration of a network database pool.
 
-use super::super::{adapter::Adapter, schema};
-use pnpr_error::{RegistryError, Result};
-use std::{sync::Arc, time::Duration};
+use super::super::{
+    adapter::Adapter,
+    schema,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 /// Migrate a `PostgreSQL` pool to [`schema::SCHEMA_VERSION`].
 #[cfg(feature = "backend-postgres")]

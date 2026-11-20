@@ -1,8 +1,22 @@
-use super::{TestPkg, commit_all, diff_selector, graph_project, init_repo, selected};
+use super::{
+    TestPkg,
+    commit_all,
+    diff_selector,
+    graph_project,
+    init_repo,
+    selected,
+};
 use crate::filter::FilterWorkspaceProjectsOptions;
 use indexmap::IndexMap;
-use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
-use std::{collections::HashMap, fs, path::Path};
+use pnpm_workspace_projects_graph::{
+    ProjectGraph,
+    ProjectGraphNode,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 #[test]

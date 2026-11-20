@@ -1,7 +1,24 @@
 use super::{
-    AmazonS3ConfigKey, BackendConfig, ClientConfigKey, Config, ConfigSource, Duration, Ecosystem,
-    EnvGuard, FeatureOverrides, MINIMAL_YAML, Path, PathBuf, RegistryError, bundled_registries,
-    listen, load_with_graph, normalize_key_prefix, resolve_relative, s3_settings_for, write_yaml,
+    AmazonS3ConfigKey,
+    BackendConfig,
+    ClientConfigKey,
+    Config,
+    ConfigSource,
+    Duration,
+    Ecosystem,
+    EnvGuard,
+    FeatureOverrides,
+    MINIMAL_YAML,
+    Path,
+    PathBuf,
+    RegistryError,
+    bundled_registries,
+    listen,
+    load_with_graph,
+    normalize_key_prefix,
+    resolve_relative,
+    s3_settings_for,
+    write_yaml,
 };
 
 #[test]
@@ -298,7 +315,10 @@ fn resolve_bundled_branch_honors_public_url_override() {
 
 #[test]
 fn bundled_default_config_enforces_its_protections() {
-    use pnpr_registry::{ConcreteKind, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
     // The bundled YAML provides production-safe defaults: registration disabled,
     // and the bundled registries are a default public npmjs proxy and an empty
     // local hosted registry.

@@ -1,4 +1,8 @@
-use super::{apply, drop_context_no_newline_markers, strip_cr_from_extended_headers};
+use super::{
+    apply,
+    drop_context_no_newline_markers,
+    strip_cr_from_extended_headers,
+};
 use diffy::Patch;
 use pretty_assertions::assert_eq;
 use text_block_macros::text_block_fnl;

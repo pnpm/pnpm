@@ -1,13 +1,33 @@
 use super::{
-    AccountLifecycle, AccountStatusOutcome, NewToken, PasswordChange, PasswordCollisions,
-    PasswordImport, SqliteAuth, TokenBackend, TokenKind, UpsertOutcome, UserBackend, UserCreation,
-    UserRemoval, identify, parse_htpasswd, sha256_hex,
+    AccountLifecycle,
+    AccountStatusOutcome,
+    NewToken,
+    PasswordChange,
+    PasswordCollisions,
+    PasswordImport,
+    SqliteAuth,
+    TokenBackend,
+    TokenKind,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    identify,
+    parse_htpasswd,
+    sha256_hex,
 };
 use crate::validation::{
-    MAX_USERNAME_CHARS, token_timestamp_from_sql, token_timestamp_to_sql, validate_username,
+    MAX_USERNAME_CHARS,
+    token_timestamp_from_sql,
+    token_timestamp_to_sql,
+    validate_username,
 };
 use pnpr_config::MaxUsers;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 use tokio::sync::Barrier;
 
 /// Tests run with cost 4 (the bcrypt crate's minimum sane value)
@@ -806,7 +826,10 @@ fn parse_htpasswd_accepts_sha1_entries() {
 
 #[test]
 fn personal_tokens_use_pnpr_prefix_base62_payload_and_ieee_crc32() {
-    use crate::token_store::format::{crc32_ieee, format_personal_token};
+    use crate::token_store::format::{
+        crc32_ieee,
+        format_personal_token,
+    };
 
     assert_eq!(crc32_ieee(b"123456789"), 0xCBF4_3926);
 

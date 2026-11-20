@@ -1,24 +1,57 @@
 use super::{
     super::{
-        CreateVirtualStore, CreateVirtualStoreOutput, SnapshotCacheKey, cas::retain_fetch_pass_rows,
+        CreateVirtualStore,
+        CreateVirtualStoreOutput,
+        SnapshotCacheKey,
+        cas::retain_fetch_pass_rows,
     },
-    DUMMY_SHA512, key, metadata_with_integrity, snapshot_with_dep, take_prefetch_starts,
+    DUMMY_SHA512,
+    key,
+    metadata_with_integrity,
+    snapshot_with_dep,
+    take_prefetch_starts,
 };
 use crate::{
-    AllowBuildPolicy, CasPathsByPkgId, HoistedPackageFiles, SkippedSnapshots, VirtualStoreLayout,
+    AllowBuildPolicy,
+    CasPathsByPkgId,
+    HoistedPackageFiles,
+    SkippedSnapshots,
+    VirtualStoreLayout,
 };
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
-use pnpm_lockfile::{LockfileEntries, PackageKey, PkgIdWithPatchHash, SnapshotEntry};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
+use pnpm_lockfile::{
+    LockfileEntries,
+    PackageKey,
+    PkgIdWithPatchHash,
+    SnapshotEntry,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, StoreIndex, StoreIndexWriter, store_index_key,
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreIndex,
+    StoreIndexWriter,
+    store_index_key,
 };
-use pnpm_tarball::{PrefetchResult, SharedReportedProgressKeys};
+use pnpm_tarball::{
+    PrefetchResult,
+    SharedReportedProgressKeys,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
     path::PathBuf,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 /// Seed a store-index row and CAS blobs for `package_key` under `config`'s store.

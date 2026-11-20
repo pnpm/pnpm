@@ -3,22 +3,48 @@
 //! records under `pnpr::audit`.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{Config, router_with_auth};
-use serde_json::{Value, json};
+use pnpr::{
+    Config,
+    router_with_auth,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::HashMap,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{
+        Arc,
+        Mutex,
+        OnceLock,
+    },
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+};
 
-use crate::{ecosystem::sha256_hex, npm::publish_doc};
+use crate::{
+    ecosystem::sha256_hex,
+    npm::publish_doc,
+};
 
 const SCIM_TOKEN: &str = "scim-secret-0123456789abcdef0123456789";
 
@@ -739,7 +765,10 @@ fn oci_app(tmp: &TempDir) -> axum::Router {
 
 #[tokio::test]
 async fn audit_log_oci_deletion_operations() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD,
+    };
 
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();

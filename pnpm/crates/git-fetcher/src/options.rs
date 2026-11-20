@@ -1,6 +1,12 @@
 use crate::GitSourceCache;
-use pnpm_store_dir::{StoreDir, StoreIndexWriter};
-use std::{path::Path, sync::Arc};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndexWriter,
+};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 #[derive(Clone, Copy)]
 pub struct PrepareScriptOptions<'a> {

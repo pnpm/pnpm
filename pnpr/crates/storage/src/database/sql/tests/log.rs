@@ -2,19 +2,44 @@
 //! with their versions, integrated into tiles and checkpoints in the hosted
 //! store.
 
-use super::{Db, config, packument, storage};
+use super::{
+    Db,
+    config,
+    packument,
+    storage,
+};
 use crate::{
-    DocumentWrite, HostedDocumentVersion, Storage,
-    database::{BatchDocument, PublishNotes, ReleaseRecords},
-    transparency_log::{LOG_NAMESPACE, LogId},
+    DocumentWrite,
+    HostedDocumentVersion,
+    Storage,
+    database::{
+        BatchDocument,
+        PublishNotes,
+        ReleaseRecords,
+    },
+    transparency_log::{
+        LOG_NAMESPACE,
+        LogId,
+    },
 };
 use pnpm_release_record::StoredRecord;
 use pnpm_transparency_log::{
-    CheckpointPolicy, KeySet, NoteSigner, TilePath, decode_bundle, verify_inclusion,
+    CheckpointPolicy,
+    KeySet,
+    NoteSigner,
+    TilePath,
+    decode_bundle,
+    verify_inclusion,
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use serde_json::{Value, json};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 
 /// Go's `note` test key.

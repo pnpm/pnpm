@@ -1,16 +1,32 @@
 use super::{
-    PNPR_BENCHMARK_PASSWORD, PNPR_BENCHMARK_USERNAME,
-    registries_home::{LOOPBACK_NETWORKS, RegistriesHome},
+    PNPR_BENCHMARK_PASSWORD,
+    PNPR_BENCHMARK_USERNAME,
+    registries_home::{
+        LOOPBACK_NETWORKS,
+        RegistriesHome,
+    },
 };
 use crate::latency_proxy::LatencyProxy;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
-    fs::{self, OpenOptions},
+    fs::{
+        self,
+        OpenOptions,
+    },
     io::Write,
-    net::{TcpListener, TcpStream},
-    path::{Path, PathBuf},
-    process::{Child, Command},
+    net::{
+        TcpListener,
+        TcpStream,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+    },
     thread,
     time::Duration,
 };

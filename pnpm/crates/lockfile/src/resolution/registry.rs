@@ -1,5 +1,15 @@
-use super::{BTreeMap, Cow, Deserialize, HashMap, Serialize};
-use crate::{PkgNameVerPeer, Prefix, VersionPart};
+use super::{
+    BTreeMap,
+    Cow,
+    Deserialize,
+    HashMap,
+    Serialize,
+};
+use crate::{
+    PkgNameVerPeer,
+    Prefix,
+    VersionPart,
+};
 
 /// The software serving a registry, declared through the `registries`
 /// setting. Modeled as an [`Option`] everywhere it is threaded, because

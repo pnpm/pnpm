@@ -8,25 +8,60 @@ mod report;
 use report::emit_root_added;
 
 mod entry_bins;
-use entry_bins::{link_symlinked_entry_bins, link_unlinked_entry_bins};
+use entry_bins::{
+    link_symlinked_entry_bins,
+    link_unlinked_entry_bins,
+};
 
 mod resolve;
-use resolve::{ResolvedEntry, collect_resolved_entries, collect_resolved_targets};
+use resolve::{
+    ResolvedEntry,
+    collect_resolved_entries,
+    collect_resolved_targets,
+};
 
 mod task_groups;
-use task_groups::{importer_modules_parent, importer_task_groups, merge_claimed_bins};
+use task_groups::{
+    importer_modules_parent,
+    importer_task_groups,
+    merge_claimed_bins,
+};
 
-use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
-use derive_more::{Display, Error};
+use crate::{
+    SkippedSnapshots,
+    SymlinkPackageError,
+    VirtualStoreLayout,
+    symlink_package,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
-use pnpm_lockfile::{ImporterDepVersion, PackageKey, PackageMetadata, PkgName, ProjectSnapshot};
+use pnpm_cmd_shim::{
+    LinkBinsError,
+    LinkBinsOptions,
+};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    ProjectSnapshot,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Create the `node_modules/` symlinks for every importer in the lockfile.

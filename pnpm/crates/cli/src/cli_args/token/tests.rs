@@ -1,5 +1,12 @@
-use super::{generate_token_ids, redact_token_argument, registry::TokenItem};
-use crate::cli_args::{CliArgs, cli_command::CliCommand};
+use super::{
+    generate_token_ids,
+    redact_token_argument,
+    registry::TokenItem,
+};
+use crate::cli_args::{
+    CliArgs,
+    cli_command::CliCommand,
+};
 use clap::Parser;
 
 #[test]

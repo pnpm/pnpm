@@ -1,7 +1,19 @@
 use super::{
-    DependencyGroup, FailingAliasResolver, FailureShape, HashMap, Mutex, PackageManifest,
-    RecordingResolver, WorkspaceImporter, assert_eq, fake_manifest, fake_result, importer_opts,
-    optional_failure_fixture, resolve_workspace, workspace_opts,
+    DependencyGroup,
+    FailingAliasResolver,
+    FailureShape,
+    HashMap,
+    Mutex,
+    PackageManifest,
+    RecordingResolver,
+    WorkspaceImporter,
+    assert_eq,
+    fake_manifest,
+    fake_result,
+    importer_opts,
+    optional_failure_fixture,
+    resolve_workspace,
+    workspace_opts,
 };
 use std::str::FromStr;
 

@@ -1,19 +1,35 @@
 use super::super::{
-    UpdateError, UpdateOptions, UpdateSite,
-    prepare::{SelectedUpdatePreparation, UpdatePreparation},
+    UpdateError,
+    UpdateOptions,
+    UpdateSite,
+    prepare::{
+        SelectedUpdatePreparation,
+        UpdatePreparation,
+    },
 };
 use crate::{
     InstallError,
     catalog_cleanup::{
-        post_install_prune, write_workspace_catalogs, write_workspace_catalogs_selected,
+        post_install_prune,
+        write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
     emit_initial_package_manifest,
     manifest_spec_bumps::ManifestSpecBumps,
     package_manifest_prefix,
 };
 use pnpm_config::Config;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PackageManifestLog,
+    PackageManifestMessage,
+    Reporter,
+};
 use std::path::Path;
 
 pub(in super::super) fn finish_single_update<Reporter: self::Reporter>(

@@ -3,11 +3,17 @@
 //!
 //! <https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file>
 
-use crate::{Channel, RustToolchainError};
+use crate::{
+    Channel,
+    RustToolchainError,
+};
 use serde::Deserialize;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

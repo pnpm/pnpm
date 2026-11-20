@@ -1,9 +1,20 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+};
 
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, parse_manifest_bytes};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    parse_manifest_bytes,
+};
 
 use super::DependencyKind;
-use crate::{TreeNodeId, pkg_info::ManifestSource};
+use crate::{
+    TreeNodeId,
+    pkg_info::ManifestSource,
+};
 
 struct CachedManifest {
     manifest: PackageManifest,

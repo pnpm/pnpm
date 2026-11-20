@@ -6,10 +6,22 @@
 //! shortening after their own pre-escape step. Keeping the helpers in
 //! one place avoids duplicating the sha2 dependency in every consumer.
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use sha2::{Digest, Sha256};
-use ssri::{Algorithm, Integrity};
-use std::{io, path::Path};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
+use std::{
+    io,
+    path::Path,
+};
 
 /// Whether `integrity` is a single complete, canonical 64-byte `sha512` hash.
 #[must_use]

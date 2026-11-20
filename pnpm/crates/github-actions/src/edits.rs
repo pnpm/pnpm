@@ -1,12 +1,20 @@
 use super::{
-    ActionReference, PlannedUpdate, RepoVersion, Version, WorkflowValue, replaces_comment_version,
+    ActionReference,
+    PlannedUpdate,
+    RepoVersion,
+    Version,
+    WorkflowValue,
+    replaces_comment_version,
     update_target,
 };
 use std::{
     cmp::Reverse,
     collections::BTreeMap,
     ops::Range,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tokio::fs;
 

@@ -1,7 +1,12 @@
 //! The repository scopes a token issue grants.
 
 use crate::server::{
-    Action, AppState, Identity, RegistrySource, authorize, authorize_package,
+    Action,
+    AppState,
+    Identity,
+    RegistrySource,
+    authorize,
+    authorize_package,
     resolve_ecosystem_source,
 };
 use pnpr_error::RegistryError;

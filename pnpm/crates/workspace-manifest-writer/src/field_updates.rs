@@ -1,11 +1,23 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 use crate::{
-    Manifest, ManifestTarget, UpdateWorkspaceManifestError, WorkspaceManifests, edit,
-    read_if_present, remove_manifest, write_atomic,
+    Manifest,
+    ManifestTarget,
+    UpdateWorkspaceManifestError,
+    WorkspaceManifests,
+    edit,
+    read_if_present,
+    remove_manifest,
+    write_atomic,
 };
 
 /// Set or delete an arbitrary top-level field in the YAML manifest at `path`

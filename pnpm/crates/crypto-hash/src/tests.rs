@@ -1,6 +1,11 @@
 use super::{
-    create_hash, create_hash_from_file, create_hex_hash, create_hex_hash_bytes,
-    create_hex_hash_from_file, create_short_hash, has_complete_sha512_digest,
+    create_hash,
+    create_hash_from_file,
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+    create_short_hash,
+    has_complete_sha512_digest,
     shorten_virtual_store_name,
 };
 use ssri::Integrity;

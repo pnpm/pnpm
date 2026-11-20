@@ -12,28 +12,76 @@
 pub(crate) mod sql;
 
 pub use blobs::{
-    ArtifactBlob, BlobFence, BlobLookup, BlobRef, BlobRow, BlobState, MappedArtifact, PublishBase,
-    PublishIncarnation, Uncommitted,
+    ArtifactBlob,
+    BlobFence,
+    BlobLookup,
+    BlobRef,
+    BlobRow,
+    BlobState,
+    MappedArtifact,
+    PublishBase,
+    PublishIncarnation,
+    Uncommitted,
 };
 pub(crate) use dist_tags::validate_dist_tag_target;
-pub use dist_tags::{validate_dist_tag, validate_document_dist_tags};
+pub use dist_tags::{
+    validate_dist_tag,
+    validate_document_dist_tags,
+};
 pub use notes::{
-    MAX_NOTE_BYTES, Note, NoteChange, PublishNotes, VersionNote, note_digest, validate_note,
+    MAX_NOTE_BYTES,
+    Note,
+    NoteChange,
+    PublishNotes,
+    VersionNote,
+    note_digest,
+    validate_note,
 };
 pub use publication::{
-    ArtifactMember, BatchDocument, Publication, PublicationCommit, PublicationRequest,
-    RecordedOutcome, ReleaseRecords,
+    ArtifactMember,
+    BatchDocument,
+    Publication,
+    PublicationCommit,
+    PublicationRequest,
+    RecordedOutcome,
+    ReleaseRecords,
 };
-pub(crate) use sql::PackageMetadata;
 pub use sql::{
-    CdnInvalidation, GrantContent, GrantWrite, HostedNamespace, Mapping, NewRegistryGraph,
-    NewScimUser, REGISTRY_GRAPH_REVISIONS_KEPT, RegistryGraphRevision, RegistryGraphWrite,
-    RenderStats, ScimStatus, ScimUserRemoval, ScimUserWrite, SqlDatabase, StoredGrant,
-    StoredGrants, StoredRegistryGraph, StoredScimUser, StoredTeam, StoredTeams, TagHistoryEntry,
-    TeamCreation, TeamRemoval, Unmapping,
+    CdnInvalidation,
+    GrantContent,
+    GrantWrite,
+    HostedNamespace,
+    Mapping,
+    NewRegistryGraph,
+    NewScimUser,
+    REGISTRY_GRAPH_REVISIONS_KEPT,
+    RegistryGraphRevision,
+    RegistryGraphWrite,
+    RenderStats,
+    ScimStatus,
+    ScimUserRemoval,
+    ScimUserWrite,
+    SqlDatabase,
+    StoredGrant,
+    StoredGrants,
+    StoredRegistryGraph,
+    StoredScimUser,
+    StoredTeam,
+    StoredTeams,
+    TagHistoryEntry,
+    TeamCreation,
+    TeamRemoval,
+    Unmapping,
 };
-pub(crate) use sql::{StagedEntry, StagedId};
-pub(crate) use staged::{StagedRecord, StagedState};
+pub(crate) use sql::{
+    PackageMetadata,
+    StagedEntry,
+    StagedId,
+};
+pub(crate) use staged::{
+    StagedRecord,
+    StagedState,
+};
 
 mod blobs;
 mod dist_tags;
@@ -41,11 +89,23 @@ mod notes;
 mod publication;
 mod staged;
 
-use crate::{DocumentUpdate, DocumentWrite, Storage, wait_after_document_write_conflict};
+use crate::{
+    DocumentUpdate,
+    DocumentWrite,
+    Storage,
+    wait_after_document_write_conflict,
+};
 use pnpr_config::DatabaseBackend;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
-use std::{collections::BTreeMap, fmt, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    sync::Arc,
+};
 
 /// The field of a stored npm version that records the interpretation profile
 /// its manifest was accepted under, as `profile`, and the digests of the raw

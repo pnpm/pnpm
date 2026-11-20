@@ -1,6 +1,12 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::PathBuf,
+};
 
 /// Why the include index of `pnpm-workspace.yaml`, or a file it includes,
 /// cannot be loaded.

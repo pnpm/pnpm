@@ -1,7 +1,24 @@
-use super::{FakeGitRunner, SHA_V4_1_0, SHA_V4_2_0, SilentReporter, update_with_runner};
-use crate::edits::{WorkflowEdit, apply_replacements};
-use pnpm_resolving_git_resolver::{GitCommandRunner, GitRunError};
-use std::{fs, future::Future, path::Path, pin::Pin};
+use super::{
+    FakeGitRunner,
+    SHA_V4_1_0,
+    SHA_V4_2_0,
+    SilentReporter,
+    update_with_runner,
+};
+use crate::edits::{
+    WorkflowEdit,
+    apply_replacements,
+};
+use pnpm_resolving_git_resolver::{
+    GitCommandRunner,
+    GitRunError,
+};
+use std::{
+    fs,
+    future::Future,
+    path::Path,
+    pin::Pin,
+};
 
 const SHA_V4_1_1000: &str = "4444444444444444444444444444444444444444";
 

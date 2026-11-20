@@ -1,19 +1,37 @@
 use super::{
     TarballDownload,
     lockfile_entries::{
-        PendingPrefetch, registry_entry, without_store_hits, without_verified_rows,
+        PendingPrefetch,
+        registry_entry,
+        without_store_hits,
+        without_verified_rows,
         without_verified_store_hits,
     },
     run_tarball_download,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
     store_index_key,
 };
-use pnpm_tarball::{MemCache, RetryOpts, TarballError};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use pnpm_tarball::{
+    MemCache,
+    RetryOpts,
+    TarballError,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::Duration,
+};
 use tempfile::tempdir;
 
 fn sample_index() -> PackageFilesIndex {

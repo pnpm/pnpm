@@ -1,11 +1,23 @@
 //! Moving one blob between a file and a server without holding it whole.
 
-use super::{ArtifactPayload, BTreeMap, HashSet, PnprClientError, SignedArtifactEnvelope};
+use super::{
+    ArtifactPayload,
+    BTreeMap,
+    HashSet,
+    PnprClientError,
+    SignedArtifactEnvelope,
+};
 use futures_util::StreamExt as _;
 use pnpm_shared_artifact_protocol::verify_blob_digest;
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 use tokio::io::AsyncWriteExt as _;

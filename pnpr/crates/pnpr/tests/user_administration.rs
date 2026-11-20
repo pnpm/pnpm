@@ -3,16 +3,38 @@
 //! tokens.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use pnpr::{
-    AuthState, Config, PasswordChange, RegistryError, SqliteAuth, TokenBackend, TokenRecord,
-    UpsertOutcome, UserBackend, UserCreation, UserRemoval,
+    AuthState,
+    Config,
+    PasswordChange,
+    RegistryError,
+    SqliteAuth,
+    TokenBackend,
+    TokenRecord,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;

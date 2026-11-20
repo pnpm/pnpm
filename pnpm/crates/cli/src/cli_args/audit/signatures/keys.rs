@@ -1,9 +1,16 @@
 //! Checking a registry signature against a registry key.
 
-use super::{RegistryKey, parse_timestamp};
+use super::{
+    RegistryKey,
+    parse_timestamp,
+};
 use base64::Engine as _;
 use p256::{
-    ecdsa::{Signature, VerifyingKey, signature::Verifier},
+    ecdsa::{
+        Signature,
+        VerifyingKey,
+        signature::Verifier,
+    },
     pkcs8::DecodePublicKey,
 };
 

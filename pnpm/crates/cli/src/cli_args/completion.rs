@@ -1,24 +1,49 @@
-pub use shells::{CompletionShell, SUPPORTED_SHELLS};
+pub use shells::{
+    CompletionShell,
+    SUPPORTED_SHELLS,
+};
 
 use crate::{
     cli_args::{
         cli_command::options::find_workspace_root_dir,
-        prefix::{find_local_prefix, find_npm_local_prefix},
+        prefix::{
+            find_local_prefix,
+            find_npm_local_prefix,
+        },
     },
     flag_relocation::short_cluster_consumes_value,
 };
-use clap::{Arg, Args, Command, CommandFactory};
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
+use clap::{
+    Arg,
+    Args,
+    Command,
+    CommandFactory,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use options::{
-    argument_takes_separate_value, attached_option_values, complete_argument_values,
-    find_short_option_argument, option_value_is_allowed, separate_value_option, visible_options,
+    argument_takes_separate_value,
+    attached_option_values,
+    complete_argument_values,
+    find_short_option_argument,
+    option_value_is_allowed,
+    separate_value_option,
+    visible_options,
 };
 use pnpm_text_sanitize::sanitize_inline;
 use std::{
     env,
     io::Write,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Args)]

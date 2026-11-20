@@ -1,48 +1,103 @@
 mod archive_contract;
 
 use super::{
-    ArchiveIntegrity, ArchiveStoreProjection, FetchTarballForResolution, IgnoreEntryFilter,
-    MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, Reporter, RetryOpts, SharedReportedProgressKeys,
+    ArchiveIntegrity,
+    ArchiveStoreProjection,
+    FetchTarballForResolution,
+    IgnoreEntryFilter,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    MemCache,
+    Reporter,
+    RetryOpts,
+    SharedReportedProgressKeys,
     TarLimits,
     archive_integrity::ArchiveVerification,
     archive_retry::is_transient_error,
     auth_header_for_package_download,
     download::{
-        IngestTarballToStore, download_priority, fetch_and_extract_archive_with_retry,
-        slow_download_warning, store_index_cache_key,
+        IngestTarballToStore,
+        download_priority,
+        fetch_and_extract_archive_with_retry,
+        slow_download_warning,
+        store_index_cache_key,
     },
-    error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
+    error::{
+        HttpStatusError,
+        NetworkError,
+        TarballError,
+        VerifyChecksumError,
+    },
     extract::{
-        STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD, allocate_tarball_buffer,
-        apply_append_manifest, apply_placeholder_manifest, decompress_gzip,
-        extract_gzipped_tarball_with_tar, extract_tarball_entries_with_bins,
-        gzip::{bounded_gzip_size_hint, gzip_isize_hint, should_stream_extract},
-        is_eager_decode_limit_exceeded, stream_extract_gzipped_tarball_with_tar,
+        STREAM_ENTRY_BUFFER_MAX,
+        STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+        allocate_tarball_buffer,
+        apply_append_manifest,
+        apply_placeholder_manifest,
+        decompress_gzip,
+        extract_gzipped_tarball_with_tar,
+        extract_tarball_entries_with_bins,
+        gzip::{
+            bounded_gzip_size_hint,
+            gzip_isize_hint,
+            should_stream_extract,
+        },
+        is_eager_decode_limit_exceeded,
+        stream_extract_gzipped_tarball_with_tar,
     },
     local_tarball::{
-        allocate_local_tarball_buffer, local_file_tarball_path, open_local_tarball,
-        read_local_tarball_buffer, read_local_tarball_metadata,
+        allocate_local_tarball_buffer,
+        local_file_tarball_path,
+        open_local_tarball,
+        read_local_tarball_buffer,
+        read_local_tarball_metadata,
     },
-    prefetch::{PrefetchIntegrityCheck, PrefetchedCasPaths, prefetch_cas_paths},
-    zip_archive::{extract_zip_entries, write_zip_entry_to_cas},
+    prefetch::{
+        PrefetchIntegrityCheck,
+        PrefetchedCasPaths,
+        prefetch_cas_paths,
+    },
+    zip_archive::{
+        extract_zip_entries,
+        write_zip_entry_to_cas,
+    },
 };
 use pipe_trait::Pipe;
-use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, ThrottledClient, UNPRIORITIZED};
+use pnpm_network::{
+    AuthHeaders,
+    MAX_THROUGHPUT_PRIORITY,
+    ThrottledClient,
+    UNPRIORITIZED,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
-    StoreIndexWriter, store_index_key,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+    store_index_key,
 };
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::{
     collections::HashMap,
-    io::{Cursor, ErrorKind, Read},
-    path::{Path, PathBuf},
+    io::{
+        Cursor,
+        ErrorKind,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// The store file each name maps to, without the modes the install read.
 fn store_paths(files: &pnpm_fs::CasPaths) -> HashMap<&str, &Path> {

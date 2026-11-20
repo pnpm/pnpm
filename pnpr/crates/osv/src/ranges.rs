@@ -1,10 +1,17 @@
 use std::collections::HashSet;
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use serde::Deserialize;
 
 use super::{
-    MAX_RANGE_COVERAGE_CHECKS, MAX_RANGES_PER_AFFECTED, RegistryError, SemverEvent, SemverRange,
+    MAX_RANGE_COVERAGE_CHECKS,
+    MAX_RANGES_PER_AFFECTED,
+    RegistryError,
+    SemverEvent,
+    SemverRange,
     invalid_config,
 };
 

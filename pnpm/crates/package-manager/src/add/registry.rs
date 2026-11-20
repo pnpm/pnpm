@@ -1,13 +1,23 @@
-use super::{AddError, AddOptions, AddResolveInputs};
+use super::{
+    AddError,
+    AddOptions,
+    AddResolveInputs,
+};
 use crate::{
-    resolution_policy::{PickPolicy, pick_package_context},
+    resolution_policy::{
+        PickPolicy,
+        pick_package_context,
+    },
     resolve_latest::LatestPicker,
 };
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{
-    PickPackageOptions, calc_version_range, parse_bare_specifier, pick_package,
+    PickPackageOptions,
+    calc_version_range,
+    parse_bare_specifier,
+    pick_package,
     pick_registry_for_package,
 };
 

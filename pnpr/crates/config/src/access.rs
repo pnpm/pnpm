@@ -1,4 +1,11 @@
-use super::{AccessList, AccessToken, BTreeSet, Deserialize, RegistryError, Serialize};
+use super::{
+    AccessList,
+    AccessToken,
+    BTreeSet,
+    Deserialize,
+    RegistryError,
+    Serialize,
+};
 
 /// A YAML permission value: a sequence of tokens, or a scalar naming exactly
 /// one token. Every entry is taken verbatim — there is no whitespace

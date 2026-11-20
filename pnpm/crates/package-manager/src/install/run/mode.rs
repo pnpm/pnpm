@@ -1,12 +1,22 @@
 use super::{
-    super::{effective_node_version, included_dependencies},
-    InstallError, InstallExecution, InstallOwned, InstallRunOptions, InstallView,
+    super::{
+        effective_node_version,
+        included_dependencies,
+    },
+    InstallError,
+    InstallExecution,
+    InstallOwned,
+    InstallRunOptions,
+    InstallView,
 };
 use crate::install::state_options::ResolveOnly;
 use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_store_dir::VerifiedFileIntegrity;
-use std::{io::IsTerminal, path::PathBuf};
+use std::{
+    io::IsTerminal,
+    path::PathBuf,
+};
 
 /// What the run's flags settle into before anything is read from disk.
 pub(super) struct RunMode {

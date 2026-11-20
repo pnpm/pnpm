@@ -16,7 +16,10 @@
 //!   unknown hosts pass through verbatim — for them the URL *is* the
 //!   identity, transport included.
 
-use crate::hosted_git::{HostedGit, HostedOpts};
+use crate::hosted_git::{
+    HostedGit,
+    HostedOpts,
+};
 
 /// Fully resolved spec consumed by [`crate::git_resolver::GitResolver`].
 #[derive(Debug, Clone, PartialEq, Eq)]

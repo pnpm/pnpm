@@ -9,20 +9,45 @@ use crate::{
     node_id::NodeId,
     resolve_dependency_tree::SyncCursor,
     resolve_peers::{
-        HoistMissingScope, ResolvePeersOptions,
-        cache::{PeerProviderChildren, PeersCacheItem},
-        context::{ChainSuffixMemo, CurrentProviderSource, ParentPkgInfo, SharedChain},
+        HoistMissingScope,
+        ResolvePeersOptions,
+        cache::{
+            PeerProviderChildren,
+            PeersCacheItem,
+        },
+        context::{
+            ChainSuffixMemo,
+            CurrentProviderSource,
+            ParentPkgInfo,
+            SharedChain,
+        },
         walker::{
-            MissingSummary, NodeOutput, PeerWalkMode, RootWalk, SnapshotBudget, Walker,
-            children_scc_ids, index_peer_provider_children,
+            MissingSummary,
+            NodeOutput,
+            PeerWalkMode,
+            RootWalk,
+            SnapshotBudget,
+            Walker,
+            children_scc_ids,
+            index_peer_provider_children,
         },
     },
-    resolved_tree::{DirectDep, ResolvedTree},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+    },
 };
 use peers_cache::PeersCache;
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    cell::RefCell,
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// Peer-hoist discovery engine: one persistent tree view + walker
 /// caches shared by every hoist round of a workspace resolve. Replaces

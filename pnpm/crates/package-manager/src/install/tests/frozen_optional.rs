@@ -1,18 +1,38 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+    },
     InstallDirs,
 };
 use crate::PolicyExcludes;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{
-    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH, Host, LayoutVersion, Modules, NodeLinker,
-    read_modules_manifest, write_modules_manifest,
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_modules_yaml::{
+    DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    read_modules_manifest,
+    write_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::{
-    LogEvent, Reporter, SilentReporter, SkippedOptionalPackage, SkippedOptionalReason, StatsLog,
+    LogEvent,
+    Reporter,
+    SilentReporter,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+    StatsLog,
     StatsMessage,
 };
 use std::sync::Mutex;

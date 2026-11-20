@@ -1,10 +1,21 @@
 #[cfg(windows)]
 use super::windows_shim_command;
-use super::{AUTO_TRUST_ENV, Path, fs};
+use super::{
+    AUTO_TRUST_ENV,
+    Path,
+    fs,
+};
 #[cfg(unix)]
 use super::{
-    Command, CommandExtra, CommandTestExt, install_legacy_shim, pnpm_command,
-    prepare_local_and_global, shim_command, stdout_of, write_script,
+    Command,
+    CommandExtra,
+    CommandTestExt,
+    install_legacy_shim,
+    pnpm_command,
+    prepare_local_and_global,
+    shim_command,
+    stdout_of,
+    write_script,
 };
 
 /// No shell sits between the caller and the target, so an environment

@@ -1,36 +1,78 @@
 pub use discovery::collect_packages_in_modules_dir;
-pub use options::{LinkBinsOptions, OwnNodePaths};
-pub use prepared::{PreparedPackageBins, link_bins_of_packages_precomputed};
-pub use refresh::{DirectoryBinPlan, prune_stale_bins, prune_stale_bins_with};
+pub use options::{
+    LinkBinsOptions,
+    OwnNodePaths,
+};
+pub use prepared::{
+    PreparedPackageBins,
+    link_bins_of_packages_precomputed,
+};
+pub use refresh::{
+    DirectoryBinPlan,
+    prune_stale_bins,
+    prune_stale_bins_with,
+};
 pub use relocatable::bin_dir_is_relocatable;
 pub use selection::choose_bins;
 pub use shim_writer::remove_bin;
-pub use source::{BinOrigin, PackageBinSource};
+pub use source::{
+    BinOrigin,
+    PackageBinSource,
+};
 
 use crate::{
     bin_resolver::{
-        Command, PackageBin, commands_from_precalculated_bins, get_bins_from_package_manifest,
+        Command,
+        PackageBin,
+        commands_from_precalculated_bins,
+        get_bins_from_package_manifest,
     },
     capabilities::{
-        DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
-        FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
+        DirCreation,
+        FsCreateDirAll,
+        FsEnsureExecutableBits,
+        FsReadDir,
+        FsReadFile,
+        FsReadHead,
+        FsReadToString,
+        FsSetExecutable,
+        FsWalkFiles,
+        FsWrite,
     },
     shim::{
-        ScriptRuntime, generate_cmd_shim, generate_pwsh_shim, is_sh_shim_basedir_anchor_current,
-        is_sh_shim_hardened, is_sh_shim_msys_cmd_switch_doubled, is_shim_pointing_at,
+        ScriptRuntime,
+        generate_cmd_shim,
+        generate_pwsh_shim,
+        is_sh_shim_basedir_anchor_current,
+        is_sh_shim_hardened,
+        is_sh_shim_msys_cmd_switch_doubled,
+        is_shim_pointing_at,
         search_script_runtime,
     },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     io,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 /// Error type for [`link_bins_of_packages`].
@@ -418,16 +460,29 @@ where
 mod tests;
 
 mod shim_writer;
-use shim_writer::{ShimSpec, remove_stale_bin, write_shim};
+use shim_writer::{
+    ShimSpec,
+    remove_stale_bin,
+    write_shim,
+};
 
 mod executable;
 use executable::{
-    bin_node_paths, chmod_tolerating_removal, ensure_target_executable, is_node_bin_name,
-    link_node_bin, link_symlinked_executable, symlink_already_points_at, target_requires_shim,
+    bin_node_paths,
+    chmod_tolerating_removal,
+    ensure_target_executable,
+    is_node_bin_name,
+    link_node_bin,
+    link_symlinked_executable,
+    symlink_already_points_at,
+    target_requires_shim,
 };
 
 mod conflicts;
-use conflicts::{package_name, pick_winner};
+use conflicts::{
+    package_name,
+    pick_winner,
+};
 
 mod discovery;
 mod options;
@@ -440,7 +495,11 @@ mod exclusions;
 use exclusions::ExcludedBins;
 
 mod linking_paths;
-use linking_paths::{remove_bins_awaiting_target, shim_node_path, target_probe_path};
+use linking_paths::{
+    remove_bins_awaiting_target,
+    shim_node_path,
+    target_probe_path,
+};
 
 mod relocatable;
 mod source;

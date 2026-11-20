@@ -3,32 +3,51 @@
 
 pub(crate) mod query;
 
-pub use query::{OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated};
+pub use query::{
+    OutdatedPackage,
+    OutdatedQuery,
+    TargetVersion,
+    collect_outdated,
+};
 pub(crate) use query::{
-    OutdatedRun, TrustChange, collect_outdated_for_importer, collect_outdated_for_importer_in_run,
+    OutdatedRun,
+    TrustChange,
+    collect_outdated_for_importer,
+    collect_outdated_for_importer_in_run,
     ignored_dependencies_matcher,
 };
-pub(crate) use render::{colorize_target, render_trust_change};
+pub(crate) use render::{
+    colorize_target,
+    render_trust_change,
+};
 
 use crate::{
     State,
     cli_args::{
         catalogs::configured_catalogs,
-        ecosystem_deps::{declared_ecosystem_dep_names, requires_ecosystem_lockfile},
+        ecosystem_deps::{
+            declared_ecosystem_dep_names,
+            requires_ecosystem_lockfile,
+        },
         install::resolve_bool_override,
         recursive::discover_workspace_projects,
         release_notes::UpgradeNotes,
         sanitize::sanitize_inline,
     },
 };
-use clap::{Args, ValueEnum};
+use clap::{
+    Args,
+    ValueEnum,
+};
 use filters::OutdatedFilters;
 use miette::IntoDiagnostic;
 use node_semver::Version;
 use owo_colors::Stream;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency as CatalogWantedDependency,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency as CatalogWantedDependency,
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
@@ -36,21 +55,51 @@ use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
 use pnpm_github_actions as github_actions;
 use pnpm_lockfile::Lockfile;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use pnpm_network::ThrottledClient;
-use pnpm_package_manager::{PickPolicy, VersionsOverrider, create_configured_registry_resolver};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manager::{
+    PickPolicy,
+    VersionsOverrider,
+    create_configured_registry_resolver,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveOptions, WantedDependency as ResolverWantedDependency,
+    LatestQuery,
+    ResolveOptions,
+    WantedDependency as ResolverWantedDependency,
 };
 use render::{
-    render_json, render_list, render_recursive_json, render_recursive_list, render_recursive_table,
-    render_table, sort_outdated, sort_workspace_outdated, write_output,
+    render_json,
+    render_list,
+    render_recursive_json,
+    render_recursive_list,
+    render_recursive_table,
+    render_table,
+    sort_outdated,
+    sort_workspace_outdated,
+    write_output,
 };
-use std::{borrow::Cow, collections::HashMap, io::Write, path::PathBuf, sync::Arc};
-use workspace::{OutdatedInWorkspace, loaded_lockfile, no_lockfile_error, project_dir};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    io::Write,
+    path::PathBuf,
+    sync::Arc,
+};
+use workspace::{
+    OutdatedInWorkspace,
+    loaded_lockfile,
+    no_lockfile_error,
+    project_dir,
+};
 
 /// Output format for `pnpm outdated`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]

@@ -1,7 +1,13 @@
-use crate::{HookError, worker::NodeWorker};
+use crate::{
+    HookError,
+    worker::NodeWorker,
+};
 use async_trait::async_trait;
 use serde_json::Value;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 use tokio::sync::OnceCell;
 
 /// Runs `.pnpmfile.{cjs,js,mjs}` hooks via Node.js.

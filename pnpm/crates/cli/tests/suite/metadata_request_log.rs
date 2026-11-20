@@ -5,12 +5,19 @@
 
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     registry::RecordedRequest,
 };
 use pretty_assertions::assert_eq;
 use serde_json::Value;
-use std::{collections::HashMap, fs, io};
+use std::{
+    collections::HashMap,
+    fs,
+    io,
+};
 
 const CASE_TABLE: &str =
     include_str!("../../../../../pnpr/.fixtures/request-logs/metadata-three-installs.json");

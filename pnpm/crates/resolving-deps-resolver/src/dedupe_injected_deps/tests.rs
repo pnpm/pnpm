@@ -1,13 +1,28 @@
-use super::{DirectByImporter, dedupe_injected_deps};
+use super::{
+    DirectByImporter,
+    dedupe_injected_deps,
+};
 use crate::{
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+    dependencies_graph::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
     peer_dependents_dedupe::UnboundOptionalPeers,
 };
 use pnpm_deps_path::DepPath;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 use rustc_hash::FxHashSet as HashSet;
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+};
 
 fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraphNode {
     DependenciesGraphNode {

@@ -1,6 +1,13 @@
-use crate::{ImporterDepVersion, ProjectSnapshot, ResolvedDependencyMap};
+use crate::{
+    ImporterDepVersion,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+};
 use pnpm_fs::lexical_normalize_posix;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use std::collections::HashMap;
 
 /// The lockfile-relative directory that `link:` references to the importer

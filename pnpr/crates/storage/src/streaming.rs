@@ -9,13 +9,36 @@
 //!   cache and returns the SHA-512 integrity it computed over the bytes.
 //! * [`stream_file`] yields an already verified file to the response.
 
-use crate::{BlobWrite, SealedBlob};
-use axum::body::{Body, Bytes};
-use futures_util::{Stream, StreamExt, stream};
+use crate::{
+    BlobWrite,
+    SealedBlob,
+};
+use axum::body::{
+    Body,
+    Bytes,
+};
+use futures_util::{
+    Stream,
+    StreamExt,
+    stream,
+};
 use pnpm_network::ThrottledResponse;
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
-use std::{future::Future, io, path::PathBuf, pin::Pin};
-use tokio::{fs::File, io::AsyncReadExt};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityChecker,
+    IntegrityOpts,
+};
+use std::{
+    future::Future,
+    io,
+    path::PathBuf,
+    pin::Pin,
+};
+use tokio::{
+    fs::File,
+    io::AsyncReadExt,
+};
 
 /// Chunk size for reading from a cached file. 64 KiB keeps syscall
 /// overhead low without buffering a meaningful fraction of a

@@ -1,10 +1,27 @@
 use super::{
-    Arc, CurrentProviderSource, DepPath, HashMap, MissingPeerInfo, NodeId, NodePeers,
-    NodePeersContext, ParentRef, ParentRefs, PeerId, ResolvedPackage, SharedChain, TreeChildren,
+    Arc,
+    CurrentProviderSource,
+    DepPath,
+    HashMap,
+    MissingPeerInfo,
+    NodeId,
+    NodePeers,
+    NodePeersContext,
+    ParentRef,
+    ParentRefs,
+    PeerId,
+    ResolvedPackage,
+    SharedChain,
+    TreeChildren,
     Walker,
 };
 
-use crate::peer_provider::{LockedProvider, PeerScope, ProviderPick, provider_for};
+use crate::peer_provider::{
+    LockedProvider,
+    PeerScope,
+    ProviderPick,
+    provider_for,
+};
 
 impl Walker<'_> {
     /// Resolve this node's own peer requirements against the augmented

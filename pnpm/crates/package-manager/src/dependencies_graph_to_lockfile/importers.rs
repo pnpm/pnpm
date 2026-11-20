@@ -1,13 +1,32 @@
 use super::{
-    Catalogs, DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileFlags,
-    ImporterLockfileInput, parse_catalog_protocol,
+    Catalogs,
+    DependenciesGraphToLockfileError,
+    GraphToLockfileOptions,
+    ImporterLockfileFlags,
+    ImporterLockfileInput,
+    parse_catalog_protocol,
 };
 use pnpm_lockfile::{
-    ImporterDepVersion, LockfileResolution, ParseImporterDepVersionError, PkgName, PkgNameVerPeer,
-    PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, VersionPart,
+    ImporterDepVersion,
+    LockfileResolution,
+    ParseImporterDepVersionError,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    VersionPart,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_resolving_deps_resolver::{
+    DepPath,
+    DependenciesGraph,
+    DependenciesGraphNode,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
 use rayon::prelude::*;
 use serde_json::Value;

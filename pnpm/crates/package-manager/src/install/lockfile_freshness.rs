@@ -4,19 +4,30 @@ pub(super) mod manifest;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) use directory_deps::{
-    NestedDirectoryPackage, ProjectManifestsByDir, RecordedPeerChildren,
-    dependency_manifests_by_dir, is_declared_local_directory, project_manifests_by_dir,
+    NestedDirectoryPackage,
+    ProjectManifestsByDir,
+    RecordedPeerChildren,
+    dependency_manifests_by_dir,
+    is_declared_local_directory,
+    project_manifests_by_dir,
     spec_target_and_range,
 };
-pub(crate) use directory_manifests::{DirectoryManifests, hooked_importer_directory_manifests};
+pub(crate) use directory_manifests::{
+    DirectoryManifests,
+    hooked_importer_directory_manifests,
+};
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
-    ImporterSatisfactionCheck, OptionalDependencyExclusions, WorkspaceProjects,
+    ImporterSatisfactionCheck,
+    OptionalDependencyExclusions,
+    WorkspaceProjects,
     check_importer_satisfies,
 };
 pub(crate) use settings::{
-    CheckLockfileSettingsDriftOptions, check_lockfile_settings_drift, parse_config_overrides,
+    CheckLockfileSettingsDriftOptions,
+    check_lockfile_settings_drift,
+    parse_config_overrides,
 };
 
 mod directory_manifests;
@@ -24,8 +35,16 @@ mod directory_manifests;
 use rayon::prelude::*;
 
 use super::{
-    Arc, Catalogs, Config, Lockfile, PackageManifest, Path, PathBuf, StalenessReason,
-    build_project_manifests_list, configured_or_discovered_workspace_dir,
+    Arc,
+    Catalogs,
+    Config,
+    Lockfile,
+    PackageManifest,
+    Path,
+    PathBuf,
+    StalenessReason,
+    build_project_manifests_list,
+    configured_or_discovered_workspace_dir,
 };
 
 /// Inputs for [`wanted_lockfile_satisfies_workspace`].

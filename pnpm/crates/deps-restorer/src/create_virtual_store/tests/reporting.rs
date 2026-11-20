@@ -1,13 +1,28 @@
-use super::{super::removed_child_aliases, name, snapshot};
+use super::{
+    super::removed_child_aliases,
+    name,
+    snapshot,
+};
 use crate::create_virtual_store::slot_linking::{
-    emit_warm_snapshot_progress, warm_progress_already_reported,
+    emit_warm_snapshot_progress,
+    warm_progress_already_reported,
 };
 use pnpm_lockfile::PkgName;
-use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
-use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
+use pnpm_reporter::{
+    LogEvent,
+    ProgressMessage,
+    Reporter,
+};
+use pnpm_tarball::{
+    SharedReportedProgressKeys,
+    pending_progress_key,
+};
 use std::sync::{
     Mutex,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 #[test]

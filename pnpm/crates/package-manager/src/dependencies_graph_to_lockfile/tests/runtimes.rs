@@ -3,12 +3,17 @@ use super::{
         DependenciesGraphToLockfileError,
         dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile,
     },
-    make_node, single_importer_opts, write_manifest,
+    make_node,
+    single_importer_opts,
+    write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::PackageKey;
 use pnpm_resolving_deps_resolver::DependenciesGraph;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use serde_json::json;
 use std::collections::BTreeMap;
 

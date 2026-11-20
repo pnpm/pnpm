@@ -8,7 +8,10 @@
 
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -16,16 +19,32 @@ use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    Lockfile, LockfileSettingsCheck, PnpmfileChecksumCheck, check_lockfile_settings,
+    Lockfile,
+    LockfileSettingsCheck,
+    PnpmfileChecksumCheck,
+    check_lockfile_settings,
     satisfies_package_manifest,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_package_manager::{Install, ResolutionObserver, ResolvedPackages};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use pnpm_package_manager::{
+    Install,
+    ResolutionObserver,
+    ResolvedPackages,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
 use tokio::io::AsyncWriteExt;
 
-use super::protocol::{ProjectDeps, ResolveRequest};
+use super::protocol::{
+    ProjectDeps,
+    ResolveRequest,
+};
 
 use install::ResolutionInstall;
 

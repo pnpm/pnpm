@@ -3,32 +3,82 @@ pub(crate) use pnpm_process as process;
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
-pub use address_guard::{AddressGuard, GuardedDnsResolver, is_public_address};
+pub use address_guard::{
+    AddressGuard,
+    GuardedDnsResolver,
+    is_public_address,
+};
 pub use auth::{
-    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, LocalFetch, LocalResponse,
-    MetadataCacheScope, UpstreamRouteHook, base64_encode, base64_encode_bytes,
-    hide_auth_information, is_url_secure_for_credentials, nerf_dart, normalize_auth_key,
-    redact_and_sanitize, redact_and_sanitize_multiline, redact_npm_auth_key,
-    redact_url_credentials, redact_url_for_display,
+    AuthHeaders,
+    AuthHeadersByScope,
+    DEFAULT_REGISTRY_SCOPE,
+    LocalFetch,
+    LocalResponse,
+    MetadataCacheScope,
+    UpstreamRouteHook,
+    base64_encode,
+    base64_encode_bytes,
+    hide_auth_information,
+    is_url_secure_for_credentials,
+    nerf_dart,
+    normalize_auth_key,
+    redact_and_sanitize,
+    redact_and_sanitize_multiline,
+    redact_npm_auth_key,
+    redact_url_credentials,
+    redact_url_for_display,
 };
 pub use certificates::bundled_root_certs;
-pub use client_builder::{default_network_concurrency, native_dns_resolver};
-pub use error_chain::{is_permanent_error, walk_reqwest_chain};
+pub use client_builder::{
+    default_network_concurrency,
+    native_dns_resolver,
+};
+pub use error_chain::{
+    is_permanent_error,
+    walk_reqwest_chain,
+};
 pub use limited_body::{
-    BodyChunks, LimitedBody, read_limited_body, read_limited_self_delimiting_body,
+    BodyChunks,
+    LimitedBody,
+    read_limited_body,
+    read_limited_self_delimiting_body,
     read_self_delimiting_body,
 };
-pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
-pub use redirect_guard::{RedirectGuard, is_blocked_redirect, origins_redirect_guard};
+pub use proxy::{
+    NoProxySetting,
+    ProxyConfig,
+    ProxyError,
+};
+pub use redirect_guard::{
+    RedirectGuard,
+    is_blocked_redirect,
+    origins_redirect_guard,
+};
 pub use requests::HeadError;
 pub use retry::{
-    RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
+    RetryOpts,
+    retry_async,
+    send_with_retry,
+    send_with_retry_at_priority,
+    should_retry_status,
 };
-pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
-pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
+pub use tls::{
+    PerRegistryTls,
+    RegistryTls,
+    TlsConfig,
+    TlsError,
+};
+pub use token_helper::{
+    TokenHelperOutput,
+    TokenHelperRunner,
+};
 pub use url_encoding::{
-    canonicalize_npm_registry_url, encode_package_name, encode_uri_component, escaped_package_name,
-    normalize_registry_url, percent_decode_str,
+    canonicalize_npm_registry_url,
+    encode_package_name,
+    encode_uri_component,
+    escaped_package_name,
+    normalize_registry_url,
+    percent_decode_str,
 };
 
 mod address_guard;
@@ -50,23 +100,50 @@ mod token_helper;
 mod url_encoding;
 
 use host_socket_limit::HostSocketLimit;
-use origin_gate::{OriginLimits, OriginPermit};
-use priority_semaphore::{Permit, PrioritySemaphore};
-use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
+use origin_gate::{
+    OriginLimits,
+    OriginPermit,
+};
+use priority_semaphore::{
+    Permit,
+    PrioritySemaphore,
+};
+use proxy::{
+    NoProxyMatcher,
+    parse_proxy_url,
+    strip_userinfo,
+};
 use registry_limit::RegistryLimits;
 #[cfg(not(target_family = "wasm"))]
 use reqwest::dns::Addrs;
 use reqwest::{
-    Certificate, Client, Identity, Proxy,
-    dns::{Name, Resolve, Resolving},
-    header::{HeaderMap, HeaderValue, USER_AGENT},
+    Certificate,
+    Client,
+    Identity,
+    Proxy,
+    dns::{
+        Name,
+        Resolve,
+        Resolving,
+    },
+    header::{
+        HeaderMap,
+        HeaderValue,
+        USER_AGENT,
+    },
 };
 use std::{
     collections::BTreeMap,
     num::NonZeroUsize,
     ops::Deref,
-    sync::{Arc, LazyLock},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        LazyLock,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tokio::sync::Semaphore;
 
@@ -607,15 +684,29 @@ impl Default for ThrottledClient {
 mod certificates;
 #[cfg(target_vendor = "apple")]
 use certificates::is_platform_verifier_available;
-use certificates::{AppliedTls, TrustRoots, apply_tls, load_node_extra_ca_certs, merge_tls};
+use certificates::{
+    AppliedTls,
+    TrustRoots,
+    apply_tls,
+    load_node_extra_ca_certs,
+    merge_tls,
+};
 
 mod client_set;
-use client_set::{ClientPair, ClientSet, OwnedClientInputs};
+use client_set::{
+    ClientPair,
+    ClientSet,
+    OwnedClientInputs,
+};
 
 mod client_builder;
 use client_builder::{
-    CappedDnsResolver, ClientBuildInputs, ClientVariant, build_client_with_root_fallback,
-    configured_proxy, is_redirect_status,
+    CappedDnsResolver,
+    ClientBuildInputs,
+    ClientVariant,
+    build_client_with_root_fallback,
+    configured_proxy,
+    is_redirect_status,
 };
 use redirect_guard::MAX_REDIRECT_HOPS;
 

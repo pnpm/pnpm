@@ -22,29 +22,67 @@ mod record;
 use record::staged_record;
 
 mod list_query;
-use list_query::{MAX_PER_PAGE, StagedListQuery, parse_staged_list_query};
+use list_query::{
+    MAX_PER_PAGE,
+    StagedListQuery,
+    parse_staged_list_query,
+};
 
 mod approval;
 use approval::serve_staged_approve;
 
 use axum::{
     body::Body,
-    extract::{OriginalUri, Path, State},
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    extract::{
+        OriginalUri,
+        Path,
+        State,
+    },
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::{
-    Action, AppState, AuthedCaller, Identity, JsonObject, RegistrySource, TargetRegistry,
-    authorize_package, commit_publishes, json_response, not_found, parse_json_body,
+    Action,
+    AppState,
+    AuthedCaller,
+    Identity,
+    JsonObject,
+    RegistrySource,
+    TargetRegistry,
+    authorize_package,
+    commit_publishes,
+    json_response,
+    not_found,
+    parse_json_body,
     private_no_cache,
     publishing::{
-        ValidatedPublish, check_body_name, cleanup_tmp_slots, validate_staged_publish_name,
+        ValidatedPublish,
+        check_body_name,
+        cleanup_tmp_slots,
+        validate_staged_publish_name,
     },
-    resolve_write_target, stage_publish, validate_publish_doc,
+    resolve_write_target,
+    stage_publish,
+    validate_publish_doc,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;

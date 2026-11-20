@@ -3,10 +3,16 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::{
     task::JoinSet,
-    time::{Duration, timeout},
+    time::{
+        Duration,
+        timeout,
+    },
 };
 
-use super::{MAX_IN_FLIGHT_REQUESTS, NodeWorker};
+use super::{
+    MAX_IN_FLIGHT_REQUESTS,
+    NodeWorker,
+};
 
 #[tokio::test]
 async fn custom_fetcher_receives_native_git_and_binary_fetchers() {
@@ -255,7 +261,10 @@ async fn a_non_string_range_from_read_package_fails_the_call() {
 #[cfg(target_vendor = "apple")]
 #[tokio::test]
 async fn the_worker_does_not_hold_an_inheritable_pipe_open() {
-    use std::{io::Read, os::fd::AsRawFd};
+    use std::{
+        io::Read,
+        os::fd::AsRawFd,
+    };
 
     let tmp = TempDir::new().expect("temp dir");
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");

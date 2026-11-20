@@ -1,18 +1,32 @@
 //! Writing a hoist plan: the private and public hoisted symlinks and the
 //! bins of the privately hoisted packages.
 
-use super::{LinkPhaseError, LinkPhaseInputs};
+use super::{
+    LinkPhaseError,
+    LinkPhaseInputs,
+};
 use crate::{
-    SkippedSnapshots, VirtualStoreLayout,
+    SkippedSnapshots,
+    VirtualStoreLayout,
     install_frozen_lockfile::{
-        HoistPlan, collect_public_hoist_targets, compute_hoist_plan, workspace_packages_for_hoist,
+        HoistPlan,
+        collect_public_hoist_targets,
+        compute_hoist_plan,
+        workspace_packages_for_hoist,
     },
     symlink_hoisted_dependencies,
 };
-use pnpm_cmd_shim::{LinkBinsOptions, PackageBinSource};
+use pnpm_cmd_shim::{
+    LinkBinsOptions,
+    PackageBinSource,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::PackageKey;
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// Planned before the links are written, not with them: an importer's
 /// dep that public-hoist lands at root has to be in

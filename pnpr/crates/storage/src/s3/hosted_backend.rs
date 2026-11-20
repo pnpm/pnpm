@@ -1,7 +1,19 @@
 use super::{
-    Arc, Body, CanonicalPackageName, DocumentWrite, Ecosystem, HostedBackend,
-    HostedDocumentForUpdate, HostedDocumentVersion, ObjectPath, Path, PathBuf, Result, S3Store,
-    async_trait, fs,
+    Arc,
+    Body,
+    CanonicalPackageName,
+    DocumentWrite,
+    Ecosystem,
+    HostedBackend,
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+    ObjectPath,
+    Path,
+    PathBuf,
+    Result,
+    S3Store,
+    async_trait,
+    fs,
 };
 
 /// The S3-compatible object-store backend. Document writes are

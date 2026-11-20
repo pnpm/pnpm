@@ -1,8 +1,14 @@
 use super::{
-    READ_BUFFER_SIZE, extract_env_document, extract_main_document, read_first_yaml_document,
+    READ_BUFFER_SIZE,
+    extract_env_document,
+    extract_main_document,
+    read_first_yaml_document,
     read_first_yaml_document_in_chunks,
 };
-use std::io::{self, Read};
+use std::io::{
+    self,
+    Read,
+};
 
 #[test]
 fn returns_entire_content_when_it_does_not_start_with_separator() {

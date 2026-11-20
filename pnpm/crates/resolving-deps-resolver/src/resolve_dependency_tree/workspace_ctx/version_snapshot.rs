@@ -1,8 +1,24 @@
 use super::{
-    Arc, ChildrenOwnerEntry, DirectDep, FirstWalkMissing, HashMap, HashSet, MissingNames,
-    MutexGuard, OwnerMissingRecord, ResolvedTree, RunVersionsCache, WorkspaceTreeCtx,
-    collect_newly_visited, fold_version, fold_visited_versions, lock_recoverable, take_locked,
-    take_write_locked, walk_reachable_children, walk_reachable_nodes,
+    Arc,
+    ChildrenOwnerEntry,
+    DirectDep,
+    FirstWalkMissing,
+    HashMap,
+    HashSet,
+    MissingNames,
+    MutexGuard,
+    OwnerMissingRecord,
+    ResolvedTree,
+    RunVersionsCache,
+    WorkspaceTreeCtx,
+    collect_newly_visited,
+    fold_version,
+    fold_visited_versions,
+    lock_recoverable,
+    take_locked,
+    take_write_locked,
+    walk_reachable_children,
+    walk_reachable_nodes,
 };
 
 impl WorkspaceTreeCtx {

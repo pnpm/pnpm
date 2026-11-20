@@ -1,14 +1,28 @@
 use crate::server::{
-    AuthedCaller, TargetRegistry, state_and_router,
-    tokens::{Caller, create_token},
+    AuthedCaller,
+    TargetRegistry,
+    state_and_router,
+    tokens::{
+        Caller,
+        create_token,
+    },
     user_accounts::post_profile,
 };
-use axum::{body::Bytes, extract::State, http::StatusCode, response::Response};
+use axum::{
+    body::Bytes,
+    extract::State,
+    http::StatusCode,
+    response::Response,
+};
 use pnpr_auth::AuthState;
 use pnpr_config::Config;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_policy::Identity;
-use std::{future::Future, pin::Pin, task::Poll};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::Poll,
+};
 use tempfile::TempDir;
 
 enum VerificationRoute {
@@ -69,7 +83,10 @@ async fn passwordless_tokens_stay_within_the_calling_tokens_networks() {
     use axum::{
         body::Body,
         extract::ConnectInfo,
-        http::{Request, header},
+        http::{
+            Request,
+            header,
+        },
     };
     use tower::ServiceExt as _;
 

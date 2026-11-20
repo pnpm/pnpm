@@ -1,6 +1,17 @@
 use super::{
-    AllowBuildValue, HashSet, IndexMap, Inline, Manifest, flow, insert_top_level_block, locate,
-    locate_mapping, mapping_keys, remove_top_level_block, render, replace_value_text_at,
+    AllowBuildValue,
+    HashSet,
+    IndexMap,
+    Inline,
+    Manifest,
+    flow,
+    insert_top_level_block,
+    locate,
+    locate_mapping,
+    mapping_keys,
+    remove_top_level_block,
+    render,
+    replace_value_text_at,
     write_rendered_entry_at,
 };
 

@@ -1,5 +1,15 @@
-use super::{FsSetPermissions, Permissions, ensure_executable, ensure_executable_bits};
-use std::{fs, io, os::unix::fs::PermissionsExt, path::Path};
+use super::{
+    FsSetPermissions,
+    Permissions,
+    ensure_executable,
+    ensure_executable_bits,
+};
+use std::{
+    fs,
+    io,
+    os::unix::fs::PermissionsExt,
+    path::Path,
+};
 use tempfile::tempdir;
 
 /// Refuses every chmod, as the kernel does for a file another user owns.

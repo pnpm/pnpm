@@ -2,16 +2,30 @@ use std::sync::Arc;
 
 use pnpm_lockfile::registry_server_type;
 use pnpm_resolving_resolver_base::{
-    ResolveError, ResolveOptions, ResolveResult, WantedDependency, WorkspacePackages,
+    ResolveError,
+    ResolveOptions,
+    ResolveResult,
+    WantedDependency,
+    WorkspacePackages,
 };
 
 use super::{
-    NPM_REGISTRY_RESOLVED_VIA, NpmResolver, PickedFromRegistry, RegistryPick, calculated_specifier,
-    fast_path_pick, trust_check_for_pick, validate_revision_selector, wanted_spec,
-    warn_once_on_trust_downgrade_fallback, workspace_packages_active, workspace_shadow_pick,
+    NPM_REGISTRY_RESOLVED_VIA,
+    NpmResolver,
+    PickedFromRegistry,
+    RegistryPick,
+    calculated_specifier,
+    fast_path_pick,
+    trust_check_for_pick,
+    validate_revision_selector,
+    wanted_spec,
+    warn_once_on_trust_downgrade_fallback,
+    workspace_packages_active,
+    workspace_shadow_pick,
 };
 use crate::{
-    named_registry::pick_registry_for_package, pick_package::PackageMetaCache,
+    named_registry::pick_registry_for_package,
+    pick_package::PackageMetaCache,
     pick_package_from_meta::RegistryPackageSpec,
 };
 

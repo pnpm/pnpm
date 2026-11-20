@@ -1,4 +1,11 @@
-use super::super::{DependencyGroup, HashSet, PackageManifest, Path, PathBuf, ProjectMutation};
+use super::super::{
+    DependencyGroup,
+    HashSet,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectMutation,
+};
 
 pub(crate) fn build_project_manifests_list<'a>(
     root_manifest: &'a PackageManifest,

@@ -1,6 +1,13 @@
-use super::super::{StoreIndex, StoreIndexFormat, tests::sample_index};
+use super::super::{
+    StoreIndex,
+    StoreIndexFormat,
+    tests::sample_index,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 use tempfile::tempdir;
 
 const TGZ_KEY: &str = "sha512-tgz\tacme@1.0.0";

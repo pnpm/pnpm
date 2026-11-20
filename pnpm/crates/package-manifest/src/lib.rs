@@ -1,54 +1,126 @@
 pub mod package_manager_spec;
 pub use bins::{
-    MAX_PRECALCULATED_BINS, MAX_PRECALCULATED_BINS_BYTES, PackageBin, ScriptRuntime,
-    declared_bin_entries, extension_program, infer_script_runtime_from_head,
-    infer_script_runtime_from_shebang, is_safe_bin_name, is_within_precalculated_bins_budget,
-    manifest_declares_bins, normalize_bin_path, normalize_package_relative_path, parse_shebang,
-    parse_shebang_from_bytes, resolve_package_bins, resolve_package_bins_from_cas_paths,
-    resolve_package_bins_with, serialize_precalculated_bins, unscoped_bin_name,
+    MAX_PRECALCULATED_BINS,
+    MAX_PRECALCULATED_BINS_BYTES,
+    PackageBin,
+    ScriptRuntime,
+    declared_bin_entries,
+    extension_program,
+    infer_script_runtime_from_head,
+    infer_script_runtime_from_shebang,
+    is_safe_bin_name,
+    is_within_precalculated_bins_budget,
+    manifest_declares_bins,
+    normalize_bin_path,
+    normalize_package_relative_path,
+    parse_shebang,
+    parse_shebang_from_bytes,
+    resolve_package_bins,
+    resolve_package_bins_from_cas_paths,
+    resolve_package_bins_with,
+    serialize_precalculated_bins,
+    unscoped_bin_name,
     verify_package_bins,
 };
 pub use build_triggers::{
-    BINDING_GYP, BuildTriggers, files_build_triggers, files_include_install_scripts,
-    manifest_opts_out_of_gyp_build, manifest_requires_build, pkg_build_triggers,
-    pkg_requires_build, read_package_json_from_cas_paths, requires_build_from_cas_paths,
-    requires_build_from_files, stored_requires_build_needs_manifest_check,
+    BINDING_GYP,
+    BuildTriggers,
+    files_build_triggers,
+    files_include_install_scripts,
+    manifest_opts_out_of_gyp_build,
+    manifest_requires_build,
+    pkg_build_triggers,
+    pkg_requires_build,
+    read_package_json_from_cas_paths,
+    requires_build_from_cas_paths,
+    requires_build_from_files,
+    stored_requires_build_needs_manifest_check,
 };
 pub use bundled_manifest::normalize_bundled_manifest;
 pub use error::PackageManifestError;
-pub use initialization::{InitAuthor, InitOptions};
-pub use install_manifest::{
-    ArchiveFacts, INSTALL_MANIFEST_FIELDS, INSTALL_MANIFEST_PROFILE, InstallManifest,
-    ManifestComparison, NODE_GYP_REBUILD,
+pub use initialization::{
+    InitAuthor,
+    InitOptions,
 };
-pub use metadata::{extract_author, extract_homepage, extract_license};
+pub use install_manifest::{
+    ArchiveFacts,
+    INSTALL_MANIFEST_FIELDS,
+    INSTALL_MANIFEST_PROFILE,
+    InstallManifest,
+    ManifestComparison,
+    NODE_GYP_REBUILD,
+};
+pub use metadata::{
+    extract_author,
+    extract_homepage,
+    extract_license,
+};
 pub use project::{
-    PROJECT_MANIFEST_BASENAMES, find_parent_publish_manifest, project_manifest_path,
-    publishes_from_directory, safe_read_project_manifest_from_dir,
+    PROJECT_MANIFEST_BASENAMES,
+    find_parent_publish_manifest,
+    project_manifest_path,
+    publishes_from_directory,
+    safe_read_project_manifest_from_dir,
 };
 pub use raw::RawPackageManifest;
-pub use readme::{ReadmeKind, decode_readme, is_preferred_readme, readme_kind};
-pub use runtime::{
-    apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
-    convert_engines_runtime_to_dependencies, downloaded_node_runtime_from_dependency_field,
-    downloaded_node_specifier_from_engine_field, downloaded_node_version_from_engine_field,
-    downloaded_node_version_from_engines_runtime, engines_runtime_dependencies, is_runtime_alias,
-    node_version_from_engine_field, node_version_from_engines_runtime,
+pub use readme::{
+    ReadmeKind,
+    decode_readme,
+    is_preferred_readme,
+    readme_kind,
 };
-pub use serialization::{parse_manifest, parse_manifest_bytes, safe_read_package_json_from_dir};
+pub use runtime::{
+    apply_runtime_on_fail_override,
+    convert_dependencies_to_engines_runtime,
+    convert_engines_runtime_to_dependencies,
+    downloaded_node_runtime_from_dependency_field,
+    downloaded_node_specifier_from_engine_field,
+    downloaded_node_version_from_engine_field,
+    downloaded_node_version_from_engines_runtime,
+    engines_runtime_dependencies,
+    is_runtime_alias,
+    node_version_from_engine_field,
+    node_version_from_engines_runtime,
+};
+pub use serialization::{
+    parse_manifest,
+    parse_manifest_bytes,
+    safe_read_package_json_from_dir,
+};
 pub use truthiness::is_truthy;
 
 use std::{
-    fmt, fs,
-    io::{self, Write},
-    path::{Path, PathBuf},
+    fmt,
+    fs,
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use blank_lines::BlankLines;
-use node_semver::{Range, Version};
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value, json};
-use serialization::{ManifestFormatting, empty_dependency_fields, normalize_dependency_fields};
+use node_semver::{
+    Range,
+    Version,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use serialization::{
+    ManifestFormatting,
+    empty_dependency_fields,
+    normalize_dependency_fields,
+};
 use strum::IntoStaticStr;
 mod bins;
 mod blank_lines;

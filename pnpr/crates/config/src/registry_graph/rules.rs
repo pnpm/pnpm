@@ -1,4 +1,7 @@
-use super::super::{PackagePattern, PackageRules};
+use super::super::{
+    PackagePattern,
+    PackageRules,
+};
 use pnpr_policy::RuleTable;
 
 /// The rules of a registry that claims `patterns`. No grant covers it until

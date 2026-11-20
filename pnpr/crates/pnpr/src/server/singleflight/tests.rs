@@ -1,9 +1,15 @@
 use super::Singleflight;
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
-use tokio::time::{Duration, sleep};
+use tokio::time::{
+    Duration,
+    sleep,
+};
 
 #[tokio::test]
 async fn singleflight_coalesces_concurrent_calls() {

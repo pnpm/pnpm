@@ -1,7 +1,20 @@
-use super::{LockedPackage, Lockfile, marker_tree};
-use miette::{IntoDiagnostic, Result, WrapErr};
+use super::{
+    LockedPackage,
+    Lockfile,
+    marker_tree,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pep440_rs::Version;
-use pep508_rs::{MarkerTree, PackageName, Requirement, VersionOrUrl};
+use pep508_rs::{
+    MarkerTree,
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
 use std::collections::BTreeMap;
 
 impl Lockfile {

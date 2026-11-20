@@ -3,14 +3,28 @@
 
 use crate::{
     read_package_json,
-    scan::{GlobalPackageInfo, scan_global_packages},
+    scan::{
+        GlobalPackageInfo,
+        scan_global_packages,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest, pkg_owns_bin};
+use pnpm_cmd_shim::{
+    Host,
+    PackageBinSource,
+    get_bins_from_package_manifest,
+    pkg_owns_bin,
+};
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 

@@ -1,21 +1,49 @@
 //! Dist-tags and their insert-only history.
 
 use super::{
-    Expected, PackageKey,
-    adapter::{Connection, Query, Row},
-    batch::{Batch, Retired},
-    commit::{Commit, PackageRow, package_row_from, package_row_query},
-    packument::{PackumentRows, TIME},
+    Expected,
+    PackageKey,
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
+    batch::{
+        Batch,
+        Retired,
+    },
+    commit::{
+        Commit,
+        PackageRow,
+        package_row_from,
+        package_row_query,
+    },
+    packument::{
+        PackumentRows,
+        TIME,
+    },
     to_column,
 };
 use crate::{
-    database::{TagChange, TagUpdate, validate_dist_tag, validate_dist_tag_target},
-    publish::{iso_from_unix_millis, now_iso, now_millis},
+    database::{
+        TagChange,
+        TagUpdate,
+        validate_dist_tag,
+        validate_dist_tag_target,
+    },
+    publish::{
+        iso_from_unix_millis,
+        now_iso,
+        now_millis,
+    },
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::collections::BTreeMap;
 
 /// A [`TagChange`] the blocking pool can own.

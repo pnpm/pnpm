@@ -1,4 +1,8 @@
-use super::{Connected, IncomingStream, SocketAddr};
+use super::{
+    Connected,
+    IncomingStream,
+    SocketAddr,
+};
 
 /// Wraps [`tokio::net::TcpListener`] to disable Nagle's algorithm on
 /// every accepted socket.

@@ -1,13 +1,25 @@
 use super::{
-    calc_global_virtual_store_path_with_subdeps, calc_graph_node_hash,
-    calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
+    calc_global_virtual_store_path_with_subdeps,
+    calc_graph_node_hash,
+    calc_leaf_global_virtual_store_path,
+    format_global_virtual_store_path,
     join_global_virtual_store_path,
 };
-use crate::{build_required_dep_paths, dep_state::DepsGraphNode};
+use crate::{
+    build_required_dep_paths,
+    dep_state::DepsGraphNode,
+};
 use indexmap::IndexMap;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{MAIN_SEPARATOR, Path},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        MAIN_SEPARATOR,
+        Path,
+    },
 };
 
 #[test]

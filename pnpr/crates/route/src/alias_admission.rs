@@ -1,6 +1,12 @@
 //! Which upstream alias, if any, lends its credential to a fetch.
 
-use super::{ConcreteKind, Identity, Resolved, ResolvedAlias, RouteContext};
+use super::{
+    ConcreteKind,
+    Identity,
+    Resolved,
+    ResolvedAlias,
+    RouteContext,
+};
 
 impl RouteContext {
     /// Whether the upstream registry's credential may be used for `package`

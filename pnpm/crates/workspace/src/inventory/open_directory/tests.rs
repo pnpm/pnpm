@@ -1,5 +1,8 @@
 use super::open_components;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn fallback_opens_components_without_following_intermediate_symlinks() {

@@ -1,8 +1,14 @@
 use super::{
-    super::executable::symlink_tolerating_concurrent_writers, Path, create_dir_all, tempdir,
+    super::executable::symlink_tolerating_concurrent_writers,
+    Path,
+    create_dir_all,
+    tempdir,
     write_file,
 };
-use std::{os::unix::fs::symlink, path::PathBuf};
+use std::{
+    os::unix::fs::symlink,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 fn create_concurrent_link_fixture() -> (TempDir, PathBuf, PathBuf) {

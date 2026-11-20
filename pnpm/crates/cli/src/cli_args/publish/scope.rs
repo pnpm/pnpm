@@ -1,6 +1,9 @@
 use super::new_version::BumpedPackages;
 use pnpm_pack::WorkspacePackageManifest;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// Which publish a package is part of, with the [`BumpedPackages`] of a
 /// `--new-version` run.

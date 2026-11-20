@@ -1,21 +1,42 @@
 use crate::{
-    EnvLockfile, Lockfile,
+    EnvLockfile,
+    Lockfile,
     git_merge_file::MERGE_CONFLICT_OURS,
     serialize_yaml,
     yaml_documents::{
-        YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document,
+        YAML_DOCUMENT_SEPARATOR,
+        YAML_DOCUMENT_START,
+        extract_env_document,
         normalize_lockfile_content,
     },
 };
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use std::{
     borrow::Cow,
     env,
-    fs::{self, OpenOptions},
-    io::{self, Write},
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    fs::{
+        self,
+        OpenOptions,
+    },
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// Error when writing the lockfile to the filesystem.

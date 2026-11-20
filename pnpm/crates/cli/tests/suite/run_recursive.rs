@@ -5,7 +5,10 @@
 //! process-group tests stay Unix-only, and they say so where they sit.
 
 use crate::_utils::{
-    CHILD_DEADLINE, append_line_script, wait_for_child_with_deadline, wait_for_marker_script,
+    CHILD_DEADLINE,
+    append_line_script,
+    wait_for_child_with_deadline,
+    wait_for_marker_script,
     write_marker_script,
 };
 use assert_cmd::prelude::*;
@@ -14,14 +17,23 @@ use pnpm_cmd_shim::ScriptRuntime;
 #[cfg(unix)]
 use pnpm_cmd_shim::generate_sh_shim;
 #[cfg(windows)]
-use pnpm_cmd_shim::{CmdShimBatch, generate_cmd_shim};
+use pnpm_cmd_shim::{
+    CmdShimBatch,
+    generate_cmd_shim,
+};
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::HashMap,
     fs,
     path::Path,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
     time::Duration,
 };
 

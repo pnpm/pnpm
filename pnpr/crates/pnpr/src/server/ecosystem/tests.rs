@@ -1,12 +1,19 @@
 use super::upstream_fetch_guard;
-use pnpr_config::{Config, PublicRoute, UpstreamConfig};
+use pnpr_config::{
+    Config,
+    PublicRoute,
+    UpstreamConfig,
+};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_route::RouteContext;
 use reqwest::header::HeaderMap;
 use std::{
     net::SocketAddr,
     path::PathBuf,
-    sync::{Arc, RwLock},
+    sync::{
+        Arc,
+        RwLock,
+    },
 };
 use url::Url;
 

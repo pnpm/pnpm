@@ -1,15 +1,25 @@
 use std::{
     collections::HashMap,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use mockito::Matcher;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
 use serde_json::json;
 
 use super::wait_for_published_packages;
-use crate::{PublishNetwork, PublishWaitError, parse_supported_registry_url};
+use crate::{
+    PublishNetwork,
+    PublishWaitError,
+    parse_supported_registry_url,
+};
 
 async fn wait(
     client: &ThrottledClient,

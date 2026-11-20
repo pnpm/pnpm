@@ -1,5 +1,9 @@
 use super::{
-    HashMap, InstallOptions, NodeApiProject, invalid_manifest_error, unsupported_option_error,
+    HashMap,
+    InstallOptions,
+    NodeApiProject,
+    invalid_manifest_error,
+    unsupported_option_error,
 };
 
 /// Reject a project whose `manifest` is not a JSON object up front.

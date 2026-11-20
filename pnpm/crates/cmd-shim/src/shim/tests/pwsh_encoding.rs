@@ -1,5 +1,13 @@
-use super::{super::powershell::with_utf8_bom, ScriptRuntime, generate_pwsh_shim};
-use std::{fs, path::Path, process::Command};
+use super::{
+    super::powershell::with_utf8_bom,
+    ScriptRuntime,
+    generate_pwsh_shim,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::tempdir;
 
 fn node_runtime() -> ScriptRuntime {

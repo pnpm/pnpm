@@ -3,12 +3,24 @@
 //! failed. A bail stopping the tasks still running is the second place pnpm
 //! differs on purpose.
 
-use super::{Leftover, launcher_args, surviving, write_fixture};
+use super::{
+    Leftover,
+    launcher_args,
+    surviving,
+    write_fixture,
+};
 use crate::_utils::wait_for_child;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Stdio};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Stdio,
+};
 
 const LEFTOVERS: [Leftover; 2] = [Leftover::Detached, Leftover::Attached];
 

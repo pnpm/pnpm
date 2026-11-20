@@ -1,4 +1,8 @@
-use super::{is_tool_specifier, strip_tool_protocol, tool_specifiers_equal};
+use super::{
+    is_tool_specifier,
+    strip_tool_protocol,
+    tool_specifiers_equal,
+};
 use pretty_assertions::assert_eq;
 
 #[test]

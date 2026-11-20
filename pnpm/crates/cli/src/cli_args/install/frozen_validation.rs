@@ -1,10 +1,17 @@
 use super::{
-    DryRunIncompatibleWithPnpr, InstallArgs, InstallFamilySelection, pnpr_config_validation,
-    uses_pnpr_server, workspace_install_selection,
+    DryRunIncompatibleWithPnpr,
+    InstallArgs,
+    InstallFamilySelection,
+    pnpr_config_validation,
+    uses_pnpr_server,
+    workspace_install_selection,
 };
 use crate::State;
 use miette::Context;
-use pnpm_package_manager::{FrozenVirtualStoreClean, PreparedFrozenInstall};
+use pnpm_package_manager::{
+    FrozenVirtualStoreClean,
+    PreparedFrozenInstall,
+};
 
 impl InstallArgs {
     /// Validate pre-clean invariants and prepare frozen-lockfile hook/verification

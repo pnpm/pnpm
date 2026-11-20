@@ -1,4 +1,8 @@
-use super::{WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, fs};
+use super::{
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    fs,
+};
 
 /// Credentials belong in `.npmrc`, which is not committed. Refused after
 /// parsing, not by `deny_unknown_fields`: a parse error renders the offending

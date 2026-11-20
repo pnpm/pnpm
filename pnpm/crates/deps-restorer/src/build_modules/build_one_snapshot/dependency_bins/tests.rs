@@ -1,8 +1,16 @@
 use super::{
-    BuildModulesError, DirectoryBinPlan, HashSet, HoistedBinPlans, PackageKey, Path,
+    BuildModulesError,
+    DirectoryBinPlan,
+    HashSet,
+    HoistedBinPlans,
+    PackageKey,
+    Path,
     refresh_directory,
 };
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 #[test]
 fn shared_consumers_scan_once_until_another_dependency_completes() {

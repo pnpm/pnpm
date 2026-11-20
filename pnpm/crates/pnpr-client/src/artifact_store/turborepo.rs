@@ -17,18 +17,44 @@
 //! a replacement serves the machines its own build serves.
 
 use super::super::{
-    ARTIFACT_REQUEST_TIMEOUT, ArtifactBlobRequest, ArtifactCandidate, ArtifactPublication,
-    BTreeMap, PnprClientError, ResolveArtifactsOptions, ResolveArtifactsResponse,
+    ARTIFACT_REQUEST_TIMEOUT,
+    ArtifactBlobRequest,
+    ArtifactCandidate,
+    ArtifactPublication,
+    BTreeMap,
+    PnprClientError,
+    ResolveArtifactsOptions,
+    ResolveArtifactsResponse,
     SignedArtifactEnvelope,
-    blob_transfer::{BlobBody, blob_body, blob_timeout, read_blob, write_blob},
+    blob_transfer::{
+        BlobBody,
+        blob_body,
+        blob_timeout,
+        read_blob,
+        write_blob,
+    },
     response_body_bounded,
 };
-use futures_util::{StreamExt as _, TryStreamExt as _, stream};
-use pnpm_shared_artifact_protocol::{
-    ArtifactVariant, CompatibilityConstraints, CompatibilityScopes, MAX_ENCODED_SIGNATURE_SIZE,
-    MAX_ENCODED_SIGNED_PAYLOAD_SIZE, OwnerScope, ResolvedArtifact, compatibility_scopes,
+use futures_util::{
+    StreamExt as _,
+    TryStreamExt as _,
+    stream,
 };
-use reqwest::{Client, StatusCode, redirect::Policy};
+use pnpm_shared_artifact_protocol::{
+    ArtifactVariant,
+    CompatibilityConstraints,
+    CompatibilityScopes,
+    MAX_ENCODED_SIGNATURE_SIZE,
+    MAX_ENCODED_SIGNED_PAYLOAD_SIZE,
+    OwnerScope,
+    ResolvedArtifact,
+    compatibility_scopes,
+};
+use reqwest::{
+    Client,
+    StatusCode,
+    redirect::Policy,
+};
 use std::path::Path;
 
 /// The scope of an artifact that applies to every machine.

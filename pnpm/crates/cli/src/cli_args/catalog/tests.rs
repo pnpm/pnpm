@@ -1,9 +1,17 @@
 use super::{
-    Conflict, DeclaredSpecifiers, MigrationPlan, is_migratable, plan_migration, render_report,
+    Conflict,
+    DeclaredSpecifiers,
+    MigrationPlan,
+    is_migratable,
+    plan_migration,
+    render_report,
 };
 use pnpm_catalogs_types::Catalog;
 use pretty_assertions::assert_eq;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 fn declared(entries: &[(&str, &[&str])]) -> DeclaredSpecifiers {
     entries

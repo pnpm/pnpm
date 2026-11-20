@@ -1,6 +1,9 @@
 use std::{
     fs,
-    io::{self, Write as _},
+    io::{
+        self,
+        Write as _,
+    },
     path::Path,
 };
 

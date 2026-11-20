@@ -16,20 +16,38 @@
 pub(crate) use manifest::auto_installed_peer_deps;
 pub use manifest::satisfies_package_manifest;
 pub use recorded_settings::{
-    auto_install_peers_changed, exclude_links_from_lockfile_changed,
-    recorded_add_missing_peer_types, recorded_dedupe_peers, recorded_inject_workspace_packages,
-    recorded_peers_suffix_max_length, recorded_project_scoped_optional_peers,
+    auto_install_peers_changed,
+    exclude_links_from_lockfile_changed,
+    recorded_add_missing_peer_types,
+    recorded_dedupe_peers,
+    recorded_inject_workspace_packages,
+    recorded_peers_suffix_max_length,
+    recorded_project_scoped_optional_peers,
 };
 pub use spec_diff::SpecDiff;
 
 use crate::{
-    Lockfile, ProjectSnapshot, RegistryContext, ResolvedDependencyMap, ResolvedDependencySpec,
+    Lockfile,
+    ProjectSnapshot,
+    RegistryContext,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
 #[derive(Clone, Copy)]
 pub struct LockfileSettingsCheck<'a> {
@@ -615,5 +633,7 @@ mod spec_diff;
 
 use manifest::dependency_specifiers_equal;
 use recorded_settings::{
-    check_integrity_target, check_project_scoped_optional_peers, check_recorded_settings,
+    check_integrity_target,
+    check_project_scoped_optional_peers,
+    check_recorded_settings,
 };

@@ -1,6 +1,12 @@
 use pnpm_reporter::SilentReporter;
 
-use super::{AddUserError, ClassicLoginOpError, Credentials, add_user, add_user_error_to_op};
+use super::{
+    AddUserError,
+    ClassicLoginOpError,
+    Credentials,
+    add_user,
+    add_user_error_to_op,
+};
 
 #[tokio::test]
 async fn classic_login_does_not_forward_credentials_on_body_preserving_redirects() {

@@ -1,10 +1,28 @@
-use super::{frozen_tree_intact, hoisted_workspace_packages_present};
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, PackageKey, ProjectSnapshot, SnapshotEntry};
-use pnpm_modules_yaml::{
-    Host, IncludedDependencies, Modules, ModulesLayout, write_modules_manifest,
+use super::{
+    frozen_tree_intact,
+    hoisted_workspace_packages_present,
 };
-use std::{fs, path::Path};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
+use pnpm_modules_yaml::{
+    Host,
+    IncludedDependencies,
+    Modules,
+    ModulesLayout,
+    write_modules_manifest,
+};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 

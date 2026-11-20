@@ -6,10 +6,18 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
-use std::{fmt::Write, fs, path::Path, process::Command};
+use std::{
+    fmt::Write,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// Writes the environment of its `install` script to `env.json`.
 const ENV_WRITER: &str = "@pnpm.e2e/write-lifecycle-env";

@@ -1,6 +1,10 @@
 #[cfg(unix)]
 use super::pacquet_in_terminal;
-use super::{INSTALL_MARKER, install_with_ignored_build, pacquet};
+use super::{
+    INSTALL_MARKER,
+    install_with_ignored_build,
+    pacquet,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;

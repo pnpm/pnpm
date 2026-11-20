@@ -1,7 +1,17 @@
 use jiff::Timestamp;
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    time::Duration,
+};
 
-use super::{MAX_ENTRIES, OidcState, Result, random_secret, rejected, unavailable};
+use super::{
+    MAX_ENTRIES,
+    OidcState,
+    Result,
+    random_secret,
+    rejected,
+    unavailable,
+};
 
 #[cfg(test)]
 mod tests;

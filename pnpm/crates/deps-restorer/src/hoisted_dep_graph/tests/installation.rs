@@ -1,16 +1,37 @@
 use super::{
     super::{
-        DepHierarchy, DependenciesGraph, HoistedDepGraphError, InstallabilityError,
-        LockfileToDepGraphResult, LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph,
+        DepHierarchy,
+        DependenciesGraph,
+        HoistedDepGraphError,
+        InstallabilityError,
+        LockfileToDepGraphResult,
+        LockfileToHoistedDepGraphOptions,
+        lockfile_to_hoisted_dep_graph,
     },
-    dep_key, directory_resolution, host_aware_opts, lockfile_with, metadata_stub, metadata_with_os,
-    pkg_name, resolved_dep, ver_peer,
+    dep_key,
+    directory_resolution,
+    host_aware_opts,
+    lockfile_with,
+    metadata_stub,
+    metadata_with_os,
+    pkg_name,
+    resolved_dep,
+    ver_peer,
 };
-use pnpm_lockfile::{PackageMetadata, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageMetadata,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+};
 use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
     path::PathBuf,
 };
 

@@ -1,4 +1,7 @@
-use super::{LogLevel, Serialize};
+use super::{
+    LogLevel,
+    Serialize,
+};
 
 /// `pnpm:context` payload.
 ///

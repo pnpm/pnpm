@@ -11,10 +11,16 @@
 
 pub(crate) use installed::resync_agent_skills_dep_paths_at;
 pub use installed::{
-    ResyncAgentSkillsError, SkillApprovalError, SkillApprovalOptions,
-    resync_installed_agent_skills, skill_approval_options,
+    ResyncAgentSkillsError,
+    SkillApprovalError,
+    SkillApprovalOptions,
+    resync_installed_agent_skills,
+    skill_approval_options,
 };
-pub use targets::{agent_skills_dir_from_env, detected_agent_dirs};
+pub use targets::{
+    agent_skills_dir_from_env,
+    detected_agent_dirs,
+};
 
 /// Whether an install whose tree is up to date still has agent skills to
 /// link, because an approved skill's target directories changed since the
@@ -42,25 +48,51 @@ mod installed;
 mod links;
 mod targets;
 
-use crate::{SkillsPolicy, VersionPolicyError};
-use derive_more::{Display, Error};
+use crate::{
+    SkillsPolicy,
+    VersionPolicyError,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use discovery::{
-    Skill, SkillSource, discover_skill_sources,
+    Skill,
+    SkillSource,
+    discover_skill_sources,
     local_identity::{
-        DIGEST_HEX_LEN, MAX_SKILL_ENTRY_BYTES, dedup_approved_local_copies,
-        disambiguate_local_segments, truncate_utf8,
+        DIGEST_HEX_LEN,
+        MAX_SKILL_ENTRY_BYTES,
+        dedup_approved_local_copies,
+        disambiguate_local_segments,
+        truncate_utf8,
     },
 };
 use gitignore::update_gitignores;
-use links::{ensure_unoccupied, is_occupied, materialize, prune};
+use links::{
+    ensure_unoccupied,
+    is_occupied,
+    materialize,
+    prune,
+};
 use miette::Diagnostic;
-use pnpm_config::{Config, SkillsPermission};
+use pnpm_config::{
+    Config,
+    SkillsPermission,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use std::{
-    collections::{BTreeMap, BTreeSet, btree_map},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        btree_map,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The prefix of every entry pnpm links into an agent skill directory.

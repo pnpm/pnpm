@@ -1,15 +1,30 @@
 #[cfg(test)]
 pub(in crate::cli_args) mod tests;
 
-use super::{Config, ConfigOverrides, Context, Host, Invocation, Path};
+use super::{
+    Config,
+    ConfigOverrides,
+    Context,
+    Host,
+    Invocation,
+    Path,
+};
 use crate::{
     cli_args::{
-        cli_command::options::push_cli_token, install::resolve_bool_override,
+        cli_command::options::push_cli_token,
+        install::resolve_bool_override,
         reporter::configure_color,
     },
-    config_overrides::{apply_state_dir_override, apply_store_dir_override},
+    config_overrides::{
+        apply_state_dir_override,
+        apply_store_dir_override,
+    },
 };
-use pnpm_config::{ColorMode, ConfigLoadFailure, SettingsRead};
+use pnpm_config::{
+    ColorMode,
+    ConfigLoadFailure,
+    SettingsRead,
+};
 
 /// The config every load starts from. `npmrc_auth_file` is seeded from the
 /// CLI flag before `current()` reads `.npmrc`, so the override redirects the

@@ -1,11 +1,25 @@
 use super::{
-    BASE64, HostedStoreConfig, OwnerScope, Sha512, SharedArtifactStore, TempDir, lookup,
+    BASE64,
+    HostedStoreConfig,
+    OwnerScope,
+    Sha512,
+    SharedArtifactStore,
+    TempDir,
+    lookup,
     publication_with_blob,
 };
-use crate::{blob_id, org_key, staged_record_path};
+use crate::{
+    blob_id,
+    org_key,
+    staged_record_path,
+};
 use base64::Engine as _;
 use bytes::Bytes;
-use futures_util::{Stream, StreamExt as _, stream};
+use futures_util::{
+    Stream,
+    StreamExt as _,
+    stream,
+};
 use object_store::ObjectStoreExt as _;
 use sha2::Digest as _;
 use std::convert::Infallible;

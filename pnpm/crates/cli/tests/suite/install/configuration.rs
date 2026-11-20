@@ -1,10 +1,23 @@
 use super::{
-    AddMockedRegistry, Command, CommandExtra, CommandTempCwd, STORE_VERSION, fs,
-    is_symlink_or_junction, pacquet_in, write_required_incompatible_engine_fixture,
+    AddMockedRegistry,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    STORE_VERSION,
+    fs,
+    is_symlink_or_junction,
+    pacquet_in,
+    write_required_incompatible_engine_fixture,
 };
 #[cfg(unix)]
-use super::{Pipe, enable_gvs_in_workspace_yaml};
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use super::{
+    Pipe,
+    enable_gvs_in_workspace_yaml,
+};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 #[test]
 fn install_rejects_a_non_string_dependency_before_writing_a_lockfile() {

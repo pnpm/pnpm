@@ -1,6 +1,12 @@
 use super::pacquet_in;
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 fn write_licenses_named_registries_fixture() -> TempDir {

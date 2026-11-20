@@ -8,51 +8,108 @@ use crate::{
     cli_args::{
         install::resolve_bool_override,
         recursive::{
-            AutoExcludeRoot, discover_workspace_projects, print_no_projects_matched,
-            select_recursive_projects, selected_workspace_importer_ids, selectors_narrow_the_run,
+            AutoExcludeRoot,
+            discover_workspace_projects,
+            print_no_projects_matched,
+            select_recursive_projects,
+            selected_workspace_importer_ids,
+            selectors_narrow_the_run,
         },
     },
 };
-use clap::{Args, ValueHint};
+use clap::{
+    Args,
+    ValueHint,
+};
 use collection::collect_components;
-use cyclonedx::{CycloneDxOpts, serialize_cyclonedx};
+use cyclonedx::{
+    CycloneDxOpts,
+    serialize_cyclonedx,
+};
 use indexmap::IndexMap;
 use license::classify_license;
 use metadata::{
-    SanitizedNamedRegistry, SanitizedRegistries, base64_to_hex, build_purl,
-    build_purl_with_encoded_registry, extract_bugs_url, extract_description, extract_repository,
-    generate_uuid_v4, integrity_string, normalize_link_path, peer_names_from_manifest,
-    platform_incompatible_optional, read_pkg_metadata_from_store, sanitize_package_name,
+    SanitizedNamedRegistry,
+    SanitizedRegistries,
+    base64_to_hex,
+    build_purl,
+    build_purl_with_encoded_registry,
+    extract_bugs_url,
+    extract_description,
+    extract_repository,
+    generate_uuid_v4,
+    integrity_string,
+    normalize_link_path,
+    peer_names_from_manifest,
+    platform_incompatible_optional,
+    read_pkg_metadata_from_store,
+    sanitize_package_name,
     sanitize_path_segment,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    LazyLockfile, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PeerSatisfactionEdges,
-    PkgName, PkgNameVerPeer, RegistryContext, RegistryServerType, SnapshotEntry, TarballUrlOptions,
-    npm_tarball_url, registry_server_type, revision_registry_tarball_url,
+    LazyLockfile,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PeerSatisfactionEdges,
+    PkgName,
+    PkgNameVerPeer,
+    RegistryContext,
+    RegistryServerType,
+    SnapshotEntry,
+    TarballUrlOptions,
+    npm_tarball_url,
+    registry_server_type,
+    revision_registry_tarball_url,
 };
 use pnpm_package_is_installable::{
-    InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
+    InstallabilityOptions,
+    WantedPlatformRef,
+    platform_is_supported_with_inference,
 };
-use pnpm_package_manager::{importer_root_dir, validate_importer_id};
+use pnpm_package_manager::{
+    importer_root_dir,
+    validate_importer_id,
+};
 use pnpm_package_manifest::{
-    extract_author, extract_homepage, extract_license, safe_read_package_json_from_dir,
+    extract_author,
+    extract_homepage,
+    extract_license,
+    safe_read_package_json_from_dir,
     safe_read_project_manifest_from_dir,
 };
-use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
+use pnpm_resolving_git_resolver::{
+    HostedGit,
+    HostedOpts,
+};
 use spdx::serialize_spdx;
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{
+        HashMap,
+        HashSet,
+        hash_map::Entry,
+    },
     fmt::Display,
     hash::Hash,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use walk::{
-    ImporterComponents, TransitiveEdges, WalkContext, WalkStores, component_walk_context,
+    ImporterComponents,
+    TransitiveEdges,
+    WalkContext,
+    WalkStores,
+    component_walk_context,
     walk_importer_components,
 };
 use workspace::{
-    merged_dedicated_lockfile_state, required_sbom_lockfile, select_importer_ids,
+    merged_dedicated_lockfile_state,
+    required_sbom_lockfile,
+    select_importer_ids,
     sorted_importer_ids,
 };
 

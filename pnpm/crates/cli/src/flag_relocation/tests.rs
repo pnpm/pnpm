@@ -1,6 +1,12 @@
 use super::relocate_pre_subcommand_flags;
-use crate::{boolean_negations::with_boolean_negations, cli_args::CliArgs};
-use clap::{CommandFactory, FromArgMatches};
+use crate::{
+    boolean_negations::with_boolean_negations,
+    cli_args::CliArgs,
+};
+use clap::{
+    CommandFactory,
+    FromArgMatches,
+};
 use pretty_assertions::assert_eq;
 use std::ffi::OsString;
 

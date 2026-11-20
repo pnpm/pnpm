@@ -1,11 +1,22 @@
 use super::{
-    BTreeMap, IgnoreEntryFilter, MAX_UNTRUSTED_PREALLOC_BYTES, PackageBin, PackageFilesIndex,
-    StoreDir, TarLimits, TarballError, extract_tarball_entries_alongside,
+    BTreeMap,
+    IgnoreEntryFilter,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    PackageBin,
+    PackageFilesIndex,
+    StoreDir,
+    TarLimits,
+    TarballError,
+    extract_tarball_entries_alongside,
     stream_extract_gzipped_tarball_with_tar,
 };
 use ssri::Integrity;
 use tracing::instrument;
-use zune_inflate::{DeflateDecoder, DeflateOptions, errors::DecodeErrorStatus};
+use zune_inflate::{
+    DeflateDecoder,
+    DeflateOptions,
+    errors::DecodeErrorStatus,
+};
 
 /// Bound an untrusted unpacked-size claim — the registry's
 /// `dist.unpackedSize` or the archive's own gzip trailer — before it

@@ -1,17 +1,32 @@
 use super::{
-    attachments::{AttachmentKind, PreparedAttachment, TarballStorage, write_attachment_slots},
+    attachments::{
+        AttachmentKind,
+        PreparedAttachment,
+        TarballStorage,
+        write_attachment_slots,
+    },
     manifest::record_publisher,
 };
 use base64::Engine;
 use pnpr_config::HostedStoreConfig;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_policy::Identity;
 use pnpr_storage::{
     Storage,
-    publish::{AttachmentPayload, PendingAttachment},
+    publish::{
+        AttachmentPayload,
+        PendingAttachment,
+    },
 };
 use serde_json::json;
-use std::{io::Write, sync::Arc, time::Duration};
+use std::{
+    io::Write,
+    sync::Arc,
+    time::Duration,
+};
 
 #[test]
 fn publisher_attribution_comes_only_from_an_authenticated_identity() {

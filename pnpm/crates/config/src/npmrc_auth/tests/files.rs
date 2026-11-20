@@ -1,4 +1,11 @@
-use super::{Config, NoEnv, NpmrcAuth, Path, TEST_CA_PEM, assert_eq};
+use super::{
+    Config,
+    NoEnv,
+    NpmrcAuth,
+    Path,
+    TEST_CA_PEM,
+    assert_eq,
+};
 
 #[test]
 fn ignores_comments_and_empty_lines() {

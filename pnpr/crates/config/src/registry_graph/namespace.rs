@@ -1,4 +1,9 @@
-use super::{Ecosystem, IndexMap, PackagePattern, RegistryError};
+use super::{
+    Ecosystem,
+    IndexMap,
+    PackagePattern,
+    RegistryError,
+};
 use crate::config_file::ClaimFile;
 
 pub(in super::super) fn validate_registry_key(key: &str) -> Result<(), RegistryError> {

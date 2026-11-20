@@ -1,6 +1,14 @@
 use super::{
-    AllowBuild, ColorMode, Config, Path, RegistryEntry, SideEffectsCacheSetting,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
+    AllowBuild,
+    ColorMode,
+    Config,
+    Path,
+    RegistryEntry,
+    SideEffectsCacheSetting,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    assert_eq,
+    fs,
 };
 
 #[test]

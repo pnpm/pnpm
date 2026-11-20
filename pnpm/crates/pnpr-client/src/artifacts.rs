@@ -1,13 +1,42 @@
 use super::{
-    ARTIFACTS_PROTOCOL_VERSION, ArtifactBlobRequest, ArtifactBlobSource, ArtifactCandidate,
-    ArtifactPayload, ArtifactPublication, ArtifactSubject, ArtifactVariant, BTreeMap, Duration,
-    HashSet, MAX_CANDIDATES, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope,
-    PnprClient, PnprClientError, PublishArtifactRequest, ResolveArtifactsRequest,
-    ResolveArtifactsResponse, ResolvedArtifact, SignedArtifactEnvelope,
-    blob_transfer::{blob_body, blob_timeout, read_blob, write_blob},
-    check_status, compatibility_rank_prevalidated, response_body_bounded, validate_supported_tags,
+    ARTIFACTS_PROTOCOL_VERSION,
+    ArtifactBlobRequest,
+    ArtifactBlobSource,
+    ArtifactCandidate,
+    ArtifactPayload,
+    ArtifactPublication,
+    ArtifactSubject,
+    ArtifactVariant,
+    BTreeMap,
+    Duration,
+    HashSet,
+    MAX_CANDIDATES,
+    MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE,
+    OwnerScope,
+    PnprClient,
+    PnprClientError,
+    PublishArtifactRequest,
+    ResolveArtifactsRequest,
+    ResolveArtifactsResponse,
+    ResolvedArtifact,
+    SignedArtifactEnvelope,
+    blob_transfer::{
+        blob_body,
+        blob_timeout,
+        read_blob,
+        write_blob,
+    },
+    check_status,
+    compatibility_rank_prevalidated,
+    response_body_bounded,
+    validate_supported_tags,
 };
-use futures_util::{StreamExt as _, TryStreamExt as _, stream};
+use futures_util::{
+    StreamExt as _,
+    TryStreamExt as _,
+    stream,
+};
 use reqwest::StatusCode;
 use std::path::Path;
 

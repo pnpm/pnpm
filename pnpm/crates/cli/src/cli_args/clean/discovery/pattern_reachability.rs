@@ -1,5 +1,12 @@
-use super::modules_overlap::{escape_wax_path, paths_match_on_host, relative_subpath_posix};
-use pnpm_fs::{lexical_normalize, lexical_normalize_posix};
+use super::modules_overlap::{
+    escape_wax_path,
+    paths_match_on_host,
+    relative_subpath_posix,
+};
+use pnpm_fs::{
+    lexical_normalize,
+    lexical_normalize_posix,
+};
 use std::path::Path;
 use wax::Program as _;
 

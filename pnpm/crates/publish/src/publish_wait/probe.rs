@@ -1,13 +1,26 @@
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 use pnpm_network::{
-    ThrottledClientGuard, encode_package_name, read_limited_body, redact_url_for_display,
+    ThrottledClientGuard,
+    encode_package_name,
+    read_limited_body,
+    redact_url_for_display,
 };
-use reqwest::{Response, StatusCode, header};
+use reqwest::{
+    Response,
+    StatusCode,
+    header,
+};
 use serde_json::Value;
 
 use crate::{
-    publish_packed_pkg::{PublishNetwork, join_registry},
+    publish_packed_pkg::{
+        PublishNetwork,
+        join_registry,
+    },
     registry_config_keys::NormalizedRegistryUrl,
 };
 

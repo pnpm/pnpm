@@ -1,8 +1,20 @@
-use axum::{http::StatusCode, response::Response};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use sha2::{Digest as _, Sha256};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 
-use super::{code_page, provider_page};
+use super::{
+    code_page,
+    provider_page,
+};
 
 async fn body(response: Response) -> String {
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();

@@ -1,13 +1,32 @@
 pub(super) use self::background_scan::BackgroundTarScans;
 use self::background_scan::{
-    PromotedTarballScan, schedule_cached_tarball_scan, schedule_deferred_cached_tarball_scan,
+    PromotedTarballScan,
+    schedule_cached_tarball_scan,
+    schedule_deferred_cached_tarball_scan,
 };
 use super::{
-    AppState, CanonicalPackageName, Duration, FetchOutcome, Identity, Integrity, RegistryError,
-    Response, TarballDist, Upstream, UpstreamTarballRoute, authorized_upstream, ensure_osv_allowed,
-    expected_tarball_dist, load_upstream_packument, not_found,
-    reload_upstream_packument_lacking_version, streaming, tarball_response, tarball_stream_error,
-    timed, upstream_cache_namespace,
+    AppState,
+    CanonicalPackageName,
+    Duration,
+    FetchOutcome,
+    Identity,
+    Integrity,
+    RegistryError,
+    Response,
+    TarballDist,
+    Upstream,
+    UpstreamTarballRoute,
+    authorized_upstream,
+    ensure_osv_allowed,
+    expected_tarball_dist,
+    load_upstream_packument,
+    not_found,
+    reload_upstream_packument_lacking_version,
+    streaming,
+    tarball_response,
+    tarball_stream_error,
+    timed,
+    upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
 
@@ -15,7 +34,10 @@ mod background_scan;
 mod cached;
 mod expired_signature;
 
-use self::expired_signature::{retry_expired_signed_tarball, should_refresh_signed_tarball_url};
+use self::expired_signature::{
+    retry_expired_signed_tarball,
+    should_refresh_signed_tarball_url,
+};
 
 /// Serve a tarball through an upstream's `/~<name>/` endpoint. The version's
 /// `dist.integrity` is read from the upstream's own packument (served from the

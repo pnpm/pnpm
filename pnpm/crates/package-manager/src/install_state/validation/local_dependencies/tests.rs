@@ -1,7 +1,18 @@
-use super::{FileDigests, Validation, changed, record};
-use pnpm_workspace_state::{FileSignature, LocalDependencies};
+use super::{
+    FileDigests,
+    Validation,
+    changed,
+    record,
+};
+use pnpm_workspace_state::{
+    FileSignature,
+    LocalDependencies,
+};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     fs,
     path::PathBuf,
 };

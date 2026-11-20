@@ -1,14 +1,26 @@
 use crate::{
     dependencies::Reach,
     diff,
-    graph::{self, CrateGraph, DependencyKind, Edge},
+    graph::{
+        self,
+        CrateGraph,
+        DependencyKind,
+        Edge,
+    },
     layers::Layers,
-    problem::{Metric, Mismatch, Problem},
+    problem::{
+        Metric,
+        Mismatch,
+        Problem,
+    },
     ratchet,
     tree::Tree,
 };
 use pretty_assertions::assert_eq;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 mod boundary;
 mod dsm;

@@ -6,17 +6,28 @@
 
 use super::{
     SqlDatabase,
-    adapter::{Connection, Query, Row},
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
     batch::WriteTransaction,
     blobs::id_from,
-    to_column, to_generation,
+    to_column,
+    to_generation,
     transactions::Freshness,
 };
 use crate::{
     BlobId,
-    database::{StagedRecord, StagedState},
+    database::{
+        StagedRecord,
+        StagedState,
+    },
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_sql::DialectSql;
 use std::sync::Arc;
 

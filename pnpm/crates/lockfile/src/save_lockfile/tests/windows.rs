@@ -1,7 +1,15 @@
 use super::LOCKFILE_YAML;
-use crate::{Lockfile, SymlinkedLockfile};
+use crate::{
+    Lockfile,
+    SymlinkedLockfile,
+};
 use pnpm_fs::test_support::with_retry_observer;
-use std::{fs, io, os::windows::fs::OpenOptionsExt, sync::mpsc};
+use std::{
+    fs,
+    io,
+    os::windows::fs::OpenOptionsExt,
+    sync::mpsc,
+};
 use tempfile::tempdir;
 
 /// An editor or indexer holding `pnpm-lock.yaml` open without delete sharing

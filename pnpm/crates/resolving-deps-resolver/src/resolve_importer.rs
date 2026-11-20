@@ -26,8 +26,13 @@
 pub(crate) use missing_peers::intersect_ranges;
 pub(crate) use optional_peer_candidates::OptionalPeerCandidates;
 pub use options::{
-    ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,
-    ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
+    ImporterPeerOptions,
+    ImporterResolutionInputs,
+    ManifestTransformHooks,
+    PeerLinkOptions,
+    ResolveImporterError,
+    ResolveImporterOptions,
+    ResolveImporterResult,
 };
 
 mod direct_seeds;
@@ -41,7 +46,10 @@ mod options;
 
 use direct_seeds::DirectSeeds;
 use hoist_state::{
-    ImporterHoistDependencies, ImporterHoistPolicy, ImporterHoistProgress, ImporterHoistSelection,
+    ImporterHoistDependencies,
+    ImporterHoistPolicy,
+    ImporterHoistProgress,
+    ImporterHoistSelection,
 };
 use local_targets::build_workspace_root_deps;
 use locked_peers::LockedPeers;
@@ -53,26 +61,55 @@ use crate::{
     dependencies_graph::MissingPeer,
     parent_pkg_aliases::ParentPkgAliases,
     peer_provider::{
-        DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
-        get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
+        DependencyOverrider,
+        HoistPeersOptions,
+        MissingPeerInfo,
+        WorkspaceRootDep,
+        get_hoistable_optional_peers_with_preferred_versions,
+        hoist_peers,
     },
     resolve_dependency_tree::{
-        DependencySpec, TreeCtx, WorkspaceTreeCtx, extend_tree, record_changed_direct_deps,
+        DependencySpec,
+        TreeCtx,
+        WorkspaceTreeCtx,
+        extend_tree,
+        record_changed_direct_deps,
         resolve_direct_dependency_detached,
     },
     resolve_peers::{
-        CandidatePeer, CandidatePeers, HoistMissingScope, PeerDiscoveryResult, PeerHoistDiscovery,
-        ResolvePeersOptions, accepts_optional_peer_candidate, apply_hoist_missing_scope,
-        index_missing_names, resolve_peers, resolved_name_and_version,
+        CandidatePeer,
+        CandidatePeers,
+        HoistMissingScope,
+        PeerDiscoveryResult,
+        PeerHoistDiscovery,
+        ResolvePeersOptions,
+        accepts_optional_peer_candidate,
+        apply_hoist_missing_scope,
+        index_missing_names,
+        resolve_peers,
+        resolved_name_and_version,
     },
     resolved_tree::ResolvedTree,
     unwrap_package_name::unwrap_package_name,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, safe_read_package_json_from_dir};
-use pnpm_resolving_resolver_base::{PreferredVersions, Resolver};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    safe_read_package_json_from_dir,
+};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    Resolver,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     io,
     path::Path,
     sync::Arc,

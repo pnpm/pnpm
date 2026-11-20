@@ -1,12 +1,28 @@
 use super::InstallPackageBySnapshotError;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PackageKey,
+    PlatformSelector,
     select_platform_variant,
 };
-use pnpm_package_is_installable::{SupportedArchitectures, SupportedPlatform};
+use pnpm_package_is_installable::{
+    SupportedArchitectures,
+    SupportedPlatform,
+};
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{IgnoreEntryFilter, IngestTarballToStore, IngestZipArchiveToStore};
+use pnpm_tarball::{
+    IgnoreEntryFilter,
+    IngestTarballToStore,
+    IngestZipArchiveToStore,
+};
 use std::sync::Arc;
 
 /// The archive a `Variations` resolution offers for this host.

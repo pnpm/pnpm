@@ -1,10 +1,25 @@
 //! Error types for tarball download, verification, and extraction.
 
-use derive_more::{Display, Error, From};
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
 use miette::Diagnostic;
-use pnpm_network::{redact_url_for_display, walk_reqwest_chain};
-use pnpm_store_dir::{StoreIndexError, WriteCasFileError};
-use std::{error::Error as StdError, io, path::PathBuf, sync::Arc};
+use pnpm_network::{
+    redact_url_for_display,
+    walk_reqwest_chain,
+};
+use pnpm_store_dir::{
+    StoreIndexError,
+    WriteCasFileError,
+};
+use std::{
+    error::Error as StdError,
+    io,
+    path::PathBuf,
+    sync::Arc,
+};
 use zune_inflate::errors::InflateDecodeErrors;
 
 /// Every URL below is rendered through [`redact_url_for_display`]: a

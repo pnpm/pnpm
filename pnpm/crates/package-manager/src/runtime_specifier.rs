@@ -1,7 +1,10 @@
 //! Who owns the text a `tool:` / `runtime:` runtime declaration saves.
 
 use pnpm_package_manifest::is_runtime_alias;
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
+};
 
 /// The version selector behind `tool:` / `runtime:` in a declaration or
 /// request for `package_name`, when the node resolver owns the text it saves.

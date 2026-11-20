@@ -1,4 +1,7 @@
-use super::{super::integrity_equal, metadata_with_integrity};
+use super::{
+    super::integrity_equal,
+    metadata_with_integrity,
+};
 use pnpm_lockfile::PackageMetadata;
 
 #[test]

@@ -1,5 +1,10 @@
 use super::{
-    Catalogs, IndexMap, Manifest, mapping_keys, remove_mapping_entries, remove_top_level_block,
+    Catalogs,
+    IndexMap,
+    Manifest,
+    mapping_keys,
+    remove_mapping_entries,
+    remove_top_level_block,
     upsert,
 };
 

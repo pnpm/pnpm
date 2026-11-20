@@ -1,4 +1,9 @@
-use super::{Deserialize, Interval, RegistryError, parse_interval};
+use super::{
+    Deserialize,
+    Interval,
+    RegistryError,
+    parse_interval,
+};
 use std::time::Duration;
 
 /// How `pnpr gc` reclaims unreferenced archives.

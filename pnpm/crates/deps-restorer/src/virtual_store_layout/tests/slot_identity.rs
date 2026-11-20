@@ -1,16 +1,40 @@
 use super::{
-    super::{VirtualStoreLayout, global_virtual_store_version_dir},
-    alias, cyclic_slot_suffixes, make_config, package_metadata, registry_metadata,
+    super::{
+        VirtualStoreLayout,
+        global_virtual_store_version_dir,
+    },
+    alias,
+    cyclic_slot_suffixes,
+    make_config,
+    package_metadata,
+    registry_metadata,
     snapshot_with_link,
 };
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
+    DirectoryResolution,
+    LockfileEntries,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TarballResolution,
 };
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]
@@ -729,7 +753,10 @@ fn cyclic_gvs_slots_are_stable_across_runs() {
 #[test]
 fn a_variations_resolution_is_identified_by_the_selected_archive() {
     use pnpm_lockfile::{
-        PkgIdWithPatchHash, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
+        PkgIdWithPatchHash,
+        PlatformAssetResolution,
+        PlatformAssetTarget,
+        PlatformSelector,
         VariationsResolution,
     };
 

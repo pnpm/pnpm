@@ -6,13 +6,20 @@
 
 use super::UpdateDetails;
 use crate::cli_args::{
-    outdated::{OutdatedPackage, colorize_target, render_trust_change},
+    outdated::{
+        OutdatedPackage,
+        colorize_target,
+        render_trust_change,
+    },
     sanitize::sanitize_inline,
 };
 use console::measure_text_width;
 use node_semver::Version;
 use pnpm_package_manifest::DependencyGroup;
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+};
 
 /// One line of a [`ChoiceGroup`].
 #[derive(Debug, PartialEq, Eq)]

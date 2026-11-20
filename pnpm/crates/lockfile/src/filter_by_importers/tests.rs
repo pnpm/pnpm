@@ -1,9 +1,18 @@
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 use pretty_assertions::assert_eq;
 
-use super::{FilterByImportersOptions, IncludedDependencies};
-use crate::{Lockfile, PackageKey};
+use super::{
+    FilterByImportersOptions,
+    IncludedDependencies,
+};
+use crate::{
+    Lockfile,
+    PackageKey,
+};
 
 /// Two importers with disjoint dependency graphs, plus a dev-only and an
 /// optional edge on the first, so a filter can be shown to keep exactly

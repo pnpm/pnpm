@@ -18,12 +18,19 @@
 
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use napi_derive::napi;
 use pnpm_lockfile::{
-    FilterByImportersOptions, IncludedDependencies, Lockfile, PackageKey, PeerEdgeOptions,
+    FilterByImportersOptions,
+    IncludedDependencies,
+    Lockfile,
+    PackageKey,
+    PeerEdgeOptions,
     SymlinkedLockfile,
 };
 

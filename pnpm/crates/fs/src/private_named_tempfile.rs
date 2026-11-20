@@ -1,4 +1,7 @@
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// Creates a named temporary file with mode 0600 from its first open on Unix and WASI.
 #[inline]

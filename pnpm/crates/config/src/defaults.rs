@@ -1,11 +1,18 @@
 use crate::{
-    api::{EnvVar, GetCurrentDir, GetHomeDir},
+    api::{
+        EnvVar,
+        GetCurrentDir,
+        GetHomeDir,
+    },
     windows_path_env::read_dir_env,
 };
 use pnpm_store_dir::StoreDir;
 use std::{
     env,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(windows)]

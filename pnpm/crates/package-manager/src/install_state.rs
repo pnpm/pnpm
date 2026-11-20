@@ -8,34 +8,61 @@ pub(crate) mod settings;
 pub(crate) mod timestamps;
 pub(crate) mod validation;
 pub(crate) use local_file_deps::{
-    FrozenLocalTarballCheck, LocalFileDependencyStatus, frozen_local_tarballs_to_verify,
-    has_local_file_override, has_local_file_package_extension, local_file_dependency_status,
+    FrozenLocalTarballCheck,
+    LocalFileDependencyStatus,
+    frozen_local_tarballs_to_verify,
+    has_local_file_override,
+    has_local_file_package_extension,
+    local_file_dependency_status,
 };
-pub use manifest_source::{DeclaredManifests, ManifestHooks, RepeatInstallManifests};
+pub use manifest_source::{
+    DeclaredManifests,
+    ManifestHooks,
+    RepeatInstallManifests,
+};
 pub(crate) use settings::{
-    ResolvedImporters, catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_default_registry, recorded_extend_node_path_matches, recorded_registry_prefixes,
-    recorded_registry_routes_after_install, recorded_supported_architectures_match,
+    ResolvedImporters,
+    catalogs_cache_matches,
+    current_settings_with_catalogs,
+    first_setting_drift,
+    recorded_default_registry,
+    recorded_extend_node_path_matches,
+    recorded_registry_prefixes,
+    recorded_registry_routes_after_install,
+    recorded_supported_architectures_match,
     records_registry_keys_of,
 };
 pub(crate) use timestamps::{
-    file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,
-    filesystem_now_ns_in_modules, last_validated_timestamp, lockfile_modified_since,
+    file_mtime,
+    file_mtime_from_metadata,
+    filesystem_now_ms_in_modules,
+    filesystem_now_ns_in_modules,
+    last_validated_timestamp,
+    lockfile_modified_since,
     modified_at_or_after,
 };
 
 mod manifest_source;
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::WorkspaceState;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The repeat-install check an install consults before it sets up anything,

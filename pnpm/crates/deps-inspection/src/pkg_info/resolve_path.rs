@@ -1,9 +1,16 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::PkgNameVerPeer;
 
-use super::{EdgeContext, InspectionLayout};
+use super::{
+    EdgeContext,
+    InspectionLayout,
+};
 
 /// A lockfile-derived path component that could escape the directory
 /// it is joined under — the same guard `pnpm licenses` applies before

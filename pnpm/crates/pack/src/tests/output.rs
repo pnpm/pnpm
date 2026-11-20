@@ -1,4 +1,10 @@
-use super::{Host, PackError, api, fixture, json};
+use super::{
+    Host,
+    PackError,
+    api,
+    fixture,
+    json,
+};
 use crate::pack_output_path;
 use pnpm_reporter::SilentReporter;
 use tempfile::tempdir;
@@ -114,7 +120,10 @@ async fn pack_output_locks_serialize_symlink_and_direct_paths() {
     use crate::PackOutputLocks;
     use std::sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     };
 
     let outer = tempdir().unwrap();

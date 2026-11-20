@@ -4,22 +4,50 @@
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
 pub use registry_range::locked_child_admits;
-pub(crate) use registry_range::{any_locked_key_admits, locked_key_is_current};
+pub(crate) use registry_range::{
+    any_locked_key_admits,
+    locked_key_is_current,
+};
 
 mod locked_version;
 mod registry_range;
 
-use locked_version::{admits_locked_version, runtime_child_admits};
+use locked_version::{
+    admits_locked_version,
+    runtime_child_admits,
+};
 use pnpm_lockfile::{
-    BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
-    PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotDepRef,
-    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions, VersionPart,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    BundledDependencies,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    RegistryContext,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
+    StringOrList,
+    TarballResolution,
+    TarballUrlOptions,
+    VersionPart,
+    npm_tarball_url,
+    pick_registry_for_package,
+    registry_server_type,
     revision_registry_tarball_url,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
-use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
-use serde_json::{Map, Value};
+use pnpm_resolving_resolver_base::{
+    CurrentPkg,
+    PkgResolutionId,
+    ResolveResult,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::sync::Arc;
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior

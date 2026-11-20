@@ -1,9 +1,16 @@
-use crate::store_index::{StoreIndex, store_index_key, tests::sample_index};
+use crate::store_index::{
+    StoreIndex,
+    store_index_key,
+    tests::sample_index,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
     path::Path,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::tempdir;
 

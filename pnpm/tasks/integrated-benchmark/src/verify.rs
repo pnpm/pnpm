@@ -1,6 +1,9 @@
 use std::{
     path::Path,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
 };
 use which::which;
 

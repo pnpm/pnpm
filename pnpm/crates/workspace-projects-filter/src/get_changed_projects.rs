@@ -1,12 +1,21 @@
-use crate::{filter::FilterError, process::Command};
+use crate::{
+    filter::FilterError,
+    process::Command,
+};
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 
 use indexmap::IndexMap;
-use wax::{Glob, Program};
+use wax::{
+    Glob,
+    Program,
+};
 
 mod catalogs;
 #[cfg(test)]

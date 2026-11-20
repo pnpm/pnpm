@@ -1,4 +1,7 @@
-use super::{Result, TokenBackend};
+use super::{
+    Result,
+    TokenBackend,
+};
 
 /// Identify the caller behind an HTTP request. Inspects the
 /// `Authorization` header and resolves it to an account ID via the token

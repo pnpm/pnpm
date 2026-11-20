@@ -7,53 +7,108 @@
 //! [`super::update_scope`].
 
 pub(crate) use direct_versions::{
-    direct_dep_specifier_unchanged, preseed_changed_direct_versions, record_changed_direct_deps,
+    direct_dep_specifier_unchanged,
+    preseed_changed_direct_versions,
+    record_changed_direct_deps,
     resolve_direct_dependency_detached,
 };
 
 pub(super) use direct_versions::{
-    higher_direct_dep_version, node_depends_on_changed_direct_dep, record_direct_dep_versions,
+    higher_direct_dep_version,
+    node_depends_on_changed_direct_dep,
+    record_direct_dep_versions,
 };
 
 pub(super) use snapshot_children::PendingReusedNode;
-pub(super) use subtree::{LockfileReuseCache, TargetDistances};
+pub(super) use subtree::{
+    LockfileReuseCache,
+    TargetDistances,
+};
 
 mod direct_versions;
 mod snapshot_children;
 mod subtree;
-use snapshot_children::{reused_children, reused_identity};
+use snapshot_children::{
+    reused_children,
+    reused_identity,
+};
 use subtree::subtree_fully_reusable;
 
 use async_recursion::async_recursion;
 use pnpm_lockfile::{
-    PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
-use pnpm_resolving_resolver_base::{Resolver, WantedDependency, is_valid_semver_range};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
+use pnpm_resolving_resolver_base::{
+    Resolver,
+    WantedDependency,
+    is_valid_semver_range,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use crate::{
-    lockfile_reuse::{locked_key_is_current, reusable_importer_dep, synthesize_reused_result},
+    lockfile_reuse::{
+        locked_key_is_current,
+        reusable_importer_dep,
+        synthesize_reused_result,
+    },
     node_id::NodeId,
     parent_pkg_aliases::ParentPkgAliases,
     resolved_tree::{
-        AncestorPkgIds, DirectDep, PeerSet, ResolvedPackage, ResolvedPackageInput, TreeChildren,
+        AncestorPkgIds,
+        DirectDep,
+        PeerSet,
+        ResolvedPackage,
+        ResolvedPackageInput,
+        TreeChildren,
     },
     unwrap_package_name::unwrap_package_name,
 };
 
 use super::{
-    DependencySpec, ResolveDependencyTreeError, UpdateReuseScope, lock_recoverable,
-    manifest::{build_pkg_id_with_patch_hash, emit_deprecation_if_needed},
+    DependencySpec,
+    ResolveDependencyTreeError,
+    UpdateReuseScope,
+    lock_recoverable,
+    manifest::{
+        build_pkg_id_with_patch_hash,
+        emit_deprecation_if_needed,
+    },
     tree_ctx::TreeCtx,
     walk::{
-        ChildEdge, NodeSeed, closes_cycle, level_aliases, node_alias, node_id_for,
-        resolve_node_seed, walk_from_seeds,
+        ChildEdge,
+        NodeSeed,
+        closes_cycle,
+        level_aliases,
+        node_alias,
+        node_id_for,
+        resolve_node_seed,
+        walk_from_seeds,
     },
     workspace_ctx::{
-        ChildrenOwnerClaim, ChildrenRecording, DirectDepVersion, DirectDepVersions,
-        PackageRegistration, RecordedChildrenContext, claim_children_owner, insert_tree_node,
-        is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        ChildrenOwnerClaim,
+        ChildrenRecording,
+        DirectDepVersion,
+        DirectDepVersions,
+        PackageRegistration,
+        RecordedChildrenContext,
+        claim_children_owner,
+        insert_tree_node,
+        is_current_children_owner,
+        make_non_owner_nodes_lazy,
+        record_children,
     },
 };
 

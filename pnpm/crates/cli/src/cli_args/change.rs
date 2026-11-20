@@ -1,32 +1,70 @@
 pub use report::render_release_plan;
 
 #[cfg(target_family = "wasm")]
-use crate::dialoguer_wasm::{Input, MultiSelect};
+use crate::dialoguer_wasm::{
+    Input,
+    MultiSelect,
+};
 use crate::{
-    cli_args::{changelog::published_names, recursive::discover_workspace_projects},
+    cli_args::{
+        changelog::published_names,
+        recursive::discover_workspace_projects,
+    },
     process::Command,
 };
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 #[cfg(not(target_family = "wasm"))]
-use dialoguer::{Input, MultiSelect};
+use dialoguer::{
+    Input,
+    MultiSelect,
+};
 use indexmap::IndexMap;
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_versioning::{
-    AssembleReleasePlanOptions, IntentBumpType, ManifestDependency, ReleasePlan, VersioningError,
-    VersioningSettings, WorkspaceProject, assemble_release_plan, check_versioning_invariants,
-    index_project_refs, read_change_intents, read_ledger, to_project_dir, write_change_intent,
+    AssembleReleasePlanOptions,
+    IntentBumpType,
+    ManifestDependency,
+    ReleasePlan,
+    VersioningError,
+    VersioningSettings,
+    WorkspaceProject,
+    assemble_release_plan,
+    check_versioning_invariants,
+    index_project_refs,
+    read_change_intents,
+    read_ledger,
+    to_project_dir,
+    write_change_intent,
 };
 use pnpm_workspace::Project;
-use pnpm_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
+use pnpm_workspace_projects_filter::{
+    GetChangedProjectsOptions,
+    get_changed_projects,
+};
 
-use report::{render_status, run_check};
+use report::{
+    render_status,
+    run_check,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// `pnpm change` — record a change intent: which packages a change affects,

@@ -1,6 +1,9 @@
 use crate::path_util::lexical_join;
 use pnpm_workspace_projects_graph::lexical_normalize;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A single parsed `--filter` selector.
 ///

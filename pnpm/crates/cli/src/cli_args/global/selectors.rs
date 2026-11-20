@@ -1,9 +1,19 @@
 pub(super) use crate::cli_args::package_spec::resolve_local_param;
 
 use super::{
-    AddRequest, Context, GlobalError, GlobalPackageInfo, IntoDiagnostic, Path, PathBuf, fs,
-    is_valid_old_npm_package_name, parse_wanted_dependency, rust_toolchain_request,
-    safe_read_package_json_from_dir, tool_install_selector,
+    AddRequest,
+    Context,
+    GlobalError,
+    GlobalPackageInfo,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    fs,
+    is_valid_old_npm_package_name,
+    parse_wanted_dependency,
+    rust_toolchain_request,
+    safe_read_package_json_from_dir,
+    tool_install_selector,
 };
 use pnpm_semver_include_prerelease::is_valid_semver_range;
 

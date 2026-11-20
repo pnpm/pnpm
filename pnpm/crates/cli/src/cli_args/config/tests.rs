@@ -3,11 +3,27 @@
 //! [`Config::explicit_settings`], [`Config::raw_auth_config`]) — the same
 //! injection, expressed against pacquet's loaded-config shape.
 
-use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
+use super::{
+    ConfigFlags,
+    ConfigLocation,
+    config_get,
+    config_list,
+    config_set,
+    ini,
+};
 use indexmap::IndexMap;
-use pnpm_config::{Config, Host};
-use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use pnpm_config::{
+    Config,
+    Host,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use tempfile::TempDir;
 
 fn config_with_dir(config_dir: &Path) -> Config {

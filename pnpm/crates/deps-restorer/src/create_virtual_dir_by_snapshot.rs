@@ -2,23 +2,53 @@
 pub mod tests;
 
 use crate::{
-    DirCloneCache, ImportIndexedDirError, ImportIndexedDirOpts, SymlinkPackageError,
-    VirtualStoreLayout, create_symlink_layout, import_indexed_dir,
-    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
+    DirCloneCache,
+    ImportIndexedDirError,
+    ImportIndexedDirOpts,
+    SymlinkPackageError,
+    VirtualStoreLayout,
+    create_symlink_layout,
+    import_indexed_dir,
+    safe_join_modules_dir::{
+        InvalidDependencyAliasError,
+        safe_join_modules_dir,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{is_subdir, is_symlink_or_junction, remove_symlink_dir};
-use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
+use pnpm_fs::{
+    is_subdir,
+    is_symlink_or_junction,
+    remove_symlink_dir,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PkgName,
+    SnapshotEntry,
+};
 use pnpm_reporter::{
-    LogEvent, LogLevel, PackageImportMethod as WireImportMethod, ProgressLog, ProgressMessage,
+    LogEvent,
+    LogLevel,
+    PackageImportMethod as WireImportMethod,
+    ProgressLog,
+    ProgressMessage,
     Reporter,
 };
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// This subroutine creates the virtual-store slot for one package and then

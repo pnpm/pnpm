@@ -1,8 +1,13 @@
 use super::{
-    post_install_prune, prune_against_project_lockfiles, record_resolved_package_versions,
+    post_install_prune,
+    prune_against_project_lockfiles,
+    record_resolved_package_versions,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::{EnvLockfile, Lockfile};
+use pnpm_lockfile::{
+    EnvLockfile,
+    Lockfile,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_manifest_writer::ResolvedPackageVersions;
 use std::path::Path;

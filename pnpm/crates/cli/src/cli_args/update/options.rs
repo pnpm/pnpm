@@ -1,4 +1,7 @@
-use crate::cli_args::{lockfile_dir::LockfileDirArg, parse_depth_limit};
+use crate::cli_args::{
+    lockfile_dir::LockfileDirArg,
+    parse_depth_limit,
+};
 use clap::Args;
 use pnpm_package_manifest::DependencyGroup;
 

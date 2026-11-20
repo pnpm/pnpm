@@ -2,9 +2,15 @@
 //! its own lockfile and `injectWorkspacePackages` copies the rest.
 
 use super::filter_graphs::configured_overrides_rewriter;
-use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
+use crate::cli_args::catalogs::{
+    configured_catalogs,
+    workspace_catalogs,
+};
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
@@ -12,9 +18,15 @@ use pnpm_fs::lexical_normalize;
 use pnpm_package_manager::VersionsOverrider;
 use pnpm_workspace::GraphPkg;
 use pnpm_workspace_projects_graph::{
-    DependencyGroups, DependencyRewriter, GraphProject, WorkspaceCatalogs,
+    DependencyGroups,
+    DependencyRewriter,
+    GraphProject,
+    WorkspaceCatalogs,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The configured catalogs and `overrides` that [`LinkedEdges`] reads
 /// specifiers through.

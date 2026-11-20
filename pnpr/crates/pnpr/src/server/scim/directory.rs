@@ -1,20 +1,40 @@
 //! The accounts a SCIM client provisioned, kept as rows in `scim_users` so
 //! every replica refuses the same deprovisioned account IDs.
 
-pub(super) use writes::{create_user, delete_user, patch_user, replace_user};
+pub(super) use writes::{
+    create_user,
+    delete_user,
+    patch_user,
+    replace_user,
+};
 
 #[cfg(test)]
 mod tests;
 mod writes;
 
-use super::super::{AppState, RegistryError, managed_state::read_with_deadline};
+use super::super::{
+    AppState,
+    RegistryError,
+    managed_state::read_with_deadline,
+};
 use pnpr_storage::database::ScimStatus;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     sync::{
-        Mutex, PoisonError, RwLock,
-        atomic::{AtomicBool, Ordering},
+        Mutex,
+        PoisonError,
+        RwLock,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 

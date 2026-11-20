@@ -1,12 +1,30 @@
 //! `pnpm dlx --package=rust@<channel> <tool>`: one command run with a Rust
 //! release, which pnpm installs into the store.
 
-use super::{Config, DlxError, DlxProgram, DlxSpawn, Path, Reporter, exit_unless_success, run_bin};
-use crate::{State, shim_dispatch::rust_toolchain::RUST_SHIM_BINS};
+use super::{
+    Config,
+    DlxError,
+    DlxProgram,
+    DlxSpawn,
+    Path,
+    Reporter,
+    exit_unless_success,
+    run_bin,
+};
+use crate::{
+    State,
+    shim_dispatch::rust_toolchain::RUST_SHIM_BINS,
+};
 use pnpm_package_manifest::package_manager_spec::split_spec;
 use pnpm_rust_toolchain::{
-    Channel, RustToolchainError, ToolchainRequest, find_toolchain_file, install_toolchain,
-    installed_toolchain, parse_toolchain_name, read_toolchain_file,
+    Channel,
+    RustToolchainError,
+    ToolchainRequest,
+    find_toolchain_file,
+    install_toolchain,
+    installed_toolchain,
+    parse_toolchain_name,
+    read_toolchain_file,
 };
 
 /// The release `--package` names when it is `rust@<channel>` and the

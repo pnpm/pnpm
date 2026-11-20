@@ -1,7 +1,19 @@
 use super::{
-    BTreeMap, ConfigDepError, EnvLockfile, FixtureResolver, PackageKey, SilentReporter,
-    SpecifierAndResolution, TempDir, build_resolver, clean_spec, harness,
-    is_package_manager_resolved, options, pnpm_engine_packages, resolve_and_install_config_deps,
+    BTreeMap,
+    ConfigDepError,
+    EnvLockfile,
+    FixtureResolver,
+    PackageKey,
+    SilentReporter,
+    SpecifierAndResolution,
+    TempDir,
+    build_resolver,
+    clean_spec,
+    harness,
+    is_package_manager_resolved,
+    options,
+    pnpm_engine_packages,
+    resolve_and_install_config_deps,
     resolve_package_manager_integrities,
 };
 

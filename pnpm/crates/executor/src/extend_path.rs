@@ -1,8 +1,15 @@
 use std::{
     collections::HashSet,
     env,
-    ffi::{OsStr, OsString},
-    path::{self, Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        self,
+        Path,
+        PathBuf,
+    },
 };
 
 /// Build the `PATH` env value for a lifecycle script spawn.

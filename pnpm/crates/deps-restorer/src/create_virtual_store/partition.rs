@@ -6,16 +6,33 @@
 //! Runs immediately after the prefetch, whose results it consumes.
 
 use super::{
-    PackageBins, PackageManifests, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
-    SideEffectsBySnapshot, SideEffectsMapsBySnapshot, SnapshotWithCacheKey,
-    StoreIndexKeysBySnapshot, WantedEntries, snapshot_needs_build_marker,
+    PackageBins,
+    PackageManifests,
+    RemoteSideEffectsQuarantineBySnapshot,
+    RequiresBuildBySnapshot,
+    SideEffectsBySnapshot,
+    SideEffectsMapsBySnapshot,
+    SnapshotWithCacheKey,
+    StoreIndexKeysBySnapshot,
+    WantedEntries,
+    snapshot_needs_build_marker,
 };
 use crate::AllowBuildPolicy;
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
 use pnpm_store_dir::StoreIndexWriter;
 use pnpm_tarball::PrefetchResult;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 mod empty_builds;
 

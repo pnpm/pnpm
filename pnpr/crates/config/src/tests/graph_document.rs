@@ -1,7 +1,20 @@
 use super::{
-    Config, FakeEnv, FeatureOverrides, Identity, Path, RegistryError, auth_header, listen, user,
+    Config,
+    FakeEnv,
+    FeatureOverrides,
+    Identity,
+    Path,
+    RegistryError,
+    auth_header,
+    listen,
+    user,
 };
-use crate::{RegistryGraphChanges, RegistryGraphDocument, RoutingConfig, RoutingOptions};
+use crate::{
+    RegistryGraphChanges,
+    RegistryGraphDocument,
+    RoutingConfig,
+    RoutingOptions,
+};
 use pnpr_registry::Ecosystem;
 
 const RICH_DOCUMENT: &str = "

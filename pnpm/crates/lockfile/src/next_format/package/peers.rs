@@ -3,13 +3,30 @@
 //! the package's own, beside the range they satisfy, and those a dependency
 //! below needs, marked `below: true`.
 
-use super::super::{NamedBindings, NextFormatError, NextRef};
-use crate::{PeerDependencyMeta, PkgName, SnapshotDepRef};
-use serde::{
-    Deserialize, Deserializer, Serialize,
-    de::{self, MapAccess, Visitor},
+use super::super::{
+    NamedBindings,
+    NextFormatError,
+    NextRef,
 };
-use std::collections::{BTreeMap, HashMap};
+use crate::{
+    PeerDependencyMeta,
+    PkgName,
+    SnapshotDepRef,
+};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+    de::{
+        self,
+        MapAccess,
+        Visitor,
+    },
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// One entry of `peerDependencies`: the declared range alone, or a map of
 /// what there is to say about the peer.

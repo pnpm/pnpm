@@ -1,10 +1,23 @@
 use super::{
-    AuthHeaders, Integrity, SilentReporter, StoreDir, TarballError, ThrottledClient, assert_eq,
-    fast_retry_opts, fetch_and_extract_with_retry, gzip_bytes, incompressible_tarball,
-    tar_with_entries, tempdir_with_leaked_path,
+    AuthHeaders,
+    Integrity,
+    SilentReporter,
+    StoreDir,
+    TarballError,
+    ThrottledClient,
+    assert_eq,
+    fast_retry_opts,
+    fetch_and_extract_with_retry,
+    gzip_bytes,
+    incompressible_tarball,
+    tar_with_entries,
+    tempdir_with_leaked_path,
 };
 use crate::ArchiveLimit;
-use std::io::{Read, Write};
+use std::io::{
+    Read,
+    Write,
+};
 
 const MANIFEST: &[u8] = br#"{"name":"tar-pkg","version":"1.0.0"}"#;
 

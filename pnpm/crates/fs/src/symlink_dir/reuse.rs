@@ -1,5 +1,13 @@
-use super::{ForceSymlinkOutcome, TriedOnce, force_symlink_inner};
-use std::{fs, io, path::Path};
+use super::{
+    ForceSymlinkOutcome,
+    TriedOnce,
+    force_symlink_inner,
+};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// [`force_symlink_inner`] behind a read of the existing link, so a link that
 /// already points at `target` is reused without a create attempt.

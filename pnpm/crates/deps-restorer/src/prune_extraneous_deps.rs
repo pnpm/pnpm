@@ -3,18 +3,50 @@
 
 use crate::{
     hoist::HoistedDependencies,
-    prune_direct_deps::{PruneDirectDepsError, is_real_dir, remove_extraneous_direct_dep},
-    prune_stale_modules::{direct_deps_of, remove_emptied_scope_dir},
-    symlink_direct_dependencies::{importer_root_dir, validate_importer_id},
+    prune_direct_deps::{
+        PruneDirectDepsError,
+        is_real_dir,
+        remove_extraneous_direct_dep,
+    },
+    prune_stale_modules::{
+        direct_deps_of,
+        remove_emptied_scope_dir,
+    },
+    symlink_direct_dependencies::{
+        importer_root_dir,
+        validate_importer_id,
+    },
 };
 use pnpm_config::Config;
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+};
 use pnpm_modules_yaml::HoistKind;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, RemovedRoot, Reporter, RootLog, RootMessage};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    RemovedRoot,
+    Reporter,
+    RootLog,
+    RootMessage,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(crate) struct PruneExtraneousDirectDeps<'a> {

@@ -3,18 +3,31 @@
 //! leaf classification, and whether it is deprecated.
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{DependencyGroup, engines_runtime_dependencies, is_truthy};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    engines_runtime_dependencies,
+    is_truthy,
+};
 use pnpm_patching::get_patch_info;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
 use crate::resolved_tree::PeerSet;
 
 use super::{
-    DependencySpec, Deprecation, ResolveDependencyTreeError,
-    catalogs::{catalog_anchor, resolve_catalog_specifier},
-    dependency_is_injected, lock_recoverable,
+    DependencySpec,
+    Deprecation,
+    ResolveDependencyTreeError,
+    catalogs::{
+        catalog_anchor,
+        resolve_catalog_specifier,
+    },
+    dependency_is_injected,
+    lock_recoverable,
     tree_ctx::TreeCtx,
 };
 

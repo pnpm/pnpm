@@ -1,11 +1,20 @@
-pub use workspace::{CatalogMode, PackageImportMethod};
+pub use workspace::{
+    CatalogMode,
+    PackageImportMethod,
+};
 
 pub use pnpm_resolving_resolver_base::{
-    LinkWorkspacePackages, ResolutionMode, SaveWorkspaceProtocol, TrustPolicy,
+    LinkWorkspacePackages,
+    ResolutionMode,
+    SaveWorkspaceProtocol,
+    TrustPolicy,
 };
 pub use pnpm_workspace_state::RuntimeOnFail;
 
-use super::{Deserialize, Serialize};
+use super::{
+    Deserialize,
+    Serialize,
+};
 
 /// Controls ANSI color rendering in CLI output.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -295,7 +304,10 @@ impl<'de> serde::Deserialize<'de> for VerifyDepsBeforeRun {
     where
         De: serde::Deserializer<'de>,
     {
-        use serde::de::{self, Visitor};
+        use serde::de::{
+            self,
+            Visitor,
+        };
         use std::fmt;
 
         struct V;

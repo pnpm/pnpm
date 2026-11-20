@@ -1,29 +1,73 @@
 use super::{
-    BTreeMap, Config, ConfigAuditLevel, GuardExhaustionPolicy, HashMap, LockedPackageRegistry,
-    MAX_PATHS_PER_FINDING, PackageVersionGuard, PackageVersionGuardDecision, Range,
+    BTreeMap,
+    Config,
+    ConfigAuditLevel,
+    GuardExhaustionPolicy,
+    HashMap,
+    LockedPackageRegistry,
+    MAX_PATHS_PER_FINDING,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    Range,
     filter_ignored_advisories,
     fix::{
-        PackumentPublishInfo, PublishInfoLookup, VulnerabilityGuard, filter_advisories_for_fix,
-        format_fix_with_update_output, minimum_release_age_excludes, overrides::create_overrides,
+        PackumentPublishInfo,
+        PublishInfoLookup,
+        VulnerabilityGuard,
+        filter_advisories_for_fix,
+        format_fix_with_update_output,
+        minimum_release_age_excludes,
+        overrides::create_overrides,
         prune_subsumed_advisories,
     },
     locked_package_registries,
-    paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version},
-    render::{render_json_report, render_text_report},
-    report::{
-        AdvisoryId, AuditAdvisory, AuditFinding, AuditMetadata, AuditReport,
-        AuditVulnerabilityCounts, Cwe, RawBulkAdvisory, bulk_response_to_audit_report,
-        normalize_ghsa_id, sanitize_control_chars,
+    paths::{
+        AuditPathIndex,
+        PathInfo,
+        build_audit_path_index,
+        package_version,
     },
-    request::{Include, lockfile_to_audit_request},
-    version_ranges::{is_range_subset, patched_range_for_style, satisfies_safe},
+    render::{
+        render_json_report,
+        render_text_report,
+    },
+    report::{
+        AdvisoryId,
+        AuditAdvisory,
+        AuditFinding,
+        AuditMetadata,
+        AuditReport,
+        AuditVulnerabilityCounts,
+        Cwe,
+        RawBulkAdvisory,
+        bulk_response_to_audit_report,
+        normalize_ghsa_id,
+        sanitize_control_chars,
+    },
+    request::{
+        Include,
+        lockfile_to_audit_request,
+    },
+    version_ranges::{
+        is_range_subset,
+        patched_range_for_style,
+        satisfies_safe,
+    },
 };
 use crate::cli_args::audit::fix::update::{
-    InstalledPackages, advisory_choices, classify_for_update, report_fixed_remaining,
+    InstalledPackages,
+    advisory_choices,
+    classify_for_update,
+    report_fixed_remaining,
 };
 use jiff::Timestamp;
 use pnpm_lockfile::{
-    EnvLockfile, Lockfile, PeerEdgeOptions, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+    EnvLockfile,
+    Lockfile,
+    PeerEdgeOptions,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
 };
 use pnpm_network::redact_url_credentials;
 use pnpm_registry::RangeSpecStyle;

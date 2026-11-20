@@ -10,13 +10,23 @@
 
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_deps_inspection_peers::{ProjectManifests, peer_issues_for_lockfile};
+use pnpm_deps_inspection_peers::{
+    ProjectManifests,
+    peer_issues_for_lockfile,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, PeerDependencyIssuesLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PeerDependencyIssuesLog,
+};
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use crate::InstallError;

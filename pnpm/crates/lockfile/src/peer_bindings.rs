@@ -1,10 +1,21 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 
-use crate::{LockfileEntries, PkgNameVerPeer};
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix};
+use crate::{
+    LockfileEntries,
+    PkgNameVerPeer,
+};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    create_peer_dep_graph_hash,
+    index_of_dep_path_suffix,
+};
 
 /// Providers recorded before a snapshot's peer suffix was hashed.
 #[derive(Debug, Clone)]

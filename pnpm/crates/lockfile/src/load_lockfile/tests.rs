@@ -1,10 +1,22 @@
 use crate::{
-    DirectoryResolution, ImporterDepVersion, LazyLockfile, LoadLockfileError, Lockfile,
-    LockfileResolution, PackageKey, PkgName, SnapshotDepRef, WantedLockfileSelection,
+    DirectoryResolution,
+    ImporterDepVersion,
+    LazyLockfile,
+    LoadLockfileError,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+    WantedLockfileSelection,
 };
 use pnpm_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
-use std::{collections::BTreeMap, fmt::Write, path::Path};
+use std::{
+    collections::BTreeMap,
+    fmt::Write,
+    path::Path,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 

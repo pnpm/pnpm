@@ -1,4 +1,7 @@
-use super::{TILE_HEIGHT, TilePath};
+use super::{
+    TILE_HEIGHT,
+    TilePath,
+};
 use pretty_assertions::assert_eq;
 use tlog_tiles::Tile;
 

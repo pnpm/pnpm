@@ -16,7 +16,10 @@ use pnpm_lockfile::normalized_registry_key;
 
 use std::collections::HashMap;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use reqwest::Url;
 

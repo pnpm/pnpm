@@ -1,5 +1,8 @@
 use super::super::dir_clone_cacheable;
-use pnpm_lockfile::{PackageKey, PackageMetadata};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+};
 use std::collections::HashMap;
 
 const INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";

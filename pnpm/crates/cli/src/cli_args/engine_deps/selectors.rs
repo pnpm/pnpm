@@ -1,11 +1,27 @@
 use std::collections::HashSet;
 
-use pnpm_matcher::{Matcher, create_matcher};
-use pnpm_package_manager::{ParsedSelector, UpdateError, parse_update_param};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
+use pnpm_package_manager::{
+    ParsedSelector,
+    UpdateError,
+    parse_update_param,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 
-use super::{DeclaredEngineDep, EngineUpdateOptions};
-use crate::{cli_args::pipelines::InstallFamilySelection, state::State};
+use super::{
+    DeclaredEngineDep,
+    EngineUpdateOptions,
+};
+use crate::{
+    cli_args::pipelines::InstallFamilySelection,
+    state::State,
+};
 
 pub(super) struct EngineSelectorPlan<'a> {
     pub(super) raw_packages: &'a [String],

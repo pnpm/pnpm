@@ -31,7 +31,11 @@
 use std::{
     path::Path,
     ptr,
-    sync::atomic::{AtomicPtr, AtomicUsize, Ordering},
+    sync::atomic::{
+        AtomicPtr,
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 #[cfg(any(unix, windows))]
@@ -378,7 +382,10 @@ pub fn install_temp_file_cleanup() {
 /// sees the event first and stops it here while children are running.
 #[cfg(windows)]
 unsafe extern "system" fn clean_temp_files(event: u32) -> windows_sys::core::BOOL {
-    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
+    use windows_sys::Win32::System::Console::{
+        CTRL_BREAK_EVENT,
+        CTRL_C_EVENT,
+    };
 
     if !matches!(event, CTRL_C_EVENT | CTRL_BREAK_EVENT) {
         return 0;

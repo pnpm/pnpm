@@ -1,9 +1,20 @@
 use crate::{
-    ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
-    VersionPart, freshness::auto_installed_peer_deps,
+    ImporterDepVersion,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    VersionPart,
+    freshness::auto_installed_peer_deps,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use std::collections::{HashMap, HashSet};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Drop the entries of `importer` that `manifest` does not declare and
 /// `pre_merge` did not already carry, per dependency group. Reports

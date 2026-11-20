@@ -1,6 +1,12 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, bump_mtime, fs, install_with_peer_alias_deps,
-    new_pacquet_command, read_lockfile,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    bump_mtime,
+    fs,
+    install_with_peer_alias_deps,
+    new_pacquet_command,
+    read_lockfile,
 };
 use assert_cmd::assert::OutputAssertExt;
 

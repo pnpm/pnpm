@@ -1,10 +1,17 @@
 //! How far each snapshot node is from the nearest `pacquet update`
 //! target ([`TargetDistances`]).
 
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+    SnapshotEntry,
+};
 use rustc_hash::FxHashMap as HashMap;
 
-use crate::{UpdateReuseScope, UpdateTargets};
+use crate::{
+    UpdateReuseScope,
+    UpdateTargets,
+};
 
 use super::snapshot_children;
 

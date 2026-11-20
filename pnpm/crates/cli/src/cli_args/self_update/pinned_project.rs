@@ -1,9 +1,21 @@
 use super::{
-    Config, Context, ExternalManager, PNPM_VERSION, Path,
+    Config,
+    Context,
+    ExternalManager,
+    PNPM_VERSION,
+    Path,
     externally_managed::refuse_without_pin,
-    project_pin::{project_pin_refusal, read_project_pinned_pnpm_version, update_project_pin},
+    project_pin::{
+        project_pin_refusal,
+        read_project_pinned_pnpm_version,
+        update_project_pin,
+    },
 };
-use crate::cli_args::package_manager::{PinRoots, WantedPackageManager, wanted_package_manager};
+use crate::cli_args::package_manager::{
+    PinRoots,
+    WantedPackageManager,
+    wanted_package_manager,
+};
 
 /// The project's package-manager pin, read from where the pre-command pass
 /// reads it (see [`PinRoots`]).

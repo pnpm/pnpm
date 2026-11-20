@@ -1,13 +1,26 @@
 use crate::cli_args::registry_client::{
-    apply_auth_and_otp, build_registry_client, join_registry_endpoint,
+    apply_auth_and_otp,
+    build_registry_client,
+    join_registry_endpoint,
     resolve_registries_with_override,
 };
 use clap::Parser;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component, normalize_registry_url,
+    RetryOpts,
+    ThrottledClient,
+    ThrottledClientGuard,
+    encode_uri_component,
+    normalize_registry_url,
     send_with_retry,
 };
 use reqwest::Response;

@@ -12,7 +12,10 @@
 //! a filesystem.
 
 use pnpm_config::validate_json_auth_registry;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Base name of pnpm's global config file, inside `configDir`.
 pub const GLOBAL_CONFIG_YAML_FILENAME: &str = "config.yaml";

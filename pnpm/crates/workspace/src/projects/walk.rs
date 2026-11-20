@@ -1,14 +1,29 @@
 pub(super) use glob::collect_glob_manifests;
 
 use super::{
-    BTreeSet, DirEntry, ErrorKind, FindWorkspaceProjectsError, Glob, MergePatterns,
-    PROJECT_MANIFEST_BASENAMES, Path, PathBuf, WorkspacePattern, fs,
+    BTreeSet,
+    DirEntry,
+    ErrorKind,
+    FindWorkspaceProjectsError,
+    Glob,
+    MergePatterns,
+    PROJECT_MANIFEST_BASENAMES,
+    Path,
+    PathBuf,
+    WorkspacePattern,
+    fs,
     managed::is_under_ignored_directory,
-    negations::{is_negated_directory, is_pruned_by_subtree_negation},
+    negations::{
+        is_negated_directory,
+        is_pruned_by_subtree_negation,
+    },
 };
 use ancestors::AncestorStack;
 use glob::WalkContext;
-use std::{ffi::OsStr, path::Component};
+use std::{
+    ffi::OsStr,
+    path::Component,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum SpecializedPattern<'pattern> {

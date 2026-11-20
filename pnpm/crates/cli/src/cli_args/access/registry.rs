@@ -1,17 +1,35 @@
-use super::{AccessArgs, AccessError, Config};
+use super::{
+    AccessArgs,
+    AccessError,
+    Config,
+};
 use crate::cli_args::{
     registry_client::{
-        apply_auth_and_otp, auth_header_for_package, build_registry_client_with_otp_guard,
-        join_registry_endpoint, resolve_registries_with_override,
+        apply_auth_and_otp,
+        auth_header_for_package,
+        build_registry_client_with_otp_guard,
+        join_registry_endpoint,
+        resolve_registries_with_override,
         resolve_target_registry_for_package,
     },
-    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
+    sanitize::{
+        DEFAULT_ERROR_BODY_LIMIT,
+        read_sanitized_error_body,
+    },
 };
 use pnpm_network::{
-    RetryOpts, ThrottledClient, ThrottledClientGuard, encode_uri_component, escaped_package_name,
+    RetryOpts,
+    ThrottledClient,
+    ThrottledClientGuard,
+    encode_uri_component,
+    escaped_package_name,
     send_with_retry,
 };
-use reqwest::{Method, Response, StatusCode};
+use reqwest::{
+    Method,
+    Response,
+    StatusCode,
+};
 use std::collections::HashMap;
 
 pub(super) struct AccessContext<'a> {

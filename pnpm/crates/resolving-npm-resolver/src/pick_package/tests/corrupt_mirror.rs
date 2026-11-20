@@ -1,9 +1,22 @@
 use std::path::Path;
 
 use super::{
-    ABBREVIATED_META_DIR, AuthHeaders, InMemoryPackageMetaCache, PACKAGE_BODY, PickPackageContext,
-    PickPackageError, RetryOpts, TempDir, ThrottledClient, assert_eq, default_opts,
-    get_pkg_mirror_path, load_meta, persist_meta_to_mirror, pick_package, range_spec,
+    ABBREVIATED_META_DIR,
+    AuthHeaders,
+    InMemoryPackageMetaCache,
+    PACKAGE_BODY,
+    PickPackageContext,
+    PickPackageError,
+    RetryOpts,
+    TempDir,
+    ThrottledClient,
+    assert_eq,
+    default_opts,
+    get_pkg_mirror_path,
+    load_meta,
+    persist_meta_to_mirror,
+    pick_package,
+    range_spec,
     shared_packument_fetch_locker,
 };
 

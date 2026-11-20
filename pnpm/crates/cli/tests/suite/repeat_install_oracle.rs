@@ -21,19 +21,47 @@ pub use inputs::Input;
 use crate::_utils;
 
 use std::{
-    cell::{Cell, RefCell},
-    collections::{BTreeMap, HashMap},
-    ffi::{OsStr, OsString},
+    cell::{
+        Cell,
+        RefCell,
+    },
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
-    time::{Duration, SystemTime},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
-use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
 use pnpm_package_manager::prune_unreachable_packages;
-use pnpm_testing_utils::{command_env::CommandTestExt, registry::TestRegistry};
-use serde_json::{Value, json};
+use pnpm_testing_utils::{
+    command_env::CommandTestExt,
+    registry::TestRegistry,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 #[derive(Debug, Clone)]
 enum Driver {

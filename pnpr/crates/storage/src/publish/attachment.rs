@@ -1,7 +1,10 @@
 //! The attachments of a publish body: each one's bytes, carried inline or
 //! staged before the publish, and the length it declares.
 
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use serde_json::Value;
 
 /// Per-tarball metadata pulled out of an `_attachments` entry.

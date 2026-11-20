@@ -3,10 +3,19 @@
 //! directory's `pnpm-workspace.yaml` still holds.
 
 use super::{
-    ApprovalStore, Config, GlobalPackagesStore, Path, Reporter, WorkspaceSettings,
-    load_global_packages_config, load_legacy_global_settings,
+    ApprovalStore,
+    Config,
+    GlobalPackagesStore,
+    Path,
+    Reporter,
+    WorkspaceSettings,
+    load_global_packages_config,
+    load_legacy_global_settings,
 };
-use pnpm_config::{GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_PACKAGES_UNSUPPORTED_KEYS};
+use pnpm_config::{
+    GLOBAL_CONFIG_YAML_FILENAME,
+    GLOBAL_PACKAGES_UNSUPPORTED_KEYS,
+};
 use pnpm_reporter::emit_global_warning;
 
 /// Where the build decisions of the global packages are recorded.

@@ -1,4 +1,10 @@
-use super::{Identity, STAGED_RECORD_FORMAT_VERSION, StagedRecord, ValidatedPublish, Value};
+use super::{
+    Identity,
+    STAGED_RECORD_FORMAT_VERSION,
+    StagedRecord,
+    ValidatedPublish,
+    Value,
+};
 use pnpr_storage::publish::now_iso;
 
 pub(super) fn staged_record(

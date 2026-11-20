@@ -1,10 +1,21 @@
 use super::{
-    FILE_TXT_PATCH_HEADER, IS_POSITIVE_PATCH, PatchApplyError, applied_hunk, apply_patch_to_dir,
-    assert_eq, fs, tempdir, text_block_fnl, write_patch,
+    FILE_TXT_PATCH_HEADER,
+    IS_POSITIVE_PATCH,
+    PatchApplyError,
+    applied_hunk,
+    apply_patch_to_dir,
+    assert_eq,
+    fs,
+    tempdir,
+    text_block_fnl,
+    write_patch,
 };
 
 #[cfg(unix)]
-use super::{IS_POSITIVE_INDEX_JS, IS_POSITIVE_INDEX_JS_PATCHED};
+use super::{
+    IS_POSITIVE_INDEX_JS,
+    IS_POSITIVE_INDEX_JS_PATCHED,
+};
 
 #[test]
 fn applies_patch_with_crlf_line_endings() {
@@ -223,7 +234,10 @@ fn mode_change_patch_is_idempotent() {
 #[cfg(unix)]
 #[test]
 fn mode_change_does_not_mutate_hardlinked_store_file() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
 
     let store = tempdir().unwrap();
     let store_file = store.path().join("tool.sh");
@@ -277,7 +291,10 @@ fn mode_change_does_not_mutate_hardlinked_store_file() {
 #[cfg(unix)]
 #[test]
 fn idempotent_mode_change_does_not_mutate_hardlinked_store_file() {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
 
     let store = tempdir().unwrap();
     let store_file = store.path().join("run.sh");
@@ -331,7 +348,10 @@ fn idempotent_mode_change_does_not_mutate_hardlinked_store_file() {
 #[cfg(unix)]
 #[test]
 fn mode_change_on_symlink_does_not_mutate_target_outside_package() {
-    use std::os::unix::fs::{self as unix_fs, PermissionsExt};
+    use std::os::unix::fs::{
+        self as unix_fs,
+        PermissionsExt,
+    };
 
     let outside = tempdir().unwrap();
     let victim = outside.path().join("victim.sh");
@@ -390,7 +410,10 @@ fn mode_change_on_symlink_does_not_mutate_target_outside_package() {
 #[cfg(unix)]
 #[test]
 fn directory_symlink_pointing_outside_package_is_rejected() {
-    use std::os::unix::fs::{self as unix_fs, PermissionsExt};
+    use std::os::unix::fs::{
+        self as unix_fs,
+        PermissionsExt,
+    };
 
     let outside = tempdir().unwrap();
     let victim = outside.path().join("victim.sh");

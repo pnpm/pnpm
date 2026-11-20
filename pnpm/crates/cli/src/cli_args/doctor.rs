@@ -10,17 +10,31 @@
 mod filesystem;
 mod probe_path;
 
-use crate::{cli_args::ping::PingArgs, process::Command};
+use crate::{
+    cli_args::ping::PingArgs,
+    process::Command,
+};
 use clap::Args;
 use filesystem::check_filesystem_capabilities;
-use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+};
 use pnpm_fs::Host;
-use probe_path::{can_write_to_dir, check_writable_dir, dir_is_in_path, prefetch_config_paths};
+use probe_path::{
+    can_write_to_dir,
+    check_writable_dir,
+    dir_is_in_path,
+    prefetch_config_paths,
+};
 use serde::Serialize;
 use std::{
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Instant,
 };
 

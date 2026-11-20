@@ -3,13 +3,26 @@
 //! shell config, so it is exercised on a real host rather than here.
 
 use super::{
-    ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, ManualSetupShell, PNPM_VERSION,
-    PathExtenderError, PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims,
-    render_env_path_outcome, render_setup_output, render_unmodified_path_output,
-    standalone_manifest, write_windows_alias_wrapper,
+    ConfigFileChangeType,
+    ConfigReport,
+    LEGACY_HOME_DIR_SHIM_NAMES,
+    ManualSetupShell,
+    PNPM_VERSION,
+    PathExtenderError,
+    PathExtenderReport,
+    create_alias_scripts,
+    remove_legacy_homedir_shims,
+    render_env_path_outcome,
+    render_setup_output,
+    render_unmodified_path_output,
+    standalone_manifest,
+    write_windows_alias_wrapper,
 };
 use pretty_assertions::assert_eq;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 fn report(change_type: ConfigFileChangeType, old: &str, new: &str) -> PathExtenderReport {
     PathExtenderReport {
@@ -414,7 +427,10 @@ fn alias_scripts_follow_a_symlink_when_the_default_path_lacks_readlink() {
 /// reach.
 #[cfg(windows)]
 mod windows_alias_scripts {
-    use super::{Path, create_alias_scripts};
+    use super::{
+        Path,
+        create_alias_scripts,
+    };
 
     /// `cmd.exe` needs `System32` for its own startup. It follows the decoy on the
     /// `PATH` handed to the child, and the decoy coming first is what this test
@@ -477,8 +493,15 @@ mod windows_alias_scripts {
     /// copy of `node.exe` running a script that prints its arguments.
     #[test]
     fn cmd_wrappers_pass_arguments_and_exit_code_through_a_batchless_shim() {
-        use pnpm_cmd_shim::{CmdShimBatch, ScriptRuntime, generate_cmd_shim};
-        use std::{fs, process::Command};
+        use pnpm_cmd_shim::{
+            CmdShimBatch,
+            ScriptRuntime,
+            generate_cmd_shim,
+        };
+        use std::{
+            fs,
+            process::Command,
+        };
 
         let dir = tempfile::tempdir().expect("create temp dir");
         let bin_dir = dir.path().join("bin");

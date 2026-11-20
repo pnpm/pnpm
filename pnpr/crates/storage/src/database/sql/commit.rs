@@ -2,29 +2,75 @@
 //! changes.
 
 use super::{
-    Expected, PackageKey,
-    adapter::{Connection, Query, Row},
-    batch::{Batch, Retired},
-    cargo_rows::{self, CARGO_STATE_VERSION, StoredCargo},
-    oci_rows::{self, OCI_STATE_VERSION, StoredOci},
-    packument::{PackumentRows, VersionRows, decompose},
-    pypi_rows::{self, PYPI_STATE_VERSION, StoredPypi},
-    removed::{tombstone_owners_from, tombstone_owners_query},
-    tags::{TagMove, record_tag_move, stored_tags_query, tags_from_rows, validate_packument_tags},
-    to_column, to_generation,
+    Expected,
+    PackageKey,
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
+    batch::{
+        Batch,
+        Retired,
+    },
+    cargo_rows::{
+        self,
+        CARGO_STATE_VERSION,
+        StoredCargo,
+    },
+    oci_rows::{
+        self,
+        OCI_STATE_VERSION,
+        StoredOci,
+    },
+    packument::{
+        PackumentRows,
+        VersionRows,
+        decompose,
+    },
+    pypi_rows::{
+        self,
+        PYPI_STATE_VERSION,
+        StoredPypi,
+    },
+    removed::{
+        tombstone_owners_from,
+        tombstone_owners_query,
+    },
+    tags::{
+        TagMove,
+        record_tag_move,
+        stored_tags_query,
+        tags_from_rows,
+        validate_packument_tags,
+    },
+    to_column,
+    to_generation,
 };
 use crate::{
     DocumentWrite,
-    database::{ArtifactMember, ReleaseRecords},
+    database::{
+        ArtifactMember,
+        ReleaseRecords,
+    },
     publish::PACKUMENT_FORMAT_VERSION,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
 };
 
 pub(super) const fn supported_state_version(ecosystem: Ecosystem) -> u32 {

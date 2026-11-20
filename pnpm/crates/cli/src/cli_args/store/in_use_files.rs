@@ -6,23 +6,48 @@
 //! `node_modules` is found only through the projects that the installed
 //! lockfiles list.
 
-use pnpm_config::{Host, PackageConfigsSetting, workspace_root_or};
-use pnpm_deps_restorer::{binary_store_index_key, store_index_key_for_resolution};
+use pnpm_config::{
+    Host,
+    PackageConfigsSetting,
+    workspace_root_or,
+};
+use pnpm_deps_restorer::{
+    binary_store_index_key,
+    store_index_key_for_resolution,
+};
 use pnpm_env_replace::env_replace_lossy;
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+};
 use pnpm_modules_yaml::read_modules_layout;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_store_dir::{
-    CafsFileInfo, InUse, PackageFilesIndex, PruneError, StoreDir, StoreIndex, StoreIndexError,
-    decode_package_files_index, get_registered_projects,
+    CafsFileInfo,
+    InUse,
+    PackageFilesIndex,
+    PruneError,
+    StoreDir,
+    StoreIndex,
+    StoreIndexError,
+    decode_package_files_index,
+    get_registered_projects,
 };
 use pnpm_workspace::read_workspace_manifest_document;
 use serde::Deserialize;
 use std::{
-    collections::{HashMap, HashSet},
-    io, iter,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    io,
+    iter,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// For each registered project's current lockfile:

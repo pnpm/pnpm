@@ -9,12 +9,22 @@ use crate::{
     State,
     cli_args::{
         add::add_package,
-        reporter::{CliReporter, EventFilter},
+        reporter::{
+            CliReporter,
+            EventFilter,
+        },
     },
     slot_lock,
 };
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, Host, NodeLinker};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    Host,
+    NodeLinker,
+};
 use pnpm_crypto_hash::create_hex_hash;
 use pnpm_fs::DirLock;
 use pnpm_package_manifest::DependencyGroup;
@@ -23,7 +33,10 @@ use pnpm_store_dir::PrivateInstall;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A runtime installed and ready to run.

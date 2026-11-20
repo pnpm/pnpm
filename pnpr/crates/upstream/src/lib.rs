@@ -1,9 +1,17 @@
-pub use abbreviate::{abbreviate_packument, abbreviate_version};
+pub use abbreviate::{
+    abbreviate_packument,
+    abbreviate_version,
+};
 pub use discovery::SearchResponse;
 pub use packument::{
-    extract_upstream_revision_integrity, extract_upstream_version_manifest,
-    extract_version_manifest, revision_route_tarball_version, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, tarball_basename, tarball_basename_for_package,
+    extract_upstream_revision_integrity,
+    extract_upstream_version_manifest,
+    extract_version_manifest,
+    revision_route_tarball_version,
+    rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls,
+    tarball_basename,
+    tarball_basename_for_package,
     version_route_tarball_version,
 };
 pub use time::TIME_PRECISION_HORIZON_DAYS;
@@ -13,7 +21,10 @@ pub use request::UpstreamTarballRoute;
 
 mod http;
 mod request;
-use http::{UpstreamHttp, same_origin};
+use http::{
+    UpstreamHttp,
+    same_origin,
+};
 use pnpm_network::redact_url_for_display;
 use request::Deadline;
 
@@ -35,28 +46,58 @@ mod attestations;
 mod time;
 
 use pnpm_lockfile::{
-    MAX_TARBALL_REVISION, TarballRevision, has_complete_sha512_digest,
-    is_revision_registry_tarball_url, revision_registry_tarball_url,
+    MAX_TARBALL_REVISION,
+    TarballRevision,
+    has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
+    revision_registry_tarball_url,
 };
 use pnpm_network::{
-    AddressGuard, GuardedDnsResolver, HeadError, RedirectGuard, ThrottledClient,
-    ThrottledClientGuard, ThrottledResponse, UNPRIORITIZED, is_url_secure_for_credentials,
-    native_dns_resolver, read_limited_body,
+    AddressGuard,
+    GuardedDnsResolver,
+    HeadError,
+    RedirectGuard,
+    ThrottledClient,
+    ThrottledClientGuard,
+    ThrottledResponse,
+    UNPRIORITIZED,
+    is_url_secure_for_credentials,
+    native_dns_resolver,
+    read_limited_body,
 };
-use pnpr_config::{RedactedHeaders, UpstreamConfig};
-use pnpr_error::{RegistryError, Result};
+use pnpr_config::{
+    RedactedHeaders,
+    UpstreamConfig,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
 use reqwest::{
     StatusCode,
-    header::{self, HeaderMap, HeaderValue},
+    header::{
+        self,
+        HeaderMap,
+        HeaderValue,
+    },
 };
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 use ssri::Integrity;
 use std::{
     fmt,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 const UPSTREAM_DISCOVERY_BODY_LIMIT: usize = 16 * 1024 * 1024;

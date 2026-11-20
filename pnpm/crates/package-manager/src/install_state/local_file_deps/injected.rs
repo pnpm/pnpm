@@ -3,8 +3,14 @@
 //! override, or a package extension names a `workspace:` path.
 
 use super::{
-    Lockfile, OptimisticRepeatInstallCheck, PathBuf, dependency_fields,
-    specs::{is_effective_workspace_path, is_workspace_path_spec},
+    Lockfile,
+    OptimisticRepeatInstallCheck,
+    PathBuf,
+    dependency_fields,
+    specs::{
+        is_effective_workspace_path,
+        is_workspace_path_spec,
+    },
 };
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_workspace::importer_id_from_root_dir;

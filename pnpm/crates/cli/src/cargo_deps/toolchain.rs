@@ -3,18 +3,45 @@
 
 pub(crate) mod add;
 
-use super::workspace_directory::{ensure_workspace_directory, force_workspace_symlink};
-use miette::{IntoDiagnostic, Result, WrapErr};
-use pnpm_config::{Config, RuntimeOnFail};
+use super::workspace_directory::{
+    ensure_workspace_directory,
+    force_workspace_symlink,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use pnpm_config::{
+    Config,
+    RuntimeOnFail,
+};
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pnpm_rust_toolchain::{
-    InstalledToolchain, RustToolchainError, TOOLCHAIN_LINK, ToolchainRequest, Unmanaged,
-    find_toolchain_file, install_toolchain, read_toolchain_file,
+    InstalledToolchain,
+    RustToolchainError,
+    TOOLCHAIN_LINK,
+    ToolchainRequest,
+    Unmanaged,
+    find_toolchain_file,
+    install_toolchain,
+    read_toolchain_file,
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
 };
 

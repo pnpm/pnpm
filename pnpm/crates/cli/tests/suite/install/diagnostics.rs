@@ -1,4 +1,7 @@
-use crate::_utils::{flatten_report, ndjson_records};
+use crate::_utils::{
+    flatten_report,
+    ndjson_records,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;

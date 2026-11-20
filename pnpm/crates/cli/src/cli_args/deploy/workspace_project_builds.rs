@@ -12,8 +12,19 @@
 //! deployed key or a key the source workspace gives it.
 
 use super::{
-    ConvertCtx, HashMap, IntoDiagnostic, Lockfile, LockfileResolution, PackageKey, PackageMetadata,
-    Path, PathBuf, ProjectInfo, ProjectPathKey, create_file_url_key, lexical_normalize,
+    ConvertCtx,
+    HashMap,
+    IntoDiagnostic,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    Path,
+    PathBuf,
+    ProjectInfo,
+    ProjectPathKey,
+    create_file_url_key,
+    lexical_normalize,
     relative_path,
 };
 use pnpm_package_manager::AllowBuildPolicy;

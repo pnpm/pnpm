@@ -1,7 +1,15 @@
-use super::{fs_remove_dir_all, pacquet_at, write_manifest, write_workspace_yaml};
+use super::{
+    fs_remove_dir_all,
+    pacquet_at,
+    write_manifest,
+    write_workspace_yaml,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::process::Command;
 
 #[test]

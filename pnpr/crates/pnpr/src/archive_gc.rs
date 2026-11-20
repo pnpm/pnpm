@@ -15,12 +15,26 @@
 pub(crate) mod images;
 pub(crate) mod liveness;
 
-use crate::{Config, Ecosystem, RegistryError, Result};
-use pnpr_storage::{
-    Storage, StoredArchive,
-    database::{BlobRef, BlobRow, BlobState, Uncommitted},
+use crate::{
+    Config,
+    Ecosystem,
+    RegistryError,
+    Result,
 };
-use std::{collections::BTreeMap, time::Duration};
+use pnpr_storage::{
+    Storage,
+    StoredArchive,
+    database::{
+        BlobRef,
+        BlobRow,
+        BlobState,
+        Uncommitted,
+    },
+};
+use std::{
+    collections::BTreeMap,
+    time::Duration,
+};
 use tracing::Instrument as _;
 
 /// What `pnpr gc` collects, and how.

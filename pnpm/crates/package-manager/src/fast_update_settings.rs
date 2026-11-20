@@ -1,11 +1,21 @@
 use crate::fast_update_compose::Drift;
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, LockfileSettings, ProjectSnapshot, ResolutionSettings,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileSettings,
+    ProjectSnapshot,
+    ResolutionSettings,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
 };
 

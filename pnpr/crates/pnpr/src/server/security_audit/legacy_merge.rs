@@ -1,8 +1,18 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
-use super::legacy_report::{LegacyAuditMetadata, LegacyVulnerabilityCounts};
+use super::legacy_report::{
+    LegacyAuditMetadata,
+    LegacyVulnerabilityCounts,
+};
 
 pub(super) fn sanitize_upstream_legacy_response(
     doc: &mut Map<String, Value>,

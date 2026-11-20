@@ -8,12 +8,22 @@
 //! to box them *outermost*, never nested inside another error, or the
 //! downcast misses them.
 
-use std::fmt::{self, Write as _};
+use std::fmt::{
+    self,
+    Write as _,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use jiff::Timestamp;
 use miette::Diagnostic;
-use pnpm_network::{hide_auth_information, redact_and_sanitize, redact_and_sanitize_multiline};
+use pnpm_network::{
+    hide_auth_information,
+    redact_and_sanitize,
+    redact_and_sanitize_multiline,
+};
 use pnpm_registry::Package;
 use url::Url;
 

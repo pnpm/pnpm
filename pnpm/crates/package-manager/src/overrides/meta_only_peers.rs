@@ -1,4 +1,9 @@
-use super::{DependencyGroup, ResolvedOverride, VersionsOverrider, remove_peer_dependency};
+use super::{
+    DependencyGroup,
+    ResolvedOverride,
+    VersionsOverrider,
+    remove_peer_dependency,
+};
 use serde_json::Value;
 
 impl VersionsOverrider {

@@ -1,9 +1,18 @@
 use crate::{
-    graph::{CrateGraph, Edge},
-    problem::{Metric, Problem},
+    graph::{
+        CrateGraph,
+        Edge,
+    },
+    problem::{
+        Metric,
+        Problem,
+    },
 };
 use serde::Deserialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]

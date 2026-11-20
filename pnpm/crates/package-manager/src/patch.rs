@@ -1,29 +1,65 @@
-pub use verify_projects::{VerifyProjectPatchesError, verify_patches_against_project_lockfiles};
+pub use verify_projects::{
+    VerifyProjectPatchesError,
+    verify_patches_against_project_lockfiles,
+};
 
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, InstallPackageBySnapshotError, import_indexed_dir,
+    ImportIndexedDirError,
+    ImportIndexedDirOpts,
+    InstallPackageBySnapshotError,
+    import_indexed_dir,
     tarball_url_and_integrity,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use node_semver::{Range, Version};
-use pnpm_config::{Config, PackageImportMethod};
-use pnpm_git_fetcher::{GitFetchOutput, GitFetcherError, GitHostedTarballFetcher};
-use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_config::{
+    Config,
+    PackageImportMethod,
+};
+use pnpm_git_fetcher::{
+    GitFetchOutput,
+    GitFetcherError,
+    GitHostedTarballFetcher,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_store_dir::{
-    SharedVerifiedFilesCache, StoreIndex, StoreIndexError, StoreIndexWriter,
+    SharedVerifiedFilesCache,
+    StoreIndex,
+    StoreIndexError,
+    StoreIndexWriter,
     git_hosted_store_index_key,
 };
-use pnpm_tarball::{IngestTarballToStore, MemCache, TarballError};
+use pnpm_tarball::{
+    IngestTarballToStore,
+    MemCache,
+    TarballError,
+};
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
     io,
-    path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU8},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

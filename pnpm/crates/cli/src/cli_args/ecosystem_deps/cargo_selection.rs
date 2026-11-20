@@ -1,12 +1,28 @@
 use super::{
     cargo::CargoUpdateOptions,
-    cargo_manifest_ops::{DeclaredCargoDep, same_declared_dep},
+    cargo_manifest_ops::{
+        DeclaredCargoDep,
+        same_declared_dep,
+    },
     cargo_workspace_scope::CargoWorkspaceScope,
 };
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pnpm_matcher::WildcardMatcher;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use semver::{Op, Version, VersionReq};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use semver::{
+    Op,
+    Version,
+    VersionReq,
+};
 
 /// A dependency `pnpm update` is to update.
 pub(super) struct SelectedCargoDep<'a> {

@@ -8,20 +8,43 @@
 //! validated here; their values are read once the dependencies are installed.
 
 pub use error::IncludeError;
-pub use ownership::{Ownership, SettingOwner};
-pub use package::{PackageEntry, config_dependency_dir};
-pub use rebase::{rebase_path, rebase_setting, rebase_specifier};
-pub use selector::{SettingSlot, canonical_setting_name};
+pub use ownership::{
+    Ownership,
+    SettingOwner,
+};
+pub use package::{
+    PackageEntry,
+    config_dependency_dir,
+};
+pub use rebase::{
+    rebase_path,
+    rebase_setting,
+    rebase_specifier,
+};
+pub use selector::{
+    SettingSlot,
+    canonical_setting_name,
+};
 
 use indexmap::IndexMap;
 use pnpm_env_replace::SentinelPlaceholders;
 use same_file::Handle;
 use std::{
-    fmt, fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    fmt,
+    fs,
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
-use yaml_serde::{Mapping, Value};
+use yaml_serde::{
+    Mapping,
+    Value,
+};
 
 mod error;
 mod merge;

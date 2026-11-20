@@ -1,7 +1,18 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
 
-use pnpm_network::{GuardedDnsResolver, is_public_address};
-use reqwest::dns::{Addrs, Name, Resolve, Resolving};
+use pnpm_network::{
+    GuardedDnsResolver,
+    is_public_address,
+};
+use reqwest::dns::{
+    Addrs,
+    Name,
+    Resolve,
+    Resolving,
+};
 
 use super::pin_with;
 

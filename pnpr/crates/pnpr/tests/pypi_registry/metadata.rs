@@ -1,7 +1,19 @@
-use super::{JSON, body_bytes, get, pypi_config, sha256_hex};
+use super::{
+    JSON,
+    body_bytes,
+    get,
+    pypi_config,
+    sha256_hex,
+};
 use axum::http::StatusCode;
-use pnpr::{AuthState, router_with_auth};
-use serde_json::{Value, json};
+use pnpr::{
+    AuthState,
+    router_with_auth,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 

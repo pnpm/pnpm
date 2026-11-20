@@ -1,7 +1,10 @@
 //! Keep the pnpm processes a test spawns free of the ambient pnpm
 //! configuration.
 
-use std::{ffi::OsString, process::Command};
+use std::{
+    ffi::OsString,
+    process::Command,
+};
 
 /// Test-only additions to [`Command`].
 pub trait CommandTestExt {

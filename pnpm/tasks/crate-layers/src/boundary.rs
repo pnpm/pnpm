@@ -1,6 +1,9 @@
 use crate::{
     graph::CrateGraph,
-    problem::{BoundaryViolation, Problem},
+    problem::{
+        BoundaryViolation,
+        Problem,
+    },
 };
 use std::collections::BTreeSet;
 

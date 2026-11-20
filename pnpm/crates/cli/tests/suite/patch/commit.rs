@@ -1,6 +1,12 @@
 use super::{
-    AddMockedRegistry, CommandTempCwd, fs, pacquet, remove_dir_if_exists, setup_installed,
-    setup_installed_workspace_project, setup_installed_workspace_project_with_yaml,
+    AddMockedRegistry,
+    CommandTempCwd,
+    fs,
+    pacquet,
+    remove_dir_if_exists,
+    setup_installed,
+    setup_installed_workspace_project,
+    setup_installed_workspace_project_with_yaml,
     write_patch_edit,
 };
 use assert_cmd::assert::OutputAssertExt;

@@ -1,9 +1,16 @@
 use std::{
     ffi::OsString,
     fmt::Write as _,
-    fs, io,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use pnpm_store_dir::StoreDir;
@@ -11,13 +18,31 @@ use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 use tracing::Level;
-use tracing_subscriber::{Layer, layer::SubscriberExt};
+use tracing_subscriber::{
+    Layer,
+    layer::SubscriberExt,
+};
 
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapMode, NodePackageMapType, PackageImportMethod, TrustPolicy,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    Host,
+    LinkProbe,
+    LoadWorkspaceYamlError,
+    NodeLinker,
+    NodePackageMapMode,
+    NodePackageMapType,
+    PackageImportMethod,
+    TrustPolicy,
 };
-use crate::defaults::{GLOBAL_LAYOUT_VERSION, default_state_dir, default_store_dir};
+use crate::defaults::{
+    GLOBAL_LAYOUT_VERSION,
+    default_state_dir,
+    default_store_dir,
+};
 
 /// Capture all tracing WARN messages emitted during a closure, each followed
 /// by its structured fields, since some warnings say which setting or variable

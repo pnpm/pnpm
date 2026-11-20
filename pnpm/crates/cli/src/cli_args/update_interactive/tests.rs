@@ -3,14 +3,26 @@ mod named_registry;
 mod selectors;
 
 use super::{
-    ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdateDetails,
-    UpdatePrompt, dependencies_prompt_message,
-    gather::{ChoiceFilter, collect_filtered_choices},
+    ChoiceNotes,
+    InteractiveUpdateProject,
+    PromptRow,
+    PromptStyle,
+    TargetVersion,
+    UpdateDetails,
+    UpdatePrompt,
+    dependencies_prompt_message,
+    gather::{
+        ChoiceFilter,
+        collect_filtered_choices,
+    },
 };
 use crate::{
     checkbox_prompt::KeyOutcome,
     cli_args::{
-        outdated::{OutdatedPackage, TrustChange},
+        outdated::{
+            OutdatedPackage,
+            TrustChange,
+        },
         update::UpdateArgs,
     },
 };
@@ -18,16 +30,31 @@ use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_resolving_npm_resolver::TrustEvidence;
 use pnpm_testing_utils::registry::TestRegistry;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::VecDeque,
     fs,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tempfile::TempDir;
 
@@ -698,8 +725,12 @@ fn package_body_with_publish_times(name: &str, registry: &str) -> String {
 
 mod selection {
     use super::super::{
-        choices::{ChoiceGroup, ChoiceRow},
-        flatten_groups, selected_packages,
+        choices::{
+            ChoiceGroup,
+            ChoiceRow,
+        },
+        flatten_groups,
+        selected_packages,
     };
 
     fn group(message: &str, rows: &[(&str, Option<&str>)]) -> ChoiceGroup {

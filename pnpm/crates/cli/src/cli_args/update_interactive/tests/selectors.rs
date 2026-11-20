@@ -1,4 +1,11 @@
-use super::{MULTI_A, MULTI_B, MULTI_C, UpdateFixture, offered, scripted_prompts};
+use super::{
+    MULTI_A,
+    MULTI_B,
+    MULTI_C,
+    UpdateFixture,
+    offered,
+    scripted_prompts,
+};
 use serde_json::json;
 
 #[tokio::test]

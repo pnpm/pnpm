@@ -2,22 +2,37 @@ use std::{
     future::pending,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
 use axum::{
-    body::{Bytes, to_bytes},
+    body::{
+        Bytes,
+        to_bytes,
+    },
     http::StatusCode,
     response::Response,
 };
-use pnpr_config::{IpNetwork, PublicRoute};
+use pnpr_config::{
+    IpNetwork,
+    PublicRoute,
+};
 use pnpr_policy::Identity;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    },
     net::TcpListener,
     sync::Notify,
 };
@@ -27,12 +42,17 @@ use super::{
         Resolver,
         dispatch::handle_resolve,
         limits::{
-            GRAPH_TOO_LARGE_CODE, MAX_CONCURRENT_RESOLVES, MAX_DIRECT_DEPENDENCIES,
-            MAX_WORKSPACE_PROJECTS, RESOLVE_TIMEOUT_CODE, STREAM_CHANNEL_CAPACITY,
+            GRAPH_TOO_LARGE_CODE,
+            MAX_CONCURRENT_RESOLVES,
+            MAX_DIRECT_DEPENDENCIES,
+            MAX_WORKSPACE_PROJECTS,
+            RESOLVE_TIMEOUT_CODE,
+            STREAM_CHANNEL_CAPACITY,
         },
         verify_lockfile::handle_verify_lockfile,
     },
-    package_lockfile, registry_config,
+    package_lockfile,
+    registry_config,
 };
 
 fn test_integrity() -> String {

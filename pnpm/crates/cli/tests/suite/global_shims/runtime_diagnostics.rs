@@ -1,8 +1,15 @@
 use super::fs;
 #[cfg(not(windows))]
-use super::{Command, install_shim, isolated_in};
+use super::{
+    Command,
+    install_shim,
+    isolated_in,
+};
 #[cfg(windows)]
-use super::{Path, windows_shim_command};
+use super::{
+    Path,
+    windows_shim_command,
+};
 
 #[test]
 fn failed_runtime_download_explains_global_mirror_configuration() {

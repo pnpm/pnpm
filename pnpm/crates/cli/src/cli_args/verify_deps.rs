@@ -7,20 +7,38 @@
 use super::{
     legacy_pnpm_field::ignored_lockfile_pnpm_field_keys,
     package_manager::read_root_manifest,
-    reporter::{ReporterType, quiet_loglevel_arg},
+    reporter::{
+        ReporterType,
+        quiet_loglevel_arg,
+    },
 };
 use crate::process::Command;
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, VerifyDepsBeforeRun};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    VerifyDepsBeforeRun,
+};
 use pnpm_default_reporter::colors::Colors;
 use pnpm_fs::DirLock;
 use pnpm_package_manager::{
-    GateWorkspace, RunDepsStatus, check_deps_status_before_run_at, deps_install_root,
+    GateWorkspace,
+    RunDepsStatus,
+    check_deps_status_before_run_at,
+    deps_install_root,
 };
 use std::{
     collections::HashSet,
-    io::{self, IsTerminal},
+    io::{
+        self,
+        IsTerminal,
+    },
     path::Path,
     time::Duration,
 };

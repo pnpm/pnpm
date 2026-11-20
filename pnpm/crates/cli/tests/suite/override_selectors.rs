@@ -4,10 +4,21 @@
 use crate::_utils::read_lockfile;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PackageKey, PkgName, PkgNameVerPeer};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+    PkgNameVerPeer,
+};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn extend_workspace_yaml(workspace: &Path, block: &str) {
     let path = workspace.join("pnpm-workspace.yaml");

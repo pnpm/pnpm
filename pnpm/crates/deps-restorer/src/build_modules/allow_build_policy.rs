@@ -1,14 +1,25 @@
 //! Deciding which packages are allowed to run build scripts.
 
 pub use pnpm_package_name::{
-    git_repo_allow_build_key_from_dep_path, is_git_hosted_dep_path, parse_dep_path_name_version,
+    git_repo_allow_build_key_from_dep_path,
+    is_git_hosted_dep_path,
+    parse_dep_path_name_version,
     short_package_label,
 };
 
 use super::{
-    Config, HashMap, HashSet, PackageKey, PackageVersionPolicy, PolicyMatch, VersionPolicyError,
-    create_package_version_policy, expand_package_version_specs, get_pkg_id_with_patch_hash,
-    parse_name_version_from_key, remove_suffix,
+    Config,
+    HashMap,
+    HashSet,
+    PackageKey,
+    PackageVersionPolicy,
+    PolicyMatch,
+    VersionPolicyError,
+    create_package_version_policy,
+    expand_package_version_specs,
+    get_pkg_id_with_patch_hash,
+    parse_name_version_from_key,
+    remove_suffix,
 };
 use pnpm_package_name::is_git_repo_dep_path;
 

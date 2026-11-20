@@ -5,24 +5,51 @@
 //! entirely when the caller opted out of integrity verification.
 pub use package_dir_matches_index::package_dir_matches_index;
 
-pub use pending_files_check::{PendingFilesCheck, files_maps};
+pub use pending_files_check::{
+    PendingFilesCheck,
+    files_maps,
+};
 
 use crate::{
-    CafsFileInfo, PackageFilesIndex, SideEffectsDiff, SideEffectsOverlay, StoreDir,
-    symlinks::{read_recorded_symlink_target, writes_below_a_symlink},
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    SideEffectsOverlay,
+    StoreDir,
+    symlinks::{
+        read_recorded_symlink_target,
+        writes_below_a_symlink,
+    },
 };
 use dashmap::DashMap;
-use sha2::{Digest, Sha512};
+use sha2::{
+    Digest,
+    Sha512,
+};
 use std::{
     collections::HashMap,
     fs,
-    io::{self, BufReader, Read},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        BufReader,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
-    time::{Duration, Instant, UNIX_EPOCH},
+    time::{
+        Duration,
+        Instant,
+        UNIX_EPOCH,
+    },
 };
 
 /// Process-wide tally of the CAFS files [`verify_file_integrity`] had

@@ -1,6 +1,18 @@
-use super::{Inputs, Registry, environment::PythonPrepare, manifest};
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{Diagnostic, IntoDiagnostic, Result};
+use super::{
+    Inputs,
+    Registry,
+    environment::PythonPrepare,
+    manifest,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    Diagnostic,
+    IntoDiagnostic,
+    Result,
+};
 
 pub(crate) struct Index {
     pub(crate) url: url::Url,

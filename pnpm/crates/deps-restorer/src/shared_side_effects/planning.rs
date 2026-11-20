@@ -1,17 +1,44 @@
 use super::{
-    ApplySharedSideEffectsOptions, BaseCasPaths, RemoteCacheSetup, dependency_package,
-    insert_side_effects_map, package_version, patch_hash, stored_remote_side_effects_are_verified,
+    ApplySharedSideEffectsOptions,
+    BaseCasPaths,
+    RemoteCacheSetup,
+    dependency_package,
+    insert_side_effects_map,
+    package_version,
+    patch_hash,
+    stored_remote_side_effects_are_verified,
     stored_remote_side_effects_blobs_are_valid,
 };
 use crate::{
-    AllowBuildPolicy, RequiresBuildBySnapshot, SideEffectsBySnapshot, SideEffectsMapsBySnapshot,
-    StoreIndexKeysBySnapshot, build_deps_subgraph, deps_graph::in_lockfile_order,
+    AllowBuildPolicy,
+    RequiresBuildBySnapshot,
+    SideEffectsBySnapshot,
+    SideEffectsMapsBySnapshot,
+    StoreIndexKeysBySnapshot,
+    build_deps_subgraph,
+    deps_graph::in_lockfile_order,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
-use pnpm_pnpr_client::{ArtifactCandidate, ArtifactSubject, OwnerScope, PackageIdentity};
-use pnpm_store_dir::{SideEffectsDiff, SideEffectsOverlay};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
+use pnpm_pnpr_client::{
+    ArtifactCandidate,
+    ArtifactSubject,
+    OwnerScope,
+    PackageIdentity,
+};
+use pnpm_store_dir::{
+    SideEffectsDiff,
+    SideEffectsOverlay,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+    HashSet,
+};
 
 pub(super) struct CandidateGroup {
     pub(super) candidate: ArtifactCandidate,

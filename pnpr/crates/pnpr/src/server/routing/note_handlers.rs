@@ -8,16 +8,33 @@
 //!   package's notes; no tarball is named `notes`.
 
 use super::{
-    npm_handlers::{NamePath, ScopedVersionPath},
+    npm_handlers::{
+        NamePath,
+        ScopedVersionPath,
+    },
     serve_version_manifest,
 };
 use crate::server::{
-    AppState, AuthedCaller, Path, Response, State, TargetRegistry, not_found,
-    notes::{NoteRequest, read_note_body, serve_package_notes, serve_version_note},
+    AppState,
+    AuthedCaller,
+    Path,
+    Response,
+    State,
+    TargetRegistry,
+    not_found,
+    notes::{
+        NoteRequest,
+        read_note_body,
+        serve_package_notes,
+        serve_version_note,
+    },
 };
 use axum::{
     body::Bytes,
-    http::{Method, StatusCode},
+    http::{
+        Method,
+        StatusCode,
+    },
 };
 use serde::Deserialize;
 

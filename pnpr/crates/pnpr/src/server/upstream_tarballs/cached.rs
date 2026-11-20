@@ -1,9 +1,15 @@
 use super::{
-    AppState, RegistryError, Response, UpstreamTarball, cached_upstream_tarball, streaming,
+    AppState,
+    RegistryError,
+    Response,
+    UpstreamTarball,
+    cached_upstream_tarball,
+    streaming,
     tarball_response,
 };
 use crate::server::{
-    upstream_integrity::cached::hash_cached_file, upstream_packuments::lock_upstream_package,
+    upstream_integrity::cached::hash_cached_file,
+    upstream_packuments::lock_upstream_package,
 };
 use tokio::io::AsyncSeekExt;
 

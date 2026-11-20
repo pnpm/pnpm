@@ -4,18 +4,27 @@
 
 use super::{
     broken_optional,
-    options::{PassSettings, WorkspaceImporter},
+    options::{
+        PassSettings,
+        WorkspaceImporter,
+    },
     time_based::TimeBasedCutoff,
 };
 use crate::{
     resolve_dependency_tree::WorkspaceTreeCtx,
     resolve_importer::{
-        ImporterHoistState, ResolveImporterError, ResolveImporterOptions, SeededImporter,
+        ImporterHoistState,
+        ResolveImporterError,
+        ResolveImporterOptions,
+        SeededImporter,
     },
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::Resolver;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// The importers in id order, each with its options.
 pub(super) struct SortedImporters<'i, 'a> {

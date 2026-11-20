@@ -1,8 +1,21 @@
-use super::self_update::{install_pnpm::is_release_installable, version_lt};
+use super::self_update::{
+    install_pnpm::is_release_installable,
+    version_lt,
+};
 use crate::config_deps;
-use clap::{Args, ValueEnum};
-use pnpm_config::{Config, InitType, PNPM_VERSION};
-use std::{path::Path, time::Duration};
+use clap::{
+    Args,
+    ValueEnum,
+};
+use pnpm_config::{
+    Config,
+    InitType,
+    PNPM_VERSION,
+};
+use std::{
+    path::Path,
+    time::Duration,
+};
 
 /// How long the `latest` lookup may take before `pnpm init` gives up on it.
 /// Much shorter than the resolver's usual timeout: the version is a nicety,

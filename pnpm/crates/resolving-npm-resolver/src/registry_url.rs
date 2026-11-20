@@ -16,7 +16,10 @@
 //! every other character that `encodeURIComponent` would touch is
 //! percent-encoded.
 
-use pnpm_network::{encode_package_name, normalize_registry_url};
+use pnpm_network::{
+    encode_package_name,
+    normalize_registry_url,
+};
 
 /// Compose the metadata-fetch URL: `<registry-with-trailing-slash><encoded-name>`.
 #[must_use]

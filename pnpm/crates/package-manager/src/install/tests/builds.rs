@@ -1,14 +1,31 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation, project_lifecycle_graph},
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+        project_lifecycle_graph,
+    },
     InstallDirs,
 };
-use crate::{PolicyExcludes, ResolvedPackages};
+use crate::{
+    PolicyExcludes,
+    ResolvedPackages,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_testing_utils::registry::TestRegistry;
-use std::{fs, sync::Arc};
+use std::{
+    fs,
+    sync::Arc,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 

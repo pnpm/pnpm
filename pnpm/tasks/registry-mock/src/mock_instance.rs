@@ -1,5 +1,9 @@
 use crate::{
-    PreparedRegistryInfo, RegistryAnchor, RegistryInfo, pick_port::pick_unused_port, pnpr_command,
+    PreparedRegistryInfo,
+    RegistryAnchor,
+    RegistryInfo,
+    pick_port::pick_unused_port,
+    pnpr_command,
     port_to_url::port_to_url,
 };
 use pipe_trait::Pipe;
@@ -7,9 +11,15 @@ use reqwest::Client;
 use std::{
     fs::File,
     path::Path,
-    process::{Child, Stdio},
+    process::{
+        Child,
+        Stdio,
+    },
 };
-use tokio::time::{Duration, sleep};
+use tokio::time::{
+    Duration,
+    sleep,
+};
 
 #[cfg(test)]
 mod tests;

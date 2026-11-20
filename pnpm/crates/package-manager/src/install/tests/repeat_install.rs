@@ -1,21 +1,55 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
-    InstallDirs, assert_purge_diagnostic, fresh_lockfile_only_with_compatibility_db,
-    install_then_go_offline, recorded_verified_file_integrity_report, touch_manifest,
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+    },
+    InstallDirs,
+    assert_purge_diagnostic,
+    fresh_lockfile_only_with_compatibility_db,
+    install_then_go_offline,
+    recorded_verified_file_integrity_report,
+    touch_manifest,
 };
-use crate::{PolicyExcludes, UpToDateFastPathCheck, install_already_up_to_date};
+use crate::{
+    PolicyExcludes,
+    UpToDateFastPathCheck,
+    install_already_up_to_date,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    write_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_store_dir::VerifiedFileIntegrity;
 use pnpm_testing_utils::{
-    fs::{MTIME_STEP_MS, set_mtime_ms},
+    fs::{
+        MTIME_STEP_MS,
+        set_mtime_ms,
+    },
     registry::TestRegistry,
 };
 use pnpm_workspace_state as workspace_state;
-use std::{sync::Mutex, time::Duration};
+use std::{
+    sync::Mutex,
+    time::Duration,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 

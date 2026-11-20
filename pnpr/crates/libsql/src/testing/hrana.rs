@@ -1,13 +1,29 @@
 //! How the mock primary runs a Hrana request: the steps of a batch, with
 //! their conditions, and the values and errors they carry.
 
-use crate::{is_transaction_conflict, is_unique_violation};
-use base64::{Engine as _, engine::general_purpose::STANDARD_NO_PAD as BASE64};
-use libsql::{Connection, Value};
-use serde_json::{Value as JsonValue, json};
+use crate::{
+    is_transaction_conflict,
+    is_unique_violation,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD_NO_PAD as BASE64,
+};
+use libsql::{
+    Connection,
+    Value,
+};
+use serde_json::{
+    Value as JsonValue,
+    json,
+};
 use std::sync::{
     Mutex,
-    atomic::{AtomicBool, AtomicUsize, Ordering},
+    atomic::{
+        AtomicBool,
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 /// The Hrana pipeline and cursor requests a primary has answered: the round

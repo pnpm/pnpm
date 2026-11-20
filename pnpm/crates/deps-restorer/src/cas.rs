@@ -4,17 +4,28 @@ pub(crate) use link::link_phase;
 use crate::{
     SkippedSnapshots,
     linking::LinkPhaseInputs,
-    package_map::{PackageMapOptions, lockfile_to_package_map},
+    package_map::{
+        PackageMapOptions,
+        lockfile_to_package_map,
+    },
 };
 use pnpm_lockfile::PkgIdWithPatchHash;
-use std::{collections::BTreeMap, io, path::Path};
+use std::{
+    collections::BTreeMap,
+    io,
+    path::Path,
+};
 use url::Url;
 
 use pnpm_config::{
-    CAS_LOADER_FILENAME as LOADER_FILENAME, CAS_MANIFEST_FILENAME as MANIFEST_FILENAME,
+    CAS_LOADER_FILENAME as LOADER_FILENAME,
+    CAS_MANIFEST_FILENAME as MANIFEST_FILENAME,
     NodePackageMapType,
 };
-use pnpm_store_dir::{StoreLoaderManifest as StoreManifest, StoreLoaderPackage as StorePackage};
+use pnpm_store_dir::{
+    StoreLoaderManifest as StoreManifest,
+    StoreLoaderPackage as StorePackage,
+};
 
 mod bin_state;
 mod bins;

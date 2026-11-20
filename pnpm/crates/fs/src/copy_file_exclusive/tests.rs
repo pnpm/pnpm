@@ -1,8 +1,16 @@
 #[cfg(unix)]
 use super::path_still_names;
-use super::{CopyPermissions, copy_file_atomic, copy_file_exclusive};
+use super::{
+    CopyPermissions,
+    copy_file_atomic,
+    copy_file_exclusive,
+};
 use pipe_trait::Pipe;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 use tempfile::TempDir;
 
 fn source_permissions(path: &Path) -> CopyPermissions {

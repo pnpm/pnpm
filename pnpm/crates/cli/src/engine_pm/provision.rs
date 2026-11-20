@@ -3,12 +3,23 @@
 
 use crate::{
     engine_pm::{
-        channel::{BinaryChannel, Channel, EnginePackages, PackageManager},
+        channel::{
+            BinaryChannel,
+            Channel,
+            EnginePackages,
+            PackageManager,
+        },
         error::EngineError,
-        install::{engine_env_root, install_engine_to_store},
+        install::{
+            engine_env_root,
+            install_engine_to_store,
+        },
         resolve::resolve_release,
     },
-    shim_dispatch::{MaterializedRuntime, materialize_runtime},
+    shim_dispatch::{
+        MaterializedRuntime,
+        materialize_runtime,
+    },
 };
 use miette::Context;
 use pnpm_config::Config;
@@ -16,7 +27,10 @@ use pnpm_reporter::Reporter;
 use pnpm_store_dir::PrivateInstall;
 use std::{
     ffi::OsStr,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The Node.js line a JavaScript package manager runs on when the host has

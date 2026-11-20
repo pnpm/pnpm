@@ -1,4 +1,7 @@
-use super::{DependencySelection, Manifest};
+use super::{
+    DependencySelection,
+    Manifest,
+};
 use pnpm_config::Config;
 
 const PROJECT: &str = "[project]\nname = 'app'\nversion = '1.0'\ndependencies = ['base']\n[project.optional-dependencies]\ncli = ['alpha']\nweb = ['beta']\ndev_tools = ['gamma']\n[dependency-groups]\ndev = ['pytest']\ntest = [{include-group = 'dev'}, 'coverage']\n";

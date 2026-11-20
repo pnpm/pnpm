@@ -5,16 +5,28 @@
 #[cfg(unix)]
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 #[cfg(unix)]
 use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::Value;
 use std::{
     fs,
     net::TcpListener,
-    path::{Path, PathBuf},
-    process::{Command, Output},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// A pnpm the mocked registry can serve as `latest`, far enough ahead that

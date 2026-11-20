@@ -3,7 +3,11 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 
 use super::{
-    assert_published_packages, clear_ci, link_workspace_packages, public_pkg, write_registry_npmrc,
+    assert_published_packages,
+    clear_ci,
+    link_workspace_packages,
+    public_pkg,
+    write_registry_npmrc,
     write_workspace,
 };
 

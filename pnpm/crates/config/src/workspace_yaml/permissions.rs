@@ -1,6 +1,15 @@
 use super::{
-    AllowBuild, Config, Deserialize, HashMap, IndexMap, NAMED_UNRECOGNIZED_SETTINGS,
-    SkillsPermission, UnrecognizedSettings, WorkspaceSettings, decided_allow_builds, overlay_some,
+    AllowBuild,
+    Config,
+    Deserialize,
+    HashMap,
+    IndexMap,
+    NAMED_UNRECOGNIZED_SETTINGS,
+    SkillsPermission,
+    UnrecognizedSettings,
+    WorkspaceSettings,
+    decided_allow_builds,
+    overlay_some,
 };
 
 /// A capability a [`PackagePermissions`] entry decides.

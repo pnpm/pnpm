@@ -1,8 +1,17 @@
 use super::{
-    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, HostedStoreConfig, Storage,
-    atomic_write::create_tmp_file_with, fs,
+    AsyncWriteExt,
+    BlobWrite,
+    CanonicalPackageName,
+    DocumentWrite,
+    HostedStoreConfig,
+    Storage,
+    atomic_write::create_tmp_file_with,
+    fs,
 };
-use crate::archives::testing::{served, store_file};
+use crate::archives::testing::{
+    served,
+    store_file,
+};
 use tempfile::TempDir;
 
 fn storage_in(tmp: &TempDir) -> Storage {

@@ -1,7 +1,18 @@
 use super::{
-    BTreeMap, Digest, HashMap, JsonValue, Pipe, ReleaseAgeCheck, Sha256, Timestamp, TrustCheck,
-    TrustPolicy, VerificationMetadataClient, VerificationRegistryRoutes,
-    VerificationReleaseAgeOptions, normalized_registry_key,
+    BTreeMap,
+    Digest,
+    HashMap,
+    JsonValue,
+    Pipe,
+    ReleaseAgeCheck,
+    Sha256,
+    Timestamp,
+    TrustCheck,
+    TrustPolicy,
+    VerificationMetadataClient,
+    VerificationRegistryRoutes,
+    VerificationReleaseAgeOptions,
+    normalized_registry_key,
 };
 
 pub(super) fn sorted_unique(values: &[String]) -> Vec<String> {

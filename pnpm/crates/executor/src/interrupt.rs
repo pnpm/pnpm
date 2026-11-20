@@ -47,7 +47,12 @@ use std::sync::Once;
 use std::sync::atomic::AtomicBool;
 use std::{
     ptr,
-    sync::atomic::{AtomicI32, AtomicPtr, AtomicUsize, Ordering},
+    sync::atomic::{
+        AtomicI32,
+        AtomicPtr,
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 /// The number of interrupts pnpm relays to a child before it stops
@@ -227,7 +232,9 @@ pub(crate) fn relay_to_child(pid: u32, own_process_group: bool) -> SignalRelay {
 #[cfg(windows)]
 fn open_child_handle(pid: i32) -> *mut std::ffi::c_void {
     use windows_sys::Win32::System::Threading::{
-        OpenProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+        OpenProcess,
+        PROCESS_SYNCHRONIZE,
+        PROCESS_TERMINATE,
     };
 
     // SAFETY: a plain query by pid; a null result only means the child

@@ -1,6 +1,10 @@
 use super::{
-    android_user_lock_root, open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir,
-    validate_unix_file, xdg_runtime_dir,
+    android_user_lock_root,
+    open_secure_lock_file,
+    secure_temp_lock_dir,
+    secure_user_lock_dir,
+    validate_unix_file,
+    xdg_runtime_dir,
 };
 
 #[test]
@@ -76,7 +80,10 @@ fn xdg_runtime_dir_owned_by_another_user_is_ignored() {
 #[cfg(unix)]
 #[test]
 fn creates_a_private_user_owned_lock_directory() {
-    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    use std::os::unix::fs::{
+        MetadataExt as _,
+        PermissionsExt as _,
+    };
 
     let name = format!("pnpm-secure-lock-test-{}", std::process::id());
     let directory = secure_temp_lock_dir(&name).unwrap();

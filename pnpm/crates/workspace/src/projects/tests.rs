@@ -1,12 +1,18 @@
 use super::{
-    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, SpecializedPattern,
-    find_workspace_projects, specialized_pattern,
+    FindWorkspaceProjectsError,
+    FindWorkspaceProjectsOpts,
+    SpecializedPattern,
+    find_workspace_projects,
+    specialized_pattern,
 };
 use pretty_assertions::assert_eq;
 use std::{
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 

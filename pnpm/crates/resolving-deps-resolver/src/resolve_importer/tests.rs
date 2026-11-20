@@ -1,4 +1,7 @@
-use super::{locked_peers::test_utils::importer_locked_peer_versions, missing_peers::merge_ranges};
+use super::{
+    locked_peers::test_utils::importer_locked_peer_versions,
+    missing_peers::merge_ranges,
+};
 mod workspace_links;
 
 mod resolution_order;
@@ -20,22 +23,47 @@ mod hashed_peer_suffix;
 
 use std::{
     str::FromStr,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use pnpm_lockfile::SnapshotEntry;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, LatestQuery, PreferredVersions, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, VersionSelectorEntry,
-    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    LatestQuery,
+    PreferredVersions,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
+    WantedDependency,
 };
 use pretty_assertions::assert_eq;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 
 use crate::{
-    DepPath, ResolveDependencyTreeError, resolve_importer,
-    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
+    DepPath,
+    ResolveDependencyTreeError,
+    resolve_importer,
+    resolve_importer::{
+        ResolveImporterError,
+        ResolveImporterOptions,
+    },
 };
 
 /// A `packages:`/`snapshots:` pair keyed by the given depPaths, with
@@ -44,7 +72,12 @@ fn peer_context_lockfile<const SNAPSHOTS: usize>(
     package: Option<(&str, pnpm_lockfile::PackageMetadata)>,
     snapshots: [(&str, pnpm_lockfile::SnapshotEntry); SNAPSHOTS],
 ) -> pnpm_lockfile::Lockfile {
-    use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer};
+    use pnpm_lockfile::{
+        ComVer,
+        Lockfile,
+        LockfileVersion,
+        PkgNameVerPeer,
+    };
 
     Lockfile {
         lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
@@ -75,7 +108,11 @@ fn peer_context_lockfile<const SNAPSHOTS: usize>(
 fn peer_declaring_metadata<const PEERS: usize>(
     peer_names: [&str; PEERS],
 ) -> pnpm_lockfile::PackageMetadata {
-    use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PackageMetadata};
+    use pnpm_lockfile::{
+        DirectoryResolution,
+        LockfileResolution,
+        PackageMetadata,
+    };
 
     PackageMetadata {
         specifiers: None,
@@ -178,7 +215,12 @@ impl Resolver for StubResolver {
 }
 
 fn fake_result(name: &str, version: &str, manifest: serde_json::Value) -> ResolveResult {
-    use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    use pnpm_lockfile::{
+        LockfileResolution,
+        PkgName,
+        PkgNameVer,
+        TarballResolution,
+    };
     let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),
@@ -289,12 +331,21 @@ fn aliased_fake_result(
 /// [`resolve_node`](crate::resolve_dependency_tree); the version pick
 /// itself lives in the npm picker (tested there).
 mod resolution_mode {
-    use super::{StubResolver, default_opts, fake_manifest, fake_result};
+    use super::{
+        StubResolver,
+        default_opts,
+        fake_manifest,
+        fake_result,
+    };
     use crate::resolve_importer;
     use jiff::Timestamp;
     use pnpm_package_manifest::DependencyGroup;
     use pnpm_resolving_resolver_base::{
-        ResolveFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+        ResolveFuture,
+        ResolveOptions,
+        ResolveResult,
+        Resolver,
+        WantedDependency,
     };
     use pretty_assertions::assert_eq;
     use rustc_hash::FxHashMap as HashMap;

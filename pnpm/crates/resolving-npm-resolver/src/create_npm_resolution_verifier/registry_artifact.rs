@@ -1,12 +1,31 @@
 use super::{
-    Arc, DistStats, LockfileResolution, NpmResolutionVerifier, OnceCell, PkgName,
-    PublishedTarballUrlMapper, RegistryArtifactHistory, ResolutionVerification,
-    TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TarballRevision, VerifyCtx,
-    current_history_violation, current_revision_number, has_complete_sha512_digest,
-    is_revision_registry_tarball_url, lockfile_revision, mapped_tarball_url_violation,
-    missing_artifact_violation, redact_url_credentials, select_revision, to_registry_url,
+    Arc,
+    DistStats,
+    LockfileResolution,
+    NpmResolutionVerifier,
+    OnceCell,
+    PkgName,
+    PublishedTarballUrlMapper,
+    RegistryArtifactHistory,
+    ResolutionVerification,
+    TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+    TarballRevision,
+    VerifyCtx,
+    current_history_violation,
+    current_revision_number,
+    has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
+    lockfile_revision,
+    mapped_tarball_url_violation,
+    missing_artifact_violation,
+    redact_url_credentials,
+    select_revision,
+    to_registry_url,
 };
-use crate::pick_package::{ReleaseRecordError, ReleaseRecordRequest};
+use crate::pick_package::{
+    ReleaseRecordError,
+    ReleaseRecordRequest,
+};
 
 impl NpmResolutionVerifier {
     /// Confirm the lockfile-pinned tarball URL is the artifact the

@@ -1,4 +1,9 @@
-use super::{Path, PathBuf, config_file::UiFile, resolve_relative};
+use super::{
+    Path,
+    PathBuf,
+    config_file::UiFile,
+    resolve_relative,
+};
 
 /// The web UI pnpr serves at `/-/ui/`.
 #[derive(Debug, Clone)]

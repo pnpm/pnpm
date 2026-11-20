@@ -2,15 +2,28 @@ use std::{
     pin::Pin,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
-    task::{Context, Poll, Waker},
+    task::{
+        Context,
+        Poll,
+        Waker,
+    },
 };
 
 use pretty_assertions::assert_eq;
 
 use super::{
-    Clock, EnterListenerState, Host, HostEnterHandle, StdinIsTty, StdoutIsTty, TOKEN_BODY_LIMIT,
+    Clock,
+    EnterListenerState,
+    Host,
+    HostEnterHandle,
+    StdinIsTty,
+    StdoutIsTty,
+    TOKEN_BODY_LIMIT,
     WebAuthFetch,
 };
 use crate::poll_for_web_auth_token::WebAuthFetchOptions;

@@ -1,8 +1,23 @@
 use super::{
-    Arc, AuthHeaders, HashMap, InMemoryPackageMetaCache, LockfileResolution,
-    MalformedRevisionHistoryError, NpmResolver, ResolveOptions, RetryOpts, TarballRevision,
-    TempDir, ThrottledClient, WantedDependency, assert_eq, build_resolver, json,
-    revision_package_body, shared_packument_fetch_locker, shared_picked_manifest_cache,
+    Arc,
+    AuthHeaders,
+    HashMap,
+    InMemoryPackageMetaCache,
+    LockfileResolution,
+    MalformedRevisionHistoryError,
+    NpmResolver,
+    ResolveOptions,
+    RetryOpts,
+    TarballRevision,
+    TempDir,
+    ThrottledClient,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    json,
+    revision_package_body,
+    shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
 

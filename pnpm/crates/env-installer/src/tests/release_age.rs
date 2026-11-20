@@ -1,7 +1,20 @@
 use super::{
-    BTreeMap, ConfigDepError, ConfigDependency, ConfigDepsInstallOptions, EnvLockfile, Harness,
-    LockfileResolution, PackageKey, SilentReporter, TempDir, build_resolver, clean_spec, harness,
-    integrity_of, options, resolve_and_install_config_deps,
+    BTreeMap,
+    ConfigDepError,
+    ConfigDependency,
+    ConfigDepsInstallOptions,
+    EnvLockfile,
+    Harness,
+    LockfileResolution,
+    PackageKey,
+    SilentReporter,
+    TempDir,
+    build_resolver,
+    clean_spec,
+    harness,
+    integrity_of,
+    options,
+    resolve_and_install_config_deps,
 };
 use std::path::Path;
 

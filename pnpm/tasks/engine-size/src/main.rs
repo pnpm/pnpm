@@ -17,8 +17,14 @@ mod sections;
 
 use clap::Parser;
 use cli_args::CliArgs;
-use report::{Measurement, Report};
-use std::{fs, process::ExitCode};
+use report::{
+    Measurement,
+    Report,
+};
+use std::{
+    fs,
+    process::ExitCode,
+};
 
 fn main() -> ExitCode {
     let args = CliArgs::parse();

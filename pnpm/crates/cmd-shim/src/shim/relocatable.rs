@@ -6,8 +6,14 @@
 
 #[cfg(not(windows))]
 use super::relative_path_from;
-use pnpm_fs::{is_subdir, realpath_missing};
-use std::{borrow::Cow, path::Path};
+use pnpm_fs::{
+    is_subdir,
+    realpath_missing,
+};
+use std::{
+    borrow::Cow,
+    path::Path,
+};
 
 /// Sets `$basedir_abs`, and `$basedir` with it, to the shim's physical
 /// directory so Node's lexical normalization of `..` cannot escape through a

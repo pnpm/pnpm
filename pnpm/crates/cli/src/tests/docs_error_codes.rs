@@ -8,11 +8,20 @@
 //! majors, so they are not checked.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
-use walkdir::{DirEntry, WalkDir};
+use walkdir::{
+    DirEntry,
+    WalkDir,
+};
 
 // The list below holds today's gaps, one entry per gap. A gap missing from
 // the list fails the test, and so does an entry that is no longer a gap, so

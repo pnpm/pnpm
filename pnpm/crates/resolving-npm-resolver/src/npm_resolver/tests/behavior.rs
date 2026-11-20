@@ -1,12 +1,32 @@
 use super::{
-    Arc, CurrentPkg, HashMap, InvalidRevisionSpecifierError, InvalidTarballIntegrityError,
-    JSR_PACKAGE_BODY, LockfileResolution, MalformedRevisionHistoryError, NoMatchingRevisionError,
-    PACKAGE_BODY, PkgResolutionId, ResolveOptions, TarballRevision, UpdateBehavior,
-    WantedDependency, assert_eq, build_resolver, build_resolver_with_registries, json,
-    reject_versions, revision_history_package_body, revision_package_body,
+    Arc,
+    CurrentPkg,
+    HashMap,
+    InvalidRevisionSpecifierError,
+    InvalidTarballIntegrityError,
+    JSR_PACKAGE_BODY,
+    LockfileResolution,
+    MalformedRevisionHistoryError,
+    NoMatchingRevisionError,
+    PACKAGE_BODY,
+    PkgResolutionId,
+    ResolveOptions,
+    TarballRevision,
+    UpdateBehavior,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    build_resolver_with_registries,
+    json,
+    reject_versions,
+    revision_history_package_body,
+    revision_package_body,
     shasum_only_package_body,
 };
-use pnpm_resolving_resolver_base::{Resolver, TrustPolicy};
+use pnpm_resolving_resolver_base::{
+    Resolver,
+    TrustPolicy,
+};
 
 #[tokio::test]
 async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared() {

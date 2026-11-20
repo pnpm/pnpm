@@ -14,9 +14,20 @@
 //! instance. The caller's [`Identity`] lists its teams, so evaluation needs
 //! only the identity.
 
-pub use access::{AccessList, AccessToken, Identity};
-pub use grants::{Action, Grant, GrantSpec};
-pub use package_rules::{PackageRules, RuleOverride};
+pub use access::{
+    AccessList,
+    AccessToken,
+    Identity,
+};
+pub use grants::{
+    Action,
+    Grant,
+    GrantSpec,
+};
+pub use package_rules::{
+    PackageRules,
+    RuleOverride,
+};
 
 use grants::Grants;
 

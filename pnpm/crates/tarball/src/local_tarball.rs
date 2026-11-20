@@ -4,14 +4,31 @@
 //! local archive without going through the store.
 
 use super::{
-    Cursor, MAX_UNTRUSTED_PREALLOC_BYTES, Path, PathBuf, Read, TarballError,
-    allocate_tarball_buffer, clean_archive_entry_path, decompress_gzip, io,
-    is_eager_decode_limit_exceeded, oversized_manifest_error, post_download_semaphore,
-    tar_entry_payload, verify_tarball_integrity,
+    Cursor,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    Path,
+    PathBuf,
+    Read,
+    TarballError,
+    allocate_tarball_buffer,
+    clean_archive_entry_path,
+    decompress_gzip,
+    io,
+    is_eager_decode_limit_exceeded,
+    oversized_manifest_error,
+    post_download_semaphore,
+    tar_entry_payload,
+    verify_tarball_integrity,
 };
 use crate::extraction_task::spawn_extraction;
-use pnpm_package_manifest::{normalize_bundled_manifest, parse_manifest_bytes};
-use ssri::{Integrity, IntegrityChecker};
+use pnpm_package_manifest::{
+    normalize_bundled_manifest,
+    parse_manifest_bytes,
+};
+use ssri::{
+    Integrity,
+    IntegrityChecker,
+};
 use tar::Archive;
 
 #[cfg(not(target_os = "wasi"))]

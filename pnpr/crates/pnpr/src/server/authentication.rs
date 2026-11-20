@@ -1,9 +1,16 @@
 pub(super) use accounts::active_account_name;
 pub(super) use credentials::token_credentials;
 pub(super) use package_access::{
-    AuthorizationDecision, Ownership, allows_with_ownership, authorize,
-    authorize_against_packument, authorize_package, authorize_package_write,
-    authorize_with_ownership, authorize_without_owners, needs_package_owners,
+    AuthorizationDecision,
+    Ownership,
+    allows_with_ownership,
+    authorize,
+    authorize_against_packument,
+    authorize_package,
+    authorize_package_write,
+    authorize_with_ownership,
+    authorize_without_owners,
+    needs_package_owners,
 };
 pub(super) use pnpr_policy::Action;
 
@@ -16,10 +23,24 @@ use accounts::account_identity;
 use std::net::IpAddr;
 
 use axum::{
-    extract::{ConnectInfo, FromRequestParts, Request, State},
-    http::{HeaderMap, Method, StatusCode, header, request::Parts},
+    extract::{
+        ConnectInfo,
+        FromRequestParts,
+        Request,
+        State,
+    },
+    http::{
+        HeaderMap,
+        Method,
+        StatusCode,
+        header,
+        request::Parts,
+    },
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 
 use pnpr_auth::TokenRecord;
@@ -27,8 +48,12 @@ use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
 
 use super::{
-    AppState, PeerAddr, RegistrySource, oidc::WorkloadScope,
-    restrictions::check_token_restrictions, single_authorization_header,
+    AppState,
+    PeerAddr,
+    RegistrySource,
+    oidc::WorkloadScope,
+    restrictions::check_token_restrictions,
+    single_authorization_header,
 };
 
 #[derive(Clone)]

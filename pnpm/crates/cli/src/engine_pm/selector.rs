@@ -8,10 +8,17 @@
 //! published under another name, the `runtime:` protocol for the ones
 //! that ship as platform archives.
 
-use crate::engine_pm::channel::{BinaryChannel, Channel as ToolChannel, PackageManager};
+use crate::engine_pm::channel::{
+    BinaryChannel,
+    Channel as ToolChannel,
+    PackageManager,
+};
 use pnpm_package_manifest::{
     is_runtime_alias,
-    package_manager_spec::{is_version_request, split_spec},
+    package_manager_spec::{
+        is_version_request,
+        split_spec,
+    },
 };
 use pnpm_rust_toolchain::Channel;
 use pnpm_tool_protocol::strip_tool_protocol;

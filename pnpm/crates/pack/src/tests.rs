@@ -1,19 +1,45 @@
-use super::{Host, PackError, PackOptions, PackResult, format_pack_output, to_pack_result_json};
+use super::{
+    Host,
+    PackError,
+    PackOptions,
+    PackResult,
+    format_pack_output,
+    to_pack_result_json,
+};
 use crate::{
-    capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile},
+    capabilities::{
+        FsAtomicWrite,
+        FsCreateDirAll,
+        FsFileLen,
+        FsIsExecutable,
+        FsReadFile,
+    },
     manifest_entry::is_manifest_entry,
 };
 use flate2::read::GzDecoder;
 use pnpm_config::NodeLinker;
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
-use serde_json::{Value, json};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     io,
     path::Path,
     sync::Mutex,
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// Minimal single-project fixture: a `package.json` plus whatever extra
 /// files the caller writes. `ignore_scripts` defaults to `true` so the
@@ -255,7 +281,10 @@ fn en_collator_matches_javascript_locale_compare() {
 #[test]
 fn en_collator_matches_full_compiled_en_collation() {
     use super::collation::en_collator;
-    use icu_collator::{CollatorBorrowed, options::CollatorOptions};
+    use icu_collator::{
+        CollatorBorrowed,
+        options::CollatorOptions,
+    };
     use icu_locale_core::locale;
 
     let full = CollatorBorrowed::try_new(locale!("en").into(), CollatorOptions::default()).unwrap();

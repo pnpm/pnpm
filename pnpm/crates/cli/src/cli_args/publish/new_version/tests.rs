@@ -1,10 +1,24 @@
-use super::{PublishArgs, set_projects_version};
+use super::{
+    PublishArgs,
+    set_projects_version,
+};
 use crate::cli_args::{
-    publish::tests::{publish_args, publish_args_with, publish_flags},
-    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    publish::tests::{
+        publish_args,
+        publish_args_with,
+        publish_flags,
+    },
+    recursive::{
+        AutoExcludeRoot,
+        discover_workspace_projects,
+        select_recursive_projects,
+    },
 };
 use pnpm_config::Config;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::collections::HashSet;
 
 fn args_with_new_version(new_version: &str) -> PublishArgs {

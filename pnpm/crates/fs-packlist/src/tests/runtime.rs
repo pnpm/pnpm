@@ -1,4 +1,10 @@
-use super::{json, packlist, tempdir, touch, write};
+use super::{
+    json,
+    packlist,
+    tempdir,
+    touch,
+    write,
+};
 
 #[test]
 fn excludes_git_and_node_modules_subtrees() {

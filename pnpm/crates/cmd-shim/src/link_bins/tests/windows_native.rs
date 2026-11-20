@@ -1,6 +1,11 @@
 use crate::{
     capabilities::Host,
-    link_bins::{LinkBinsOptions, PackageBinSource, link_bins_of_packages, remove_bin},
+    link_bins::{
+        LinkBinsOptions,
+        PackageBinSource,
+        link_bins_of_packages,
+        remove_bin,
+    },
     shim::is_shim_pointing_at,
 };
 use pnpm_fs::test_support::with_retry_observer;
@@ -10,7 +15,10 @@ use std::{
     fs,
     os::windows::fs::OpenOptionsExt,
     path::Path,
-    sync::{Arc, mpsc},
+    sync::{
+        Arc,
+        mpsc,
+    },
 };
 use tempfile::tempdir;
 

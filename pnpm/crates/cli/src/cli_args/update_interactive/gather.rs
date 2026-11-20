@@ -1,9 +1,24 @@
 use super::{
-    Arc, Config, DependencyGroup, HashSet, InteractiveUpdateOptions, InteractiveUpdateProject,
-    Lockfile, OutdatedPackage, OutdatedQuery, Path, Reporter, TargetVersion, ThrottledClient,
-    UpdateDetails, ignored_dependencies_matcher,
+    Arc,
+    Config,
+    DependencyGroup,
+    HashSet,
+    InteractiveUpdateOptions,
+    InteractiveUpdateProject,
+    Lockfile,
+    OutdatedPackage,
+    OutdatedQuery,
+    Path,
+    Reporter,
+    TargetVersion,
+    ThrottledClient,
+    UpdateDetails,
+    ignored_dependencies_matcher,
 };
-use crate::cli_args::outdated::{OutdatedRun, collect_outdated_for_importer_in_run};
+use crate::cli_args::outdated::{
+    OutdatedRun,
+    collect_outdated_for_importer_in_run,
+};
 use pnpm_github_actions as github_actions;
 
 pub(super) struct ChoiceFilter<'a> {

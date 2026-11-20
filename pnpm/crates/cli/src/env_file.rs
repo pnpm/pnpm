@@ -29,14 +29,27 @@ mod parse;
 
 use crate::{
     flag_relocation::ArgTable,
-    parse_boundary::{option_width, passthrough_from, union_arity},
+    parse_boundary::{
+        option_width,
+        passthrough_from,
+        union_arity,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
     collections::HashSet,
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Raised when an `--env-file` file cannot be read.
@@ -196,7 +209,10 @@ fn strip_env_file_prefix(token: &OsStr) -> Option<PathBuf> {
     }
     #[cfg(windows)]
     {
-        use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+        use std::os::windows::ffi::{
+            OsStrExt as _,
+            OsStringExt as _,
+        };
         let wide: Vec<u16> = token.encode_wide().collect();
         let prefix: Vec<u16> = "--env-file=".encode_utf16().collect();
         wide.strip_prefix(prefix.as_slice())

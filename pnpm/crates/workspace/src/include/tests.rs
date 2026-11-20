@@ -1,9 +1,17 @@
 use super::{
-    Delegation, IncludeError, IncludeSource, SettingOwner, SettingSlot, WorkspaceManifestDocument,
+    Delegation,
+    IncludeError,
+    IncludeSource,
+    SettingOwner,
+    SettingSlot,
+    WorkspaceManifestDocument,
     read_workspace_manifest_document,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 fn workspace(files: &[(&str, &str)]) -> TempDir {

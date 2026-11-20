@@ -1,17 +1,42 @@
 use super::{
-    AccessList, Body, Config, Ecosystem, PackagePattern, Registries, Registry, Request, Router,
-    ServiceExt, StatusCode, TempDir, body_bytes, config_for, drain_resolve_response, json,
-    package_tar_and_tgz, router_with_auth, sha512_integrity,
+    AccessList,
+    Body,
+    Config,
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    Request,
+    Router,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_bytes,
+    config_for,
+    drain_resolve_response,
+    json,
+    package_tar_and_tgz,
+    router_with_auth,
+    sha512_integrity,
 };
-use crate::tokens::{issue_token, seeded_auth};
+use crate::tokens::{
+    issue_token,
+    seeded_auth,
+};
 use axum::http::header;
 use serde_json::Value;
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
     net::TcpListener,
 };
 

@@ -21,33 +21,69 @@ use crate::{
         reporter::SkippedDownloads,
         self_update::{
             install_pnpm::{
-                link_exe_platform_binary, package_dir, pnpm_executable_path, run_install,
+                link_exe_platform_binary,
+                package_dir,
+                pnpm_executable_path,
+                run_install,
             },
-            verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
+            verify_engine::{
+                EngineToVerify,
+                PlatformBinaries,
+                verify_engine_identity,
+            },
         },
     },
     config_deps,
     engine_pm::{
-        channel::{EnginePackages, PackageManager},
+        channel::{
+            EnginePackages,
+            PackageManager,
+        },
         error::EngineError,
         provision::engine_bin,
     },
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
+    Host as CmdShimHost,
+    LinkBinsOptions,
+    PackageBinSource,
+    link_bins_of_packages,
 };
 use pnpm_config::Config;
-use pnpm_graph_hasher::{detect_node_major, engine_name};
-use pnpm_lockfile::{EnvLockfile, PackageKey};
-use pnpm_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
+use pnpm_graph_hasher::{
+    detect_node_major,
+    engine_name,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    PackageKey,
+};
+use pnpm_package_manager::{
+    AllowBuildPolicy,
+    VirtualStoreLayout,
+};
 use pnpm_package_manifest::parse_manifest;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_store_dir::{PrivateInstall, StoreDir};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_store_dir::{
+    PrivateInstall,
+    StoreDir,
+};
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -475,8 +511,14 @@ fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
 mod linked_bins;
 
 mod locks;
-use linked_bins::{linked_engine_bins, populated_engine_slot};
-use locks::{engine_install_lock, package_manager_env_lock};
+use linked_bins::{
+    linked_engine_bins,
+    populated_engine_slot,
+};
+use locks::{
+    engine_install_lock,
+    package_manager_env_lock,
+};
 
 #[cfg(test)]
 mod tests;

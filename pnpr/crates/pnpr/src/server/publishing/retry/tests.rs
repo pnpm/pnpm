@@ -1,7 +1,16 @@
-use super::{MEMORY_REPLAY_THRESHOLD, ReplayBody, ReplayStorage, retry_reclaimed};
+use super::{
+    MEMORY_REPLAY_THRESHOLD,
+    ReplayBody,
+    ReplayStorage,
+    retry_reclaimed,
+};
 use axum::body::Bytes;
 use pnpr_error::RegistryError;
-use std::{cell::Cell, future::ready, sync::Arc};
+use std::{
+    cell::Cell,
+    future::ready,
+    sync::Arc,
+};
 use tempfile::TempDir;
 use tokio::sync::Semaphore;
 

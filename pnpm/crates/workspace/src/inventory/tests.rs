@@ -1,4 +1,7 @@
-use super::{find_workspace_inventory, find_workspace_inventory_with};
+use super::{
+    find_workspace_inventory,
+    find_workspace_inventory_with,
+};
 use pnpm_fs::symlink_dir as symlink;
 use pretty_assertions::assert_eq;
 use std::fs;
@@ -6,7 +9,10 @@ use std::fs;
 #[cfg(windows)]
 use super::ignored_paths_under_with;
 #[cfg(windows)]
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[test]
 fn discovers_multiple_manifest_kinds_in_one_inventory() {

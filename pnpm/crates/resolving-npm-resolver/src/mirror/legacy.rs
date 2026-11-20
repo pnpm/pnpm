@@ -1,8 +1,15 @@
 //! Mirrors an older pnpm wrote, which this version no longer reads.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use super::{encode_pkg_name, get_legacy_registry_name, get_registry_name};
+use super::{
+    encode_pkg_name,
+    get_legacy_registry_name,
+    get_registry_name,
+};
 
 /// Mirror directories of the NDJSON-era cache layout. The indexed layout
 /// moved every mirror to a new version directory, so nothing reads these.

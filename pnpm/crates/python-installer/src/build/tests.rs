@@ -1,5 +1,9 @@
 use super::hook_path;
-use std::{env, ffi::OsString, path::PathBuf};
+use std::{
+    env,
+    ffi::OsString,
+    path::PathBuf,
+};
 
 fn entries(path: &OsString) -> Vec<PathBuf> {
     env::split_paths(path).collect()

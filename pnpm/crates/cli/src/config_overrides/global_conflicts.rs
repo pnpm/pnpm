@@ -1,6 +1,12 @@
-use super::{ConfigOverrides, LinkWorkspacePackages};
+use super::{
+    ConfigOverrides,
+    LinkWorkspacePackages,
+};
 use crate::cli_args::lockfile_dir::LockfileDirWithGlobal;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// A command-line setting that a `--global` command rejects. Mirrors

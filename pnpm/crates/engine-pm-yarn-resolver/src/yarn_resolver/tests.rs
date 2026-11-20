@@ -1,4 +1,7 @@
-use super::{YarnResolverError, pick_release};
+use super::{
+    YarnResolverError,
+    pick_release,
+};
 use crate::read_yarn_releases::parse_releases;
 
 fn releases() -> Vec<crate::read_yarn_releases::YarnRelease> {

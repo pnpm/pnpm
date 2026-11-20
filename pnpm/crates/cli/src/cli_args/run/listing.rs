@@ -1,4 +1,9 @@
-use super::{Path, Regex, RunError, Value};
+use super::{
+    Path,
+    Regex,
+    RunError,
+    Value,
+};
 use std::fmt::Write as _;
 
 /// The `run` positional, resolved once into whichever of pnpm's two

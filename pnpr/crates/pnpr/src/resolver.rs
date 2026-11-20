@@ -51,15 +51,22 @@ use dispatch::extract_admitted_body;
 
 mod request_auth;
 mod streaming;
-use streaming::{StreamedResolveInputs, stream_resolve_response};
+use streaming::{
+    StreamedResolveInputs,
+    stream_resolve_response,
+};
 
 mod verify_lockfile;
 use verify_lockfile::verify_request_lockfile;
 
 mod config_cache;
 use config_cache::{
-    ActiveConfig, CONFIG_KEY_TOO_LARGE_MESSAGE, ConfigCache, MAX_CACHED_CONFIGS,
-    MAX_CONFIG_KEY_BYTES, intern_config,
+    ActiveConfig,
+    CONFIG_KEY_TOO_LARGE_MESSAGE,
+    ConfigCache,
+    MAX_CACHED_CONFIGS,
+    MAX_CONFIG_KEY_BYTES,
+    intern_config,
 };
 
 mod cache;
@@ -75,8 +82,16 @@ mod wire;
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Mutex, OnceLock},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+        OnceLock,
+    },
     time::Duration,
 };
 
@@ -84,41 +99,74 @@ use pnpr_config::Config as RegistryConfig;
 use pnpr_osv::OsvIndex;
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
-use pnpr_route::{Footprint, RouteContext};
+use pnpr_route::{
+    Footprint,
+    RouteContext,
+};
 
-use axum::{body::Bytes, http::StatusCode, response::Response};
+use axum::{
+    body::Bytes,
+    http::StatusCode,
+    response::Response,
+};
 use indexmap::IndexMap;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{
-    collect_resolution_policy_violations, collect_resolution_shape_violations,
+    collect_resolution_policy_violations,
+    collect_resolution_shape_violations,
     with_offline_check_cache_identities,
 };
-use pnpm_network::{AuthHeaders, GuardedDnsResolver, ThrottledClient, native_dns_resolver};
+use pnpm_network::{
+    AuthHeaders,
+    GuardedDnsResolver,
+    ThrottledClient,
+    native_dns_resolver,
+};
 use pnpm_package_manager::build_resolution_verifiers_with_artifacts;
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, VerificationArtifacts,
+    InMemoryPackageMetaCache,
+    ObservedDistStats,
+    PackageMetaCache,
+    VerificationArtifacts,
     observed_dist_stats_sink,
 };
-use pnpm_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
+use pnpm_resolving_resolver_base::{
+    PackageVersionGuard,
+    ResolutionVerifier,
+};
 use pnpm_store_dir::StoreDir;
 
 use self::{
     cache::{
-        CachedResolution, StoreCandidate, cached_resolution, resolution_cache_key,
+        CachedResolution,
+        StoreCandidate,
+        cached_resolution,
+        resolution_cache_key,
         store_resolution_candidate,
     },
     limits::ResolverLimits,
     protocol::ResolveRequest,
     request_validation::{
-        parse_request, reject_inline_url_auth, reject_invalid_lockfile_dependency_names,
-        reject_invalid_registries, reject_off_allowlist_fetches,
+        parse_request,
+        reject_inline_url_auth,
+        reject_invalid_lockfile_dependency_names,
+        reject_invalid_registries,
+        reject_off_allowlist_fetches,
     },
     verdict_cache::VerdictCache,
     wire::{
-        KEEPALIVE_INTERVAL, StreamObserver, TarballRouter, error_frame_with_code,
-        ndjson_single_frame, ndjson_stream_response, osv_violations_for_lockfile_until,
-        progress_frame, try_done_frame_until, verify_done_frame, violations_frame,
+        KEEPALIVE_INTERVAL,
+        StreamObserver,
+        TarballRouter,
+        error_frame_with_code,
+        ndjson_single_frame,
+        ndjson_stream_response,
+        osv_violations_for_lockfile_until,
+        progress_frame,
+        try_done_frame_until,
+        verify_done_frame,
+        violations_frame,
     },
 };
 

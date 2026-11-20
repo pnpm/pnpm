@@ -1,12 +1,18 @@
 use super::super::workspace_state::build_workspace_state;
 use pnpm_config::Config;
-use pnpm_modules_yaml::{Clock, IncludedDependencies};
+use pnpm_modules_yaml::{
+    Clock,
+    IncludedDependencies,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ConfigDependency;
 use std::{
     collections::BTreeMap,
     path::PathBuf,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::tempdir;
 
@@ -222,7 +228,10 @@ fn corp_lockfile() -> pnpm_lockfile::Lockfile {
 /// leaves a plain key under a route that moved since.
 #[test]
 fn recorded_registry_routes_follow_the_install_that_resolved_the_plain_keys() {
-    use crate::install_state::{ResolvedImporters, recorded_registry_routes_after_install};
+    use crate::install_state::{
+        ResolvedImporters,
+        recorded_registry_routes_after_install,
+    };
     let old = "https://old.example.test/";
     let new = "https://new.example.test/";
     let mut config = Config::new();

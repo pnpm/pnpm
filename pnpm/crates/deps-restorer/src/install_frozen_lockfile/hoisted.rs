@@ -1,8 +1,13 @@
 //! The hoisted node-linker: a flat `node_modules` instead of a virtual store.
 
 pub use hoist_plan::{
-    HoistPlan, HoistedWorkspacePackages, collect_public_hoist_targets, compute_hoist_plan,
-    find_own_runtime_node_major, find_runtime_node_major, parse_major_from_version,
+    HoistPlan,
+    HoistedWorkspacePackages,
+    collect_public_hoist_targets,
+    compute_hoist_plan,
+    find_own_runtime_node_major,
+    find_runtime_node_major,
+    parse_major_from_version,
     workspace_packages_for_hoist,
 };
 
@@ -15,16 +20,45 @@ mod stale_links;
 mod workspace_links;
 
 use direct_links::link_selected_hoisted_direct_dependencies;
-use linker_options::{hoisted_dir_clone_cache, hoisted_walker_options, previous_package_dirs};
+use linker_options::{
+    hoisted_dir_clone_cache,
+    hoisted_walker_options,
+    previous_package_dirs,
+};
 use replaced_locations::forget_replaced_hoisted_locations;
-use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
-use workspace_links::{link_hoisted_workspace_dependencies, prune_importer_hoisted_bins};
+use stale_links::{
+    unlink_prior_workspace_hoists,
+    unlink_stale_direct_links,
+};
+use workspace_links::{
+    link_hoisted_workspace_dependencies,
+    prune_importer_hoisted_bins,
+};
 
 use super::{
-    AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
-    HoistedDepGraphError, LinkHoistedModulesError, LinkHoistedModulesOpts, Lockfile,
-    LockfileToHoistedDepGraphOptions, NodeLinker, PackageKey, Path, PathBuf, Reporter,
-    SkippedSnapshots, SymlinkDirectDependenciesError, SymlinkPackageError, create_matcher,
+    AtomicU8,
+    BTreeMap,
+    BTreeSet,
+    Config,
+    DependencyGroup,
+    Diagnostic,
+    Display,
+    Error,
+    HashMap,
+    HoistedDepGraphError,
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+    Lockfile,
+    LockfileToHoistedDepGraphOptions,
+    NodeLinker,
+    PackageKey,
+    Path,
+    PathBuf,
+    Reporter,
+    SkippedSnapshots,
+    SymlinkDirectDependenciesError,
+    SymlinkPackageError,
+    create_matcher,
     lockfile_to_hoisted_dep_graph,
 };
 

@@ -25,32 +25,69 @@ mod graph_swap;
 mod resolution_shape;
 
 use axum::http::StatusCode;
-use pnpm_config::{Config as PacquetConfig, RegistryDeclaration, ResolutionMode};
+use pnpm_config::{
+    Config as PacquetConfig,
+    RegistryDeclaration,
+    ResolutionMode,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::{
-    PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    PackageVersionGuardFuture,
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     net::SocketAddr,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
     time::Duration,
 };
 
 use pnpr_fixtures::MockConfigPresets;
 
 use super::{
-    cache::{MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution, store_resolution},
+    cache::{
+        MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY,
+        cached_resolution,
+        store_resolution,
+    },
     dispatch::reject_unusable_resolve,
-    protocol::{ResolveRequest, ResolveRequestProject},
-    reject_inline_url_auth, reject_off_allowlist_fetches,
-    request_validation::{reject_invalid_patch_hashes, reject_unsafe_publish_directories},
+    protocol::{
+        ResolveRequest,
+        ResolveRequestProject,
+    },
+    reject_inline_url_auth,
+    reject_off_allowlist_fetches,
+    request_validation::{
+        reject_invalid_patch_hashes,
+        reject_unsafe_publish_directories,
+    },
     resolution_cache_key,
 };
-use pnpr_config::{Config as RegistryConfig, PublicRoute, UpstreamConfig};
-use pnpr_policy::{AccessList, Identity, PackageRule, PackageRules};
-use pnpr_route::{Footprint, PrivateAccessDescriptor, RouteContext};
+use pnpr_config::{
+    Config as RegistryConfig,
+    PublicRoute,
+    UpstreamConfig,
+};
+use pnpr_policy::{
+    AccessList,
+    Identity,
+    PackageRule,
+    PackageRules,
+};
+use pnpr_route::{
+    Footprint,
+    PrivateAccessDescriptor,
+    RouteContext,
+};
 
 fn config_for_registry(registry: &str) -> PacquetConfig {
     let mut config = PacquetConfig::new();
@@ -154,7 +191,10 @@ fn private_hosted_footprint(registry: &str, package: &str) -> Footprint {
 /// whose `access` is `access`, so a test can rotate who may read a hosted
 /// package.
 fn set_local_hosted_rules(config: &mut RegistryConfig, pattern: &str, access: &str) {
-    use pnpr_registry::{Ecosystem, PackagePattern};
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+    };
     let rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse(pattern, Ecosystem::Npm).expect("test pattern parses"),

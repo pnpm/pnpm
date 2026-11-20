@@ -7,15 +7,27 @@
 //! depends on its bytes, so an evicted one only means level 3 again until a
 //! later request regenerates it.
 
-use super::{CanonicalPackageName, ecosystem::sha256_hex};
+use super::{
+    CanonicalPackageName,
+    ecosystem::sha256_hex,
+};
 use pnpr_storage::Storage;
 use std::{
     collections::HashSet,
-    io::{self, Read, Write},
+    io::{
+        self,
+        Read,
+        Write,
+    },
     path::PathBuf,
     sync::{
-        Arc, Mutex, OnceLock,
-        atomic::{AtomicU64, Ordering},
+        Arc,
+        Mutex,
+        OnceLock,
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 use tokio::sync::mpsc;

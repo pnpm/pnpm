@@ -1,16 +1,39 @@
-pub use catalogs::{ChildCatalogs, local_directory_child_specs};
-pub use failure::{DependencyResolutionError, ResolutionCancel, ResolveDependencyTreeError};
-pub use manifest::{declared_specifiers, manifest_child_specs};
-pub use override_reframe::{OverrideEntry, OverrideNoMatchingVersionError};
+pub use catalogs::{
+    ChildCatalogs,
+    local_directory_child_specs,
+};
+pub use failure::{
+    DependencyResolutionError,
+    ResolutionCancel,
+    ResolveDependencyTreeError,
+};
+pub use manifest::{
+    declared_specifiers,
+    manifest_child_specs,
+};
+pub use override_reframe::{
+    OverrideEntry,
+    OverrideNoMatchingVersionError,
+};
 
 pub use update_scope::{
-    LockedRuntimeReuse, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
+    LockedRuntimeReuse,
+    UpdateDepth,
+    UpdateReuseScope,
+    UpdateTargets,
+    VersionLine,
 };
 
 pub use reuse::real_package_name_of;
 
-pub use tree_ctx::{TreeCtx, directory_package_dir};
-pub(crate) use tree_ctx::{declaring_manifest_dir, resolves_from_declaring_manifest};
+pub use tree_ctx::{
+    TreeCtx,
+    directory_package_dir,
+};
+pub(crate) use tree_ctx::{
+    declaring_manifest_dir,
+    resolves_from_declaring_manifest,
+};
 
 pub use workspace_ctx::WorkspaceTreeCtx;
 
@@ -19,7 +42,9 @@ pub(crate) use catalogs::resolve_catalog_specifiers;
 pub(crate) use importer::importer_direct_wanted_specs;
 
 pub(crate) use reuse::{
-    direct_dep_specifier_unchanged, preseed_changed_direct_versions, record_changed_direct_deps,
+    direct_dep_specifier_unchanged,
+    preseed_changed_direct_versions,
+    record_changed_direct_deps,
     resolve_direct_dependency_detached,
 };
 
@@ -30,20 +55,40 @@ mod update_scope;
 use futures_util::future;
 use pipe_trait::Pipe;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{
-    PreferredVersionsOverlay, ResolveOptions, Resolver, WantedDependency,
+    PreferredVersionsOverlay,
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
 };
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        RwLock,
+        RwLockReadGuard,
+        RwLockWriteGuard,
+    },
 };
 
 use crate::{
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{AncestorPkgIds, DirectDep, ResolvedTree},
+    resolved_tree::{
+        AncestorPkgIds,
+        DirectDep,
+        ResolvedTree,
+    },
 };
 
 mod catalogs;
@@ -62,11 +107,21 @@ mod workspace_ctx;
 mod test_support;
 
 use importer::{
-    describe_importer, importer_injected_dependency_names, importer_optional_dependency_names,
+    describe_importer,
+    importer_injected_dependency_names,
+    importer_optional_dependency_names,
 };
-use reuse::{ReuseSource, record_direct_dep_versions};
+use reuse::{
+    ReuseSource,
+    record_direct_dep_versions,
+};
 use walk::{
-    ChildEdge, NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,
+    ChildEdge,
+    NodeSeed,
+    level_aliases,
+    level_versions,
+    resolve_node_seed,
+    walk_from_seeds,
     warm_children_resolutions,
 };
 

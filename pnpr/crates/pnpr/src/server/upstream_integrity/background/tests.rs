@@ -1,8 +1,21 @@
-use super::{MAX_ACTIVE_PACKUMENTS, schedule, wait};
-use crate::server::{AppState, routing::state_and_router};
+use super::{
+    MAX_ACTIVE_PACKUMENTS,
+    schedule,
+    wait,
+};
+use crate::server::{
+    AppState,
+    routing::state_and_router,
+};
 use pnpr_auth::AuthState;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use serde_json::{Value, json};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::time::Duration;
 
 fn state(dir: &std::path::Path, upstream: &str) -> AppState {

@@ -1,6 +1,14 @@
 use super::{
-    PnprClient, PnprClientError, TestRegistry, VerifyLockfileOptions, deps, options,
-    register_token, registry_upstream, start_pnpr, start_pnpr_with_upstreams_at,
+    PnprClient,
+    PnprClientError,
+    TestRegistry,
+    VerifyLockfileOptions,
+    deps,
+    options,
+    register_token,
+    registry_upstream,
+    start_pnpr,
+    start_pnpr_with_upstreams_at,
 };
 
 /// The streaming API surfaces each resolved tarball as a `package`

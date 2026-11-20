@@ -1,33 +1,82 @@
 pub use bins_dir::{
-    BinCandidates, BinTargets, BinsDirPass, LinkedBinsDir, SkippedCommands, TopLevelCandidates,
+    BinCandidates,
+    BinTargets,
+    BinsDirPass,
+    LinkedBinsDir,
+    SkippedCommands,
+    TopLevelCandidates,
     link_bins_dir,
 };
-pub use direct::{PrefetchedBinLookup, PrefetchedDepBin, resolve_hoisted_bin_deps};
-pub use shim_options::{hoisted_node_paths, shim_link_options};
+pub use direct::{
+    PrefetchedBinLookup,
+    PrefetchedDepBin,
+    resolve_hoisted_bin_deps,
+};
+pub use shim_options::{
+    hoisted_node_paths,
+    shim_link_options,
+};
 
 mod scan;
-use scan::{existing_commands, read_location_bin_sources, read_package, run_with_readdir};
+use scan::{
+    existing_commands,
+    read_location_bin_sources,
+    read_package,
+    run_with_readdir,
+};
 
 mod bins_dir;
 mod direct;
 mod shim_options;
 
-use crate::{PackageBins, PackageManifests, SkippedSnapshots};
-use derive_more::{Display, Error};
+use crate::{
+    PackageBins,
+    PackageManifests,
+    SkippedSnapshots,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
-    FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, OwnNodePaths,
-    PackageBinSource, ShimTargetCache, collect_packages_in_modules_dir,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadDir,
+    FsReadFile,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    Host,
+    LinkBinsError,
+    LinkBinsOptions,
+    OwnNodePaths,
+    PackageBinSource,
+    ShimTargetCache,
+    collect_packages_in_modules_dir,
     link_bins_of_packages_cached,
 };
-use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    SnapshotEntry,
+};
 use rayon::prelude::*;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

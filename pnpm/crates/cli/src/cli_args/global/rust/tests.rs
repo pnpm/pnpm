@@ -1,5 +1,8 @@
 use super::with_tools;
-use pnpm_global::{GlobalTool, ListReportAs};
+use pnpm_global::{
+    GlobalTool,
+    ListReportAs,
+};
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 

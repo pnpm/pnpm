@@ -33,15 +33,35 @@ mod teams;
 mod timestamps;
 
 use crate::{
-    DocumentWrite, HostedDocumentVersion, Storage,
-    database::{Generation, RenderStats, TagChange, TagUpdate},
+    DocumentWrite,
+    HostedDocumentVersion,
+    Storage,
+    database::{
+        Generation,
+        RenderStats,
+        TagChange,
+        TagUpdate,
+    },
 };
-use pnpr_config::{DatabaseBackend, HostedStoreConfig, StorageConfig};
+use pnpr_config::{
+    DatabaseBackend,
+    HostedStoreConfig,
+    StorageConfig,
+};
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use serde_json::{Value, json};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use serde_json::{
+    Value,
+    json,
+};
 #[cfg(feature = "backend-libsql")]
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 use tempfile::TempDir;
 
 /// A database under test. Every [`storage`] of it is another pnpr

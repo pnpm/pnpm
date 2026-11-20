@@ -1,11 +1,28 @@
 use super::{
-    Command, FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
-    FsWalkFiles, FsWrite, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
-    choose_bins_with, link_chosen_bins,
+    Command,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+    ShimTargetCache,
+    choose_bins_with,
+    link_chosen_bins,
 };
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

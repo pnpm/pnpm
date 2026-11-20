@@ -1,14 +1,28 @@
 //! Phase 1 of the hoisted linker: clearing the directories the new plan
 //! does not place.
 
-use super::{LinkHoistedModulesError, LinkHoistedModulesOpts, containing_modules_dir};
-use crate::{DepHierarchy, prune_direct_deps::remove_dep_bins};
-use pnpm_fs::{read_modules_dir, rename_to_free_name};
+use super::{
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+    containing_modules_dir,
+};
+use crate::{
+    DepHierarchy,
+    prune_direct_deps::remove_dep_bins,
+};
+use pnpm_fs::{
+    read_modules_dir,
+    rename_to_free_name,
+};
 use rayon::prelude::*;
 use std::{
     collections::BTreeSet,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A package directory on disk that the hoisting plan does not place.

@@ -1,8 +1,16 @@
 //! The lockfile's `settings:` block and `pnpmfileChecksum` against the
 //! current configuration.
 
-use super::{PnpmfileChecksumCheck, ResolutionSettingsCheck, StalenessReason};
-use crate::{Lockfile, LockfileSettings, ResolutionSettings};
+use super::{
+    PnpmfileChecksumCheck,
+    ResolutionSettingsCheck,
+    StalenessReason,
+};
+use crate::{
+    Lockfile,
+    LockfileSettings,
+    ResolutionSettings,
+};
 
 impl StalenessReason {
     /// [`StalenessReason::setting_name`] for the reasons that compare a key of

@@ -1,13 +1,24 @@
 use super::{
-    FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext,
+    FreshnessCheckError,
+    ImporterSatisfactionCheck,
+    LocalDepContext,
     children::check_recorded_local_targets,
     peers::PeerShadowing,
-    scope::{AliasScope, Visited, snapshot_aliases},
+    scope::{
+        AliasScope,
+        Visited,
+        snapshot_aliases,
+    },
 };
-use pnpm_lockfile::{PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageMetadata,
+    SnapshotEntry,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_deps_resolver::{
-    declared_peer_dependencies, declared_specifiers, lockfile_peer_blocks,
+    declared_peer_dependencies,
+    declared_specifiers,
+    lockfile_peer_blocks,
 };
 
 pub(super) fn check_recorded_directory(

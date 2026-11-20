@@ -1,6 +1,12 @@
 use crate::profile::Profile;
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// What a registry statement claims about a record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

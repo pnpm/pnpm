@@ -4,11 +4,17 @@ use indexmap::IndexMap;
 use miette::Context;
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_workspace::project_manifest_path;
 use pnpm_workspace_manifest_writer::remove_overrides;
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Remove the link created by `pnpm link` and reinstall the package as
 /// declared in `package.json`.

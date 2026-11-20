@@ -7,12 +7,26 @@ use axum::Router;
 use futures_util::FutureExt as _;
 
 use super::{
-    AppState, Arc, AuthState, Config, Ecosystem, NodelayTcpListener, PeerAddr, Storage,
+    AppState,
+    Arc,
+    AuthState,
+    Config,
+    Ecosystem,
+    NodelayTcpListener,
+    PeerAddr,
+    Storage,
     metrics_listener_router,
-    registry_graph::{Credentials, FileReferences},
-    shutdown_signal, state_and_router,
+    registry_graph::{
+        Credentials,
+        FileReferences,
+    },
+    shutdown_signal,
+    state_and_router,
 };
-use pnpr_config::{GraphSource, RoutingConfig};
+use pnpr_config::{
+    GraphSource,
+    RoutingConfig,
+};
 
 /// Load the OSV index only for surfaces that consult it. An artifacts-only
 /// tier skips the database because artifact requests do not use OSV data.

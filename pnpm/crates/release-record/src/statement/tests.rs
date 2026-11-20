@@ -1,11 +1,25 @@
 use super::{
-    AcceptancePredicate, PredicateType, PrincipalKind, PublicationPredicate, Statement,
-    StatementError, TagAction, TagBindingPredicate, verify_statement,
+    AcceptancePredicate,
+    PredicateType,
+    PrincipalKind,
+    PublicationPredicate,
+    Statement,
+    StatementError,
+    TagAction,
+    TagBindingPredicate,
+    verify_statement,
 };
 use crate::{
-    dsse::{Envelope, IN_TOTO_PAYLOAD_TYPE},
+    dsse::{
+        Envelope,
+        IN_TOTO_PAYLOAD_TYPE,
+    },
     record::StoredRecord,
-    test_support::{NPM_RECORD, OCI_TOMBSTONE, registry},
+    test_support::{
+        NPM_RECORD,
+        OCI_TOMBSTONE,
+        registry,
+    },
 };
 use pnpm_transparency_log::KeySet;
 use pretty_assertions::assert_eq;

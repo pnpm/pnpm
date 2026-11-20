@@ -1,9 +1,16 @@
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::ReplacedCandidate;
-use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
+use pnpm_resolving_deps_resolver::{
+    UpdateDepth,
+    UpdateTargets,
+};
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashSet,
+    },
     sync::Arc,
 };
 
@@ -88,7 +95,9 @@ pub(crate) fn prefer_requested_version(
     version: &str,
 ) {
     use pnpm_resolving_resolver_base::{
-        REQUESTED_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
+        REQUESTED_VERSION_SELECTOR_WEIGHT,
+        VersionSelectorEntry,
+        VersionSelectorType,
         VersionSelectorWithWeight,
     };
 

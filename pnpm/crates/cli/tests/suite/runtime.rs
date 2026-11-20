@@ -1,6 +1,9 @@
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn runtime_unknown_subcommand_runs_with_default_ndjson_and_silent_reporters() {

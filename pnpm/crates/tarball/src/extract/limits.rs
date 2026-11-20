@@ -3,8 +3,15 @@
 
 pub use pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE;
 
-use super::{MAX_UNTRUSTED_PREALLOC_BYTES, Read, TarballError};
-use std::{cell::Cell, io};
+use super::{
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    Read,
+    TarballError,
+};
+use std::{
+    cell::Cell,
+    io,
+};
 
 /// Error attached to [`TarballError::ReadTarballEntries`] when a
 /// `package.json` entry claims more than [`MAX_UNTRUSTED_PREALLOC_BYTES`].

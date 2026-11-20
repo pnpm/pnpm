@@ -1,15 +1,37 @@
 use super::{
-    Arc, BTreeMap, DepPath, DirectDep, HashSet, NodeId, PeerHoistDiscovery, ResolvePeersOptions,
-    WorkspaceTreeCtx, add_lazy_direct_dep, child_edge, package, tree_node,
+    Arc,
+    BTreeMap,
+    DepPath,
+    DirectDep,
+    HashSet,
+    NodeId,
+    PeerHoistDiscovery,
+    ResolvePeersOptions,
+    WorkspaceTreeCtx,
+    add_lazy_direct_dep,
+    child_edge,
+    package,
+    tree_node,
 };
 use crate::{
-    ImporterPeerInput, PeerWalkAbort, ResolutionCancel, ResolveImporterError,
-    WorkspacePeerSettings, resolve_dependency_tree::ResolveDependencyTreeError,
+    ImporterPeerInput,
+    PeerWalkAbort,
+    ResolutionCancel,
+    ResolveImporterError,
+    WorkspacePeerSettings,
+    resolve_dependency_tree::ResolveDependencyTreeError,
     resolve_peers_workspace,
 };
 use std::{
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicBool,
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 #[test]

@@ -1,7 +1,13 @@
 use miette::Diagnostic;
 use pnpm_network::redact_and_sanitize;
-use pnpm_resolving_resolver_base::{NoMatchingVersionError, WantedDependency};
-use pnpm_semver_include_prerelease::{is_valid_semver_range, parse_strict_semver_range};
+use pnpm_resolving_resolver_base::{
+    NoMatchingVersionError,
+    WantedDependency,
+};
+use pnpm_semver_include_prerelease::{
+    is_valid_semver_range,
+    parse_strict_semver_range,
+};
 
 use super::ResolveDependencyTreeError;
 

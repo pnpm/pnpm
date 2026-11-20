@@ -7,13 +7,24 @@ use std::collections::BTreeMap;
 use pnpm_lockfile::Lockfile;
 use pnpm_resolving_deps_resolver::ResolveWorkspaceResult;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
+    LatestQuery,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
     WantedDependency,
 };
-use proptest::{collection::vec, prelude::*};
+use proptest::{
+    collection::vec,
+    prelude::*,
+};
 use rustc_hash::FxHashMap as HashMap;
 
-use super::super::{make_resolve_result as fake_result, single_importer_opts};
+use super::super::{
+    make_resolve_result as fake_result,
+    single_importer_opts,
+};
 
 pub(super) struct StubResolver {
     table: HashMap<(String, String), ResolveResult>,

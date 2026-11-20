@@ -1,7 +1,22 @@
 use super::{
-    AccountCredential, AccountStatus, AuthSqlBackend, DEFAULT_BCRYPT_COST, InsertUser, MaxUsers,
-    PasswordChange, RegistryError, Result, SqlAuth, UpsertOutcome, UserBackend, UserCreation,
-    UserRemoval, dummy_verify, hash_bcrypt, validate_username, with_auth_timeout,
+    AccountCredential,
+    AccountStatus,
+    AuthSqlBackend,
+    DEFAULT_BCRYPT_COST,
+    InsertUser,
+    MaxUsers,
+    PasswordChange,
+    RegistryError,
+    Result,
+    SqlAuth,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    dummy_verify,
+    hash_bcrypt,
+    validate_username,
+    with_auth_timeout,
 };
 use async_trait::async_trait;
 use std::collections::HashMap;

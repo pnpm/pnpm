@@ -1,7 +1,23 @@
 use super::{
-    AppState, Bytes, CACHE_BUDGET, CanonicalPackageName, DistView, HeaderMap, OwnedView,
-    PackumentProcessing, RenderInput, RenderedPackument, Representation, Value, cache_key,
-    input_key, next_precision_change, render, render_document, render_job, render_miss,
+    AppState,
+    Bytes,
+    CACHE_BUDGET,
+    CanonicalPackageName,
+    DistView,
+    HeaderMap,
+    OwnedView,
+    PackumentProcessing,
+    RenderInput,
+    RenderedPackument,
+    Representation,
+    Value,
+    cache_key,
+    input_key,
+    next_precision_change,
+    render,
+    render_document,
+    render_job,
+    render_miss,
     workers::Workers,
 };
 use jiff::Timestamp;
@@ -11,7 +27,10 @@ use std::{
     collections::BTreeMap,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
     time::Instant,
 };

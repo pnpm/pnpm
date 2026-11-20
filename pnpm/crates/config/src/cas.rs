@@ -1,9 +1,18 @@
-pub use pnpm_store_dir::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
+pub use pnpm_store_dir::{
+    CAS_LOADER_FILENAME,
+    CAS_MANIFEST_FILENAME,
+};
 
-use crate::{Config, NodeLinker};
+use crate::{
+    Config,
+    NodeLinker,
+};
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl Config {

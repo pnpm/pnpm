@@ -1,12 +1,26 @@
-use super::{DependencyGroup, PackageSelector, ResolvedOverride, VersionsOverrider};
-use node_semver::{Range, Version};
+use super::{
+    DependencyGroup,
+    PackageSelector,
+    ResolvedOverride,
+    VersionsOverrider,
+};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::OverrideDependencyType;
 use pnpm_matcher::WildcardMatcher;
-use pnpm_semver_include_prerelease::{ParsedSemverRange, parse_strict_semver_range};
+use pnpm_semver_include_prerelease::{
+    ParsedSemverRange,
+    parse_strict_semver_range,
+};
 use serde_json::Value;
 use std::borrow::Cow;
 

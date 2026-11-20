@@ -7,16 +7,32 @@
 //! - An unsupported platform is a warning.
 
 use super::InitStateError;
-use pnpm_config::{Config, PNPM_VERSION};
-use pnpm_package_is_installable::{
-    InstallabilityError, InstallabilityOptions, PackageInstallabilityManifest, check_package,
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
 };
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use pnpm_package_is_installable::{
+    InstallabilityError,
+    InstallabilityOptions,
+    PackageInstallabilityManifest,
+    check_package,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+};
 use pnpm_workspace::Project;
 use std::{
-    cell::{OnceCell, RefCell},
+    cell::{
+        OnceCell,
+        RefCell,
+    },
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The host the projects of one install are checked against.

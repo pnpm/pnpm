@@ -1,19 +1,47 @@
 use crate::{
     extend_path::extend_path,
-    lifecycle::{StreamedScript, push_script_arg},
-    make_env::{EnvOptions, build_env, is_path_key, path_value},
-    process::{Command, Stdio},
-    process_tracker::{ProcessTracker, spawn_child},
-    script_args::{ArgQuoting, build_command},
+    lifecycle::{
+        StreamedScript,
+        push_script_arg,
+    },
+    make_env::{
+        EnvOptions,
+        build_env,
+        is_path_key,
+        path_value,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
+    process_tracker::{
+        ProcessTracker,
+        spawn_child,
+    },
+    script_args::{
+        ArgQuoting,
+        build_command,
+    },
     script_exit::ScriptExit,
     shell::{
-        ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell,
+        ScriptShellError,
+        SelectedShell,
+        missing_script_shell,
+        script_body,
+        select_shell,
         use_shell_emulator,
     },
-    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
+    shell_emulator::{
+        EmulatedOutput,
+        ShellEmulatorError,
+        execute_emulated,
+    },
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_reporter::LogEvent;
 use serde_json::Value;
@@ -21,7 +49,10 @@ use std::{
     collections::HashMap,
     env,
     ffi::OsString,
-    io::{self, Write},
+    io::{
+        self,
+        Write,
+    },
     path::Path,
 };
 

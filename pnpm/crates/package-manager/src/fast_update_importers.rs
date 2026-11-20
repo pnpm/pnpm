@@ -2,25 +2,40 @@ pub(crate) use locked_versions::locked_version_resolution_would_pick;
 
 mod importer_update;
 use importer_update::{
-    ImporterUpdate, LockedInputs, apply_one_importer_update, drop_stale_importers,
+    ImporterUpdate,
+    LockedInputs,
+    apply_one_importer_update,
+    drop_stale_importers,
 };
 
 mod locked_versions;
 
 use crate::{
-    fast_update_compose::Drift, fast_update_lockfile::GraphEdits,
-    fast_update_overrides::get_peer_names, fast_update_settings::workspace_package_names,
+    fast_update_compose::Drift,
+    fast_update_lockfile::GraphEdits,
+    fast_update_overrides::get_peer_names,
+    fast_update_settings::workspace_package_names,
 };
 use node_semver::Version;
 use pnpm_lockfile::{
-    Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_semver_include_prerelease::parse_strict_semver_range;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
     sync::OnceLock,
 };

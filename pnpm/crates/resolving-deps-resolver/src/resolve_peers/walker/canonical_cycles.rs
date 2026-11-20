@@ -1,6 +1,14 @@
 use super::{
-    Arc, HashMap, NodeId, NodeWalkContext, ParentPkgInfo, ParentRefs, PeerWalkMode, SharedChain,
-    TreeChildren, Walker,
+    Arc,
+    HashMap,
+    NodeId,
+    NodeWalkContext,
+    ParentPkgInfo,
+    ParentRefs,
+    PeerWalkMode,
+    SharedChain,
+    TreeChildren,
+    Walker,
 };
 use crate::resolved_tree::DependenciesTreeNode;
 

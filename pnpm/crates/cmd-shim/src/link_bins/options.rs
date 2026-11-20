@@ -1,4 +1,7 @@
-use std::{ffi::OsString, path::PathBuf};
+use std::{
+    ffi::OsString,
+    path::PathBuf,
+};
 
 /// When a shim puts the target's own `node_modules` directories on
 /// `NODE_PATH`.

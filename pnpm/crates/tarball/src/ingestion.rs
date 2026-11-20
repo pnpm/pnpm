@@ -1,13 +1,29 @@
 use crate::{
-    ArchiveIntegrity, ArchiveStoreProjection, CachedCasPaths, FetchedLocalTarball, FetchedTarball,
-    IgnoreEntryFilter, SharedReportedProgressKeys, TarballError, apply_append_manifest,
+    ArchiveIntegrity,
+    ArchiveStoreProjection,
+    CachedCasPaths,
+    FetchedLocalTarball,
+    FetchedTarball,
+    IgnoreEntryFilter,
+    SharedReportedProgressKeys,
+    TarballError,
+    apply_append_manifest,
     apply_placeholder_manifest,
-    archive_integrity::{ArchiveVerification, IntegrityKind},
-    download::{
-        ExtractedFiles, download_priority, emit_progress_fetched,
-        fetch_and_extract_archive_with_retry, fetch_local_tarball_with_sha1, store_index_cache_key,
+    archive_integrity::{
+        ArchiveVerification,
+        IntegrityKind,
     },
-    emit_progress_found_in_store, load_cached_cas_paths, load_legacy_synthesized_cas_paths,
+    download::{
+        ExtractedFiles,
+        download_priority,
+        emit_progress_fetched,
+        fetch_and_extract_archive_with_retry,
+        fetch_local_tarball_with_sha1,
+        store_index_cache_key,
+    },
+    emit_progress_found_in_store,
+    load_cached_cas_paths,
+    load_legacy_synthesized_cas_paths,
     local_file_tarball_path,
     zip_archive::fetch_and_extract_zip_with_retry,
 };
@@ -15,7 +31,11 @@ use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::PackageFilesIndex;
 use ssri::Integrity;
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) enum ArchiveFormat<'a> {

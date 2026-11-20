@@ -1,7 +1,23 @@
-use super::{CliReporter, EventFilter, ReporterType, select_reporter};
+use super::{
+    CliReporter,
+    EventFilter,
+    ReporterType,
+    select_reporter,
+};
 use pnpm_reporter::{
-    GlobalLog, LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog,
-    RemovedRoot, Reporter, RootLog, RootMessage, StatsLog, StatsMessage, SummaryLog,
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    PackageManifestLog,
+    PackageManifestMessage,
+    PnpmLog,
+    RemovedRoot,
+    Reporter,
+    RootLog,
+    RootMessage,
+    StatsLog,
+    StatsMessage,
+    SummaryLog,
 };
 
 fn summary() -> LogEvent {

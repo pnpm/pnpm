@@ -1,4 +1,7 @@
-use super::{PatchedDepPathsStatus, check_patched_dep_paths};
+use super::{
+    PatchedDepPathsStatus,
+    check_patched_dep_paths,
+};
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
 

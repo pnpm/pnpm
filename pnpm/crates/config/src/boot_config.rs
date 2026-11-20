@@ -1,9 +1,20 @@
 //! The policy pnpm resolves and verifies config dependencies and the package
 //! manager under, before the configuration they contribute is loaded.
 
-use crate::{Config, TrustPolicy, WorkspaceSettings};
-use pnpm_workspace::{IncludeSource, SettingOwner, SettingSlot};
-use serde::{Deserialize, Serialize};
+use crate::{
+    Config,
+    TrustPolicy,
+    WorkspaceSettings,
+};
+use pnpm_workspace::{
+    IncludeSource,
+    SettingOwner,
+    SettingSlot,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// The `bootConfig` block of `pnpm-workspace.yaml`, and the values the boot
 /// phase falls back to.

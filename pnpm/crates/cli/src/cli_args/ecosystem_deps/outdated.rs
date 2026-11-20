@@ -1,17 +1,35 @@
 use super::{
     EcosystemFilterKind,
-    cargo::{collect_cargo_outdated, has_cargo_lockfile},
-    cargo_manifest_ops::{cargo_project_name, declared_cargo_deps, has_matching_cargo_deps},
+    cargo::{
+        collect_cargo_outdated,
+        has_cargo_lockfile,
+    },
+    cargo_manifest_ops::{
+        cargo_project_name,
+        declared_cargo_deps,
+        has_matching_cargo_deps,
+    },
     patterns_for_ecosystem,
     python::{
-        collect_python_outdated, declared_python_dep_names, has_matching_python_deps,
-        has_python_lockfile, python_project_name,
+        collect_python_outdated,
+        declared_python_dep_names,
+        has_matching_python_deps,
+        has_python_lockfile,
+        python_project_name,
     },
 };
-use crate::cli_args::outdated::{OutdatedPackage, OutdatedQuery, OutdatedRun, TargetVersion};
+use crate::cli_args::outdated::{
+    OutdatedPackage,
+    OutdatedQuery,
+    OutdatedRun,
+    TargetVersion,
+};
 use miette::Result;
 use pnpm_config::Config;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use pnpm_package_manifest::DependencyGroup;
 use std::path::Path;
 

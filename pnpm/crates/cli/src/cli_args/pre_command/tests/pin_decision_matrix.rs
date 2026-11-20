@@ -1,10 +1,20 @@
 use crate::{
     cli_args::{
-        dispatch::{apply_cli_layers, seed_config},
+        dispatch::{
+            apply_cli_layers,
+            seed_config,
+        },
         package_manager::PinRoots,
         pre_command::{
-            ConfigLoad, EntryPoint, Invocation, PinDecision, PreCommandPlan, SwitchProcessState,
-            SwitchSource, load_config::tests::with_test_global_config_dir, load_pre_command_config,
+            ConfigLoad,
+            EntryPoint,
+            Invocation,
+            PinDecision,
+            PreCommandPlan,
+            SwitchProcessState,
+            SwitchSource,
+            load_config::tests::with_test_global_config_dir,
+            load_pre_command_config,
             pre_command_plan_with_state,
         },
         self_update::project_pin::update_manifest_pin_and_decide,
@@ -12,14 +22,21 @@ use crate::{
     },
     config_overrides::ConfigOverrides,
 };
-use pnpm_config::{Config, Host, PNPM_VERSION};
+use pnpm_config::{
+    Config,
+    Host,
+    PNPM_VERSION,
+};
 use serde::Deserialize;
 use serde_json::json;
 use std::{
     ffi::OsString,
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::TempDir;
 

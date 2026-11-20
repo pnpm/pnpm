@@ -11,14 +11,30 @@ mod orphans;
 mod sqlite;
 mod store_index;
 
-use crate::{Config, Result};
-use eviction::{DryRunAdjustments, evict_and_prune_cache};
-use orphans::{PrivateScopePolicy, prune_orphaned_namespaces, prune_private_resolver_scopes_only};
+use crate::{
+    Config,
+    Result,
+};
+use eviction::{
+    DryRunAdjustments,
+    evict_and_prune_cache,
+};
+use orphans::{
+    PrivateScopePolicy,
+    prune_orphaned_namespaces,
+    prune_private_resolver_scopes_only,
+};
 use pnpm_fs::ChildFileStat;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tokio::fs;
 

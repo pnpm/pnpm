@@ -1,4 +1,8 @@
-use super::{check_git_version, git_supports_no_relative, parse_git_version};
+use super::{
+    check_git_version,
+    git_supports_no_relative,
+    parse_git_version,
+};
 
 #[test]
 fn parse_git_version_reads_major_and_minor() {

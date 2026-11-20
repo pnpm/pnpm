@@ -1,4 +1,7 @@
-use super::{needs_directory, source_needs_directory};
+use super::{
+    needs_directory,
+    source_needs_directory,
+};
 use std::collections::HashMap;
 
 #[test]

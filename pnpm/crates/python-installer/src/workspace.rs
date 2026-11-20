@@ -1,15 +1,46 @@
 pub(crate) mod members;
 
-use super::manifest::{Manifest, SourceDeclaration};
+use super::manifest::{
+    Manifest,
+    SourceDeclaration,
+};
 use members::members_of;
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{ExtraName, MarkerEnvironment, MarkerTree, PackageName, VerbatimUrl};
-use pnpm_python_resolver::{LockedDirectory, Lockfile, Packages, WheelMetadata, parse_requirement};
-use source::{Declared, path_target, reject_unresolvable, sole_source};
+use pep508_rs::{
+    ExtraName,
+    MarkerEnvironment,
+    MarkerTree,
+    PackageName,
+    VerbatimUrl,
+};
+use pnpm_python_resolver::{
+    LockedDirectory,
+    Lockfile,
+    Packages,
+    WheelMetadata,
+    parse_requirement,
+};
+use source::{
+    Declared,
+    path_target,
+    reject_unresolvable,
+    sole_source,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

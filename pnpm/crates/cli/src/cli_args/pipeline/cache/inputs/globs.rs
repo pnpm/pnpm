@@ -1,10 +1,26 @@
 use super::{
-    FileIterator, Glob, HashedFile, IntoDiagnostic, Path, PathBuf, Program, TaskCache,
-    check_ancestors, check_input_directories, io, is_excluded_input, output_residue,
+    FileIterator,
+    Glob,
+    HashedFile,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    Program,
+    TaskCache,
+    check_ancestors,
+    check_input_directories,
+    io,
+    is_excluded_input,
+    output_residue,
     validate_relative_path,
 };
 use std::path::Component;
-use wax::walk::{Entry, EntryResidue, GlobEntry, WalkError};
+use wax::walk::{
+    Entry,
+    EntryResidue,
+    GlobEntry,
+    WalkError,
+};
 
 pub(super) enum InputSelection<'a> {
     Default,

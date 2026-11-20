@@ -1,6 +1,13 @@
 use super::{
-    Inline, Manifest, flow, locate, locate_mapping, nested::set_nested_entry,
-    remove_top_level_block, render, render_bool,
+    Inline,
+    Manifest,
+    flow,
+    locate,
+    locate_mapping,
+    nested::set_nested_entry,
+    remove_top_level_block,
+    render,
+    render_bool,
 };
 use crate::build_settings::PermissionValue;
 use pnpm_config::SkillsPermission;

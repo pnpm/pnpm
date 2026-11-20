@@ -1,4 +1,7 @@
-pub use pnpm_detect_libc::{host_arch, host_platform};
+pub use pnpm_detect_libc::{
+    host_arch,
+    host_platform,
+};
 
 /// Compute pnpm's `ENGINE_NAME` string — the same value pnpm uses
 /// as the side-effects cache key prefix.

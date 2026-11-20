@@ -1,5 +1,11 @@
-use crate::{StatusCode, Url};
-use std::{error, fmt};
+use crate::{
+    StatusCode,
+    Url,
+};
+use std::{
+    error,
+    fmt,
+};
 
 #[derive(Debug)]
 pub struct Error {

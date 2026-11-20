@@ -9,10 +9,20 @@
 //! + `optional_dependencies`.
 
 use indexmap::IndexMap;
-use pnpm_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
+use pnpm_graph_hasher::{
+    DepsGraphNode,
+    HashEncoding,
+    hash_object_with_encoding,
+};
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, PlatformSelector, SnapshotDepRef,
-    SnapshotEntry, select_platform_variant,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PlatformSelector,
+    SnapshotDepRef,
+    SnapshotEntry,
+    select_platform_variant,
 };
 use std::collections::HashMap;
 

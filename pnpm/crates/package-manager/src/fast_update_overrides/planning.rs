@@ -1,15 +1,36 @@
-use super::{RewriteContext, RewritePlan};
+use super::{
+    RewriteContext,
+    RewritePlan,
+};
 use indexmap::IndexMap;
 use node_semver::Version;
-use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
-use pnpm_lockfile::{
-    BundledDependencies, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    PkgNameVerPeer, PkgVerPeer, Prefix, StringOrList,
+use pnpm_config_parse_overrides::{
+    PackageSelector,
+    VersionOverride,
 };
-use pnpm_resolving_resolver_base::{ResolveResult, WantedDependency, parse_strict_semver_range};
+use pnpm_lockfile::{
+    BundledDependencies,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    Prefix,
+    StringOrList,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveResult,
+    WantedDependency,
+    parse_strict_semver_range,
+};
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 

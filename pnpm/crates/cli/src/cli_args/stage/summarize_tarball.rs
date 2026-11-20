@@ -4,13 +4,23 @@
 
 use super::StageError;
 use flate2::read::GzDecoder;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_pack::sort_paths_en_locale;
 use pnpm_package_manifest::parse_manifest;
 use pnpm_package_name::is_valid_old_npm_package_name;
-use pnpm_publish::{PackedPkgInfo, PublishSummary, create_publish_summary};
+use pnpm_publish::{
+    PackedPkgInfo,
+    PublishSummary,
+    create_publish_summary,
+};
 use serde_json::Value;
-use std::{collections::BTreeSet, io::Read};
+use std::{
+    collections::BTreeSet,
+    io::Read,
+};
 
 struct TarballContents {
     files: Vec<String>,

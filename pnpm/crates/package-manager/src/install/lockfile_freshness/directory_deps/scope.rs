@@ -1,4 +1,7 @@
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use std::collections::HashSet;
 
 /// The snapshots already checked. What a package and its descendants must

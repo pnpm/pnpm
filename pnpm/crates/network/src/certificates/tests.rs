@@ -1,10 +1,16 @@
 use std::ptr;
 
 use security_framework::{
-    certificate::SecCertificate, secure_transport::SslProtocolSide, trust::SecTrust,
+    certificate::SecCertificate,
+    secure_transport::SslProtocolSide,
+    trust::SecTrust,
 };
 
-use super::{is_platform_verifier_available, ssl_policy, ssl_policy_from_ref};
+use super::{
+    is_platform_verifier_available,
+    ssl_policy,
+    ssl_policy_from_ref,
+};
 
 /// `SecPolicyCreateSSL` returns NULL when `Security.framework` cannot build a
 /// policy, and the probe has to read that as "no platform verifier". Handing

@@ -1,6 +1,13 @@
-use super::{find_own_runtime_node_major, find_runtime_node_major};
+use super::{
+    find_own_runtime_node_major,
+    find_runtime_node_major,
+};
 use pnpm_lockfile::{
-    ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencySpec, SnapshotDepRef,
+    ImporterDepVersion,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
     SnapshotEntry,
 };
 use pretty_assertions::assert_eq;

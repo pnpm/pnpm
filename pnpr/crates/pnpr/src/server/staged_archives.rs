@@ -8,15 +8,37 @@
 //! would, and copies the archive into its package before it commits.
 
 use super::{
-    AppState, AuthedCaller, Body, Identity, MAX_PUBLISH_BODY_BYTES, Response, State, StatusCode,
-    header, private_no_cache,
+    AppState,
+    AuthedCaller,
+    Body,
+    Identity,
+    MAX_PUBLISH_BODY_BYTES,
+    Response,
+    State,
+    StatusCode,
+    header,
+    private_no_cache,
 };
-use axum::{extract::Path, http::HeaderMap, response::IntoResponse};
+use axum::{
+    extract::Path,
+    http::HeaderMap,
+    response::IntoResponse,
+};
 use futures_util::StreamExt as _;
-use pnpm_shared_artifact_protocol::{blob_id, verify_blob_digest};
+use pnpm_shared_artifact_protocol::{
+    blob_id,
+    verify_blob_digest,
+};
 use pnpr_error::RegistryError;
-use pnpr_storage::{BlobId, StagedArchiveKey, Storage};
-use sha2::{Digest as _, Sha512};
+use pnpr_storage::{
+    BlobId,
+    StagedArchiveKey,
+    Storage,
+};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use std::collections::HashMap;
 
 /// The most a principal may hold staged at once, across all its archives.

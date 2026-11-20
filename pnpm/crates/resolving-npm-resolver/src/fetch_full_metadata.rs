@@ -18,17 +18,31 @@
 //! demands it.
 
 use pnpm_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, read_self_delimiting_body,
-    redact_url_credentials, redact_url_for_display, retry_async, send_with_retry_at_priority,
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+    ThrottledClientGuard,
+    read_self_delimiting_body,
+    redact_url_credentials,
+    redact_url_for_display,
+    retry_async,
+    send_with_retry_at_priority,
 };
 use pnpm_registry::Package;
-use reqwest::{Response, StatusCode, header};
+use reqwest::{
+    Response,
+    StatusCode,
+    header,
+};
 use std::time::Duration;
 
 use crate::{
     FetchMetadataError,
     decode_pool::run_decode,
-    metadata_cache_policy::{DocumentKind, normalizes_to_abbreviated},
+    metadata_cache_policy::{
+        DocumentKind,
+        normalizes_to_abbreviated,
+    },
     mirror::clear_meta,
     registry_url::to_registry_url,
 };

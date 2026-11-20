@@ -3,7 +3,10 @@ use std::{
     fs,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
     thread,
     time::Duration,

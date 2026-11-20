@@ -1,14 +1,20 @@
 //! How the benchmark launches a revision's mocks and pnpr server.
 
 use super::{
-    PnprServerPaths, RevisionMockRegistry, registries_home::RegistriesHome,
+    PnprServerPaths,
+    RevisionMockRegistry,
+    registries_home::RegistriesHome,
     server_config::pnpr_benchmark_public_url,
 };
 use crate::latency_proxy::LatencyProxy;
 use std::{
     fs::File,
     path::Path,
-    process::{Child, Command, Stdio},
+    process::{
+        Child,
+        Command,
+        Stdio,
+    },
 };
 
 /// The origin a revision's mock advertises in its packuments. A cold mock

@@ -8,28 +8,54 @@
 //! dispatch-free at this layer.
 
 pub use offline_checks::{
-    RESOLUTION_SHAPE_CACHE_VERSION, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-    collect_resolution_shape_violations, verify_lockfile_dependency_names,
-    verify_lockfile_importer_snapshot_links, verify_lockfile_resolution_shapes,
+    RESOLUTION_SHAPE_CACHE_VERSION,
+    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+    collect_resolution_shape_violations,
+    verify_lockfile_dependency_names,
+    verify_lockfile_importer_snapshot_links,
+    verify_lockfile_resolution_shapes,
     with_offline_check_cache_identities,
 };
 
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
-use futures_util::{StreamExt, stream::FuturesUnordered};
-use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName};
-use pnpm_reporter::{LockfileVerificationMessage, LogLevel, Reporter};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+};
+use pnpm_reporter::{
+    LockfileVerificationMessage,
+    LogLevel,
+    Reporter,
+};
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
 };
 use tokio::sync::Semaphore;
 
 use crate::{
     cache::{
-        CachePrecomputed, lockfile_verification_is_cached_by_hash, record_verification,
+        CachePrecomputed,
+        lockfile_verification_is_cached_by_hash,
+        record_verification,
         try_lockfile_verification_cache,
     },
-    errors::{RenderedViolation, VerifyError},
+    errors::{
+        RenderedViolation,
+        VerifyError,
+    },
     hash_lockfile,
 };
 
@@ -415,6 +441,17 @@ mod candidates;
 mod offline_checks;
 mod progress;
 
-use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};
-use offline_checks::{verify_offline_structural_checks, verify_structure_before_install};
-use progress::{VerificationProgress, emit};
+use candidates::{
+    Candidate,
+    build_verification_error,
+    collect_candidates,
+    run_fan_out,
+};
+use offline_checks::{
+    verify_offline_structural_checks,
+    verify_structure_before_install,
+};
+use progress::{
+    VerificationProgress,
+    emit,
+};

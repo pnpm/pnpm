@@ -1,4 +1,8 @@
-use std::{ffi::OsStr, iter, path::Path};
+use std::{
+    ffi::OsStr,
+    iter,
+    path::Path,
+};
 
 /// How the extra arguments of a script are quoted, chosen by the shell
 /// that parses the script.

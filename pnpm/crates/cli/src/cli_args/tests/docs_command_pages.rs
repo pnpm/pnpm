@@ -16,12 +16,22 @@
 
 use super::CliArgs;
 use crate::config_overrides::ConfigOverrides;
-use clap::{Arg, Command, CommandFactory};
+use clap::{
+    Arg,
+    Command,
+    CommandFactory,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     ffi::OsString,
     fmt::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use walkdir::WalkDir;
 

@@ -1,23 +1,37 @@
 //! The per-pick route state ([`PickState`]) and the layer methods every
 //! candidate path of a pick shares.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 use pnpm_network::MetadataCacheScope;
 use pnpm_registry::Package;
 
 use crate::{
     mirror::{
-        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, PNPR_META_DIR,
-        get_pkg_mirror_path, scoped_meta_dir,
+        ABBREVIATED_META_DIR,
+        FULL_FILTERED_META_DIR,
+        FULL_META_DIR,
+        PNPR_META_DIR,
+        get_pkg_mirror_path,
+        scoped_meta_dir,
     },
     pick_package_from_meta::RegistryPackageSpec,
     registry_url::to_registry_url,
 };
 
 use super::{
-    PackageMetaCache, PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult,
-    PickerOpts, UpgradeOutcome, handle_cache_hit, maybe_upgrade_abbreviated_meta_for_release_age,
+    PackageMetaCache,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    PickPackageResult,
+    PickerOpts,
+    UpgradeOutcome,
+    handle_cache_hit,
+    maybe_upgrade_abbreviated_meta_for_release_age,
     metadata_cache_key,
 };
 

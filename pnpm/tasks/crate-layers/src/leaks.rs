@@ -1,12 +1,21 @@
 use crate::{
     dependencies::Reach,
     modules::CrateModules,
-    surface::{self, Surface},
+    surface::{
+        self,
+        Surface,
+    },
     use_tree::UsePath,
-    visibility::{self, Exported},
+    visibility::{
+        self,
+        Exported,
+    },
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt::Write as _,
 };
 

@@ -1,14 +1,33 @@
 //! Read a directory tree into an [`InodeMap`].
 
-use super::{FileId, InodeMap, PatchError, Value};
+use super::{
+    FileId,
+    InodeMap,
+    PatchError,
+    Value,
+};
 use pnpm_directory_fetcher::CopyFiles;
-use pnpm_fs::{SymlinkPlacement, SymlinkPlacementContext, SymlinkTargets};
+use pnpm_fs::{
+    SymlinkPlacement,
+    SymlinkPlacementContext,
+    SymlinkTargets,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
-    hash::{DefaultHasher, Hash, Hasher},
+    hash::{
+        DefaultHasher,
+        Hash,
+        Hasher,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::SystemTime,
 };
 
@@ -153,9 +172,13 @@ pub(super) fn file_id(path: &Path, metadata: &fs::Metadata) -> Result<FileId, Pa
 
 #[cfg(windows)]
 fn windows_file_index(path: &Path) -> io::Result<(u64, u64)> {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use std::{
+        mem::MaybeUninit,
+        os::windows::io::AsRawHandle as _,
+    };
     use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+        BY_HANDLE_FILE_INFORMATION,
+        GetFileInformationByHandle,
     };
 
     let file = fs::File::open(path)?;

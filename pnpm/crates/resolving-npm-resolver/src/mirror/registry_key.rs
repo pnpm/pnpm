@@ -1,6 +1,15 @@
 use super::{
-    AsciiSet, Diagnostic, Digest, Display, Error, NON_ALPHANUMERIC, Sha256, percent_decode_str,
-    redact_and_sanitize, redact_url_for_display, utf8_percent_encode,
+    AsciiSet,
+    Diagnostic,
+    Digest,
+    Display,
+    Error,
+    NON_ALPHANUMERIC,
+    Sha256,
+    percent_decode_str,
+    redact_and_sanitize,
+    redact_url_for_display,
+    utf8_percent_encode,
 };
 use std::fmt::Write as _;
 

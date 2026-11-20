@@ -1,7 +1,15 @@
 use super::{
-    AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, hide_auth_information,
-    nerf_dart, redact_and_sanitize, redact_and_sanitize_multiline, redact_npm_auth_key,
-    redact_url_credentials, redact_url_for_display,
+    AuthHeaders,
+    DEFAULT_REGISTRY_SCOPE,
+    UpstreamRouteHook,
+    base64_encode,
+    hide_auth_information,
+    nerf_dart,
+    redact_and_sanitize,
+    redact_and_sanitize_multiline,
+    redact_npm_auth_key,
+    redact_url_credentials,
+    redact_url_for_display,
 };
 use crate::TokenHelperOutput;
 use pretty_assertions::assert_eq;
@@ -9,10 +17,17 @@ use std::{
     collections::HashMap,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicUsize,
+            Ordering,
+        },
     },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[test]

@@ -7,7 +7,10 @@
 
 use crate::LockMode;
 use std::{
-    fs::{File, TryLockError},
+    fs::{
+        File,
+        TryLockError,
+    },
     io,
 };
 

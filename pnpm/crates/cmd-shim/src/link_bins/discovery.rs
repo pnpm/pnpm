@@ -1,5 +1,12 @@
 use super::{
-    Arc, FsReadDir, FsReadFile, LinkBinsError, PackageBinSource, Path, Value, io,
+    Arc,
+    FsReadDir,
+    FsReadFile,
+    LinkBinsError,
+    PackageBinSource,
+    Path,
+    Value,
+    io,
     parse_manifest_bytes,
 };
 

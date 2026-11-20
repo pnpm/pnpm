@@ -5,9 +5,17 @@
 
 use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_auth_commands::login::{Host as AuthHost, LoginHost, LoginOptions, login};
+use pnpm_auth_commands::login::{
+    Host as AuthHost,
+    LoginHost,
+    LoginOptions,
+    login,
+};
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
 use std::path::Path;

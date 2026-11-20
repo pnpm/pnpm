@@ -1,10 +1,24 @@
 use crate::_utils::{
-    ManifestDeps, TreeView, WorkspaceFixture, assert_success, pacquet_in, read_manifest,
-    resolve_node_modules_package, write_manifest_value,
+    ManifestDeps,
+    TreeView,
+    WorkspaceFixture,
+    assert_success,
+    pacquet_in,
+    read_manifest,
+    resolve_node_modules_package,
+    write_manifest_value,
 };
-use pnpm_lockfile::{BoundProviders, Lockfile, LockfileFormat};
+use pnpm_lockfile::{
+    BoundProviders,
+    Lockfile,
+    LockfileFormat,
+};
 use serde_json::json;
-use std::{fs, path::Path, process::Output};
+use std::{
+    fs,
+    path::Path,
+    process::Output,
+};
 
 #[derive(Debug, Clone, Copy)]
 struct Scenario {

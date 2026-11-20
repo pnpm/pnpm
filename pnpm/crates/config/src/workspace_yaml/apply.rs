@@ -1,7 +1,22 @@
 use super::{
-    Config, LockfileSetting, NodePackageMapMode, Path, PnpmfileSetting, ProxyKeys, ProxyValue,
-    SideEffectsCacheSetting, StoreDir, UpdateConfig, WorkspaceSettings, no_proxy_scalar, overlay,
-    overlay_some, registries, resolve, resolve_child_concurrency, warn_deprecated_pairing,
+    Config,
+    LockfileSetting,
+    NodePackageMapMode,
+    Path,
+    PnpmfileSetting,
+    ProxyKeys,
+    ProxyValue,
+    SideEffectsCacheSetting,
+    StoreDir,
+    UpdateConfig,
+    WorkspaceSettings,
+    no_proxy_scalar,
+    overlay,
+    overlay_some,
+    registries,
+    resolve,
+    resolve_child_concurrency,
+    warn_deprecated_pairing,
 };
 use pnpm_network::normalize_registry_url;
 

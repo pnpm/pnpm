@@ -1,11 +1,27 @@
-use super::{Certificate, Identity, LazyLock, RegistryTls, TlsConfig, TlsError};
+use super::{
+    Certificate,
+    Identity,
+    LazyLock,
+    RegistryTls,
+    TlsConfig,
+    TlsError,
+};
 
 #[cfg(target_vendor = "apple")]
-use core_foundation::{base::TCFType, string::CFString};
+use core_foundation::{
+    base::TCFType,
+    string::CFString,
+};
 #[cfg(target_vendor = "apple")]
-use security_framework::{policy::SecPolicy, secure_transport::SslProtocolSide};
+use security_framework::{
+    policy::SecPolicy,
+    secure_transport::SslProtocolSide,
+};
 #[cfg(target_vendor = "apple")]
-use security_framework_sys::{base::SecPolicyRef, policy::SecPolicyCreateSSL};
+use security_framework_sys::{
+    base::SecPolicyRef,
+    policy::SecPolicyCreateSSL,
+};
 
 /// Which trust anchors a client built by
 /// [`ThrottledClient::for_installs`](crate::ThrottledClient::for_installs) verifies registry certificates
@@ -52,7 +68,10 @@ pub fn bundled_root_certs() -> &'static [Certificate] {
 #[cfg(target_vendor = "apple")]
 pub(super) fn is_platform_verifier_available() -> bool {
     static AVAILABLE: LazyLock<bool> = LazyLock::new(|| {
-        use security_framework::{certificate::SecCertificate, trust::SecTrust};
+        use security_framework::{
+            certificate::SecCertificate,
+            trust::SecTrust,
+        };
         let der = &webpki_root_certs::TLS_SERVER_ROOT_CERTS[0];
         let Ok(cert) = SecCertificate::from_der(der.as_ref()) else {
             return false;

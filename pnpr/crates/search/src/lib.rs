@@ -8,7 +8,11 @@
 use pnpr_error::Result;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SearchText {

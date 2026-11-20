@@ -1,9 +1,21 @@
 //! Matching a reference to one snapshot of the package it names.
 
-use super::{Graph, Referrer, Sid, compare_names};
+use super::{
+    Graph,
+    Referrer,
+    Sid,
+    compare_names,
+};
 use crate::{
-    ImporterDepVersion, PkgName, PkgNameVerPeer,
-    next_format::{NamedBindings, NextImporter, NextRef, names_binding},
+    ImporterDepVersion,
+    PkgName,
+    PkgNameVerPeer,
+    next_format::{
+        NamedBindings,
+        NextImporter,
+        NextRef,
+        names_binding,
+    },
 };
 
 impl<'a> Graph<'a> {

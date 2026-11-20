@@ -15,18 +15,33 @@
 //! resolution instead, which is the one place the two stacks compute
 //! the same verdict by different routes.
 
-pub use undeclared::{UndeclaredPeer, UndeclaredPeerInspector, WorkspaceRootScope};
+pub use undeclared::{
+    UndeclaredPeer,
+    UndeclaredPeerInspector,
+    WorkspaceRootScope,
+};
 
 pub use filter::filter_peer_issues;
 pub use render::{
-    BadPeerIssue, MissingPeerIssue, render_installed, render_peer_issues, render_wanted,
+    BadPeerIssue,
+    MissingPeerIssue,
+    render_installed,
+    render_peer_issues,
+    render_wanted,
 };
 
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     fmt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -35,13 +50,21 @@ use owo_colors::Stream;
 use serde::Serialize;
 
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, WantedDependency,
+    CatalogAnchor,
+    CatalogResolutionError,
+    CatalogResolutionResult,
+    WantedDependency,
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PeerDependencyRules;
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencySpec,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -407,7 +430,11 @@ impl LinkedDependency<'_> {
 
 mod snapshot;
 mod undeclared;
-use snapshot::{extract_peer_version, satisfies, walk_snapshot};
+use snapshot::{
+    extract_peer_version,
+    satisfies,
+    walk_snapshot,
+};
 
 #[cfg(test)]
 mod tests;
@@ -422,4 +449,9 @@ mod filter;
 use filter::merge_missing_peers;
 
 mod linked;
-use linked::{LinkRoots, LinkedPackagePeers, LinkedPackages, check_linked_package_peers};
+use linked::{
+    LinkRoots,
+    LinkedPackagePeers,
+    LinkedPackages,
+    check_linked_package_peers,
+};

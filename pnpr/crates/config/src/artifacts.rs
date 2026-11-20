@@ -2,8 +2,14 @@
 //! each artifact owner owns, and how much the artifact store keeps.
 
 use super::{
-    AccessList, AccessSpec, ArtifactQuotaFile, ByteSize, IndexMap, RegistryError,
-    StorageAccessFile, validate_artifact_owner_name,
+    AccessList,
+    AccessSpec,
+    ArtifactQuotaFile,
+    ByteSize,
+    IndexMap,
+    RegistryError,
+    StorageAccessFile,
+    validate_artifact_owner_name,
 };
 use crate::byte_size::parse_positive_byte_size;
 

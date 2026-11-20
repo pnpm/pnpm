@@ -15,15 +15,39 @@ mod server_options;
 mod graph_document;
 
 use super::{
-    ArtifactQuota, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
-    DEFAULT_REGISTRIES_YAML, FeatureOverrides, HostedStoreConfig, Interval, LogFormat, LogLevel,
-    RegistryGraphDocument, RoutingConfig, RoutingOptions, S3Settings, UpstreamAuthFile,
-    UpstreamConfig, UpstreamConfigFile, config_file_in, normalize_key_prefix, parse_interval,
-    resolve_relative, resolve_upstream_config,
-    upstream::{TokenEnv, UpstreamAuthType},
+    ArtifactQuota,
+    BackendConfig,
+    Config,
+    ConfigSource,
+    DEFAULT_CONFIG_YAML,
+    DEFAULT_REGISTRIES_YAML,
+    FeatureOverrides,
+    HostedStoreConfig,
+    Interval,
+    LogFormat,
+    LogLevel,
+    RegistryGraphDocument,
+    RoutingConfig,
+    RoutingOptions,
+    S3Settings,
+    UpstreamAuthFile,
+    UpstreamConfig,
+    UpstreamConfigFile,
+    config_file_in,
+    normalize_key_prefix,
+    parse_interval,
+    resolve_relative,
+    resolve_upstream_config,
+    upstream::{
+        TokenEnv,
+        UpstreamAuthType,
+    },
 };
 use indexmap::IndexMap;
-use object_store::{ClientConfigKey, aws::AmazonS3ConfigKey};
+use object_store::{
+    ClientConfigKey,
+    aws::AmazonS3ConfigKey,
+};
 use pnpm_env_replace::EnvVar;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pnpr_error::RegistryError;
@@ -31,8 +55,15 @@ use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
 use reqwest::header::AUTHORIZATION;
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Duration,
 };
 

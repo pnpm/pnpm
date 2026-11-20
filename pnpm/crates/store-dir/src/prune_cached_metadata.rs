@@ -1,10 +1,19 @@
-use crate::{PruneError, StoreDir};
+use crate::{
+    PruneError,
+    StoreDir,
+};
 use pipe_trait::Pipe;
 use pnpm_fs::OpenDir;
 use std::{
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
     iter,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl StoreDir {

@@ -1,5 +1,13 @@
-use crate::checkbox_prompt::{CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt};
-use dialoguer::{Error, Result};
+use crate::checkbox_prompt::{
+    CheckboxAnswer,
+    CheckboxChoice,
+    CheckboxItem,
+    CheckboxPrompt,
+};
+use dialoguer::{
+    Error,
+    Result,
+};
 use std::io;
 
 #[derive(Default)]

@@ -1,7 +1,13 @@
 use super::TreeCtx;
-use crate::{NodeId, resolved_tree::LockedResolution};
+use crate::{
+    NodeId,
+    resolved_tree::LockedResolution,
+};
 use pnpm_deps_path::DepPath;
-use pnpm_lockfile::{BoundProviders, PkgNameVerPeer};
+use pnpm_lockfile::{
+    BoundProviders,
+    PkgNameVerPeer,
+};
 use std::collections::BTreeMap;
 
 pub(super) fn from_prior(ctx: &TreeCtx, key: &PkgNameVerPeer) -> Option<Box<LockedResolution>> {

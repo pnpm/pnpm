@@ -1,4 +1,9 @@
-use super::{HashMap, IndexMap, ReporterOptions, napi};
+use super::{
+    HashMap,
+    IndexMap,
+    ReporterOptions,
+    napi,
+};
 
 /// One importer: an absolute directory plus its in-memory manifest.
 #[napi(object)]

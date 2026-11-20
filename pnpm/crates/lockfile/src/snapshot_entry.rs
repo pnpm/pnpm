@@ -1,6 +1,16 @@
-use crate::{PkgName, RecordedPeerBindings, SnapshotDepRef};
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use crate::{
+    PkgName,
+    RecordedPeerBindings,
+    SnapshotDepRef,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 #[cfg(test)]
 mod tests;

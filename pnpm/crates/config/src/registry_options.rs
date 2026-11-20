@@ -1,10 +1,26 @@
 use super::{
-    Arc, AuditSettings, BTreeMap, BUILTIN_REGISTRIES_BY_PREFIX, Config, DEFAULT_CARGO_INDEX_URL,
-    DEFAULT_JSR_REGISTRY, DEFAULT_PYPI_INDEX_URL, Ecosystem, IndexMap, NeedsFullMetadataFor,
-    RegistryDeclaration, RegistryLookups, ResolutionMode, UpdateSettings, full_metadata_policy,
+    Arc,
+    AuditSettings,
+    BTreeMap,
+    BUILTIN_REGISTRIES_BY_PREFIX,
+    Config,
+    DEFAULT_CARGO_INDEX_URL,
+    DEFAULT_JSR_REGISTRY,
+    DEFAULT_PYPI_INDEX_URL,
+    Ecosystem,
+    IndexMap,
+    NeedsFullMetadataFor,
+    RegistryDeclaration,
+    RegistryLookups,
+    ResolutionMode,
+    UpdateSettings,
+    full_metadata_policy,
     registries,
 };
-use pnpm_lockfile::{DeclaredRegistryPrefixes, RegistryContext};
+use pnpm_lockfile::{
+    DeclaredRegistryPrefixes,
+    RegistryContext,
+};
 use std::collections::HashMap;
 
 impl Config {

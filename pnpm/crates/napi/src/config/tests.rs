@@ -1,12 +1,23 @@
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     path::Path,
-    sync::{Arc, Barrier},
+    sync::{
+        Arc,
+        Barrier,
+    },
     thread,
 };
 
 use super::{
-    ConfigOverlay, build_config, cache_key, config_cache, intern_config, overlay_default_registry,
+    ConfigOverlay,
+    build_config,
+    cache_key,
+    config_cache,
+    intern_config,
+    overlay_default_registry,
     pin_unkeyed_header,
 };
 

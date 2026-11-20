@@ -14,8 +14,16 @@ use std::borrow::Cow;
 
 use node_semver::Range;
 use partial::{
-    Component, FastToken, PartialVersion, canonical_strict_comparator, classify_fast_token,
-    inc_num, invalid_xrange_order, parse_xrange_plain, strip_build_substrings, strip_gtlt_operator,
+    Component,
+    FastToken,
+    PartialVersion,
+    canonical_strict_comparator,
+    classify_fast_token,
+    inc_num,
+    invalid_xrange_order,
+    parse_xrange_plain,
+    strip_build_substrings,
+    strip_gtlt_operator,
     trim_comparator_whitespace,
 };
 
