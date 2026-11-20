@@ -334,7 +334,8 @@ pub struct InstallLockfilePolicy {
     pub ignore_manifest_check: bool,
     /// Do not compare the settings the lockfile records with the current
     /// ones. A mismatch neither fails a frozen install nor makes the install
-    /// resolve again.
+    /// resolve again. The current overrides still apply to the project
+    /// manifests, so a changed override still makes them outdated.
     pub ignore_settings_check: bool,
     pub trust: bool,
     pub update_checksums: bool,

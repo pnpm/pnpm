@@ -161,9 +161,6 @@ fn lockfile_version(lockfile: &str) -> Option<&str> {
         })
 }
 
-/// `ignoreLockfileSettingsChecks` keeps a lockfile whose recorded settings no
-/// longer match the configuration: a frozen install accepts it, and any other
-/// install reuses it as-is.
 #[test]
 fn ignore_lockfile_settings_checks_keeps_a_lockfile_with_mismatched_settings() {
     let temp_dir = tempfile::tempdir().expect("tempdir");
