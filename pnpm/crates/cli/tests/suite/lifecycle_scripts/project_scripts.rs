@@ -1072,11 +1072,22 @@ mod dev_preinstall {
 
         let path = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
         let entries: Vec<std::path::PathBuf> = std::env::split_paths(&path).collect();
-        assert!(entries.contains(&workspace.join("node_modules").join(".bin")), "PATH: {path}");
+        // Compared by trailing components: the PATH may spell the temp dir
+        // differently, such as through `/private` on macOS.
+        let root_bin = std::path::Path::new("workspace").join("node_modules").join(".bin");
+        let member_bin = member_dirs[0].join("node_modules").join(".bin");
+        let member_bin =
+            member_bin.strip_prefix(&workspace).expect("the member is inside the workspace");
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.ends_with(&root_bin)),
+            "PATH: {path}",
+        );
         assert!(
             !entries
                 .iter()
-                .any(|entry| entry.starts_with(&member_dirs[0])),
+                .any(|entry| entry.ends_with(member_bin)),
             "PATH: {path}",
         );
         drop((root, mock_instance));
@@ -1117,7 +1128,7 @@ mod dev_preinstall {
         );
         assert!(
             combined.contains("ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED")
-                && combined.contains("exit status: 7")
+                && combined.contains("process.exit(7)")
                 && !combined.contains("stopped at another workspace project's failure"),
             "{combined}",
         );
