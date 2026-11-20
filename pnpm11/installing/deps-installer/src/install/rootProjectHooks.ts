@@ -25,7 +25,7 @@ export type RootHookOptionsSource = Partial<Pick<ProcessedInstallOptions,
  * opened its context.
  */
 export async function createRootHookOptions (lockfileDir: string, opts: RootHookOptionsSource): Promise<RunLifecycleHookOptions> {
-  const rootModulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
+  const rootModulesDir = path.resolve(lockfileDir, opts.modulesDir ?? 'node_modules')
   return {
     depPath: lockfileDir,
     extraBinPaths: opts.extraBinPaths,

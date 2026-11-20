@@ -944,8 +944,6 @@ mod dev_preinstall {
         drop((root, mock_instance));
     }
 
-    /// Write a `sharedWorkspaceLockfile: false` workspace whose root and
-    /// members each define `pnpm:devPreinstall`. Returns the member dirs.
     fn write_dedicated_workspace_with_hooks(
         workspace: &std::path::Path,
     ) -> Vec<std::path::PathBuf> {
@@ -960,22 +958,29 @@ mod dev_preinstall {
         )
         .expect("write pnpm-workspace.yaml");
 
-        let manifest = |name: &str| {
-            serde_json::json!({
-                "name": name,
-                "version": "1.0.0",
-                "scripts": { "pnpm:devPreinstall": append_order_script(name) },
-            })
-            .to_string()
+        let manifest = |name: &str, scripts: serde_json::Value| {
+            serde_json::json!({ "name": name, "version": "1.0.0", "scripts": scripts }).to_string()
         };
-        fs::write(workspace.join("package.json"), manifest("root"))
-            .expect("write the root package.json");
+        fs::write(
+            workspace.join("package.json"),
+            manifest(
+                "root",
+                serde_json::json!({ "pnpm:devPreinstall": append_order_script("root") }),
+            ),
+        )
+        .expect("write the root package.json");
         ["member-a", "member-b"]
             .into_iter()
             .map(|name| {
                 let member_dir = workspace.join("packages").join(name);
                 fs::create_dir_all(&member_dir).expect("create the member dir");
-                fs::write(member_dir.join("package.json"), manifest(name))
+                fs::write(member_dir.join("package.json"), manifest(
+                        name,
+                        serde_json::json!({
+                            "pnpm:devPreinstall": append_order_script(name),
+                            "preinstall": r#"node -e "require('fs').accessSync('../../order.txt')""#,
+                        }),
+                    ))
                     .expect("write the member package.json");
                 member_dir
             })
@@ -1037,6 +1042,47 @@ mod dev_preinstall {
     }
 
     #[test]
+    fn runs_the_workspace_roots_script_with_the_roots_bin_dir_when_a_member_reaches_it_first() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let member_dirs = write_dedicated_workspace_with_hooks(&workspace);
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "name": "root",
+                "version": "1.0.0",
+                "scripts": {
+                    "pnpm:devPreinstall": r#"node -e "require('fs').writeFileSync('order.txt', process.env.PATH)""#,
+                },
+            })
+            .to_string(),
+        )
+        .expect("write the root package.json");
+
+        pacquet
+            .with_args(["--filter", "member-a", "install"])
+            .assert()
+            .success();
+
+        let path = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        let entries: Vec<std::path::PathBuf> = std::env::split_paths(&path).collect();
+        assert!(entries.contains(&workspace.join("node_modules").join(".bin")), "PATH: {path}");
+        assert!(
+            !entries
+                .iter()
+                .any(|entry| entry.starts_with(&member_dirs[0])),
+            "PATH: {path}",
+        );
+        drop((root, mock_instance));
+    }
+
+    #[test]
     fn reports_the_failure_of_the_workspace_roots_script_when_shared_workspace_lockfile_is_false() {
         let CommandTempCwd {
             pacquet,
@@ -1064,12 +1110,16 @@ mod dev_preinstall {
             .expect("run pacquet install");
 
         assert!(!output.status.success());
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
         assert!(
-            !stderr.contains("stopped at another workspace project's failure")
-                && !stdout.contains("stopped at another workspace project's failure"),
-            "stdout: {stdout}\nstderr: {stderr}",
+            combined.contains("ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED")
+                && combined.contains("exit status: 7")
+                && !combined.contains("stopped at another workspace project's failure"),
+            "{combined}",
         );
         drop((root, mock_instance));
     }

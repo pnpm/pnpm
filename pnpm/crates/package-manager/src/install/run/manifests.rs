@@ -258,16 +258,23 @@ fn run_dev_preinstall_if_needed<Reporter: self::Reporter>(
     if !scope.scripts.include_dev || scope.ignore_manifest_check || dev_preinstall_already_ran() {
         return Ok(());
     }
-    let run_at = |root: &Path| {
-        run_root_hook(scope.config, root, pnpm_executor::run_dev_preinstall_hook::<Reporter>)
+    let run_at = |config: &Config, root: &Path| {
+        run_root_hook(config, root, pnpm_executor::run_dev_preinstall_hook::<Reporter>)
     };
     match scope.dedicated_dev_preinstall {
         Some(shared) => pnpm_deps_restorer::block_in_place_if_multi_thread(|| {
             shared.run_once(|| {
-                run_at(scope.config.workspace_dir.as_deref().unwrap_or(scope.workspace_root))
+                let root = scope.config.workspace_dir.as_deref().unwrap_or(scope.workspace_root);
+                // The install's config is anchored at its own project, which
+                // may be a member. The hook needs the root's modules dir.
+                let mut root_config = scope.config.clone();
+                root_config.anchor_lockfile_paths(root);
+                run_at(&root_config, root)
             })
         }),
-        None if root_defines(DEV_PREINSTALL_STAGE) => run_at(scope.workspace_root).map(drop),
+        None if root_defines(DEV_PREINSTALL_STAGE) => {
+            run_at(scope.config, scope.workspace_root).map(drop)
+        }
         None => Ok(()),
     }
 }

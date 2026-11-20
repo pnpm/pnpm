@@ -2916,3 +2916,34 @@ test('pnpm:devPreinstall is skipped when shared-workspace-lockfile is false and 
 
   expect(fs.existsSync('order.txt')).toBe(false)
 })
+
+test('pnpm:devPreinstall is skipped when shared-workspace-lockfile is false and --dry-run is used', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['install', '--dry-run'])
+
+  expect(fs.existsSync('order.txt')).toBe(false)
+})
