@@ -299,7 +299,7 @@ fn a_v13_lockfile_without_the_settings_needs_a_regular_install() {
                 .iter()
                 .any(|key| {
                     line.trim_start()
-                        .starts_with(&format!("\"{key}\""))
+                        .starts_with(&format!(r#""{key}""#))
                 })
         })
         .collect::<Vec<_>>()
