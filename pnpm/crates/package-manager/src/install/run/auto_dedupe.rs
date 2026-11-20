@@ -101,7 +101,7 @@ impl Settled<'_, '_> {
     /// `pnpmfileChecksum`, so a hook the resolution ran could have changed it.
     fn lockfile_records_auto_dedupe(self) -> bool {
         let config = self.install.context.config;
-        config.lockfile_include_resolution_settings
+        config.lockfile_records_resolution_settings()
             && !config.ignore_pnpmfile
             && self.lockfiles.wanted.loaded.is_some_and(|lockfile| {
                 lockfile.settings
@@ -129,7 +129,7 @@ pub(super) fn suggest_recording_auto_dedupe<Reporter: self::Reporter>(
     if take_frozen_path
         || !config.auto_dedupe
         || !config.lockfile
-        || config.lockfile_include_resolution_settings
+        || config.lockfile_records_resolution_settings()
         || settled.install.execution.dry_run
     {
         return;

@@ -5,10 +5,10 @@ use serde::{
 };
 use serde_json::Value;
 
-/// The settings `lockfile.includeResolutionSettings` records in the
-/// lockfile's `settings`. Each one changes what a resolution writes, so a
-/// lockfile resolved under other values is outdated. Every field is unset
-/// unless that setting is on.
+/// The settings the lockfile's `settings` records under
+/// `lockfile.includeResolutionSettings` or `lockfile.format: v13`. Each one
+/// changes what a resolution writes, so a lockfile resolved under other
+/// values is outdated. Every field is unset when neither is on.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolutionSettings {

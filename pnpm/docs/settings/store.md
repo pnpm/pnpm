@@ -216,6 +216,8 @@ A lockfile that records other values than the current settings is outdated. `pnp
 
 With `autoDedupe`, an install reuses a lockfile that records `autoDedupe: true` when nothing else changed. This also holds on a machine that did not write the lockfile, such as a server that runs `pnpm install --frozen-lockfile` and then `pnpm run`.
 
+The [`v13` format](#lockfileformat) always records these settings.
+
 pnpm v11 and earlier v12 versions do not keep these settings and remove them when they rewrite the lockfile. pnpm v12 versions before v12.10.0 fail to read a `pnpm-workspace.yaml` that sets `lockfile` to an object. Turn this setting on when everyone working on the project uses v12.10.0 or later.
 
 This setting needs local dependency resolution, so an install that is not frozen fails when `pnprServer` is set.
@@ -277,12 +279,15 @@ The format differs from today's in these ways:
 - A project that a `workspace:` dependency links to records its `name`.
 - The hash of a patched package is recorded once, under `patchedDependencies`. A package's deprecation message is not recorded.
 - The `settings` section holds everything the lockfile records from `pnpm-workspace.yaml`: the resolution settings, `catalogs`, `overrides`, `patchedDependencies`, `ignoredOptionalDependencies` and the two checksums. A catalog entry is its specifier alone when the version follows from it.
+- The resolution settings include the ones [`lockfile.includeResolutionSettings`](#lockfileincluderesolutionsettings) lists, whatever that setting says.
 
 When a peer dependency is updated, only the lines that record it change.
 
 #### Reading and writing the format
 
 pnpm reads lockfiles in both formats whatever this setting is. It writes the format this setting names whenever it resolves dependencies, and when you run `pnpm install --lockfile-only`. Versions of pnpm without this setting cannot read a lockfile in the `v13` format. The format is still changing, so a lockfile written with this setting may need regenerating with a later pnpm.
+
+The `v13` format records the [resolution settings](#lockfileincluderesolutionsettings). The next install resolves again a lockfile that does not record them yet, such as a `v9` lockfile written without `lockfile.includeResolutionSettings`, or a `v13` lockfile written by an earlier pnpm. `pnpm install --frozen-lockfile` fails on such a lockfile until a regular install records them. An install that is not frozen fails when `pnprServer` is set, because pnpr does not receive these settings.
 
 The boot document that records config dependencies and the pinned pnpm version follows the pinned pnpm, not this setting. While the project pins pnpm 13 or earlier, it keeps today's format, so that a pnpm from before this format can read the pinned version and switch to it. A project that pins pnpm 14 or later gets a boot document in the `v13` format.
 

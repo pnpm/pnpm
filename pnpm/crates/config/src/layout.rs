@@ -108,6 +108,16 @@ impl Config {
         self.lockfile_dir.is_some() || self.shared_workspace_lockfile
     }
 
+    /// Whether the lockfile records the resolution settings
+    /// ([`pnpm_lockfile::ResolutionSettings`]). The `v13` format always does.
+    /// The `v9` format does when [`Self::lockfile_include_resolution_settings`]
+    /// is on, since older pnpm versions drop the keys from a `v9` lockfile.
+    #[must_use]
+    pub fn lockfile_records_resolution_settings(&self) -> bool {
+        self.lockfile_include_resolution_settings
+            || self.lockfile_format == pnpm_lockfile::LockfileFormat::V13
+    }
+
     /// Whether [`Self::project_scoped_optional_peers`] changes a resolution.
     /// It has no effect while [`Self::dedupe_peer_dependents`] is off,
     /// because optional peers are then project-scoped already.

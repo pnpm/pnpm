@@ -45,7 +45,7 @@ pub(super) struct AutoDedupeWithPnpr;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
-    "Recording resolution settings in the lockfile requires local dependency resolution. Remove pnprServer or set lockfile.includeResolutionSettings to false."
+    "Recording resolution settings in the lockfile requires local dependency resolution. Remove pnprServer, or set lockfile.includeResolutionSettings to false and lockfile.format to v9."
 )]
 #[diagnostic(code(ERR_PNPM_RESOLUTION_SETTINGS_WITH_PNPR_SERVER))]
 pub(super) struct ResolutionSettingsWithPnpr;
@@ -64,7 +64,7 @@ pub(super) fn validate_pnpr_config(
     if config.auto_dedupe && !frozen {
         return Err(AutoDedupeWithPnpr.into());
     }
-    if config.lockfile_include_resolution_settings && !frozen {
+    if config.lockfile_records_resolution_settings() && !frozen {
         return Err(ResolutionSettingsWithPnpr.into());
     }
     if config.lockfile_integrity_target != pnpm_lockfile::IntegrityTarget::Resource && !frozen {

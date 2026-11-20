@@ -322,13 +322,13 @@ pub(crate) fn registry_keys_current(
 
 /// The `autoDedupe` an install records in the workspace state.
 ///
-/// With `lockfile.includeResolutionSettings`, the lockfile records
+/// When [`Config::lockfile_records_resolution_settings`], the lockfile records
 /// `autoDedupe` and its freshness check holds that value to the config, so
 /// every install that kept the lockfile records the config's value.
 /// Otherwise only a resolving install establishes the dedupe baseline, and
 /// `established` is what this write knows of it.
 pub(crate) fn recorded_auto_dedupe(config: &Config, established: Option<bool>) -> Option<bool> {
-    if config.lockfile && config.lockfile_include_resolution_settings {
+    if config.lockfile && config.lockfile_records_resolution_settings() {
         return config.auto_dedupe.then_some(true);
     }
     established

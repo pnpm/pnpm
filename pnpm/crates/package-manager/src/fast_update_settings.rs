@@ -42,10 +42,10 @@ pub(crate) fn lockfile_settings_from_config(config: &Config) -> LockfileSettings
     }
 }
 
-/// The values `lockfile.includeResolutionSettings` records, all unset when
-/// that setting is off.
+/// The resolution settings the lockfile records, all unset unless
+/// [`Config::lockfile_records_resolution_settings`].
 pub(crate) fn resolution_settings_from_config(config: &Config) -> ResolutionSettings {
-    if !config.lockfile_include_resolution_settings {
+    if !config.lockfile_records_resolution_settings() {
         return ResolutionSettings::default();
     }
     ResolutionSettings {
