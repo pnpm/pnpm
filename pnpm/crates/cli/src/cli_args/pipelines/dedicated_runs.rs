@@ -34,7 +34,10 @@ use crate::{
     },
     state::DedicatedCaches,
 };
-use pnpm_package_manager::{InstallError, WorkspaceDependenciesInstalled};
+use pnpm_package_manager::{
+    InstallError,
+    WorkspaceDependenciesInstalled,
+};
 use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions,
     TaskCompletion,
