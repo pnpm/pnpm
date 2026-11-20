@@ -59,6 +59,10 @@ jobs:
       with:
         update-deps: latest
         refresh-lockfile: true
+        # js-yaml 5 has no default export and dumps YAML differently. The
+        # catalog range also feeds the `js-yaml@^4.0.0` override, so bumping
+        # it forces read-yaml-file and the lockfile writer onto v5.
+        exclude: js-yaml
         github-actions: true
         update-pnpm: next-12
         # Follow next-12 as soon as a release is published: pnpm 12's default
