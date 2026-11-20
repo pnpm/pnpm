@@ -84,13 +84,10 @@ export async function installConfigDepsAndLoadHooks (
   opts?: {
     tolerateConfigDependenciesErrors?: boolean
     reconcileConfigDependencies?: boolean
-    // Set by `self-update`: don't auto-load the repo-controlled default
-    // `.pnpmfile.(c|m)js`. Its `updateConfig` hook could rewrite any setting —
-    // including the release-age policy the config reader just resolved for
-    // self-update — and its `customResolvers`/`customFetchers` would take over
-    // the pnpm download the trusted bootstrap registry is there to protect.
-    // Pnpmfiles from trusted sources (the `pnpmfile` setting, the global
-    // pnpmfile, config-dependency plugins) are still loaded.
+    // Set by `self-update`, `dlx`, and `create`: don't auto-load a
+    // repo-controlled default `.pnpmfile.(c|m)js`. Pnpmfiles from trusted
+    // sources (the `pnpmfile` setting, the global pnpmfile, config-dependency
+    // plugins) are still loaded.
     forSelfUpdate?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {

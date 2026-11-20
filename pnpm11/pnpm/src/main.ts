@@ -167,7 +167,7 @@ async function readCommandConfig (
   ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
     tolerateConfigDependenciesErrors: isConfigCommand,
     reconcileConfigDependencies: cmd != null && configDependencyReconciliationCommands.has(cmd),
-    forSelfUpdate: cmd === 'self-update',
+    forSelfUpdate: cmd === 'self-update' || cmd === 'dlx' || cmd === 'create',
   }) as LoadedConfig)
   applyInvocationToConfig(config, parsedCliArgs)
   return { config, context }

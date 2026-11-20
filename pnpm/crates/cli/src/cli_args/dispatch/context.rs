@@ -63,6 +63,10 @@ pub(crate) struct WorkspaceInvocation<'a> {
 
 pub(crate) struct CommandLoaders<'a> {
     pub(crate) config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
+    /// Like [`Self::config`] but restricted to the local settings `dlx` and
+    /// `create` inherit from the caller's `.npmrc` and `pnpm-workspace.yaml`
+    /// ([`pnpm_config::CommandTarget::Dlx`]), preserving user global config.
+    pub(crate) dlx_config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     /// Like [`Self::config`] but anchored at the pnpm home dir instead of
     /// `--dir`, so a `-g` install can't inherit the caller project's
     /// `.npmrc` network / TLS / registry settings.
@@ -154,11 +158,12 @@ impl<'a> From<&'a crate::cli_args::cli_command::CliWorkspaceArgs> for WorkspaceI
 
 pub(super) fn take_preloaded_config(
     preloaded_config: &Mutex<Option<Result<Config, ConfigLoadFailure>>>,
-    anchor: &Path,
-    is_global: bool,
+    target: &super::ConfigTarget<'_>,
     local_dir: &Path,
 ) -> Option<Result<Config, ConfigLoadFailure>> {
-    (!is_global && anchor == local_dir)
+    (!target.is_global
+        && target.command_target == pnpm_config::CommandTarget::Project
+        && target.anchor == local_dir)
         .then(|| {
             preloaded_config
                 .lock()

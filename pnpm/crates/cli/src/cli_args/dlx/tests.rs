@@ -994,3 +994,68 @@ fn get_valid_cache_dir_accepts_a_junction() {
         Some(dunce::canonicalize(current).expect("canonical cache path")),
     );
 }
+
+#[test]
+fn create_cache_key_changes_with_ignore_scripts() {
+    let pkgs = ["cowsay".to_string()];
+    let registries = regs("https://registry.npmjs.org/");
+    let default_key = create_cache_key(&CacheKeyInputs::new(&pkgs, &registries));
+    let ignored_policy_key = create_cache_key(&CacheKeyInputs {
+        policy: CachePolicyInputs { ignore_scripts: true, ..CachePolicyInputs::default() },
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
+    assert_ne!(ignored_policy_key, default_key, "ignoreScripts=true must not share the built key");
+
+    let mut config = Config::default();
+    let config_default_key = create_cache_key(&CacheKeyInputs {
+        policy: CachePolicyInputs::from_config(&config),
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
+    config.ignore_scripts = true;
+    let config_ignored_key = create_cache_key(&CacheKeyInputs {
+        policy: CachePolicyInputs::from_config(&config),
+        ..CacheKeyInputs::new(&pkgs, &registries)
+    });
+    assert_ne!(config_ignored_key, config_default_key);
+}
+
+#[test]
+fn resolve_local_package_spec_anchors_dot_relative_specs_against_caller_dir() {
+    use crate::cli_args::package_spec::resolve_local_package_spec;
+
+    let caller = Path::new("/caller/sub");
+    assert_eq!(
+        resolve_local_package_spec("./my-cli", caller),
+        pnpm_fs::lexical_normalize(&caller.join("my-cli")).display().to_string(),
+    );
+    assert_eq!(
+        resolve_local_package_spec("../my-cli.tgz", caller),
+        pnpm_fs::lexical_normalize(Path::new("/caller/my-cli.tgz")).display().to_string(),
+    );
+    assert_eq!(
+        resolve_local_package_spec("file:./my-cli", caller),
+        format!("file:{}", pnpm_fs::lexical_normalize(&caller.join("my-cli")).display()),
+    );
+    assert_eq!(
+        resolve_local_package_spec("my-alias@file:./my-cli", caller),
+        format!("my-alias@file:{}", pnpm_fs::lexical_normalize(&caller.join("my-cli")).display()),
+    );
+    assert_eq!(resolve_local_package_spec("cowsay@1.0.0", caller), "cowsay@1.0.0");
+    assert_eq!(
+        resolve_local_package_spec("http://127.0.0.1:8080/my-cli.tgz", caller),
+        "http://127.0.0.1:8080/my-cli.tgz",
+    );
+    #[cfg(windows)]
+    {
+        let win_caller = Path::new(r"C:\caller\sub");
+        assert_eq!(resolve_local_package_spec(r".\my-cli", win_caller), r"C:\caller\sub\my-cli");
+        assert_eq!(
+            resolve_local_package_spec(r"..\my-cli.tgz", win_caller),
+            r"C:\caller\my-cli.tgz",
+        );
+        assert_eq!(
+            resolve_local_package_spec(r"my-alias@file:.\my-cli", win_caller),
+            r"my-alias@file:C:\caller\sub\my-cli",
+        );
+    }
+}

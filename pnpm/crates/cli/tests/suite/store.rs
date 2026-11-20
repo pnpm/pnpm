@@ -1323,6 +1323,9 @@ fn store_prune_reclaims_packages_of_an_expired_dlx_cache_entry() {
     } = CommandTempCwd::init().add_mocked_registry();
     _utils::append_workspace_yaml_key(&workspace, "packageImportMethod", "hardlink");
     pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
+        .with_env("PNPM_CONFIG_PACKAGE_IMPORT_METHOD", "hardlink")
         .with_args(["dlx", "--package=is-positive@1.0.0", "node", "-e", "0"])
         .assert()
         .success();
