@@ -34,7 +34,7 @@ The command exits with code `1` when an advisory at or above the [audit level](#
 pnpm audit signatures
 ```
 
-Verifies the ECDSA registry signatures of installed packages against the public keys published by each registry at `/-/npm/v1/keys`. Scoped registries configured via [`registries`](../settings/dependency-resolution.md#registries) are respected; registries that don't publish signing keys are skipped.
+Verifies the ECDSA registry signatures of installed registry packages against the public keys each registry publishes at `/-/npm/v1/keys`. pnpm respects scoped and prefix-routed registries configured via [`registries`](../settings/dependency-resolution.md#registries), and skips registries that do not publish signing keys as well as tarball, git, and directory dependencies.
 
 Signatures are verified against the package integrity recorded in the lockfile. A package without recorded integrity cannot pass verification.
 

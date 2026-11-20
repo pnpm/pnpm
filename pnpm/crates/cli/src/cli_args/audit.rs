@@ -3,7 +3,9 @@ pub(crate) use fix::{
     filter_advisories_for_fix, fix_with_update, format_fix_with_update_output,
     ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
 };
-pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
+pub(crate) use paths::{
+    AuditPathIndex, PathInfo, build_audit_path_index, package_semver, package_version,
+};
 pub(crate) use render::{
     blue, bold, color_severity, green, red, render_json_report, render_text_report,
 };
@@ -14,7 +16,7 @@ pub(crate) use report::{
 pub(crate) use request::{
     AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include, classify_graph,
     empty_packages, empty_snapshots, env_roots, importer_roots, lockfile_to_audit_request,
-    root_included,
+    root_included, walk_reachable,
 };
 pub(crate) use version_ranges::{
     infer_patched_versions, is_range_subset, min_version_from_range, patched_range_for_style,
@@ -35,7 +37,7 @@ use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 #[cfg(not(target_family = "wasm"))]
 use dialoguer::MultiSelect;
-use importers::{select_audited_importers, signature_packages};
+use importers::{load_audited_lockfiles, locked_package_registries, signature_packages};
 use jiff::Timestamp;
 
 use miette::{Diagnostic, IntoDiagnostic};
@@ -238,7 +240,7 @@ impl AuditArgs {
         let settings_dir =
             state.config.workspace_dir.clone().unwrap_or_else(|| lockfile_dir.clone());
 
-        let Some(mut report) =
+        let Some((mut report, package_registries)) =
             self.fetch_report(&state, include, audit_level, &lockfile_dir).await?
         else {
             return Ok(AuditOutcome::Clean);
@@ -249,6 +251,7 @@ impl AuditArgs {
         // the age-gate exclusion check.
         let publish_infos = correct_inferred_patched_versions(
             &mut report,
+            &package_registries,
             state.config,
             state.http_client.as_ref(),
         )
@@ -336,19 +339,11 @@ impl AuditArgs {
         include: Include,
         audit_level: ConfigAuditLevel,
         lockfile_dir: &std::path::Path,
-    ) -> miette::Result<Option<AuditReport>> {
-        let lockfile = state.lockfile
-            .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
-        let Some(lockfile) = lockfile else {
-            return Err(AuditError::NoLockfile.into());
-        };
-        let Some(lockfile) = select_audited_importers(state, lockfile)? else {
+    ) -> miette::Result<Option<(AuditReport, HashMap<String, String>)>> {
+        let Some((lockfile, env_lockfile)) = load_audited_lockfiles(state, lockfile_dir)? else {
             return Ok(None);
         };
         let lockfile = lockfile.as_ref();
-        let env_lockfile = EnvLockfile::read(lockfile_dir)
-            .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
         match audit(
             lockfile,
             env_lockfile.as_ref(),
@@ -358,7 +353,15 @@ impl AuditArgs {
         )
         .await
         {
-            Ok(report) => Ok(Some(report)),
+            Ok(report) => {
+                let registries = locked_package_registries(
+                    lockfile,
+                    env_lockfile.as_ref(),
+                    include,
+                    state.config,
+                );
+                Ok(Some((report, registries)))
+            }
             Err(err) if self.ignore_registry_errors => {
                 pnpm_diagnostics::eprintln!("{err}");
                 let _ = std::io::stderr().flush();

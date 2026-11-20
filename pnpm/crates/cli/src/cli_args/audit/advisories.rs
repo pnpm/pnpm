@@ -88,6 +88,7 @@ fn parse_bulk_advisories(
 /// the age-gate exclusion check instead of re-fetching each packument.
 pub(super) async fn correct_inferred_patched_versions(
     report: &mut AuditReport,
+    package_registries: &HashMap<String, String>,
     config: &Config,
     http_client: &pnpm_network::ThrottledClient,
 ) -> HashMap<String, Option<PackumentPublishInfo>> {
@@ -106,7 +107,10 @@ pub(super) async fn correct_inferred_patched_versions(
     let fetches = names
         .into_iter()
         .map(|name| {
-            let registry = pick_registry_for_package(&registries, name, None);
+            let registry = package_registries
+                .get(name)
+                .cloned()
+                .unwrap_or_else(|| pick_registry_for_package(&registries, name, None));
             async move {
                 (name.to_string(), fetch_publish_times(name, &registry, config, http_client).await)
             }
@@ -114,20 +118,27 @@ pub(super) async fn correct_inferred_patched_versions(
     let publish_infos: HashMap<String, Option<PackumentPublishInfo>> =
         futures_util::future::join_all(fetches).await.into_iter().collect();
     for advisory in report.advisories.values_mut() {
-        let Some(patched) = advisory.patched_versions.as_deref() else { continue };
-        let Some(Some(info)) = publish_infos.get(advisory.module_name.trim()) else { continue };
-        let Ok(range) = patched.parse::<Range>() else { continue };
-        match info.lowest_non_deprecated_version(&range) {
-            None => {
-                advisory.patched_versions = None;
-                advisory.patched_versions_unpublished = Some(true);
-            }
-            Some((_, lowest)) => {
-                advisory.patched_versions = Some(format!(">={lowest}"));
-            }
-        }
+        apply_publish_info(advisory, &publish_infos);
     }
     publish_infos
+}
+
+fn apply_publish_info(
+    advisory: &mut super::AuditAdvisory,
+    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+) {
+    let Some(patched) = advisory.patched_versions.as_deref() else { return };
+    let Some(Some(info)) = publish_infos.get(advisory.module_name.trim()) else { return };
+    let Ok(range) = patched.parse::<Range>() else { return };
+    match info.lowest_non_deprecated_version(&range) {
+        None => {
+            advisory.patched_versions = None;
+            advisory.patched_versions_unpublished = Some(true);
+        }
+        Some((_, lowest)) => {
+            advisory.patched_versions = Some(format!(">={lowest}"));
+        }
+    }
 }
 
 impl<'a> AuditGraph<'a> {

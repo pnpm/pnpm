@@ -1,8 +1,9 @@
 use super::{
     Arc, AuditAdvisory, AuditError, BTreeMap, DependencyGroup, HashMap, HashSet, Lockfile,
     PackageVersionGuard, PackumentPublishInfo, Range, RangeSpecStyle, Reporter, ResolutionObserver,
-    State, Update, Version, blue, color_severity, green, red, resolve_minimum_release_age_excludes,
-    satisfies_including_prerelease, severity_name, severity_number, write_age_excludes,
+    State, Update, Version, blue, color_severity, green, package_semver, red,
+    resolve_minimum_release_age_excludes, satisfies_including_prerelease, severity_name,
+    severity_number, write_age_excludes,
 };
 use crate::cli_args::audit::{ReleaseAgeExclusions, patched_range_for_style, report::AdvisoryId};
 use pnpm_resolving_deps_resolver::UpdateTargets;
@@ -146,22 +147,26 @@ fn persist_age_excludes(
 }
 
 /// Every still-installed package name, regardless of how its lockfile
-/// key is shaped, plus the subset whose key parses as semver — the only
-/// ones a vulnerable range can be checked against.
+/// key is shaped, plus the subset with a semver version that a vulnerable
+/// range can be checked against.
 fn installed_packages(updated: &Lockfile) -> InstalledPackages {
     let mut installed = InstalledPackages { names: HashSet::new(), versions: HashMap::new() };
+    let packages = updated.packages.as_ref();
     for key in updated.snapshots
         .iter()
         .flatten()
         .map(|(key, _)| key)
     {
+        if key.suffix.prefix() == pnpm_lockfile::Prefix::Runtime {
+            continue;
+        }
         let name = key.name.to_string();
         installed.names.insert(name.clone());
-        if let Some(version) = key.suffix.version_semver() {
+        if let Some(version) = package_semver(key, packages) {
             installed.versions
                 .entry(name)
                 .or_default()
-                .push(version.clone());
+                .push(version);
         }
     }
     installed
@@ -407,6 +412,7 @@ fn vulnerable_locked_versions(
     vulnerabilities: &HashMap<String, Vec<(AdvisoryId, Range)>>,
 ) -> UpdateTargets {
     let mut targets = UpdateTargets::default();
+    let packages = lockfile.and_then(|lockfile| lockfile.packages.as_ref());
     for key in lockfile
         .and_then(|lockfile| lockfile.snapshots.as_ref())
         .into_iter()
@@ -415,12 +421,12 @@ fn vulnerable_locked_versions(
     {
         let name = key.name.to_string();
         let (Some(version), Some(entries)) =
-            (key.suffix.version_semver(), vulnerabilities.get(&name))
+            (package_semver(key, packages), vulnerabilities.get(&name))
         else {
             continue;
         };
-        if entries.iter().any(|(_, range)| satisfies_including_prerelease(version, range)) {
-            targets.insert_version(name, version.clone());
+        if entries.iter().any(|(_, range)| satisfies_including_prerelease(&version, range)) {
+            targets.insert_version(name, version);
         }
     }
     targets

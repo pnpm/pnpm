@@ -6,7 +6,7 @@ use super::{
         format_fix_with_update_output, minimum_release_age_excludes, overrides::create_overrides,
         prune_subsumed_advisories,
     },
-    paths::{AuditPathIndex, PathInfo, build_audit_path_index},
+    paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version},
     render::{render_json_report, render_text_report},
     report::{
         AdvisoryId, AuditAdvisory, AuditFinding, AuditMetadata, AuditReport,
@@ -772,6 +772,8 @@ fn deprecate(
 }
 
 mod dependency_paths;
+
+mod dependency_sources;
 
 mod remediation;
 

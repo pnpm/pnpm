@@ -31,14 +31,16 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// One installed package to check, already routed to the registry it was
 /// installed from.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct SignaturePackage {
+    pub name: String,
+    pub version: String,
+    pub registry: String,
+    pub package_id: String,
     pub integrity: Option<String>,
     /// Whether `integrity` is the hash of the package's tar, which no
     /// registry signature covers directly.
     pub pins_tar: bool,
-    pub name: String,
-    pub registry: String,
-    pub version: String,
 }
 
 /// A package that failed (or lacks) signature verification. JSON-serialized
@@ -354,7 +356,7 @@ fn issue(
 ) -> SignatureIssue {
     SignatureIssue {
         name: pkg.name.clone(),
-        registry: pkg.registry.clone(),
+        registry: redact_url_credentials(&pkg.registry),
         version: pkg.version.clone(),
         integrity,
         reason,

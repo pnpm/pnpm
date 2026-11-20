@@ -13,7 +13,7 @@ use super::{
     DependencyGroup, Deserialize, FixContext, HashMap, HashSet, IntoDiagnostic, Lockfile,
     MultiSelect, PackageVersionGuard, Range, RangeSpecStyle, ReleaseAgeExclusions, Reporter,
     ResolutionObserver, State, Timestamp, Update, Version, blue, color_severity,
-    encode_package_name, green, normalize_ghsa_id, parse_packument_timestamp, red,
+    encode_package_name, green, normalize_ghsa_id, package_semver, parse_packument_timestamp, red,
     satisfies_including_prerelease, send_with_retry, severity_name, severity_number,
 };
 use pnpm_network::{normalize_registry_url, redact_url_credentials};
