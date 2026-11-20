@@ -63,7 +63,7 @@ Since v11.22.0, `pnpm config set` refuses to write a setting to a project's `pnp
 
 ### get &lt;key>
 
-Print the config value for the provided key.
+Print the config value for the provided key or property path.
 
 The `key` can be a simple key:
 

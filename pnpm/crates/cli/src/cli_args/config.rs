@@ -87,7 +87,7 @@ impl ConfigArgs {
 pub enum ConfigSubcommand {
     /// Set the config key to the value provided.
     Set(ConfigSetArgs),
-    /// Print the config value for the provided key.
+    /// Print the config value for the provided key or property path.
     Get(ConfigGetArgs),
     /// Remove the config key from the config file.
     Delete(ConfigDeleteArgs),

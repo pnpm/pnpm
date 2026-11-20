@@ -63,7 +63,7 @@ The `set` command does not accept a property path.
 
 ### get &lt;key>
 
-Print the config value for the provided key. Strings, numbers, and booleans are printed as plain text, objects and arrays as JSON, and an unset key as `undefined`. With `--json`, every value is printed as JSON.
+Print the config value for the provided key or property path. Strings, numbers, and booleans are printed as plain text, objects and arrays as JSON, and an unset key as `undefined`. With `--json`, every value is printed as JSON.
 
 The `key` can be a simple key:
 
