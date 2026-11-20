@@ -202,13 +202,13 @@ fn requote_in_place(literal: &CstStringLit, text: &str) {
 }
 
 /// The properties of `object` by decoded name, looked up once so a save
-/// does not rescan the object for every key. The first of duplicate names
-/// wins, as with [`CstObject::get`].
+/// does not rescan the object for every key. The last of duplicate names
+/// wins, as it does when the manifest is read.
 fn properties_by_name(object: &CstObject) -> HashMap<String, CstObjectProp> {
     let mut properties = HashMap::new();
     for property in object.properties() {
         if let Some(name) = property.decoded_name() {
-            properties.entry(name).or_insert(property);
+            properties.insert(name, property);
         }
     }
     properties

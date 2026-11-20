@@ -126,6 +126,14 @@ fn grows_and_shrinks_arrays_in_place() {
 }
 
 #[test]
+fn edits_the_last_of_duplicate_keys_as_the_reader_does() {
+    let edited = edit("{\n  version: '1.0.0',\n  version: '1.0.1',\n}", |value| {
+        value["version"] = json!("2.0.0");
+    });
+    assert_eq!(edited, "{\n  version: '1.0.0',\n  version: '2.0.0',\n}");
+}
+
+#[test]
 fn returns_none_for_json5_the_cst_cannot_parse() {
     let source = "{null_value: 1}";
     let original = parse(source).unwrap();
