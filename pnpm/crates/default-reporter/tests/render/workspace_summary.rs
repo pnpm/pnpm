@@ -280,7 +280,7 @@ fn new_project_dependency_moved_out_of_its_declared_range_is_listed() {
             ),
         ],
     );
-    assert_eq!(frame, "\ndependencies:\n+ baz 1.0.0  packages/b\n+ foo 2.0.0  packages/a\n",);
+    assert_eq!(frame, "\ndependencies:\n+ baz 1.0.0  packages/b\n+ foo 2.0.0  packages/a\n");
 }
 
 #[test]
