@@ -51,14 +51,15 @@ fn pnpm_with_umask(dir: &Path, umask: Umask, args: &[&str]) {
     let pnpm = Command::cargo_bin("pnpm").expect("find the pnpm binary");
     let mask = umask.mask();
     // Set the mask before exec without a `pre_exec` hook.
-    let mut command = Command::new("/bin/sh").with_current_dir(dir).without_ambient_pnpm_config();
-    command
-        .arg("-c")
-        .arg(r#"umask "$1" || exit; shift; exec "$@""#)
-        .arg("sh")
-        .arg(format!("{mask:o}"))
-        .arg(pnpm.get_program())
-        .args(args);
+    let mut command = Command::new("/bin/sh")
+        .with_current_dir(dir)
+        .without_ambient_pnpm_config()
+        .with_arg("-c")
+        .with_arg(r#"umask "$1" || exit; shift; exec "$@""#)
+        .with_arg("sh")
+        .with_arg(format!("{mask:o}"))
+        .with_arg(pnpm.get_program())
+        .with_args(args);
     let output = command.output().expect("run pnpm");
     assert!(
         output.status.success(),
@@ -309,7 +310,8 @@ fn files_pnpm_writes_into_a_project_follow_the_umask() {
     let owner_only: Vec<_> = walkdir::WalkDir::new(&workspace)
         .into_iter()
         .map(|entry| entry.expect("walk the project"))
-        .filter(|entry| entry.file_type().is_file() && file_mode(entry.path()) & 0o044 == 0)
+        .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| file_mode(entry.path()) & 0o044 == 0)
         .map(|entry| {
             entry
                 .path()

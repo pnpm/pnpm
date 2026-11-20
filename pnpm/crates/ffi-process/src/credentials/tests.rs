@@ -8,10 +8,9 @@ use super::{
 #[test]
 fn identities_match_the_shell() {
     let reported = |flag: &str| {
-        let output = std::process::Command::new("id")
-            .arg(flag)
-            .output()
-            .expect("run id");
+        let mut command = std::process::Command::new("id");
+        command.arg(flag);
+        let output = command.output().expect("run id");
         assert!(output.status.success(), "id {flag} failed: {output:?}");
         String::from_utf8(output.stdout)
             .expect("id prints UTF-8")

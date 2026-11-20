@@ -1,5 +1,6 @@
 use super::directory_entry_names;
 use std::{
+    borrow::Cow,
     ffi::OsStr,
     fs,
 };
@@ -8,7 +9,8 @@ fn sorted(directory: &fs::File) -> Vec<String> {
     let mut names: Vec<String> = directory_entry_names(directory)
         .expect("read the directory")
         .iter()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(|name| name.to_string_lossy())
+        .map(Cow::into_owned)
         .collect();
     names.sort();
     names

@@ -257,7 +257,8 @@ impl Records {
             .collect();
         let shared_files = validation.files
             .keys()
-            .filter(|path| !state.pnpmfiles.contains(path) && !tarballs.contains(path))
+            .filter(|path| !state.pnpmfiles.contains(path))
+            .filter(|path| !tarballs.contains(path))
             .map(|path| (PathBuf::from(path), shared_file_input(Path::new(path))));
         self.files.extend(
             shared_files
