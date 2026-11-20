@@ -1,4 +1,13 @@
-use super::{Host, SilentReporter, api, fixture, json, tarball_entry_names, tempdir, touch};
+use super::{
+    Host,
+    SilentReporter,
+    api,
+    fixture,
+    json,
+    tarball_entry_names,
+    tempdir,
+    touch,
+};
 
 #[test]
 fn workspace_copying_is_injected() {
