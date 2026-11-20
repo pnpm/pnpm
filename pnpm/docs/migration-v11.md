@@ -59,7 +59,7 @@ A Node.js installed globally with pnpm runs the version the current project pins
 
 ### `pnpm doctor` checks the default store
 
-When no store directory is configured, pnpm 12 checks that the default store is writable. pnpm 11 skips this check. If `pnpm doctor` fails after upgrading, check the [store directory](./settings/store.md#storedir) permissions.
+pnpm 12 reports store directory writability as a separate check, including when it uses the default store. pnpm 11 checks store access as part of its filesystem capability probe. If `pnpm doctor` fails, check the [store directory](./settings/store.md#storedir) permissions.
 
 ### TLS certificates
 
