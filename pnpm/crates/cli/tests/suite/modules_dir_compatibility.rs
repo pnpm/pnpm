@@ -140,6 +140,41 @@ fn add_refuses_a_modules_dir_installed_with_another_node_linker() {
     drop((root, mock_instance));
 }
 
+/// `install` warns why it recreates the modules directory before emptying it.
+#[test]
+fn install_warns_why_it_recreates_the_modules_dir() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
+    install_is_positive(&workspace);
+    let yaml = workspace.join("pnpm-workspace.yaml");
+    let switched = fs::read_to_string(&yaml)
+        .expect("read pnpm-workspace.yaml")
+        .replace("nodeLinker: hoisted", "nodeLinker: isolated");
+    fs::write(&yaml, switched).expect("write pnpm-workspace.yaml");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = output.get_output();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_report_contains(
+        &report,
+        &[
+            "will be recreated. This modules directory was created using a different node-linker value.",
+        ],
+    );
+    assert!(!report.contains("Run \"pnpm install\" to recreate"), "{report}");
+
+    drop((root, mock_instance));
+}
+
 /// A filtered install refuses a layout drift. Purging the shared modules
 /// directory would break the projects it skips, which it does not relink.
 #[test]

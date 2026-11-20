@@ -2,6 +2,7 @@ use super::super::{
     Config, HashSet, IncludedDependencies, InstallError, Lockfile, NodeLinker, Path, PathBuf,
     refuse_drifted_modules_dir,
 };
+use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 
 pub(super) fn is_safe_modules_purge_target(modules_dir: &Path, workspace_root: &Path) -> bool {
     modules_dir != workspace_root && modules_dir.starts_with(workspace_root)
@@ -19,7 +20,7 @@ pub(super) struct InconsistentModulesDir<'a> {
 /// `false` when [`refuse_drifted_modules_dir`] accepts the drift, as upstream
 /// `checkCompatibility` accepts a sibling `v3` store: the tree is kept, so
 /// the install merges into its recorded state.
-pub(super) fn purge_inconsistent_modules_dir(
+pub(super) fn purge_inconsistent_modules_dir<ReporterImpl: Reporter>(
     context: &InconsistentModulesDir<'_>,
 ) -> Result<bool, InstallError> {
     // Only a plain install (upstream `forceNewModules = installsOnly`) of
@@ -38,9 +39,38 @@ pub(super) fn purge_inconsistent_modules_dir(
         return Ok(true);
     }
     if let Some(target) = target_dir {
+        warn_modules_dir_recreated::<ReporterImpl>(context);
         purge_modules_dir_entries(&target, context.config, context.modules_manifest)?;
     }
     Ok(true)
+}
+/// Tells the user why the modules directory is about to be emptied. The reason
+/// is the error a mutation would have failed with, without its advice to run
+/// `pnpm install`, which is what is happening.
+fn warn_modules_dir_recreated<ReporterImpl: Reporter>(context: &InconsistentModulesDir<'_>) {
+    let Err(error) =
+        refuse_drifted_modules_dir(context.modules_manifest, context.config, context.node_linker)
+    else {
+        return;
+    };
+    ReporterImpl::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: format!(
+            r#"The modules directory at "{}" will be recreated. {}"#,
+            context.config.modules_dir.display(),
+            purge_reason(&error),
+        ),
+        prefix: context.workspace_root.to_string_lossy().into_owned(),
+    }));
+}
+
+/// The message of a modules directory incompatibility without its advice to
+/// recreate the modules directory.
+pub(super) fn purge_reason(error: &InstallError) -> String {
+    let message = error.to_string();
+    message
+        .strip_suffix(r#" Run "pnpm install" to recreate the modules directory."#)
+        .map_or_else(|| message.clone(), str::to_string)
 }
 /// The canonicalized directory the purge may sweep, and whether sweeping it is
 /// safe at all. Deleting from the validated path closes the
