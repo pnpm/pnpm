@@ -10,9 +10,11 @@
 //! happens through [`pnpm_package_manifest::PackageManifest::value_mut`]
 //! on the in-memory `Value` only.
 
+pub use dependency_matcher::OverriddenDependencyMatcher;
 pub use dependency_rewriter::overrides_dependency_rewriter;
 pub(crate) use selectors::{matches_target, parse_declared_range};
 
+mod dependency_matcher;
 mod dependency_rewriter;
 mod meta_only_peers;
 mod selectors;
@@ -110,28 +112,6 @@ impl ResolvedOverride {
             Some(target) => target.render(manifest_dir),
             _ => self.inner.new_bare_specifier.clone(),
         }
-    }
-}
-
-/// Answers whether an override governs a dependency declared as a given
-/// specifier — whether or not it rewrites the text. An override that repeats
-/// the declaration verbatim still governs it, and a range-scoped override
-/// (`foo@^2`) governs one declaration of `foo` and not another, so the
-/// declared specifier is part of the question.
-///
-/// Built by [`VersionsOverrider::dependency_matcher`] for one manifest.
-pub struct OverriddenDependencyMatcher<'a> {
-    overrider: &'a VersionsOverrider,
-    applicable_parent_scoped: Vec<&'a ResolvedOverride>,
-}
-
-impl OverriddenDependencyMatcher<'_> {
-    #[must_use]
-    pub fn matches(&self, group: DependencyGroup, dep_name: &str, dep_spec: &str) -> bool {
-        self.overrider
-            .choose_override(Some(group), &self.applicable_parent_scoped, dep_name, dep_spec)
-            .is_some()
-            || self.overrider.converge_applies(dep_name, dep_spec)
     }
 }
 

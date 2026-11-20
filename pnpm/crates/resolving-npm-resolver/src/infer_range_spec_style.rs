@@ -130,7 +130,7 @@ fn try_comparator(bytes: &[u8], at: usize) -> Option<(Comparator, usize)> {
     // Optional `.minor` and `.patch`, each `x`, `*`, or digits.
     let (has_minor, idx) = match_dotted(bytes, idx);
     let (has_patch, idx) = match_dotted(bytes, idx);
-    let idx = skip_prerelease_tail(bytes, idx);
+    let idx = skip_version_suffix(bytes, idx);
 
     Some((Comparator { operator, has_major: true, has_minor, has_patch }, idx))
 }
@@ -178,10 +178,17 @@ fn match_dotted(bytes: &[u8], idx: usize) -> (bool, usize) {
     (false, idx)
 }
 
-/// The optional prerelease/build tail, `[-+][0-9A-Za-z.-]+`.
-fn skip_prerelease_tail(bytes: &[u8], idx: usize) -> usize {
+/// The optional prerelease and build tails, `(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?`.
+fn skip_version_suffix(bytes: &[u8], idx: usize) -> usize {
+    let idx = skip_tail(bytes, idx, b'-');
+    skip_tail(bytes, idx, b'+')
+}
+
+/// One `marker`-led tail of `[0-9A-Za-z.-]+`, or nothing when `idx` does not
+/// start one.
+fn skip_tail(bytes: &[u8], idx: usize, marker: u8) -> usize {
     let len = bytes.len();
-    if idx >= len || (bytes[idx] != b'-' && bytes[idx] != b'+') {
+    if idx >= len || bytes[idx] != marker {
         return idx;
     }
     let tail_start = idx + 1;
