@@ -118,7 +118,8 @@ mod platform {
                 .to_str()
                 .ok()
                 .and_then(|release| release.split('.').next())
-                .and_then(|major| major.parse::<u32>().ok())
+                .map(str::parse::<u32>)
+                .and_then(Result::ok)
                 .is_some_and(|major| major >= 20)
         })
     }

@@ -6038,6 +6038,7 @@ name = "pnpm-network"
 version = "0.0.1"
 dependencies = [
  "bytes",
+ "command-extra",
  "core-foundation",
  "derive_more",
  "flate2",

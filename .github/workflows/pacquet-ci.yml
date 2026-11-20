@@ -954,8 +954,9 @@ jobs:
     name: Rust CI / Dylint / ${{ matrix.os_label }}
     needs: changes
     if: ${{ always() && !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.result != 'success') }}
-    # Windows gets its own row for the same reason Clippy does: a Linux-only
-    # run never compiles `#[cfg(windows)]` code, so its findings go unseen.
+    # A run lints only the code compiled for its own target, so Windows and
+    # macOS each get a row for their `#[cfg(windows)]` and
+    # `#[cfg(target_os = "macos")]` code.
     strategy:
       fail-fast: false
       matrix:
@@ -964,6 +965,8 @@ jobs:
             os_label: ubuntu
           - os: blacksmith-4vcpu-windows-2025
             os_label: windows
+          - os: blacksmith-12vcpu-macos-latest
+            os_label: macos
     runs-on: ${{ matrix.os }}
     steps:
       - name: Verify change detection
