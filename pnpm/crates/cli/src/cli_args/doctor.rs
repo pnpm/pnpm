@@ -34,7 +34,6 @@ use probe_path::{
 use serde::Serialize;
 use std::{
     fmt::Write as _,
-    fs,
     path::{
         Path,
         PathBuf,

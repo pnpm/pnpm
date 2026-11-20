@@ -6,6 +6,7 @@
 //! exit status of 127. These checks report what a script will see, and run one.
 
 use super::{CheckResult, install_probe::last_message};
+use crate::process::{Command, Output, Stdio};
 use pnpm_config::Config;
 use pnpm_executor::{current_pnpm_exe, select_shell, use_shell_emulator};
 use std::{
@@ -15,7 +16,6 @@ use std::{
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
     time::Instant,
 };
 
@@ -252,10 +252,19 @@ struct Probe<'a> {
 
 impl Probe<'_> {
     fn install_script(&self, consumer: &Path) -> Result<String, String> {
+        // Isolated from the real store and cache, a `CI=true` environment,
+        // and any ancestor workspace, the same as the install smoke test.
         let output = Command::new(self.pnpm)
             .current_dir(consumer)
-            .args(["install", "--offline", "--config.ignore-scripts=false"])
+            .args([
+                "install",
+                "--offline",
+                "--config.ignore-scripts=false",
+                "--ignore-workspace",
+                "--no-frozen-lockfile",
+            ])
             .arg(format!("--store-dir={}", self.base.join("store").display()))
+            .arg(format!("--cache-dir={}", self.base.join("cache").display()))
             .stdout(Stdio::null())
             .output();
         read_probe_result(output, &self.base.join("install-node"), "the install script")
