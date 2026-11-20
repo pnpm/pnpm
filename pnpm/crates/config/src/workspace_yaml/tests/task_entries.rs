@@ -22,7 +22,6 @@ fn rejects_non_object_task_entries() {
     for value in ["true", "42", "'build'", "[]", "[build]"] {
         let yaml = format!("tasks:\n  build: {value}\n");
         let result = serde_saphyr::from_str::<WorkspaceSettings>(&yaml);
-        dbg!(value, &result);
-        assert!(result.is_err());
+        assert!(result.is_err(), "task entry `{value}` must be rejected, got {result:?}");
     }
 }
