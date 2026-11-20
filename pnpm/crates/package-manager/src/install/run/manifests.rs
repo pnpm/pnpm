@@ -262,8 +262,10 @@ fn run_dev_preinstall_if_needed<Reporter: self::Reporter>(
         run_root_hook(scope.config, root, pnpm_executor::run_dev_preinstall_hook::<Reporter>)
     };
     match scope.dedicated_dev_preinstall {
-        Some(shared) => shared.run_once(|| {
-            run_at(scope.config.workspace_dir.as_deref().unwrap_or(scope.workspace_root))
+        Some(shared) => pnpm_deps_restorer::block_in_place_if_multi_thread(|| {
+            shared.run_once(|| {
+                run_at(scope.config.workspace_dir.as_deref().unwrap_or(scope.workspace_root))
+            })
         }),
         None if root_defines(DEV_PREINSTALL_STAGE) => run_at(scope.workspace_root).map(drop),
         None => Ok(()),

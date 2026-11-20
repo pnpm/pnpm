@@ -1035,6 +1035,44 @@ mod dev_preinstall {
         assert_only_the_root_ran(&workspace, &member_dirs);
         drop((root, mock_instance));
     }
+
+    #[test]
+    fn reports_the_failure_of_the_workspace_roots_script_when_shared_workspace_lockfile_is_false() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        write_dedicated_workspace_with_hooks(&workspace);
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "name": "root",
+                "version": "1.0.0",
+                "scripts": { "pnpm:devPreinstall": r#"node -e "process.exit(7)""# },
+            })
+            .to_string(),
+        )
+        .expect("write the root package.json");
+
+        let output = pacquet
+            .with_arg("install")
+            .output()
+            .expect("run pacquet install");
+
+        assert!(!output.status.success());
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            !stderr.contains("stopped at another workspace project's failure")
+                && !stdout.contains("stopped at another workspace project's failure"),
+            "stdout: {stdout}\nstderr: {stderr}",
+        );
+        drop((root, mock_instance));
+    }
 }
 
 /// The root project's `preinstall` runs before any dependency is
