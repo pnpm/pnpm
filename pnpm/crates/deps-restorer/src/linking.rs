@@ -263,6 +263,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
             importers: &inputs.graph.lockfile.importers,
             packages: inputs.graph.lockfile.packages.as_ref(),
             skipped,
+            latest_versions: inputs.packages.latest_versions,
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: hoist.public_targets.as_ref(),
@@ -446,6 +447,7 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
                         lockfile: inputs.graph.lockfile,
                         layout: inputs.ctx.linker.layout,
                         cas_paths_by_pkg_id: inputs.packages.cas_paths_by_pkg_id.take(),
+                        latest_versions: inputs.packages.latest_versions,
                     },
                     prior: inputs.prior.hoisted_state(inputs.graph.current_lockfile),
                     projects: crate::HoistedProjects {

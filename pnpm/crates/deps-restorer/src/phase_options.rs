@@ -73,6 +73,9 @@ pub struct LinkPackageData<'a> {
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
     pub cas_paths_by_snapshot: Option<crate::CasPathsBySnapshot>,
+    /// See [`crate::ImporterDependencyGraph::latest_versions`]. `None` on
+    /// the frozen path.
+    pub latest_versions: Option<&'a crate::LatestVersions>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -169,6 +172,8 @@ pub struct HoistedLinkGraph<'a> {
     /// under `node_linker == Hoisted`. The linker imports files from
     /// these paths into the on-disk hoisted tree.
     pub cas_paths_by_pkg_id: Option<crate::CasPathsByPkgId>,
+    /// See [`crate::ImporterDependencyGraph::latest_versions`].
+    pub latest_versions: Option<&'a crate::LatestVersions>,
 }
 
 #[derive(Clone, Copy)]

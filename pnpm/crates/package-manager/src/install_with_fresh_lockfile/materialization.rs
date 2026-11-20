@@ -331,6 +331,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         );
         let swap_lock =
             pnpm_deps_restorer::ModulesSwapLock::new(&self.install.drivers.config.modules_dir);
+        let latest_versions = collect_latest_versions(&self.resolved.graph);
         run_on_disk_phases::<Reporter>(
             OnDiskInputs {
                 install: self.install,
@@ -354,6 +355,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     deferred_engine_name: plan.deferred_engine_name.take(),
                     known_requires_build,
                     known_bins,
+                    latest_versions: latest_versions.as_ref(),
                 },
                 projects: scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests),
             },
@@ -362,6 +364,29 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         )
         .await
     }
+}
+
+/// The `latest` dist-tag of each direct dependency whose resolution read
+/// it off registry metadata, when it differs from the resolved version.
+/// Walks the importers' direct dependencies only, never the whole graph.
+fn collect_latest_versions(
+    graph: &super::resolution::ResolvedGraph,
+) -> Option<pnpm_deps_restorer::LatestVersions> {
+    let mut latest_versions = pnpm_deps_restorer::LatestVersions::new();
+    for dep_path in graph.direct_by_importer.values().flat_map(BTreeMap::values) {
+        let Some(node) = graph.merged_graph.get(dep_path) else { continue };
+        let package = &node.resolve_result.package;
+        let (Some(latest), Some(name_ver)) = (&package.latest, &package.name_ver) else {
+            continue;
+        };
+        if name_ver.suffix.to_string() == *latest {
+            continue;
+        }
+        if let Ok(key) = dep_path.as_str().parse::<pnpm_lockfile::PackageKey>() {
+            latest_versions.insert(key.without_peer(), latest.clone());
+        }
+    }
+    (!latest_versions.is_empty()).then_some(latest_versions)
 }
 
 fn collect_known_requires_build(

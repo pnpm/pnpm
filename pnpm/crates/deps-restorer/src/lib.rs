@@ -88,6 +88,7 @@ pub use install_options::{
     DirectLinkPolicy,
     ImporterDependencyGraph,
     ImporterLinkContext,
+    LatestVersions,
     SkipSetClosure,
     SnapshotSelection,
     VirtualStoreFetchInputs,

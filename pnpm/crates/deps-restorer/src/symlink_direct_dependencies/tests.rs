@@ -170,6 +170,8 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     };
     let mut importers = HashMap::new();
     importers.insert(Lockfile::ROOT_IMPORTER_KEY.to_string(), project_snapshot);
+    let latest_versions: crate::LatestVersions =
+        [("fastify@4.0.0".parse().expect("parse fastify key"), "5.0.0".to_string())].into();
 
     SymlinkDirectDependencies {
         context: crate::ImporterLinkContext {
@@ -185,6 +187,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
             importers: &importers,
             packages: None,
             skipped: &SkippedSnapshots::default(),
+            latest_versions: Some(&latest_versions),
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: None,
@@ -244,6 +247,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     assert_eq!(fastify.real_name, "fastify");
     assert_eq!(fastify.version.as_deref(), Some("4.0.0"));
     assert_eq!(fastify.dependency_type, Some(DependencyType::Prod));
+    assert_eq!(fastify.latest.as_deref(), Some("5.0.0"));
 
     let dev = added
         .iter()
@@ -252,6 +256,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
     assert_eq!(dev.real_name, "@pnpm.e2e/dev-dep");
     assert_eq!(dev.version.as_deref(), Some("1.2.3"));
     assert_eq!(dev.dependency_type, Some(DependencyType::Dev));
+    assert_eq!(dev.latest, None, "no latest was resolved for the dev dep");
 
     drop(dir);
 }
@@ -344,6 +349,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
             importers: &importers,
             packages: None,
             skipped: &SkippedSnapshots::default(),
+            latest_versions: None,
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: None,
@@ -446,6 +452,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
             importers: &importers,
             packages: None,
             skipped: &SkippedSnapshots::default(),
+            latest_versions: None,
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: None,
@@ -534,6 +541,7 @@ fn empty_importers_is_a_no_op() {
             importers: &importers,
             packages: None,
             skipped: &SkippedSnapshots::default(),
+            latest_versions: None,
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: None,
@@ -621,6 +629,7 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
                 importers: &importers,
                 packages: None,
                 skipped: &SkippedSnapshots::default(),
+                latest_versions: None,
             },
             policy: crate::DirectLinkPolicy {
                 public_hoist_targets: None,
@@ -746,6 +755,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
             importers: &importers,
             packages: None,
             skipped: &SkippedSnapshots::default(),
+            latest_versions: None,
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: None,
@@ -851,6 +861,7 @@ fn custom_modules_dir_propagates_to_each_importer() {
             importers: &importers,
             packages: None,
             skipped: &SkippedSnapshots::default(),
+            latest_versions: None,
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: None,

@@ -89,6 +89,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
                 importers: &importers,
                 packages: None,
                 skipped: &SkippedSnapshots::default(),
+                latest_versions: None,
             },
             policy: crate::DirectLinkPolicy {
                 public_hoist_targets: None,
@@ -164,6 +165,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
             importers: &importers,
             packages: None,
             skipped: &SkippedSnapshots::default(),
+            latest_versions: None,
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: None,
@@ -196,6 +198,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
             importers: &importers,
             packages: None,
             skipped: &SkippedSnapshots::default(),
+            latest_versions: None,
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: None,
