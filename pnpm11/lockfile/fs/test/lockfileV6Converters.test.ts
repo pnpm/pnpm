@@ -1,7 +1,7 @@
 import { expect, test } from '@jest/globals'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
-import yaml from 'js-yaml'
+import { load } from 'js-yaml'
 
 import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters.js'
 
@@ -218,7 +218,7 @@ test('convertToLockfileFile() with lockfile v6', () => {
 })
 
 test('convertToLockfileObject() reads a dependency named constructor', () => {
-  const lockfileFile = yaml.load(`
+  const lockfileFile = load(`
 lockfileVersion: '9.0'
 importers:
   .:
@@ -250,7 +250,7 @@ snapshots:
 })
 
 test('convertToLockfileObject() keeps __proto__ keys of a lockfile as own properties', () => {
-  const lockfileFile = yaml.load(`
+  const lockfileFile = load(`
 lockfileVersion: '9.0'
 importers:
   __proto__:

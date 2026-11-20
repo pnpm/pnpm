@@ -2,6 +2,7 @@ import { expect, test } from '@jest/globals'
 import { load } from 'js-yaml'
 
 import { lockfileYamlDump } from '../src/lockfileYamlDump.js'
+import { loadLockfileYaml } from '../src/yamlLoad.js'
 
 test('keeps inline fields and block resolutions under explicit package keys', () => {
   const longKey = 'x'.repeat(1025)
@@ -50,4 +51,14 @@ test('keeps trailing newlines in block scalars between packages', () => {
   }
 
   expect(load(lockfileYamlDump(lockfile))).toStrictEqual(lockfile)
+})
+
+test('numeric-looking strings read back as strings, as values and as importer keys', () => {
+  const values = ['+.5', '-.5', '1e999', '9'.repeat(400), '1_000', '0x1F', '2020-01-02']
+  const lockfile = {
+    lockfileVersion: '9.0',
+    importers: Object.fromEntries(values.map((value) => [value, { dependencies: { foo: { specifier: value, version: value } } }])),
+  }
+
+  expect(loadLockfileYaml(lockfileYamlDump(lockfile))).toStrictEqual(lockfile)
 })
