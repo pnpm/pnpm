@@ -482,6 +482,5 @@ fn build_runner(file_escaped: &str) -> String {
 mod dispatch;
 use dispatch::spawn_stdout_reader;
 
-#[cfg(target_vendor = "apple")]
 #[cfg(test)]
 mod tests;

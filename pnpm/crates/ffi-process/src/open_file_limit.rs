@@ -17,7 +17,7 @@ pub fn soft_open_file_limit() -> Option<usize> {
 pub fn raise_open_file_limit(ceiling: u64) {
     let Some(limit) = current_limit() else { return };
     let target = limit.rlim_max.min(ceiling);
-    if target > limit.rlim_cur && set_soft_limit(target, limit.rlim_max) {
+    if target <= limit.rlim_cur || set_soft_limit(target, limit.rlim_max) {
         return;
     }
     // macOS rejects a soft limit above `kern.maxfilesperproc` even when the

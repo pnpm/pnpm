@@ -18,11 +18,13 @@ pub struct PinnedTarget(OwnedFd);
 pub enum Pin {
     /// The process is pinned.
     Target(PinnedTarget),
-    /// No handle could be opened, so a caller that needs to signal the
-    /// process has to name it by its id and accept what that costs. The
-    /// kernel may not pin processes at all, or may have refused this one
-    /// for want of a descriptor.
-    Unpinnable,
+    /// This kernel cannot pin processes at all, so a caller that needs to
+    /// signal the process has to name it by its id and accept what that
+    /// costs.
+    Unsupported,
+    /// The kernel can pin processes but refused this one, for example for
+    /// want of a descriptor. The process may still be running.
+    Refused,
     /// There is no such process, so there is nothing to pin or to signal.
     Gone,
 }
@@ -59,7 +61,8 @@ impl PinnedTarget {
                 // Only "no such process" says the process is gone. Every
                 // other refusal leaves it running but unpinned.
                 Some(libc::ESRCH) => Pin::Gone,
-                _ => Pin::Unpinnable,
+                Some(libc::ENOSYS) => Pin::Unsupported,
+                _ => Pin::Refused,
             };
         }
         let Ok(descriptor) = i32::try_from(opened) else {

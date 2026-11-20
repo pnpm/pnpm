@@ -123,8 +123,10 @@ impl Descendant {
                 pnpm_ffi_signal::Pin::Target(pinned) => Some(pinned),
                 // Nothing pinned, so the id is signalled as it is and
                 // there is no reuse the check below could catch.
-                pnpm_ffi_signal::Pin::Unpinnable => None,
-                pnpm_ffi_signal::Pin::Gone => return None,
+                pnpm_ffi_signal::Pin::Unsupported => None,
+                // A kernel that pins but refused this one leaves no way to
+                // tell the process from a stranger reusing its id.
+                pnpm_ffi_signal::Pin::Refused | pnpm_ffi_signal::Pin::Gone => return None,
             };
             // With the process pinned its id cannot be reused, so the parent
             // `/proc` gives it now is the one the pinned process has.
