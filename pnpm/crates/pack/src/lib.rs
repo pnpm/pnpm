@@ -157,6 +157,12 @@ pub enum PackError {
     #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_VERSION))]
     InvalidPackageVersion { version: String },
 
+    #[display(
+        "Invalid publishConfig.directory \"{dir}\": must be a relative path inside the package directory"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_PUBLISH_DIRECTORY))]
+    InvalidPublishDirectory { dir: String },
+
     #[display("Cannot use --pack-destination and --out together")]
     #[diagnostic(code(ERR_PNPM_INVALID_OPTION))]
     OutAndPackDestination,

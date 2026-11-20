@@ -941,4 +941,5 @@ fn publish_new_version_keeps_installed_workspace_dep_versions() {
 }
 
 mod dir_flag;
+mod publish_directory;
 mod wait;

@@ -1363,6 +1363,7 @@ fn pack_preserves_internal_symlinks() {
 mod bundled_dependencies;
 mod dotenv;
 mod output;
+mod publish_directory;
 
 #[test]
 fn bin_with_crlf_shebang_is_rejected() {
