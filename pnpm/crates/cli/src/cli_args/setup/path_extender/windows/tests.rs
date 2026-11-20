@@ -232,26 +232,29 @@ fn mode_propagates_non_not_found_errors_without_fallback() {
 }
 
 #[test]
-fn split_registry_path_expands_env_references() {
-    let lookup = |name: &str| (name == "SystemRoot").then(|| r"C:\Windows".to_string());
-    let dirs = split_registry_path(
-        r"%SystemRoot%\system32;;C:\Program Files\nodejs\;%Missing%\bin;C:\50%",
-        lookup,
-    );
+fn persisted_path_expands_only_expandable_values() {
+    let machine = "\r\nHKEY_LOCAL_MACHINE\\...\\Environment\r\n    \
+                   Path    REG_EXPAND_SZ    %SystemRoot%\\system32;;%Missing%\\bin;C:\\50%\r\n";
+    let user = "\r\nHKEY_CURRENT_USER\\Environment\r\n    \
+                Path    REG_SZ    %SystemRoot%\\tools;C:\\npm\r\n";
+    let process_env = |name: &str| (name == "SystemRoot").then(|| r"C:\Windows".to_string());
+
+    let dirs = persisted_path_from_registry(machine, user, process_env).unwrap();
     assert_eq!(
         dirs,
         [
             PathBuf::from(r"C:\Windows\system32"),
-            PathBuf::from(r"C:\Program Files\nodejs\"),
             PathBuf::from(r"%Missing%\bin"),
             PathBuf::from(r"C:\50%"),
+            PathBuf::from(r"%SystemRoot%\tools"),
+            PathBuf::from(r"C:\npm"),
         ],
     );
 }
 
 #[test]
 fn split_registry_path_drops_quotes_and_keeps_quoted_separators() {
-    let dirs = split_registry_path(r#""C:\npm";C:\pnpm-home\bin;"C:\a;b""#, |_: &str| None);
+    let dirs = split_registry_path(r#""C:\npm";C:\pnpm-home\bin;"C:\a;b""#);
     assert_eq!(
         dirs,
         [PathBuf::from(r"C:\npm"), PathBuf::from(r"C:\pnpm-home\bin"), PathBuf::from(r"C:\a;b")],

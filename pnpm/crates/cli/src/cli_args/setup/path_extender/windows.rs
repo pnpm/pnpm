@@ -356,8 +356,9 @@ fn read_persisted_path_dirs() -> Option<Vec<PathBuf>> {
 /// The saved `Path` directories from the `reg query` output of the machine
 /// and user environment keys. Windows builds a new process's environment
 /// from the machine values, expanded against the process environment, and
-/// then the user values, expanded against everything before them; `Path`
-/// is the machine value followed by the user value.
+/// then the user values, expanded against everything before them. Only
+/// `REG_EXPAND_SZ` values are expanded. `Path` is the machine value followed
+/// by the user value.
 fn persisted_path_from_registry<ProcessEnv>(
     machine: &str,
     user: &str,
@@ -383,23 +384,16 @@ where
         }
         scoped(user, name, &machine_lookup).or_else(|| machine_lookup(name))
     };
-    let mut dirs =
-        split_registry_path(&get_env_value_from_registry(machine, "Path")?, machine_lookup);
-    if let Some(user_path) = get_env_value_from_registry(user, "Path") {
-        dirs.extend(split_registry_path(&user_path, user_lookup));
+    let mut dirs = split_registry_path(&scoped(machine, "Path", &machine_lookup)?);
+    if let Some(user_path) = scoped(user, "Path", &user_lookup) {
+        dirs.extend(split_registry_path(&user_path));
     }
     Some(dirs)
 }
 
-/// Split a registry `Path` value into directories the way Windows does:
-/// `%NAME%` references are expanded from `lookup` (the variables of the
-/// value's own scope), then the result is split on `;` outside double
-/// quotes, and the quotes are dropped.
-fn split_registry_path<Lookup>(value: &str, lookup: Lookup) -> Vec<PathBuf>
-where
-    Lookup: Fn(&str) -> Option<String>,
-{
-    let expanded = expand_env_references(value, &lookup);
+/// Split an expanded `Path` value into directories the way Windows does: on
+/// `;` outside double quotes, dropping the quotes.
+fn split_registry_path(expanded: &str) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let mut current = String::new();
     let mut in_quotes = false;
