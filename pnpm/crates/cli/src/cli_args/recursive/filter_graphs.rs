@@ -2,8 +2,9 @@
 
 use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
 use miette::{Context, IntoDiagnostic};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_package_manager::overrides_dependency_rewriter;
+use pnpm_package_manager::{VersionsOverrider, overrides_dependency_rewriter};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_graph::{
     CreateProjectsGraphOptions, DependencyRewriter, ProjectGraph, create_projects_graph,
@@ -29,11 +30,8 @@ pub(super) fn build_filter_graphs<'a>(
     config: &Config,
     prefix: &Path,
 ) -> miette::Result<FilterGraphs<'a>> {
-    let workspace_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
     let catalogs = configured_catalogs(config)?;
-    let dependency_rewriter = overrides_dependency_rewriter(config, &catalogs, workspace_dir)
-        .into_diagnostic()
-        .wrap_err("parsing the overrides")?;
+    let dependency_rewriter = configured_overrides_rewriter(config, &catalogs, prefix)?;
     let options = CreateProjectsGraphOptions {
         link_workspace_packages: Some(config.link_workspace_packages != LinkWorkspacePackages::Off),
         catalogs: workspace_catalogs(config, &catalogs),
@@ -48,6 +46,18 @@ pub(super) fn build_filter_graphs<'a>(
             build_graph(projects, CreateProjectsGraphOptions { ignore_dev_deps: true, ..options })
         }),
     })
+}
+
+/// The [`overrides_dependency_rewriter`] of the workspace that `prefix` is in.
+pub(super) fn configured_overrides_rewriter(
+    config: &Config,
+    catalogs: &Catalogs,
+    prefix: &Path,
+) -> miette::Result<Option<VersionsOverrider>> {
+    let workspace_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
+    overrides_dependency_rewriter(config, catalogs, workspace_dir)
+        .into_diagnostic()
+        .wrap_err("parsing the overrides")
 }
 
 /// Build the workspace [`ProjectGraph`] from `projects` under `options`.

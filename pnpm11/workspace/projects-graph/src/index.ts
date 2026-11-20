@@ -258,7 +258,12 @@ function parseRegistrySpec (depName: string, npmSpec: string): { depName: string
   return parsed ? { depName: parsed.name, rawSpec: parsed.fetchSpec } : { depName, rawSpec: npmSpec }
 }
 
-function createOverridesApplier (overrides: ProjectsGraphOverrides | undefined): (manifest: BaseManifest, dir: string) => BaseManifest {
+/**
+ * Applies `overrides` to a project's manifest the way the graph does before
+ * reading its edges. Relative `link:` and `file:` targets come back relative
+ * to `dir`, the project's root directory.
+ */
+export function createOverridesApplier (overrides: ProjectsGraphOverrides | undefined): (manifest: BaseManifest, dir: string) => BaseManifest {
   if (overrides == null || Object.keys(overrides.overrides).length === 0) return (manifest) => manifest
   // The overrider clones the fields it rewrites and never awaits, so the
   // manifest it hands back is a plain value.

@@ -236,6 +236,7 @@ mod update_notifier;
 mod update_recursive;
 mod verify_deps_before_run;
 mod verify_deps_before_run_failed_install;
+mod verify_deps_before_run_overrides;
 mod verify_jsr;
 mod version;
 mod view;

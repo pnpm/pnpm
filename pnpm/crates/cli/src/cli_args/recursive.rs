@@ -18,6 +18,7 @@ mod dependencies;
 mod execution_args;
 mod filter_graphs;
 mod importer_selection;
+mod linked_dependencies;
 mod selected_dirs;
 mod selection_order;
 mod unmatched;

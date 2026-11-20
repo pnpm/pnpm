@@ -81,6 +81,22 @@ describe('selectProjectsToVerify', () => {
     })).toStrictEqual(['a', 'c'])
   })
 
+  test('under dedicated lockfiles with injection, follows a dependency an override points at link:', async () => {
+    const allProjectsGraph = createGraph({ a: ['b', 'c'], b: [], c: [] })
+    allProjectsGraph[dirOf('a')].package.manifest.dependencies = {
+      b: 'workspace:*',
+      c: '^1.0.0',
+    }
+    expect(await selectNames({
+      filter: ['a'],
+      sharedWorkspaceLockfile: false,
+      injectWorkspacePackages: true,
+      overrides: { c: 'link:./c' },
+      allProjectsGraph,
+      selectedProjectsGraph: pickGraph(allProjectsGraph, ['a']),
+    })).toStrictEqual(['a', 'c'])
+  })
+
   test('combines --filter-prod inclusion with regular exclusion without verifying excluded dependency', async () => {
     const allProjectsGraph = createGraph({ app: ['lib-a', 'lib-dev'], 'lib-a': [], 'lib-dev': [], unrelated: [] })
     const prodAllProjectsGraph = createGraph({ app: ['lib-a'], 'lib-a': [], 'lib-dev': [], unrelated: [] })

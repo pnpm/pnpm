@@ -3,6 +3,7 @@
 "@pnpm/workspace.projects-graph": patch
 "@pnpm/workspace.projects-filter": patch
 "@pnpm/installing.commands": patch
+"@pnpm/exec.commands": patch
 "pacquet": patch
 "pnpm": patch
 ---
