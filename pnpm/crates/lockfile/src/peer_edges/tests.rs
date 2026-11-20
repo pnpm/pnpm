@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Write, path::Path};
 
 use pretty_assertions::assert_eq;
 
-use super::{PeerEdgeOptions, PeerSatisfactionEdges};
+use super::{PeerEdgeGraph, PeerEdgeOptions, PeerSatisfactionEdges, classify_edges};
 use crate::{Lockfile, PackageKey, PeerBindings, PkgName};
 
 const ABC: &str = "abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)";
@@ -492,4 +492,49 @@ snapshots:
         classified(&lockfile, PeerEdgeOptions::default()),
         [format!("abc@{version} > peer-c")],
     );
+}
+
+#[test]
+fn hashed_keys_without_droppable_optional_peers_skip_provider_lookup() {
+    let suffix = PeerBindings::Explicit(vec!["peer-a@1.0.0".to_string()])
+        .to_suffix(3)
+        .expect("hashed suffix");
+    let version = format!("1.0.0{suffix}");
+    let importers = importer(".", &[("dependencies", &[("abc", &version)])]);
+    for optional_entries in [
+        "",
+        "    optionalDependencies:\n      peer-c: link:../peer-c",
+        "    optionalDependencies:\n      peer-c: 1.0.0",
+    ] {
+        let lockfile = parse(&format!(
+            "lockfileVersion: '9.0'
+importers:
+{importers}
+packages:
+  abc@1.0.0:
+    resolution: {{integrity: sha512-abc}}
+    peerDependencies:
+      peer-a: ^1.0.0
+      peer-c: ^1.0.0
+    peerDependenciesMeta:
+      peer-c: {{optional: true}}
+snapshots:
+  abc@{version}:
+    dependencies:
+      peer-a: 1.0.0
+{optional_entries}
+",
+        ));
+        let graph = PeerEdgeGraph {
+            importers: lockfile.importers
+                .values()
+                .map(super::direct_keys)
+                .collect(),
+            listed_by_every_importer: Default::default(),
+            snapshots: lockfile.snapshots.as_ref().unwrap(),
+            packages: lockfile.packages.as_ref().unwrap(),
+        };
+        let edges = classify_edges(&graph, |key| panic!("unnecessary provider lookup for {key}"));
+        assert!(edges.is_empty());
+    }
 }
