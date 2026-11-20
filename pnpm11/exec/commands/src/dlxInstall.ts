@@ -66,7 +66,7 @@ async function installIntoDlxCache (ctx: DlxInstallContext, cache: DlxCache): Pr
     await add.handler(createDlxAddOptions(ctx, cachedDir), ctx.resolvedPkgs)
     await rebuildDirectNonRegistryPackages(ctx, cachedDir)
     await promptApproveDlxBuilds({ cachedDir, allowBuilds: ctx.allowBuilds, inheritedOpts: ctx.opts }, ctx.commands)
-    await linkDlxCache(cachedDir, cacheLink)
+    await linkDlxCache(ctx, cachedDir, cacheLink)
   } catch (err) {
     // When parallel dlx processes install the same package, the shared global
     // virtual store can cause spurious failures (e.g. ENOENT from concurrent
@@ -132,19 +132,31 @@ function createDlxAddOptions (ctx: DlxInstallContext, cachedDir: string): add.Ad
   }
 }
 
-async function linkDlxCache (cachedDir: string, cacheLink: string): Promise<void> {
+async function linkDlxCache (ctx: DlxInstallContext, cachedDir: string, cacheLink: string, attempt = 1): Promise<void> {
   try {
     await symlinkDir(cachedDir, cacheLink, { overwrite: true })
   } catch (error) {
-    // EBUSY/EEXIST/EPERM means that there is another dlx process running in parallel that has acquired the cache link first.
-    // EPERM can happen on Windows when another process has the symlink open while this process tries to unlink it.
-    // The link created by the other process is just as up-to-date as the link the current process was attempting
-    // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
-    // the other link stay. The current process should yield.
-    if (!isError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST' && error.code !== 'EPERM')) {
+    // EBUSY/EEXIST/EPERM can indicate either a parallel dlx process that acquired the cache link
+    // first, or Windows briefly holding the old junction open during unlink. Yield immediately
+    // when `cacheLink` already resolves to a completed, built cache; otherwise retry briefly and
+    // surface the error if `cacheLink` still points at an incomplete or expired entry.
+    if (!isConcurrentLinkError(error)) {
       throw error
     }
+    const linkedDir = getValidCacheDir(cacheLink, ctx.opts.dlxCacheMaxAge)
+    if (linkedDir != null && !await needsDirectNonRegistryBuild(ctx, linkedDir)) {
+      return
+    }
+    if (attempt >= 5) {
+      throw error
+    }
+    await new Promise((resolve) => setTimeout(resolve, attempt * 50))
+    await linkDlxCache(ctx, cachedDir, cacheLink, attempt + 1)
   }
+}
+
+function isConcurrentLinkError (error: unknown): boolean {
+  return isError(error) && 'code' in error && (error.code === 'EBUSY' || error.code === 'EEXIST' || error.code === 'EPERM')
 }
 
 /**

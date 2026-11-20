@@ -489,6 +489,12 @@ fn dlx_recovers_unbuilt_cached_url_pkg_and_skips_aliased_registry_indirect_build
         .expect("retry dlx on unbuilt cached URL entry");
     assert!(hit.status.success(), "stderr: {}", String::from_utf8_lossy(&hit.stderr));
     assert_eq!(String::from_utf8_lossy(&hit.stdout).trim(), "BUILT_OK");
+    let recovered_modules =
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir)
+            .expect("read recovered .modules.yaml")
+            .expect("recovered .modules.yaml exists");
+    assert!(recovered_modules.ignored_builds.is_none());
+    assert!(recovered_modules.pending_builds.is_empty());
 
     pacquet_in(&workspace, &npmrc_info)
         .with_args([

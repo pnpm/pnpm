@@ -43,7 +43,7 @@ export async function approveDirectNonRegistryBuilds (opts: {
   if (pending == null) {
     return { approvedKeys: [], commitApprovedBuilds: async () => {} }
   }
-  const { approvedKeys, modulesDir, modulesManifest } = pending
+  const { approvedKeys, modulesDir } = pending
   const sortedKeys = Array.from(approvedKeys).sort(lexCompare)
   for (const key of sortedKeys) {
     opts.allowBuilds[key] = true
@@ -51,8 +51,12 @@ export async function approveDirectNonRegistryBuilds (opts: {
   return {
     approvedKeys: sortedKeys,
     commitApprovedBuilds: async () => {
-      pruneApprovedIgnoredBuilds(modulesManifest, approvedKeys)
-      await writeModulesManifest(modulesDir, modulesManifest)
+      const currentManifest = await readModulesManifest(modulesDir)
+      if (!currentManifest?.ignoredBuilds?.size) return
+      const before = currentManifest.ignoredBuilds.size
+      pruneApprovedIgnoredBuilds(currentManifest as Modules, approvedKeys)
+      if ((currentManifest.ignoredBuilds?.size ?? 0) === before) return
+      await writeModulesManifest(modulesDir, currentManifest as Modules)
     },
   }
 }
@@ -60,7 +64,7 @@ export async function approveDirectNonRegistryBuilds (opts: {
 async function scanPendingDirectNonRegistryBuilds (opts: {
   dir: string
   allowBuilds: Record<string, boolean | string>
-}): Promise<{ approvedKeys: Set<string>, modulesDir: string, modulesManifest: Modules } | undefined> {
+}): Promise<{ approvedKeys: Set<string>, modulesDir: string } | undefined> {
   const modulesDir = path.join(opts.dir, 'node_modules')
   const modulesManifest = await readModulesManifest(modulesDir)
   if (!modulesManifest?.ignoredBuilds?.size) return undefined
@@ -69,7 +73,7 @@ async function scanPendingDirectNonRegistryBuilds (opts: {
   if (!directDeps) return undefined
   const approvedKeys = collectApprovedDirectBuildKeys(directDeps, modulesManifest.ignoredBuilds, opts.allowBuilds)
   if (approvedKeys.size === 0) return undefined
-  return { approvedKeys, modulesDir, modulesManifest: modulesManifest as Modules }
+  return { approvedKeys, modulesDir }
 }
 
 function collectApprovedDirectBuildKeys (

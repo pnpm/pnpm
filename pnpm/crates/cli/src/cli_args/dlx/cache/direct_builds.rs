@@ -2,7 +2,7 @@ use crate::State;
 use miette::{Context as _, IntoDiagnostic as _};
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, ResolvedDependencyMap};
-use pnpm_modules_yaml::{Host as ModulesHost, Modules, write_modules_manifest};
+use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest, write_modules_manifest};
 use pnpm_package_manager::allow_build_key_from_ignored_build;
 use pnpm_reporter::Reporter;
 use std::path::Path;
@@ -14,14 +14,22 @@ pub(super) fn has_pending_direct_non_registry_builds(
     if config.ignore_scripts {
         return Ok(false);
     }
-    let scan = crate::cli_args::ignored_builds::get_automatically_ignored_builds(config)?;
-    let Some(ignored_keys) = scan.names
-        .as_deref()
+    let Some(modules) =
+        read_modules_manifest::<ModulesHost>(&cache_dir.join("node_modules")).into_diagnostic()?
+    else {
+        return Ok(false);
+    };
+    let Some(ignored) = modules.ignored_builds
+        .as_ref()
         .filter(|keys| !keys.is_empty())
     else {
         return Ok(false);
     };
-    Ok(!approved_direct_build_keys(config, cache_dir, ignored_keys)?.is_empty())
+    let ignored_keys: Vec<String> = ignored
+        .iter()
+        .map(|dep_path| allow_build_key_from_ignored_build(dep_path.as_str()))
+        .collect();
+    Ok(!approved_direct_build_keys(config, cache_dir, &ignored_keys)?.is_empty())
 }
 
 /// Approve and rebuild explicitly requested top-level `dlx` packages whose
@@ -54,9 +62,7 @@ pub(super) async fn rebuild_direct_non_registry_packages<Reporter: self::Reporte
         projects: Vec::new(),
     };
     crate::cli_args::rebuild::run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
-    if let Some(modules) = scan.modules_manifest {
-        persist_pruned_ignored_builds(&scan.modules_dir, modules, &approved_keys)?;
-    }
+    persist_pruned_ignored_builds(&scan.modules_dir, &approved_keys)?;
     Ok(config)
 }
 
@@ -119,17 +125,25 @@ fn leak_config_with_approved_builds(
 
 fn persist_pruned_ignored_builds(
     modules_dir: &Path,
-    mut modules: Modules,
     approved_keys: &[String],
 ) -> miette::Result<()> {
-    if let Some(ignored) = modules.ignored_builds.as_mut() {
-        ignored.retain(|dep_path| {
-            let key = allow_build_key_from_ignored_build(dep_path.as_str());
-            !approved_keys.contains(&key)
-        });
-        if ignored.is_empty() {
-            modules.ignored_builds = None;
-        }
+    let Some(mut modules) = read_modules_manifest::<ModulesHost>(modules_dir).into_diagnostic()?
+    else {
+        return Ok(());
+    };
+    let Some(ignored) = modules.ignored_builds.as_mut() else {
+        return Ok(());
+    };
+    let before = ignored.len();
+    ignored.retain(|dep_path| {
+        let key = allow_build_key_from_ignored_build(dep_path.as_str());
+        !approved_keys.contains(&key)
+    });
+    if ignored.len() == before {
+        return Ok(());
+    }
+    if ignored.is_empty() {
+        modules.ignored_builds = None;
     }
     write_modules_manifest::<ModulesHost>(modules_dir, modules).into_diagnostic()
 }

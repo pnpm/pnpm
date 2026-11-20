@@ -808,6 +808,14 @@ test('dlx runs postinstall on direct tarball URLs and keys the cache by ignoreSc
     const recoveredHitOut = path.join(projectDir, 'hit-recovered.txt')
     await dlx.handler(hitOpts, [tarballUrl, recoveredHitOut])
     expect(fs.readFileSync(recoveredHitOut, 'utf8')).toBe('BUILT_OK')
+    const recoveredModules = JSON.parse(fs.readFileSync(modulesYamlPath, 'utf8')) as {
+      ignoredBuilds?: string[]
+      allowBuilds?: Record<string, boolean | string>
+      pendingBuilds?: string[]
+    }
+    expect(recoveredModules.ignoredBuilds).toBeUndefined()
+    expect(recoveredModules.allowBuilds?.[`dlx-url-tool@${tarballUrl}`]).toBe(true)
+    expect(recoveredModules.pendingBuilds ?? []).toHaveLength(0)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

@@ -25,7 +25,7 @@ pub(super) async fn prepare_cache_dir<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<PathBuf> {
     let prepare_dir =
         get_prepare_dir(dlx_command_cache_dir, SystemTime::now(), pnpm_fs::process_id());
-    if let Err(error) = install_into_cache::<Reporter>(
+    let config = match install_into_cache::<Reporter>(
         &prepare_dir,
         pkgs,
         allow_build,
@@ -34,17 +34,51 @@ pub(super) async fn prepare_cache_dir<Reporter: self::Reporter + 'static>(
     )
     .await
     {
-        // Don't leave a half-installed prepare dir behind to accumulate
-        // across failed runs: remove it on install failure. Best-effort
-        // cleanup.
+        Ok(config) => config,
+        Err(error) => {
+            // Don't leave a half-installed prepare dir behind to accumulate
+            // across failed runs: remove it on install failure. Best-effort
+            // cleanup.
+            let _ = fs::remove_dir_all(&prepare_dir);
+            return Err(error);
+        }
+    };
+    if let Err(error) = link_prepared_cache_dir(&prepare_dir, cache_link, config) {
         let _ = fs::remove_dir_all(&prepare_dir);
         return Err(error);
     }
-    // Best-effort: a parallel dlx process may have raced us to the link.
-    // Either link is equally fresh, so ignore the failure and run from
-    // our own prepare dir.
-    let _ = force_symlink_dir(&prepare_dir, cache_link);
     Ok(prepare_dir)
+}
+
+fn link_prepared_cache_dir(
+    prepare_dir: &Path,
+    cache_link: &Path,
+    config: &Config,
+) -> miette::Result<()> {
+    let mut last_error = None;
+    for attempt in 1..=5_u64 {
+        match force_symlink_dir(prepare_dir, cache_link) {
+            Ok(_) => return Ok(()),
+            Err(error) => {
+                if let Some(linked_dir) =
+                    get_valid_cache_dir(cache_link, config.dlx_cache_max_age, SystemTime::now())
+                    && linked_dir.join("pnpm-lock.yaml").is_file()
+                    && !direct_builds::has_pending_direct_non_registry_builds(config, &linked_dir)?
+                {
+                    return Ok(());
+                }
+                last_error = Some(error);
+                if attempt < 5 {
+                    std::thread::sleep(Duration::from_millis(attempt * 50));
+                }
+            }
+        }
+    }
+    Err(DlxError::Cache {
+        dir: cache_link.display().to_string(),
+        source: last_error.expect("link loop runs at least once"),
+    }
+    .into())
 }
 
 /// Install `pkgs` into `prepare_dir` so their bins land in
@@ -57,7 +91,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     allow_build: &[AllowBuildSelector<'_>],
     supported_architectures: &SupportedArchitecturesArgs,
     config: &'static mut Config,
-) -> miette::Result<()> {
+) -> miette::Result<&'static Config> {
     fs::create_dir_all(prepare_dir)
         .map_err(|source| DlxError::Cache { dir: prepare_dir.display().to_string(), source })?;
     let manifest_path = prepare_dir.join("package.json");
@@ -95,7 +129,8 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         prepare_dir,
         crate::cli_args::approve_builds::ApprovalStore::Workspace(prepare_dir),
     )
-    .await
+    .await?;
+    Ok(config)
 }
 
 mod direct_builds;
