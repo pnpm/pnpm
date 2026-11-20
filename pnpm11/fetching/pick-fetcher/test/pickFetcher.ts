@@ -74,7 +74,6 @@ describe('custom fetcher support', () => {
 
     expect(typeof fetcher).toBe('function')
 
-    // Call the fetcher and verify it uses the custom fetch function
     const mockCafs = {} as unknown as Cafs
     const mockResolution = { tarball: 'http://example.com/package.tgz' } as unknown as AtomicResolution
     const mockFetchOpts = {} as unknown as FetchOptions
