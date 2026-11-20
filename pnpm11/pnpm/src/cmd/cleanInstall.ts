@@ -47,14 +47,14 @@ export async function handler (
       _cleansModulesDir: async (anchorDir: string, modulesDir?: string) =>
         (await getCleanPlan()).cleansModulesDir(anchorDir, modulesDir),
       frozenLockfile: true,
-    } as any) // eslint-disable-line
+    } as Parameters<typeof validateCiFrozenInstall>[0])
   try {
     if (!skipsClean) {
       // `--lockfile` here is the install setting, not `pnpm clean --lockfile`.
       await (await getCleanPlan()).execute()
     }
     return await install.handler(
-      { ...opts, _preparedCi: preparedCi, frozenLockfile: true, optimisticRepeatInstall: false } as any, // eslint-disable-line
+      { ...opts, _preparedCi: preparedCi, frozenLockfile: true, optimisticRepeatInstall: false } as Parameters<typeof install.handler>[0],
       params,
       commands
     )

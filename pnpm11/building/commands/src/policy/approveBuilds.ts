@@ -297,7 +297,7 @@ async function buildApprovedPackages ({ targets, buildPackages, allowBuilds, com
         allowBuilds,
         frozenLockfile: true,
         optimisticRepeatInstall: false,
-      } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any -- approve-builds options are not typed as the full install option set
+      } as unknown as Parameters<typeof install.handler>[0], [], commands)
       return
     }
     await rebuild.handler({

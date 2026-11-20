@@ -54,23 +54,20 @@ describe('pack-app command', () => {
 
   it('fails fast when no --entry is provided', async () => {
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler(baseOpts() as any, [])
+      handler(baseOpts() as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_ENTRY' })
   })
 
   it('fails fast when the entry file does not exist', async () => {
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler({ ...baseOpts(), entry: 'missing.cjs' } as any, [])
+      handler({ ...baseOpts(), entry: 'missing.cjs' } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_NOT_FOUND' })
   })
 
   it('fails fast when the entry path is a directory', async () => {
     fs.mkdirSync(path.join(tempDir, 'entry-dir'))
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler({ ...baseOpts(), entry: 'entry-dir' } as any, [])
+      handler({ ...baseOpts(), entry: 'entry-dir' } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_NOT_FILE' })
   })
 
@@ -175,8 +172,7 @@ describe('pack-app command', () => {
     // With entry from config but no target, we hit MISSING_TARGET — that's
     // enough to verify the entry was picked up from pnpm.app.entry.
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler(baseOpts() as any, [])
+      handler(baseOpts() as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
   })
 
@@ -189,8 +185,7 @@ describe('pack-app command', () => {
     // A bad-target in the config should reach parseTarget and surface
     // INVALID_TARGET — proves the config list was consulted.
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
+      handler({ ...baseOpts(), entry: 'entry.cjs' } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_TARGET' })
   })
 
@@ -205,8 +200,7 @@ describe('pack-app command', () => {
     }))
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler({ ...baseOpts(), target: 'linux-x64', runtime: 'node@0.0.0-nonexistent-xxx' } as any, [])
+      handler({ ...baseOpts(), target: 'linux-x64', runtime: 'node@0.0.0-nonexistent-xxx' } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: expect.not.stringMatching(/INVALID_TARGET/) })
   })
 
@@ -217,8 +211,7 @@ describe('pack-app command', () => {
     }))
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler(baseOpts() as any, [])
+      handler(baseOpts() as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_CONFIG' })
   })
 
@@ -234,16 +227,14 @@ describe('pack-app command', () => {
     }))
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler(baseOpts() as any, [])
+      handler(baseOpts() as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_CONFIG' })
   })
 
   it('fails fast when no --target is provided', async () => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
+      handler({ ...baseOpts(), entry: 'entry.cjs' } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })
   })
 
@@ -262,8 +253,7 @@ describe('pack-app command', () => {
   ])('rejects invalid target: %s (%s)', async (_label, target) => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler({ ...baseOpts(), entry: 'entry.cjs', target } as any, [])
+      handler({ ...baseOpts(), entry: 'entry.cjs', target } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_TARGET' })
   })
 
@@ -277,8 +267,7 @@ describe('pack-app command', () => {
   ])('rejects invalid --runtime: %s (%s)', async (_label, runtime) => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-      handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', runtime } as any, [])
+      handler({ ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', runtime } as unknown as Parameters<typeof handler>[0], [])
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_RUNTIME' })
   })
 
@@ -307,8 +296,7 @@ describe('pack-app command', () => {
     fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
     await expect(
       handler(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-        { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName } as any,
+        { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName } as unknown as Parameters<typeof handler>[0],
         []
       )
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_INVALID_OUTPUT_NAME' })
@@ -321,8 +309,7 @@ describe('pack-app command', () => {
     // assert on the error that surfaces when the target list is empty.
     await expect(
       handler(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the test passes a partial config
-        { ...baseOpts(), entry: 'entry.cjs', outputName: 'explicit' } as any,
+        { ...baseOpts(), entry: 'entry.cjs', outputName: 'explicit' } as unknown as Parameters<typeof handler>[0],
         []
       )
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_MISSING_TARGET' })

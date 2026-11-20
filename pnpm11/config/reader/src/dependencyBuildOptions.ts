@@ -19,7 +19,7 @@ export const hasDependencyBuildOptions = (config: Config): boolean => DEPS_BUILD
 export function extractAndRemoveDependencyBuildOptions (targetConfig: Config): DepsBuildConfig {
   const depsBuildConfig: DepsBuildConfig = {}
   for (const key of DEPS_BUILD_CONFIG_KEYS) {
-    depsBuildConfig[key] = targetConfig[key] as any // eslint-disable-line
+    ;(depsBuildConfig as Record<DepsBuildConfigKey, Config[DepsBuildConfigKey]>)[key] = targetConfig[key]
     delete targetConfig[key]
   }
   return depsBuildConfig

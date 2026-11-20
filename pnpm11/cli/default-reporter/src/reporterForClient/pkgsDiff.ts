@@ -72,7 +72,7 @@ export function getPkgsDiff (
   )
     .pipe(
       take(2),
-      reduce(mergeRight, {} as any) // eslint-disable-line @typescript-eslint/no-explicit-any -- the result is cast to PackageManifestLog right below
+      reduce(mergeRight, {})
     ) as Rx.Observable<logs.PackageManifestLog>
 
   return Rx.combineLatest(

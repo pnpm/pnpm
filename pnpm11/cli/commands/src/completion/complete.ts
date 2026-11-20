@@ -29,7 +29,7 @@ export async function complete (
   input: CompletionInput
 ): Promise<CompletionItem[]> {
   if (input.options.version) return []
-  const optionTypes = {
+  const optionTypes: Record<string, unknown> = {
     ...ctx.universalOptionsTypes,
     ...((input.cmd && ctx.cliOptionsTypesByCommandName[input.cmd]?.()) ?? {}),
   }
