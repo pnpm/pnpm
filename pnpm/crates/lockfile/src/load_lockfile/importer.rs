@@ -1,4 +1,6 @@
-use crate::{ComVer, Lockfile, LockfileVersion, ProjectSnapshot, extract_main_document};
+use crate::{
+    ComVer, Lockfile, LockfileVersion, ProjectSnapshot, declares_next_format, extract_main_document,
+};
 use serde::Deserialize;
 use std::{collections::HashMap, path::Path};
 
@@ -34,19 +36,14 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(ImporterLoad::MissingLockfile);
         }
+        if declares_next_format(&main) {
+            return load_importer_from_full_lockfile(file_path, importer_id);
+        }
         let parsed: ImporterOnlyLockfile =
             serde_saphyr::from_str_with_options(&main, yaml_parse_options(main.len()))
                 .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
         if !LockfileVersion::<9>::is_compatible(parsed.lockfile_version) {
-            return Ok(match Lockfile::load_from_path(file_path)? {
-                Some(lockfile) => ImporterLoad::Importer(
-                    lockfile.importers
-                        .get(importer_id)
-                        .cloned()
-                        .map(Box::new),
-                ),
-                None => ImporterLoad::MissingLockfile,
-            });
+            return load_importer_from_full_lockfile(file_path, importer_id);
         }
         Ok(ImporterLoad::Importer(
             parsed.importers
@@ -55,4 +52,19 @@ impl Lockfile {
                 .map(Box::new),
         ))
     }
+}
+
+fn load_importer_from_full_lockfile(
+    file_path: &Path,
+    importer_id: &str,
+) -> Result<ImporterLoad, LoadLockfileError> {
+    Ok(match Lockfile::load_from_path(file_path)? {
+        Some(lockfile) => ImporterLoad::Importer(
+            lockfile.importers
+                .get(importer_id)
+                .cloned()
+                .map(Box::new),
+        ),
+        None => ImporterLoad::MissingLockfile,
+    })
 }
