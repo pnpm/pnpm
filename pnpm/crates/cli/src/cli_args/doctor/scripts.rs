@@ -254,13 +254,28 @@ fn shell_settings(config: &Config) -> Vec<String> {
     // A configured shell goes as written, so one that scripts reject fails
     // the probe the same way.
     let shell = match script_shell.filter(|shell| !shell.as_os_str().is_empty()) {
-        Some(shell) => Some(shell.to_path_buf()),
+        Some(shell) => Some(anchor_relative_shell(shell)),
         None => select_shell(None, cfg!(windows)).ok().map(|shell| shell.program),
     };
     if let Some(shell) = shell {
         settings.push(format!("--config.script-shell={}", shell.display()));
     }
     settings
+}
+
+/// `shell` as the probe install, which runs in a temporary project, has to
+/// spell it: a path relative to this directory is made absolute, while a bare
+/// name stays for the `PATH` lookup. The workspace manifest anchors its own
+/// relative `scriptShell` the same way.
+fn anchor_relative_shell(shell: &Path) -> PathBuf {
+    let is_relative_path = !shell.has_root()
+        && shell
+            .to_string_lossy()
+            .contains(['/', '\\']);
+    if !is_relative_path {
+        return shell.to_path_buf();
+    }
+    std::path::absolute(shell).unwrap_or_else(|_| shell.to_path_buf())
 }
 
 fn run_script_probes(

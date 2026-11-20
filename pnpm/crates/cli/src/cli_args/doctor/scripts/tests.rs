@@ -208,10 +208,25 @@ fn the_probe_install_gets_the_effective_script_shell() {
         shell_settings(&configured),
         ["--config.shell-emulator=false", "--config.script-shell=/opt/shell"],
     );
-    let batch_file = Config { script_shell: Some(r"C:\shell.bat".to_owned()), ..Config::default() };
+    let batch_file =
+        Config { script_shell: Some("/tools/shell.bat".to_owned()), ..Config::default() };
     assert_eq!(
         shell_settings(&batch_file),
-        ["--config.shell-emulator=false", r"--config.script-shell=C:\shell.bat"],
+        ["--config.shell-emulator=false", "--config.script-shell=/tools/shell.bat"],
+    );
+    let relative = Config { script_shell: Some("tools/sh".to_owned()), ..Config::default() };
+    let anchored = std::path::absolute("tools/sh").expect("make the shell path absolute");
+    assert_eq!(
+        shell_settings(&relative),
+        [
+            "--config.shell-emulator=false".to_owned(),
+            format!("--config.script-shell={}", anchored.display()),
+        ],
+    );
+    let bare = Config { script_shell: Some("bash".to_owned()), ..Config::default() };
+    assert_eq!(
+        shell_settings(&bare),
+        ["--config.shell-emulator=false", "--config.script-shell=bash"],
     );
     let emulated = Config { shell_emulator: true, ..Config::default() };
     assert_eq!(shell_settings(&emulated), ["--config.shell-emulator=true"]);

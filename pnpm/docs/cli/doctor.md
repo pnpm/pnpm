@@ -43,7 +43,7 @@ It also warns when the `pnpm` found on `PATH` is not the one in the global bin d
 
 Added in: v12.9.0
 
-Lists the `node` executables on the `PATH` pnpm runs with, in lookup order. Lifecycle scripts run the first one, unless a directory pnpm puts ahead of them, such as `node_modules/.bin`, has its own `node`. pnpm itself does not need Node.js, but the executables that packages put in `node_modules/.bin` do.
+Lists the `node` executables on the `PATH` pnpm runs with, in lookup order. Lifecycle scripts run the first one, unless a directory pnpm puts ahead of them, such as `node_modules/.bin`, has its own `node`. pnpm itself does not need Node.js, but the executables in `node_modules/.bin` that run JavaScript do.
 
 Warns when there is no `node` on `PATH`, and when a `node` entry is skipped because it is a broken link, not executable, or not a file. A version manager that relinks `node` while scripts run can leave such an entry behind.
 
