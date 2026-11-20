@@ -100,7 +100,7 @@ fn change_in_the_workspace_root_is_named_dot() {
             workspace_summary(&[]),
         ],
     );
-    assert_eq!(frame, "\ndevDependencies:\n+ bar 1.0.0  packages/a\n+ foo 1.0.0  ., packages/a\n",);
+    assert_eq!(frame, "\ndevDependencies:\n+ bar 1.0.0  packages/a\n+ foo 1.0.0  ., packages/a\n");
 }
 
 #[test]

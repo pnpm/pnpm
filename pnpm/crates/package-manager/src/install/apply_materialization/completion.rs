@@ -143,9 +143,7 @@ pub(super) fn materialized_script_projects<'a>(
 }
 pub(super) struct ReportInstallCompletionInputs<'a> {
     pub(crate) workspace: crate::install::state_options::CompletionWorkspace<'a>,
-    pub(super) prefix: String,
-    /// See [`SummaryLog::new_projects`].
-    pub(super) new_projects: Option<Vec<String>>,
+    pub(super) summary: SummaryLog,
     pub(super) ignored_builds: Vec<String>,
     pub(super) verified_file_integrity_baseline: VerifiedFileIntegrity,
     /// The lockfile this install resolved, or `None` when it skipped
@@ -176,11 +174,7 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must
     // come after `importing_done`.
-    Reporter::emit(&LogEvent::Summary(SummaryLog {
-        level: LogLevel::Debug,
-        prefix: inputs.prefix,
-        new_projects: inputs.new_projects,
-    }));
+    Reporter::emit(&LogEvent::Summary(inputs.summary));
 
     report_verified_file_integrity::<Reporter>(
         VerifiedFileIntegrity::snapshot().since(inputs.verified_file_integrity_baseline),

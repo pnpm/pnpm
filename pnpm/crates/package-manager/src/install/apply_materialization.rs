@@ -31,9 +31,11 @@ use super::{
     HoistedDependencies,
     InstallError,
     Lockfile,
+    LogLevel,
     Materialized,
     Reporter,
     StateWrite,
+    SummaryLog,
     recorded_workspace_state,
     update_workspace_state_or_warn,
 };
@@ -317,11 +319,11 @@ fn finish_apply<Reporter: self::Reporter>(
     materialized_dirs: Option<&HashSet<PathBuf>>,
     (selected_current_lockfile, current_lockfile): (Option<Lockfile>, Option<Lockfile>),
 ) -> Result<(), InstallError> {
-    let peer_catalogs =
-        inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs);
     let installed_importer_ids =
         inputs.projects.importers.requested_ids.unwrap_or(inputs.projects.importers.real_ids);
-    let new_projects = new_projects(&inputs, installed_importer_ids);
+    let summary = install_summary(&mut inputs, installed_importer_ids);
+    let peer_catalogs =
+        inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs);
     // Nothing below reads the materialized lockfiles, and each holds a
     // workspace-scale importer map.
     pnpm_fs::background_drop((
@@ -347,8 +349,7 @@ fn finish_apply<Reporter: self::Reporter>(
             project_manifests: inputs.projects.importers.declared_manifests.as_slice(),
         },
 
-        prefix: inputs.completion.prefix,
-        new_projects,
+        summary,
         ignored_builds: inputs.materialized.ignored_builds,
         verified_file_integrity_baseline: inputs.completion.verified_file_integrity_baseline,
         resolved_lockfile: inputs.materialized.fresh_lockfile.as_ref(),
@@ -360,7 +361,19 @@ fn finish_apply<Reporter: self::Reporter>(
     completion
 }
 
-/// See [`pnpm_reporter::SummaryLog::new_projects`]. A project had no
+/// The `pnpm:summary` that closes the install.
+fn install_summary(
+    inputs: &mut ApplyMaterializationInputs<'_, '_>,
+    installed_importer_ids: &HashSet<String>,
+) -> SummaryLog {
+    SummaryLog {
+        level: LogLevel::Debug,
+        new_projects: new_projects(inputs, installed_importer_ids),
+        prefix: std::mem::take(&mut inputs.completion.prefix),
+    }
+}
+
+/// See [`SummaryLog::new_projects`]. A project had no
 /// previous install when the current lockfile has no importer for it.
 fn new_projects(
     inputs: &ApplyMaterializationInputs<'_, '_>,
