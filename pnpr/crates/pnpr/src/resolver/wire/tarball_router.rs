@@ -15,16 +15,16 @@ mod verdict_salt;
 
 #[derive(Clone, Copy)]
 pub(in super::super) enum LockfileOrigin<'a> {
-    Resolved { verified_input: Option<&'a Lockfile> },
-    VerifiedInput,
+    Resolved { input: Option<&'a Lockfile> },
+    Input,
 }
 
 impl LockfileOrigin<'_> {
     fn has_established_tarball(self, package_key: &PackageKey, tarball_url: &str) -> bool {
         match self {
-            Self::VerifiedInput => true,
-            Self::Resolved { verified_input: None } => false,
-            Self::Resolved { verified_input: Some(input) } => input.packages
+            Self::Input => true,
+            Self::Resolved { input: None } => false,
+            Self::Resolved { input: Some(input) } => input.packages
                 .as_ref()
                 .and_then(|packages| packages.get(package_key))
                 .is_some_and(|meta| match &meta.resolution {
@@ -307,19 +307,19 @@ impl TarballRouter {
         self.route_lockfile_until(
             config,
             lockfile,
-            LockfileOrigin::Resolved { verified_input: None },
+            LockfileOrigin::Resolved { input: None },
             &|| false,
         )
         .expect("unconditional tarball routing cannot cancel")
     }
 
     #[cfg(test)]
-    pub(in super::super) fn route_verified_lockfile(
+    pub(in super::super) fn route_input_lockfile(
         &self,
         config: &PacquetConfig,
         lockfile: &Lockfile,
     ) -> Lockfile {
-        self.route_lockfile_until(config, lockfile, LockfileOrigin::VerifiedInput, &|| false)
+        self.route_lockfile_until(config, lockfile, LockfileOrigin::Input, &|| false)
             .expect("unconditional tarball routing cannot cancel")
     }
 

@@ -338,13 +338,10 @@ impl ResolutionFinalizer {
             return Some(error_frame_with_code(&message, Some(GRAPH_TOO_LARGE_CODE)));
         }
         let check_cancel = || cancel.is_cancelled();
-        let verified_input = (!self.inputs.request.trust_lockfile)
-            .then_some(self.inputs.request.lockfile.as_ref())
-            .flatten();
         let lockfile = self.inputs.tarball_router.route_lockfile_until(
             &self.inputs.config,
             &lockfile,
-            LockfileOrigin::Resolved { verified_input },
+            LockfileOrigin::Resolved { input: self.inputs.request.lockfile.as_ref() },
             &check_cancel,
         )?;
         if let Some(violations) = self.osv_violations(&lockfile, &check_cancel)? {

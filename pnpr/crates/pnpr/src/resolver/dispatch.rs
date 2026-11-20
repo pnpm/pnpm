@@ -283,7 +283,7 @@ fn prepare_frozen_lockfile(
     let lockfile = resolve::fresh_frozen_input_lockfile(config, request)?;
     Some(
         tarball_router
-            .route_lockfile_until(config, &lockfile, LockfileOrigin::VerifiedInput, should_cancel)
+            .route_lockfile_until(config, &lockfile, LockfileOrigin::Input, should_cancel)
             .ok_or_else(request_timeout_response),
     )
 }

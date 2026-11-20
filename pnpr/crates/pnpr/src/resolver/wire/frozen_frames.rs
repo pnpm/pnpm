@@ -101,7 +101,7 @@ fn frozen_package_frame(
     };
     let (name, id, bare_version) = frozen_package_coordinates(inputs.package_key);
     let tarball_url = inputs.router.route_lockfile_tarball_with_routes(
-        LockfileRoutingContext { routes: inputs.routes, origin: LockfileOrigin::VerifiedInput },
+        LockfileRoutingContext { routes: inputs.routes, origin: LockfileOrigin::Input },
         inputs.package_key,
         &inputs.snapshot.resolution,
         &upstream_tarball_url,

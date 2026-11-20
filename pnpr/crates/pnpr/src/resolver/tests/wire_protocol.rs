@@ -793,9 +793,21 @@ fn frozen_frames_and_lockfile_routing_isolate_multi_registry_stats_and_routed_en
         "http://127.0.0.1:7677/npm/~west/acme/-/acme-1.0.0.tgz",
     );
     let raw_pub = lockfile_with_tarball("https://pub.east.example/acme/-/acme-1.0.0.tgz");
-    let routed_pub = router_pub.route_verified_lockfile(&pnpm_config, &raw_pub);
+    let routed_pub = router_pub.route_input_lockfile(&pnpm_config, &raw_pub);
     assert_eq!(
         lockfile_tarball_url(&routed_pub, "acme@1.0.0"),
+        "https://pub.east.example/acme/-/acme-1.0.0.tgz",
+    );
+    let reused_pub = router_pub
+        .route_lockfile_until(
+            &pnpm_config,
+            &raw_pub,
+            super::super::wire::LockfileOrigin::Resolved { input: Some(&raw_pub) },
+            &|| false,
+        )
+        .unwrap();
+    assert_eq!(
+        lockfile_tarball_url(&reused_pub, "acme@1.0.0"),
         "https://pub.east.example/acme/-/acme-1.0.0.tgz",
     );
     let pub_frames = super::super::wire::frozen_package_frames_until(
