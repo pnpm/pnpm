@@ -129,7 +129,8 @@ impl RemoteTaskCache {
         let publisher = publishes_tasks
             .then(|| {
                 ArtifactSigner::from_settings(artifact_signer_settings(&settings))
-                    .map(|signer| Arc::new(TaskPublisher(signer)))
+                    .map(TaskPublisher)
+                    .map(Arc::new)
             })
             .transpose()?;
         Ok(Some(RemoteTaskCache {

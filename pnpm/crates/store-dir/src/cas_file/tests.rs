@@ -301,7 +301,8 @@ fn write_cas_file_from_reader_removes_temp_when_shard_creation_fails() {
 
     let leftovers: Vec<_> = std::fs::read_dir(store_dir.files_dir())
         .unwrap()
-        .map(|dirent| dirent.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect();
     assert_eq!(
         leftovers,
@@ -332,7 +333,8 @@ fn write_cas_file_from_reader_rejects_short_reader_without_committing() {
 
     let leftovers: Vec<_> = std::fs::read_dir(store_dir.files_dir())
         .unwrap()
-        .map(|dirent| dirent.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect();
     assert_eq!(
         leftovers,
@@ -368,7 +370,8 @@ fn write_cas_file_from_reader_cleans_up_temp_on_reader_error() {
 
     let leftovers: Vec<_> = std::fs::read_dir(store_dir.files_dir())
         .unwrap()
-        .map(|dirent| dirent.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect();
     assert_eq!(leftovers, Vec::<std::ffi::OsString>::new(), "failed stream must remove its temp");
 }

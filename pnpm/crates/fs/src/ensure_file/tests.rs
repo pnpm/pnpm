@@ -45,7 +45,8 @@ fn atomic_variant_publishes_a_new_file_without_leaving_temp_files() {
     assert_eq!(fs::read(&path).unwrap(), b"{}");
     let siblings: Vec<_> = fs::read_dir(tmp.path())
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect();
     assert_eq!(siblings, vec![std::ffi::OsString::from("published.json")]);
 }
@@ -101,7 +102,8 @@ fn existing_target_with_wrong_content_is_overwritten_atomically() {
     assert_eq!(fs::read(&path).unwrap(), b"fresh");
     let siblings: Vec<_> = fs::read_dir(tmp.path())
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect();
     assert_eq!(siblings, vec![std::ffi::OsString::from("torn.txt")]);
 }
