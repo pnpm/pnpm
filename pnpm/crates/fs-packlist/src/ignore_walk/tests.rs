@@ -286,6 +286,13 @@ fn default_rule_gate_is_a_superset_of_the_default_rules() {
     }
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::numeric_escape_for_visible_character,
+        reason = "the Kelvin sign reads as `K`, and clippy rejects it written out"
+    )
+)]
 #[test]
 fn default_rule_gate_rejects_ordinary_paths() {
     for path in [
@@ -294,8 +301,8 @@ fn default_rule_gate_rejects_ordinary_paths() {
         "build/other.js",
         "x.swp",
         "config.gypi.bak",
-        "archived-pacKages/data.json",
-        ".locK-wscript",
+        "archived-pac\u{212A}ages/data.json",
+        ".loc\u{212A}-wscript",
     ] {
         assert!(!gate_passes(path), "{path:?}");
     }

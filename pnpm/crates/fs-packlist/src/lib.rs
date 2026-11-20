@@ -8,6 +8,8 @@
 //! File selection uses one per-directory ignore rule stack. Manifest `files`
 //! rules replace root ignore files; required paths and standard package files
 //! are appended at the root. Bundled dependencies use the same selection.
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 pub use ignore_walk::files_field::{
     FilesMatcher,

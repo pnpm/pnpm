@@ -1,4 +1,6 @@
 //! Inspect GitHub Actions dependencies and update their commit pins while preserving workflow formatting.
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 pub(crate) use pnpm_process as process;
 

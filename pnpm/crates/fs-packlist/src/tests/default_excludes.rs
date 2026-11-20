@@ -164,32 +164,50 @@ fn files_field_naming_a_file_in_an_apple_double_directory_ships_it() {
     assert_eq!(packed(root, &manifest), names(&["package.json", "sub/._dir/keep.js"]));
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::numeric_escape_for_visible_character,
+        reason = "the Kelvin sign reads as `K`, and clippy rejects it written out"
+    )
+)]
 #[test]
 fn default_rules_match_ascii_case_only() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
-    touch(root, ".locK-wscript");
-    touch(root, "archived-pacKages/data.json");
+    touch(root, ".loc\u{212A}-wscript");
+    touch(root, "archived-pac\u{212A}ages/data.json");
 
     assert_eq!(
         packed(root, &manifest()),
-        names(&[".locK-wscript", "archived-pacKages/data.json", "package.json"]),
+        names(&[".loc\u{212A}-wscript", "archived-pac\u{212A}ages/data.json", "package.json"]),
     );
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::numeric_escape_for_visible_character,
+        reason = "the Kelvin sign reads as `K`, and clippy rejects it written out"
+    )
+)]
 #[test]
 fn default_rules_match_ascii_case_only_below_a_candidate_directory() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
-    touch(root, "config.gypi/.locK-wscript");
-    touch(root, "config.gypi/.wafpicKle-1");
+    touch(root, "config.gypi/.loc\u{212A}-wscript");
+    touch(root, "config.gypi/.wafpic\u{212A}le-1");
     touch(root, "config.gypi/.lock-wscript");
 
     assert_eq!(
         packed(root, &manifest()),
-        names(&["config.gypi/.locK-wscript", "config.gypi/.wafpicKle-1", "package.json",]),
+        names(&[
+            "config.gypi/.loc\u{212A}-wscript",
+            "config.gypi/.wafpic\u{212A}le-1",
+            "package.json",
+        ]),
     );
 }
 

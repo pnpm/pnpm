@@ -71,6 +71,13 @@ fn rejects_purl_and_protocol_prefixed_selectors() {
     assert_eq!(normalize_selector("pkg:npm/pkg-a@1.0.0"), "pkg:npm/pkg-a@1.0.0");
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::em_dash_prose,
+        reason = "workflow comments written with a dash are input data"
+    )
+)]
 #[test]
 fn updates_partial_and_non_version_comments_cleanly() {
     let versions = repo_versions();
@@ -102,8 +109,8 @@ fn updates_partial_and_non_version_comments_cleanly() {
             format!("actions/checkout@{SHA_V4_2_0} # v4.2.0"),
         ),
         (
-            format!("actions/checkout@{SHA_V4_1_0} # v4, pin for CI"),
-            format!("actions/checkout@{SHA_V4_2_0} # v4.2.0, pin for CI"),
+            format!("actions/checkout@{SHA_V4_1_0} # v4 — pin for CI"),
+            format!("actions/checkout@{SHA_V4_2_0} # v4.2.0 — pin for CI"),
         ),
         (
             format!("actions/checkout@{SHA_V4_1_0} # pinned manually"),
