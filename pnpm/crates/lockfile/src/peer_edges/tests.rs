@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fmt::Write, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    path::Path,
+};
 
 use pretty_assertions::assert_eq;
 
@@ -530,7 +534,7 @@ snapshots:
                 .values()
                 .map(super::direct_keys)
                 .collect(),
-            listed_by_every_importer: Default::default(),
+            listed_by_every_importer: HashSet::new(),
             snapshots: lockfile.snapshots.as_ref().unwrap(),
             packages: lockfile.packages.as_ref().unwrap(),
         };
