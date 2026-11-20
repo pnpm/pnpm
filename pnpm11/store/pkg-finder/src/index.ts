@@ -20,14 +20,15 @@ export interface ReadPackageFileMapOptions {
   supportedArchitectures?: SupportedArchitectures
   virtualStoreDirMaxLength: number
   /**
-   * Optional cache of decoded package-file indexes shared across one
-   * traversal. When two depPaths resolve to the same store entry (peer-dep
-   * variants), the second read sees a hit and skips the SQLite read +
-   * msgpack decode. The caller owns the map's lifetime — drop it when the
-   * traversal ends.
+   * Decoded package-file indexes keyed by store index key, shared across one
+   * traversal. When several depPaths resolve to the same store entry, only the
+   * first read hits the store. The caller owns the map's lifetime; entries are
+   * never invalidated, so drop the map when the traversal ends.
    */
-  indexCache?: Map<string, PackageFilesIndex>
+  indexCache?: PackageFilesIndexCache
 }
+
+export type PackageFilesIndexCache = Map<string, PackageFilesIndex>
 
 /**
  * Reads the file index for a package and returns a `Map<string, string>`
@@ -73,25 +74,31 @@ export async function readPackageFileMap (
     return undefined
   }
 
-  let pkgFilesIndex = opts.indexCache?.get(pkgIndexFilePath)
-  if (pkgFilesIndex == null) {
-    pkgFilesIndex = opts.storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
-    if (!pkgFilesIndex) {
-      const err: NodeJS.ErrnoException = new Error(
-        `ENOENT: package index not found for '${pkgIndexFilePath}'`
-      )
-      err.code = 'ENOENT'
-      err.path = pkgIndexFilePath
-      throw err
-    }
-    opts.indexCache?.set(pkgIndexFilePath, pkgFilesIndex)
-  }
-  const { files: indexFiles } = pkgFilesIndex
+  const { files: indexFiles } = readPackageFilesIndex(pkgIndexFilePath, opts)
   const files = new Map<string, string>()
   for (const [name, info] of indexFiles) {
     files.set(name, getFilePathByModeInCafs(opts.storeDir, info.digest, info.mode))
   }
   return files
+}
+
+function readPackageFilesIndex (
+  pkgIndexFilePath: string,
+  opts: Pick<ReadPackageFileMapOptions, 'storeIndex' | 'indexCache'>
+): PackageFilesIndex {
+  const cached = opts.indexCache?.get(pkgIndexFilePath)
+  if (cached != null) return cached
+  const pkgFilesIndex = opts.storeIndex.get(pkgIndexFilePath) as PackageFilesIndex | undefined
+  if (!pkgFilesIndex) {
+    const err: NodeJS.ErrnoException = new Error(
+      `ENOENT: package index not found for '${pkgIndexFilePath}'`
+    )
+    err.code = 'ENOENT'
+    err.path = pkgIndexFilePath
+    throw err
+  }
+  opts.indexCache?.set(pkgIndexFilePath, pkgFilesIndex)
+  return pkgFilesIndex
 }
 
 function selectPackageResolution (

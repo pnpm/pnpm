@@ -6,9 +6,8 @@ import { depPathToFilename, findHoistedPackageDirs } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageSnapshot, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 import { readPackageJson } from '@pnpm/pkg-manifest.reader'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import type { StoreIndex } from '@pnpm/store.index'
-import { readPackageFileMap } from '@pnpm/store.pkg-finder'
+import { type PackageFilesIndexCache, readPackageFileMap } from '@pnpm/store.pkg-finder'
 import type { PackageManifest, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 import pLimit from 'p-limit'
 import { pathAbsolute } from 'path-absolute'
@@ -47,7 +46,7 @@ export interface GetPackageInfoOptions {
    */
   hoistedLocations?: Record<string, string[]>
   supportedArchitectures?: SupportedArchitectures
-  indexCache?: Map<string, PackageFilesIndex>
+  indexCache?: PackageFilesIndexCache
 }
 
 export type PkgInfo = {
@@ -87,13 +86,28 @@ async function readPackageFilesAndManifest (
   pkg: PackageInfo,
   opts: GetPackageInfoOptions
 ): Promise<{ files: Map<string, string>, manifest: PackageManifest }> {
+  const files = await readPackageFiles(pkg, opts)
+  const manifestPath = files.get('package.json')
+  if (!manifestPath) {
+    throw new PnpmError(
+      'MISSING_PACKAGE_INDEX_FILE',
+      `Failed to find package.json in index for ${pkg.id}, please consider running 'pnpm install'`
+    )
+  }
+  const manifest = await readPackageJson(manifestPath)
+  return { files, manifest }
+}
+
+async function readPackageFiles (
+  pkg: PackageInfo,
+  opts: GetPackageInfoOptions
+): Promise<Map<string, string>> {
   const packageResolution = pkgSnapshotToResolution(
     pkg.depPath,
     pkg.snapshot,
     { registriesByScope: pkg.registriesByScope, registriesByPrefix: pkg.registriesByPrefix }
   )
 
-  let files: Map<string, string>
   try {
     const result = await readPackageFileMap(
       packageResolution,
@@ -110,7 +124,7 @@ async function readPackageFilesAndManifest (
     if (!result) {
       throw new PnpmError('UNSUPPORTED_PACKAGE_TYPE', `Unsupported package resolution type for ${pkg.id}`)
     }
-    files = result
+    return result
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') {
       throw new PnpmError(
@@ -120,16 +134,6 @@ async function readPackageFilesAndManifest (
     }
     throw err
   }
-
-  const manifestPath = files.get('package.json')
-  if (!manifestPath) {
-    throw new PnpmError(
-      'MISSING_PACKAGE_INDEX_FILE',
-      `Failed to find package.json in index for ${pkg.id}, please consider running 'pnpm install'`
-    )
-  }
-  const manifest = await readPackageJson(manifestPath)
-  return { files, manifest }
 }
 
 async function resolvePackageModulePath (

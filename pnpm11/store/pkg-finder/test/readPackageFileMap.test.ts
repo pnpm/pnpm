@@ -262,6 +262,21 @@ describe('readPackageFileMap', () => {
     expect(second).toBeDefined()
     expect(second!.has('package.json')).toBe(true)
   })
+
+  it('should not cache a missing index', async () => {
+    const integrity = 'sha512-missing-cache'
+    const pkgId = 'missing-cache-pkg@1.0.0'
+    const resolution: TarballResolution = {
+      integrity,
+      tarball: 'https://registry.npmjs.org/missing-cache-pkg/-/missing-cache-pkg-1.0.0.tgz',
+    }
+    const indexCache = new Map<string, PackageFilesIndex>()
+
+    await expect(
+      readPackageFileMap(resolution, pkgId, { ...defaultOpts(), indexCache })
+    ).rejects.toThrow(/package index not found/)
+    expect(indexCache.size).toBe(0)
+  })
 })
 
 function createBinaryResolution (integrity: string, prefix: string): BinaryResolution {

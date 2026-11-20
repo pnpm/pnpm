@@ -7,8 +7,8 @@ import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile.walker'
-import type { PackageFilesIndex } from '@pnpm/store.cafs'
 import { StoreIndex } from '@pnpm/store.index'
+import type { PackageFilesIndexCache } from '@pnpm/store.pkg-finder'
 import type { DependenciesField, DepPath, ProjectId, RegistriesByScope, SupportedArchitectures } from '@pnpm/types'
 
 import { getPkgInfo } from './getPkgInfo.js'
@@ -52,7 +52,7 @@ export interface LicenseExtractOptions {
   registriesByPrefix?: Record<string, string>
   supportedArchitectures?: SupportedArchitectures
   depTypes: DepTypes
-  indexCache?: Map<string, PackageFilesIndex>
+  indexCache?: PackageFilesIndexCache
 }
 
 export async function lockfileToLicenseNode (
@@ -169,9 +169,8 @@ export async function lockfileToLicenseNodeTree (
     depTypes: detectDepTypes(lockfile, opts),
     hoistedLocations: opts.hoistedLocations && withCollapsedVariants(opts.hoistedLocations),
     storeIndex: new StoreIndex(opts.storeDir),
-    // Peer-dep variants produce distinct depPaths that share one store entry.
-    // Reuse the decoded index across the walk so the second visit skips the
-    // SQLite read and msgpack decode. The cache lives only for this call.
+    // Peer-dep variants of a package are distinct depPaths, so the walker
+    // visits each of them, but they all share one store entry.
     indexCache: new Map(),
   }
   const dependencies: Record<string, LicenseNode> = Object.fromEntries(
