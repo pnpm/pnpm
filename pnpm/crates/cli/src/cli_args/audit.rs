@@ -1,11 +1,9 @@
 pub(crate) use fix::{
-    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, fetch_publish_times,
+    AuditFixObserver, PublishInfoLookup, VulnerabilityGuard, fetch_publish_times,
     filter_advisories_for_fix, fix_with_update, format_fix_with_update_output,
     ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
 };
-pub(crate) use importers::{
-    LockedPackageRegistry, audit_registry_context, locked_package_registries,
-};
+pub(crate) use importers::{LockedPackageRegistry, locked_package_registries};
 pub(crate) use paths::{
     AuditPathIndex, PathInfo, build_audit_path_index, package_semver, package_version,
 };
@@ -135,7 +133,7 @@ struct FixContext<'a> {
     audit_level: ConfigAuditLevel,
     lockfile_dir: &'a std::path::Path,
     settings_dir: &'a std::path::Path,
-    publish_infos: &'a HashMap<String, Option<PackumentPublishInfo>>,
+    publish_infos: &'a HashMap<String, PublishInfoLookup>,
 }
 
 #[derive(Clone, Copy)]
@@ -331,8 +329,7 @@ impl AuditArgs {
         include: Include,
         audit_level: ConfigAuditLevel,
         lockfile_dir: &std::path::Path,
-    ) -> miette::Result<Option<(AuditReport, HashMap<String, Option<fix::PackumentPublishInfo>>)>>
-    {
+    ) -> miette::Result<Option<(AuditReport, HashMap<String, PublishInfoLookup>)>> {
         let Some((lockfile, env_lockfile)) = load_audited_lockfiles(state, lockfile_dir)? else {
             return Ok(None);
         };
@@ -347,8 +344,6 @@ impl AuditArgs {
         .await
         {
             Ok(mut report) => {
-                // Verify syntactic patched ranges against the registry before
-                // reporting or fixing, reusing publish times for age gates.
                 let publish_infos = correct_inferred_patched_versions(
                     &mut report,
                     lockfile,

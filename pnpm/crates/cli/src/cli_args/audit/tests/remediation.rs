@@ -1,7 +1,7 @@
 use super::{
     AdvisoryId, BTreeMap, Config, ConfigAuditLevel, HashMap, HashSet, InstalledPackages,
-    PackumentPublishInfo, Range, RangeSpecStyle, advisory_choices, age_cutoff, classify_for_update,
-    create_overrides, deprecate, filter_advisories_for_fix, fix_advisory,
+    PackumentPublishInfo, PublishInfoLookup, Range, RangeSpecStyle, advisory_choices, age_cutoff,
+    classify_for_update, create_overrides, deprecate, filter_advisories_for_fix, fix_advisory,
     format_fix_with_update_output, is_range_subset, minimum_release_age_excludes,
     patched_range_for_style, prune_subsumed_advisories, publish_times, report_fixed_remaining,
     report_of,
@@ -342,14 +342,14 @@ fn minimum_release_age_excludes_drops_versions_older_than_the_cutoff() {
     let times = HashMap::from([
         (
             "old".to_string(),
-            Some(PackumentPublishInfo {
+            PublishInfoLookup::Resolved(PackumentPublishInfo {
                 time: HashMap::from([("2.0.0".to_string(), "2020-01-01T00:00:00Z".to_string())]),
                 deprecated: HashSet::new(),
             }),
         ),
         (
             "fresh".to_string(),
-            Some(PackumentPublishInfo {
+            PublishInfoLookup::Resolved(PackumentPublishInfo {
                 time: HashMap::from([("3.0.0".to_string(), "2026-06-01T00:00:00Z".to_string())]),
                 deprecated: HashSet::new(),
             }),
@@ -386,19 +386,22 @@ fn minimum_release_age_excludes_keeps_versions_with_unknown_publish_times() {
     let advisories = report_of(vec![
         fix_advisory(2, "garbled", "<3.0.0", Some(">=3.0.0"), ConfigAuditLevel::High, "GHSA-b"),
         fix_advisory(3, "unfetchable", "<4.0.0", Some(">=4.0.0"), ConfigAuditLevel::High, "GHSA-c"),
+        fix_advisory(4, "ambiguous", "<5.0.0", Some(">=5.0.0"), ConfigAuditLevel::High, "GHSA-d"),
     ])
     .advisories;
     let times = HashMap::from([
         // The timestamp does not parse.
         (
             "garbled".to_string(),
-            Some(PackumentPublishInfo {
+            PublishInfoLookup::Resolved(PackumentPublishInfo {
                 time: HashMap::from([("3.0.0".to_string(), "not-a-date".to_string())]),
                 deprecated: HashSet::new(),
             }),
         ),
         // The fetch failed outright.
-        ("unfetchable".to_string(), None),
+        ("unfetchable".to_string(), PublishInfoLookup::Unavailable),
+        // Mixed/undeclared registry origin must not authorize a bypass.
+        ("ambiguous".to_string(), PublishInfoLookup::AmbiguousOrigin),
     ]);
 
     let excludes =

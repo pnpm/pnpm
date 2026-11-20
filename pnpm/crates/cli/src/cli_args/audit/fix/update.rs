@@ -1,6 +1,6 @@
 use super::{
     Arc, AuditAdvisory, AuditError, BTreeMap, DependencyGroup, HashMap, HashSet, Lockfile,
-    PackageVersionGuard, PackumentPublishInfo, Range, RangeSpecStyle, Reporter, ResolutionObserver,
+    PackageVersionGuard, PublishInfoLookup, Range, RangeSpecStyle, Reporter, ResolutionObserver,
     State, Update, Version, blue, color_severity, green, package_semver, red,
     resolve_minimum_release_age_excludes, satisfies_including_prerelease, severity_name,
     severity_number, write_age_excludes,
@@ -66,7 +66,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     advisories: &BTreeMap<String, AuditAdvisory>,
     lockfile_dir: &std::path::Path,
     settings_dir: &std::path::Path,
-    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    publish_infos: &HashMap<String, PublishInfoLookup>,
     release_age_exclusions: ReleaseAgeExclusions,
 ) -> miette::Result<(Vec<AdvisoryId>, Vec<AdvisoryId>, Vec<String>)> {
     let classification = classify_for_update(advisories);
@@ -133,7 +133,7 @@ fn persist_age_excludes(
     state: &State,
     advisories: &BTreeMap<String, AuditAdvisory>,
     settings_dir: &std::path::Path,
-    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    publish_infos: &HashMap<String, PublishInfoLookup>,
 ) -> miette::Result<Vec<String>> {
     let Some(minimum_release_age) = state.config.resolved_minimum_release_age() else {
         return Ok(Vec::new());

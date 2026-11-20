@@ -1,7 +1,7 @@
 //! The lockfile importers `audit` and `audit signatures` cover.
 
 use super::{
-    AuditError, AuditGraph, Config, EnvLockfile, HashMap, HashSet, Include, Lockfile, PackageKey,
+    AuditError, AuditGraph, EnvLockfile, HashMap, HashSet, Include, Lockfile, PackageKey,
     PackageMetadata, State, signatures, walk_reachable,
 };
 use crate::cli_args::recursive::{
@@ -63,27 +63,14 @@ pub(super) fn load_audited_lockfiles<'lockfile>(
     Ok(Some((lockfile, env_lockfile)))
 }
 
-/// Build [`RegistryContext`](pnpm_lockfile::RegistryContext) with the scope
-/// routes recorded in the workspace state for `lockfile_dir`, so plain
-/// lockfile keys resolve to the registry they were installed from even if a
-/// `@scope` route in config has moved since.
-pub(crate) fn audit_registry_context(
-    config: &Config,
-    lockfile_dir: &std::path::Path,
-) -> pnpm_lockfile::RegistryContext {
-    let locked_registries = pnpm_workspace_state::load_workspace_state_in_modules(
-        &config.workspace_state_modules_dir(lockfile_dir),
-    )
-    .ok()
-    .flatten()
-    .and_then(|state| state.settings.registry_routes)
-    .map(|routes| routes.into_iter().collect());
-    config.registry_context().with_locked_registries(locked_registries)
-}
-
 /// Every installed registry package version the lockfile and env lockfile
 /// record, with the registry that serves it. `None` when the selectors matched
 /// no project.
+///
+/// Plain keys resolve through the configured registry routes
+/// (`locked_registries: None`), matching frozen installs and `EnvLockfile`:
+/// `node_modules/.pnpm-workspace-state-v1.json` is an unauthenticated cache,
+/// not a signing-key trust root, and omits `default`.
 pub(super) fn signature_packages(
     state: &State,
     include: Include,
@@ -93,7 +80,7 @@ pub(super) fn signature_packages(
         return Ok(None);
     };
     let lockfile = lockfile.as_ref();
-    let registries = audit_registry_context(state.config, lockfile_dir);
+    let registries = state.config.registry_context();
     let mut packages = BTreeSet::new();
     let main = AuditGraph::main(lockfile, include.peer_edges);
     collect_graph_signature_packages(

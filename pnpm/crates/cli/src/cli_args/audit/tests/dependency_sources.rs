@@ -1,7 +1,7 @@
 use super::{
     BTreeMap, Config, HashSet, LockedPackageRegistry, RawBulkAdvisory, all_dependencies,
-    audit_registry_context, bulk_response_to_audit_report, locked_package_registries,
-    lockfile_to_audit_request, package_version, parse_lockfile, prod_without_optional,
+    bulk_response_to_audit_report, locked_package_registries, lockfile_to_audit_request,
+    package_version, parse_lockfile, prod_without_optional,
 };
 
 #[test]
@@ -206,7 +206,7 @@ snapshots:
 }
 
 #[test]
-fn locked_package_registries_distinguishes_single_mixed_undeclared_and_recorded_routes() {
+fn locked_package_registries_distinguishes_single_mixed_and_undeclared_origins() {
     let lockfile = parse_lockfile(
         "
 lockfileVersion: '9.0'
@@ -287,24 +287,15 @@ snapshots:
   tarball-only@https://example.com/tarball-only-1.0.0.tgz: {}
 ",
     );
-    let tmp = tempfile::tempdir().expect("create workspace tempdir");
-    let mut state = pnpm_workspace_state::WorkspaceState::default();
-    state.settings.registry_routes = Some(BTreeMap::from([(
-        "@moved".to_string(),
-        "https://old-moved.example.com/".to_string(),
-    )]));
-    pnpm_workspace_state::update_workspace_state(tmp.path(), &state)
-        .expect("write workspace state");
-
     let mut config = Config::new();
     config.registry = "https://default.example.com/".to_string();
     config.registries_by_scope.insert(
         "@moved".to_string(),
-        "https://new-moved.example.com/".to_string(),
+        "https://configured-moved.example.com/".to_string(),
     );
     config.registries_by_prefix.insert("work".to_string(), "https://work.example.com/".to_string());
 
-    let registries = audit_registry_context(&config, tmp.path());
+    let registries = config.registry_context();
     let names = HashSet::from([
         "only-work",
         "mixed-pkg",
@@ -328,7 +319,7 @@ snapshots:
     assert_eq!(resolved.get("undeclared-rev"), Some(&LockedPackageRegistry::Ambiguous));
     assert_eq!(
         resolved.get("@moved/plain"),
-        Some(&LockedPackageRegistry::Single("https://old-moved.example.com/".to_string())),
+        Some(&LockedPackageRegistry::Single("https://configured-moved.example.com/".to_string())),
     );
     assert!(!resolved.contains_key("dir-semver"));
     assert!(!resolved.contains_key("tarball-only"));

@@ -1,10 +1,10 @@
 use super::{
     AuditError, AuditGraph, AuditReport, AuditVulnerabilityCounts, BTreeMap, Config,
     ConfigAuditLevel, DepKind, Edge, EnvLockfile, GraphImporter, HashMap, HashSet, Include,
-    LockedPackageRegistry, Lockfile, PackageKey, PackumentPublishInfo, PeerEdgeOptions,
-    PeerSatisfactionEdges, Range, RawBulkAdvisory, State, audit_registry_context,
-    bulk_response_to_audit_report, empty_packages, empty_snapshots, env_roots, fetch_publish_times,
-    importer_roots, locked_package_registries, lockfile_to_audit_request, normalize_ghsa_id,
+    LockedPackageRegistry, Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges,
+    PublishInfoLookup, Range, RawBulkAdvisory, State, bulk_response_to_audit_report,
+    empty_packages, empty_snapshots, env_roots, fetch_publish_times, importer_roots,
+    locked_package_registries, lockfile_to_audit_request, normalize_ghsa_id,
     sanitize_response_body, send_with_retry,
 };
 use pnpm_network::{normalize_registry_url, redact_url_credentials};
@@ -93,7 +93,7 @@ pub(super) async fn correct_inferred_patched_versions(
     env_lockfile: Option<&EnvLockfile>,
     include: Include,
     state: &State,
-) -> HashMap<String, Option<PackumentPublishInfo>> {
+) -> HashMap<String, PublishInfoLookup> {
     let names: HashSet<&str> = report.advisories
         .values()
         .filter(|advisory| advisory.patched_versions.is_some())
@@ -102,30 +102,35 @@ pub(super) async fn correct_inferred_patched_versions(
     if names.is_empty() {
         return HashMap::new();
     }
-    let registries = audit_registry_context(state.config, state.lockfile_dir());
+    let registries = state.config.registry_context();
     let package_registries =
         locked_package_registries(lockfile, env_lockfile, include, &registries, &names);
     let fetches = names
         .into_iter()
         .map(|name| {
             let registry = packument_registry_for(name, &package_registries, &registries);
-            async move {
-                let info = match registry {
-                    Some(url) => {
-                        fetch_publish_times(name, &url, state.config, state.http_client.as_ref())
-                            .await
-                    }
-                    None => None,
-                };
-                (name.to_string(), info)
-            }
+            async move { (name.to_string(), lookup_publish_info(name, registry, state).await) }
         });
-    let publish_infos: HashMap<String, Option<PackumentPublishInfo>> =
+    let publish_infos: HashMap<String, PublishInfoLookup> =
         futures_util::future::join_all(fetches).await.into_iter().collect();
     for advisory in report.advisories.values_mut() {
         apply_publish_info(advisory, &publish_infos);
     }
     publish_infos
+}
+
+async fn lookup_publish_info(
+    name: &str,
+    registry: Option<String>,
+    state: &State,
+) -> PublishInfoLookup {
+    let Some(url) = registry else {
+        return PublishInfoLookup::AmbiguousOrigin;
+    };
+    match fetch_publish_times(name, &url, state.config, state.http_client.as_ref()).await {
+        Some(info) => PublishInfoLookup::Resolved(info),
+        None => PublishInfoLookup::Unavailable,
+    }
 }
 
 fn packument_registry_for(
@@ -142,10 +147,13 @@ fn packument_registry_for(
 
 fn apply_publish_info(
     advisory: &mut super::AuditAdvisory,
-    publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    publish_infos: &HashMap<String, PublishInfoLookup>,
 ) {
     let Some(patched) = advisory.patched_versions.as_deref() else { return };
-    let Some(Some(info)) = publish_infos.get(advisory.module_name.trim()) else { return };
+    let Some(PublishInfoLookup::Resolved(info)) = publish_infos.get(advisory.module_name.trim())
+    else {
+        return;
+    };
     let Ok(range) = patched.parse::<Range>() else { return };
     match info.lowest_non_deprecated_version(&range) {
         None => {

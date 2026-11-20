@@ -546,37 +546,42 @@ fn audit_signatures_ties_tar_integrity_for_named_registry_packages() {
 }
 
 #[test]
-fn audit_signatures_uses_recorded_workspace_registry_routes_for_plain_scoped_keys() {
+fn audit_signatures_ignores_untrusted_workspace_state_registry_routes() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
     } = CommandTempCwd::init();
 
-    let mut old_registry = mockito::Server::new();
-    let mut new_registry = mockito::Server::new();
+    let mut untrusted_registry = mockito::Server::new();
+    let mut configured_registry = mockito::Server::new();
 
-    let old_key = signing_key();
-    let integrity = "sha512-b2xkLXNjb3BlZA==";
-    let sig = sign_b64(&old_key, &format!("@moved/pkg@1.0.0:{integrity}"));
+    let trusted_key = signing_key();
+    let integrity = "sha512-dHJ1c3RlZC1zY29wZWQ=";
+    let sig = sign_b64(&trusted_key, &format!("@moved/pkg@1.0.0:{integrity}"));
 
-    let old_keys = keys_mock(&mut old_registry, &public_key_b64(&old_key)).create();
-    let old_packument = old_registry
+    let untrusted_keys = untrusted_registry
+        .mock("GET", "/-/npm/v1/keys")
+        .expect(0)
+        .create();
+    let untrusted_packument = untrusted_registry
+        .mock("GET", "/@moved%2Fpkg")
+        .expect(0)
+        .create();
+    let configured_keys =
+        keys_mock(&mut configured_registry, &public_key_b64(&trusted_key)).create();
+    let configured_packument = configured_registry
         .mock("GET", "/@moved%2Fpkg")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(packument_body("@moved/pkg", "1.0.0", integrity, &signatures_json(&sig)))
         .create();
-    let new_keys = new_registry
-        .mock("GET", "/-/npm/v1/keys")
-        .expect(0)
-        .create();
-    let new_packument = new_registry
-        .mock("GET", "/@moved%2Fpkg")
-        .expect(0)
-        .create();
 
     fs::write(
         workspace.join(".npmrc"),
-        format!("registry={}/\n@moved:registry={}/\n", new_registry.url(), new_registry.url()),
+        format!(
+            "registry={}/\n@moved:registry={}/\n",
+            configured_registry.url(),
+            configured_registry.url(),
+        ),
     )
     .expect("write .npmrc");
     fs::write(workspace.join("pnpm-workspace.yaml"), "fetchRetries: 0\n")
@@ -609,7 +614,7 @@ snapshots:
     let mut state = pnpm_workspace_state::WorkspaceState::default();
     state.settings.registry_routes = Some(std::collections::BTreeMap::from([(
         "@moved".to_string(),
-        format!("{}/", old_registry.url()),
+        format!("{}/", untrusted_registry.url()),
     )]));
     pnpm_workspace_state::update_workspace_state(&workspace, &state)
         .expect("write workspace state");
@@ -624,8 +629,8 @@ snapshots:
     assert_eq!(result["audited"], 1);
     assert_eq!(result["verified"], 1);
 
-    old_keys.assert();
-    old_packument.assert();
-    new_keys.assert();
-    new_packument.assert();
+    untrusted_keys.assert();
+    untrusted_packument.assert();
+    configured_keys.assert();
+    configured_packument.assert();
 }

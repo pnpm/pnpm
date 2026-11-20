@@ -1,9 +1,9 @@
 use super::{
     BTreeMap, Config, ConfigAuditLevel, GuardExhaustionPolicy, HashMap, LockedPackageRegistry,
     MAX_PATHS_PER_FINDING, PackageVersionGuard, PackageVersionGuardDecision, Range,
-    audit_registry_context, filter_ignored_advisories,
+    filter_ignored_advisories,
     fix::{
-        PackumentPublishInfo, VulnerabilityGuard, filter_advisories_for_fix,
+        PackumentPublishInfo, PublishInfoLookup, VulnerabilityGuard, filter_advisories_for_fix,
         format_fix_with_update_output, minimum_release_age_excludes, overrides::create_overrides,
         prune_subsumed_advisories,
     },
@@ -744,13 +744,10 @@ fn age_cutoff() -> Timestamp {
     pnpm_time::parse_rfc3339("2026-01-01T00:00:00Z").expect("valid cutoff")
 }
 
-fn publish_times(
-    package: &str,
-    entries: &[(&str, &str)],
-) -> HashMap<String, Option<PackumentPublishInfo>> {
+fn publish_times(package: &str, entries: &[(&str, &str)]) -> HashMap<String, PublishInfoLookup> {
     HashMap::from([(
         package.to_string(),
-        Some(PackumentPublishInfo {
+        PublishInfoLookup::Resolved(PackumentPublishInfo {
             time: entries
                 .iter()
                 .map(|(version, time)| (version.to_string(), time.to_string()))
@@ -760,17 +757,11 @@ fn publish_times(
     )])
 }
 
-fn deprecate(
-    publish_infos: &mut HashMap<String, Option<PackumentPublishInfo>>,
-    package: &str,
-    version: &str,
-) {
-    publish_infos
-        .get_mut(package)
-        .and_then(Option::as_mut)
-        .expect("publish info for the package")
-        .deprecated
-        .insert(version.parse().expect("valid deprecated version"));
+fn deprecate(publish_infos: &mut HashMap<String, PublishInfoLookup>, package: &str, version: &str) {
+    let Some(PublishInfoLookup::Resolved(info)) = publish_infos.get_mut(package) else {
+        panic!("publish info for the package");
+    };
+    info.deprecated.insert(version.parse().expect("valid deprecated version"));
 }
 
 mod dependency_paths;
