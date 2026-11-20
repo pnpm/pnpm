@@ -97,6 +97,18 @@ describe('readProjectPin', () => {
     assert.deepEqual(pinOf(byDefault), { spec: '11.20.0', field: 'packageManager', manifestPath: path.join(byDefault, 'package.json') })
   })
 
+  test('reads a project the workspace excludes in the default order', () => {
+    const workspace = project({
+      'pnpm-workspace.yaml': 'packages:\n  - packages/*\npreferredManifestFormat: json5\n',
+      'package.json': manifest({}),
+      'tools/package.json': manifest({ packageManager: 'pnpm@11.20.0' }),
+      'tools/package.json5': "{ packageManager: 'pnpm@12.1.0' }",
+    })
+    const tools = path.join(workspace, 'tools')
+
+    assert.deepEqual(pinOf(tools), { spec: '11.20.0', field: 'packageManager', manifestPath: path.join(tools, 'package.json') })
+  })
+
   test('reads a manifest that starts with a byte order mark', () => {
     const dir = project({ 'package.json': `\uFEFF${manifest({ packageManager: 'pnpm@12.1.0' })}` })
 

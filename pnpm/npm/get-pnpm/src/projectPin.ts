@@ -39,7 +39,8 @@ const MANIFEST_NAME_OF_FORMAT = new Map([
  * - When that manifest pins nothing, the pin of the other one applies.
  * - A directory with several manifests reads the one the workspace's
  *   `preferredManifestFormat` selects, or else the first of `package.json`,
- *   `package.json5`, and `package.yaml`.
+ *   `package.json5`, and `package.yaml`. A project the workspace excludes
+ *   always reads them in that default order.
  * - `devEngines.packageManager` takes precedence over `packageManager`, which
  *   pnpm reads only as an exact version.
  * - A range pin comes with the version the lockfile already settled on, which
@@ -62,17 +63,22 @@ export function readProjectPin (dir: string, opts: { root?: string } = {}): Proj
   const projectDir = findUp(start, root, (candidate) => MANIFEST_NAMES.some((name) => fs.existsSync(path.join(candidate, name))))
   const workspace = workspaceDir == null ? undefined : readWorkspaceManifest(workspaceDir)
   const sources = pinSources(workspaceDir, workspace, projectDir)
-  const manifestNames = manifestNamesFor(workspace)
-  const primary = pinOf(readManifest(sources.primary.manifestDir, manifestNames))
-  if (primary == null) return pinOf(readManifest(sources.fallbackManifestDir, manifestNames))
+  const primary = pinOf(readManifest(sources.primary))
+  if (primary == null) return pinOf(readManifest(sources.fallback))
   if (semver.valid(primary.spec) != null || sources.primary.lockfileDir == null) return primary
   const lockedVersion = lockedPnpmVersion(sources.primary.lockfileDir, primary.spec)
   return lockedVersion == null ? primary : { ...primary, lockedVersion }
 }
 
+/** A directory to read a manifest from, and the basenames to try in order. */
+interface ManifestSource {
+  dir?: string
+  names: string[]
+}
+
 interface PinSources {
-  primary: { manifestDir?: string, lockfileDir?: string }
-  fallbackManifestDir?: string
+  primary: ManifestSource & { lockfileDir?: string }
+  fallback?: ManifestSource
 }
 
 function pinSources (
@@ -80,12 +86,14 @@ function pinSources (
   workspace: Record<string, unknown> | undefined,
   projectDir: string | undefined
 ): PinSources {
-  if (workspaceDir == null || workspace == null) return { primary: { manifestDir: projectDir, lockfileDir: projectDir } }
+  if (workspaceDir == null || workspace == null) return { primary: { dir: projectDir, names: MANIFEST_NAMES, lockfileDir: projectDir } }
+  const workspaceNames = manifestNamesFor(workspace)
   if (projectDir == null || isWorkspaceProject(workspaceDir, workspace, projectDir)) {
     const lockfileDir = typeof workspace.lockfileDir === 'string' ? path.resolve(workspaceDir, workspace.lockfileDir) : workspaceDir
-    return { primary: { manifestDir: workspaceDir, lockfileDir }, fallbackManifestDir: projectDir }
+    return { primary: { dir: workspaceDir, names: workspaceNames, lockfileDir }, fallback: { dir: projectDir, names: workspaceNames } }
   }
-  return { primary: { manifestDir: projectDir, lockfileDir: projectDir }, fallbackManifestDir: workspaceDir }
+  // pnpm does not apply the settings of a workspace to a project it excludes.
+  return { primary: { dir: projectDir, names: MANIFEST_NAMES, lockfileDir: projectDir }, fallback: { dir: workspaceDir, names: workspaceNames } }
 }
 
 /**
@@ -125,9 +133,10 @@ interface Manifest {
   value: Record<string, unknown>
 }
 
-function readManifest (dir: string | undefined, manifestNames: string[]): Manifest | undefined {
-  if (dir == null) return undefined
-  for (const name of manifestNames) {
+function readManifest (source: ManifestSource | undefined): Manifest | undefined {
+  if (source?.dir == null) return undefined
+  const { dir, names } = source
+  for (const name of names) {
     const manifestPath = path.join(dir, name)
     const content = readOptionalFile(manifestPath)
     if (content == null) continue
