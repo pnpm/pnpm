@@ -1,9 +1,16 @@
-use super::{InstallOrigin, ShadowingPnpm, find_shadowing_pnpm};
+use super::{
+    InstallOrigin,
+    ShadowingPnpm,
+    find_shadowing_pnpm,
+};
 use pretty_assertions::assert_eq;
 use std::{
     ffi::OsString,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The file name a `PATH` lookup for `pnpm` accepts on this platform.
@@ -64,7 +71,6 @@ fn a_pnpm_ahead_of_the_global_bin_shadows_it() {
 
     let path = path_env(&[&other, &global_bin]);
     let shadowing = find_shadowing_pnpm(&global_bin, Some(&path));
-    dbg!(&shadowing);
     assert_eq!(
         shadowing,
         Some(ShadowingPnpm {
@@ -84,7 +90,6 @@ fn a_pnpm_shadows_a_global_bin_that_is_not_on_the_path_yet() {
 
     let path = path_env(&[&other]);
     let shadowing = find_shadowing_pnpm(&global_bin, Some(&path));
-    dbg!(&shadowing);
     assert_eq!(
         shadowing,
         Some(ShadowingPnpm {
@@ -127,7 +132,6 @@ fn the_origin_is_read_off_the_executables_real_path() {
     let root = root.path();
     let cases = [
         ("opt/homebrew/lib/node_modules/pnpm/bin/pnpm.mjs", InstallOrigin::NpmGlobal),
-        ("opt/homebrew/Cellar/pnpm/12.6.0/bin/pnpm", InstallOrigin::Homebrew),
         ("usr/local/lib/node_modules/corepack/shims/pnpm", InstallOrigin::Corepack),
         ("home/me/.volta/bin/pnpm", InstallOrigin::Volta),
         ("Users/me/scoop/shims/pnpm.cmd", InstallOrigin::Scoop),
@@ -137,6 +141,24 @@ fn the_origin_is_read_off_the_executables_real_path() {
         let executable = root.join(relative);
         let origin = InstallOrigin::detect(&executable);
         assert_eq!(origin, expected, "{relative}");
+    }
+}
+
+#[test]
+fn a_homebrew_keg_names_its_formula_in_the_removal_command() {
+    let root = tempfile::tempdir().unwrap();
+    for formula in ["pnpm", "pnpm@11"] {
+        let keg = root
+            .path()
+            .join("opt/homebrew/Cellar")
+            .join(formula)
+            .join("11.1.0");
+        let executable = write_executable(&keg.join("bin"), "pnpm", "");
+        fs::write(keg.join("INSTALL_RECEIPT.json"), "{}").unwrap();
+
+        let origin = InstallOrigin::detect(&executable);
+        assert_eq!(origin, InstallOrigin::Homebrew { formula: formula.to_string() });
+        assert_eq!(origin.removal_command(), Some(format!("brew uninstall {formula}")));
     }
 }
 

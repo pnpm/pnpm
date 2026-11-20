@@ -16,6 +16,7 @@ pub(crate) mod verify_engine;
 pub(crate) use externally_managed::{
     ExternalManager,
     find_external_manager,
+    homebrew_formula,
 };
 
 mod externally_managed;
@@ -496,6 +497,6 @@ fn warn_if_shadowed<Reporter: self::Reporter>(global_bin: Option<&Path>, prefix:
         && let Some(shadowing) =
             find_shadowing_pnpm(global_bin, std::env::var_os("PATH").as_deref())
     {
-        warn::<Reporter>(prefix, &shadowing.warning(global_bin));
+        shadowing.emit_warning::<Reporter>(global_bin, prefix);
     }
 }

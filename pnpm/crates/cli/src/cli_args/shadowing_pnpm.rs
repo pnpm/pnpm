@@ -8,10 +8,20 @@
 //! Both commands, and `doctor`, name that `pnpm` and the command that removes
 //! it.
 
+use super::self_update::homebrew_formula;
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use std::{
     ffi::OsStr,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Shim scripts (npm's `.cmd` files, Corepack's) name their target inside;
@@ -20,13 +30,16 @@ const SHIM_SCRIPT_MAX_SIZE: u64 = 64 * 1024;
 
 /// How a `pnpm` outside the global bin directory got onto `PATH`, as far as
 /// its location and, for a shim script, its contents tell.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum InstallOrigin {
     /// `npm install -g pnpm`: the executable lives in a `node_modules/pnpm`
     /// package.
     NpmGlobal,
-    /// The Homebrew formula, under a `Cellar/pnpm` keg.
-    Homebrew,
+    /// A Homebrew formula (`pnpm`, `pnpm@11`, ...) whose keg holds the
+    /// executable.
+    Homebrew {
+        formula: String,
+    },
     /// A Corepack shim.
     Corepack,
     /// A Volta shim.
@@ -39,6 +52,9 @@ pub(crate) enum InstallOrigin {
 impl InstallOrigin {
     pub(crate) fn detect(executable: &Path) -> Self {
         let real = fs::canonicalize(executable).unwrap_or_else(|_| executable.to_path_buf());
+        if let Some(formula) = homebrew_formula(&real) {
+            return Self::Homebrew { formula };
+        }
         origin_from_path(&real)
             .or_else(|| origin_from_path(executable))
             .or_else(|| origin_from_shim_script(executable))
@@ -46,21 +62,22 @@ impl InstallOrigin {
     }
 
     /// The command that removes that installation, when the origin names one.
-    pub(crate) fn removal_command(self) -> Option<&'static str> {
-        match self {
-            Self::NpmGlobal => Some("npm uninstall -g pnpm"),
-            Self::Homebrew => Some("brew uninstall pnpm"),
-            Self::Corepack => Some("corepack disable pnpm"),
-            Self::Volta => Some("volta uninstall pnpm"),
-            Self::Scoop => Some("scoop uninstall pnpm"),
-            Self::Unknown => None,
-        }
+    fn removal_command(&self) -> Option<String> {
+        let command = match self {
+            Self::NpmGlobal => "npm uninstall -g pnpm",
+            Self::Homebrew { formula } => return Some(format!("brew uninstall {formula}")),
+            Self::Corepack => "corepack disable pnpm",
+            Self::Volta => "volta uninstall pnpm",
+            Self::Scoop => "scoop uninstall pnpm",
+            Self::Unknown => return None,
+        };
+        Some(command.to_string())
     }
 
-    fn description(self) -> &'static str {
+    fn description(&self) -> &'static str {
         match self {
             Self::NpmGlobal => "installed with npm",
-            Self::Homebrew => "installed with Homebrew",
+            Self::Homebrew { .. } => "installed with Homebrew",
             Self::Corepack => "a Corepack shim",
             Self::Volta => "installed with Volta",
             Self::Scoop => "installed with Scoop",
@@ -89,9 +106,6 @@ fn origin_from_path(path: &Path) -> Option<InstallOrigin> {
             .iter()
             .any(|component| component == name)
     };
-    if follows("cellar", "pnpm") {
-        return Some(InstallOrigin::Homebrew);
-    }
     if has("corepack") {
         return Some(InstallOrigin::Corepack);
     }
@@ -138,6 +152,14 @@ pub(crate) struct ShadowingPnpm {
 impl ShadowingPnpm {
     /// The warning to print once a pnpm is linked into `global_bin` and this
     /// one still answers to `pnpm`.
+    pub(crate) fn emit_warning<Logger: Reporter>(&self, global_bin: &Path, prefix: &str) {
+        Logger::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: self.warning(global_bin),
+            prefix: prefix.to_string(),
+        }));
+    }
+
     pub(crate) fn warning(&self, global_bin: &Path) -> String {
         let executable = self.executable.display();
         let global_bin = global_bin.display();
@@ -176,10 +198,7 @@ pub(crate) fn find_shadowing_pnpm(
     path_env: Option<&OsStr>,
 ) -> Option<ShadowingPnpm> {
     let path_env = path_env?;
-    // A bare name is never resolved against the working directory, which
-    // only matters for a name with a separator in it.
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let mut candidates = which::which_in_all("pnpm", Some(path_env), cwd).ok()?;
+    let mut candidates = which::which_in_global("pnpm", Some(path_env)).ok()?;
     let executable = candidates.next()?;
     if is_own_pnpm(&executable, global_bin) {
         return None;

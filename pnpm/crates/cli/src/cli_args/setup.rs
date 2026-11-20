@@ -111,8 +111,12 @@ fn handler<Reporter: self::Reporter + 'static>(
             .into_diagnostic()
             .wrap_err("create the pnpm alias scripts")?;
     }
-    if let Some(shadowing) = find_shadowing_pnpm(&bin_dir, std::env::var_os("PATH").as_deref()) {
-        warn::<Reporter>(&dir.to_string_lossy(), &shadowing.warning(&bin_dir));
+    // A bin directory missing from PATH is about to be added ahead of
+    // everything else, which is the fix the warning would ask for.
+    if let Some(shadowing) = find_shadowing_pnpm(&bin_dir, std::env::var_os("PATH").as_deref())
+        && (shadowing.global_bin_on_path || no_modify_path)
+    {
+        shadowing.emit_warning::<Reporter>(&bin_dir, &dir.to_string_lossy());
     }
 
     let output = if no_modify_path {
@@ -553,14 +557,6 @@ fn report_config_change(config_report: &ConfigReport) -> String {
 fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
-        message: message.to_string(),
-        prefix: prefix.to_string(),
-    }));
-}
-
-fn warn<Reporter: self::Reporter>(prefix: &str, message: &str) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
         message: message.to_string(),
         prefix: prefix.to_string(),
     }));
