@@ -1,6 +1,7 @@
 //! Unit tests for the pure summary rendering and the alias-script writer.
 //! The full `setup` flow installs the CLI globally and edits the user's
 //! shell config, so it is exercised on a real host rather than here.
+#[cfg(unix)]
 use command_extra::CommandExtra;
 
 use super::{

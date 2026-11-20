@@ -1394,9 +1394,9 @@ fn a_shim_run_from_git_bash_hands_node_the_windows_node_path() {
     std::fs::write(&shim, body).unwrap();
 
     let output = std::process::Command::new(&bash)
-        .args(["--noprofile", "--norc"])
-        .arg(&shim)
-        .env_remove("NODE_PATH")
+        .with_args(["--noprofile", "--norc"])
+        .with_arg(&shim)
+        .without_env("NODE_PATH")
         .output()
         .expect("run the shim under Git Bash");
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
@@ -1423,9 +1423,9 @@ fn a_shim_hands_node_on_path_the_windows_target_without_msys_path_conversion() {
     // Run the shim by its absolute POSIX path, as a PATH lookup does, so the
     // shim's basedir is a POSIX path.
     let output = std::process::Command::new(&bash)
-        .args(["--noprofile", "--norc", "-c", r#"exec "$(cygpath -u "$1")""#, "bash"])
-        .arg(&shim)
-        .env("MSYS2_ARG_CONV_EXCL", "*")
+        .with_args(["--noprofile", "--norc", "-c", r#"exec "$(cygpath -u "$1")""#, "bash"])
+        .with_arg(&shim)
+        .with_env("MSYS2_ARG_CONV_EXCL", "*")
         .output()
         .expect("run the shim under Git Bash");
     assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
@@ -1442,7 +1442,7 @@ fn a_shim_runs_a_cmd_target_in_every_msys_conversion_mode() {
     let program_files = std::env::var_os("ProgramFiles").expect("ProgramFiles is set on Windows");
     let bash = Path::new(&program_files).join(r"Git\bin\bash.exe");
     let converted_usr = std::process::Command::new(&bash)
-        .args(["--noprofile", "--norc", "-c", "cygpath -m /usr"])
+        .with_args(["--noprofile", "--norc", "-c", "cygpath -m /usr"])
         .output()
         .expect("run cygpath under Git Bash");
     let converted_usr = String::from_utf8(converted_usr.stdout)

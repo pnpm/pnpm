@@ -125,7 +125,8 @@ struct CachedDirSecurity {
 pub(in crate::cli_args::doctor::probe_path) fn prefetch_windows_dir_security(dirs: &[PathBuf]) {
     let valid: Vec<PathBuf> = dirs
         .iter()
-        .filter(|dir| !is_unc_windows_path(dir) && is_real_windows_dir(dir))
+        .filter(|dir| !is_unc_windows_path(dir))
+        .filter(|dir| is_real_windows_dir(dir))
         .cloned()
         .collect();
     if !valid.is_empty() {
@@ -403,7 +404,8 @@ fn powershell_executables() -> Vec<PathBuf> {
     let available: Vec<PathBuf> = raw
         .into_iter()
         .flatten()
-        .filter(|path| seen.insert(cache_key(path)) && path.is_file())
+        .filter(|path| seen.insert(cache_key(path)))
+        .filter(|path| path.is_file())
         .collect();
     if available.is_empty() { vec![default_winps] } else { available }
 }

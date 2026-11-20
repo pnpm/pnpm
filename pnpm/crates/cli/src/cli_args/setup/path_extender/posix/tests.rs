@@ -3,6 +3,7 @@
 //! state, so the tests exercise the pure renderers and the file editor
 //! directly (with a `tempfile` config file) instead of through
 //! `add_dir_to_posix_env_path`.
+#[cfg(unix)]
 use command_extra::CommandExtra;
 
 use super::{

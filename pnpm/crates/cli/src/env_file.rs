@@ -217,7 +217,8 @@ fn strip_env_file_prefix(token: &OsStr) -> Option<PathBuf> {
         let wide: Vec<u16> = token.encode_wide().collect();
         let prefix: Vec<u16> = "--env-file=".encode_utf16().collect();
         wide.strip_prefix(prefix.as_slice())
-            .map(|rest| PathBuf::from(OsString::from_wide(rest)))
+            .map(OsString::from_wide)
+            .map(PathBuf::from)
     }
     #[cfg(not(any(unix, target_os = "wasi", windows)))]
     {
