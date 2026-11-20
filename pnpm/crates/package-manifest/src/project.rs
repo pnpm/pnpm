@@ -24,7 +24,6 @@ pub const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.json5
 ///
 /// When several project manifests coexist in one directory, the preferred
 /// format is read first and the others follow in default precedence order.
-/// The default, [`ManifestFormat::Json`], yields the default order.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ManifestFormat {
