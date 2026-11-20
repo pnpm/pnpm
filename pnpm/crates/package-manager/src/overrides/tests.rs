@@ -8,6 +8,7 @@ use pnpm_workspace_projects_graph::{
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
+mod catalog_references;
 mod specificity;
 
 fn parsed(map: &[(&str, &str)]) -> Vec<pnpm_config_parse_overrides::VersionOverride> {

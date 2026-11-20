@@ -1,8 +1,9 @@
 import path from 'node:path'
 
+import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { createVersionsOverrider } from '@pnpm/hooks.read-package-hook'
 import npa from '@pnpm/npm-package-arg'
 import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/resolving.npm-resolver'
@@ -264,13 +265,45 @@ function parseRegistrySpec (depName: string, npmSpec: string): { depName: string
  * to `dir`, the project's root directory.
  */
 export function createOverridesApplier (overrides: ProjectsGraphOverrides | undefined): (manifest: BaseManifest, dir: string) => BaseManifest {
+  return buildOverridesApplier(overrides, 'dereference')
+}
+
+/**
+ * Applies `overrides` as {@link createOverridesApplier} does, except that an
+ * override whose value is a `catalog:` reference writes that reference, so
+ * the rewritten dependencies name the catalog entries they resolve through.
+ * A convergence override still writes the entry's version.
+ */
+export function createCatalogReferenceOverridesApplier (
+  overrides: ProjectsGraphOverrides | undefined
+): (manifest: BaseManifest, dir: string) => BaseManifest {
+  return buildOverridesApplier(overrides, 'keep')
+}
+
+function buildOverridesApplier (
+  overrides: ProjectsGraphOverrides | undefined,
+  catalogValues: 'dereference' | 'keep'
+): (manifest: BaseManifest, dir: string) => BaseManifest {
   if (overrides == null || Object.keys(overrides.overrides).length === 0) return (manifest) => manifest
   // The overrider clones the fields it rewrites and never awaits, so the
   // manifest it hands back is a plain value.
   const versionOverrides = parseOverrides(overrides.overrides, overrides.catalogs)
+  if (catalogValues === 'keep') {
+    keepCatalogReferences(versionOverrides, Object.values(overrides.overrides))
+  }
   const overrideManifest = createVersionsOverrider(versionOverrides, overrides.lockfileDir, { catalogs: overrides.catalogs }) as
     (manifest: BaseManifest, dir: string) => BaseManifest
   return (manifest, dir) => overrideManifest(withPlainDependencyMaps(manifest), dir)
+}
+
+/** `rawValues` are the override values in the order `parseOverrides` read them. */
+function keepCatalogReferences (versionOverrides: VersionOverride[], rawValues: string[]): void {
+  for (const [index, versionOverride] of versionOverrides.entries()) {
+    const rawValue = rawValues[index]
+    if (!versionOverride.converge && parseCatalogProtocol(rawValue) != null) {
+      versionOverride.newBareSpecifier = rawValue
+    }
+  }
 }
 
 function withPlainDependencyMaps (manifest: BaseManifest): BaseManifest {

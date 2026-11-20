@@ -11,7 +11,9 @@
 //! on the in-memory `Value` only.
 
 pub use dependency_matcher::OverriddenDependencyMatcher;
-pub use dependency_rewriter::overrides_dependency_rewriter;
+pub use dependency_rewriter::{
+    overrides_catalog_reference_rewriter, overrides_dependency_rewriter,
+};
 pub(crate) use selectors::{matches_target, parse_declared_range};
 
 mod dependency_matcher;

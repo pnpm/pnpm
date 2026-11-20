@@ -89,6 +89,7 @@ fn workspace_filter_options(opts: &FilterProjectsOptions) -> FilterWorkspaceProj
         workspace_dir: opts.workspace_dir.clone(),
         test_pattern: opts.test_pattern.clone(),
         changed_files_ignore_pattern: opts.changed_files_ignore_pattern.clone(),
+        project_dependencies: None,
     }
 }
 

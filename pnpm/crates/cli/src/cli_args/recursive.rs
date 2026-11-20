@@ -9,6 +9,7 @@
 
 pub use dependencies::{filtered_projects_dependencies, projects_to_verify, sequence_graph};
 pub use execution_args::RecursiveExecutionArgs;
+pub(crate) use filter_graphs::overridden_project_dependencies;
 pub use importer_selection::{selected_workspace_importer_ids, selectors_narrow_the_run};
 pub use selected_dirs::SelectedProjectDirs;
 pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
@@ -25,7 +26,7 @@ mod unmatched;
 
 use crate::state::{ProjectHost, host_requirements};
 use derive_more::{Display, Error};
-use filter_graphs::{FilterGraphs, build_filter_graphs};
+use filter_graphs::{FilterGraphs, build_filter_graphs, selector_filter_options};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, FilterSource};
@@ -207,8 +208,8 @@ pub fn select_recursive_projects_deferring_no_match<'a>(
         return Ok(unnarrowed_selection(all, config, prefix));
     }
 
-    let walk_opts = recursive_filter_options(config, prefix);
     let selectors = parse_configured_selectors(config, root_selector.as_deref(), prefix);
+    let walk_opts = selector_filter_options(&all, &selectors, config, prefix)?;
     let filtered = filter_graphs(&all, prod_all.as_ref(), &selectors, &walk_opts)?;
     let selected = build_selected_graph(
         &all,
@@ -455,6 +456,7 @@ pub fn recursive_filter_options(config: &Config, prefix: &Path) -> FilterWorkspa
             .to_path_buf(),
         test_pattern: config.test_pattern.clone(),
         changed_files_ignore_pattern: config.changed_files_ignore_pattern.clone(),
+        project_dependencies: None,
     }
 }
 

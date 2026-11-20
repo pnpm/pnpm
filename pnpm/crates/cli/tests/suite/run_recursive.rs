@@ -1106,6 +1106,8 @@ fn sorted_lines(stdout: &[u8]) -> Vec<String> {
 
 mod selection;
 
+mod since_catalogs;
+
 mod filter_prod_exclusions;
 
 mod task_graph;

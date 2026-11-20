@@ -142,6 +142,7 @@ async function selectInstalledProjectDirs (
       testPattern: opts.testPattern,
       changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
       useGlobDirFiltering: !opts.legacyDirFiltering,
+      overrides: getProjectsGraphOverrides(opts, opts.workspaceDir ?? prefix),
     }
   )
   return new Set(Object.keys(selectedProjectsGraph))

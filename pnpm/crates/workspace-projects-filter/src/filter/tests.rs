@@ -605,6 +605,7 @@ fn is_subdir_contract() {
 /// upstream's "select changed packages" suite. Each builds a real git
 /// repository in a temp directory.
 mod changed_packages {
+    mod catalog_overrides;
     mod git_pathnames;
 
     use super::{TestPkg, graph_project, node_at};

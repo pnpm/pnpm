@@ -6,7 +6,7 @@ pub use with_prod_graph::{
 };
 
 use crate::{
-    get_changed_projects::{GetChangedProjectsOptions, get_changed_projects},
+    get_changed_projects::{GetChangedProjectsOptions, ProjectDependencies, get_changed_projects},
     glob,
     parse_project_selector::{DependencyTraversal, ProjectSelector},
 };
@@ -16,6 +16,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_matcher::create_matcher;
 use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
 use std::{
+    borrow::Cow,
     collections::HashMap,
     path::{Component, Path, PathBuf},
 };
@@ -54,6 +55,10 @@ pub struct FilterWorkspaceProjectsOptions {
     /// `changedFilesIgnorePattern`: glob patterns of changed files a
     /// `[<since>]` selector ignores.
     pub changed_files_ignore_pattern: Vec<String>,
+    /// The dependencies a `[<since>]` selector checks for changed catalog
+    /// entries, keyed by root directory. `None` checks the dependencies each
+    /// graph node declares.
+    pub project_dependencies: Option<ProjectDependencies>,
 }
 
 /// Options for [`filter_projects`] / [`filter_projects_by_selector_objects`].
@@ -225,10 +230,15 @@ fn changed_selector_projects<Pkg: BaseProject>(
     selector: &ProjectSelector,
     diff: &str,
 ) -> Result<crate::get_changed_projects::ChangedProjects, FilterError> {
-    let project_dependencies: HashMap<PathBuf, Vec<(String, String)>> = projects_graph
-        .iter()
-        .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
-        .collect();
+    let project_dependencies = match &opts.project_dependencies {
+        Some(project_dependencies) => Cow::Borrowed(project_dependencies),
+        None => Cow::Owned(
+            projects_graph
+                .iter()
+                .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
+                .collect(),
+        ),
+    };
     get_changed_projects(
         projects_graph.keys().cloned().collect(),
         diff,
