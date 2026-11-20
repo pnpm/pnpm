@@ -286,3 +286,21 @@ test('"why --global" inspects isolated global package groups instead of opts.dir
 
   expect(localLeakOutput).toBe('')
 })
+
+test('"why --global" throws ERR_PNPM_NO_GLOBAL_BIN_DIR when globalPkgDir is missing', async () => {
+  prepare({
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await expect(why.handler({
+    dev: false,
+    dir: process.cwd(),
+    global: true,
+    optional: false,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['is-negative'])).rejects.toMatchObject({
+    code: 'ERR_PNPM_NO_GLOBAL_BIN_DIR',
+  })
+})

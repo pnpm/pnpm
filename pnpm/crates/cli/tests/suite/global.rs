@@ -2036,6 +2036,47 @@ fn global_commands_isolate_from_cwd_pnpmfile_workspace_yaml_and_npmrc() {
     assert!(global_marker.exists(), "trusted globalPnpmfile updateConfig hook should execute");
     assert!(!cwd_marker.exists(), "CWD .pnpmfile.cjs must remain untouched");
 
+    let nested_parent = root.path().join("broken-parent");
+    let nested_pnpm_home = nested_parent.join("pnpm-home");
+    fs::create_dir_all(nested_pnpm_home.join("bin")).expect("create nested global bin dir");
+    fs::write(nested_parent.join("pnpm-workspace.yaml"), "packages: [\n")
+        .expect("write malformed parent pnpm-workspace.yaml");
+    let nested_hook_marker = root.path().join("nested-global-pnpmfile-ran.txt");
+    let nested_global_pnpmfile = root.path().join("nested-trusted-global-pnpmfile.cjs");
+    fs::write(
+        &nested_global_pnpmfile,
+        format!(
+            r"const fs = require('fs');
+module.exports = {{
+  hooks: {{
+    updateConfig (cfg) {{
+      fs.writeFileSync({marker:?}, 'updateConfig');
+      return cfg;
+    }},
+  }},
+}};
+",
+            marker = nested_hook_marker.to_string_lossy(),
+        ),
+    )
+    .expect("write nested trusted global pnpmfile");
+
+    let nested_output = global_command(&untrusted_cwd, &nested_pnpm_home)
+        .with_env("PNPM_CONFIG_GLOBAL_PNPMFILE", &nested_global_pnpmfile)
+        .with_args(["list", "-g"])
+        .output()
+        .expect("run list -g with nested PNPM_HOME under malformed parent workspace");
+    assert!(
+        nested_output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&nested_output.stdout),
+        String::from_utf8_lossy(&nested_output.stderr),
+    );
+    assert!(
+        nested_hook_marker.exists(),
+        "trusted globalPnpmfile should run when PNPM_HOME has a malformed parent workspace",
+    );
+
     drop((root, npmrc_info));
 }
 

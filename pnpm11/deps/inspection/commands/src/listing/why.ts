@@ -87,7 +87,10 @@ export async function handler (
     finders,
   }
 
-  if (opts.global && opts.globalPkgDir) {
+  if (opts.global) {
+    if (!opts.globalPkgDir) {
+      throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global packages directory')
+    }
     return whyGlobal(opts.globalPkgDir, params, whyOpts)
   }
 

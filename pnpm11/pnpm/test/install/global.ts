@@ -1174,6 +1174,24 @@ test('global commands isolate from untrusted CWD .pnpmfile.cjs, pnpm-workspace.y
   })
   expect(fs.existsSync(globalHookMarker)).toBe(true)
   expect(fs.existsSync(cwdMarker)).toBe(false)
+
+  const nestedParent = path.resolve('..', 'broken-parent')
+  const nestedPnpmHome = path.join(nestedParent, 'pnpm-home')
+  const nestedBinDir = path.join(nestedPnpmHome, 'bin')
+  fs.mkdirSync(nestedBinDir, { recursive: true })
+  fs.writeFileSync(path.join(nestedParent, 'pnpm-workspace.yaml'), 'packages: [\n')
+  fs.unlinkSync(globalHookMarker)
+  execPnpmSync(['list', '-g'], {
+    cwd: untrustedCwd,
+    env: {
+      ...env,
+      [PATH_NAME]: `${nestedBinDir}${path.delimiter}${process.env[PATH_NAME] ?? ''}`,
+      PNPM_HOME: nestedPnpmHome,
+      pnpm_config_global_pnpmfile: globalPnpmfile,
+    },
+    expectSuccess: true,
+  })
+  expect(fs.existsSync(globalHookMarker)).toBe(true)
 })
 
 test('pnpm list -g --depth 1 and pnpm why -g in a local project directory inspect global packages, not local dependencies', () => {
