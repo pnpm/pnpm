@@ -581,9 +581,9 @@ fn skipped_optional_log_fn<Reporter: self::Reporter>()
     })
 }
 
-/// The deprecations one resolution pass reports. They are emitted once the
-/// pass ends, when each can be checked against the current lockfile, which
-/// the resolver's `'static` sink cannot borrow.
+/// The deprecations resolution reports. They are emitted once resolution
+/// ends, when each can be checked against the current lockfile, which the
+/// resolver's `'static` sink cannot borrow.
 #[derive(Default)]
 struct DeprecationCollector(Arc<std::sync::Mutex<Vec<pnpm_resolving_deps_resolver::Deprecation>>>);
 
@@ -601,7 +601,7 @@ impl DeprecationCollector {
     /// Emit a `pnpm:deprecation` event per collected deprecation, matching
     /// pnpm's `deprecationLogger.debug` payload, flagged when `installed`
     /// (the current lockfile) already has the package.
-    fn emit<Reporter: self::Reporter>(self, installed: Option<&Lockfile>) {
+    fn emit<Reporter: self::Reporter>(&self, installed: Option<&Lockfile>) {
         let deprecations =
             std::mem::take(&mut *self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
         let installed_packages = installed.and_then(|lockfile| lockfile.packages.as_ref());

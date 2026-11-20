@@ -471,6 +471,49 @@ fn install_reports_a_deprecation_without_the_notice_and_keeps_the_metadata_on_re
     drop((root, mock_instance));
 }
 
+/// Peer resolution runs after the dependency walk and installs missing
+/// peers, so a deprecation it reports is still collected.
+#[test]
+fn install_reports_a_deprecated_auto_installed_peer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let local = workspace.join("local");
+    fs::create_dir_all(&local).expect("create the local package");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({
+            "name": "local",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/deprecated": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the local package.json");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "local": "file:./local" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    let assertion = pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&assertion.get_output().stdout).into_owned();
+    assert!(
+        stdout.contains("[WARN] deprecated: @pnpm.e2e/deprecated@1.0.0"),
+        "the auto-installed peer's deprecation should be reported:\n{stdout}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// `catalog:` on a direct dep should be dereferenced through
 /// `pnpm-workspace.yaml`'s `catalog` section before the npm resolver
 /// sees it. The fetched virtual-store entry is the catalog's resolved

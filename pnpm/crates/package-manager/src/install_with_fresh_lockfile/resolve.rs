@@ -151,9 +151,8 @@ pub(super) struct ResolvePassInputs<'a> {
     pub dependency_groups: &'a [DependencyGroup],
     pub walk: WorkspaceWalk,
     pub per_importer: ImporterInputs<'a>,
-    /// The current lockfile, which tells which deprecated packages the
-    /// previous install already installed.
-    pub installed: Option<&'a pnpm_lockfile::Lockfile>,
+    /// See [`super::DeprecationCollector`].
+    pub deprecation_log: pnpm_resolving_deps_resolver::DeprecationLogFn,
 }
 
 /// What the workspace walk consumes as a whole: the hooks and the reuse
@@ -294,8 +293,6 @@ impl WorkspaceWalk {
     }
 }
 
-/// One resolution pass, then the deprecations it reported. See
-/// [`super::DeprecationCollector`].
 pub(super) async fn run_dependency_pass<Reporter: pnpm_reporter::Reporter>(
     inputs: ResolvePassInputs<'_>,
 ) -> Result<
@@ -314,17 +311,15 @@ pub(super) async fn run_dependency_pass<Reporter: pnpm_reporter::Reporter>(
         .file_name()
         .map(std::ffi::OsStr::to_os_string)
         .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
-    let deprecations = super::DeprecationCollector::default();
-    let result = pnpm_resolving_deps_resolver::resolve_workspace_dependencies(
+    pnpm_resolving_deps_resolver::resolve_workspace_dependencies(
         inputs.resolver,
         &workspace_importers,
         inputs.dependency_groups,
-        inputs.walk.into_options::<Reporter>(&inputs.per_importer, deprecations.sink()),
+        inputs.walk.into_options::<Reporter>(&inputs.per_importer, inputs.deprecation_log),
         |importer| inputs.per_importer.resolve_importer_options(importer, &modules_basename),
     )
-    .await;
-    deprecations.emit::<Reporter>(inputs.installed);
-    result.map_err(resolve_error)
+    .await
+    .map_err(resolve_error)
 }
 
 pub(super) fn resolve_error(err: ResolveImporterError) -> InstallWithFreshLockfileError {
