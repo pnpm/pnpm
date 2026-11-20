@@ -544,3 +544,88 @@ fn audit_signatures_ties_tar_integrity_for_named_registry_packages() {
     packument_mock.assert();
     tarball_mock.assert();
 }
+
+#[test]
+fn audit_signatures_uses_recorded_workspace_registry_routes_for_plain_scoped_keys() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+
+    let mut old_registry = mockito::Server::new();
+    let mut new_registry = mockito::Server::new();
+
+    let old_key = signing_key();
+    let integrity = "sha512-b2xkLXNjb3BlZA==";
+    let sig = sign_b64(&old_key, &format!("@moved/pkg@1.0.0:{integrity}"));
+
+    let old_keys = keys_mock(&mut old_registry, &public_key_b64(&old_key)).create();
+    let old_packument = old_registry
+        .mock("GET", "/@moved%2Fpkg")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument_body("@moved/pkg", "1.0.0", integrity, &signatures_json(&sig)))
+        .create();
+    let new_keys = new_registry
+        .mock("GET", "/-/npm/v1/keys")
+        .expect(0)
+        .create();
+    let new_packument = new_registry
+        .mock("GET", "/@moved%2Fpkg")
+        .expect(0)
+        .create();
+
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("registry={}/\n@moved:registry={}/\n", new_registry.url(), new_registry.url()),
+    )
+    .expect("write .npmrc");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "fetchRetries: 0\n")
+        .expect("write pnpm-workspace.yaml");
+    write_minimal_manifest(&workspace);
+    fs::write(
+        workspace.join("pnpm-lock.yaml"),
+        format!(
+            "
+lockfileVersion: '9.0'
+
+importers:
+  .:
+    dependencies:
+      '@moved/pkg':
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+  '@moved/pkg@1.0.0':
+    resolution: {{integrity: {integrity}}}
+
+snapshots:
+  '@moved/pkg@1.0.0': {{}}
+",
+        ),
+    )
+    .expect("write pnpm-lock.yaml");
+
+    let mut state = pnpm_workspace_state::WorkspaceState::default();
+    state.settings.registry_routes = Some(std::collections::BTreeMap::from([(
+        "@moved".to_string(),
+        format!("{}/", old_registry.url()),
+    )]));
+    pnpm_workspace_state::update_workspace_state(&workspace, &state)
+        .expect("write workspace state");
+
+    let output = pacquet
+        .args(["audit", "signatures", "--json"])
+        .output()
+        .expect("run audit signatures --json");
+    assert_success(&output);
+    let result: serde_json::Value =
+        serde_json::from_str(&stdout(&output)).expect("parse signatures JSON");
+    assert_eq!(result["audited"], 1);
+    assert_eq!(result["verified"], 1);
+
+    old_keys.assert();
+    old_packument.assert();
+    new_keys.assert();
+    new_packument.assert();
+}

@@ -2,10 +2,10 @@ use super::{
     AuditError, AuditGraph, AuditReport, AuditVulnerabilityCounts, BTreeMap, Config,
     ConfigAuditLevel, DepKind, Edge, EnvLockfile, GraphImporter, HashMap, HashSet, Include,
     LockedPackageRegistry, Lockfile, PackageKey, PackumentPublishInfo, PeerEdgeOptions,
-    PeerSatisfactionEdges, Range, RawBulkAdvisory, State, bulk_response_to_audit_report,
-    empty_packages, empty_snapshots, env_roots, fetch_publish_times, importer_roots,
-    locked_package_registries, lockfile_to_audit_request, normalize_ghsa_id,
-    pick_registry_for_package, sanitize_response_body, send_with_retry,
+    PeerSatisfactionEdges, Range, RawBulkAdvisory, State, audit_registry_context,
+    bulk_response_to_audit_report, empty_packages, empty_snapshots, env_roots, fetch_publish_times,
+    importer_roots, locked_package_registries, lockfile_to_audit_request, normalize_ghsa_id,
+    sanitize_response_body, send_with_retry,
 };
 use pnpm_network::{normalize_registry_url, redact_url_credentials};
 
@@ -102,12 +102,9 @@ pub(super) async fn correct_inferred_patched_versions(
     if names.is_empty() {
         return HashMap::new();
     }
+    let registries = audit_registry_context(state.config, state.lockfile_dir());
     let package_registries =
-        locked_package_registries(lockfile, env_lockfile, include, state.config, &names);
-    let registries: HashMap<String, String> = state.config
-        .resolved_registries()
-        .into_iter()
-        .collect();
+        locked_package_registries(lockfile, env_lockfile, include, &registries, &names);
     let fetches = names
         .into_iter()
         .map(|name| {
@@ -134,12 +131,12 @@ pub(super) async fn correct_inferred_patched_versions(
 fn packument_registry_for(
     name: &str,
     package_registries: &HashMap<String, LockedPackageRegistry>,
-    registries: &HashMap<String, String>,
+    registries: &pnpm_lockfile::RegistryContext,
 ) -> Option<String> {
     match package_registries.get(name) {
         Some(LockedPackageRegistry::Single(registry)) => Some(registry.clone()),
         Some(LockedPackageRegistry::Ambiguous) => None,
-        None => Some(pick_registry_for_package(registries, name, None)),
+        None => Some(registries.routed_registry(name).to_string()),
     }
 }
 

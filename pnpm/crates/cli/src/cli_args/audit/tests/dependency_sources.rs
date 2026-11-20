@@ -1,7 +1,7 @@
 use super::{
     BTreeMap, Config, HashSet, LockedPackageRegistry, RawBulkAdvisory, all_dependencies,
-    bulk_response_to_audit_report, locked_package_registries, lockfile_to_audit_request,
-    package_version, parse_lockfile, prod_without_optional,
+    audit_registry_context, bulk_response_to_audit_report, locked_package_registries,
+    lockfile_to_audit_request, package_version, parse_lockfile, prod_without_optional,
 };
 
 #[test]
@@ -206,7 +206,7 @@ snapshots:
 }
 
 #[test]
-fn locked_package_registries_distinguishes_single_and_mixed_registry_origins() {
+fn locked_package_registries_distinguishes_single_mixed_undeclared_and_recorded_routes() {
     let lockfile = parse_lockfile(
         "
 lockfileVersion: '9.0'
@@ -223,6 +223,24 @@ importers:
       mixed-work:
         specifier: work:mixed-pkg@2.0.0
         version: mixed-pkg@work:2.0.0
+      undeclared-only:
+        specifier: private:1.0.0
+        version: private:1.0.0
+      undeclared-first:
+        specifier: private:undeclared-mixed@1.0.0
+        version: undeclared-mixed@private:1.0.0
+      undeclared-second:
+        specifier: work:undeclared-mixed@2.0.0
+        version: undeclared-mixed@work:2.0.0
+      work-first:
+        specifier: work:undeclared-rev@1.0.0
+        version: undeclared-rev@work:1.0.0
+      undeclared-after:
+        specifier: private:undeclared-rev@2.0.0
+        version: undeclared-rev@private:2.0.0
+      '@moved/plain':
+        specifier: 1.0.0
+        version: 1.0.0
       dir-semver:
         specifier: workspace:*
         version: 1.0.0
@@ -237,6 +255,18 @@ packages:
     resolution: {integrity: sha512-YWJj}
   mixed-pkg@work:2.0.0:
     resolution: {integrity: sha512-ZGVm}
+  undeclared-only@private:1.0.0:
+    resolution: {integrity: sha512-YWJj}
+  undeclared-mixed@private:1.0.0:
+    resolution: {integrity: sha512-YWJj}
+  undeclared-mixed@work:2.0.0:
+    resolution: {integrity: sha512-ZGVm}
+  undeclared-rev@work:1.0.0:
+    resolution: {integrity: sha512-YWJj}
+  undeclared-rev@private:2.0.0:
+    resolution: {integrity: sha512-ZGVm}
+  '@moved/plain@1.0.0':
+    resolution: {integrity: sha512-YWJj}
   dir-semver@1.0.0:
     resolution: {directory: packages/dir-semver, type: directory}
   tarball-only@https://example.com/tarball-only-1.0.0.tgz:
@@ -247,22 +277,59 @@ snapshots:
   only-work@work:1.0.0: {}
   mixed-pkg@1.0.0: {}
   mixed-pkg@work:2.0.0: {}
+  undeclared-only@private:1.0.0: {}
+  undeclared-mixed@private:1.0.0: {}
+  undeclared-mixed@work:2.0.0: {}
+  undeclared-rev@work:1.0.0: {}
+  undeclared-rev@private:2.0.0: {}
+  '@moved/plain@1.0.0': {}
   dir-semver@1.0.0: {}
   tarball-only@https://example.com/tarball-only-1.0.0.tgz: {}
 ",
     );
+    let tmp = tempfile::tempdir().expect("create workspace tempdir");
+    let mut state = pnpm_workspace_state::WorkspaceState::default();
+    state.settings.registry_routes = Some(BTreeMap::from([(
+        "@moved".to_string(),
+        "https://old-moved.example.com/".to_string(),
+    )]));
+    pnpm_workspace_state::update_workspace_state(tmp.path(), &state)
+        .expect("write workspace state");
+
     let mut config = Config::new();
     config.registry = "https://default.example.com/".to_string();
+    config.registries_by_scope.insert(
+        "@moved".to_string(),
+        "https://new-moved.example.com/".to_string(),
+    );
     config.registries_by_prefix.insert("work".to_string(), "https://work.example.com/".to_string());
 
-    let names = HashSet::from(["only-work", "mixed-pkg", "dir-semver", "tarball-only"]);
-    let resolved = locked_package_registries(&lockfile, None, all_dependencies(), &config, &names);
+    let registries = audit_registry_context(&config, tmp.path());
+    let names = HashSet::from([
+        "only-work",
+        "mixed-pkg",
+        "undeclared-only",
+        "undeclared-mixed",
+        "undeclared-rev",
+        "@moved/plain",
+        "dir-semver",
+        "tarball-only",
+    ]);
+    let resolved =
+        locked_package_registries(&lockfile, None, all_dependencies(), &registries, &names);
 
     assert_eq!(
         resolved.get("only-work"),
         Some(&LockedPackageRegistry::Single("https://work.example.com/".to_string())),
     );
     assert_eq!(resolved.get("mixed-pkg"), Some(&LockedPackageRegistry::Ambiguous));
+    assert_eq!(resolved.get("undeclared-only"), Some(&LockedPackageRegistry::Ambiguous));
+    assert_eq!(resolved.get("undeclared-mixed"), Some(&LockedPackageRegistry::Ambiguous));
+    assert_eq!(resolved.get("undeclared-rev"), Some(&LockedPackageRegistry::Ambiguous));
+    assert_eq!(
+        resolved.get("@moved/plain"),
+        Some(&LockedPackageRegistry::Single("https://old-moved.example.com/".to_string())),
+    );
     assert!(!resolved.contains_key("dir-semver"));
     assert!(!resolved.contains_key("tarball-only"));
 }

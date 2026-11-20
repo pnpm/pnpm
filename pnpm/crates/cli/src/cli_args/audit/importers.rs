@@ -63,6 +63,24 @@ pub(super) fn load_audited_lockfiles<'lockfile>(
     Ok(Some((lockfile, env_lockfile)))
 }
 
+/// Build [`RegistryContext`](pnpm_lockfile::RegistryContext) with the scope
+/// routes recorded in the workspace state for `lockfile_dir`, so plain
+/// lockfile keys resolve to the registry they were installed from even if a
+/// `@scope` route in config has moved since.
+pub(crate) fn audit_registry_context(
+    config: &Config,
+    lockfile_dir: &std::path::Path,
+) -> pnpm_lockfile::RegistryContext {
+    let locked_registries = pnpm_workspace_state::load_workspace_state_in_modules(
+        &config.workspace_state_modules_dir(lockfile_dir),
+    )
+    .ok()
+    .flatten()
+    .and_then(|state| state.settings.registry_routes)
+    .map(|routes| routes.into_iter().collect());
+    config.registry_context().with_locked_registries(locked_registries)
+}
+
 /// Every installed registry package version the lockfile and env lockfile
 /// record, with the registry that serves it. `None` when the selectors matched
 /// no project.
@@ -75,7 +93,7 @@ pub(super) fn signature_packages(
         return Ok(None);
     };
     let lockfile = lockfile.as_ref();
-    let registries = state.config.registry_context();
+    let registries = audit_registry_context(state.config, lockfile_dir);
     let mut packages = BTreeSet::new();
     let main = AuditGraph::main(lockfile, include.peer_edges);
     collect_graph_signature_packages(
@@ -169,26 +187,28 @@ fn read_audit_env_lockfile(lockfile_dir: &std::path::Path) -> miette::Result<Opt
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LockedPackageRegistry {
     Single(String),
+    /// Multiple registries serve the package name, or an occurrence references
+    /// an undeclared named-registry prefix.
     Ambiguous,
 }
 
 /// The registry origin of each requested package name across reachable locked
-/// registry occurrences (`Single` when all occurrences agree, `Ambiguous` when
-/// multiple registries serve the same name).
+/// registry occurrences (`Single` when every occurrence resolves to the same
+/// registry, `Ambiguous` when occurrences span multiple registries or an
+/// undeclared prefix).
 pub(crate) fn locked_package_registries(
     lockfile: &Lockfile,
     env_lockfile: Option<&EnvLockfile>,
     include: Include,
-    config: &Config,
+    registries: &pnpm_lockfile::RegistryContext,
     filter_names: &HashSet<&str>,
 ) -> HashMap<String, LockedPackageRegistry> {
-    let registries = config.registry_context();
     let mut seen: HashMap<String, Option<&str>> = HashMap::new();
     let main = AuditGraph::main(lockfile, include.peer_edges);
-    record_graph_registries(&main, include, &registries, filter_names, &mut seen);
+    record_graph_registries(&main, include, registries, filter_names, &mut seen);
     if let Some(env_lockfile) = env_lockfile {
         let env = AuditGraph::env(env_lockfile);
-        record_graph_registries(&env, include, &registries, filter_names, &mut seen);
+        record_graph_registries(&env, include, registries, filter_names, &mut seen);
     }
     seen.into_iter()
         .map(|(name, registry)| {
@@ -227,12 +247,16 @@ fn record_graph_registries<'ctx>(
         {
             continue;
         }
-        let Some(registry) = registries.registry_of_key(&metadata_key) else {
-            continue;
-        };
-        seen.entry(name)
-            .and_modify(|current| merge_package_registry(current, registry))
-            .or_insert(Some(registry));
+        match registries.registry_of_key(&metadata_key) {
+            Some(registry) => {
+                seen.entry(name)
+                    .and_modify(|current| merge_package_registry(current, registry))
+                    .or_insert(Some(registry));
+            }
+            None => {
+                seen.insert(name, None);
+            }
+        }
     }
 }
 

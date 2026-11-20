@@ -1,7 +1,7 @@
 use super::{
     BTreeMap, Config, ConfigAuditLevel, GuardExhaustionPolicy, HashMap, LockedPackageRegistry,
     MAX_PATHS_PER_FINDING, PackageVersionGuard, PackageVersionGuardDecision, Range,
-    filter_ignored_advisories,
+    audit_registry_context, filter_ignored_advisories,
     fix::{
         PackumentPublishInfo, VulnerabilityGuard, filter_advisories_for_fix,
         format_fix_with_update_output, minimum_release_age_excludes, overrides::create_overrides,

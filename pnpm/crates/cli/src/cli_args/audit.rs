@@ -3,7 +3,9 @@ pub(crate) use fix::{
     filter_advisories_for_fix, fix_with_update, format_fix_with_update_output,
     ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
 };
-pub(crate) use importers::{LockedPackageRegistry, locked_package_registries};
+pub(crate) use importers::{
+    LockedPackageRegistry, audit_registry_context, locked_package_registries,
+};
 pub(crate) use paths::{
     AuditPathIndex, PathInfo, build_audit_path_index, package_semver, package_version,
 };
@@ -49,7 +51,7 @@ use pnpm_config::{AuditLevel as ConfigAuditLevel, Config};
 use pnpm_lockfile::{
     EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PackageMetadata, PeerEdgeGraph,
     PeerEdgeOptions, PeerSatisfactionEdges, PkgName, ResolvedDependencyMap, SnapshotEntry,
-    SpecifierAndResolution, pick_registry_for_package,
+    SpecifierAndResolution,
 };
 use pnpm_network::{encode_package_name, send_with_retry};
 use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
