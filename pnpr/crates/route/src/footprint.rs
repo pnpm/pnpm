@@ -1,10 +1,13 @@
+use serde::{Deserialize, Serialize};
+
 use super::{BTreeSet, Digest, HeaderMap, Identity, RouteContext, Sha256};
 
 /// The cache-namespace identity of a private route: a key input plus
 /// (for the cache layer) an authorization gate. The key input is what
 /// gets HMAC'd into the cache key; identical inputs from different
 /// callers who share the same access collapse to one shared entry.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PrivateAccessDescriptor {
     /// Proxied route via a pnpr-managed upstream alias.
     /// `package` is set only when the upstream's rules **explicitly refine**
@@ -12,9 +15,16 @@ pub enum PrivateAccessDescriptor {
     /// gate on cache replay, so a caller the refinement denies cannot obtain
     /// through the cache what a fresh resolve refuses them. Unrefined names
     /// share the plain registry-scoped descriptor (`package: None`).
-    Alias { alias: String, credential_digest: String, package: Option<String> },
+    #[serde(rename_all = "camelCase")]
+    Alias {
+        alias: String,
+        credential_digest: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        package: Option<String>,
+    },
     /// pnpr-hosted route, gated by re-running the named package access
     /// policy for the caller.
+    #[serde(rename_all = "camelCase")]
     Hosted { policy_id: String },
 }
 
@@ -117,7 +127,8 @@ pub fn headers_credential_digest(headers: &HeaderMap) -> String {
 ///
 /// An empty footprint means the resolution is fully public and shareable
 /// globally; a non-empty one is keyed by its private access descriptors.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Footprint {
     pub(super) descriptors: BTreeSet<PrivateAccessDescriptor>,
 }
@@ -125,6 +136,10 @@ pub struct Footprint {
 impl Footprint {
     pub fn add(&mut self, descriptor: PrivateAccessDescriptor) {
         self.descriptors.insert(descriptor);
+    }
+
+    pub fn extend(&mut self, other: &Self) {
+        self.descriptors.extend(other.descriptors.iter().cloned());
     }
 
     /// Whether the resolution touched no private data and may be cached
@@ -160,6 +175,21 @@ impl Footprint {
             .iter()
             .all(|descriptor| context.allows_descriptor(identity, descriptor))
     }
+}
+
+/// Isolated metadata-cache namespace for an own-origin package route the caller
+/// is not permitted to read, keeping unauthorized fetches off the shared public
+/// mirror and off every authorized caller's private mirror.
+pub(super) fn denied_digest_id(
+    identity: &Identity,
+    url: &str,
+    package: Option<&str>,
+    secret: &[u8],
+) -> String {
+    let subject = identity.user_id().unwrap_or("$anonymous");
+    let package = package.unwrap_or_default();
+    let message = format!("denied\0{subject}\0{url}\0{package}");
+    hex(&hmac_sha256(secret, message.as_bytes()))
 }
 
 /// HMAC-SHA256 (RFC 2104) over the workspace's audited `sha2`, so the

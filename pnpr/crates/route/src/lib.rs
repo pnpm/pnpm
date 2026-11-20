@@ -278,25 +278,12 @@ impl RouteContext {
         hosted: &str,
         package: Option<&str>,
     ) -> RouteClass {
-        let npm_endpoint =
-            format!("{}{}/", hosted.trim_end_matches('/'), Ecosystem::Npm.base_path());
-        if let Some(registry) = addressed_registry_segment(fetch, &npm_endpoint) {
-            return self.classify_addressed(
-                identity,
-                &pnpm_network::percent_decode_str(registry),
-                package,
-            );
-        }
-
-        // A path-less fetch resolves through the graph's default registry —
-        // the same dispatch the serving endpoints use — to the one concrete
-        // registry that serves this package.
         let Some(package) = package else {
             // A non-package fetch against pnpr itself carries no private
             // package data to key.
             return RouteClass::Public;
         };
-        match self.registries.resolve_default(pnpr_registry::Ecosystem::Npm, package) {
+        match self.resolve_own_origin(fetch, hosted, package) {
             Resolved::Concrete {
                 registry,
                 kind: ConcreteKind::Hosted,
@@ -307,29 +294,6 @@ impl RouteContext {
             } => self.classify_upstream(identity, registry, package),
             // Unclaimed or no default registry: the endpoint answers
             // not-found, so there is no private content to key.
-            Resolved::Unclaimed | Resolved::UnknownRegistry => RouteClass::Public,
-        }
-    }
-
-    /// Classify a fetch that names its registry through `/~<name>/`.
-    fn classify_addressed(
-        &self,
-        identity: &Identity,
-        registry: &str,
-        package: Option<&str>,
-    ) -> RouteClass {
-        let Some(package) = package else {
-            return RouteClass::Public;
-        };
-        match self.registries.resolve(registry, Ecosystem::Npm, package) {
-            Resolved::Concrete {
-                registry,
-                kind: ConcreteKind::Hosted,
-            } => self.classify_hosted(identity, registry, Some(package)),
-            Resolved::Concrete {
-                registry,
-                kind: ConcreteKind::Upstream,
-            } => self.classify_upstream(identity, registry, package),
             Resolved::Unclaimed | Resolved::UnknownRegistry => RouteClass::Public,
         }
     }

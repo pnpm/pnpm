@@ -1,4 +1,7 @@
-use super::{RouteContext, nerf_dart};
+use super::{
+    ConcreteKind, Ecosystem, Identity, Resolved, RouteContext, addressed_registry_segment,
+    nerf_dart,
+};
 
 impl RouteContext {
     /// Whether a fetch addresses this server's configured public URL.
@@ -7,6 +10,70 @@ impl RouteContext {
         self.hosted_origin
             .as_ref()
             .is_some_and(|origin| nerf_dart(url).starts_with(origin))
+    }
+
+    pub(super) fn resolve_own_origin<'a>(
+        &'a self,
+        fetch: &str,
+        hosted: &str,
+        package: &str,
+    ) -> Resolved<'a> {
+        let base = hosted.trim_end_matches('/');
+        for ecosystem in Ecosystem::all() {
+            let endpoint = format!("{base}{}/", ecosystem.base_path());
+            if let Some(registry) = addressed_registry_segment(fetch, &endpoint) {
+                let decoded = pnpm_network::percent_decode_str(registry);
+                return self.registries.resolve(&decoded, ecosystem, package);
+            }
+            if fetch.starts_with(&endpoint) {
+                return self.registries.resolve_default(ecosystem, package);
+            }
+        }
+        self.registries.resolve_default(Ecosystem::Npm, package)
+    }
+
+    /// Whether `url` targets a package on this server's own origin that
+    /// `identity` is not permitted to read, so `metadata_scope` must not
+    /// consult or fall back to the shared public mirror.
+    pub(super) fn is_denied_own_package(
+        &self,
+        identity: &Identity,
+        url: &str,
+        package: Option<&str>,
+    ) -> bool {
+        let Some(package) = package else {
+            return false;
+        };
+        let fetch = nerf_dart(url);
+        let Some(hosted) = self.hosted_origin.as_deref() else {
+            return false;
+        };
+        if !fetch.starts_with(hosted) || self.is_public_route(&fetch, Some(package)) {
+            return false;
+        }
+        match self.resolve_own_origin(&fetch, hosted, package) {
+            Resolved::Concrete {
+                registry,
+                kind: ConcreteKind::Hosted,
+            } => self.hosted_rules
+                .get(registry)
+                .is_some_and(|rules| !rules.access_admits(package, identity)),
+            Resolved::Concrete {
+                registry,
+                kind: ConcreteKind::Upstream,
+            } => {
+                let has_alias = self.aliases
+                    .iter()
+                    .any(|alias| alias.name == registry);
+                has_alias
+                    && self
+                        .authorized_alias(identity, registry)
+                        .is_none_or(|alias| {
+                            !self.upstream_admits(&alias.name, identity, Some(package))
+                        })
+            }
+            Resolved::Unclaimed | Resolved::UnknownRegistry => true,
+        }
     }
 
     pub(super) fn local_package(&self, url: &str) -> Option<String> {

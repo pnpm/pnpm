@@ -131,7 +131,7 @@ async fn resolve_npm_request(
             Ok(inputs) => inputs,
             Err(response) => return response,
         };
-    let verified_dist_stats = match verify_request_lockfile(runtime, &inputs).await {
+    let verified_dist_stats = match verify_request_lockfile(runtime, &identity, &inputs).await {
         Ok(stats) => stats,
         Err(response) => return response,
     };
@@ -162,12 +162,17 @@ fn short_circuit_npm_resolve(
     ) {
         return Some(within_deadline(response, inputs.deadline));
     }
-    inputs.cache_key =
-        resolution_cache_key(&inputs.request).map(|key| runtime.graph_cache_key(&key));
+    let generation = match inputs.cache_scope {
+        super::streaming::CacheScope::Pending(generation) => generation,
+        super::streaming::CacheScope::Key(_) => runtime.cache_generation(),
+    };
+    let key = resolution_cache_key(&inputs.request)
+        .map(|raw_key| runtime.scoped_cache_key(generation, &raw_key));
+    inputs.cache_scope = super::streaming::CacheScope::Key(key);
     cached_resolution_response(
         runtime,
         identity,
-        inputs.cache_key.as_ref(),
+        inputs.cache_scope.key(),
         &inputs.request,
         inputs.deadline,
     )
@@ -198,6 +203,7 @@ async fn prepare_npm_resolve(
     // forwarded from the client. Every metadata/tarball fetch the
     // resolve+verify performs records its route into `footprint`, which
     // then decides whether the resolution may populate the shared cache.
+    let cache_scope = super::streaming::CacheScope::Pending(runtime.cache_generation());
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, identity, &footprint);
     let tarball_router = request_tarball_router(runtime, identity, &config);
@@ -207,7 +213,7 @@ async fn prepare_npm_resolve(
         request_auth,
         tarball_router,
         footprint,
-        cache_key: None,
+        cache_scope,
         permit: Arc::new(permit),
         deadline,
     })

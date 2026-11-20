@@ -114,6 +114,9 @@ pub(super) async fn reload_grants(state: &AppState) -> bool {
             // reload under a request must reach what later requests read.
             apply(state, &grants, &state.inner.current_routing());
             directory.publish(grants);
+            if let Some(resolver) = state.inner.resolver_shared.get() {
+                resolver.forget_results();
+            }
             true
         }
         Ok(None) => true,

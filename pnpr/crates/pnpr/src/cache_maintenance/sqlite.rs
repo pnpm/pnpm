@@ -116,8 +116,8 @@ fn estimate_expired_verdict_bytes(verdict: &AnchoredVerdictDb, cutoff_ms: i64) -
 fn query_verdict_weights(conn: &Connection, cutoff_ms: i64) -> (u64, u64) {
     conn.query_row(
         "SELECT
-             COALESCE(SUM(CASE WHEN verified_at_ms <= ?1 THEN 2 * LENGTH(hash) + LENGTH(policy) + 24 ELSE 0 END), 0),
-             COALESCE(SUM(2 * LENGTH(hash) + LENGTH(policy) + 24), 0)
+             COALESCE(SUM(CASE WHEN verified_at_ms <= ?1 THEN 2 * (LENGTH(hash) + LENGTH(footprint_key)) + LENGTH(footprint) + LENGTH(policy) + LENGTH(epoch) + 24 ELSE 0 END), 0),
+             COALESCE(SUM(2 * (LENGTH(hash) + LENGTH(footprint_key)) + LENGTH(footprint) + LENGTH(policy) + LENGTH(epoch) + 24), 0)
          FROM lockfile_verdicts",
         [cutoff_ms],
         |row| {
@@ -284,7 +284,7 @@ fn execute_verdict_trim(conn: &Connection, live_reclaimable: u64, needed_from_ro
 fn load_row_weights(conn: &Connection, floor_ms: i64) -> Option<Vec<u64>> {
     let mut stmt = conn
         .prepare(
-            "SELECT 2 * LENGTH(hash) + LENGTH(policy) + 24
+            "SELECT 2 * (LENGTH(hash) + LENGTH(footprint_key)) + LENGTH(footprint) + LENGTH(policy) + LENGTH(epoch) + 24
              FROM lockfile_verdicts
              WHERE verified_at_ms > ?1
              ORDER BY verified_at_ms ASC, rowid ASC",

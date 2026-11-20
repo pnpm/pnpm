@@ -26,7 +26,7 @@ use super::{
         protocol::ResolveRequest,
         request_tarball_router,
         streaming::{
-            StreamCacheTarget, StreamedResolve, StreamedResolveInputs, TerminalSender,
+            CacheScope, StreamCacheTarget, StreamedResolve, StreamedResolveInputs, TerminalSender,
             stream_resolution,
         },
         wire::StreamObserver,
@@ -214,7 +214,7 @@ fn build_post_fetch_cancel_task(
             request_auth,
             tarball_router: router,
             footprint,
-            cache_key: Some("peer-cancel-key".to_string()),
+            cache_scope: CacheScope::Key(Some("peer-cancel-key".to_string())),
             permit: Arc::new(permit),
             deadline,
         },

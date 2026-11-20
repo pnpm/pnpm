@@ -61,13 +61,27 @@ impl TerminalSender {
     }
 }
 
+pub(super) enum CacheScope {
+    Pending(u64),
+    Key(Option<String>),
+}
+
+impl CacheScope {
+    pub(super) fn key(&self) -> Option<&String> {
+        match self {
+            CacheScope::Pending(_) => None,
+            CacheScope::Key(key) => key.as_ref(),
+        }
+    }
+}
+
 pub(super) struct StreamedResolveInputs {
     pub(super) config: ActiveConfig,
     pub(super) request: ResolveRequest,
     pub(super) request_auth: Arc<AuthHeaders>,
     pub(super) tarball_router: TarballRouter,
     pub(super) footprint: Arc<Mutex<Footprint>>,
-    pub(super) cache_key: Option<String>,
+    pub(super) cache_scope: CacheScope,
     pub(super) permit: Arc<ResolvePermit>,
     pub(super) deadline: Instant,
 }
@@ -338,7 +352,7 @@ impl ResolutionFinalizer {
             Err(error_frame) => return Some(error_frame),
         };
         if !cancel.is_cancelled()
-            && let Some(key) = self.inputs.cache_key.clone()
+            && let Some(key) = self.inputs.cache_scope.key().cloned()
         {
             self.store_candidate(key, &lockfile);
         }

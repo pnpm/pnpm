@@ -23,4 +23,11 @@ impl super::super::super::AppState {
         );
         self.inner.replace_routing(next);
     }
+
+    /// Clear cached resolutions and lockfile verdicts, as a grant reload does.
+    pub(crate) fn test_forget_resolver_results(&self) {
+        if let Some(resolver) = self.inner.resolver_shared.get() {
+            resolver.forget_results();
+        }
+    }
 }
