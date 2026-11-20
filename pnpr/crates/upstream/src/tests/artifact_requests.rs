@@ -367,3 +367,218 @@ async fn revision_download_budget_starts_after_waiting_for_a_permit() {
     assert!(stream.next().await.is_none());
     server.await.unwrap();
 }
+
+#[test]
+fn declared_tarball_route_preserves_signed_version_shaped_cdn_urls() {
+    let pkg =
+        CanonicalPackageName::parse("@corp/split", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let signed_cdn =
+        "https://cdn.split.example/@corp/split@1.0.0?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN";
+    assert_eq!(
+        crate::UpstreamTarballRoute::from_dist_tarball(Some(signed_cdn), &pkg),
+        crate::UpstreamTarballRoute::Url(signed_cdn.to_string()),
+    );
+    assert_eq!(
+        crate::UpstreamTarballRoute::from_dist_tarball(Some("@corp/split@1.0.0"), &pkg),
+        crate::UpstreamTarballRoute::Version("1.0.0".to_string()),
+    );
+}
+
+#[tokio::test]
+async fn declared_tarball_errors_never_expose_presigned_query_credentials_and_isolate_packument_guards()
+ {
+    let mut reg = mockito::Server::new_async().await;
+    let mut cdn = mockito::Server::new_async().await;
+    let forbidden_cdn = cdn
+        .mock(
+            "GET",
+            mockito::Matcher::Exact(
+                "/@corp/split@1.0.0?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN".to_string(),
+            ),
+        )
+        .with_status(403)
+        .with_body("SignatureDoesNotMatch")
+        .expect(1)
+        .create_async()
+        .await;
+    let blocked_packument_redirect = reg
+        .mock("GET", "/@corp/split")
+        .with_status(302)
+        .with_header("location", &format!("{}/off-origin-packument", cdn.url()))
+        .expect(1)
+        .create_async()
+        .await;
+    let off_origin_packument = cdn
+        .mock("GET", "/off-origin-packument")
+        .expect(0)
+        .create_async()
+        .await;
+
+    let reg_origin = reqwest::Url::parse(&reg.url()).unwrap().origin();
+    let client = upstream(reg.url(), auth_and_custom_headers())
+        .with_fetch_guard(std::sync::Arc::new(move |url| url.origin() == reg_origin))
+        .with_declared_tarball_guards(
+            std::sync::Arc::new(|url| matches!(url.scheme(), "http" | "https")),
+            std::sync::Arc::new(|_, _| true),
+        );
+
+    let pkg =
+        CanonicalPackageName::parse("@corp/split", pnpr_package_name::Ecosystem::Npm).unwrap();
+    assert!(
+        client
+            .fetch_packument(&pkg, &crate::CacheValidators::default())
+            .await
+            .is_err(),
+    );
+    blocked_packument_redirect.assert_async().await;
+    off_origin_packument.assert_async().await;
+
+    let signed_url =
+        format!("{}/@corp/split@1.0.0?X-Amz-Signature=EXAMPLE_PRESIGNED_TOKEN", cdn.url());
+    let route = crate::UpstreamTarballRoute::from_dist_tarball(Some(&signed_url), &pkg);
+    let err =
+        client.fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &route).await.unwrap_err();
+    forbidden_cdn.assert_async().await;
+    for formatted in [err.log_message(), err.to_string(), format!("{err:?}")] {
+        assert!(!formatted.contains("EXAMPLE_PRESIGNED_TOKEN"), "leaked in {formatted}");
+    }
+}
+
+#[tokio::test]
+async fn declared_tarball_redirect_to_disallowed_target_is_blocked_without_contacting_it() {
+    let reg = mockito::Server::new_async().await;
+    let mut cdn = mockito::Server::new_async().await;
+    let mut internal = mockito::Server::new_async().await;
+
+    let metadata_redirect = cdn
+        .mock("GET", "/redirect-metadata.tgz")
+        .with_status(302)
+        .with_header("location", "http://169.254.169.254/latest/meta-data/")
+        .expect(1)
+        .create_async()
+        .await;
+    let internal_redirect = cdn
+        .mock("GET", "/redirect-internal.tgz")
+        .with_status(302)
+        .with_header("location", &format!("{}/secret", internal.url()))
+        .expect(1)
+        .create_async()
+        .await;
+    let untouched_internal = internal
+        .mock("GET", "/secret")
+        .expect(0)
+        .create_async()
+        .await;
+    let allowed_tarball = cdn
+        .mock("GET", "/ok.tgz")
+        .with_status(200)
+        .with_body("tarball-bytes")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let mut cfg =
+        pnpr_config::UpstreamConfig::with_defaults(reg.url(), reqwest::header::HeaderMap::new());
+    cfg.requests.max_fails = 1;
+    let cdn_origin = reqwest::Url::parse(&cdn.url()).unwrap().origin();
+    let client = crate::Upstream::new("corp", &cfg)
+        .with_declared_tarball_guards(
+            std::sync::Arc::new(move |url| url.origin() == cdn_origin),
+            std::sync::Arc::new(|_, _| true),
+        );
+    let pkg =
+        CanonicalPackageName::parse("@corp/split", pnpr_package_name::Ecosystem::Npm).unwrap();
+
+    for path in ["/redirect-metadata.tgz", "/redirect-internal.tgz"] {
+        let route = crate::UpstreamTarballRoute::Url(format!("{}{path}", cdn.url()));
+        let err = client
+            .fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &route)
+            .await
+            .unwrap_err();
+        let message = err.to_string();
+        eprintln!("ERR:\n{message}\n");
+        assert!(message.contains("URL is not allowed by the fetch allowlist"));
+    }
+    metadata_redirect.assert_async().await;
+    internal_redirect.assert_async().await;
+    untouched_internal.assert_async().await;
+
+    // Blocked redirects must not open the upstream circuit breaker (`max_fails = 1`).
+    let ok_route = crate::UpstreamTarballRoute::Url(format!("{}/ok.tgz", cdn.url()));
+    let outcome =
+        client.fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &ok_route).await.unwrap();
+    assert!(matches!(outcome, crate::FetchOutcome::Ok(_)));
+    allowed_tarball.assert_async().await;
+
+    // An upstream 403 error body echoing a signed URL redacts query credentials
+    // before storing `RegistryError::UpstreamStatus::body`.
+    let forbidden = cdn
+        .mock("GET", "/expired.tgz")
+        .with_status(403)
+        .with_body(
+            "AccessDenied for https://cdn.corp.example/expired.tgz?X-Amz-Signature=SECRET_BODY_SIG&X-Amz-Credential=AKIA_BODY_CRED",
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let expired_route = crate::UpstreamTarballRoute::Url(format!("{}/expired.tgz", cdn.url()));
+    let expired_err = client
+        .fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &expired_route)
+        .await
+        .unwrap_err();
+    let debug = format!("{expired_err:?}");
+    assert!(!debug.contains("SECRET_BODY_SIG"), "{debug}");
+    assert!(!debug.contains("AKIA_BODY_CRED"), "{debug}");
+    forbidden.assert_async().await;
+
+    // Valid JSON 403 bodies with escaped URLs in both object keys and string
+    // values, plus malformed/truncated JSON fallbacks, redact credentials while
+    // keeping status 403 intact for refresh detection.
+    let escaped_forbidden = cdn
+        .mock("GET", "/escaped.tgz")
+        .with_status(403)
+        .with_body(
+            r#"{"https:\/\/cdn.corp.example\/key.tgz?signature=KEY_JSON_SIG":"https:\/\/cdn.corp.example\/escaped.tgz?signature=ESCAPED_JSON_SIG\u0026X-Amz-Signature=ESCAPED_AMZ_SIG"}"#,
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let escaped_route = crate::UpstreamTarballRoute::Url(format!("{}/escaped.tgz", cdn.url()));
+    let escaped_err = client
+        .fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &escaped_route)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            &escaped_err,
+            pnpr_error::RegistryError::UpstreamStatus { status: 403, body, .. }
+                if !body.contains("KEY_JSON_SIG")
+                    && !body.contains("ESCAPED_JSON_SIG")
+                    && !body.contains("ESCAPED_AMZ_SIG")
+        ),
+        "{escaped_err:?}",
+    );
+    let escaped_debug = format!("{escaped_err:?}");
+    assert!(!escaped_debug.contains("KEY_JSON_SIG"), "{escaped_debug}");
+    assert!(!escaped_debug.contains("ESCAPED_JSON_SIG"), "{escaped_debug}");
+    assert!(!escaped_debug.contains("ESCAPED_AMZ_SIG"), "{escaped_debug}");
+    escaped_forbidden.assert_async().await;
+
+    let truncated_forbidden = cdn
+        .mock("GET", "/truncated.tgz")
+        .with_status(403)
+        .with_body(
+            r#"{"partial":"https:\u002f\u002fcdn.corp.example\u002fpart.tgz?token=TRUNCATED_SIG"#,
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let truncated_route = crate::UpstreamTarballRoute::Url(format!("{}/truncated.tgz", cdn.url()));
+    let truncated_err = client
+        .fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &truncated_route)
+        .await
+        .unwrap_err();
+    let truncated_debug = format!("{truncated_err:?}");
+    assert!(!truncated_debug.contains("TRUNCATED_SIG"), "{truncated_debug}");
+    truncated_forbidden.assert_async().await;
+}

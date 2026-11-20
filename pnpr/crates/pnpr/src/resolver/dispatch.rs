@@ -17,8 +17,9 @@ use super::{
     },
     resolution_cache_key, resolve, stream_resolve_response, verify_request_lockfile,
     wire::{
-        TarballRouter, frozen_package_frames_until, ndjson_frames_until, ndjson_single_frame,
-        osv_violations_for_lockfile_until, try_done_frame_until, violations_frame,
+        LockfileOrigin, TarballRouter, frozen_package_frames_until, ndjson_frames_until,
+        ndjson_single_frame, osv_violations_for_lockfile_until, try_done_frame_until,
+        violations_frame,
     },
 };
 
@@ -280,10 +281,9 @@ fn prepare_frozen_lockfile(
     should_cancel: &dyn Fn() -> bool,
 ) -> Option<Result<pnpm_lockfile::Lockfile, Response>> {
     let lockfile = resolve::fresh_frozen_input_lockfile(config, request)?;
-    let verified = tarball_router.verification_lockfile(&lockfile);
     Some(
         tarball_router
-            .route_lockfile_until(config, &verified, should_cancel)
+            .route_lockfile_until(config, &lockfile, LockfileOrigin::Input, should_cancel)
             .ok_or_else(request_timeout_response),
     )
 }

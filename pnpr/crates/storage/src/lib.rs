@@ -52,6 +52,7 @@ pub use layout_state::HostedLayout;
 pub use pnpr_package_name::Ecosystem;
 
 pub use tar_integrities::DerivedTar;
+pub use upstream_cache::PURGED_UPSTREAM_DIR;
 
 mod archive_verification;
 mod bounded_cache;
@@ -166,6 +167,7 @@ pub struct Storage {
     /// namespace; see [`Storage::read_tar_integrities`].
     tar_integrities: Arc<dyn HostedBackend>,
     tar_integrity_cache: Arc<tar_integrities::TarIntegrityCache>,
+    purged_upstream: Arc<upstream_cache::PurgedUpstreamPackages>,
     /// The database every namespace shares.
     database: Arc<database::SqlDatabase>,
     /// The metadata of `hosted`'s `(namespace, ecosystem)` slice.
@@ -260,6 +262,7 @@ impl Storage {
             cached,
             tar_integrities,
             tar_integrity_cache: Arc::default(),
+            purged_upstream: Arc::default(),
             database,
             metadata,
         }

@@ -25,9 +25,11 @@ pub use calc_specifier_for_workspace_dep::{
     DeclaredSpecifiers, calc_specifier_for_workspace_dep, can_drop_workspace_protocol,
 };
 pub use create_npm_resolution_verifier::{
-    CreateNpmResolutionVerifierOptions, DistStats, NpmResolutionVerifier, ObservedDistStats,
-    VerificationArtifacts, VerificationMetadataClient, VerificationReleaseAgeOptions,
-    VerificationTrustOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+    CreateNpmResolutionVerifierOptions, DistStats, MappedTarballUrl, NpmResolutionVerifier,
+    ObservedDistStats, PublishedTarballUrlMapper, ReverseRoutedTarballUrl, VerificationArtifacts,
+    VerificationMetadataClient, VerificationRegistryRoutes, VerificationReleaseAgeOptions,
+    VerificationTrustOptions, create_npm_resolution_verifier, observed_dist_stats_key,
+    observed_dist_stats_sink,
 };
 pub use errors::{
     FetchMetadataError, InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,

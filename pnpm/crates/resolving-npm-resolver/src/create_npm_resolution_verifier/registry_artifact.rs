@@ -1,10 +1,10 @@
 use super::{
     Arc, DistStats, LockfileResolution, NpmResolutionVerifier, OnceCell, PkgName,
-    RegistryArtifactHistory, ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-    TarballRevision, current_history_violation, current_revision_number,
-    has_complete_sha512_digest, is_revision_registry_tarball_url, lockfile_revision,
-    missing_artifact_violation, redact_url_credentials, select_revision, tarball_url_violation,
-    to_registry_url,
+    PublishedTarballUrlMapper, RegistryArtifactHistory, ResolutionVerification,
+    TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TarballRevision, VerifyCtx,
+    current_history_violation, current_revision_number, has_complete_sha512_digest,
+    is_revision_registry_tarball_url, lockfile_revision, mapped_tarball_url_violation,
+    missing_artifact_violation, redact_url_credentials, select_revision, to_registry_url,
 };
 use crate::pick_package::{ReleaseRecordError, ReleaseRecordRequest};
 
@@ -21,12 +21,11 @@ impl NpmResolutionVerifier {
     pub(super) async fn run_registry_artifact_check(
         &self,
         registry: &str,
-        name: &PkgName,
-        version: &str,
+        ctx: &VerifyCtx<'_>,
         resolution: &LockfileResolution,
         lockfile_tarball: Option<&str>,
     ) -> Option<ResolutionVerification> {
-        let artifact = match self.published_artifact(registry, name, version).await {
+        let artifact = match self.published_artifact(registry, ctx.name, ctx.version).await {
             Ok(artifact) => artifact,
             Err(violation) => return Some(violation),
         };
@@ -39,14 +38,21 @@ impl NpmResolutionVerifier {
         if self.routing.is_pnpr_registry(registry) && artifact.install_v2.is_some() {
             return self.verify_pnpr_document_artifact(
                 registry,
-                (name, version),
+                (ctx.name, ctx.version),
                 resolution,
                 lockfile_tarball,
                 &artifact,
             )
             .await;
         }
-        verify_npm_artifact(&artifact, (name, version), resolution, lockfile_tarball, registry)
+        verify_npm_artifact(
+            &artifact,
+            ctx,
+            resolution,
+            lockfile_tarball,
+            registry,
+            self.artifacts.published_tarball_mapper.as_ref(),
+        )
     }
 
     async fn verify_pnpr_document_artifact(
@@ -66,7 +72,12 @@ impl NpmResolutionVerifier {
         let Some(requested) = requested else {
             let published_tarball =
                 pnpr_published_tarball_url(registry, &pkg_name, version, current_revision);
-            return tarball_url_violation(lockfile_tarball, Some(&published_tarball));
+            return mapped_tarball_url_violation(
+                lockfile_tarball,
+                Some(&published_tarball),
+                (registry, &pkg_name, version),
+                self.artifacts.published_tarball_mapper.as_ref(),
+            );
         };
         let current_revision = current_revision.expect("checked when requested is Some");
         let integrity = resolution.checkable_integrity().expect("checked before artifact binding");
@@ -75,6 +86,7 @@ impl NpmResolutionVerifier {
             (&pkg_name, version, requested),
             lockfile_tarball,
             integrity,
+            self.artifacts.published_tarball_mapper.as_ref(),
         ) {
             return Some(violation);
         }
@@ -155,7 +167,7 @@ impl NpmResolutionVerifier {
         };
         match fetch.run().await {
             Ok(record) => {
-                self.record_release_dist_stats(name, version, &record);
+                self.record_release_dist_stats(registry, name, version, &record);
                 Ok(record.dist.integrity.clone())
             }
             Err(ReleaseRecordError::NotFound(_)) => Ok(None),
@@ -168,6 +180,7 @@ impl NpmResolutionVerifier {
 
     fn record_release_dist_stats(
         &self,
+        registry: &str,
         name: &str,
         version: &str,
         record: &pnpm_registry::PackageVersion,
@@ -184,7 +197,7 @@ impl NpmResolutionVerifier {
             || stats.file_count.is_some()
             || stats.requires_build.is_some()
         {
-            sink.insert((name.to_string(), version.to_string()), stats);
+            sink.insert(crate::observed_dist_stats_key(registry, name, version), stats);
         }
     }
 
@@ -211,7 +224,10 @@ impl NpmResolutionVerifier {
                 .as_ref()
                 .and_then(|stats| stats.get(version))
         {
-            sink.insert((name.to_string(), version.to_string()), *stats);
+            sink.insert(
+                crate::observed_dist_stats_key(registry, &name.to_string(), version),
+                *stats,
+            );
         }
         Ok(meta.version_artifacts.and_then(|artifacts| artifacts.get(version).cloned()))
     }
@@ -219,23 +235,30 @@ impl NpmResolutionVerifier {
 
 fn verify_npm_artifact(
     artifact: &RegistryArtifactHistory,
-    (name, version): (&PkgName, &str),
+    ctx: &VerifyCtx<'_>,
     resolution: &LockfileResolution,
     lockfile_tarball: Option<&str>,
     registry: &str,
+    mapper: Option<&PublishedTarballUrlMapper>,
 ) -> Option<ResolutionVerification> {
+    let pkg_name = ctx.name.to_string();
+    let version = ctx.version;
     let requested = lockfile_revision(resolution);
     let revision_aware = requested.is_some()
         || artifact.current.revision.is_some()
         || !artifact.revisions.is_empty();
     if !revision_aware {
-        return tarball_url_violation(lockfile_tarball, artifact.current.tarball.as_deref());
+        return mapped_tarball_url_violation(
+            lockfile_tarball,
+            artifact.current.tarball.as_deref(),
+            (registry, &pkg_name, version),
+            mapper,
+        );
     }
     let current_revision = match current_revision_number(artifact) {
         Ok(current_revision) => current_revision,
         Err(violation) => return Some(violation),
     };
-    let pkg_name = name.to_string();
     if let Some(violation) =
         current_history_violation(artifact, &pkg_name, version, current_revision, registry)
     {
@@ -244,8 +267,31 @@ fn verify_npm_artifact(
     // An entry outside the revision protocol keeps its ordinary binding,
     // even when the registry later makes the version revision-aware.
     let Some(requested) = requested else {
-        return tarball_url_violation(lockfile_tarball, artifact.current.tarball.as_deref());
+        return mapped_tarball_url_violation(
+            lockfile_tarball,
+            artifact.current.tarball.as_deref(),
+            (registry, &pkg_name, version),
+            mapper,
+        );
     };
+    verify_selected_revision(
+        artifact,
+        (&pkg_name, version, requested, current_revision),
+        resolution,
+        lockfile_tarball,
+        registry,
+        mapper,
+    )
+}
+
+fn verify_selected_revision(
+    artifact: &RegistryArtifactHistory,
+    (pkg_name, version, requested, current_revision): (&str, &str, u64, u64),
+    resolution: &LockfileResolution,
+    lockfile_tarball: Option<&str>,
+    registry: &str,
+    mapper: Option<&PublishedTarballUrlMapper>,
+) -> Option<ResolutionVerification> {
     let integrity = resolution.checkable_integrity().expect("checked before artifact binding");
     let selected = match select_revision(artifact, requested, current_revision, integrity) {
         Ok(selected) => selected,
@@ -253,11 +299,18 @@ fn verify_npm_artifact(
     };
     unaddressed_revision_violation(
         selected.tarball.as_deref(),
-        (&pkg_name, version, requested),
+        (pkg_name, version, requested),
         integrity,
         registry,
     )
-    .or_else(|| tarball_url_violation(lockfile_tarball, selected.tarball.as_deref()))
+    .or_else(|| {
+        mapped_tarball_url_violation(
+            lockfile_tarball,
+            selected.tarball.as_deref(),
+            (registry, pkg_name, version),
+            mapper,
+        )
+    })
 }
 
 fn pnpr_current_revision(
@@ -275,6 +328,7 @@ fn pnpr_revision_url_violation(
     (name, version, requested): (&str, &str, u64),
     lockfile_tarball: Option<&str>,
     integrity: &ssri::Integrity,
+    mapper: Option<&PublishedTarballUrlMapper>,
 ) -> Option<ResolutionVerification> {
     let expected_tarball = TarballRevision::try_from(requested)
         .ok()
@@ -287,7 +341,14 @@ fn pnpr_revision_url_violation(
         integrity,
         registry,
     )
-    .or_else(|| tarball_url_violation(lockfile_tarball, expected_tarball.as_deref()))
+    .or_else(|| {
+        mapped_tarball_url_violation(
+            lockfile_tarball,
+            expected_tarball.as_deref(),
+            (registry, name, version),
+            mapper,
+        )
+    })
 }
 
 /// A revision is only trustworthy when its URL matches its revision and its

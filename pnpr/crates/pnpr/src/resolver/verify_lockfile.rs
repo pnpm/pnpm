@@ -1,18 +1,19 @@
+mod cached_verdict;
+
+use self::cached_verdict::{apply_cached_verdict, compute_verdict_hash, record_verdict};
 use super::{
     Arc, AuthHeaders, Bytes, Footprint, Identity, InMemoryPackageMetaCache, Lockfile, Mutex,
     ObservedDistStats, OsvIndex, PackageMetaCache, PacquetConfig, ResolutionVerifier,
-    ResolveRequest, Resolver, Response, StatusCode, StreamedResolveInputs,
-    build_resolution_verifiers, collect_resolution_policy_violations, extract_admitted_body,
-    hash_lockfile, json_error,
+    ResolveRequest, Resolver, Response, StatusCode, StreamedResolveInputs, TarballRouter,
+    VerificationArtifacts, build_resolution_verifiers_with_artifacts,
+    collect_resolution_policy_violations, extract_admitted_body, json_error,
     limits::{
         AdmittedResolve, CancelToken, ResolvePermit, reject_oversized_graph,
         request_timeout_response,
     },
     ndjson_single_frame, observed_dist_stats_sink, osv_violations_for_lockfile_until,
     parse_request, reject_inline_url_auth, reject_invalid_registries, reject_off_allowlist_fetches,
-    request_tarball_router,
-    verdict_cache::{VerdictLookup, VerdictRecord},
-    verify_done_frame, violations_frame,
+    request_tarball_router, verdict_cache, verify_done_frame, violations_frame,
 };
 
 /// Admit `POST /-/pnpr/v0/verify-lockfile` before buffering or parsing the
@@ -193,20 +194,19 @@ async fn verify_with_permit(
     let permit = Arc::new(permit);
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
-    let input_lockfile = Arc::new(
-        request_tarball_router(runtime, &identity, config).verification_lockfile(raw_lockfile),
-    );
+    let tarball_router = request_tarball_router(runtime, &identity, config);
     let outcome = verify_input_lockfile(
         runtime,
         &LockfileVerifyContext {
             config,
             identity: &identity,
             auth_headers: &request_auth,
+            tarball_router: &tarball_router,
             footprint: &footprint,
             permit: &permit,
             deadline,
         },
-        input_lockfile,
+        raw_lockfile,
     )
     .await;
     finish_verified_lockfile(&request, deadline, outcome)
@@ -216,6 +216,7 @@ struct LockfileVerifyContext<'a> {
     config: &'a PacquetConfig,
     identity: &'a Identity,
     auth_headers: &'a Arc<AuthHeaders>,
+    tarball_router: &'a TarballRouter,
     footprint: &'a Mutex<Footprint>,
     permit: &'a Arc<ResolvePermit>,
     deadline: tokio::time::Instant,
@@ -255,13 +256,13 @@ pub(super) async fn verify_request_lockfile(
     let Some(input_lockfile) = inputs.request.lockfile.as_ref() else {
         return Ok(None);
     };
-    let input_lockfile = Arc::new(inputs.tarball_router.verification_lockfile(input_lockfile));
     match verify_input_lockfile(
         runtime,
         &LockfileVerifyContext {
             config: &inputs.config,
             identity,
             auth_headers: &inputs.request_auth,
+            tarball_router: &inputs.tarball_router,
             footprint: &inputs.footprint,
             permit: &inputs.permit,
             deadline: inputs.deadline,
@@ -307,47 +308,29 @@ async fn collect_policy_violations_until(
     result.map_err(|message| VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message)))
 }
 
-/// Verify the client's input lockfile under the client's policy. On a
-/// clean pass returns the [`ObservedDistStats`] the verifier
-/// collected — `None` when the whole-lockfile verdict cache satisfied
-/// the check without a fan-out (no metadata was fetched, so no sizes
-/// exist). On a policy violation returns the rendered violations so
-/// the caller can deliver them to the client. A build-verifiers
-/// failure (e.g. an invalid exclude pattern) returns a ready-made 500.
+/// Verify the client's input lockfile under the client's policy.
 async fn verify_input_lockfile(
     runtime: &Resolver,
     context: &LockfileVerifyContext<'_>,
-    lockfile: Arc<Lockfile>,
+    raw_lockfile: &Lockfile,
 ) -> Result<Option<ObservedDistStats>, VerifyFailure> {
     let epoch = runtime.local_registry.verdict_epoch();
-    let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+    let hash = compute_verdict_hash(context, raw_lockfile)?;
     let dist_stats = observed_dist_stats_sink();
-    let verifiers = build_resolution_verifiers(
+    let verifiers = build_input_verifiers(
+        runtime,
         context.config,
-        Arc::clone(&runtime.client),
-        Some(meta_cache as Arc<dyn PackageMetaCache>),
-        Some(Arc::clone(context.auth_headers)),
-        Some(Arc::clone(&dist_stats)),
-        None,
-        None,
-    )
-    .map_err(|err| {
-        VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
-    })?;
-
-    let hash = hash_lockfile(&lockfile);
-    if let Some(cached) =
-        past_verdict_footprint(runtime, context.identity, &hash, epoch.as_deref(), &verifiers)
-    {
-        context.footprint
-            .lock()
-            .expect("footprint poisoned")
-            .extend(&cached);
+        context.auth_headers,
+        context.tarball_router,
+        &dist_stats,
+    )?;
+    if apply_cached_verdict(runtime, context, &hash, epoch.as_deref(), &verifiers) {
         return Ok(None);
     }
 
     let violations =
-        collect_policy_violations_until(&lockfile, &verifiers, context.deadline).await?;
+        collect_policy_violations_until(raw_lockfile, &verifiers, context.deadline).await?;
+    let lockfile = Arc::new(raw_lockfile.clone());
     let osv_violations = scan_osv_until_deadline(
         runtime.osv_index.clone(),
         lockfile,
@@ -364,64 +347,34 @@ async fn verify_input_lockfile(
     Err(VerifyFailure::Violations(render_violations(&violations, osv_violations)))
 }
 
-fn record_verdict(
+fn build_input_verifiers(
     runtime: &Resolver,
-    hash: &str,
-    epoch: Option<&str>,
-    footprint: &Mutex<Footprint>,
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-) {
-    let Some(epoch) =
-        epoch.filter(|pinned| runtime.local_registry.verdict_epoch().as_deref() == Some(*pinned))
-    else {
-        return;
+    config: &PacquetConfig,
+    auth_headers: &Arc<AuthHeaders>,
+    tarball_router: &TarballRouter,
+    dist_stats: &ObservedDistStats,
+) -> Result<Vec<Arc<dyn ResolutionVerifier>>, VerifyFailure> {
+    let meta_cache = Arc::new(InMemoryPackageMetaCache::default());
+    let artifacts = VerificationArtifacts {
+        observed_stats: Some(Arc::clone(dist_stats)),
+        canonical_fetches: None,
+        lookups: None,
+        published_tarball_mapper: Some(tarball_router.published_tarball_mapper()),
+        reverse_routed_tarball_url: Some(tarball_router.reverse_routed_tarball_mapper()),
     };
-    let Some(cache) = runtime.cache.verdicts.as_ref() else {
-        return;
-    };
-    let recorded = footprint
-        .lock()
-        .expect("footprint poisoned")
-        .clone();
-    cache.record(VerdictRecord {
-        hash,
-        footprint: &recorded,
-        secret: &runtime.cache.secret,
-        epoch,
-        policy: merge_policies(verifiers, runtime.osv_index.as_ref()),
-    });
-}
-
-/// Whole-lockfile verdict cache: an O(1) hit when this exact lockfile
-/// already passed in the current grant/graph epoch under a footprint this
-/// caller satisfies and a policy we still trust skips the whole fan-out.
-fn past_verdict_footprint(
-    runtime: &Resolver,
-    identity: &Identity,
-    hash: &str,
-    epoch: Option<&str>,
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-) -> Option<Footprint> {
-    let epoch = epoch?;
-    let cache = runtime.cache.verdicts.as_ref()?;
-    let lookup = VerdictLookup {
-        hash,
-        epoch,
-        secret: &runtime.cache.secret,
-        route_context: &runtime.route_context,
-        identity,
-    };
-    cache.verified_footprint(&lookup, |policy| {
-        verifiers
-            .iter()
-            .all(|verifier| verifier.can_trust_past_check(policy))
-            && runtime.osv_index
-                .as_ref()
-                .is_none_or(|index| index.can_trust_policy(policy))
+    build_resolution_verifiers_with_artifacts(
+        config,
+        Arc::clone(&runtime.client),
+        Some(meta_cache as Arc<dyn PackageMetaCache>),
+        Some(Arc::clone(auth_headers)),
+        artifacts,
+    )
+    .map_err(|err| {
+        VerifyFailure::Internal(json_error(StatusCode::INTERNAL_SERVER_ERROR, &err.to_string()))
     })
 }
 
-pub(super) fn render_violations(
+fn render_violations(
     violations: &[pnpm_resolving_resolver_base::ResolutionPolicyViolation],
     osv_violations: Vec<serde_json::Value>,
 ) -> Vec<serde_json::Value> {
@@ -438,25 +391,4 @@ pub(super) fn render_violations(
         .collect();
     rendered.extend(osv_violations);
     rendered
-}
-
-/// Merge every active verifier's policy snapshot into one bag, the key
-/// the verdict cache stores alongside the lockfile hash. Later verifiers
-/// overwrite earlier ones on a shared key — mirrors the local cache's
-/// [`merge_policies`] so a verdict recorded here is comparable to one the
-/// client's own cache would write.
-pub(super) fn merge_policies(
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-    osv_index: Option<&Arc<OsvIndex>>,
-) -> serde_json::Map<String, serde_json::Value> {
-    let mut merged = serde_json::Map::new();
-    for verifier in verifiers {
-        for (key, value) in verifier.policy() {
-            merged.insert(key.clone(), value.clone());
-        }
-    }
-    if let Some(osv_index) = osv_index {
-        merged.extend(osv_index.policy());
-    }
-    merged
 }

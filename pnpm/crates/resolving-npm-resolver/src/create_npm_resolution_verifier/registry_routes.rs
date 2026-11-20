@@ -1,36 +1,44 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
-use pnpm_lockfile::PkgName;
+use pnpm_lockfile::{PkgName, RegistryOptions};
 use pnpm_resolving_resolver_base::ResolutionVerification;
 
 use crate::{
+    ReverseRoutedTarballUrl,
     create_npm_resolution_verifier::artifact_binding::canonical_tarball_url,
     named_registry::pick_registry_for_package,
     violation_codes::MISSING_NAMED_REGISTRY_VIOLATION_CODE,
 };
 
-pub(super) struct VerificationRegistryRoutes {
+struct PrefixCandidate {
+    canonical: String,
+    raw: String,
+    named: bool,
+    scopes: HashSet<String>,
+}
+
+/// Pre-indexed registry selector shared by [`crate::NpmResolutionVerifier`] and
+/// server-side verdict-hash salting so both pick the identical registry per
+/// lockfile entry without re-normalizing or re-sorting prefixes per package.
+pub struct VerificationRegistryRoutes {
     pub(super) registries: HashMap<String, String>,
-    pub(super) named_registry_prefixes: Vec<String>,
+    sorted_prefixes: Vec<PrefixCandidate>,
     /// Alias → URL map (built-ins merged with the user's setting) for
     /// routing registry-qualified lockfile keys, which carry no tarball
     /// URL for the prefix list to match.
     pub(super) registries_by_prefix: HashMap<String, String>,
-    pub(super) registry_options_by_url:
-        Option<std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
+    pub(super) registry_options_by_url: Option<BTreeMap<String, RegistryOptions>>,
 }
 
 impl VerificationRegistryRoutes {
-    pub(super) fn new(
+    #[must_use]
+    pub fn new(
         registries: HashMap<String, String>,
         registries_by_prefix: HashMap<String, String>,
-        registry_options_by_url: Option<
-            std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>,
-        >,
+        registry_options_by_url: Option<BTreeMap<String, RegistryOptions>>,
     ) -> Self {
-        let named_registry_prefixes =
-            crate::named_registry::named_registry_tarball_prefixes(&registries_by_prefix);
-        Self { registries, named_registry_prefixes, registries_by_prefix, registry_options_by_url }
+        let sorted_prefixes = build_sorted_prefixes(&registries, &registries_by_prefix);
+        Self { registries, sorted_prefixes, registries_by_prefix, registry_options_by_url }
     }
 
     pub(super) fn is_pnpr_registry(&self, registry: &str) -> bool {
@@ -41,6 +49,7 @@ impl VerificationRegistryRoutes {
                     == Some(pnpm_lockfile::RegistryServerType::Pnpr)
             })
     }
+
     /// The URL a registry-qualified entry routes to.
     ///
     /// Registry-qualified entries name their registry in the dep path, so
@@ -64,13 +73,37 @@ impl VerificationRegistryRoutes {
         }
     }
 
-    pub(super) fn pick_registry(&self, name: &PkgName, tarball_url: Option<&str>) -> String {
-        if let Some(url) = tarball_url
+    pub(super) fn pick_registry(
+        &self,
+        name: &PkgName,
+        tarball_url: Option<&str>,
+        reverse: Option<&ReverseRoutedTarballUrl>,
+    ) -> String {
+        let reversed =
+            tarball_url.and_then(|url| reverse.and_then(|rev| rev(&name.to_string(), url)));
+        self.select_registry(name, None, reversed.as_deref().or(tarball_url))
+            .expect("unprefixed entries always select a scope or default registry")
+    }
+
+    /// Select the single registry URL [`crate::NpmResolutionVerifier`] consults
+    /// for an entry once any routed tarball URL has been reversed
+    /// (`effective_tarball_url`), or `None` when `registry_name` is undeclared.
+    #[must_use]
+    pub fn select_registry(
+        &self,
+        name: &PkgName,
+        registry_name: Option<&str>,
+        effective_tarball_url: Option<&str>,
+    ) -> Option<String> {
+        if let Some(registry_name) = registry_name {
+            return self.registries_by_prefix.get(registry_name).cloned();
+        }
+        if let Some(url) = effective_tarball_url
             && let Some(matched) = self.match_tarball_registry(url, name)
         {
-            return matched;
+            return Some(matched.to_string());
         }
-        pick_registry_for_package(&self.registries, &name.to_string(), None)
+        Some(pick_registry_for_package(&self.registries, &name.to_string(), None))
     }
 
     /// The registry whose prefix the lockfile tarball URL falls under.
@@ -86,34 +119,57 @@ impl VerificationRegistryRoutes {
     /// proxies the public one would vouch for a same-name public package.
     /// Other packages match any scope registry. The default registry is never
     /// a candidate, since scope routing already falls back to it.
-    fn match_tarball_registry(&self, url: &str, name: &PkgName) -> Option<String> {
+    fn match_tarball_registry(&self, url: &str, name: &PkgName) -> Option<&str> {
         let normalized = canonical_tarball_url(url);
         let own_scope = name.scope
             .as_ref()
             .map(|scope| format!("@{scope}"))
             .filter(|scope| self.registries.contains_key(scope));
-        let scope_prefixes = self.registries
+        self.sorted_prefixes
             .iter()
-            .filter(|(scope, _)| match &own_scope {
-                Some(own_scope) => *scope == own_scope,
-                None => scope.as_str() != "default",
+            .filter(|candidate| {
+                candidate.named
+                    || match &own_scope {
+                        Some(own_scope) => candidate.scopes.contains(own_scope.as_str()),
+                        None => !candidate.scopes.is_empty(),
+                    }
             })
-            .map(|(_, prefix)| prefix.as_str());
-        let mut candidate_prefixes: Vec<&str> = self.named_registry_prefixes
-            .iter()
-            .map(String::as_str)
-            .chain(scope_prefixes)
-            .collect();
-        candidate_prefixes.sort_by(|first, second| {
-            canonical_tarball_url(second)
-                .len()
-                .cmp(&canonical_tarball_url(first).len())
-                .then_with(|| first.cmp(second))
-        });
-        candidate_prefixes.dedup();
-        candidate_prefixes
-            .into_iter()
-            .find(|prefix| normalized.starts_with(&canonical_tarball_url(prefix)))
-            .map(str::to_string)
+            .find(|candidate| normalized.starts_with(&candidate.canonical))
+            .map(|candidate| candidate.raw.as_str())
     }
+}
+
+fn build_sorted_prefixes(
+    registries: &HashMap<String, String>,
+    registries_by_prefix: &HashMap<String, String>,
+) -> Vec<PrefixCandidate> {
+    let mut by_raw: HashMap<String, (bool, HashSet<String>)> = HashMap::new();
+    for prefix in crate::named_registry::named_registry_tarball_prefixes(registries_by_prefix) {
+        by_raw.entry(prefix).or_default().0 = true;
+    }
+    for (scope, prefix) in registries {
+        if scope.as_str() != "default" {
+            by_raw
+                .entry(prefix.clone())
+                .or_default()
+                .1
+                .insert(scope.clone());
+        }
+    }
+    let mut sorted: Vec<PrefixCandidate> = by_raw
+        .into_iter()
+        .map(|(raw, (named, scopes))| PrefixCandidate {
+            canonical: canonical_tarball_url(&raw),
+            raw,
+            named,
+            scopes,
+        })
+        .collect();
+    sorted.sort_by(|first, second| {
+        second.canonical
+            .len()
+            .cmp(&first.canonical.len())
+            .then_with(|| first.raw.cmp(&second.raw))
+    });
+    sorted
 }

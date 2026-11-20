@@ -4,7 +4,7 @@ use self::background_scan::{
 };
 use super::{
     AppState, CanonicalPackageName, Duration, FetchOutcome, Identity, Integrity, RegistryError,
-    Response, TarballDist, Upstream, authorized_upstream, ensure_osv_allowed,
+    Response, TarballDist, Upstream, UpstreamTarballRoute, authorized_upstream, ensure_osv_allowed,
     expected_tarball_dist, load_upstream_packument, not_found,
     reload_upstream_packument_lacking_version, streaming, tarball_response, tarball_stream_error,
     timed, upstream_cache_namespace,
@@ -13,6 +13,9 @@ use axum::response::IntoResponse;
 
 mod background_scan;
 mod cached;
+mod expired_signature;
+
+use self::expired_signature::{retry_expired_signed_tarball, should_refresh_signed_tarball_url};
 
 /// Serve a tarball through an upstream's `/~<name>/` endpoint. The version's
 /// `dist.integrity` is read from the upstream's own packument (served from the
@@ -40,14 +43,14 @@ pub(super) async fn serve_tarball_via_upstream(
         Ok(upstream) => upstream,
         Err(err) => return err.into_response(),
     };
-    serve_authorized_upstream_tarball(
+    Box::pin(serve_authorized_upstream_tarball(
         state,
         &upstream,
         &namespace,
         &name,
         &filename,
         parsed_version.as_deref(),
-    )
+    ))
     .await
 }
 
@@ -66,10 +69,11 @@ pub(super) async fn serve_authorized_upstream_tarball(
         return err.into_response();
     }
     let ttl = upstream.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
-    let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
+    let dist =
+        Box::pin(bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl)).await;
     let TarballDist {
         version,
-        version_route,
+        route,
         integrity,
         unpacked_size,
     } = match dist {
@@ -84,7 +88,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
         namespace,
         name,
         filename,
-        version_route: version_route.as_deref(),
+        route: &route,
         integrity: &integrity,
         unpacked_size,
         manifest_generation: None,
@@ -238,7 +242,7 @@ pub(super) struct UpstreamTarball<'a> {
     pub(super) namespace: &'a str,
     pub(super) name: &'a CanonicalPackageName,
     pub(super) filename: &'a str,
-    pub(super) version_route: Option<&'a str>,
+    pub(super) route: &'a UpstreamTarballRoute,
     pub(super) integrity: &'a Integrity,
     pub(super) unpacked_size: Option<u64>,
     pub(super) manifest_generation: Option<u64>,
@@ -252,20 +256,20 @@ pub(super) async fn fetch_upstream_tarball(
     tarball: UpstreamTarball<'_>,
 ) -> Response {
     let UpstreamTarball {
-        namespace,
-        name,
-        filename,
-        version_route,
-        integrity: _,
-        unpacked_size: _,
-        manifest_generation: _,
+        namespace, name, filename, route, ..
     } = tarball;
     let fetched = timed(
         "tarball:upstream_fetch",
         name.as_str(),
-        upstream.fetch_tarball_or_version_response(name, filename, version_route),
+        upstream.fetch_declared_tarball_response(name, filename, route),
     )
     .await;
+    let fetched = match fetched {
+        Err(err) if should_refresh_signed_tarball_url(route, &err) => {
+            retry_expired_signed_tarball(state, upstream, tarball, err).await
+        }
+        other => other,
+    };
     let response = match fetched {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),

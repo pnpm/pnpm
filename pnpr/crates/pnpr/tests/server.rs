@@ -1,6 +1,9 @@
 #[path = "server/resolver_local.rs"]
 mod resolver_local;
 
+#[path = "server/split_domain_upstream.rs"]
+mod split_domain_upstream;
+
 #[path = "server/registry_discovery.rs"]
 mod registry_discovery;
 

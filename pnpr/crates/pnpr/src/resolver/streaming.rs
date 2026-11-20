@@ -11,7 +11,7 @@ use super::{
     },
     ndjson_stream_response, osv_violations_for_lockfile_until, progress_frame, resolve,
     store_resolution_candidate, try_done_frame_until, violations_frame,
-    wire::AbortOnDrop,
+    wire::{AbortOnDrop, LockfileOrigin},
 };
 
 pub(super) struct TerminalSender {
@@ -341,6 +341,7 @@ impl ResolutionFinalizer {
         let lockfile = self.inputs.tarball_router.route_lockfile_until(
             &self.inputs.config,
             &lockfile,
+            LockfileOrigin::Resolved { input: self.inputs.request.lockfile.as_ref() },
             &check_cancel,
         )?;
         if let Some(violations) = self.osv_violations(&lockfile, &check_cancel)? {

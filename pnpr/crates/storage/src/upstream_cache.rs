@@ -1,9 +1,13 @@
-use super::{BlobWrite, CachedDocument, DocumentStamp, Result, Storage};
-use pnpr_package_name::CanonicalPackageName;
-use std::{
-    io::ErrorKind,
-    time::{Duration, SystemTime},
+pub use purged::PURGED_UPSTREAM_DIR;
+pub(crate) use purged::PurgedUpstreamPackages;
+
+mod purged;
+
+use super::{
+    BlobWrite, CachedDocument, CanonicalPackageName, DocumentStamp, Ecosystem, ErrorKind, Path,
+    PathBuf, RegistryError, Result, Storage, Store, write_atomic,
 };
+use std::time::{Duration, SystemTime};
 use tokio::fs;
 
 const FETCH_TIME_FILE: &str = "fetched-at.json";
@@ -18,7 +22,11 @@ impl Storage {
         if self.fresh_upstream_document_stamp(namespace, name, ttl).await?.is_none() {
             return Ok(None);
         }
-        self.cached.namespaced(namespace).read_document_any_age(name).await
+        let bytes = self.cached.namespaced(namespace).read_document_any_age(name).await?;
+        if bytes.is_some() && self.is_upstream_package_purged(namespace, name).await? {
+            return Ok(None);
+        }
+        Ok(bytes)
     }
 
     /// The content stamp while the upstream fetch, rather than a local rewrite, is fresh.
@@ -48,6 +56,9 @@ impl Storage {
         namespace: &str,
         name: &CanonicalPackageName,
     ) -> Result<Option<DocumentStamp>> {
+        if self.is_upstream_package_purged(namespace, name).await? {
+            return Ok(None);
+        }
         self.cached.namespaced(namespace).document_stamp(name).await
     }
 
@@ -56,6 +67,9 @@ impl Storage {
         namespace: &str,
         name: &CanonicalPackageName,
     ) -> Result<Option<Vec<u8>>> {
+        if self.is_upstream_package_purged(namespace, name).await? {
+            return Ok(None);
+        }
         match self.cached.namespaced(namespace).read_document_entry(name, Duration::MAX).await? {
             Some(CachedDocument::Fresh(bytes)) => Ok(Some(bytes)),
             Some(CachedDocument::Stale) | None => Ok(None),
@@ -71,10 +85,11 @@ impl Storage {
         let store = self.cached.namespaced(namespace);
         store.write_document(name, bytes).await?;
         match fs::remove_file(store.package_dir(name).join(FETCH_TIME_FILE)).await {
-            Ok(()) => Ok(()),
-            Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
-            Err(err) => Err(err.into()),
+            Ok(()) => {}
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => return Err(err.into()),
         }
+        self.clear_upstream_package_purged(namespace, name).await
     }
 
     /// Rewrite local metadata without extending the upstream freshness window.
@@ -85,6 +100,13 @@ impl Storage {
         name: &CanonicalPackageName,
         bytes: &[u8],
     ) -> Result<()> {
+        if self.is_upstream_package_purged(namespace, name).await? {
+            return Err(std::io::Error::new(
+                ErrorKind::NotFound,
+                format!("cached metadata for {} does not exist", name.as_str()),
+            )
+            .into());
+        }
         let store = self.cached.namespaced(namespace);
         let stamp = store
             .document_stamp(name)
@@ -98,7 +120,7 @@ impl Storage {
         let path = store.package_dir(name).join(FETCH_TIME_FILE);
         match super::write_atomic_new(&path, &serde_json::to_vec(&stamp.modified)?).await {
             Ok(()) => {}
-            Err(pnpr_error::RegistryError::Io(err)) if err.kind() == ErrorKind::AlreadyExists => {}
+            Err(RegistryError::Io(err)) if err.kind() == ErrorKind::AlreadyExists => {}
             Err(err) => return Err(err),
         }
         store.write_document(name, bytes).await
@@ -109,7 +131,33 @@ impl Storage {
         namespace: &str,
         name: &CanonicalPackageName,
     ) -> Result<bool> {
-        self.cached.namespaced(namespace).remove_package(name).await
+        let removed = self.cached.namespaced(namespace).remove_package(name).await?;
+        self.clear_upstream_package_purged(namespace, name).await?;
+        Ok(removed)
+    }
+
+    pub async fn is_upstream_package_purged(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+    ) -> Result<bool> {
+        self.purged_upstream.is_purged(&self.cached, namespace, name).await
+    }
+
+    pub async fn mark_upstream_package_purged(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+    ) -> Result<()> {
+        self.purged_upstream.mark_purged(&self.cached, namespace, name).await
+    }
+
+    pub async fn clear_upstream_package_purged(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+    ) -> Result<()> {
+        self.purged_upstream.clear_purged(&self.cached, namespace, name).await
     }
 
     pub async fn remove_upstream_blob(
@@ -136,6 +184,12 @@ impl Storage {
         name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<Option<(fs::File, u64)>> {
+        if self.is_upstream_package_purged(namespace, name).await? {
+            return Ok(None);
+        }
         self.cached.namespaced(namespace).open_blob(name, filename).await
     }
 }
+
+#[cfg(test)]
+mod tests;

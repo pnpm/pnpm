@@ -228,12 +228,11 @@ async fn warm_resolve_retains_private_footprint_from_verdict_cache_hit() {
     use crate::resolver::{
         Resolver,
         dispatch::handle_resolve,
-        resolution_cache_key,
+        request_tarball_router, resolution_cache_key,
         verdict_cache::{VerdictLookup, VerdictRecord},
         verify_lockfile::handle_verify_lockfile,
     };
     use axum::body::{Bytes, to_bytes};
-    use pnpm_lockfile_verification::hash_lockfile;
     use pnpr_config::{IpNetwork, PublicRoute};
     use serde_json::json;
     use tokio::{
@@ -300,10 +299,9 @@ async fn warm_resolve_retains_private_footprint_from_verdict_cache_hit() {
         handle_verify_lockfile(&resolver, user("alice"), Bytes::from(payload.to_string())).await;
     assert_eq!(verified.status(), StatusCode::OK);
 
-    let hash = hash_lockfile(
-        &tarball_router(&config, user("alice"))
-            .verification_lockfile(request.lockfile.as_ref().unwrap()),
-    );
+    let pacquet_config = resolver.config_for(&request).expect("valid request config");
+    let hash = request_tarball_router(&resolver, &user("alice"), &pacquet_config)
+        .verification_verdict_hash(&pacquet_config, request.lockfile.as_ref().unwrap());
     let epoch = resolver.local_registry.verdict_epoch().expect("stable epoch");
     let verdicts = resolver.cache.verdicts.as_ref().expect("verdict cache");
     let captured_policy = std::cell::RefCell::new(None);

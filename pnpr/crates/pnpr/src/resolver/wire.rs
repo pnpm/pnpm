@@ -2,12 +2,15 @@ pub(super) mod osv;
 
 pub(super) use frozen_frames::frozen_package_frames_until;
 pub(super) use osv::{osv_violations_for_lockfile_until, verify_done_frame};
-pub(super) use tarball_router::TarballRouter;
+pub(super) use tarball_router::{LockfileOrigin, TarballRouter};
 
 mod frozen_frames;
 mod tarball_router;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use axum::{
     body::Body,
@@ -21,12 +24,17 @@ use pnpm_lockfile::{
     is_git_hosted_tarball_url, pick_registry_for_package,
 };
 use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
+use pnpm_resolving_npm_resolver::{
+    BUILTIN_REGISTRIES_BY_PREFIX, MappedTarballUrl, PublishedTarballUrlMapper,
+    ReverseRoutedTarballUrl, VerificationRegistryRoutes,
+};
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
 use pnpr_upstream::{
-    tarball_basename, tarball_basename_for_package, version_route_tarball_version,
+    revision_route_tarball_version, tarball_basename, tarball_basename_for_package,
+    version_route_tarball_version,
 };
 
 use super::{
@@ -100,10 +108,26 @@ pub(super) fn package_frame(
     // — route it by the registry, not the tarball host, so a private package
     // never leaks its raw upstream URL. Direct tarball deps keep their own URL.
     let tarball_url = if hint.from_registry {
-        router.route_registry_url(hint.identity.name, hint.identity.version, hint.tarball_url)
+        router.route_registry_hint(
+            hint.identity.name,
+            hint.identity.version,
+            hint.identity.id,
+            hint.tarball_url,
+        )
     } else {
         router.route_url(hint.identity.name, hint.identity.version, hint.tarball_url)
     };
+    let revision = (tarball_url == hint.tarball_url).then_some(hint.revision).flatten();
+    routed_package_frame(hint, &tarball_url, revision)
+}
+
+/// Serialize a `package` NDJSON frame whose `tarball_url` and `revision` have
+/// already been routed for the wire.
+pub(super) fn routed_package_frame(
+    hint: &ResolvedPackageHint<'_>,
+    tarball_url: &str,
+    revision: Option<u64>,
+) -> serde_json::Value {
     let mut frame = serde_json::json!({
         "type": "package",
         "id": hint.identity.id,
@@ -118,9 +142,7 @@ pub(super) fn package_frame(
     if let Some(count) = hint.file_count {
         frame["fileCount"] = serde_json::Value::from(count);
     }
-    if tarball_url == hint.tarball_url
-        && let Some(revision) = hint.revision
-    {
+    if let Some(revision) = revision {
         frame["revision"] = serde_json::Value::from(revision);
     }
     if let Some(requires_build) = hint.requires_build {

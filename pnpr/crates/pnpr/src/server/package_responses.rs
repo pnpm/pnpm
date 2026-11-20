@@ -4,9 +4,9 @@ use pnpr_config::PackageDocumentsConfig;
 
 use super::{
     ABBREVIATED_CONTENT_TYPE, AppState, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
-    Integrity, RegistryError, Response, StatusCode, Value, abbreviate_packument,
-    conditional_requests::is_not_modified, header, streaming, tarball_basename_for_package,
-    version_route_tarball_version,
+    Integrity, RegistryError, Response, StatusCode, UpstreamTarballRoute, Value,
+    abbreviate_packument, conditional_requests::is_not_modified, header, streaming,
+    tarball_basename_for_package,
 };
 
 /// The version a tarball request resolves to, plus that version's declared
@@ -16,7 +16,7 @@ use super::{
 /// resolves to the right version, integrity, and OSV identity.
 pub(super) struct TarballDist {
     pub(super) version: String,
-    pub(super) version_route: Option<String>,
+    pub(super) route: UpstreamTarballRoute,
     pub(super) integrity: Integrity,
     pub(super) unpacked_size: Option<u64>,
 }
@@ -82,13 +82,10 @@ pub(super) fn expected_tarball_dist(
         ));
     }
     let integrity = declared_tarball_integrity(dist, name, filename, version)?;
-    let version_route = dist.tarball
-        .as_deref()
-        .and_then(|url| version_route_tarball_version(url, name))
-        .map(str::to_string);
+    let route = UpstreamTarballRoute::from_dist_tarball(dist.tarball.as_deref(), name);
     Ok(Some(TarballDist {
         version: version.clone(),
-        version_route,
+        route,
         integrity,
         unpacked_size: dist.unpacked_size,
     }))

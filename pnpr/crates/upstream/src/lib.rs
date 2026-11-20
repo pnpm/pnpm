@@ -2,16 +2,19 @@ pub use abbreviate::{abbreviate_packument, abbreviate_version};
 pub use discovery::SearchResponse;
 pub use packument::{
     extract_upstream_revision_integrity, extract_upstream_version_manifest,
-    extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
-    tarball_basename, tarball_basename_for_package, version_route_tarball_version,
+    extract_version_manifest, revision_route_tarball_version, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, tarball_basename, tarball_basename_for_package,
+    version_route_tarball_version,
 };
 pub use time::TIME_PRECISION_HORIZON_DAYS;
 
 pub use oci::oci_download_allowed;
+pub use request::UpstreamTarballRoute;
 
 mod http;
 mod request;
 use http::{UpstreamHttp, same_origin};
+use pnpm_network::redact_url_for_display;
 use request::Deadline;
 
 mod circuit_breaker;
@@ -203,6 +206,31 @@ impl Upstream {
         self
     }
 
+    /// Install a tarball-only URL and connect guard used by tarball downloads,
+    /// keeping metadata, search, and other requests restricted to
+    /// [`Self::with_fetch_and_connect_guards`].
+    #[must_use]
+    pub fn with_declared_tarball_guards(
+        mut self,
+        guard: RedirectGuard,
+        connect_guard: AddressGuard,
+    ) -> Self {
+        let redirect_guard = Arc::clone(&guard);
+        self.http.declared_tarball_client =
+            Some(Arc::new(ThrottledClient::new_for_installs_with_guards(
+                move |url| redirect_guard(url),
+                Arc::new(GuardedDnsResolver::new(native_dns_resolver(), connect_guard)),
+            )));
+        self.http.declared_tarball_guard = Some(guard);
+        self
+    }
+
+    /// Whether `url` shares scheme, host, and port with this upstream's base URL.
+    #[must_use]
+    pub fn is_same_origin(&self, url: &str) -> bool {
+        same_origin(&self.base, url)
+    }
+
     /// The configured upstream request deadline.
     #[must_use]
     pub fn timeout(&self) -> Duration {
@@ -318,25 +346,29 @@ impl Upstream {
         self.fetch_tarball_url(&url).await
     }
 
-    /// Fetch a tarball by its version route (`{base}/{name}@{version}`) when
-    /// the upstream advertised one, or by its archive route
-    /// (`{base}/{name}/-/{filename}`) otherwise.
-    pub async fn fetch_tarball_or_version_response(
+    /// Fetch a tarball by the route its packument `dist.tarball` declared:
+    /// `{base}/{name}@{version}` when the upstream advertised a `pnpr` version
+    /// route, the declared HTTP(S) `dist.tarball` URL (same-origin or
+    /// split-domain CDN), or `{base}/{name}/-/{filename}` for relative/missing
+    /// URLs.
+    pub async fn fetch_declared_tarball_response(
         &self,
         name: &CanonicalPackageName,
         filename: &str,
-        version_route: Option<&str>,
+        route: &UpstreamTarballRoute,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
-        match version_route {
-            Some(version) => self.fetch_version_tarball_response(name, version).await,
-            None => self.fetch_tarball_response(name, filename).await,
+        match route {
+            UpstreamTarballRoute::Version(version) => {
+                self.fetch_version_tarball_response(name, version).await
+            }
+            UpstreamTarballRoute::Url(url) => self.fetch_tarball_url(url).await,
+            UpstreamTarballRoute::Archive => self.fetch_tarball_response(name, filename).await,
         }
     }
 
     async fn fetch_tarball_url(&self, url: &str) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
-        let (response, guard) =
-            self.get_with_scoped_headers(url, &HeaderMap::new(), Deadline::Head).await?;
+        let (response, guard) = self.get_tarball_with_scoped_headers(url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -406,12 +438,15 @@ impl Upstream {
         let body = read_limited_body(response, limit).await
             .map_err(|err| {
                 self.record_body_failure(&err);
-                RegistryError::Upstream { url: url.to_string(), source: err }
+                RegistryError::Upstream {
+                    url: redact_url_for_display(url),
+                    source: err.without_url(),
+                }
             })?;
         self.breaker.record_success();
         if body.truncated {
             return Err(RegistryError::UpstreamResponse {
-                url: url.to_string(),
+                url: redact_url_for_display(url),
                 reason: format!("response body exceeds the {limit}-byte limit"),
             });
         }

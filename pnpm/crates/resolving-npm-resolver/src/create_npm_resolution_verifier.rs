@@ -18,11 +18,12 @@
 //! [`PublishedAtLookupContext`] so verifying many pinned versions of
 //! the same package costs at most one fetch per layer.
 
+pub use registry_routes::VerificationRegistryRoutes;
+
 mod registry_tarball;
 use registry_tarball::npm_registry_tarball;
 
 mod registry_routes;
-use registry_routes::VerificationRegistryRoutes;
 
 mod trust_check;
 
@@ -38,7 +39,7 @@ mod age_check;
 mod artifact_binding;
 use artifact_binding::{
     current_history_violation, current_revision_number, lockfile_revision,
-    missing_artifact_violation, select_revision, tarball_url_violation,
+    mapped_tarball_url_violation, missing_artifact_violation, select_revision,
 };
 
 mod metadata_projection;
@@ -58,7 +59,9 @@ use pnpm_lockfile::{
     LockfileResolution, PkgName, TarballRevision, has_complete_sha512_digest,
     is_git_hosted_tarball_url, is_revision_registry_tarball_url, normalized_registry_key,
 };
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
+use pnpm_network::{
+    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, redact_url_for_display,
+};
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, TrustPolicy, VerifyCtx, VerifyFuture,
@@ -98,13 +101,29 @@ pub struct DistStats {
     pub requires_build: Option<bool>,
 }
 
-/// `(package name, version) → dist` work statistics filled by the
-/// verifier as a side product of the tarball-URL binding check. The
+/// `(registry, package name, version) → dist` work statistics filled by
+/// the verifier as a side product of the tarball-URL binding check. The
 /// metadata is already in hand per entry, so collecting costs no extra
 /// fetch; consumers (the pnpr server's frozen fast path) use the stats
-/// to schedule the most expensive tarball downloads first. Shared as an
-/// `Arc` so the caller keeps a handle while the verifier fan-out writes.
-pub type ObservedDistStats = Arc<DashMap<(String, String), DistStats>>;
+/// to schedule the most expensive tarball downloads first. Keyed by
+/// canonical registry URL so two registries serving the same
+/// `name@version` in one lockfile never overwrite each other's stats.
+pub type ObservedDistStats = Arc<DashMap<(String, String, String), DistStats>>;
+
+/// Build the normalized `(registry, name, version)` key used by
+/// [`ObservedDistStats`].
+#[must_use]
+pub fn observed_dist_stats_key(
+    registry: &str,
+    name: &str,
+    version: &str,
+) -> (String, String, String) {
+    (
+        pnpm_network::normalize_registry_url(registry).into_owned(),
+        name.to_string(),
+        version.to_string(),
+    )
+}
 
 /// Construct a fresh sink for
 /// [`VerificationArtifacts::observed_stats`].
@@ -201,6 +220,31 @@ pub struct VerificationMetadataClient {
     pub retry_opts: RetryOpts,
 }
 
+/// Expected tarball URL binding produced by [`PublishedTarballUrlMapper`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MappedTarballUrl {
+    /// Sanitized or routed URL formatted in `TARBALL_URL_MISMATCH` diagnostics.
+    pub display_url: String,
+    /// Endpoint-routed or sanitized URL accepted by the server (`/~<alias>/...`,
+    /// hosted `/npm/...`, or query-stripped public URL).
+    pub accepted_routed_url: Option<String>,
+    /// Whether the registry's exact `published` URL is also accepted. Enabled
+    /// for public routes so both `pnpr`'s query-stripped lockfiles and
+    /// pre-existing lockfiles carrying the exact published URL verify, while
+    /// any other query string matches neither.
+    pub accept_published_url: bool,
+}
+
+/// Maps `(registry, package_name, version, lockfile_tarball_url, published_tarball_url)`
+/// to the [`MappedTarballUrl`] expected for that lockfile entry.
+pub type PublishedTarballUrlMapper =
+    Arc<dyn Fn(&str, &str, &str, &str, &str) -> MappedTarballUrl + Send + Sync>;
+
+/// Reverses an authorized server-routed `/~<alias>/...` lockfile tarball URL
+/// `(package_name, lockfile_tarball_url)` back to its upstream URL for
+/// registry prefix selection without mutating the candidate's recorded URL.
+pub type ReverseRoutedTarballUrl = Arc<dyn Fn(&str, &str) -> Option<String> + Send + Sync>;
+
 pub struct VerificationArtifacts {
     /// Optional sink the verifier fills with each verified entry's
     /// `dist` work statistics (see [`ObservedDistStats`]). `None`
@@ -219,6 +263,12 @@ pub struct VerificationArtifacts {
     /// Lookups to share with the verifiers of other installs. `None`
     /// gives the verifier lookups of its own.
     pub lookups: Option<crate::VerifierLookups>,
+    /// Optional mapper that translates a registry's published `dist.tarball`
+    /// URL into the routed/sanitized URL expected in the verified lockfile.
+    pub published_tarball_mapper: Option<PublishedTarballUrlMapper>,
+    /// Optional callback reversing server-routed `/~<alias>/...` lockfile URLs
+    /// for registry prefix matching while keeping each candidate's recorded URL.
+    pub reverse_routed_tarball_url: Option<ReverseRoutedTarballUrl>,
 }
 
 /// Verifier returned by [`create_npm_resolution_verifier`]. Stores
@@ -433,13 +483,11 @@ impl NpmResolutionVerifier {
             Ok(named_registry) => named_registry,
             Err(violation) => return violation,
         };
-
         let (age_applies, trust_applies) = self.policies_for(&ctx);
         if tarball_url.is_none() && !age_applies && !trust_applies {
             return ResolutionVerification::Ok;
         }
-        let registry =
-            named_registry.unwrap_or_else(|| self.routing.pick_registry(ctx.name, tarball_url));
+        let registry = self.pick_entry_registry(named_registry, ctx.name, tarball_url);
 
         if let Some(violation) = self.run_artifact_binding(
             &registry,
@@ -454,6 +502,21 @@ impl NpmResolutionVerifier {
         }
 
         self.run_policy_checks(&registry, &ctx, age_applies, trust_applies).await
+    }
+
+    fn pick_entry_registry(
+        &self,
+        named_registry: Option<String>,
+        name: &PkgName,
+        tarball_url: Option<&str>,
+    ) -> String {
+        named_registry.unwrap_or_else(|| {
+            self.routing.pick_registry(
+                name,
+                tarball_url,
+                self.artifacts.reverse_routed_tarball_url.as_ref(),
+            )
+        })
     }
 
     /// A registry entry that pins an explicit tarball URL must point at the
@@ -476,8 +539,7 @@ impl NpmResolutionVerifier {
         if !binds_an_artifact {
             return None;
         }
-        self.run_registry_artifact_check(registry, ctx.name, ctx.version, resolution, tarball_url)
-            .await
+        self.run_registry_artifact_check(registry, ctx, resolution, tarball_url).await
     }
 
     /// Whether the maturity and trust policies apply to this entry.

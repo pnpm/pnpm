@@ -467,12 +467,22 @@ impl RouteContext {
     /// The upstream registry an authorized caller reaches through the
     /// `/~<name>/` endpoint, used to reverse an endpoint tarball URL back to
     /// its upstream when verifying an input lockfile. Returns `None` when the
-    /// upstream is unknown or the caller is not authorized for it.
+    /// upstream is unknown or the caller is not authorized for it or for
+    /// `package`.
     #[must_use]
-    pub fn upstream_registry(&self, identity: &Identity, upstream: &str) -> Option<String> {
+    pub fn upstream_registry(
+        &self,
+        identity: &Identity,
+        upstream: &str,
+        package: Option<&str>,
+    ) -> Option<String> {
         self.aliases
             .iter()
-            .find(|candidate| candidate.name == upstream && candidate.admits(identity))
+            .find(|candidate| {
+                candidate.name == upstream
+                    && candidate.admits(identity)
+                    && self.upstream_admits(upstream, identity, package)
+            })
             .map(|candidate| candidate.registry.clone())
     }
 }
