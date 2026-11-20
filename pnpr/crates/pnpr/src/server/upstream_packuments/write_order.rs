@@ -1,4 +1,7 @@
-use std::sync::{Mutex, atomic::AtomicU64};
+use std::{
+    collections::HashMap,
+    sync::{Mutex, atomic::AtomicU64},
+};
 
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::BoundedCache;
@@ -28,18 +31,24 @@ struct CommittedWrite {
     kind: CommittedKind,
 }
 
+#[derive(Default)]
+struct OrderState {
+    accepted: BoundedCache<(String, CanonicalPackageName), CommittedWrite>,
+    unresolved_purges: HashMap<(String, CanonicalPackageName), u64>,
+}
+
 /// Monotonic fetch-start ordering per `(namespace, package)` so an older
 /// [`super::PackumentFlightKind::Read`] completion can never overwrite a
 /// document stored by a newer [`super::PackumentFlightKind::ForcedRefresh`] or
 /// resurrect an authoritative upstream `404` purge.
 pub(in crate::server) struct PackumentWriteOrder {
     next_seq: AtomicU64,
-    accepted: Mutex<BoundedCache<(String, CanonicalPackageName), CommittedWrite>>,
+    state: Mutex<OrderState>,
 }
 
 impl Default for PackumentWriteOrder {
     fn default() -> Self {
-        Self { next_seq: AtomicU64::new(1), accepted: Mutex::default() }
+        Self { next_seq: AtomicU64::new(1), state: Mutex::default() }
     }
 }
 
@@ -56,11 +65,14 @@ impl PackumentWriteOrder {
         name: &CanonicalPackageName,
         fetch_seq: u64,
     ) -> WriteVerdict {
-        let accepted = self.accepted.lock().expect("packument write-order lock poisoned");
-        match accepted
-            .get(&(namespace.to_string(), name.clone()))
-            .copied()
+        let state = self.state.lock().expect("packument write-order lock poisoned");
+        let key = (namespace.to_string(), name.clone());
+        if let Some(&purged_seq) = state.unresolved_purges.get(&key)
+            && fetch_seq <= purged_seq
         {
+            return WriteVerdict::SupersededByPurge;
+        }
+        match state.accepted.get(&key).copied() {
             Some(committed) if fetch_seq <= committed.seq => match committed.kind {
                 CommittedKind::Stored => WriteVerdict::SupersededByStored,
                 CommittedKind::Purged => WriteVerdict::SupersededByPurge,
@@ -76,11 +88,13 @@ impl PackumentWriteOrder {
         namespace: &str,
         name: &CanonicalPackageName,
     ) -> bool {
-        let accepted = self.accepted.lock().expect("packument write-order lock poisoned");
-        matches!(
-            accepted.get(&(namespace.to_string(), name.clone())),
-            Some(CommittedWrite { kind: CommittedKind::Purged, .. }),
-        )
+        let state = self.state.lock().expect("packument write-order lock poisoned");
+        let key = (namespace.to_string(), name.clone());
+        state.unresolved_purges.contains_key(&key)
+            || matches!(
+                state.accepted.get(&key),
+                Some(CommittedWrite { kind: CommittedKind::Purged, .. }),
+            )
     }
 
     /// Commit `fetch_seq` after a `200` document persistence succeeds under
@@ -91,32 +105,65 @@ impl PackumentWriteOrder {
         name: &CanonicalPackageName,
         fetch_seq: u64,
     ) {
-        self.commit_kind(namespace, name, fetch_seq, CommittedKind::Stored);
+        let mut state = self.state.lock().expect("packument write-order lock poisoned");
+        let key = (namespace.to_string(), name.clone());
+        if fetch_seq > latest_seq(&state, &key) {
+            state.unresolved_purges.remove(&key);
+            state.accepted.insert(
+                key,
+                CommittedWrite { seq: fetch_seq, kind: CommittedKind::Stored },
+                1,
+                WRITE_ORDER_CAPACITY,
+            );
+        }
     }
 
     /// Commit `fetch_seq` for an authoritative upstream `404` under
-    /// [`super::lock_upstream_package`], even if local cache removal failed.
+    /// [`super::lock_upstream_package`]. Unresolved removals stay tracked
+    /// outside the bounded LRU until removal or a newer store succeeds.
     pub(in crate::server) fn commit_purged(
         &self,
         namespace: &str,
         name: &CanonicalPackageName,
         fetch_seq: u64,
+        removal_complete: bool,
     ) {
-        self.commit_kind(namespace, name, fetch_seq, CommittedKind::Purged);
-    }
-
-    fn commit_kind(
-        &self,
-        namespace: &str,
-        name: &CanonicalPackageName,
-        fetch_seq: u64,
-        kind: CommittedKind,
-    ) {
-        let mut accepted = self.accepted.lock().expect("packument write-order lock poisoned");
+        let mut state = self.state.lock().expect("packument write-order lock poisoned");
         let key = (namespace.to_string(), name.clone());
-        let last_seq = accepted.get(&key).map_or(0, |entry| entry.seq);
-        if fetch_seq > last_seq {
-            accepted.insert(key, CommittedWrite { seq: fetch_seq, kind }, 1, WRITE_ORDER_CAPACITY);
+        if fetch_seq > latest_seq(&state, &key) {
+            if removal_complete {
+                state.unresolved_purges.remove(&key);
+            } else {
+                state.unresolved_purges.insert(key.clone(), fetch_seq);
+            }
+            state.accepted.insert(
+                key,
+                CommittedWrite { seq: fetch_seq, kind: CommittedKind::Purged },
+                1,
+                WRITE_ORDER_CAPACITY,
+            );
+        } else if removal_complete
+            && state.unresolved_purges
+                .get(&key)
+                .is_some_and(|&seq| seq <= fetch_seq)
+        {
+            state.unresolved_purges.remove(&key);
         }
     }
+
+    /// Mark a previously failed purge's pending directory removal as resolved
+    /// under [`super::lock_upstream_package`].
+    pub(in crate::server) fn resolve_purge(&self, namespace: &str, name: &CanonicalPackageName) {
+        let mut state = self.state.lock().expect("packument write-order lock poisoned");
+        state.unresolved_purges.remove(&(namespace.to_string(), name.clone()));
+    }
+}
+
+fn latest_seq(state: &OrderState, key: &(String, CanonicalPackageName)) -> u64 {
+    let accepted = state.accepted.get(key).map_or(0, |entry| entry.seq);
+    let unresolved = state.unresolved_purges
+        .get(key)
+        .copied()
+        .unwrap_or(0);
+    accepted.max(unresolved)
 }

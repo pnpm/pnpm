@@ -30,14 +30,15 @@ pub(in crate::server) async fn refresh_cached_packument(
     fetch_seq: u64,
 ) -> Result<Option<RefreshedPackument>, RegistryError> {
     let _guard = super::lock_upstream_package(state, namespace, name).await;
-    let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
     match state.inner.proxy.packument_writes.check(namespace, name, fetch_seq) {
+        crate::server::upstream_packuments::WriteVerdict::SupersededByPurge => return Ok(None),
         crate::server::upstream_packuments::WriteVerdict::SupersededByStored => {
+            let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
             return Ok(previous.map(|bytes| RefreshedPackument { bytes, needs_backfill: false }));
         }
-        crate::server::upstream_packuments::WriteVerdict::SupersededByPurge => return Ok(None),
         crate::server::upstream_packuments::WriteVerdict::Proceed => {}
     }
+    let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
     let package = name.clone();
     let Reconciliation { packument, eviction } =
         state.inner.packuments.workers.run(move || reconcile(previous.as_deref(), bytes, &package))

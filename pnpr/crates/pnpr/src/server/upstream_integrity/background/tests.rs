@@ -526,8 +526,6 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
     let server_url = server.url();
     let tmp = tempfile::tempdir().unwrap();
     let state = state(tmp.path(), &server_url);
-    let routing = state.routing();
-    let upstream = &routing.upstream_clients["mirror"];
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
     let doc = |sig: &str| {
         serde_json::to_vec(&json!({
@@ -551,7 +549,7 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
     let older_fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
     let purge_seq = state.inner.proxy.packument_writes.begin_fetch();
 
-    let purged = crate::server::upstream_packuments::purge_cached_package_with(
+    let purged = crate::server::upstream_packuments::purge::purge_cached_package_with(
         &state,
         "fail-ns",
         &name,
@@ -561,13 +559,15 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
     .await
     .unwrap();
     assert!(purged.is_none());
-    // The stale file genuinely remains on disk after the failed removal.
+    let retained_doc =
+        state.inner.config.storage.cache_dir.join("fail-ns/packages/@/example/document.json");
+    assert!(retained_doc.exists());
     assert!(
         state.inner.storage
             .read_upstream_document_any("fail-ns", &name)
             .await
             .unwrap()
-            .is_some(),
+            .is_none(),
     );
 
     // An older pre-404 fetch completion is rejected without restoring or returning metadata.
@@ -585,7 +585,41 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
     );
     assert!(state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
 
-    // A cached read also ignores the unremoved disk copy and re-checks upstream (404).
+    // Across a restart, a fresh AppState with empty in-memory write order still
+    // suppresses the retained file on both storage reads and stale-if-error recovery.
+    drop(state);
+    let state = self::state(tmp.path(), &server_url);
+    let routing = state.routing();
+    let upstream = &routing.upstream_clients["mirror"];
+    assert!(!state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+    assert!(retained_doc.exists());
+    assert!(
+        state.inner.storage
+            .read_upstream_document_any("fail-ns", &name)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let outage_mock = server
+        .mock("GET", "/example")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
+    assert!(
+        crate::server::load_upstream_packument(
+            &state,
+            "fail-ns",
+            upstream,
+            &name,
+            Duration::from_secs(3600),
+        )
+        .await
+        .is_err(),
+    );
+    outage_mock.assert_async().await;
+
+    // A cached read also ignores any purged copy and re-checks upstream (404).
     let not_found_mock = server
         .mock("GET", "/example")
         .with_status(404)
@@ -621,4 +655,42 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
         .is_some(),
     );
     assert!(!state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+    assert!(!state.inner.storage.is_upstream_package_purged("fail-ns", &name).await.unwrap());
+}
+
+#[tokio::test]
+async fn superseded_by_purge_returns_none_before_reading_broken_storage() {
+    let server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let state = state(tmp.path(), &server.url());
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+
+    let older_fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let purge_seq = state.inner.proxy.packument_writes.begin_fetch();
+    crate::server::upstream_packuments::purge::purge_cached_package_with(
+        &state,
+        "broken-ns",
+        &name,
+        purge_seq,
+        || async { Ok(true) },
+    )
+    .await
+    .unwrap();
+
+    // Place a directory at `document.json` so `read_upstream_document_any` errors.
+    let doc_dir =
+        state.inner.config.storage.cache_dir.join("broken-ns/packages/@/example/document.json");
+    std::fs::create_dir_all(&doc_dir).unwrap();
+    assert!(state.inner.storage.read_upstream_document_any("broken-ns", &name).await.is_err());
+
+    let outcome = super::super::refresh_cached_packument(
+        &state,
+        "broken-ns",
+        &name,
+        b"{\"versions\":{}}".to_vec(),
+        older_fetch_seq,
+    )
+    .await
+    .unwrap();
+    assert!(outcome.is_none());
 }

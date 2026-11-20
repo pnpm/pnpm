@@ -1,3 +1,5 @@
+pub(in crate::server) mod purge;
+
 pub(super) use missing_versions::{
     PackumentRefetches, REFETCH_INTERVAL, reload_source_packument_lacking_version,
     reload_upstream_packument_for_expired_tarball, reload_upstream_packument_lacking_version,
@@ -14,6 +16,9 @@ use super::{
     packument_response, resolve_registry_source, timed, upstream_cache_namespace,
 };
 use axum::body::Bytes;
+use purge::{
+    purge_cached_package, read_unpurged_upstream_document, read_unpurged_upstream_document_any,
+};
 use std::{future::Future, sync::Arc};
 
 mod missing_versions;
@@ -88,29 +93,6 @@ async fn read_cached_upstream_packument(
         state.inner.metrics.record_cache_miss();
     }
     Ok(bytes)
-}
-
-async fn read_unpurged_upstream_document(
-    state: &AppState,
-    namespace: &str,
-    name: &CanonicalPackageName,
-    ttl: Duration,
-) -> Result<Option<Vec<u8>>, RegistryError> {
-    if state.inner.proxy.packument_writes.is_purged(namespace, name) {
-        return Ok(None);
-    }
-    state.inner.storage.read_upstream_document(namespace, name, ttl).await
-}
-
-async fn read_unpurged_upstream_document_any(
-    state: &AppState,
-    namespace: &str,
-    name: &CanonicalPackageName,
-) -> Result<Option<Vec<u8>>, RegistryError> {
-    if state.inner.proxy.packument_writes.is_purged(namespace, name) {
-        return Ok(None);
-    }
-    state.inner.storage.read_upstream_document_any(namespace, name).await
 }
 
 pub(super) struct AdmittedPackument {
@@ -265,49 +247,6 @@ pub(super) async fn cache_upstream_packument(
             read_unpurged_upstream_document_any(state, namespace, name).await
         }
     }
-}
-
-async fn purge_cached_package(
-    state: &AppState,
-    namespace: &str,
-    name: &CanonicalPackageName,
-    fetch_seq: u64,
-) -> Result<Option<Vec<u8>>, RegistryError> {
-    purge_cached_package_with(state, namespace, name, fetch_seq, || {
-        state.inner.storage.remove_upstream_package(namespace, name)
-    })
-    .await
-}
-
-pub(in crate::server) async fn purge_cached_package_with<Remove, Fut>(
-    state: &AppState,
-    namespace: &str,
-    name: &CanonicalPackageName,
-    fetch_seq: u64,
-    remove: Remove,
-) -> Result<Option<Vec<u8>>, RegistryError>
-where
-    Remove: FnOnce() -> Fut,
-    Fut: Future<Output = Result<bool, RegistryError>>,
-{
-    let _guard = lock_upstream_package(state, namespace, name).await;
-    match state.inner.proxy.packument_writes.check(namespace, name, fetch_seq) {
-        WriteVerdict::SupersededByStored => {
-            return state.inner.storage.read_upstream_document_any(namespace, name).await;
-        }
-        WriteVerdict::SupersededByPurge => return Ok(None),
-        WriteVerdict::Proceed => {}
-    }
-    state.inner.proxy.packument_writes.commit_purged(namespace, name, fetch_seq);
-    invalidate_upstream_package(state, namespace, name);
-    if let Err(err) = remove().await {
-        tracing::warn!(
-            ?err,
-            package = %name.as_str(),
-            "failed to purge cached entry after an upstream 404",
-        );
-    }
-    Ok(None)
 }
 
 /// Serializes the writes to one upstream package's cached packument: a refresh,
