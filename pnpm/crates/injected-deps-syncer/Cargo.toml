@@ -24,6 +24,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
+pnpm-ffi-fs = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]

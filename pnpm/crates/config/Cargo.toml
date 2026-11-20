@@ -48,6 +48,7 @@ url = { workspace = true }
 yaml_serde = { workspace = true }
 
 [target.'cfg(all(unix, not(target_os = "cygwin")))'.dependencies]
+pnpm-ffi-process = { workspace = true }
 libc = { workspace = true }
 
 [dev-dependencies]

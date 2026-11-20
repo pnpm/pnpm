@@ -20,7 +20,7 @@ pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<Path
     #[cfg(windows)]
     if is_unc_path(&canonical)
         && let Some(drive) = drive_letter(&absolute)
-        && let Some(remote) = mapped_drive(drive)
+        && let Some(remote) = pnpm_ffi_fs::mapped_drive_target(drive)
         && let Some(mapped) = mapped_drive_path(&canonical, drive, &remote)
     {
         return Ok(mapped);
@@ -35,7 +35,7 @@ pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<Path
 pub(crate) fn is_on_network_drive(path: &Path) -> bool {
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
-    is_unc_path(path) || drive_letter(path).and_then(is_mapped_drive).unwrap_or(false)
+    is_unc_path(path) || drive_letter(path).and_then(pnpm_ffi_fs::drive_is_mapped).unwrap_or(false)
 }
 
 /// The network share a path is on.
@@ -78,7 +78,8 @@ pub(crate) fn network_share_cached(path: &Path) -> Option<NetworkShare> {
     is_mapped_drive_cached(drive).then_some(NetworkShare::Drive(drive))
 }
 
-/// [`is_mapped_drive`], looked up once per process for each drive letter.
+/// [`pnpm_ffi_fs::drive_is_mapped`], looked up once per process for each
+/// drive letter.
 /// An install asks this for every link it writes, and the drive mappings
 /// don't change during one. A lookup that fails says nothing about the
 /// drive, so it isn't cached.
@@ -101,50 +102,13 @@ fn is_mapped_drive_cached(drive: char) -> bool {
     match slot.load(Ordering::Relaxed) {
         LOCAL => false,
         NETWORK => true,
-        _ => match is_mapped_drive(drive) {
+        _ => match pnpm_ffi_fs::drive_is_mapped(drive) {
             Some(network) => {
                 slot.store(if network { NETWORK } else { LOCAL }, Ordering::Relaxed);
                 network
             }
             None => false,
         },
-    }
-}
-
-/// Whether drive `letter` is mapped to a network share, or `None` when
-/// Windows can't tell.
-#[cfg(windows)]
-fn is_mapped_drive(letter: char) -> Option<bool> {
-    use windows_sys::Win32::NetworkManagement::WNet::WNetGetConnectionW;
-
-    let drive_name = [letter as u16, u16::from(b':'), 0];
-    let mut remote_name = [0u16; 260];
-    let mut length = remote_name.len() as u32;
-    // SAFETY: The buffers are writable for the lengths passed to WNetGetConnectionW.
-    let result = unsafe {
-        WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
-    };
-    drive_kind_from_connection_result(result)
-}
-
-/// What a `WNetGetConnectionW` result says about a drive. A persistent
-/// mapping that is disconnected counts as mapped: the first access through
-/// it reconnects it. Only `ERROR_NOT_CONNECTED` says the drive isn't
-/// redirected. Any other error, such as `ERROR_NO_NETWORK` (no network
-/// provider is running) or `ERROR_BAD_DEVICE`, says nothing about the drive.
-#[cfg(windows)]
-fn drive_kind_from_connection_result(result: u32) -> Option<bool> {
-    use windows_sys::Win32::Foundation::{
-        ERROR_CONNECTION_UNAVAIL,
-        ERROR_MORE_DATA,
-        ERROR_NOT_CONNECTED,
-        NO_ERROR,
-    };
-
-    match result {
-        NO_ERROR | ERROR_MORE_DATA | ERROR_CONNECTION_UNAVAIL => Some(true),
-        ERROR_NOT_CONNECTED => Some(false),
-        _ => None,
     }
 }
 
@@ -173,40 +137,6 @@ fn drive_letter(path: &Path) -> Option<char> {
 }
 
 #[cfg(windows)]
-fn mapped_drive(letter: char) -> Option<PathBuf> {
-    use std::{
-        ffi::OsString,
-        os::windows::ffi::OsStringExt,
-    };
-    use windows_sys::Win32::{
-        Foundation::ERROR_MORE_DATA,
-        NetworkManagement::WNet::WNetGetConnectionW,
-    };
-
-    let drive_name = [letter as u16, u16::from(b':'), 0];
-    let mut remote_name = vec![0u16; 512];
-    let mut length = remote_name.len() as u32;
-    // SAFETY: The buffers are writable for the lengths passed to WNetGetConnectionW.
-    let mut result = unsafe {
-        WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
-    };
-    if result == ERROR_MORE_DATA {
-        remote_name.resize(length as usize, 0);
-        // SAFETY: The resized buffer and length pointer are writable for this call.
-        result = unsafe {
-            WNetGetConnectionW(drive_name.as_ptr(), remote_name.as_mut_ptr(), &raw mut length)
-        };
-    }
-    if result != 0 {
-        return None;
-    }
-    let remote_length = remote_name
-        .iter()
-        .position(|unit| *unit == 0)?;
-    Some(PathBuf::from(OsString::from_wide(&remote_name[..remote_length])))
-}
-
-#[cfg(windows)]
 fn mapped_drive_path(path: &Path, drive: char, remote: &Path) -> Option<PathBuf> {
     let suffix = mapped_path_suffix(&remove_verbatim_unc_prefix(path), remote)?;
     Some(PathBuf::from(format!(r"{drive}:\")).join(suffix))
@@ -218,40 +148,31 @@ fn mapped_path_suffix(path: &Path, remote: &Path) -> Option<PathBuf> {
         OsStrExt as _,
         OsStringExt as _,
     };
-    use windows_sys::Win32::Globalization::{
-        CSTR_EQUAL,
-        CompareStringOrdinal,
-    };
 
-    let is_separator = |unit: &u16| matches!(*unit, 0x2f | 0x5c);
     let path: Vec<u16> = path.as_os_str().encode_wide().collect();
     let mut remote: Vec<u16> = remote
         .as_os_str()
         .encode_wide()
         .collect();
-    while remote.last().is_some_and(is_separator) {
+    while remote
+        .last()
+        .is_some_and(|unit| matches!(*unit, 0x2f | 0x5c))
+    {
         remote.pop();
     }
     if path.len() < remote.len()
-        || (path.len() > remote.len() && !is_separator(&path[remote.len()]))
+        || (path.len() > remote.len() && !matches!(path[remote.len()], 0x2f | 0x5c))
     {
         return None;
     }
-    // SAFETY: Both pointers address initialized UTF-16 slices for the lengths passed.
-    let equal = unsafe {
-        CompareStringOrdinal(
-            path.as_ptr(),
-            remote.len() as i32,
-            remote.as_ptr(),
-            remote.len() as i32,
-            1,
-        )
-    };
-    if equal != CSTR_EQUAL {
+    if !pnpm_ffi_fs::wide_names_equal_ignoring_case(&path[..remote.len()], &remote) {
         return None;
     }
     let mut suffix = remote.len();
-    while path.get(suffix).is_some_and(is_separator) {
+    while path
+        .get(suffix)
+        .is_some_and(|unit| matches!(*unit, 0x2f | 0x5c))
+    {
         suffix += 1;
     }
     Some(PathBuf::from(std::ffi::OsString::from_wide(&path[suffix..])))

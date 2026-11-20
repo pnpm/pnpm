@@ -86,17 +86,8 @@ struct StorageArgs {
     cache: Option<PathBuf>,
 }
 
-fn main() -> miette::Result<()> {
-    #[cfg(all(
-        any(target_os = "linux", target_os = "macos", target_os = "windows"),
-        any(target_arch = "x86_64", target_arch = "aarch64"),
-    ))]
-    allocator::purge_freed_memory_immediately();
-    run()
-}
-
 #[tokio::main]
-async fn run() -> miette::Result<()> {
+async fn main() -> miette::Result<()> {
     let matches = Args::command().get_matches();
     let mut args = Args::from_arg_matches(&matches).unwrap_or_else(|err| err.exit());
     #[cfg(all(

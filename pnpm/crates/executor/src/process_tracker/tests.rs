@@ -20,7 +20,6 @@ use std::{
         Child,
         Stdio,
     },
-    ptr,
     sync::mpsc,
     thread::{
         self,
@@ -45,9 +44,9 @@ fn foreground_children_share_the_terminal_process_group_only_at_a_terminal() {
     let mut child = spawn_child(&mut command, Some(&tracker)).expect("spawn child");
     let child_pid = i32::try_from(child.child_mut().id()).expect("child PID fits i32");
 
-    // SAFETY: both calls only query process-group IDs for this process
-    // and the live child spawned immediately above.
-    let (parent_group, child_group) = unsafe { (libc::getpgrp(), libc::getpgid(child_pid)) };
+    let group_of = |pid: u32| pnpm_ffi_signal::process_group_of(pid).expect("the process is live");
+    let (parent_group, child_group) =
+        (group_of(std::process::id()), group_of(child.child_mut().id()));
     if crate::interrupt::has_controlling_terminal() {
         assert_eq!(child_group, parent_group, "at a terminal the child shares the group");
     } else {
@@ -106,19 +105,10 @@ fn starting_replaces_a_watchdog_that_died() {
     let mut watch = GroupWatch::new();
     assert!(watch.start().expect("start the watchdog"), "`sh` is available");
     let [dead] = watchdogs()[..] else { panic!("expected one watchdog") };
-    // SAFETY: `dead` is this process's own child, the watchdog started
-    // above. It is killed and waited for without being reaped, so `start`
-    // still owns its exit status.
-    unsafe {
-        libc::kill(dead, libc::SIGKILL);
-        let mut info: libc::siginfo_t = std::mem::zeroed();
-        libc::waitid(
-            libc::P_PID,
-            libc::id_t::try_from(dead).expect("a pid is not negative"),
-            &raw mut info,
-            libc::WEXITED | libc::WNOWAIT,
-        );
-    }
+    let target = u32::try_from(dead).expect("a process id is not negative");
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(target), libc::SIGKILL);
+    // Waited for without being reaped, so `start` still owns the status.
+    pnpm_testing_utils::process_liveness::wait_for_exit_without_reaping(dead);
 
     assert!(watch.start().expect("restart the watchdog"), "`sh` is available");
     let replacements = watchdogs();
@@ -132,19 +122,23 @@ fn starting_replaces_a_watchdog_that_died() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_pidfd_reports_a_child_exited_once_reaped_anywhere() {
-    use super::signal::linux;
+    use pnpm_ffi_signal::{
+        Pin,
+        PinnedTarget,
+        Reaping,
+        Waiting,
+    };
 
     let mut running = spawn_group_leader();
-    let pidfd =
-        linux::open(i32::try_from(running.id()).expect("a pid fits i32")).expect("open a pidfd");
-    assert_eq!(linux::exited(&pidfd, libc::WNOHANG | libc::WNOWAIT), Some(false));
-    assert_eq!(linux::exited(&pidfd, libc::WNOHANG), Some(false));
+    let Pin::Target(pinned) = PinnedTarget::pin(running.id()) else { panic!("pin the child") };
+    assert_eq!(pinned.exited(Waiting::Poll, Reaping::Leave), Some(false));
+    assert_eq!(pinned.exited(Waiting::Poll, Reaping::Take), Some(false));
 
-    assert!(linux::signal(&pidfd, libc::SIGKILL), "a running child takes a signal");
-    assert_eq!(linux::exited(&pidfd, libc::WNOWAIT), Some(true));
+    assert!(pinned.signal(libc::SIGKILL).is_ok(), "a running child takes a signal");
+    assert_eq!(pinned.exited(Waiting::UntilExit, Reaping::Leave), Some(true));
     let _ = running.wait();
-    assert_eq!(linux::exited(&pidfd, libc::WNOHANG), Some(true), "reaped elsewhere");
-    assert!(!linux::signal(&pidfd, libc::SIGKILL), "a reaped child takes no signal");
+    assert_eq!(pinned.exited(Waiting::Poll, Reaping::Take), Some(true), "reaped elsewhere");
+    assert!(pinned.signal(libc::SIGKILL).is_err(), "a reaped child takes no signal");
 }
 
 /// Dropping the watch closes the watchdog's pipe the way pnpm's death does.
@@ -192,12 +186,11 @@ fn a_replaced_watchdog_takes_over_the_groups_of_the_one_that_died() {
         "`sh` is available",
     );
     let [dead] = watchdogs()[..] else { panic!("expected one watchdog") };
-    // SAFETY: `dead` is this process's own child, the watchdog started
-    // above; it is killed and reaped here before its pipe is written again.
-    unsafe {
-        libc::kill(dead, libc::SIGKILL);
-        libc::waitpid(dead, ptr::null_mut(), 0);
-    }
+    // The watchdog started above is this process's own child, so it can be
+    // killed and reaped here before its pipe is written again.
+    let dead = u32::try_from(dead).expect("the watchdog's pid fits u32");
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(dead), libc::SIGKILL);
+    assert!(pnpm_ffi_signal::reap(dead), "reap the watchdog");
 
     assert!(
         watch
@@ -569,14 +562,5 @@ fn is_gone_within(pid: i32, deadline: Duration) -> bool {
 
 /// Whether `pid` has exited, reaped or not.
 fn is_gone(pid: i32) -> bool {
-    // Read the state before probing: a zombie reaped between a probe and the
-    // read would look like a live process.
-    let zombie = fs::read_to_string(format!("/proc/{pid}/stat"))
-        .is_ok_and(|stat| {
-            stat.rsplit_once(") ")
-                .is_some_and(|(_, rest)| rest.starts_with('Z'))
-        });
-    // SAFETY: signal 0 only probes the process the test recorded.
-    let exists = unsafe { libc::kill(pid, 0) == 0 };
-    !exists || zombie
+    !pnpm_testing_utils::process_liveness::is_running(pid)
 }

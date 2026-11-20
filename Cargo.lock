@@ -1425,6 +1425,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cty"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b365fabc795046672053e29c954733ec3b05e4be654ab130fe8f1f94d7051f35"
+
+[[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3508,6 +3514,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a45a52f43e1c16f667ccfe4dd8c85b7f7c204fd5e3bf46c5b0db9a5c3c0b8e9"
 dependencies = [
  "cc",
+ "cty",
 ]
 
 [[package]]
@@ -4973,6 +4980,10 @@ dependencies = [
  "pnpm-env-installer",
  "pnpm-env-replace",
  "pnpm-executor",
+ "pnpm-ffi-fs",
+ "pnpm-ffi-process",
+ "pnpm-ffi-signal",
+ "pnpm-ffi-terminal",
  "pnpm-fs",
  "pnpm-fs-packlist",
  "pnpm-git-fetcher",
@@ -5108,6 +5119,7 @@ dependencies = [
  "pnpm-config-dir",
  "pnpm-detect-libc",
  "pnpm-env-replace",
+ "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-git-utils",
  "pnpm-lockfile",
@@ -5302,6 +5314,7 @@ dependencies = [
  "pnpm-detect-libc",
  "pnpm-directory-fetcher",
  "pnpm-executor",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-git-fetcher",
  "pnpm-graph-hasher",
@@ -5564,10 +5577,15 @@ dependencies = [
  "dunce",
  "libc",
  "miette 7.6.0",
+ "pnpm-ffi-fs",
+ "pnpm-ffi-process",
+ "pnpm-ffi-signal",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-process",
  "pnpm-reporter",
+ "pnpm-signal-registry",
+ "pnpm-testing-utils",
  "pnpm-which",
  "pretty_assertions",
  "serde_json",
@@ -5595,6 +5613,80 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-ffi-fs"
+version = "0.0.1"
+dependencies = [
+ "cap-primitives",
+ "libc",
+ "pnpm-ffi-process",
+ "tempfile",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-ffi-mimalloc"
+version = "0.0.1"
+dependencies = [
+ "ctor",
+ "libmimalloc-sys",
+]
+
+[[package]]
+name = "pnpm-ffi-process"
+version = "0.0.1"
+dependencies = [
+ "command-extra",
+ "libc",
+ "pipe-trait",
+ "text-block-macros",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-ffi-security"
+version = "0.0.1"
+dependencies = [
+ "core-foundation",
+ "security-framework",
+ "security-framework-sys",
+]
+
+[[package]]
+name = "pnpm-ffi-signal"
+version = "0.0.1"
+dependencies = [
+ "libc",
+ "pnpm-testing-utils",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-ffi-sqlite"
+version = "0.0.1"
+dependencies = [
+ "rusqlite",
+]
+
+[[package]]
+name = "pnpm-ffi-terminal"
+version = "0.0.1"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-ffi-webcontainer"
+version = "0.0.1"
+dependencies = [
+ "futures-util",
+ "libc",
+ "pnpm-webcontainer-sys",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pnpm-fs"
 version = "0.0.1"
 dependencies = [
@@ -5609,13 +5701,18 @@ dependencies = [
  "pathdiff",
  "pipe-trait",
  "pnpm-crypto-hash",
+ "pnpm-ffi-fs",
+ "pnpm-ffi-process",
+ "pnpm-ffi-signal",
+ "pnpm-ffi-webcontainer",
+ "pnpm-signal-registry",
+ "pnpm-testing-utils",
  "pnpm-wasm-host",
  "pretty_assertions",
  "reflink-copy",
  "same-file",
  "sha2 0.10.9",
  "tempfile",
- "text-block-macros",
  "tracing",
  "windows-sys 0.61.2",
 ]
@@ -5740,6 +5837,7 @@ dependencies = [
  "derive_more",
  "libc",
  "pnpm-crypto-hash",
+ "pnpm-ffi-process",
  "pnpm-lockfile",
  "pnpm-process",
  "pnpm-resolving-resolver-base",
@@ -5775,6 +5873,7 @@ dependencies = [
  "miette 7.6.0",
  "pnpm-cmd-shim",
  "pnpm-directory-fetcher",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-modules-yaml",
  "pnpm-package-manifest",
@@ -5795,6 +5894,7 @@ dependencies = [
  "libc",
  "miette 7.6.0",
  "pnpm-crypto-hash",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "tempfile",
  "tokio",
@@ -5994,7 +6094,6 @@ dependencies = [
  "command-extra",
  "dashmap",
  "indexmap 2.14.2",
- "libc",
  "miette 7.6.0",
  "mockito",
  "napi",
@@ -6010,6 +6109,7 @@ dependencies = [
  "pnpm-engine-runtime-bun-resolver",
  "pnpm-engine-runtime-deno-resolver",
  "pnpm-engine-runtime-node-resolver",
+ "pnpm-ffi-terminal",
  "pnpm-hooks",
  "pnpm-lockfile",
  "pnpm-matcher",
@@ -6044,12 +6144,12 @@ name = "pnpm-network"
 version = "0.0.1"
 dependencies = [
  "bytes",
- "core-foundation",
  "derive_more",
  "flate2",
  "futures-util",
  "miette 7.6.0",
  "mockito",
+ "pnpm-ffi-security",
  "pnpm-http",
  "pnpm-process",
  "pnpm-testing-utils",
@@ -6057,7 +6157,6 @@ dependencies = [
  "reqwest",
  "rustls",
  "security-framework",
- "security-framework-sys",
  "tokio",
  "tracing",
  "webpki-root-certs",
@@ -6189,6 +6288,7 @@ dependencies = [
  "pnpm-engine-runtime-deno-resolver",
  "pnpm-engine-runtime-node-resolver",
  "pnpm-executor",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-git-fetcher",
  "pnpm-graph-hasher",
@@ -6367,6 +6467,7 @@ dependencies = [
 name = "pnpm-process"
 version = "0.0.1"
 dependencies = [
+ "pnpm-ffi-process",
  "pnpm-wasm-host",
  "serde",
  "serde_json",
@@ -6714,6 +6815,7 @@ dependencies = [
  "percent-encoding",
  "pipe-trait",
  "pnpm-deps-path",
+ "pnpm-ffi-process",
  "pnpm-http",
  "pnpm-lockfile",
  "pnpm-network",
@@ -6805,6 +6907,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-crypto-shasums-file",
  "pnpm-detect-libc",
+ "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-http",
  "pnpm-network",
@@ -6820,7 +6923,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6843,6 +6945,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-signal-registry"
+version = "0.0.1"
+
+[[package]]
 name = "pnpm-store-dir"
 version = "0.0.1"
 dependencies = [
@@ -6856,6 +6962,8 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-deps-path",
  "pnpm-diagnostics",
+ "pnpm-ffi-fs",
+ "pnpm-ffi-sqlite",
  "pnpm-fs",
  "pnpm-package-manifest",
  "pnpm-package-name",
@@ -6927,6 +7035,8 @@ dependencies = [
  "dunce",
  "flate2",
  "futures-util",
+ "libc",
+ "libsql",
  "pipe-trait",
  "pnpm-fs",
  "pnpm-workspace-state",
@@ -6943,6 +7053,7 @@ dependencies = [
  "tokio",
  "url",
  "walkdir",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6983,6 +7094,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-unsafe-audit"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "serde",
+ "tempfile",
+ "text-block-macros",
+ "toml",
+]
+
+[[package]]
 name = "pnpm-version-policy"
 version = "0.0.1"
 dependencies = [
@@ -7019,10 +7141,13 @@ dependencies = [
 name = "pnpm-wasm-host"
 version = "0.0.1"
 dependencies = [
- "futures-util",
- "serde",
+ "pnpm-ffi-webcontainer",
  "serde_json",
 ]
+
+[[package]]
+name = "pnpm-webcontainer-sys"
+version = "0.0.1"
 
 [[package]]
 name = "pnpm-which"
@@ -7045,6 +7170,7 @@ dependencies = [
  "pathdiff",
  "pnpm-catalogs-types",
  "pnpm-env-replace",
+ "pnpm-ffi-fs",
  "pnpm-fs",
  "pnpm-local-spec",
  "pnpm-package-manifest",
@@ -7220,6 +7346,8 @@ dependencies = [
  "pnpm-crypto-hash",
  "pnpm-diagnostics",
  "pnpm-env-replace",
+ "pnpm-ffi-mimalloc",
+ "pnpm-ffi-process",
  "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",

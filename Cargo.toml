@@ -37,6 +37,16 @@ pnpm-engine-runtime-deno-resolver = { path = "pnpm/crates/engine-runtime-deno-re
 pnpm-engine-runtime-node-resolver = { path = "pnpm/crates/engine-runtime-node-resolver" }
 pnpm-env-installer = { path = "pnpm/crates/env-installer" }
 pnpm-env-replace = { path = "pnpm/crates/env-replace" }
+pnpm-ffi-fs = { path = "pnpm/crates/ffi-fs" }
+pnpm-ffi-mimalloc = { path = "pnpm/crates/ffi-mimalloc" }
+pnpm-ffi-process = { path = "pnpm/crates/ffi-process" }
+pnpm-ffi-security = { path = "pnpm/crates/ffi-security" }
+pnpm-ffi-signal = { path = "pnpm/crates/ffi-signal" }
+pnpm-ffi-sqlite = { path = "pnpm/crates/ffi-sqlite" }
+pnpm-ffi-terminal = { path = "pnpm/crates/ffi-terminal" }
+pnpm-ffi-webcontainer = { path = "pnpm/crates/ffi-webcontainer" }
+pnpm-signal-registry = { path = "pnpm/crates/signal-registry" }
+pnpm-webcontainer-sys = { path = "pnpm/crates/webcontainer-sys" }
 pnpm-fs = { path = "pnpm/crates/fs" }
 pnpm-fs-packlist = { path = "pnpm/crates/fs-packlist" }
 pnpm-git-utils = { path = "pnpm/crates/git-utils" }
@@ -191,7 +201,10 @@ flate2 = { version = "1.1.11", default-features = false, features = ["zlib-rs"] 
 gethostname = { version = "1.1.0" }
 getrandom = { version = "0.4.3" }
 miette = { version = "7.6.0", features = ["fancy"] }
+# `extended` carries the option calls; it is the only feature pnpm needs.
+libmimalloc-sys = { version = "0.1.49", features = ["extended"] }
 mimalloc = { version = "0.1.52" }
+ctor = { version = "1.0.14", default-features = false }
 napi = { version = "3.16.2", default-features = false, features = [
   "napi8",
   "object_indexmap",
@@ -340,6 +353,10 @@ allow_branch = "main"
 # though it's never set off-dylint.
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfectionist"))'] }
+
+# Crates that may hold `unsafe` opt out at their crate root.
+# UNSAFE_POLICY.md says which, and what a `// SAFETY:` comment there has to discharge.
+unsafe_code = "warn"
 
 [workspace.lints.cargo]
 redundant_homepage = "deny"

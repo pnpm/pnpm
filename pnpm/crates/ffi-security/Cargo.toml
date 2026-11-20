@@ -1,0 +1,19 @@
+[package]
+name = "pnpm-ffi-security"
+description = "Safe abstractions over the Apple Security.framework calls pnpm makes"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+core-foundation = { workspace = true }
+security-framework = { workspace = true }
+security-framework-sys = { workspace = true }
+
+[lints]
+workspace = true

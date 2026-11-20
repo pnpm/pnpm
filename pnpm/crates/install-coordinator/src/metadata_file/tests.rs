@@ -1,7 +1,5 @@
 use super::MetadataFile;
 use std::{
-    ffi::CString,
-    os::unix::ffi::OsStrExt as _,
     sync::mpsc,
     thread,
     time::Duration,
@@ -13,10 +11,8 @@ use std::{
 fn capturing_a_fifo_rejects_it_instead_of_waiting_for_a_writer() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("package.json");
-    let name = CString::new(path.as_os_str().as_bytes()).unwrap();
-    // SAFETY: the name is NUL-terminated and outlives the call.
-    let created = unsafe { libc::mkfifo(name.as_ptr(), 0o644) };
-    assert_eq!(created, 0, "mkfifo: {}", std::io::Error::last_os_error());
+    pnpm_ffi_fs::create_fifo(&path, pnpm_ffi_fs::FileMode::from_mode(0o644))
+        .expect("create the FIFO");
 
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || sender.send(MetadataFile::capture(path).map(|_| ())));
