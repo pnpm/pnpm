@@ -9,6 +9,10 @@
 //! it.
 
 use super::self_update::homebrew_formula;
+use pnpm_config::{
+    Host,
+    default_pnpm_home_dir,
+};
 use pnpm_reporter::{
     LogEvent,
     LogLevel,
@@ -57,6 +61,7 @@ impl InstallOrigin {
         }
         origin_from_path(&real)
             .or_else(|| origin_from_path(executable))
+            .or_else(|| npm_global_package(&real))
             .or_else(|| origin_from_shim_script(executable))
             .unwrap_or(Self::Unknown)
     }
@@ -96,11 +101,6 @@ fn origin_from_path(path: &Path) -> Option<InstallOrigin> {
                 .to_ascii_lowercase()
         })
         .collect();
-    let follows = |first: &str, second: &str| {
-        components
-            .windows(2)
-            .any(|pair| pair[0] == first && pair[1] == second)
-    };
     let has = |name: &str| {
         components
             .iter()
@@ -115,10 +115,21 @@ fn origin_from_path(path: &Path) -> Option<InstallOrigin> {
     if has("scoop") {
         return Some(InstallOrigin::Scoop);
     }
-    if follows("node_modules", "pnpm") {
-        return Some(InstallOrigin::NpmGlobal);
-    }
     None
+}
+
+/// `NpmGlobal` when `path` lies in a `node_modules/pnpm` package outside
+/// any project. A project's own `node_modules`, which `node_modules/.bin`
+/// puts on `PATH` in scripts, sits next to a `package.json`; npm's global
+/// prefixes (`lib/` on POSIX, `%APPDATA%\npm` on Windows) do not.
+fn npm_global_package(path: &Path) -> Option<InstallOrigin> {
+    let node_modules = path
+        .ancestors()
+        .filter(|dir| dir.file_name() == Some(OsStr::new("pnpm")))
+        .filter_map(Path::parent)
+        .find(|dir| dir.file_name() == Some(OsStr::new("node_modules")))?;
+    let prefix = node_modules.parent()?;
+    (!prefix.join("package.json").exists()).then_some(InstallOrigin::NpmGlobal)
 }
 
 fn origin_from_shim_script(executable: &Path) -> Option<InstallOrigin> {
@@ -130,7 +141,12 @@ fn origin_from_shim_script(executable: &Path) -> Option<InstallOrigin> {
     if script.contains("corepack") {
         return Some(InstallOrigin::Corepack);
     }
-    if script.contains("node_modules/pnpm/") || script.contains(r"node_modules\pnpm\") {
+    let in_project_bin = executable
+        .parent()
+        .is_some_and(|dir| dir.ends_with(Path::new("node_modules").join(".bin")));
+    if !in_project_bin
+        && (script.contains("node_modules/pnpm/") || script.contains(r"node_modules\pnpm\"))
+    {
         return Some(InstallOrigin::NpmGlobal);
     }
     None
@@ -142,9 +158,9 @@ fn origin_from_shim_script(executable: &Path) -> Option<InstallOrigin> {
 pub(crate) struct ShadowingPnpm {
     pub(crate) executable: PathBuf,
     pub(crate) origin: InstallOrigin,
-    /// Whether the global bin directory is on `PATH` at all, behind
-    /// `executable`. When it is not, `PATH` has yet to be set up, and the
-    /// shell will find the right pnpm once the global bin directory is
+    /// Whether the global bin directory or the pnpm home directory is on
+    /// `PATH` at all, behind `executable`. When neither is, `PATH` has yet to
+    /// be set up, and the right pnpm runs once the global bin directory is
     /// added ahead of `executable`.
     pub(crate) global_bin_on_path: bool,
 }
@@ -152,6 +168,14 @@ pub(crate) struct ShadowingPnpm {
 impl ShadowingPnpm {
     /// The warning to print once a pnpm is linked into `global_bin` and this
     /// one still answers to `pnpm`.
+    /// Whether the warning still applies after `pnpm setup` writes its PATH
+    /// entry. Setup puts a global bin directory missing from `PATH` first,
+    /// which is the fix the warning would ask for, unless it leaves `PATH`
+    /// alone.
+    pub(crate) fn outlives_setup(&self, modifies_path: bool) -> bool {
+        self.global_bin_on_path || !modifies_path
+    }
+
     pub(crate) fn emit_warning<Logger: Reporter>(&self, global_bin: &Path, prefix: &str) {
         Logger::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
@@ -181,29 +205,50 @@ impl ShadowingPnpm {
         } else {
             format!(
                 "\"pnpm\" on PATH is {executable} ({origin}), and {global_bin} is not on PATH yet. \
-                 Once a new shell adds it, it has to come first: {fix}.",
+                 When you add it, put it first: {fix}.",
             )
         }
     }
 }
 
+/// Where pnpm links its own `pnpm`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct OwnDirs<'a> {
+    pub(crate) global_bin: &'a Path,
+    /// The pnpm home directory, which the v10 layout and CI actions link
+    /// into directly.
+    pub(crate) pnpm_home: Option<&'a Path>,
+}
+
+/// The `pnpm` the current `PATH` finds ahead of the one in `global_bin`, if
+/// any.
+pub(crate) fn find_shadowing_pnpm_on_path(global_bin: &Path) -> Option<ShadowingPnpm> {
+    let pnpm_home = default_pnpm_home_dir::<Host>();
+    let own = OwnDirs { global_bin, pnpm_home: pnpm_home.as_deref() };
+    find_shadowing_pnpm(own, std::env::var_os("PATH").as_deref())
+}
+
 /// The `pnpm` that a lookup through `path_env` finds ahead of the one in
-/// `global_bin`, if any.
+/// `own.global_bin`, if any.
 ///
-/// A `pnpm` in `global_bin` itself, in its parent directory (the pnpm home
-/// directory, which older layouts and CI actions link into directly), or a
-/// symlink resolving into either, is pnpm's own and never shadows.
+/// A `pnpm` in one of `own`'s directories, or a symlink resolving into
+/// one, is pnpm's own and never shadows.
 pub(crate) fn find_shadowing_pnpm(
-    global_bin: &Path,
+    own: OwnDirs<'_>,
     path_env: Option<&OsStr>,
 ) -> Option<ShadowingPnpm> {
     let path_env = path_env?;
-    let mut candidates = which::which_in_global("pnpm", Some(path_env)).ok()?;
-    let executable = candidates.next()?;
-    if is_own_pnpm(&executable, global_bin) {
+    let executable = which::which_in_global("pnpm", Some(path_env)).ok()?.next()?;
+    if is_own_pnpm(&executable, own) {
         return None;
     }
-    let global_bin_on_path = candidates.any(|candidate| is_own_pnpm(&candidate, global_bin));
+    let global_bin_on_path = pnpm_fs::split_paths(path_env)
+        .any(|dir| {
+            [Some(own.global_bin), own.pnpm_home]
+                .into_iter()
+                .flatten()
+                .any(|own_dir| same_dir(&dir, own_dir))
+        });
     Some(ShadowingPnpm {
         origin: InstallOrigin::detect(&executable),
         executable,
@@ -211,8 +256,8 @@ pub(crate) fn find_shadowing_pnpm(
     })
 }
 
-fn is_own_pnpm(executable: &Path, global_bin: &Path) -> bool {
-    let own_dirs = [Some(global_bin), global_bin.parent()];
+fn is_own_pnpm(executable: &Path, own: OwnDirs<'_>) -> bool {
+    let own_dirs = [Some(own.global_bin), own.pnpm_home];
     let real_executable = fs::canonicalize(executable).ok();
     [Some(executable), real_executable.as_deref()]
         .into_iter()

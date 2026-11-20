@@ -24,7 +24,7 @@ mod global_bin;
 mod pinned_project;
 
 use crate::{
-    cli_args::shadowing_pnpm::find_shadowing_pnpm,
+    cli_args::shadowing_pnpm::find_shadowing_pnpm_on_path,
     config_deps::{
         self,
         EnginePolicyViolation,
@@ -489,13 +489,9 @@ async fn switch_global_pnpm<Reporter: self::Reporter + 'static>(
     Ok(Some(format!("Successfully updated pnpm to v{target_version}")))
 }
 
-/// Say so when the pnpm just linked into the global bin directory is not
-/// the one `PATH` resolves, or "Successfully updated" is the last thing the
-/// person reads before `pnpm --version` prints the old version again.
 fn warn_if_shadowed<Reporter: self::Reporter>(global_bin: Option<&Path>, prefix: &str) {
     if let Some(global_bin) = global_bin
-        && let Some(shadowing) =
-            find_shadowing_pnpm(global_bin, std::env::var_os("PATH").as_deref())
+        && let Some(shadowing) = find_shadowing_pnpm_on_path(global_bin)
     {
         shadowing.emit_warning::<Reporter>(global_bin, prefix);
     }

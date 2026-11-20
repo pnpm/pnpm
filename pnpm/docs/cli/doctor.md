@@ -34,6 +34,8 @@ Reports the running pnpm and Node.js versions.
 
 Reports `pnpm` as the install method and warns when pnpm is being run by Corepack, which manages the pnpm version itself and makes `pnpm self-update` unavailable.
 
+It also warns when the `pnpm` found on `PATH` is not the one in the global bin directory. This happens when a copy from another installer, such as npm, Homebrew, Volta, or Scoop, comes first on `PATH`. The warning names that copy and the command that removes it, or the `PATH` change that puts the global bin directory first.
+
 ### Global bin directory
 
 Checks that the directory pnpm links global executables into is on `PATH` and writable. If it is missing from `PATH`, the fix is to run [`pnpm setup`](./setup.md).

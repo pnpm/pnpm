@@ -9,7 +9,7 @@
 mod gh_actions_env;
 mod path_extender;
 
-use super::shadowing_pnpm::find_shadowing_pnpm;
+use super::shadowing_pnpm::find_shadowing_pnpm_on_path;
 use crate::process::Command;
 use clap::Args;
 use miette::{
@@ -111,10 +111,8 @@ fn handler<Reporter: self::Reporter + 'static>(
             .into_diagnostic()
             .wrap_err("create the pnpm alias scripts")?;
     }
-    // A bin directory missing from PATH is about to be added ahead of
-    // everything else, which is the fix the warning would ask for.
-    if let Some(shadowing) = find_shadowing_pnpm(&bin_dir, std::env::var_os("PATH").as_deref())
-        && (shadowing.global_bin_on_path || no_modify_path)
+    if let Some(shadowing) = find_shadowing_pnpm_on_path(&bin_dir)
+        && shadowing.outlives_setup(!no_modify_path)
     {
         shadowing.emit_warning::<Reporter>(&bin_dir, &dir.to_string_lossy());
     }

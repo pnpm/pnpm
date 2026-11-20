@@ -1,10 +1,9 @@
 use super::CheckResult;
-use crate::cli_args::shadowing_pnpm::find_shadowing_pnpm;
+use crate::cli_args::shadowing_pnpm::find_shadowing_pnpm_on_path;
 use pnpm_config::Config;
 
 /// Report how the running pnpm is managed, and whether `pnpm` on `PATH` is
-/// the one `self-update` and `setup` install: a copy from another installer
-/// ahead of the global bin directory is why an update "does not take".
+/// the one `self-update` and `setup` install.
 pub(super) fn check_install_method(config: &Config) -> CheckResult {
     let title = "Install method";
     if std::env::var_os("COREPACK_ROOT").is_some() {
@@ -15,8 +14,7 @@ pub(super) fn check_install_method(config: &Config) -> CheckResult {
         );
     }
     if let Some(global_bin) = config.global_bin.as_deref()
-        && let Some(shadowing) =
-            find_shadowing_pnpm(global_bin, std::env::var_os("PATH").as_deref())
+        && let Some(shadowing) = find_shadowing_pnpm_on_path(global_bin)
     {
         return CheckResult::warn(
             title,

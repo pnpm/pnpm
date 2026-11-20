@@ -1,5 +1,6 @@
 use super::{
     InstallOrigin,
+    OwnDirs,
     ShadowingPnpm,
     find_shadowing_pnpm,
 };
@@ -28,6 +29,11 @@ fn write_executable(dir: &Path, name: &str, contents: &str) -> PathBuf {
     path
 }
 
+/// pnpm's default layout: the global bin directory inside the pnpm home.
+fn own(global_bin: &Path) -> OwnDirs<'_> {
+    OwnDirs { global_bin, pnpm_home: global_bin.parent() }
+}
+
 fn path_env(dirs: &[&Path]) -> OsString {
     std::env::join_paths(dirs).unwrap()
 }
@@ -35,7 +41,7 @@ fn path_env(dirs: &[&Path]) -> OsString {
 #[test]
 fn nothing_shadows_without_a_path() {
     let home = tempfile::tempdir().unwrap();
-    assert_eq!(find_shadowing_pnpm(&home.path().join("bin"), None), None);
+    assert_eq!(find_shadowing_pnpm(own(&home.path().join("bin")), None), None);
 }
 
 #[test]
@@ -47,7 +53,7 @@ fn nothing_shadows_when_the_global_bin_comes_first() {
     write_executable(&other, PNPM, "");
 
     let path = path_env(&[&global_bin, &other]);
-    assert_eq!(find_shadowing_pnpm(&global_bin, Some(&path)), None);
+    assert_eq!(find_shadowing_pnpm(own(&global_bin), Some(&path)), None);
 }
 
 #[test]
@@ -58,7 +64,7 @@ fn nothing_shadows_when_no_pnpm_is_on_the_path() {
     fs::create_dir_all(&empty).unwrap();
 
     let path = path_env(&[&empty]);
-    assert_eq!(find_shadowing_pnpm(&global_bin, Some(&path)), None);
+    assert_eq!(find_shadowing_pnpm(own(&global_bin), Some(&path)), None);
 }
 
 #[test]
@@ -70,7 +76,7 @@ fn a_pnpm_ahead_of_the_global_bin_shadows_it() {
     let executable = write_executable(&other, PNPM, "");
 
     let path = path_env(&[&other, &global_bin]);
-    let shadowing = find_shadowing_pnpm(&global_bin, Some(&path));
+    let shadowing = find_shadowing_pnpm(own(&global_bin), Some(&path));
     assert_eq!(
         shadowing,
         Some(ShadowingPnpm {
@@ -89,7 +95,7 @@ fn a_pnpm_shadows_a_global_bin_that_is_not_on_the_path_yet() {
     let executable = write_executable(&other, PNPM, "");
 
     let path = path_env(&[&other]);
-    let shadowing = find_shadowing_pnpm(&global_bin, Some(&path));
+    let shadowing = find_shadowing_pnpm(own(&global_bin), Some(&path));
     assert_eq!(
         shadowing,
         Some(ShadowingPnpm {
@@ -102,6 +108,21 @@ fn a_pnpm_shadows_a_global_bin_that_is_not_on_the_path_yet() {
 
 /// The v10 layout links `pnpm` straight into the pnpm home directory, and
 /// CI actions do the same; that is pnpm's own, not another installer's.
+/// Doctor runs this on machines where the global bin directory holds no
+/// pnpm; listing it on `PATH` is what counts.
+#[test]
+fn a_global_bin_without_pnpm_still_counts_as_on_the_path() {
+    let home = tempfile::tempdir().unwrap();
+    let global_bin = home.path().join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let other = home.path().join("other");
+    write_executable(&other, PNPM, "");
+
+    let path = path_env(&[&other, &global_bin]);
+    let shadowing = find_shadowing_pnpm(own(&global_bin), Some(&path)).unwrap();
+    assert!(shadowing.global_bin_on_path);
+}
+
 #[test]
 fn a_pnpm_in_the_pnpm_home_directory_is_pnpm_itself() {
     let home = tempfile::tempdir().unwrap();
@@ -109,7 +130,28 @@ fn a_pnpm_in_the_pnpm_home_directory_is_pnpm_itself() {
     write_executable(home.path(), PNPM, "");
 
     let path = path_env(&[home.path()]);
-    assert_eq!(find_shadowing_pnpm(&global_bin, Some(&path)), None);
+    assert_eq!(find_shadowing_pnpm(own(&global_bin), Some(&path)), None);
+}
+
+/// A custom `global-bin-dir` does not make its parent pnpm's home.
+#[test]
+fn a_pnpm_next_to_a_custom_global_bin_shadows_it() {
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("pnpm-bin");
+    write_executable(&global_bin, PNPM, "");
+    let executable = write_executable(root.path(), PNPM, "");
+    let pnpm_home = root.path().join("home");
+
+    let path = path_env(&[root.path(), &global_bin]);
+    let own = OwnDirs { global_bin: &global_bin, pnpm_home: Some(&pnpm_home) };
+    assert_eq!(
+        find_shadowing_pnpm(own, Some(&path)),
+        Some(ShadowingPnpm {
+            executable,
+            origin: InstallOrigin::Unknown,
+            global_bin_on_path: true,
+        }),
+    );
 }
 
 #[cfg(unix)]
@@ -123,7 +165,7 @@ fn a_symlink_into_the_global_bin_is_pnpm_itself() {
     std::os::unix::fs::symlink(&executable, links.join(PNPM)).unwrap();
 
     let path = path_env(&[&links, &global_bin]);
-    assert_eq!(find_shadowing_pnpm(&global_bin, Some(&path)), None);
+    assert_eq!(find_shadowing_pnpm(own(&global_bin), Some(&path)), None);
 }
 
 #[test]
@@ -173,6 +215,36 @@ fn a_symlinked_executable_is_classified_by_its_target() {
     std::os::unix::fs::symlink(&target, &link).unwrap();
 
     assert_eq!(InstallOrigin::detect(&link), InstallOrigin::NpmGlobal);
+}
+
+/// `node_modules/.bin` puts a project's own pnpm on `PATH` in scripts;
+/// `npm uninstall -g` would not remove it.
+#[test]
+fn a_project_dependency_is_not_an_npm_global_install() {
+    let project = tempfile::tempdir().unwrap();
+    fs::write(project.path().join("package.json"), "{}").unwrap();
+    let target = write_executable(&project.path().join("node_modules/pnpm/bin"), "pnpm.cjs", "");
+    assert_eq!(InstallOrigin::detect(&target), InstallOrigin::Unknown);
+
+    let shim = write_executable(
+        &project.path().join("node_modules/.bin"),
+        "pnpm",
+        "#!/bin/sh\nexec node \"$basedir/../../node_modules/pnpm/bin/pnpm.cjs\" \"$@\"\n",
+    );
+    assert_eq!(InstallOrigin::detect(&shim), InstallOrigin::Unknown);
+}
+
+#[test]
+fn setup_keeps_the_warning_only_when_its_path_entry_does_not_fix_it() {
+    let shadowing = |global_bin_on_path| ShadowingPnpm {
+        executable: PathBuf::from("/usr/local/bin/pnpm"),
+        origin: InstallOrigin::Unknown,
+        global_bin_on_path,
+    };
+    assert!(!shadowing(false).outlives_setup(true));
+    assert!(shadowing(false).outlives_setup(false));
+    assert!(shadowing(true).outlives_setup(true));
+    assert!(shadowing(true).outlives_setup(false));
 }
 
 /// Windows shims are `.cmd` scripts in a directory that says nothing about
@@ -225,6 +297,6 @@ fn the_warning_for_an_unknown_origin_only_reorders_the_path() {
     assert_eq!(
         warning,
         "\"pnpm\" on PATH is /usr/local/bin/pnpm (not installed by pnpm), and /home/me/.local/share/pnpm/bin is not on PATH yet. \
-         Once a new shell adds it, it has to come first: move /home/me/.local/share/pnpm/bin ahead of /usr/local/bin in PATH.",
+         When you add it, put it first: move /home/me/.local/share/pnpm/bin ahead of /usr/local/bin in PATH.",
     );
 }

@@ -36,6 +36,10 @@ If the project does not pin pnpm, or the pin is being ignored via [`pmOnFail: ig
 
 If Homebrew installed pnpm or Corepack runs it, `pnpm self-update` leaves the global pnpm alone. In a project that pins pnpm, it still updates the pin. Outside such a project, it fails. Update a Homebrew install with `brew upgrade pnpm` (or `brew upgrade pnpm@<major>` for a versioned formula).
 
+### When another pnpm comes first on PATH
+
+After installing, `self-update` looks up `pnpm` on `PATH`. If another installer's copy comes before the global bin directory, your shell keeps running that copy, and `self-update` prints a warning that names it and the command that removes it. [`pnpm setup`](./setup.md) prints the same warning. It skips the warning when the global bin directory is not on `PATH` yet, because setup adds it first.
+
 ## Project settings are ignored
 
 `pnpm self-update` takes no instruction from the project it is run in:

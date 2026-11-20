@@ -158,3 +158,59 @@ fn fails_when_store_directory_is_blocked_by_a_regular_file() {
         "Filesystem check must warn rather than falling back to the system temp dir: {fs_check:?}",
     );
 }
+
+#[test]
+fn install_method_warns_about_a_pnpm_ahead_of_the_global_bin() {
+    let temp = tempfile::tempdir().expect("create temp dir");
+    let home = temp.path().join("home");
+    let project = temp.path().join("proj");
+    let pnpm_home = temp.path().join("pnpm-home");
+    let other = temp.path().join("other-bin");
+    let auth_file = temp.path().join("empty-npmrc");
+
+    fs::create_dir_all(&home).expect("create home");
+    fs::create_dir_all(&project).expect("create project");
+    fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin");
+    fs::create_dir_all(&other).expect("create other bin");
+    fs::write(project.join("package.json"), r#"{"name":"demo-doctor","version":"1.0.0"}"#)
+        .expect("write package.json");
+    fs::write(&auth_file, "").expect("write empty auth file");
+    let other_pnpm = other.join(if cfg!(windows) { "pnpm.cmd" } else { "pnpm" });
+    fs::write(&other_pnpm, "").expect("write the other pnpm");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&other_pnpm, fs::Permissions::from_mode(0o755))
+            .expect("make the other pnpm executable");
+    }
+    let path = std::env::join_paths([other.clone(), pnpm_home.join("bin")]).expect("join PATH");
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find pnpm binary")
+        .with_current_dir(&project)
+        .with_env("HOME", &home)
+        .with_env("USERPROFILE", &home)
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PATH", path)
+        .without_env("COREPACK_ROOT")
+        .without_env("PNPM_CONFIG_GLOBAL_BIN_DIR")
+        .with_arg("--npmrc-auth-file")
+        .with_arg(&auth_file)
+        .with_arg("--dir")
+        .with_arg(&project)
+        .with_arg("doctor")
+        .with_arg("--offline")
+        .with_arg("--json")
+        .output()
+        .expect("run pnpm doctor");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let report: Report = serde_json::from_str(&stdout).expect("parse doctor JSON output");
+    let check = report.checks
+        .iter()
+        .find(|candidate| candidate.title == "Install method")
+        .expect("Install method check");
+    assert_eq!(check.status, "warn", "{check:?}");
+    let detail = check.detail.as_deref().unwrap_or_default();
+    assert!(detail.contains(&other_pnpm.display().to_string()), "{check:?}");
+}
