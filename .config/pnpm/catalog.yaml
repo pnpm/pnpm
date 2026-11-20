@@ -247,7 +247,7 @@ catalog:
   shlex: ^3.0.1
   shx: ^0.4.0
   signal-exit: ^4.1.0
-  socks: ^2.8.10
+  socks: ^2.8.11
   socks-proxy-agent: ^10.1.0
   sort-keys: ^6.0.1
   spdx-expression-parse: 5.0.0

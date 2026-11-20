@@ -60,7 +60,7 @@ jobs:
           esac
 
       - name: Triage with Oz agent
-        uses: warpdotdev/oz-agent-action@8025b8045e60b8733022456300c304a2ed8a3764 # v1.0.37
+        uses: warpdotdev/oz-agent-action@b0c640eb560d1f2fc283244c582830aa16cefd8c # v1.0.39
         id: triage
         timeout-minutes: 20
         env:
