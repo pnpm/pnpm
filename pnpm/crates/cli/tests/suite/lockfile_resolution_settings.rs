@@ -278,3 +278,49 @@ fn switching_to_the_v13_format_records_the_settings() {
     assert_eq!(recorded(&workspace).dedupe_injected_deps, Some(true));
     drop((root, mock_instance));
 }
+
+/// A `v13` lockfile written before the format recorded the resolution
+/// settings fails a frozen install until a regular install records them.
+#[test]
+fn a_v13_lockfile_without_the_settings_needs_a_regular_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_injected_workspace(&workspace, V13);
+    install(&workspace, &["install"]);
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).unwrap();
+    let keys =
+        ["autoDedupe", "dedupeInjectedDeps", "dedupePeerDependents", "linkWorkspacePackages"];
+    let stripped: String = lockfile
+        .lines()
+        .filter(|line| {
+            !keys
+                .iter()
+                .any(|key| {
+                    line.trim_start()
+                        .starts_with(&format!("\"{key}\""))
+                })
+        })
+        .map(|line| format!("{line}\n"))
+        .collect();
+    assert_ne!(stripped, lockfile);
+    fs::write(&lockfile_path, stripped).unwrap();
+    assert_eq!(recorded(&workspace), ResolutionSettings::default());
+
+    let output = pnpm_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "{output:?}");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(combined.contains("ERR_PNPM_LOCKFILE_CONFIG_MISMATCH"), "{combined}");
+
+    install(&workspace, &["install"]);
+    assert_eq!(recorded(&workspace).dedupe_injected_deps, Some(true));
+    drop((root, mock_instance));
+}
