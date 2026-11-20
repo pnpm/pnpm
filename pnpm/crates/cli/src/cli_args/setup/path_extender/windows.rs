@@ -37,22 +37,29 @@ pub(super) fn add_dir_to_windows_env_path(
     dir: &Path,
     opts: &AddDirToEnvPathOpts,
 ) -> Result<Vec<EnvVariableChange>, PathExtenderError> {
-    // The UTF-8 code page makes `reg` use UTF-8 for output. Otherwise
-    // non-ASCII characters in environment variables become garbled. The code
-    // page is switched with `mode con cp select=` rather than `chcp`: both
-    // set the same console code page, but `chcp` clears the visible terminal
-    // whenever it changes it.
+    with_utf8_codepage(|| {
+        let report = add_dir_to_windows_env_path_inner(dir, opts)?;
+        refresh_env_vars()?;
+        Ok(report)
+    })
+}
+
+/// Run `body` under the UTF-8 code page, which makes `reg` use UTF-8 for
+/// output. Otherwise non-ASCII characters in environment variables become
+/// garbled. The code page is switched with `mode con cp select=` rather than
+/// `chcp`: both set the same console code page, but `chcp` clears the visible
+/// terminal whenever it changes it.
+fn with_utf8_codepage<Output, Body>(body: Body) -> Result<Output, PathExtenderError>
+where
+    Body: FnOnce() -> Result<Output, PathExtenderError>,
+{
     let codepage_output =
         query_codepage().map_err(|err| PathExtenderError::CodePage { message: err.to_string() })?;
     let cp_bak = first_number(&codepage_output)
         .ok_or_else(|| PathExtenderError::CodePage { message: codepage_output.clone() })?;
     select_codepage(UTF8_CODEPAGE)?;
 
-    let result = (|| {
-        let report = add_dir_to_windows_env_path_inner(dir, opts)?;
-        refresh_env_vars()?;
-        Ok(report)
-    })();
+    let result = body();
 
     // Restore the saved code page even when the body failed.
     let _ = select_codepage(cp_bak);
@@ -337,6 +344,10 @@ fn first_number(text: &str) -> Option<u32> {
 /// the user `Path`, with `%NAME%` references expanded from the user's
 /// registry values first. `None` when the registry cannot be read.
 pub(in crate::cli_args::setup) fn persisted_path_dirs() -> Option<Vec<PathBuf>> {
+    with_utf8_codepage(|| Ok(read_persisted_path_dirs())).ok().flatten()
+}
+
+fn read_persisted_path_dirs() -> Option<Vec<PathBuf>> {
     let machine = run_capture("reg", &["query", MACHINE_REG_KEY, "/v", "Path"]).ok()?;
     let user = get_registry_output().ok()?;
     let lookup =
