@@ -135,7 +135,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> super::ResolutionContext<'_, R
         let own_manifest_specifiers = self.own_manifest_specifiers(importer_manifests);
         loop {
             let walk = self.workspace_walk(lockfile_reuse_seed.as_ref(), dedupe.clone());
-            let result = resolve::run_reporting_pass::<Reporter>(resolve::ResolvePassInputs {
+            let result = resolve::run_dependency_pass::<Reporter>(resolve::ResolvePassInputs {
                 resolver: &*self.setup.chain.resolver,
                 importer_manifests,
                 dependency_groups: self.install.resolved_groups(),

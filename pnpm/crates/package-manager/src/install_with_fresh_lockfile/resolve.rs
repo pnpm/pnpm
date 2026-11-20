@@ -294,57 +294,37 @@ impl WorkspaceWalk {
     }
 }
 
-/// [`run_dependency_pass`], then the deprecations it reported. See
+/// One resolution pass, then the deprecations it reported. See
 /// [`super::DeprecationCollector`].
-pub(super) async fn run_reporting_pass<Reporter: pnpm_reporter::Reporter>(
+pub(super) async fn run_dependency_pass<Reporter: pnpm_reporter::Reporter>(
     inputs: ResolvePassInputs<'_>,
 ) -> Result<
     pnpm_resolving_deps_resolver::ResolvedWorkspaceDependencies,
     InstallWithFreshLockfileError,
 > {
-    let installed = inputs.installed;
-    let deprecations = super::DeprecationCollector::default();
-    let result = run_dependency_pass::<Reporter>(inputs, deprecations.sink()).await;
-    deprecations.emit::<Reporter>(installed);
-    result
-}
-
-async fn run_dependency_pass<Reporter: pnpm_reporter::Reporter>(
-    inputs: ResolvePassInputs<'_>,
-    deprecation_log: pnpm_resolving_deps_resolver::DeprecationLogFn,
-) -> Result<
-    pnpm_resolving_deps_resolver::ResolvedWorkspaceDependencies,
-    InstallWithFreshLockfileError,
-> {
-    let ResolvePassInputs {
-        resolver,
-        importer_manifests,
-        dependency_groups,
-        walk,
-        per_importer,
-        installed: _,
-    } = inputs;
-    let workspace_importers: Vec<pnpm_resolving_deps_resolver::WorkspaceImporter<'_>> =
-        importer_manifests
-            .iter()
-            .map(|(id, manifest)| pnpm_resolving_deps_resolver::WorkspaceImporter {
-                id: id.clone(),
-                manifest,
-            })
-            .collect();
-    let modules_basename = per_importer.config.modules_dir
+    let workspace_importers: Vec<pnpm_resolving_deps_resolver::WorkspaceImporter<'_>> = inputs
+        .importer_manifests
+        .iter()
+        .map(|(id, manifest)| pnpm_resolving_deps_resolver::WorkspaceImporter {
+            id: id.clone(),
+            manifest,
+        })
+        .collect();
+    let modules_basename = inputs.per_importer.config.modules_dir
         .file_name()
         .map(std::ffi::OsStr::to_os_string)
         .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
-    pnpm_resolving_deps_resolver::resolve_workspace_dependencies(
-        resolver,
+    let deprecations = super::DeprecationCollector::default();
+    let result = pnpm_resolving_deps_resolver::resolve_workspace_dependencies(
+        inputs.resolver,
         &workspace_importers,
-        dependency_groups,
-        walk.into_options::<Reporter>(&per_importer, deprecation_log),
-        |importer| per_importer.resolve_importer_options(importer, &modules_basename),
+        inputs.dependency_groups,
+        inputs.walk.into_options::<Reporter>(&inputs.per_importer, deprecations.sink()),
+        |importer| inputs.per_importer.resolve_importer_options(importer, &modules_basename),
     )
-    .await
-    .map_err(resolve_error)
+    .await;
+    deprecations.emit::<Reporter>(inputs.installed);
+    result.map_err(resolve_error)
 }
 
 pub(super) fn resolve_error(err: ResolveImporterError) -> InstallWithFreshLockfileError {
