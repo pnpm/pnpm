@@ -84,24 +84,16 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         )
         .await?;
     }
-    approve_and_rebuild_cached_builds::<Reporter>(config, prepare_dir, &manifest_path).await
-}
-
-async fn approve_and_rebuild_cached_builds<Reporter: self::Reporter + 'static>(
-    config: &'static Config,
-    cache_dir: &Path,
-    manifest_path: &Path,
-) -> miette::Result<()> {
     let config = direct_builds::rebuild_direct_non_registry_packages::<Reporter>(
         config,
-        cache_dir,
-        manifest_path,
+        prepare_dir,
+        &manifest_path,
     )
     .await?;
     crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
         config,
-        cache_dir,
-        crate::cli_args::approve_builds::ApprovalStore::Workspace(cache_dir),
+        prepare_dir,
+        crate::cli_args::approve_builds::ApprovalStore::Workspace(prepare_dir),
     )
     .await
 }
@@ -374,30 +366,34 @@ pub(super) async fn get_or_prepare_cache<Reporter: self::Reporter + 'static>(
     let command_dir =
         command_cache_dir(config, pkgs, &parsed_allow_build, supported_architectures)?;
     let cache_link = command_dir.join("pkg");
-    match get_valid_cache_dir(&cache_link, config.dlx_cache_max_age, SystemTime::now()) {
-        Some(cached_dir) if cached_dir.join("pnpm-lock.yaml").is_file() => {
-            configure_cache_install(
+    if let Some(cached_dir) =
+        get_valid_cache_dir(&cache_link, config.dlx_cache_max_age, SystemTime::now())
+        && cached_dir.join("pnpm-lock.yaml").is_file()
+    {
+        configure_cache_install(
+            config,
+            &cached_dir,
+            pkgs,
+            &parsed_allow_build,
+            supported_architectures,
+        )?;
+        if !direct_builds::has_pending_direct_non_registry_builds(config, &cached_dir)? {
+            crate::cli_args::approve_builds::prompt_approve_install_builds::<Reporter>(
                 config,
                 &cached_dir,
-                pkgs,
-                &parsed_allow_build,
-                supported_architectures,
-            )?;
-            let manifest_path = cached_dir.join("package.json");
-            approve_and_rebuild_cached_builds::<Reporter>(config, &cached_dir, &manifest_path)
-                .await?;
-            Ok(cached_dir)
-        }
-        _ => {
-            prepare_cache_dir::<Reporter>(
-                &command_dir,
-                &cache_link,
-                pkgs,
-                &parsed_allow_build,
-                supported_architectures,
-                config,
+                crate::cli_args::approve_builds::ApprovalStore::Workspace(&cached_dir),
             )
-            .await
+            .await?;
+            return Ok(cached_dir);
         }
     }
+    prepare_cache_dir::<Reporter>(
+        &command_dir,
+        &cache_link,
+        pkgs,
+        &parsed_allow_build,
+        supported_architectures,
+        config,
+    )
+    .await
 }

@@ -735,7 +735,7 @@ test('dlx runs postinstall on direct tarball URLs and keys the cache by ignoreSc
       version: '1.0.0',
       bin: { 'dlx-url-tool': 'bin.js' },
       scripts: {
-        postinstall: 'node -e "require(\'fs\').writeFileSync(\'built.txt\', \'ok\')"',
+        postinstall: 'node -e "if (process.env.FAIL_DLX_RECOVERY_BUILD === \'1\') process.exit(1); require(\'fs\').writeFileSync(\'built.txt\', \'ok\')"',
       },
     })],
     ['package/bin.js', [
@@ -797,6 +797,13 @@ test('dlx runs postinstall on direct tarball URLs and keys the cache by ignoreSc
     const modulesRaw = JSON.parse(fs.readFileSync(modulesYamlPath, 'utf8')) as Record<string, unknown>
     modulesRaw.ignoredBuilds = [`dlx-url-tool@${tarballUrl}`]
     fs.writeFileSync(modulesYamlPath, JSON.stringify(modulesRaw, null, 2))
+
+    process.env.FAIL_DLX_RECOVERY_BUILD = '1'
+    try {
+      await expect(dlx.handler(hitOpts, [tarballUrl, path.join(projectDir, 'hit-failed.txt')])).rejects.toThrow()
+    } finally {
+      delete process.env.FAIL_DLX_RECOVERY_BUILD
+    }
 
     const recoveredHitOut = path.join(projectDir, 'hit-recovered.txt')
     await dlx.handler(hitOpts, [tarballUrl, recoveredHitOut])

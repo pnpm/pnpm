@@ -672,7 +672,6 @@ fn dlx_ignores_the_caller_projects_tag_setting() {
     drop(root);
 }
 
-#[cfg(unix)]
 fn pacquet_in(
     cwd: &std::path::Path,
     npmrc_info: &pnpm_testing_utils::bin::AddMockedRegistry,

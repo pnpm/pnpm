@@ -21,31 +21,55 @@ export function resolveLocalPackageSpec (spec: string, baseDir: string): string 
   return resolveLocalParam(spec, baseDir)
 }
 
+export async function hasPendingDirectNonRegistryBuilds (opts: {
+  dir: string
+  allowBuilds: Record<string, boolean | string>
+}): Promise<boolean> {
+  const pending = await scanPendingDirectNonRegistryBuilds(opts)
+  return pending != null
+}
+
 /**
  * Approves explicitly requested top-level `dlx` packages whose non-semver
  * specifiers (`http(s):`, `file:`, `git+`, ...) require exact `depPath`
- * approval, updating `allowBuilds` and clearing their `ignoredBuilds` entries
- * in `.modules.yaml`. Returns the keys that must now be built.
+ * approval, returning a callback that persists the pruned `.modules.yaml`
+ * once the rebuild succeeds.
  */
 export async function approveDirectNonRegistryBuilds (opts: {
   dir: string
   allowBuilds: Record<string, boolean | string>
-}): Promise<string[]> {
-  const modulesDir = path.join(opts.dir, 'node_modules')
-  const modulesManifest = await readModulesManifest(modulesDir)
-  if (!modulesManifest?.ignoredBuilds?.size) return []
-  const lockfile = await readWantedLockfile(opts.dir, { ignoreIncompatible: false })
-  const directDeps = lockfile?.importers['.' as ProjectId]?.dependencies
-  if (!directDeps) return []
-  const approvedKeys = collectApprovedDirectBuildKeys(directDeps, modulesManifest.ignoredBuilds, opts.allowBuilds)
-  if (approvedKeys.size === 0) return []
+}): Promise<{ approvedKeys: string[], commitApprovedBuilds: () => Promise<void> }> {
+  const pending = await scanPendingDirectNonRegistryBuilds(opts)
+  if (pending == null) {
+    return { approvedKeys: [], commitApprovedBuilds: async () => {} }
+  }
+  const { approvedKeys, modulesDir, modulesManifest } = pending
   const sortedKeys = Array.from(approvedKeys).sort(lexCompare)
   for (const key of sortedKeys) {
     opts.allowBuilds[key] = true
   }
-  pruneApprovedIgnoredBuilds(modulesManifest, approvedKeys)
-  await writeModulesManifest(modulesDir, modulesManifest as Modules)
-  return sortedKeys
+  return {
+    approvedKeys: sortedKeys,
+    commitApprovedBuilds: async () => {
+      pruneApprovedIgnoredBuilds(modulesManifest, approvedKeys)
+      await writeModulesManifest(modulesDir, modulesManifest)
+    },
+  }
+}
+
+async function scanPendingDirectNonRegistryBuilds (opts: {
+  dir: string
+  allowBuilds: Record<string, boolean | string>
+}): Promise<{ approvedKeys: Set<string>, modulesDir: string, modulesManifest: Modules } | undefined> {
+  const modulesDir = path.join(opts.dir, 'node_modules')
+  const modulesManifest = await readModulesManifest(modulesDir)
+  if (!modulesManifest?.ignoredBuilds?.size) return undefined
+  const lockfile = await readWantedLockfile(opts.dir, { ignoreIncompatible: false })
+  const directDeps = lockfile?.importers['.' as ProjectId]?.dependencies
+  if (!directDeps) return undefined
+  const approvedKeys = collectApprovedDirectBuildKeys(directDeps, modulesManifest.ignoredBuilds, opts.allowBuilds)
+  if (approvedKeys.size === 0) return undefined
+  return { approvedKeys, modulesDir, modulesManifest: modulesManifest as Modules }
 }
 
 function collectApprovedDirectBuildKeys (

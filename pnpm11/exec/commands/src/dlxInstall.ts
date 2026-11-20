@@ -9,7 +9,7 @@ import { logger } from '@pnpm/logger'
 import { symlinkDir } from 'symlink-dir'
 
 import type { DlxCommandOptions } from './dlx.js'
-import { type DlxCache, getValidCacheDir } from './dlxCache.js'
+import { type DlxCache, getPrepareDir, getValidCacheDir } from './dlxCache.js'
 
 /**
  * Test-only env var. When set, the dlx ignored-builds recovery path bypasses
@@ -32,13 +32,27 @@ export async function getOrPrepareDlxCache (ctx: DlxInstallContext, cache: DlxCa
   if (!cache.cacheExists) {
     return installIntoDlxCache(ctx, cache)
   }
-  await rebuildDirectNonRegistryPackages(ctx, cache.cachedDir)
+  if (await needsDirectNonRegistryBuild(ctx, cache.cachedDir)) {
+    return installIntoDlxCache(ctx, {
+      cacheLink: cache.cacheLink,
+      cachedDir: getPrepareDir(path.dirname(cache.cacheLink)),
+      cacheExists: false,
+    })
+  }
   await promptApproveDlxBuilds({
     cachedDir: cache.cachedDir,
     allowBuilds: ctx.allowBuilds,
     inheritedOpts: ctx.opts,
   }, ctx.commands)
   return cache.cachedDir
+}
+
+async function needsDirectNonRegistryBuild (ctx: DlxInstallContext, dir: string): Promise<boolean> {
+  if (ctx.opts.ignoreScripts) return false
+  return add.hasPendingDirectNonRegistryBuilds({
+    dir,
+    allowBuilds: ctx.allowBuilds,
+  })
 }
 
 /**
@@ -59,7 +73,9 @@ async function installIntoDlxCache (ctx: DlxInstallContext, cache: DlxCache): Pr
     // directory swaps).  If another process completed the cache in the meantime,
     // use that instead of failing.
     const completedDir = getValidCacheDir(cacheLink, ctx.opts.dlxCacheMaxAge)
-    if (completedDir != null) return completedDir
+    if (completedDir != null && !await needsDirectNonRegistryBuild(ctx, completedDir)) {
+      return completedDir
+    }
     await removePartialDlxCache(cachedDir)
     throw err
   }
@@ -68,7 +84,7 @@ async function installIntoDlxCache (ctx: DlxInstallContext, cache: DlxCache): Pr
 
 async function rebuildDirectNonRegistryPackages (ctx: DlxInstallContext, cachedDir: string): Promise<void> {
   if (ctx.opts.ignoreScripts) return
-  const approvedKeys = await add.approveDirectNonRegistryBuilds({
+  const { approvedKeys, commitApprovedBuilds } = await add.approveDirectNonRegistryBuilds({
     dir: cachedDir,
     allowBuilds: ctx.allowBuilds,
   })
@@ -83,9 +99,10 @@ async function rebuildDirectNonRegistryPackages (ctx: DlxInstallContext, cachedD
       frozenLockfile: true,
       optimisticRepeatInstall: false,
     }, [], ctx.commands)
-    return
+  } else {
+    await rebuild.handler({ ...buildOpts, pending: false }, approvedKeys)
   }
-  await rebuild.handler({ ...buildOpts, pending: false }, approvedKeys)
+  await commitApprovedBuilds()
 }
 
 function createDlxAddOptions (ctx: DlxInstallContext, cachedDir: string): add.AddCommandOptions {

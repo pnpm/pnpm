@@ -7,6 +7,23 @@ use pnpm_package_manager::allow_build_key_from_ignored_build;
 use pnpm_reporter::Reporter;
 use std::path::Path;
 
+pub(super) fn has_pending_direct_non_registry_builds(
+    config: &Config,
+    cache_dir: &Path,
+) -> miette::Result<bool> {
+    if config.ignore_scripts {
+        return Ok(false);
+    }
+    let scan = crate::cli_args::ignored_builds::get_automatically_ignored_builds(config)?;
+    let Some(ignored_keys) = scan.names
+        .as_deref()
+        .filter(|keys| !keys.is_empty())
+    else {
+        return Ok(false);
+    };
+    Ok(!approved_direct_build_keys(config, cache_dir, ignored_keys)?.is_empty())
+}
+
 /// Approve and rebuild explicitly requested top-level `dlx` packages whose
 /// non-semver specifiers (`http(s):`, `file:`, `git+`, ...) have no package
 /// alias before fetching or require exact `depPath` approval.
@@ -30,16 +47,16 @@ pub(super) async fn rebuild_direct_non_registry_packages<Reporter: self::Reporte
         return Ok(config);
     }
     let config = leak_config_with_approved_builds(config, &approved_keys);
-    if let Some(modules) = scan.modules_manifest {
-        persist_pruned_ignored_builds(&scan.modules_dir, modules, &approved_keys)?;
-    }
     let rebuild_state = State::init(manifest_path.to_path_buf(), config, true)
         .wrap_err("initialize the dlx rebuild state")?;
     let selection = crate::cli_args::rebuild::RebuildSelection {
-        names: Some(approved_keys),
+        names: Some(approved_keys.clone()),
         projects: Vec::new(),
     };
     crate::cli_args::rebuild::run_rebuild::<Reporter>(&rebuild_state, selection, None).await?;
+    if let Some(modules) = scan.modules_manifest {
+        persist_pruned_ignored_builds(&scan.modules_dir, modules, &approved_keys)?;
+    }
     Ok(config)
 }
 

@@ -1,11 +1,13 @@
 use super::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{
-    bin::CommandTempCwd, command_env::CommandTestExt, fixtures::tarball_entries,
-};
+#[cfg(unix)]
+use pnpm_testing_utils::command_env::CommandTestExt;
+use pnpm_testing_utils::{bin::CommandTempCwd, fixtures::tarball_entries};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path, process::Command};
+#[cfg(unix)]
+use std::process::Command;
+use std::{fs, path::Path};
 
 fn write_executable(path: &Path, contents: &str) {
     fs::write(path, contents).expect("write executable script");
@@ -23,7 +25,7 @@ fn build_postinstall_cli_tarball(name: &str, bin_name: &str) -> Vec<u8> {
         "version": "1.0.0",
         "bin": { bin_name: "bin.js" },
         "scripts": {
-            "postinstall": r#"node -e "require('fs').writeFileSync('built.txt', 'ok')""#,
+            "postinstall": r#"node -e "if (process.env.FAIL_DLX_RECOVERY_BUILD === '1') process.exit(1); require('fs').writeFileSync('built.txt', 'ok')""#,
         },
     })
     .to_string();
@@ -444,6 +446,7 @@ fn dlx_recovers_unbuilt_cached_url_pkg_and_skips_aliased_registry_indirect_build
         .mock("GET", "/dlx-hit-tool.tgz")
         .with_status(200)
         .with_body(dlx_tgz)
+        .expect_at_least(2)
         .create();
     let dlx_url = format!("{}/dlx-hit-tool.tgz", server.url());
 
@@ -473,10 +476,17 @@ fn dlx_recovers_unbuilt_cached_url_pkg_and_skips_aliased_registry_indirect_build
     pnpm_modules_yaml::write_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir, modules)
         .expect("simulate pre-upgrade unbuilt cache entry");
 
+    let failed_recovery = pacquet_in(&workspace, &npmrc_info)
+        .with_env("FAIL_DLX_RECOVERY_BUILD", "1")
+        .with_args(["dlx", dlx_url.as_str()])
+        .output()
+        .expect("run failing recovery on unbuilt cached URL entry");
+    assert!(!failed_recovery.status.success(), "failed recovery build must reject");
+
     let hit = pacquet_in(&workspace, &npmrc_info)
         .with_args(["dlx", dlx_url.as_str()])
         .output()
-        .expect("run dlx on unbuilt cached URL entry");
+        .expect("retry dlx on unbuilt cached URL entry");
     assert!(hit.status.success(), "stderr: {}", String::from_utf8_lossy(&hit.stderr));
     assert_eq!(String::from_utf8_lossy(&hit.stdout).trim(), "BUILT_OK");
 
