@@ -135,8 +135,9 @@ impl TrustedSettings {
         // a value outside it, so an invalid `PNPM_CONFIG_ACCESS` cannot clobber
         // a valid lower layer. Every other layer, `--config.access` included,
         // is assigned unchecked.
-        trusted.settings.access = trusted.settings.access
-            .filter(|access| matches!(access.as_str(), "public" | "restricted"));
+        trusted.settings.access = trusted.settings.access.filter(|access| {
+            matches!(access.as_str(), "public" | "restricted")
+        });
         trusted
     }
 
