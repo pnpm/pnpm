@@ -261,7 +261,7 @@ fn listen() -> SocketAddr {
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873))
 }
 
-// ----- LogFormat / LogLevel serde behavior ------------------------------
+// LogFormat / LogLevel serde behavior
 
 /// Helper: deserialize a YAML scalar into the requested enum.
 /// Lets us assert the variant mapping concisely.
@@ -269,7 +269,7 @@ fn parse_log_yaml<Target: serde::de::DeserializeOwned>(yaml: &str) -> Result<Tar
     serde_saphyr::from_str::<Target>(yaml).map_err(|err| err.to_string())
 }
 
-// ----- Config::resolve precedence ---------------------------------------
+// Config::resolve precedence
 
 /// Helper: write a config file under a tempdir and hand back the
 /// path. Tests use this to populate both the explicit `-c` arg

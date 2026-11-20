@@ -241,7 +241,7 @@ storage:
     assert!(err.to_string().contains("storage.database.syncInterval"), "{err}");
 }
 
-// ----- serde defaults ---------------------------------------------------
+// serde defaults
 
 #[test]
 fn yaml_with_no_storage_uses_default_storage_string() {
