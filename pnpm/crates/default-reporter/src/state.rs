@@ -247,9 +247,6 @@ struct SummaryState {
     other_projects: HashMap<String, DiffBuckets>,
     /// Keyed by normalized prefix.
     manifest_diffs: HashMap<String, ManifestDiff>,
-    /// The packages reported deprecated, as (name, version). pnpm reports
-    /// each once, for whichever project reached it first.
-    deprecated_packages: HashSet<(String, String)>,
     /// Set by a `pnpm:summary` that covers a workspace of several projects.
     workspace: Option<WorkspaceSummary>,
     slot: BlockSlot,
@@ -272,7 +269,9 @@ struct LifecycleState {
 struct NoticeState {
     warnings: usize,
     collapsed_slot: BlockSlot,
-    deprecated_subdeps: Vec<DeprecationLog>,
+    /// Every `pnpm:deprecation` not printed yet. pnpm reports each
+    /// deprecated package once, for whichever project reached it first.
+    deprecations: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
     reported_peer_issues: bool,
     approvals: PendingApprovals,
@@ -497,6 +496,8 @@ mod progress;
 
 mod summary;
 
+mod deprecations;
+
 mod workspace_summary;
 use workspace_summary::WorkspaceSummary;
 
@@ -570,7 +571,6 @@ impl Default for SummaryState {
             diff: empty_diff_buckets(),
             other_projects: HashMap::new(),
             manifest_diffs: HashMap::new(),
-            deprecated_packages: HashSet::new(),
             workspace: None,
             slot: BlockSlot::default(),
             seen: false,

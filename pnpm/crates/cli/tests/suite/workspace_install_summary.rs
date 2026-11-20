@@ -85,7 +85,7 @@ fn first_workspace_install_lists_only_deprecated_dependencies() {
 
     assert_eq!(
         install_summary(workspace),
-        "dependencies:\n+ @pnpm.e2e/deprecated 1.0.0  packages/a",
+        "dependencies:\n+ @pnpm.e2e/deprecated 1.0.0 deprecated  packages/a",
     );
 
     drop(fixture);

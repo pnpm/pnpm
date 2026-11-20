@@ -2,6 +2,7 @@ use super::{
     BlockPlacement,
     DepKind,
     DiffBuckets,
+    HashSet,
     PackageDiff,
     PackageManifestMessage,
     ReporterState,
@@ -97,6 +98,7 @@ impl ReporterState {
             return;
         }
         self.summary.rendered = true;
+        self.notices.deprecations.clear();
         let mut slot = std::mem::take(&mut self.summary.slot);
         self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.summary.slot = slot;
@@ -109,8 +111,11 @@ impl ReporterState {
                 == normalized_prefix(&self.rendering.cwd, &self.rendering.cwd)
     }
 
+    /// The dependency sections, followed by the deprecation warnings no
+    /// line of theirs carries.
     pub(super) fn render_summary(&self) -> String {
         let mut msg = String::new();
+        let mut shown_deprecations = HashSet::new();
         let workspace = self.summary.workspace
             .as_ref()
             .map(|workspace| (workspace, self.new_project_requests(workspace)));
@@ -124,16 +129,34 @@ impl ReporterState {
             if lines.is_empty() {
                 continue;
             }
+            shown_deprecations.extend(
+                lines
+                    .iter()
+                    .filter(|(_, diff)| diff.added)
+                    .filter_map(|(_, diff)| self.deprecation_of(diff)),
+            );
             msg.push('\n');
             msg.push_str(&self.rendering.colors.cyan_bright(&format!("{}:", kind.header())));
             msg.push('\n');
-            msg.push_str(&lines.join("\n"));
+            msg.push_str(
+                &lines
+                    .into_iter()
+                    .map(|(line, _)| line)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            );
+            msg.push('\n');
+        }
+        let warnings = self.deprecation_warnings(&shown_deprecations);
+        if !warnings.is_empty() {
+            msg.push('\n');
+            msg.push_str(&warnings.join("\n"));
             msg.push('\n');
         }
         msg
     }
 
-    fn current_project_summary_lines(&self, kind: DepKind) -> Vec<String> {
+    fn current_project_summary_lines(&self, kind: DepKind) -> Vec<(String, &PackageDiff)> {
         let mut diffs: Vec<&PackageDiff> = self.summary.diff[diff_key(kind)]
             .values()
             .filter(|diff| !self.is_hidden_linked(diff))
@@ -144,8 +167,8 @@ impl ReporterState {
                 .then(u8::from(a.added).cmp(&u8::from(b.added)))
         });
         diffs
-            .iter()
-            .map(|diff| self.diff_line(diff))
+            .into_iter()
+            .map(|diff| (self.diff_line(diff), diff))
             .collect()
     }
 
@@ -175,6 +198,9 @@ impl ReporterState {
             result.push(' ');
             result.push_str(&self.rendering.colors.grey(version));
             result.push_str(&self.upgrade_hint(pkg, version));
+        }
+        if pkg.added {
+            result.push_str(&self.deprecation_marker(pkg));
         }
         if let Some(from) = &pkg.from {
             let rel = relative(&self.rendering.cwd, from);

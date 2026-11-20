@@ -270,6 +270,14 @@ impl DefaultReporter {
         let output = sink.state.flush_pending_approvals();
         sink.write(output, false);
     }
+
+    /// Print the deprecation warnings no install summary or `Done in ...`
+    /// footer carried.
+    pub fn flush_pending_deprecations() {
+        let mut sink = SINK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let output = sink.state.flush_pending_deprecations();
+        sink.write(output, false);
+    }
 }
 
 static SINK: LazyLock<Mutex<Sink>> = LazyLock::new(|| Mutex::new(Sink::new()));

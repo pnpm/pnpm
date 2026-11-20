@@ -185,23 +185,14 @@ fn first_workspace_install_lists_only_what_carries_information() {
             ),
         ],
     );
-    let warning = pnpm_default_reporter::format::zoom_out(
-        CWD,
-        "/repo/packages/a",
-        "[WARN] deprecated old@1.0.0",
-    );
     assert_eq!(
         frame,
-        format!(
-            "{warning}\n\
-         \n\
-         dependencies:\n\
-         + old 1.0.0  packages/a\n\
+        "\ndependencies:\n\
+         + old 1.0.0 deprecated  packages/a\n\
          + wanted 3.0.0  packages/a\n\
          \n\
          devDependencies:\n\
          + stale 1.0.0 (2.0.0 is available)  packages/b\n",
-        ),
     );
 }
 
@@ -218,7 +209,7 @@ fn deprecated_dependency_of_a_new_project_is_listed_whoever_it_was_reported_for(
             workspace_summary(&["/repo/packages/b"]),
         ],
     );
-    assert!(frame.ends_with("\ndependencies:\n+ old 1.0.0  packages/b\n"), "{frame}");
+    assert_eq!(frame, "\ndependencies:\n+ old 1.0.0 deprecated  packages/b\n");
 }
 
 #[test]
@@ -324,4 +315,41 @@ fn install_infers_no_requested_dependencies() {
         ],
     );
     assert_eq!(frame, "");
+}
+
+/// A deprecated package changed in several projects is one summary line, and
+/// no separate warning repeats it. One that did not change this install
+/// follows the sections, with the projects it was reported for.
+#[test]
+fn workspace_deprecations_join_the_summary() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            super::deprecation_with_alternative(
+                "request",
+                "2.88.2",
+                0,
+                "/repo/packages/api",
+                Some(super::NonDeprecatedAlternative {
+                    version: "3.0.0".to_string(),
+                    outside_declared_range: false,
+                }),
+            ),
+            deprecation("left-pad", "1.0.0", 0, "/repo/packages/web"),
+            deprecation("left-pad", "1.0.0", 0, "/repo/packages/cli"),
+            deprecation("uuid", "3.4.0", 2, "/repo/packages/api"),
+            added_root_at("/repo/packages/api", "request", "2.88.2", DependencyType::Prod),
+            added_root_at("/repo/packages/web", "request", "2.88.2", DependencyType::Prod),
+            workspace_summary(&[]),
+        ],
+    );
+    assert_eq!(
+        frame,
+        "\ndependencies:\n\
+         + request 2.88.2 deprecated. 3.0.0 is not deprecated.  packages/api, packages/web\n\
+         \n\
+         [WARN] deprecated: left-pad@1.0.0 (packages/cli, packages/web)\n\
+         [WARN] 1 deprecated subdependencies found: uuid@3.4.0\n",
+    );
 }

@@ -416,5 +416,8 @@ mod script_output;
 #[path = "render/peers.rs"]
 mod peers;
 
+#[path = "render/deprecations.rs"]
+mod deprecations;
+
 #[path = "render/workspace_summary.rs"]
 mod workspace_summary;

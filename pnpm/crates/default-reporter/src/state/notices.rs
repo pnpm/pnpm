@@ -4,7 +4,6 @@ use super::{
     BlockPlacement,
     Colors,
     DedupeCheckLog,
-    DeprecationLog,
     ExecutionTimeLog,
     Frame,
     HookLog,
@@ -51,33 +50,6 @@ fn format_pending_approval_packages(packages: &BTreeMap<String, BTreeSet<&str>>)
         })
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-/// `name@version` as a deprecation warning prints it.
-///
-/// Both halves come from the resolved manifest, which a git or tarball
-/// dependency writes itself, so neither is a validated npm package name.
-fn pkg_label(log: &DeprecationLog) -> String {
-    pnpm_text_sanitize::sanitize_inline(&format!("{}@{}", log.pkg_name, log.pkg_version))
-        .into_owned()
-}
-
-/// What to move to, when the resolver found a version that is not deprecated.
-///
-/// The version is pnpm's own reading of the packument rather than anything the
-/// publisher wrote, so unlike the notice it is safe to print. Empty when every
-/// published version is deprecated, or when the resolution came from the
-/// lockfile and no packument was fetched.
-fn alternative_hint(log: &DeprecationLog) -> String {
-    let Some(alternative) = log.non_deprecated_alternative.as_ref() else {
-        return String::new();
-    };
-    let version = pnpm_text_sanitize::sanitize_inline(&alternative.version);
-    if alternative.outside_declared_range {
-        format!(". {version} is not deprecated, outside the range you declared.")
-    } else {
-        format!(". {version} is not deprecated.")
-    }
 }
 
 impl ReporterState {
@@ -308,6 +280,7 @@ impl ReporterState {
     }
 
     pub(super) fn on_execution_time(&mut self, log: &ExecutionTimeLog) {
+        self.flush_deprecations();
         if self.options.append_only {
             self.render_pending_approvals();
         }
@@ -377,49 +350,6 @@ impl ReporterState {
             self.options.append_only,
             &message,
         );
-    }
-
-    /// Matches pnpm's `reportDeprecations.ts`: only direct-dependency
-    /// deprecations render immediately; transitive ones wait for the
-    /// `resolution_done` summary.
-    pub(super) fn on_deprecation(&mut self, log: &DeprecationLog) {
-        self.summary.deprecated_packages.insert((log.pkg_name.clone(), log.pkg_version.clone()));
-        if log.depth != 0 {
-            self.notices.deprecated_subdeps.push(log.clone());
-            return;
-        }
-        let msg = format!(
-            "{} {} {}{}",
-            self.rendering.colors.warn_label(),
-            self.rendering.colors.red("deprecated"),
-            pkg_label(log),
-            alternative_hint(log),
-        );
-        if !self.options.scope.recursive && log.prefix == self.rendering.cwd {
-            self.display.frame.push_block(msg);
-        } else {
-            self.display.frame.push_block(zoom_out(&self.rendering.cwd, &log.prefix, &msg));
-        }
-    }
-
-    pub(super) fn flush_deprecated_subdeps(&mut self) {
-        if self.notices.deprecated_subdeps.is_empty() {
-            return;
-        }
-        let mut names: Vec<String> = self.notices.deprecated_subdeps
-            .iter()
-            .map(pkg_label)
-            .collect();
-        names.sort();
-        let count = names.len();
-        let msg = format!(
-            "{} {} {}",
-            self.rendering.colors.warn_label(),
-            self.rendering.colors.red(&format!("{count} deprecated subdependencies found:")),
-            names.join(", "),
-        );
-        self.display.frame.emit(&mut self.notices.deprecated_slot, msg, BlockPlacement::Scrolling);
-        self.notices.deprecated_subdeps.clear();
     }
 
     /// Renders a `pnpm:hook` event as `hook: message`, matching pnpm's

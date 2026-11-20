@@ -93,12 +93,12 @@ struct WorkspaceChange<'a> {
 }
 
 impl ReporterState {
-    pub(super) fn workspace_summary_lines(
-        &self,
-        workspace: &WorkspaceSummary,
+    pub(super) fn workspace_summary_lines<'a>(
+        &'a self,
+        workspace: &'a WorkspaceSummary,
         requests: &NewProjectRequests<'_>,
         kind: DepKind,
-    ) -> Vec<String> {
+    ) -> Vec<(String, &'a PackageDiff)> {
         let mut changes: BTreeMap<ChangeKey<'_>, WorkspaceChange<'_>> = BTreeMap::new();
         for (prefix, buckets) in self.project_diffs(workspace) {
             let requested = requests.get(prefix);
@@ -118,11 +118,12 @@ impl ReporterState {
         changes
             .into_values()
             .map(|change| {
-                format!(
+                let line = format!(
                     "{}{}",
                     self.diff_line(change.diff),
-                    self.projects_suffix(workspace, change.projects),
-                )
+                    self.projects_suffix(change.projects),
+                );
+                (line, change.diff)
             })
             .collect()
     }
@@ -143,7 +144,7 @@ impl ReporterState {
     /// than that the project was installed: this command asked for it, or
     /// the dependency is deprecated or outdated.
     fn is_notable(&self, requested: &RequestedDependencies, diff: &PackageDiff) -> bool {
-        requested.contains(diff) || self.is_deprecated(diff) || is_outdated(diff)
+        requested.contains(diff) || self.deprecation_of(diff).is_some() || is_outdated(diff)
     }
 
     pub(super) fn new_project_requests<'a>(
@@ -188,37 +189,41 @@ impl ReporterState {
         requested
     }
 
-    fn is_deprecated(&self, diff: &PackageDiff) -> bool {
-        let Some(version) = &diff.version else {
-            return false;
-        };
-        let name = diff.real_name.as_ref().unwrap_or(&diff.name);
-        self.summary.deprecated_packages.contains(&(name.clone(), version.clone()))
-    }
-
     /// The projects that made a change, as paths relative to the workspace
     /// root. Empty when only the current project made it.
-    fn projects_suffix(&self, workspace: &WorkspaceSummary, mut projects: Vec<&str>) -> String {
-        if projects == [workspace.current_project.as_str()] {
-            return String::new();
+    fn projects_suffix(&self, projects: Vec<&str>) -> String {
+        self.project_names(projects)
+            .map(|names| format!("  {}", self.rendering.colors.grey(&names)))
+            .unwrap_or_default()
+    }
+
+    /// `projects` (normalized prefixes) as paths relative to the workspace
+    /// root, or to the cwd outside a workspace summary, at most
+    /// [`MAX_SHOWN_PROJECTS`] of them and then a count of the rest. `None`
+    /// when the current project is the only one.
+    pub(super) fn project_names(&self, mut projects: Vec<&str>) -> Option<String> {
+        let current_project = normalized_prefix(&self.rendering.cwd, &self.rendering.cwd);
+        if projects == [current_project.as_str()] {
+            return None;
         }
+        let root = self.summary.workspace
+            .as_ref()
+            .map_or(current_project.as_str(), |workspace| workspace.root.as_str());
         let hidden = projects.len().saturating_sub(MAX_SHOWN_PROJECTS);
         if hidden > 0 {
             projects.select_nth_unstable(MAX_SHOWN_PROJECTS - 1);
             projects.truncate(MAX_SHOWN_PROJECTS);
         }
         projects.sort_unstable();
-        let mut suffix = projects
+        let mut names = projects
             .iter()
-            .map(|prefix| {
-                sanitize_inline(&format_prefix_no_trim(&workspace.root, prefix)).into_owned()
-            })
+            .map(|prefix| sanitize_inline(&format_prefix_no_trim(root, prefix)).into_owned())
             .collect::<Vec<_>>()
             .join(", ");
         if hidden > 0 {
-            let _ = write!(suffix, " and {hidden} more");
+            let _ = write!(names, " and {hidden} more");
         }
-        format!("  {}", self.rendering.colors.grey(&suffix))
+        Some(names)
     }
 }
 
