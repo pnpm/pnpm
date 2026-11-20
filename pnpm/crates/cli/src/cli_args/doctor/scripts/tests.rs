@@ -166,16 +166,26 @@ fn fails_when_the_script_shell_is_missing() {
 }
 
 #[test]
-fn the_probe_install_gets_the_configured_script_shell() {
-    assert_eq!(shell_settings(&Config::default()), Vec::<String>::new());
-    let config = Config {
+fn the_probe_install_gets_the_effective_script_shell() {
+    let default_shell = if cfg!(windows) { None } else { Some("sh") };
+    if let Some(default_shell) = default_shell {
+        assert_eq!(
+            shell_settings(&Config::default()),
+            [
+                "--config.shell-emulator=false".to_owned(),
+                format!("--config.script-shell={default_shell}"),
+            ],
+        );
+    }
+    let configured = Config {
         script_shell: Some("/opt/shell".to_owned()),
         shell_emulator: true,
         ..Config::default()
     };
-
     assert_eq!(
-        shell_settings(&config),
-        ["--config.script-shell=/opt/shell", "--config.shell-emulator=true"],
+        shell_settings(&configured),
+        ["--config.shell-emulator=false", "--config.script-shell=/opt/shell"],
     );
+    let emulated = Config { shell_emulator: true, ..Config::default() };
+    assert_eq!(shell_settings(&emulated), ["--config.shell-emulator=true"]);
 }

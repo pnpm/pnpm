@@ -238,18 +238,16 @@ pub(super) fn check_lifecycle_scripts(
     .timed(benchmark, started)
 }
 
-/// The `--config` flags that give the probe install the configured script
-/// shell, which its temporary project would not otherwise read.
+/// The `--config` flags that give the probe install the shell scripts run in
+/// here. Its temporary project reads only the global config, and an empty
+/// value cannot clear a global setting, so the effective shell is passed
+/// even when it is the default.
 fn shell_settings(config: &Config) -> Vec<String> {
-    let mut settings = Vec::new();
-    if let Some(shell) = config.script_shell
-        .as_deref()
-        .filter(|shell| !shell.is_empty())
-    {
-        settings.push(format!("--config.script-shell={shell}"));
-    }
-    if config.shell_emulator {
-        settings.push("--config.shell-emulator=true".to_owned());
+    let script_shell = config.script_shell.as_deref().map(Path::new);
+    let emulator = use_shell_emulator(config.shell_emulator, script_shell);
+    let mut settings = vec![format!("--config.shell-emulator={emulator}")];
+    if !emulator && let Ok(shell) = select_shell(script_shell, cfg!(windows)) {
+        settings.push(format!("--config.script-shell={}", shell.program.display()));
     }
     settings
 }
