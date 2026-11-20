@@ -267,6 +267,7 @@ async function findOutdatedItems (
       ? outdatedDepsOfProjects(packages, packageParams, {
         ...opts,
         fullMetadata: opts.long,
+        followPrereleaseChannels: true,
         ignoreDependencies: opts.updateConfig?.ignoreDependencies,
         include,
         minimumReleaseAge: opts.minimumReleaseAge,

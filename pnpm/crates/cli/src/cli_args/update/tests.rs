@@ -235,3 +235,21 @@ fn constrained_patch_refresh_stays_on_the_client() {
             .can_delegate_patch_refresh(false, &all_groups),
     );
 }
+
+#[test]
+fn long_requests_details_only_when_enabled() {
+    for (flags, expected) in
+        [(vec!["--interactive"], false), (vec!["--interactive", "--long"], true)]
+    {
+        let args = update_args(&flags);
+        let options = args.interactive_options(&[], false);
+        assert_eq!(options.details.shows_urls(), expected);
+    }
+}
+
+#[test]
+fn long_rejects_global_package_group_selection() {
+    let error = UpdateArgsHarness::try_parse_from(["pnpm", "--global", "--interactive", "--long"])
+        .expect_err("global selection has no package URL column");
+    assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
+}

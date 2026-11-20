@@ -6,10 +6,14 @@
 //! order, which packages sit in each, and that every column lines up.
 
 use super::{ChoiceGroup, column_widths, pad_row, update_choices};
-use crate::cli_args::outdated::OutdatedPackage;
+use crate::cli_args::{
+    outdated::{OutdatedPackage, TrustChange},
+    update_interactive::UpdateDetails,
+};
 use console::measure_text_width;
 use node_semver::Version;
 use pnpm_package_manifest::DependencyGroup;
+use pnpm_resolving_npm_resolver::TrustEvidence;
 
 fn v(text: &str) -> Version {
     text.parse().expect("parse semver")
@@ -67,7 +71,7 @@ fn groups_by_dependency_type_in_manifest_order() {
         pkg("qaz", "qaz", "1.0.1", "1.2.0", DependencyGroup::Optional),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     let rendered: Vec<(&str, Vec<&str>)> = groups
         .iter()
@@ -89,7 +93,7 @@ fn groups_by_dependency_type_in_manifest_order() {
 fn each_group_opens_with_an_unselectable_header() {
     let packages = [pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod)];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     let header = &groups[0].rows[0];
     assert_eq!(header.value, None);
@@ -108,7 +112,7 @@ fn a_package_outdated_in_two_groups_is_offered_once() {
         pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Dev),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     assert_eq!(groups.len(), 1);
     assert_eq!(groups[0].message, "dependencies");
@@ -124,7 +128,7 @@ fn the_same_name_at_different_versions_is_offered_twice() {
         pkg("qaz", "foo", "1.0.1", "1.2.0", DependencyGroup::Dev),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     // The row is labelled by package name but selects by alias, so the
     // npm-aliased entry updates `qaz` rather than the name it resolves to.
@@ -140,7 +144,7 @@ fn github_actions_form_their_own_group() {
     action.github_action = true;
     let packages = [pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Dev), action];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     let rendered: Vec<(&str, Vec<&str>)> = groups
         .iter()
@@ -165,7 +169,7 @@ fn a_long_version_keeps_the_row_on_one_line() {
         DependencyGroup::Dev,
     )];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     let row = &groups[0].rows[1];
     assert_eq!(row.value.as_deref(), Some("@typescript/native-preview"));
@@ -189,7 +193,7 @@ fn columns_line_up_within_a_group() {
         pkg("b", "b", "1.0.0", "2.0.0", DependencyGroup::Prod),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     let offsets = arrow_offsets(&groups[0]);
     assert_eq!(offsets[0], offsets[1]);
@@ -212,7 +216,7 @@ fn columns_line_up_across_groups() {
         pkg("b", "b", "1.0.0", "2.0.0", DependencyGroup::Dev),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     assert_eq!(groups.len(), 2);
     assert_eq!(arrow_offsets(&groups[0]), arrow_offsets(&groups[1]));
@@ -227,7 +231,7 @@ fn the_header_row_lines_up_with_its_rows() {
     package.metadata.homepage = Some("https://example.test/".to_string());
     package.metadata.workspace = Some("web".to_string());
 
-    let groups = update_choices(&[&package], true);
+    let groups = update_choices(&[&package], true, UpdateDetails::Long);
 
     let header = &groups[0].rows[0].label;
     let row = &groups[0].rows[1].label;
@@ -266,7 +270,7 @@ fn a_wide_name_does_not_shift_its_row() {
         pkg("b", "b", "1.0.0", "2.0.0", DependencyGroup::Prod),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     let offsets = arrow_offsets(&groups[0]);
     assert_eq!(offsets, vec![offsets[0]; 3]);
@@ -295,7 +299,7 @@ fn colour_escapes_do_not_count_toward_a_cells_width() {
 /// Nothing outdated means nothing to choose from.
 #[test]
 fn an_empty_set_produces_no_groups() {
-    assert_eq!(update_choices(&[], false), Vec::new());
+    assert_eq!(update_choices(&[], false, UpdateDetails::Long), Vec::new());
 }
 
 /// Two manifest entries aliasing the same package are separate
@@ -308,7 +312,7 @@ fn two_aliases_of_one_package_are_both_offered() {
         pkg("b", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     assert_eq!(values(&groups[0]), vec!["a", "b"]);
 }
@@ -322,7 +326,7 @@ fn control_characters_in_registry_metadata_are_stripped() {
     package.metadata.homepage = Some("https://example.test/\u{1b}[2J\nEVIL".to_string());
     let packages = [package];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     let row = &groups[0].rows[1];
     assert!(!row.label.contains('\u{1b}'), "escape survived: {:?}", row.label);
@@ -341,7 +345,7 @@ fn a_workspace_run_names_the_project_each_row_came_from() {
     in_lib.metadata.workspace = Some("lib".to_string());
     let packages = [in_app, in_lib];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true, UpdateDetails::Long);
 
     assert!(groups[0].rows[0].label.contains("Workspace"));
     assert!(groups[0].rows[1].label.contains("app"), "{}", groups[0].rows[1].label);
@@ -356,7 +360,7 @@ fn a_single_project_run_has_no_workspace_column() {
     package.metadata.workspace = Some("solo".to_string());
     let packages = [package];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     assert!(!groups[0].rows[0].label.contains("Workspace"));
     assert!(!groups[0].rows[1].label.contains("solo"), "{}", groups[0].rows[1].label);
@@ -373,7 +377,7 @@ fn a_collapsed_row_names_every_project_it_covers() {
     in_tooling.metadata.workspace = Some("tooling".to_string());
     let packages = [in_web, in_tooling];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true, UpdateDetails::Long);
 
     assert_eq!(values(&groups[0]), vec!["foo"]);
     assert!(groups[0].rows[1].label.contains("web, tooling"), "{}", groups[0].rows[1].label);
@@ -392,7 +396,7 @@ fn a_row_shared_by_many_projects_counts_the_projects_that_do_not_fit() {
         })
         .collect();
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true, UpdateDetails::Long);
 
     let row = &groups[0].rows[1].label;
     assert_eq!(workspace_cell(row), "example-workspace-package-01, +11 more", "{row}");
@@ -411,7 +415,7 @@ fn projects_that_fit_are_named_before_the_rest_are_counted() {
         })
         .collect();
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true, UpdateDetails::Long);
 
     let row = &groups[0].rows[1].label;
     assert_eq!(workspace_cell(row), "app, web, lib, docs, +3 more", "{row}");
@@ -423,7 +427,7 @@ fn a_lone_project_with_a_long_name_is_named_in_full() {
     let mut package = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
     package.metadata.workspace = Some("a-project-name-longer-than-the-column".to_string());
 
-    let groups = update_choices(&[&package], true);
+    let groups = update_choices(&[&package], true, UpdateDetails::Long);
 
     let row = &groups[0].rows[1].label;
     assert_eq!(workspace_cell(row), "a-project-name-longer-than-the-column", "{row}");
@@ -447,7 +451,7 @@ fn a_repeated_project_is_named_once() {
     second.metadata.workspace = Some("web".to_string());
     let packages = [first, second];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), true, UpdateDetails::Long);
 
     assert!(!groups[0].rows[1].label.contains("web, web"), "{}", groups[0].rows[1].label);
 }
@@ -461,7 +465,7 @@ fn rows_of_one_alias_key_the_notes_of_their_own_range() {
         pkg("foo", "foo", "1.5.0", "2.0.0", DependencyGroup::Prod),
     ];
 
-    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
 
     let keys: Vec<Option<String>> = groups[0].rows
         .iter()
@@ -476,4 +480,101 @@ fn rows_of_one_alias_key_the_notes_of_their_own_range() {
         ],
     );
     assert_ne!(keys[1], keys[2]);
+}
+
+fn with_trust(
+    mut package: OutdatedPackage,
+    current: Option<TrustEvidence>,
+    target: Option<TrustEvidence>,
+) -> OutdatedPackage {
+    package.metadata.trust = Some(TrustChange { current, target });
+    package.metadata.homepage = Some("https://example.test/".to_string());
+    package
+}
+
+#[test]
+fn trust_evidence_adds_a_trust_column_before_the_url() {
+    let packages = [
+        with_trust(
+            pkg("kept", "kept", "1.0.0", "1.1.0", DependencyGroup::Prod),
+            Some(TrustEvidence::Provenance),
+            Some(TrustEvidence::Provenance),
+        ),
+        with_trust(
+            pkg("gained", "gained", "1.0.0", "1.1.0", DependencyGroup::Prod),
+            None,
+            Some(TrustEvidence::TrustedPublisher),
+        ),
+        with_trust(
+            pkg("unsigned", "unsigned", "1.0.0", "1.1.0", DependencyGroup::Prod),
+            None,
+            None,
+        ),
+    ];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
+
+    let header = &groups[0].rows[0].label;
+    for (row, cell) in [(1, "provenance"), (2, "trusted publisher"), (3, "none")] {
+        let label = &groups[0].rows[row].label;
+        assert_eq!(column_of(header, "Trust"), column_of(label, cell), "{header}\n{label}");
+        assert_eq!(column_of(header, "URL"), column_of(label, "https://"), "{header}\n{label}");
+    }
+}
+
+#[test]
+fn a_trust_downgrade_names_the_evidence_it_loses() {
+    let packages = [with_trust(
+        pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod),
+        Some(TrustEvidence::TrustedPublisher),
+        Some(TrustEvidence::Provenance),
+    )];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
+
+    let label = &groups[0].rows[1].label;
+    assert!(label.contains("provenance (was trusted publisher)"), "{label}");
+}
+
+/// A GitHub Action has no registry trust evidence, so its cell is empty
+/// while the dependencies next to it still get the column.
+#[test]
+fn a_row_without_trust_evidence_leaves_its_cell_empty() {
+    let mut action =
+        pkg("actions/checkout", "actions/checkout", "4.0.0", "5.0.0", DependencyGroup::Dev);
+    action.github_action = true;
+    let packages = [
+        with_trust(pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod), None, None),
+        action,
+    ];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
+
+    assert!(groups[1].rows[0].label.contains("Trust"), "{}", groups[1].rows[0].label);
+    assert!(!groups[1].rows[1].label.contains("none"), "{}", groups[1].rows[1].label);
+}
+
+#[test]
+fn no_trust_column_without_trust_evidence() {
+    let packages = [pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod)];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false, UpdateDetails::Long);
+
+    assert!(!groups[0].rows[0].label.contains("Trust"), "{}", groups[0].rows[0].label);
+}
+
+#[test]
+fn long_uses_repository_when_homepage_is_missing_and_sanitizes_urls() {
+    let mut package = pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    package.metadata.repository = Some("https://example.com/\x1b[31mrepo\n".to_string());
+    for homepage in [None, Some(String::new())] {
+        package.metadata.homepage = homepage;
+        let groups = update_choices(&[&package], false, UpdateDetails::Long);
+        dbg!(&groups);
+        assert!(groups[0].rows[1].label.ends_with("https://example.com/[31mrepo"));
+        assert!(!groups[0].rows[1].label.contains(['\x1b', '\n']));
+    }
+    package.metadata.repository = None;
+    let groups = update_choices(&[&package], false, UpdateDetails::Long);
+    assert_eq!(groups[0].rows[1].label.split_whitespace().last(), Some("2.0.0"));
 }

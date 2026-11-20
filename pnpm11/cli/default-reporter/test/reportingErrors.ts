@@ -131,6 +131,25 @@ ${ERROR_PAD}
 ${ERROR_PAD}If you need the full list of all 4 published versions run "pnpm view is-positive versions".`)
 })
 
+test('prints the hint of a no matching version error that carries no registry metadata', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  expect.assertions(1)
+
+  const err = new PnpmError('NO_MATCHING_VERSION', 'Override "foo@^1": "1.9.0" targets a version of foo that does not exist on the registry.', {
+    hint: 'The latest release of foo matching "^1" is "1.2.0".',
+  })
+  logger.error(err, err)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`${formatError('ERR_PNPM_NO_MATCHING_VERSION', 'Override "foo@^1": "1.9.0" targets a version of foo that does not exist on the registry.')}
+${ERROR_PAD}
+${ERROR_PAD}The latest release of foo matching "^1" is "1.2.0".`)
+})
+
 test('prints suggestions when an internet-connection related error happens', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },

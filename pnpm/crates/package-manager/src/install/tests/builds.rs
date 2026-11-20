@@ -199,6 +199,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,

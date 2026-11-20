@@ -2,6 +2,8 @@ import path from 'node:path'
 
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { createVersionsOverrider } from '@pnpm/hooks.read-package-hook'
 import npa from '@pnpm/npm-package-arg'
 import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/resolving.npm-resolver'
 import { type BaseManifest, isPlainObject, type ProjectRootDir } from '@pnpm/types'
@@ -18,10 +20,39 @@ export interface ProjectGraphNode<Pkg extends BaseProject> {
   dependencies: ProjectRootDir[]
 }
 
+/**
+ * The `overrides` setting, applied to every manifest before its edges are
+ * read, so the edges follow what the install resolves rather than what the
+ * manifests declare: an override that points a dependency at a workspace
+ * project (`workspace:`, `link:`, `file:`) makes that project a dependency,
+ * whatever range the manifest declares and whether or not
+ * `linkWorkspacePackages` is on.
+ */
+export interface ProjectsGraphOverrides {
+  overrides: Record<string, string>
+  catalogs?: Catalogs
+  /** Anchors relative `link:` and `file:` override targets. */
+  lockfileDir: string
+}
+
+/**
+ * The {@link ProjectsGraphOverrides} for a workspace's config, or `undefined`
+ * when no overrides are configured. Relative targets are anchored at
+ * `lockfileDir`, falling back to `workspaceDir`, as the install anchors them.
+ */
+export function getProjectsGraphOverrides (
+  config: { overrides?: Record<string, string>, catalogs?: Catalogs, lockfileDir?: string },
+  workspaceDir: string
+): ProjectsGraphOverrides | undefined {
+  if (config.overrides == null) return undefined
+  return { overrides: config.overrides, catalogs: config.catalogs, lockfileDir: config.lockfileDir ?? workspaceDir }
+}
+
 export interface CreateProjectsGraphOptions {
   catalogs?: Catalogs
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
+  overrides?: ProjectsGraphOverrides
 }
 
 export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], opts?: CreateProjectsGraphOptions): {
@@ -32,6 +63,7 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
   const projectMapValues = Object.values(projectMap)
   const unmatched: Array<{ pkgName: string, range: string }> = []
   const context: GraphResolutionContext = {
+    applyOverrides: createOverridesApplier(opts?.overrides),
     catalogs: opts?.catalogs ?? {},
     ignoreDevDeps: opts?.ignoreDevDeps,
     linkWorkspacePackages: opts?.linkWorkspacePackages,
@@ -48,6 +80,7 @@ export function createProjectsGraph<Pkg extends BaseProject> (projects: Pkg[], o
 }
 
 interface GraphResolutionContext {
+  applyOverrides: (manifest: BaseManifest, dir: string) => BaseManifest
   catalogs: Catalogs
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
@@ -58,11 +91,12 @@ interface GraphResolutionContext {
 }
 
 function resolveProjectDependencies (project: BaseProject, ctx: GraphResolutionContext): string[] {
+  const manifest = ctx.applyOverrides(project.manifest, project.rootDir)
   const dependencies = {
-    ...plainDependencyMap(project.manifest.peerDependencies),
-    ...(!ctx.ignoreDevDeps && plainDependencyMap(project.manifest.devDependencies)),
-    ...plainDependencyMap(project.manifest.optionalDependencies),
-    ...plainDependencyMap(project.manifest.dependencies),
+    ...plainDependencyMap(manifest.peerDependencies),
+    ...(!ctx.ignoreDevDeps && plainDependencyMap(manifest.devDependencies)),
+    ...plainDependencyMap(manifest.optionalDependencies),
+    ...plainDependencyMap(manifest.dependencies),
   }
 
   return Object.entries(dependencies)
@@ -222,6 +256,26 @@ function matchCandidateByVersion ({
 function parseRegistrySpec (depName: string, npmSpec: string): { depName: string, rawSpec: string } {
   const parsed = parseBareSpecifier(npmSpec, depName, 'latest', '')
   return parsed ? { depName: parsed.name, rawSpec: parsed.fetchSpec } : { depName, rawSpec: npmSpec }
+}
+
+function createOverridesApplier (overrides: ProjectsGraphOverrides | undefined): (manifest: BaseManifest, dir: string) => BaseManifest {
+  if (overrides == null || Object.keys(overrides.overrides).length === 0) return (manifest) => manifest
+  // The overrider clones the fields it rewrites and never awaits, so the
+  // manifest it hands back is a plain value.
+  const versionOverrides = parseOverrides(overrides.overrides, overrides.catalogs)
+  const overrideManifest = createVersionsOverrider(versionOverrides, overrides.lockfileDir, { catalogs: overrides.catalogs }) as
+    (manifest: BaseManifest, dir: string) => BaseManifest
+  return (manifest, dir) => overrideManifest(withPlainDependencyMaps(manifest), dir)
+}
+
+function withPlainDependencyMaps (manifest: BaseManifest): BaseManifest {
+  return {
+    ...manifest,
+    dependencies: plainDependencyMap(manifest.dependencies) as BaseManifest['dependencies'],
+    devDependencies: plainDependencyMap(manifest.devDependencies) as BaseManifest['devDependencies'],
+    optionalDependencies: plainDependencyMap(manifest.optionalDependencies) as BaseManifest['optionalDependencies'],
+    peerDependencies: plainDependencyMap(manifest.peerDependencies) as BaseManifest['peerDependencies'],
+  }
 }
 
 function isRelativePathSpec (spec: string): boolean {

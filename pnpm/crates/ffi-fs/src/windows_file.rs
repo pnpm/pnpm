@@ -12,10 +12,11 @@ use windows_sys::Win32::{
     Foundation::S_OK,
     Storage::FileSystem::{
         BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT,
-        FILE_BASIC_INFO, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
-        FILE_SHARE_WRITE, FileBasicInfo, GetFileAttributesW, GetFileInformationByHandle,
-        GetFileInformationByHandleEx, GetShortPathNameW, INVALID_FILE_ATTRIBUTES,
-        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+        FILE_ATTRIBUTE_TAG_INFO, FILE_BASIC_INFO, FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, FileAttributeTagInfo, FileBasicInfo, GetFileAttributesW,
+        GetFileInformationByHandle, GetFileInformationByHandleEx, GetShortPathNameW,
+        INVALID_FILE_ATTRIBUTES, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
     },
     System::{Com::CoTaskMemFree, SystemInformation::GetSystemDirectoryW},
     UI::Shell::{FOLDERID_LocalAppData, KF_FLAG_DONT_VERIFY, SHGetKnownFolderPath},
@@ -59,6 +60,36 @@ pub fn file_information(path: &Path) -> io::Result<FileInformation> {
         index: (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow),
         hard_links: info.nNumberOfLinks,
     })
+}
+
+/// The reparse tag `path` itself carries, or `None` when `path` is no
+/// reparse point or cannot be opened.
+///
+/// The path is opened without following it, so the tag describes `path`
+/// rather than whatever it points at. `std` reports a junction and a
+/// symlink alike, so the tag is what tells them apart.
+#[must_use]
+pub fn reparse_tag(path: &Path) -> Option<u32> {
+    let file = std::fs::OpenOptions::new()
+        .access_mode(FILE_READ_ATTRIBUTES)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path)
+        .ok()?;
+    let mut info = FILE_ATTRIBUTE_TAG_INFO { FileAttributes: 0, ReparseTag: 0 };
+    // SAFETY: `info` is a stack local of exactly the type
+    // `FileAttributeTagInfo` writes, writable for the size passed, which is
+    // its own size. The `File` keeps the handle open across the call, and
+    // the call retains no pointer.
+    let read = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            FileAttributeTagInfo,
+            (&raw mut info).cast(),
+            u32::try_from(size_of::<FILE_ATTRIBUTE_TAG_INFO>()).ok()?,
+        )
+    };
+    (read != 0 && info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0)
+        .then_some(info.ReparseTag)
 }
 
 /// The change time of the file at `path`, in 100-nanosecond ticks since

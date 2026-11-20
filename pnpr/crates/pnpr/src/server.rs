@@ -1,11 +1,14 @@
+pub(crate) mod ecosystem;
+
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub(crate) use grant_directory::validate_for as validate_grant;
 pub use lifecycle::{prepare_storage, serve, serve_listener, serve_listener_with};
 pub(crate) use local_registry::LocalRegistry;
 pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use registry_graph::{
-    Credentials, FileReferences, HostedChange, RoutingSnapshot, carry_pinned_routing,
-    check_revision, graph_version, occupied_namespace_error, stored_document, with_stored_routing,
+    Credentials, DefaultGrants, FileReferences, HostedChange, RoutingSnapshot,
+    carry_pinned_routing, check_revision, graph_version, occupied_namespace_error, stored_document,
+    with_stored_routing,
 };
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
@@ -124,7 +127,6 @@ mod cargo;
 mod client_ip;
 mod compiler_cache;
 mod documents;
-mod ecosystem;
 mod health;
 use health::shutdown_signal;
 mod keyed_semaphores;
@@ -169,9 +171,9 @@ mod tests;
 use self::{
     authentication::{
         Action, AuthedCaller, AuthorizationDecision, Ownership, allows_with_ownership,
-        authenticate, authorize, authorize_against_packument, authorize_continuation,
-        authorize_package, authorize_package_write, authorize_with_ownership,
-        authorize_without_owners, needs_package_owners,
+        authenticate, authorize, authorize_against_packument, authorize_package,
+        authorize_package_write, authorize_with_ownership, authorize_without_owners,
+        needs_package_owners,
     },
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{

@@ -1,4 +1,4 @@
-use super::{BlobUpload, BlobUploadWriter, generate_upload_id, is_upload_id};
+use super::{BlobUpload, BlobUploadWriter, UploadPrincipal, generate_upload_id, is_upload_id};
 use crate::s3::send_parts;
 use futures_util::StreamExt;
 use object_store::{ObjectStore, ObjectStoreExt, PutMode, PutOptions, UpdateVersion, path::Path};
@@ -26,6 +26,7 @@ pub(crate) struct RemoteUploadStore {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct UploadRecord {
     repository: String,
+    principal: UploadPrincipal,
     chunks: Vec<String>,
     size: u64,
     closed: bool,
@@ -122,10 +123,15 @@ impl RemoteUploadStore {
         })
     }
 
-    pub(super) async fn begin(&self, repository: &CanonicalPackageName) -> Result<BlobUpload> {
+    pub(super) async fn begin(
+        &self,
+        repository: &CanonicalPackageName,
+        principal: Option<&str>,
+    ) -> Result<BlobUpload> {
         let id = generate_upload_id();
         let record = UploadRecord {
             repository: repository.as_str().to_string(),
+            principal: UploadPrincipal::from_user_id(principal),
             chunks: Vec::new(),
             size: 0,
             closed: false,
@@ -138,10 +144,14 @@ impl RemoteUploadStore {
     pub(super) async fn open(
         &self,
         repository: &CanonicalPackageName,
+        principal: Option<&str>,
         id: &str,
     ) -> Result<Option<BlobUpload>> {
         let Some(state) = self.read(id).await? else { return Ok(None) };
-        if state.record.closed || state.record.repository != repository.as_str() {
+        if state.record.closed
+            || state.record.repository != repository.as_str()
+            || state.record.principal != UploadPrincipal::from_user_id(principal)
+        {
             return Ok(None);
         }
         self.handle(id, state).await.map(Some)

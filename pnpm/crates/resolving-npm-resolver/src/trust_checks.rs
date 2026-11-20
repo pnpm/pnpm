@@ -335,6 +335,22 @@ pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
     trust_evidence_of(version.npm_user.as_ref(), &version.dist)
 }
 
+/// [`get_trust_evidence`] for a resolved version's manifest, as the
+/// resolver returns it in `ResolvedPackageInfo::manifest`.
+#[must_use]
+pub fn get_manifest_trust_evidence(manifest: &serde_json::Value) -> Option<TrustEvidence> {
+    let is_set = |pointer: &str| {
+        manifest
+            .pointer(pointer)
+            .is_some_and(|value| !value.is_null())
+    };
+    classify_trust_evidence(
+        is_set("/_npmUser/approver"),
+        is_set("/_npmUser/trustedPublisher"),
+        is_set("/dist/attestations/provenance"),
+    )
+}
+
 /// [`get_trust_evidence`] for the policy fields of a version.
 #[must_use]
 pub(crate) fn get_policy_trust_evidence(fields: &VersionPolicyFields) -> Option<TrustEvidence> {

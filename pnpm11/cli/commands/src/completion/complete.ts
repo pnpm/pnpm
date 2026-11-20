@@ -92,10 +92,20 @@ async function completeWorkspaceProjectNames (): Promise<CompletionItem[]> {
 }
 
 async function completeCommandParams (ctx: CompletionContext, input: CompletionInput): Promise<CompletionItem[]> {
-  const commandCompletion = input.cmd ? ctx.completionByCommandName[input.cmd] : undefined
-  if (!input.cmd || input.currentTypedWordType === 'value' && !commandCompletion) {
+  if (!input.cmd) {
+    const commands = ctx.initialCompletion()
+    const scripts = await completeParams(ctx.completionByCommandName.run, input)
+    const commandNames = new Set(commands.map(({ name }) => name))
+    return [...commands, ...scripts.filter(({ name }) => name && !name.startsWith('.') && !name.startsWith('-') && !commandNames.has(name))]
+  }
+  const commandCompletion = ctx.completionByCommandName[input.cmd]
+  if (input.currentTypedWordType === 'value' && !commandCompletion) {
     return ctx.initialCompletion()
   }
+  return completeParams(commandCompletion, input)
+}
+
+async function completeParams (commandCompletion: CompletionFunc | undefined, input: CompletionInput): Promise<CompletionItem[]> {
   if (!commandCompletion) return []
   try {
     return await commandCompletion(input.options, input.params)

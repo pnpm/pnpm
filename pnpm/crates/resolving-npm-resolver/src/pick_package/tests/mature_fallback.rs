@@ -32,6 +32,7 @@ fn fallback_preserves_the_first_pick_and_preferred_versions() {
             published_by_exclude: None,
             pick_lowest_version: false,
             include_latest_tag: false,
+            current_version: None,
             ignore_missing_time_field: false,
         };
         let picked = pick_matching_version_fast(&opts, &range_spec("acme", "^1.0.0"), &meta)

@@ -301,9 +301,19 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
 
             time_based: self.setup.policy.time_based,
 
-            registries_by_prefix: self.registries.named.clone(),
+            registry_context: self.registry_context(),
+            parsed_overrides: self.prep.transforms.override_entries.clone(),
+        }
+    }
+
+    fn registry_context(&self) -> pnpm_lockfile::RegistryContext {
+        pnpm_lockfile::RegistryContext {
             registries: self.registries.by_scope.clone(),
+            registries_by_prefix: self.registries.named.clone(),
             declared_prefixes: self.registries.declared.clone(),
+            registry_options_by_url: self.install.drivers.config
+                .registry_options_by_url
+                .clone(),
             locked_registries: self.registries.locked.clone(),
         }
     }

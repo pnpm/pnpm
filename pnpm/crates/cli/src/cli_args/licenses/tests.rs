@@ -9,48 +9,48 @@ use serde_json::json;
 use tempfile::TempDir;
 
 #[test]
-fn project_runtime_from_json5_selects_the_license_store_slot() {
+fn license_store_slot_follows_the_lockfile_runtime_pin() {
     let dir = TempDir::new().unwrap();
-    let lockfile: Lockfile = serde_saphyr::from_str(
-        "lockfileVersion: '9.0'\nimporters: {}\nsnapshots:\n  native@1.0.0: {}\n",
-    )
-    .unwrap();
+    let lockfile = |importers: &str| -> Lockfile {
+        serde_saphyr::from_str(&format!(
+            "lockfileVersion: '9.0'\nimporters: {importers}\nsnapshots:\n  native@1.0.0: {{}}\n",
+        ))
+        .unwrap()
+    };
+    let unpinned = lockfile("{}");
+    let pinned = lockfile(
+        "\n  .:\n    devDependencies:\n      node:\n        specifier: runtime:18.0.0\n        version: runtime:18.0.0",
+    );
     let key = "native@1.0.0".parse().unwrap();
     let mut config = Config {
         enable_global_virtual_store: true,
         global_virtual_store_dir: dir.path().join("store/links"),
-        node_version: Some("18.0.0".to_owned()),
         ..Config::default()
     };
     config.allow_builds.insert("native".to_owned(), true);
-    let expected = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
-    config.node_version = Some("20.0.0".to_owned());
-    let other = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
-    dbg!(&expected, &other);
-    assert_ne!(expected, other);
-    config.node_version = None;
-    std::fs::write(
-        dir.path().join("package.json5"),
-        "{devEngines: {runtime: {name: 'node', version: '18.0.0'}}}",
+    let slot_dir = |config: &Config, lockfile: &Lockfile| {
+        super::lockfiles::lockfile_layout(config, dir.path(), lockfile).unwrap().slot_dir(&key)
+    };
+    let pinned_18 = pnpm_deps_restorer::VirtualStoreLayout::new(
+        &config,
+        Some(&pnpm_graph_hasher::engine_name(18, None, None)),
+        pinned.snapshots.as_ref(),
+        pinned.packages.as_ref(),
+        Some(&pnpm_deps_restorer::AllowBuildPolicy::from_config(&config).unwrap()),
+        Some(dir.path()),
     )
-    .unwrap();
-    let actual = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
-    assert_eq!(actual, expected);
+    .slot_dir(&key);
+    assert_eq!(slot_dir(&config, &pinned), pinned_18);
+    let host = slot_dir(&config, &unpinned);
+    config.node_version = Some("20.0.0".to_owned());
+    assert_eq!(slot_dir(&config, &unpinned), host, "nodeVersion does not move the store slot");
+    assert_eq!(slot_dir(&config, &pinned), pinned_18);
     std::fs::write(
         dir.path().join("package.json"),
-        r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0"}}}"#,
+        r#"{"devEngines":{"runtime":{"name":"node","version":"20.0.0","onFail":"warn"}}}"#,
     )
     .unwrap();
-    let preferred = super::lockfiles::lockfile_layout(&config, dir.path(), dir.path(), &lockfile)
-        .unwrap()
-        .slot_dir(&key);
-    assert_eq!(preferred, other);
+    assert_eq!(slot_dir(&config, &unpinned), host, "an undownloaded runtime does not either");
 }
 
 #[test]

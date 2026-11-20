@@ -55,6 +55,9 @@
       "path": "../../../text/ordinal-comparator"
     },
     {
+      "path": "../../../workspace/state"
+    },
+    {
       "path": "../../path"
     }
   ]

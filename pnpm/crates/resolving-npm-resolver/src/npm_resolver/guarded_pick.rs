@@ -32,7 +32,8 @@ pub(crate) struct PickFromRegistryOptions<'a> {
     pub spec: &'a RegistryPackageSpec,
     pub preferred_version_selectors: Option<&'a pnpm_resolving_resolver_base::VersionSelectors>,
     pub pick_lowest_version: bool,
-    pub include_latest_tag: bool,
+    /// Set when the `latest` dist-tag competes with the requested spec.
+    pub latest_tag: Option<LatestTagCandidates<'a>>,
     pub checks: CandidateChecks<'a>,
     pub policy: crate::PackagePickPolicy<'a>,
     pub request: crate::MetadataPickRequest,
@@ -52,7 +53,11 @@ impl<'a> PickFromRegistryOptions<'a> {
             spec,
             preferred_version_selectors,
             pick_lowest_version: opts.version.pick_lowest_version,
-            include_latest_tag: opts.refresh.update == UpdateBehavior::Latest,
+            latest_tag: (opts.refresh.update == UpdateBehavior::Latest).then_some(
+                LatestTagCandidates {
+                    current_version: opts.version.latest_current_version.as_ref(),
+                },
+            ),
             checks: CandidateChecks::new(&opts.policy, trust_check),
             policy: crate::PackagePickPolicy {
                 published_by: opts.policy.published_by,
@@ -69,6 +74,14 @@ impl<'a> PickFromRegistryOptions<'a> {
             },
         }
     }
+}
+
+/// The dist-tags that compete with the requested spec on an update to latest.
+#[derive(Clone, Copy)]
+pub(crate) struct LatestTagCandidates<'a> {
+    /// An installed prerelease whose prerelease channel's dist-tag competes
+    /// alongside `latest`.
+    pub current_version: Option<&'a node_semver::Version>,
 }
 
 /// Checks that can set a picked candidate aside so the picker tries the
@@ -108,7 +121,8 @@ pub(super) fn pick_options<'o>(
         registry: opts.registry,
         preferred_version_selectors: opts.preferred_version_selectors,
         pick_lowest_version: opts.pick_lowest_version,
-        include_latest_tag: opts.include_latest_tag,
+        include_latest_tag: opts.latest_tag.is_some(),
+        current_version: opts.latest_tag.and_then(|latest_tag| latest_tag.current_version),
         blocked_versions: (!blocked_versions.is_empty()).then_some(blocked_versions),
         policy: opts.policy,
         request: opts.request,

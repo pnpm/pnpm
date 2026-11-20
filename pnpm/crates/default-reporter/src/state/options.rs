@@ -7,11 +7,9 @@ pub struct ReporterOptions {
     pub append_only: bool,
     /// Verbosity ceiling from pnpm's `--loglevel` setting.
     pub max_log_level: MaxLogLevel,
-    /// Replaces the second line of the ignored-builds box — the one that
-    /// tells the user how to approve a build. pnpm's
+    /// Replaces the build instruction in the approval notice. pnpm's
     /// `approveBuildsInstructionText`, for embedders whose users approve
-    /// builds through the embedder's own configuration rather than
-    /// `pnpm approve-builds`.
+    /// builds through the embedder's own configuration rather than pnpm.
     pub ignored_builds_instruction_text: Option<String>,
     /// Package-name patterns whose *linked* entries are left out of the
     /// packages-diff summary — an entry is linked when it carries a

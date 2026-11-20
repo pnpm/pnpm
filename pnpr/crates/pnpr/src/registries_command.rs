@@ -6,8 +6,8 @@ use crate::{
     Config, RegistriesSubcommand, RegistryError,
     audit::Actor,
     server::{
-        Credentials, HostedChange, check_revision, graph_version, occupied_namespace_error,
-        stored_document,
+        Credentials, DefaultGrants, HostedChange, check_revision, graph_version,
+        occupied_namespace_error, stored_document,
     },
 };
 use pnpm_diagnostics::{print, println};
@@ -92,7 +92,9 @@ async fn import(config: &Config, file: &Path, mode: ImportMode) -> Result<Import
         println!("Would change: {}", describe_import(&changes, current));
         return Ok(Imported::Differs);
     }
-    let checked = check_revision(config, &storage, &previous, &next, Credentials::Skip).await?;
+    let checked =
+        check_revision(config, &storage, &previous, &next, Credentials::Skip, DefaultGrants::Seed)
+            .await?;
     if unchanged && mode == ImportMode::Store {
         println!("Version {} already holds these registries.", graph_version(current));
         return Ok(Imported::Done);

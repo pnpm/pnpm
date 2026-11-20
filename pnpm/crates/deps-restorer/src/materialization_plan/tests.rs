@@ -1,4 +1,8 @@
-use super::spawn_node_probe;
+use super::{
+    HostNode, TargetNodeUse, execution_host_node, spawn_node_probe, target_node_major,
+    target_node_version,
+};
+use crate::{InstallabilityHost, NodeVersionSource};
 use std::{sync::mpsc, time::Duration};
 
 #[test]
@@ -27,4 +31,32 @@ fn runtime_shutdown_does_not_wait_for_an_unread_node_probe() {
     if let Err(error) = shutdown {
         panic!("the runtime owner did not report shutdown: {error:?}");
     }
+}
+
+#[test]
+fn compatibility_prefers_node_version_then_runtime_pin_then_host() {
+    let compatibility =
+        |config, pin, host| target_node_version(TargetNodeUse::Compatibility, config, pin, host);
+    assert_eq!(compatibility(Some("20.0.0"), Some("24.0.0"), Some("22.0.0")), Some("20.0.0"));
+    assert_eq!(compatibility(None, Some("24.0.0"), Some("22.0.0")), Some("24.0.0"));
+    assert_eq!(compatibility(None, None, Some("22.0.0")), Some("22.0.0"));
+}
+
+#[test]
+fn execution_ignores_node_version() {
+    let execution =
+        |config, pin, host| target_node_major(TargetNodeUse::Execution, config, pin, host);
+    assert_eq!(execution(Some("20.0.0"), Some("24.0.0"), Some("22.0.0")), Some(24));
+    assert_eq!(execution(Some("20.0.0"), None, Some("22.0.0")), Some(22));
+    assert_eq!(execution(Some("20.0.0"), None, None), None);
+}
+
+#[test]
+fn execution_host_node_keeps_only_a_probed_host() {
+    let overridden = InstallabilityHost::detect_with(false, Some("20.0.0".to_owned()));
+    assert!(execution_host_node(Some(&overridden)).is_none());
+    let probed = InstallabilityHost { node_source: NodeVersionSource::Probed, ..overridden };
+    let HostNode { version, detected } =
+        execution_host_node(Some(&probed)).expect("a probed host keys the store");
+    assert_eq!((version.as_str(), detected), ("20.0.0", true));
 }

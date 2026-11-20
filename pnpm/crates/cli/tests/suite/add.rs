@@ -128,6 +128,55 @@ fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
 }
 
 #[test]
+fn add_allow_build_accepts_a_comma_separated_list() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+            "@pnpm.e2e/install-script-example",
+            "--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example,!@pnpm.e2e/install-script-example",
+        ])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    let pkg_dir = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+         /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+    );
+    assert!(
+        pkg_dir.join("generated-by-postinstall.js").exists(),
+        "the first package in the list should have run its postinstall",
+    );
+    assert!(
+        !workspace
+            .join("node_modules/@pnpm.e2e/install-script-example/generated-by-install.js")
+            .exists(),
+        "the denied package in the list must not run its install script",
+    );
+
+    let yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("pnpm-workspace.yaml present");
+    assert!(
+        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example': true")
+            && yaml.contains("'@pnpm.e2e/install-script-example': false"),
+        "both decisions should be persisted, got:\n{yaml}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn add_short_t_reports_the_long_spellings() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 

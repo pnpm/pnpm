@@ -371,6 +371,7 @@ pub struct InstallExecution {
 #[derive(Default)]
 pub struct ResolutionInputs {
     pub update_seed_policy: UpdateSeedPolicy,
+    pub local_filesystem_policy: pnpm_resolving_local_resolver::LocalFilesystemPolicy,
     pub preferred_versions_override: Option<PreferredVersionsOverride>,
     pub auth_override: Option<Arc<super::AuthHeaders>>,
     pub observer: Option<Arc<dyn crate::ResolutionObserver>>,

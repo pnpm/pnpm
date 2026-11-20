@@ -1,11 +1,12 @@
 use super::CompletionContext;
+use crate::cli_args::prefix::find_npm_local_prefix;
 use pnpm_workspace::safe_read_project_manifest_only;
 
 pub(super) fn complete_scripts(context: &CompletionContext<'_>) -> miette::Result<Vec<String>> {
     if context.has_positional || context.pending_option.is_some() {
         return Ok(Vec::new());
     }
-    let directory = context.resolve_project_directory()?;
+    let directory = context.resolve_project_directory(find_npm_local_prefix)?;
     let Some(manifest) = safe_read_project_manifest_only(&directory)? else {
         return Ok(Vec::new());
     };

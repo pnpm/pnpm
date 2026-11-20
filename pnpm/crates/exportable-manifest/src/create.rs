@@ -21,8 +21,8 @@
 
 use crate::{
     replace::{
-        ReplaceWorkspaceProtocolError, WorkspacePackageManifest, replace_workspace_protocol,
-        replace_workspace_protocol_peer_dependency,
+        ReplaceWorkspaceProtocolError, WorkspacePackageLookup, WorkspacePackageManifest,
+        replace_workspace_protocol, replace_workspace_protocol_peer_dependency,
     },
     transform::{TransformError, transform},
 };
@@ -37,7 +37,7 @@ use pnpm_package_manifest::{ReadmeKind, decode_readme, is_preferred_readme, read
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
 };
@@ -99,6 +99,8 @@ pub struct CreateExportableManifestOptions<'a> {
     pub embed_readme: bool,
     /// Workspace packages lookup used when a dependency is not in `node_modules`.
     pub workspace_packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
+    /// See [`WorkspacePackageLookup::prefer_workspace_for`].
+    pub bumped_workspace_packages: Option<&'a HashSet<String>>,
 }
 
 /// Failures from [`create_exportable_manifest`].
@@ -243,20 +245,20 @@ fn convert_dependency_for_publish(
     kind: DependencyKind,
 ) -> Result<String, CreateExportableManifestError> {
     let after_catalog = replace_catalog_protocol(dep_name, spec, dir, opts)?;
+    let lookup = WorkspacePackageLookup {
+        packages: opts.workspace_packages,
+        prefer_workspace_for: opts.bumped_workspace_packages,
+    };
     let after_workspace = match kind {
-        DependencyKind::Regular => replace_workspace_protocol(
-            dep_name,
-            &after_catalog,
-            dir,
-            opts.modules_dir,
-            opts.workspace_packages,
-        ),
+        DependencyKind::Regular => {
+            replace_workspace_protocol(dep_name, &after_catalog, dir, opts.modules_dir, lookup)
+        }
         DependencyKind::Peer => replace_workspace_protocol_peer_dependency(
             dep_name,
             &after_catalog,
             dir,
             opts.modules_dir,
-            opts.workspace_packages,
+            lookup,
         ),
     }
     .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;

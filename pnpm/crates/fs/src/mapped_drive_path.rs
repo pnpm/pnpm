@@ -33,8 +33,78 @@ pub(crate) fn is_on_network_drive(path: &Path) -> bool {
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
     is_unc_path(path)
-        || drive_letter(path).is_some_and(|drive| pnpm_ffi_fs::mapped_drive_target(drive).is_some())
+        || drive_letter(path)
+            .is_some_and(|drive| pnpm_ffi_fs::drive_is_mapped(drive) == Some(true))
 }
+
+/// The network share a path is on.
+#[cfg(windows)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum NetworkShare {
+    /// A drive letter mapped to a share, in upper case.
+    Drive(char),
+    /// The `server\share` of a UNC path, in ASCII lower case.
+    Unc(std::ffi::OsString),
+}
+
+/// The share [`is_on_network_drive`] finds `path` on, with whether each
+/// drive letter is mapped looked up once per process by
+/// [`is_mapped_drive_cached`].
+#[cfg(windows)]
+pub(crate) fn network_share_cached(path: &Path) -> Option<NetworkShare> {
+    use std::path::{Component, Prefix};
+
+    let absolute = std::path::absolute(path);
+    let path = absolute.as_deref().unwrap_or(path);
+    let Some(Component::Prefix(prefix)) = path.components().next() else {
+        return None;
+    };
+    let drive = match prefix.kind() {
+        Prefix::UNC(server, share) | Prefix::VerbatimUNC(server, share) => {
+            let mut name = server.to_ascii_lowercase();
+            name.push(r"\");
+            name.push(share.to_ascii_lowercase());
+            return Some(NetworkShare::Unc(name));
+        }
+        Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => {
+            (letter as char).to_ascii_uppercase()
+        }
+        _ => return None,
+    };
+    is_mapped_drive_cached(drive).then_some(NetworkShare::Drive(drive))
+}
+
+/// [`pnpm_ffi_fs::drive_is_mapped`], looked up once per process for each
+/// drive letter.
+/// An install asks this for every link it writes, and the drive mappings
+/// don't change during one. A lookup that fails says nothing about the
+/// drive, so it isn't cached.
+#[cfg(windows)]
+fn is_mapped_drive_cached(drive: char) -> bool {
+    use std::sync::atomic::{AtomicU8, Ordering};
+
+    const UNKNOWN: u8 = 0;
+    const LOCAL: u8 = 1;
+    const NETWORK: u8 = 2;
+    static DRIVES: [AtomicU8; 26] = [const { AtomicU8::new(UNKNOWN) }; 26];
+
+    if !drive.is_ascii_uppercase() {
+        return false;
+    }
+    let slot = &DRIVES[usize::from(drive as u8 - b'A')];
+    match slot.load(Ordering::Relaxed) {
+        LOCAL => false,
+        NETWORK => true,
+        _ => match pnpm_ffi_fs::drive_is_mapped(drive) {
+            Some(network) => {
+                slot.store(if network { NETWORK } else { LOCAL }, Ordering::Relaxed);
+                network
+            }
+            None => false,
+        },
+    }
+}
+
 
 #[cfg(windows)]
 fn is_unc_path(path: &Path) -> bool {

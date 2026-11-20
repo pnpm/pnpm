@@ -35,12 +35,22 @@ pub struct NoMatchingVersionError {
     /// What the registry *does* publish: the latest release, the other
     /// dist-tags, and how to list every version.
     pub published_versions: String,
+    /// Every published version key, for callers that need to compute a
+    /// satisfying version themselves (e.g. pointing an override at the
+    /// highest version its selector actually admits).
+    #[error(not(source))]
+    pub versions: Vec<String>,
 }
 
 impl NoMatchingVersionError {
     #[must_use]
     pub fn new(dep: String, registry: String, meta: &Package) -> Self {
-        Self { dep, registry, published_versions: describe_published_versions(meta) }
+        Self {
+            dep,
+            registry,
+            published_versions: describe_published_versions(meta),
+            versions: meta.versions.keys().cloned().collect(),
+        }
     }
 }
 
@@ -88,7 +98,7 @@ fn describe_published_versions(meta: &Package) -> String {
 /// day old. `None` when the registry served a timestamp that doesn't parse.
 fn stringify_date(timestamp: &str) -> Option<String> {
     let parsed = crate::parse_packument_timestamp(timestamp)?;
-    let local = parsed.to_zoned(jiff::tz::TimeZone::system());
+    let local = parsed.to_zoned_datetime(jiff::tz::TimeZone::system());
     if Timestamp::now().duration_since(parsed) < jiff::SignedDuration::from_hours(24) {
         return Some(local.strftime("%-m/%-d/%Y %-I:%M:%S %p").to_string());
     }

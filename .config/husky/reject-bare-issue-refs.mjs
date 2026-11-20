@@ -4,7 +4,7 @@
 // qualified by an `owner/repo` prefix (e.g. `pnpm/pnpm#123`) and is NOT part
 // of an absolute URL.
 //
-// Rationale lives in the error message below and in CLAUDE.md.
+// Rationale lives in the error message below and in AGENTS.md.
 
 import { readFileSync } from 'node:fs'
 

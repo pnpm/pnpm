@@ -22,7 +22,9 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_modules_yaml::{Host, write_modules_manifest};
-use pnpm_package_manager::{allow_build_key_from_ignored_build, parse_allow_build_selector};
+use pnpm_package_manager::{
+    allow_build_key_from_ignored_build, parse_allow_build_selector, parse_dep_path_name_version,
+};
 use pnpm_reporter::{Reporter, emit_global_warning};
 use prompt::{confirm_builds_prompt, prompt_for_builds};
 use std::{
@@ -63,6 +65,10 @@ enum ApproveBuildsError {
     #[display("The following packages are both approved and denied: {}", _0.join(", "))]
     #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_CONTRADICTING_ARGS))]
     ContradictingArgs(#[error(not(source))] Vec<String>),
+
+    #[display("Use an exact selector to approve a file dependency: {}", _0.join(", "))]
+    #[diagnostic(code(ERR_PNPM_APPROVE_BUILDS_FILE_SELECTOR_REQUIRED))]
+    FileSelectorRequired(#[error(not(source))] Vec<String>),
 
     #[display(
         r#""pnpm approve-builds" without package arguments or --all requires an interactive terminal"#
@@ -170,13 +176,14 @@ impl ApproveBuildsArgs {
     ) -> miette::Result<Option<ApprovalDecision>> {
         self.validate()?;
         let partition = partition_params(&self.packages, pending);
+        partition.reject_contradictions()?;
+        partition.require_exact_file_selectors(pending)?;
         if !partition.unknown.is_empty() {
             emit_global_warning::<Reporter>(&format!(
                 "The following packages are not awaiting approval: {}",
                 partition.unknown.join(", "),
             ));
         }
-        partition.reject_contradictions()?;
         let Some(build_packages) = self.select_builds(&partition.approved, pending, prompt)? else {
             return Ok(None);
         };
@@ -278,6 +285,34 @@ pub(crate) struct Partition {
 }
 
 impl Partition {
+    fn require_exact_file_selectors(&self, pending: &[String]) -> miette::Result<()> {
+        if self.unknown.is_empty() {
+            return Ok(());
+        }
+        let file_selectors = pending
+            .iter()
+            .filter(|key| {
+                parse_dep_path_name_version(key)
+                    .is_some_and(|(name, version)| {
+                        version.starts_with("file:")
+                            && self.unknown
+                                .iter()
+                                .any(|unknown| unknown == name)
+                            && self.approved
+                                .iter()
+                                .any(|approved| approved == name)
+                            && !self.approved.contains(key)
+                            && !self.denied.contains(key)
+                    })
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        if file_selectors.is_empty() {
+            return Ok(());
+        }
+        Err(ApproveBuildsError::FileSelectorRequired(sort_unique(file_selectors)).into())
+    }
+
     /// Fail when a package is both approved and denied.
     pub(crate) fn reject_contradictions(&self) -> miette::Result<()> {
         let contradictions: Vec<String> = self.approved

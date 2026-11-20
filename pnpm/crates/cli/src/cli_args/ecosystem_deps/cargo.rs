@@ -156,6 +156,7 @@ fn build_cargo_outdated_package(
         github_action: false,
         metadata: OutdatedMetadata {
             deprecated: None,
+            repository: None,
             homepage,
             workspace: workspace_name.map(str::to_string),
             display_versions: Some(Box::new(OutdatedDisplayVersions {
@@ -163,6 +164,7 @@ fn build_cargo_outdated_package(
                 target: target.to_string(),
                 wanted: wanted.to_string(),
             })),
+            trust: None,
         },
     }
 }

@@ -232,7 +232,21 @@ Show outdated dependencies and select which ones to update.
 
 For a package from a registry declared with [`serverType: pnpr`](../registries.md#servertype), the release notes between the installed and the offered version are shown below the list while the package is under the cursor.
 
+With [`trustPolicy: no-downgrade`](../settings/dependency-resolution.md#trustpolicy), the list of dependencies offers only versions the trust policy accepts, and it has a `Trust` column. The `--global` list of package groups has no such column. The column names the strongest trust evidence of the offered version: `staged publish`, `trusted publisher`, `provenance`, or `none`. If a package in [`trustPolicyExclude`](../settings/dependency-resolution.md#trustpolicyexclude) is offered a version with weaker evidence than the installed one, the cell is yellow and also names the installed version's evidence.
+
 Combined with `--global`, each [isolated install group](../global-packages.md#isolated-installations) is presented as one selectable item: packages that share a global installation update together as a unit.
+
+### --long
+
+Show package homepage or repository URLs in the interactive update list:
+
+```sh
+pnpm update --interactive --long
+```
+
+The URL column is hidden by default. This option fetches full package metadata
+and only affects `--interactive`. It cannot be combined with `--global`, which
+selects package groups.
 
 ### --no-save
 

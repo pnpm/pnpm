@@ -49,7 +49,10 @@ fn workspace_star_links_approves_and_prunes_skills_for_subproject_and_root() {
     fs::create_dir_all(workspace.join(".agents/skills")).expect("create .agents/skills");
 
     let output = output_of(pnpm(&workspace).with_arg("install"));
-    assert!(output.contains("Agent skills awaiting approval: @example/my-skills."), "{output}");
+    assert!(
+        output.contains("Packages awaiting approval:\n  @example/my-skills (local)  skills"),
+        "{output}",
+    );
     assert_eq!(
         pending_skills(&workspace),
         Some(vec!["@example/my-skills@link:packages/my-skills".to_string()]),

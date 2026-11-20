@@ -83,9 +83,8 @@ pub struct UpdateSelectionArgs {
     /// selects.
     #[clap(long, value_parser = parse_depth_limit)]
     pub depth: Option<usize>,
-    /// Show outdated dependencies and select which ones to update.
-    #[clap(short = 'i', long)]
-    pub interactive: bool,
+    #[clap(flatten)]
+    pub display: UpdateDisplayArgs,
     /// Also update GitHub Actions dependencies in workflow and action files.
     #[clap(long = "include-github-actions")]
     pub include_github_actions: bool,
@@ -129,4 +128,14 @@ pub struct UpdateInstallArgs {
     /// URL of a pnpr server to offload revision refresh resolution to.
     #[clap(long = "pnpr-server")]
     pub pnpr_server: Option<String>,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+pub struct UpdateDisplayArgs {
+    /// Show outdated dependencies and select which ones to update.
+    #[clap(short = 'i', long)]
+    pub interactive: bool,
+    /// Show package homepage or repository URLs with --interactive.
+    #[clap(long, conflicts_with = "global")]
+    pub long: bool,
 }

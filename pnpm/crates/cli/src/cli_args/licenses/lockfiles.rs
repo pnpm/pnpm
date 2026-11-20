@@ -9,9 +9,6 @@ use pnpm_package_is_installable::InstallabilityOptions;
 use pnpm_package_manager::{
     AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
 };
-use pnpm_package_manifest::{
-    node_version_from_engines_runtime, safe_read_project_manifest_from_dir,
-};
 use pnpm_workspace::importer_id_from_root_dir;
 use std::{
     cmp::Ordering,
@@ -96,8 +93,7 @@ impl LockfileWalk<'_> {
             Some(project_config) => (project_config, licensed.lockfile_dir.as_path()),
             None => (self.config, self.dir),
         };
-        let layout =
-            lockfile_layout(layout_config, manifest_dir, &licensed.lockfile_dir, &lockfile)?;
+        let layout = lockfile_layout(layout_config, &licensed.lockfile_dir, &lockfile)?;
         let package_dirs =
             PackageDirs::new(layout_config, &licensed.lockfile_dir, manifest_dir, layout)?;
         let belongs_to = collect_dependencies(
@@ -209,19 +205,12 @@ fn compare_licensed_dependencies(
 /// virtual store.
 pub(super) fn lockfile_layout(
     config: &Config,
-    dir: &Path,
     lockfile_dir: &Path,
     lockfile: &Lockfile,
 ) -> miette::Result<pnpm_deps_restorer::VirtualStoreLayout> {
     let allow_build_policy = AllowBuildPolicy::from_config(config).into_diagnostic()?;
-    let project_manifest = safe_read_project_manifest_from_dir(dir).into_diagnostic()?;
-    let manifest_node_version =
-        project_manifest.as_ref().and_then(node_version_from_engines_runtime);
-    let effective_node_version =
-        config.node_version.as_deref().or(manifest_node_version.as_deref());
     let layout = virtual_store_layout_for_lockfile(
         config,
-        effective_node_version,
         lockfile,
         Some(&allow_build_policy),
         Some(lockfile_dir),

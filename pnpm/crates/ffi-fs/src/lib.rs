@@ -35,7 +35,7 @@ pub use fifo::create_fifo;
 #[cfg(unix)]
 pub use file_mode::FileMode;
 #[cfg(windows)]
-pub use mapped_drive::{mapped_drive_target, wide_names_equal_ignoring_case};
+pub use mapped_drive::{drive_is_mapped, mapped_drive_target, wide_names_equal_ignoring_case};
 #[cfg(target_vendor = "apple")]
 pub use sync::fsync;
 #[cfg(unix)]
@@ -47,6 +47,7 @@ pub use wasi::{
 #[cfg(windows)]
 pub use windows_file::{
     FileAttributes, FileInformation, change_time_ticks, file_attributes, file_information,
+    reparse_tag,
     local_app_data_directory, rename_over, short_path, system_directory,
 };
 

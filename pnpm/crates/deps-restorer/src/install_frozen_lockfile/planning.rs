@@ -442,17 +442,17 @@ impl EngineNamePlan {
 /// when it is already detected, through
 /// [`EngineNamePlan::pending_slot`] while a detection is in flight, and
 /// through [`EngineNamePlan::deferred`] when no detection was needed at
-/// all. A synthetic fallback host (`detected: false`) yields `None` so a
-/// bogus `99999.0.0`-derived key can't poison either the cache or the
-/// GVS hash.
+/// all or an override replaced the host's version. A
+/// synthetic fallback host (`detected: false`) yields `None` so a bogus
+/// `99999.0.0`-derived key can't poison either the cache or the GVS hash.
 pub(super) async fn plan_engine_name(
     config: &pnpm_config::Config,
     host_detection: &crate::materialization_plan::HostDetection,
     importers: &HashMap<String, pnpm_lockfile::ProjectSnapshot>,
     needs_deferred_probe: bool,
 ) -> EngineNamePlan {
-    let host = match host_detection {
-        crate::materialization_plan::HostDetection::Pending { .. } => {
+    let host_node = match host_detection {
+        crate::materialization_plan::HostDetection::Pending { probes_node: true, .. } => {
             let name = crate::materialization_plan::engine_name_from_runtime_pin(importers);
             if name.is_some() {
                 return EngineNamePlan { name, deferred: None, pending_slot: None };
@@ -463,9 +463,11 @@ pub(super) async fn plan_engine_name(
                 pending_slot: Some(std::sync::Arc::new(std::sync::OnceLock::new())),
             };
         }
-        crate::materialization_plan::HostDetection::Resolved(host) => host,
+        crate::materialization_plan::HostDetection::Pending { .. } => None,
+        crate::materialization_plan::HostDetection::Resolved(host) => {
+            crate::materialization_plan::execution_host_node(host.as_ref())
+        }
     };
-    let host_node = host.as_ref().map(crate::materialization_plan::HostNode::from);
     let (name, deferred) = crate::materialization_plan::resolve_engine_name(
         config.enable_global_virtual_store,
         importers,

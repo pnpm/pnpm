@@ -170,6 +170,11 @@ pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
 {
+    if let Some(config_home) =
+        read_dir_env::<Sys>("PNPM_CONFIG_HOME").filter(|value| !value.is_empty())
+    {
+        return Some(PathBuf::from(config_home));
+    }
     let xdg_config_home = read_dir_env::<Sys>("XDG_CONFIG_HOME");
     let local_app_data = read_dir_env::<Sys>("LOCALAPPDATA");
     pnpm_config_dir::config_dir(

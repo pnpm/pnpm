@@ -6,6 +6,7 @@ import type { DependencyManifest } from '@pnpm/types'
 import semver from 'semver'
 
 import { getStoreIntegrity } from './getIntegrity.js'
+import { hasVersionManifest } from './mirrorLayout.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
   pickLowestVersionByVersionRange,
@@ -18,6 +19,7 @@ export interface PickerOptions extends PickPackageFromMetaOptions {
   fallbackPublishedBy?: Date
   pickLowestVersion?: boolean
   includeLatestTag?: boolean
+  currentVersion?: string
   ignoreMissingTimeField?: boolean
 }
 
@@ -28,17 +30,70 @@ export type PeekManifestFromStore = (opts: {
   version?: string
 }) => Promise<DependencyManifest | undefined>
 
+type PickOne = (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
+
+interface PickCandidates {
+  pickerOpts: PickerOptions
+  meta: PackageMeta
+  spec: RegistryPackageSpec
+  pickOne: PickOne
+  /**
+   * Picks the prerelease channel's dist-tag. It must not fall back to a
+   * version that `minimumReleaseAge` rejects, or that version would win over
+   * a mature `latest` and hide it.
+   */
+  pickChannelTag?: PickOne
+}
+
 // When includeLatestTag is set, the "latest" dist-tag is added as a candidate
-// alongside the requested spec, and the higher-versioned pick wins.
-function runPicker (
-  pickerOpts: PickerOptions,
-  spec: RegistryPackageSpec,
-  pickOne: (targetSpec: RegistryPackageSpec) => PackageInRegistry | null
-): PackageInRegistry | null {
+// alongside the requested spec, and the higher-versioned pick wins. An
+// installed prerelease also adds the dist-tag that follows its prerelease
+// channel, which a lower stable `latest` would otherwise hide.
+function runPicker ({ pickerOpts, meta, spec, pickOne, pickChannelTag = pickOne }: PickCandidates): PackageInRegistry | null {
   const currentPkg = pickOne(spec)
   if (!pickerOpts.includeLatestTag) return currentPkg
-  const latestPkg = pickOne({ ...spec, type: 'tag', fetchSpec: 'latest' })
-  return pickMax(latestPkg, currentPkg)
+  const picked = pickMax(pickOne({ ...spec, type: 'tag', fetchSpec: 'latest' }), currentPkg)
+  for (const channelTag of findPrereleaseChannelTags(meta, pickerOpts.currentVersion)) {
+    // `latest` is already a candidate.
+    if (channelTag === 'latest') continue
+    const channelPkg = pickChannelTag({ ...spec, type: 'tag', fetchSpec: channelTag })
+    // The maturity filter moves an immature tag to an older version, which
+    // may be on another channel. Only the tag's own target counts.
+    if (channelPkg && semver.eq(channelPkg.version, meta['dist-tags'][channelTag], true)) {
+      return pickMax(channelPkg, picked)
+    }
+  }
+  return picked
+}
+
+/**
+ * Returns the dist-tags that point to published versions on the same
+ * prerelease channel as `currentVersion`, highest version first. Empty when
+ * `currentVersion` is not a prerelease.
+ */
+function findPrereleaseChannelTags (meta: PackageMeta, currentVersion: string | undefined): string[] {
+  const channel = currentVersion == null ? undefined : getPrereleaseChannel(currentVersion)
+  if (channel == null) return []
+  return Object.entries(meta['dist-tags'] ?? {})
+    .filter(([, version]) => getPrereleaseChannel(version) === channel && hasVersionManifest(meta.versions, version))
+    .sort(([, version1], [, version2]) => semver.rcompare(version1, version2, true))
+    .map(([tag]) => tag)
+}
+
+/**
+ * The leading run of letters in the first prerelease identifier. Build
+ * counters, dates, and commit hashes that follow it do not change the channel.
+ */
+function getPrereleaseChannel (version: string): string | undefined {
+  const firstIdentifier = semver.prerelease(version, true)?.[0]
+  if (typeof firstIdentifier !== 'string') return undefined
+  let end = 0
+  while (end < firstIdentifier.length && isAsciiLetter(firstIdentifier[end])) end++
+  return end === 0 ? undefined : firstIdentifier.slice(0, end)
+}
+
+function isAsciiLetter (char: string): boolean {
+  return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z')
 }
 
 // Returns whichever pick has the higher version, treating null as "no match".
@@ -62,20 +117,26 @@ function pickRespectingMinReleaseAge (
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
-  return runPicker(pickerOpts, spec, (targetSpec) => {
+  const pickMatureOnly = (targetSpec: RegistryPackageSpec): PackageInRegistry | null => {
     const pickMature = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
     const mature = pickMature(pickerOpts, meta, targetSpec)
     if (mature) return mature
     if (pickerOpts.fallbackPublishedBy && pickerOpts.publishedBy && pickerOpts.fallbackPublishedBy > pickerOpts.publishedBy) {
-      const fallback = pickLowest({
+      return pickLowest({
         ...pickerOpts,
         publishedBy: pickerOpts.fallbackPublishedBy,
       }, meta, targetSpec)
-      if (fallback) return fallback
     }
-    return pickLowest({
+    return null
+  }
+  return runPicker({
+    pickerOpts,
+    meta,
+    spec,
+    pickOne: (targetSpec) => pickMatureOnly(targetSpec) ?? pickLowest({
       preferredVersionSelectors: pickerOpts.preferredVersionSelectors,
-    }, meta, targetSpec)
+    }, meta, targetSpec),
+    pickChannelTag: pickMatureOnly,
   })
 }
 
@@ -86,7 +147,7 @@ function pickIgnoringReleaseAge (
   meta: PackageMeta
 ): PackageInRegistry | null {
   const pickVersion = pickerOpts.pickLowestVersion ? pickLowest : pickHighest
-  return runPicker(pickerOpts, spec, (targetSpec) => pickVersion(pickerOpts, meta, targetSpec))
+  return runPicker({ pickerOpts, meta, spec, pickOne: (targetSpec) => pickVersion(pickerOpts, meta, targetSpec) })
 }
 
 // Used in shortcut/fall-through paths: if it fails (including with

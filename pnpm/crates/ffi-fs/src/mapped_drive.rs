@@ -3,7 +3,9 @@
 
 use std::{ffi::OsString, os::windows::ffi::OsStringExt as _, path::PathBuf};
 use windows_sys::Win32::{
-    Foundation::ERROR_MORE_DATA,
+    Foundation::{
+        ERROR_CONNECTION_UNAVAIL, ERROR_MORE_DATA, ERROR_NOT_CONNECTED, NO_ERROR,
+    },
     Globalization::{CSTR_EQUAL, CompareStringOrdinal},
     NetworkManagement::WNet::WNetGetConnectionW,
 };
@@ -29,6 +31,28 @@ pub fn mapped_drive_target(letter: char) -> Option<PathBuf> {
         .iter()
         .position(|unit| *unit == 0)?;
     Some(PathBuf::from(OsString::from_wide(&remote[..end])))
+}
+
+/// Whether the drive `letter` is redirected to a network share, or
+/// `None` when Windows does not say.
+///
+/// A persistent mapping counts as redirected even while it is
+/// disconnected, since the first access through it reconnects it. Only
+/// `ERROR_NOT_CONNECTED` reports a drive that is not redirected; every
+/// other failure, such as no network provider running, says nothing about
+/// the drive either way.
+#[must_use]
+pub fn drive_is_mapped(letter: char) -> Option<bool> {
+    let Ok(letter) = u16::try_from(u32::from(letter)) else {
+        return None;
+    };
+    let drive = [letter, u16::from(b':'), 0];
+    let mut remote = [0u16; 260];
+    match connection(&drive, &mut remote).0 {
+        NO_ERROR | ERROR_MORE_DATA | ERROR_CONNECTION_UNAVAIL => Some(true),
+        ERROR_NOT_CONNECTED => Some(false),
+        _ => None,
+    }
 }
 
 /// Ask what `drive` is mapped to, writing the NUL-terminated answer into

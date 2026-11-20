@@ -175,6 +175,18 @@ fn allows_registry_is_a_default_deny_allowlist() {
         "{}/npm/~denied/%2e%2e/~corp/widget",
         config.http.public_url
     )));
+
+    // Rejected: `file:` URLs, even when their authority matches an allowlisted
+    // `localhost` origin.
+    let mut localhost_config = base_config();
+    localhost_config.http.public_url = "http://localhost/".to_string();
+    localhost_config.routing.route_policy.public.push(PublicRoute {
+        registry: Some("http://localhost/".to_string()),
+        package: None,
+    });
+    let localhost_context = RouteContext::from_config(&localhost_config);
+    assert!(!localhost_context.allows_registry("file://localhost/tmp/repo"));
+    assert!(!localhost_context.allows_fetch("FILE://localhost/tmp/repo"));
 }
 
 #[test]

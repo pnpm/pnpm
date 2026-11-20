@@ -271,6 +271,7 @@ impl Resolver for FixtureResolver {
                         dep: format!("{alias}@{specifier}"),
                         registry: "https://registry.example/".to_string(),
                         published_versions: String::new(),
+                        versions: Vec::new(),
                     }
                     .into());
                 }

@@ -342,6 +342,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let mut resolve_opts = opts.clone();
         if !query.compatible {
             resolve_opts.refresh.update = UpdateBehavior::Latest;
+            resolve_opts.version.latest_current_version.clone_from(&query.current_version);
         }
         let result = match self.resolve_impl(&wanted, &resolve_opts).await {
             Ok(result) => result,

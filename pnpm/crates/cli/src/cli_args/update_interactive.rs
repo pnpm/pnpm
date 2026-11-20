@@ -57,6 +57,22 @@ pub(crate) struct InteractiveUpdateOptions<'a> {
     /// narrow: it only keeps `package.json` ranges.
     pub latest_github_actions: bool,
     pub prompt: UpdatePrompt,
+    pub details: UpdateDetails,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum UpdateDetails {
+    Compact,
+    Long,
+}
+
+impl UpdateDetails {
+    pub(crate) fn shows_urls(self) -> bool {
+        match self {
+            Self::Compact => false,
+            Self::Long => true,
+        }
+    }
 }
 
 impl InteractiveUpdateOptions<'_> {
@@ -189,6 +205,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
         http_client,
         options.target_version,
         options.include_direct,
+        options.details,
     )
     .await?;
     if options.include_github_actions {
@@ -206,6 +223,7 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
         options.reaches_past_declared_range(),
         config.workspace_dir.is_some(),
         (options.prompt, &notes),
+        options.details,
     )
 }
 
@@ -235,6 +253,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         http_client,
         options.target_version,
         options.include_direct,
+        options.details,
     )
     .await?;
     if options.include_github_actions {
@@ -252,6 +271,7 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         options.reaches_past_declared_range(),
         true,
         (options.prompt, &notes),
+        options.details,
     )
 }
 
@@ -283,6 +303,7 @@ async fn collect_choices(
     http_client: &Arc<ThrottledClient>,
     target_version: TargetVersion<'_>,
     include_direct: &[DependencyGroup],
+    details: UpdateDetails,
 ) -> miette::Result<Vec<OutdatedPackage>> {
     let ignored = ignored_dependencies_matcher(config);
     let query = OutdatedQuery {
@@ -291,7 +312,9 @@ async fn collect_choices(
         match_names: None,
         ignore_names: ignored.as_ref(),
         include_deprecated: false,
-        full_metadata: false,
+        full_metadata: details.shows_urls(),
+        apply_trust_policy: config.trust_policy == pnpm_config::TrustPolicy::NoDowngrade,
+        follow_prerelease_channels: false,
     };
     let run = OutdatedRun::new(config, Arc::clone(http_client), &query)?;
     let choices = futures_util::future::join_all(
@@ -350,13 +373,15 @@ fn prompt_for_packages<Reporter: self::Reporter>(
     past_declared_range: bool,
     workspaces_enabled: bool,
     (prompt, notes): (UpdatePrompt, &ChoiceNotes),
+    details: UpdateDetails,
 ) -> miette::Result<Option<Vec<String>>> {
     if choices.is_empty() {
         print_up_to_date(past_declared_range);
         return Ok(None);
     }
 
-    let groups = choices::update_choices(&choices.iter().collect::<Vec<_>>(), workspaces_enabled);
+    let groups =
+        choices::update_choices(&choices.iter().collect::<Vec<_>>(), workspaces_enabled, details);
     let rows = flatten_groups(&groups);
 
     let Some(selected_indices) =

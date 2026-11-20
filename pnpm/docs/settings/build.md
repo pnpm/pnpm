@@ -308,6 +308,8 @@ This setting allows the checking of the state of dependencies before running scr
 - `error` - Throws an error if `node_modules` is not up to date.
 - `false` - Disables dependency checks.
 
+Changing [`trustLockfile`](./dependency-resolution.md#trustlockfile) alone does not trigger a dependency reinstall before a script runs. An explicit `pnpm install` verifies the lockfile when that setting is off.
+
 When the command is filtered, for example `pnpm --filter foo run build`, the check covers the selected projects and the workspace projects they depend on, and the install it runs is filtered the same way.
 
 ### strictDepBuilds
@@ -351,7 +353,7 @@ Denials by package name are not restricted this way: `foo: false` blocks `foo` w
 
 During install, dependencies with ignored builds that are not yet listed in `allowBuilds` are automatically added to `pnpm-workspace.yaml` with a placeholder value, so you can manually set them to `true` or `false`. The [`--allow-build`](../cli/add.md#--allow-build) flag on `pnpm add` and `pnpm approve-builds` writes its entries here as well.
 
-**Patched packages:** since v12.4.0, a [patch](../cli/patch.md) that adds an install script or a `binding.gyp` makes the package buildable, and the build goes through the same approval. Until the package is allowed, it is listed under "Ignored build scripts".
+**Patched packages:** since v12.4.0, a [patch](../cli/patch.md) that adds an install script or a `binding.gyp` makes the package buildable, and the build goes through the same approval. When `strictDepBuilds` is `false`, an unapproved package appears under "Packages awaiting approval". When `strictDepBuilds` is `true`, the install fails with `ERR_PNPM_IGNORED_BUILDS`.
 
 :::info Migrating from older settings
 

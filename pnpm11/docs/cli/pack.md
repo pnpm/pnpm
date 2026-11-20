@@ -36,6 +36,8 @@ Specifying custom compression level.
 
 Log output in JSON format.
 
+The `manifest` field holds the `package.json` that goes into the tarball, after `publishConfig` and the other publish-time changes are applied. Run `pnpm pack --dry-run --json` to preview it without writing a tarball. A dry run still runs `prepack` and `prepare`, unless `--ignore-scripts` is passed.
+
 ### --filter &lt;package_selector\>
 
 Added in: v10.11.0

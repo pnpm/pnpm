@@ -336,3 +336,75 @@ fn distinguishes_unambiguous_bare_paths_from_registry_and_git_specs() {
     assert!(!bare_path_is_unambiguous("user/repo.tgz"));
     assert!(!bare_path_is_unambiguous("c:^1.0.0"));
 }
+
+#[test]
+fn classifies_host_filesystem_specifiers() {
+    use super::is_host_filesystem_specifier;
+
+    for local in [
+        "file:/path/on/server",
+        "file:../dir",
+        "file:./local.tgz",
+        "file:///path/on/server",
+        "FILE:/path/on/server",
+        "link:/path/on/server",
+        "link:../dir",
+        "git+file:/path/on/server",
+        "git+file:///path/on/server",
+        "./foo",
+        "../foo",
+        "/foo",
+        "~/foo",
+        r"\foo",
+        "C:/foo",
+        r"C:\foo",
+        "C:tools",
+        "packages/foo/bar",
+        "a/../../outside",
+        "workspace:/path/on/server",
+        "workspace:../outside",
+        "workspace:~/outside",
+        "npm:pkg@file:../outside",
+    ] {
+        assert!(
+            is_host_filesystem_specifier(local, ".", |_| false),
+            "expected {local:?} to be classified as host-filesystem",
+        );
+    }
+
+    for non_local in [
+        "^1.0.0",
+        "~1.2.3",
+        "~",
+        "*",
+        "",
+        "latest",
+        "release.tgz",
+        "npm:lodash@^4.17.21",
+        "npm:@scope/pkg@^1.0.0",
+        "jsr:@std/path@^1.0.0",
+        "catalog:",
+        "catalog:default",
+        "workspace:*",
+        "workspace:^1.0.0",
+        "workspace:@scope/pkg@^1.0.0",
+        "workspace:./packages/target",
+        "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
+        "git+https://github.com/org/repo.git#main",
+        "github:org/repo",
+        "org/repo",
+        "org/repo#release.tgz",
+        "gh:@scope/pkg@1.0.0",
+        "$react",
+    ] {
+        assert!(
+            !is_host_filesystem_specifier(non_local, ".", |_| false),
+            "expected {non_local:?} not to be classified as host-filesystem",
+        );
+    }
+
+    assert!(!is_host_filesystem_specifier("workspace:../lib", "packages/app", |_| false));
+    assert!(is_host_filesystem_specifier("workspace:../../../outside", "packages/app", |_| false));
+    assert!(!is_host_filesystem_specifier("c:pkg@1.0.0", ".", |prefix| prefix == "c"));
+    assert!(is_host_filesystem_specifier("c:/pkg", ".", |prefix| prefix == "c"));
+}

@@ -36,6 +36,7 @@ export async function outdatedDepsOfProjects (
   opts: OutdatedDepsOfProjectsOptions & {
     catalogs?: Catalogs
     compatible?: boolean
+    followPrereleaseChannels?: boolean
     ignoreDependencies?: string[]
     include: IncludedDependencies
   }
@@ -67,6 +68,7 @@ export async function outdatedDepsOfProjects (
       catalogs: opts.catalogs,
       compatible: opts.compatible,
       currentLockfile,
+      followPrereleaseChannels: opts.followPrereleaseChannels,
       resolveLatest,
       ignoreDependencies: opts.ignoreDependencies,
       include: opts.include,

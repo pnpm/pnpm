@@ -12,7 +12,9 @@ repository.workspace = true
 
 [dependencies]
 derive_more = { workspace = true }
+node-semver = { workspace = true }
 pep508_rs = { workspace = true }
+pnpm-deps-path = { workspace = true }
 
 [lints]
 workspace = true

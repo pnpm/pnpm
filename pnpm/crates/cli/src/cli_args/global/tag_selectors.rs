@@ -64,6 +64,7 @@ async fn tag_selector<Reporter: self::Reporter>(
             ..WantedDependency::default()
         },
         compatible: true,
+        current_version: None,
     };
     match resolver.resolve_latest(&query, resolve_options).await {
         Ok(Some(latest)) if latest.latest_manifest.is_some() => Ok(format!("{alias}@{tag}")),

@@ -1378,14 +1378,15 @@ fn repeat_install_relinks_after_a_global_virtual_store_dir_change() {
 }
 
 #[test]
-fn repeat_install_verifies_the_lockfile_after_trust_lockfile_is_turned_off() {
+fn only_repeat_install_acts_on_trust_lockfile_drift() {
     let harness = CommandTempCwd::init().add_mocked_registry();
     let workspace = harness.workspace.clone();
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }).to_string(),
-    )
-    .expect("write package.json");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest = serde_json::json!({
+        "dependencies": { "is-positive": "1.0.0" },
+        "scripts": { "hello": "echo hello from script" },
+    });
+    fs::write(&manifest_path, manifest.to_string()).expect("write package.json");
     append_workspace_yaml_key(&workspace, "trustLockfile", true);
     pacquet_in(&workspace)
         .with_arg("install")
@@ -1396,6 +1397,23 @@ fn repeat_install_verifies_the_lockfile_after_trust_lockfile_is_turned_off() {
     let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
     fs::write(&yaml_path, yaml.replace("trustLockfile: true", "trustLockfile: false"))
         .expect("turn trustLockfile off");
+    let state = || pnpm_workspace_state::load_workspace_state(&workspace).unwrap().unwrap();
+    let original = state();
+    assert_eq!(original.settings.trust_lockfile, Some(true));
+
+    manifest["description"] = serde_json::json!("edited");
+    fs::write(&manifest_path, manifest.to_string()).expect("edit package.json");
+    let run = pacquet_in(&workspace)
+        .with_args(["--config.verify-deps-before-run=error", "run", "hello"])
+        .output()
+        .expect("run the script");
+    assert_success(&run);
+    assert!(String::from_utf8_lossy(&run.stdout).contains("hello from script"));
+
+    let refreshed = state();
+    assert_eq!(refreshed.settings.trust_lockfile, Some(true));
+    assert_ne!(original.validation.unwrap().manifests, refreshed.validation.unwrap().manifests);
+
     let output = pacquet_in(&workspace)
         .with_args(["install", "--reporter=ndjson"])
         .output()

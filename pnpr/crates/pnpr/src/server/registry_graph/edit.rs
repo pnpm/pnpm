@@ -7,8 +7,8 @@ use super::{
     super::{AppState, RegistryError, managed_state::WRITE_ATTEMPTS},
     reload::publish_routing,
     stored::{
-        Credentials, HostedChange, check_revision, graph_version, occupied_namespace_error,
-        parse_document, stored_document,
+        Credentials, DefaultGrants, HostedChange, check_revision, graph_version,
+        occupied_namespace_error, parse_document, stored_document,
     },
 };
 use crate::audit::Actor;
@@ -71,6 +71,13 @@ impl<'a> GraphEdit<'a> {
     pub(crate) fn expecting(mut self, versions: Option<&'a [String]>) -> Self {
         self.expected = versions.map_or(Expected::Latest, Expected::OneOf);
         self
+    }
+
+    fn default_grants(self) -> DefaultGrants {
+        match self.restored_from {
+            Some(_) => DefaultGrants::Skip,
+            None => DefaultGrants::Seed,
+        }
     }
 }
 
@@ -136,9 +143,15 @@ where
     edit(&mut next)?;
     let changes = next.changes_since(&base.document);
     let config = &state.inner.config;
-    let checked =
-        check_revision(config, &state.inner.storage, &base.document, &next, Credentials::Resolve)
-            .await?;
+    let checked = check_revision(
+        config,
+        &state.inner.storage,
+        &base.document,
+        &next,
+        Credentials::Resolve,
+        request.default_grants(),
+    )
+    .await?;
     let unchanged =
         base.is_stored && serde_json::to_value(&base.document)? == serde_json::to_value(&next)?;
     if request.effect == Effect::DryRun || unchanged {

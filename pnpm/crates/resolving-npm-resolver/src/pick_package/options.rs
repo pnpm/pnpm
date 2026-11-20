@@ -2,6 +2,7 @@ use super::{
     HashSet, PackageMetaCache, PackageVersionPolicy, PackumentFetchLocker, Path, Timestamp,
     TrustPolicy, VersionSelectors,
 };
+use node_semver::Version;
 
 /// Process-shared context every [`super::pick_package`] call reads from.
 /// One per install.
@@ -101,6 +102,8 @@ pub struct PickPackageOptions<'a> {
     /// freshly-added range picks the same version as the
     /// implicit `@latest` would.
     pub include_latest_tag: bool,
+    /// Installed version used to select a prerelease-channel dist-tag.
+    pub current_version: Option<&'a Version>,
     /// Concrete versions to ignore while picking. Used by callers that
     /// apply an external resolver-time guard: after the guard rejects a
     /// candidate, the caller asks the normal picker to try again over

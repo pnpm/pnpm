@@ -67,9 +67,7 @@ fn meaningful_engines_node_triggers_slow_path() {
 fn detect_with_overrides_node_version_and_engine_strict() {
     let overridden = InstallabilityHost::detect_with(true, Some("18.20.4".to_string()));
     assert_eq!(overridden.node_version, "18.20.4");
-    // An explicit `nodeVersion` is authoritative — treated as detected so the
-    // side-effects cache keys off it.
-    assert!(overridden.node_detected);
+    assert_eq!(overridden.node_source, crate::NodeVersionSource::Override);
     assert!(overridden.engine_strict);
 
     // A `v`-prefixed / whitespace-padded value (as in `process.version`) is

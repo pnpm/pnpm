@@ -1,13 +1,30 @@
 use super::{
-    BlockPlacement, Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog, Frame, HookLog,
-    IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus,
+    BTreeMap, BTreeSet, BlockPlacement, Colors, DedupeCheckLog, DeprecationLog, ExecutionTimeLog,
+    Frame, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus,
     LockfileVerificationMessage, LogLevel, MAX_SHOWN_WARNINGS, MaxLogLevel, NoticeState,
     PendingSkillsLog, ReporterState, RequestRetryLog, SkippedOptionalDependencyLog,
     SkippedOptionalPackage, SkippedOptionalReason, UpdateCheckLog, cached_verdict,
-    detect_install_source, is_strictly_newer, normalize, pretty_ms, progress_label, relative,
-    update_command, zoom_out,
+    detect_install_source, is_strictly_newer, normalize, pending_approval_packages, pretty_ms,
+    progress_label, relative, update_command, zoom_out,
 };
 use jiff::Timestamp;
+
+fn format_pending_approval_packages(packages: &BTreeMap<String, BTreeSet<&str>>) -> String {
+    packages
+        .iter()
+        .map(|(name, capabilities)| {
+            format!(
+                "  {name}  {}",
+                capabilities
+                    .iter()
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 /// `name@version` as a deprecation warning prints it.
 ///
@@ -40,31 +57,54 @@ impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
     pub(super) fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
-        if log.package_names.is_empty() {
-            return;
-        }
         // Suppress the warning box under `strictDepBuilds` — the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
         // only duplicate the error. The structured event still carries the
         // names for NDJSON consumers.
-        if log.strict_dep_builds {
-            return;
+        if !log.strict_dep_builds {
+            self.notices.approvals.add_builds(&log.package_names);
         }
-        let list = log.package_names.join(", ");
-        let instruction = self.options.ignored_builds_instruction_text.as_deref().unwrap_or(
-            r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#,
-        );
-        self.display.frame.push_block(format!("Ignored build scripts: {list}.\n{instruction}"));
+        if !self.options.append_only {
+            self.render_pending_approvals();
+        }
     }
 
     pub(super) fn on_pending_skills(&mut self, log: &PendingSkillsLog) {
-        if log.package_names.is_empty() {
+        self.notices.approvals.add_skills(&log.package_names);
+        if !self.options.append_only {
+            self.render_pending_approvals();
+        }
+    }
+
+    pub(super) fn render_pending_approvals(&mut self) {
+        if self.options.append_only && self.notices.approvals.emitted {
             return;
         }
-        self.display.frame.push_block(format!(
-            "Agent skills awaiting approval: {}.\nRun \"pnpm approve\" to review them.",
-            log.package_names.join(", "),
-        ));
+        let packages = pending_approval_packages(
+            &self.notices.approvals.builds,
+            &self.notices.approvals.skills,
+        );
+        if packages.is_empty() {
+            return;
+        }
+        let list = format_pending_approval_packages(&packages);
+        let approve = r#"Run "pnpm approve" to review the packages awaiting approval."#;
+        let build_instruction = self.options.ignored_builds_instruction_text
+            .as_deref()
+            .filter(|_| !self.notices.approvals.builds.is_empty());
+        let instruction = match build_instruction {
+            Some(text) if self.notices.approvals.skills.is_empty() => text.to_string(),
+            Some(text) => format!("{text}\n{approve}"),
+            None => approve.to_string(),
+        };
+        self.display.frame.emit(
+            &mut self.notices.approvals.slot,
+            format!("Packages awaiting approval:\n{list}\n\n{instruction}"),
+            BlockPlacement::Scrolling,
+        );
+        if self.options.append_only {
+            self.notices.approvals.emitted = true;
+        }
     }
 
     /// pnpm's `reportUpdateCheck`: tell the user a newer pnpm exists and
@@ -187,6 +227,9 @@ impl ReporterState {
     }
 
     pub(super) fn on_pnpm(&mut self, level: LogLevel, message: &str, prefix: &str) {
+        if level == LogLevel::Error && self.options.append_only {
+            self.render_pending_approvals();
+        }
         match level {
             LogLevel::Debug if self.options.max_log_level >= MaxLogLevel::Debug => {
                 self.display.frame.push_block(message.to_string());
@@ -231,6 +274,12 @@ impl ReporterState {
     }
 
     pub(super) fn on_execution_time(&mut self, log: &ExecutionTimeLog) {
+        if self.options.append_only {
+            self.render_pending_approvals();
+        }
+        if self.options.max_log_level < MaxLogLevel::Info {
+            return;
+        }
         let elapsed = log.ended_at.saturating_sub(log.started_at);
         let msg =
             format!("Done in {} using pnpm v{}", pretty_ms(elapsed), crate::package_version());

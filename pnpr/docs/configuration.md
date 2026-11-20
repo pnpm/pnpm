@@ -483,7 +483,9 @@ once:
 The `local` registry pnpr stores on first start gives `read` to
 `$authenticated`, not `$all`. Nobody is given `delete` by default. Change a
 default grant like any other. Removing a registry takes it out of every grant
-and removes a grant left with no registry.
+and removes a grant left with no registry. Restoring an earlier revision
+creates no default grants, so a removed registry that a restore brings back
+serves nobody until a grant covers it.
 
 ### Managing grants {#managing-grants}
 

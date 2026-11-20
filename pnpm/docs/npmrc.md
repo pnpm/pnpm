@@ -45,7 +45,8 @@ The global `<pnpm config>/config.yaml` holds the [`_auth`](#_auth) setting.
 
 The `<pnpm config>` directory is:
 
-* `$XDG_CONFIG_HOME/pnpm/`, if `XDG_CONFIG_HOME` is set
+* `$PNPM_CONFIG_HOME/`, if `PNPM_CONFIG_HOME` is non-empty
+* Otherwise, `$XDG_CONFIG_HOME/pnpm/`, if `XDG_CONFIG_HOME` is set
 * `~/AppData/Local/pnpm/config/` on Windows
 * `~/Library/Preferences/pnpm/` on macOS
 * `~/.config/pnpm/` on Linux

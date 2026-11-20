@@ -98,6 +98,30 @@ async function getApproveBuildsConfig () {
 
 type ApproveBuildsOptions = Partial<ApproveBuildsCommandOpts & RebuildCommandOpts>
 
+test('approve-builds requires an exact file selector', async () => {
+  const projectDir = tempDir(false)
+  const packageDir = path.join(projectDir, 'fixture')
+  fs.mkdirSync(packageDir)
+  writePackageSync(packageDir, {
+    name: 'fixture',
+    version: '1.0.0',
+    scripts: { postinstall: 'node build.cjs' },
+  })
+  fs.writeFileSync(path.join(packageDir, 'build.cjs'), "require('node:fs').writeFileSync('built', '')")
+  prepare({ dependencies: { fixture: 'file:../fixture' } }, { tempDir: path.join(projectDir, 'project') })
+  await execPnpmInstall()
+  const config = await getApproveBuildsConfig()
+  const originalSettings = fs.existsSync('pnpm-workspace.yaml') ? fs.readFileSync('pnpm-workspace.yaml', 'utf8') : undefined
+  const fileSelector = 'fixture@file:../fixture'
+  await expect(approveBuilds.handler(config, ['fixture'], {})).rejects.toMatchObject({
+    code: 'ERR_PNPM_APPROVE_BUILDS_FILE_SELECTOR_REQUIRED',
+    message: expect.stringContaining(fileSelector),
+  })
+  expect(fs.existsSync('pnpm-workspace.yaml') ? fs.readFileSync('pnpm-workspace.yaml', 'utf8') : undefined).toBe(originalSettings)
+  await approveBuilds.handler(config, [fileSelector], {})
+  expect(fs.existsSync('node_modules/fixture/built')).toBe(true)
+})
+
 async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
   await execPnpmInstall()
   const config = await getApproveBuildsConfig()

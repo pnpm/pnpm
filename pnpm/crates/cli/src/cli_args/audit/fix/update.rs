@@ -4,7 +4,7 @@ use super::{
     State, Update, Version, blue, color_severity, green, red, resolve_minimum_release_age_excludes,
     satisfies_including_prerelease, severity_name, severity_number, write_age_excludes,
 };
-use crate::cli_args::audit::{patched_range_for_style, report::AdvisoryId};
+use crate::cli_args::audit::{ReleaseAgeExclusions, patched_range_for_style, report::AdvisoryId};
 use pnpm_resolving_deps_resolver::UpdateTargets;
 
 /// The advisories of a `--fix update` run, partitioned by how the update can
@@ -66,12 +66,20 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     lockfile_dir: &std::path::Path,
     settings_dir: &std::path::Path,
     publish_infos: &HashMap<String, Option<PackumentPublishInfo>>,
+    release_age_exclusions: ReleaseAgeExclusions,
 ) -> miette::Result<(Vec<AdvisoryId>, Vec<AdvisoryId>, Vec<String>)> {
     let classification = classify_for_update(advisories);
 
-    let age_excludes = persist_age_excludes(state, advisories, settings_dir, publish_infos)?;
-
-    update_non_vulnerable::<Reporter>(state, &classification, &age_excludes).await?;
+    let (age_excludes, policy_excludes) = match release_age_exclusions {
+        ReleaseAgeExclusions::AddForPatches => {
+            (persist_age_excludes(state, advisories, settings_dir, publish_infos)?, None)
+        }
+        ReleaseAgeExclusions::SkipAdditions => {
+            (Vec::new(), Some(pnpm_package_manager::PolicyExcludes::Skip))
+        }
+    };
+    let resources = update_resources(state, &classification, &age_excludes, policy_excludes);
+    update_non_vulnerable::<Reporter>(state, &classification, resources).await?;
 
     // A missing lockfile here means the update couldn't be verified; mirror
     // pnpm's `fixWithUpdate`, which errors rather than reporting everything
@@ -351,12 +359,11 @@ pub(crate) fn advisory_choices(
 async fn update_non_vulnerable<Reporter: self::Reporter + 'static>(
     state: &mut State,
     classification: &UpdateClassification,
-    age_excludes: &[String],
+    resources: pnpm_package_manager::UpdateResources,
 ) -> miette::Result<()> {
     let lockfile_path = state.lockfile_path();
     let lockfile = crate::state::command_lockfile(&state.lockfile, &lockfile_path)?;
     let targets = vulnerable_locked_versions(lockfile.document, &classification.vulnerabilities);
-    let resources = update_resources(state, classification, age_excludes);
     Update {
         manifest: &mut state.manifest,
         options: pnpm_package_manager::UpdateOptions {
@@ -423,8 +430,10 @@ fn update_resources(
     state: &State,
     classification: &UpdateClassification,
     age_excludes: &[String],
+    policy_excludes: Option<pnpm_package_manager::PolicyExcludes>,
 ) -> pnpm_package_manager::UpdateResources {
     pnpm_package_manager::UpdateResources {
+        policy_excludes,
         tarball_mem_cache: Arc::clone(&state.tarball_mem_cache),
         http_client_arc: Arc::clone(&state.http_client),
         include_direct: vec![

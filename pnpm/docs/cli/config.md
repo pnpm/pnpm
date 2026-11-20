@@ -10,7 +10,7 @@ Manage the configuration files.
 pnpm settings are split across two kinds of configuration files:
 
 * **Legacy and npm-compatible registry/authentication settings** live in INI
-  files: the global `rc` file, `auth.ini`, and local `.npmrc` files.
+  files: the global `auth.ini` file and local `.npmrc` files.
 * **pnpm settings** live in YAML files: the global `config.yaml` and the
   per-project `pnpm-workspace.yaml`. The global file may also hold the
   structured [`_auth`](../npmrc.md#_auth) and [`registries`](../registries.md)
@@ -18,17 +18,13 @@ pnpm settings are split across two kinds of configuration files:
 
 The local workspace configuration file is located at the root of the project and is named `pnpm-workspace.yaml`. The global YAML configuration file (`config.yaml`) is located at:
 
-* If the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/config.yaml**
+* If **$PNPM_CONFIG_HOME** is non-empty, then **$PNPM_CONFIG_HOME/config.yaml**
+* Otherwise, if the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/config.yaml**
 * On Windows: **~/AppData/Local/pnpm/config/config.yaml**
 * On macOS: **~/Library/Preferences/pnpm/config.yaml**
 * On Linux: **~/.config/pnpm/config.yaml**
 
-The global `rc` file (registry/auth settings only) is at:
-
-* If the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/rc**
-* On Windows: **~/AppData/Local/pnpm/config/rc**
-* On macOS: **~/Library/Preferences/pnpm/rc**
-* On Linux: **~/.config/pnpm/rc**
+The global `auth.ini` file uses the same directory. See [Auth file locations](../npmrc.md#auth-file-locations).
 
 You can also retrieve the path to your global config file by running:
 

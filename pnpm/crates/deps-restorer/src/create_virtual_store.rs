@@ -341,7 +341,11 @@ async fn run_checked<Output>(
 ) -> Result<Output, CreateVirtualStoreError> {
     let Some(pending) = check.as_mut() else { return work.await };
     let mut work = std::pin::pin!(work);
+    // `select!` picks a random branch to poll first. Polling the check
+    // first keeps its requests (a frozen install's lockfile
+    // verification) from randomly trailing the downloads.
     let verdict = tokio::select! {
+        biased;
         verdict = pending => verdict,
         output = &mut work => return output,
     };

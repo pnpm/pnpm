@@ -11,7 +11,7 @@ use crate::{
         pipelines::InstallFamilySelection,
         recursive,
         supported_architectures::SupportedArchitecturesArgs,
-        update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
+        update_interactive::{InteractiveUpdateOptions, UpdateDetails, UpdatePrompt},
         workspace_option::{WorkspaceOptionError, workspace_link_root},
     },
 };
@@ -118,6 +118,11 @@ impl UpdateArgs {
             include_github_actions: update_actions,
             latest_github_actions: self.selection.latest,
             prompt: self.prompt,
+            details: if self.selection.display.long {
+                UpdateDetails::Long
+            } else {
+                UpdateDetails::Compact
+            },
         }
     }
 
@@ -133,7 +138,7 @@ impl UpdateArgs {
         prompt: InteractiveUpdateOptions<'_>,
         given: Vec<String>,
     ) -> miette::Result<Option<Vec<String>>> {
-        if !self.selection.interactive {
+        if !self.selection.display.interactive {
             return Ok(Some(given));
         }
         pnpm_package_manager::reject_versioned_selectors(
@@ -162,7 +167,7 @@ impl UpdateArgs {
         prompt: InteractiveUpdateOptions<'_>,
         given: Vec<String>,
     ) -> miette::Result<Option<Vec<String>>> {
-        if !self.selection.interactive {
+        if !self.selection.display.interactive {
             return Ok(Some(given));
         }
         pnpm_package_manager::reject_versioned_selectors(
@@ -226,7 +231,7 @@ impl UpdateArgs {
             supported_architectures.clone(),
         ))
         .await?;
-        let selected_hashes = if self.selection.interactive {
+        let selected_hashes = if self.selection.display.interactive {
             let Some(selected) =
                 self.select_global_groups::<Reporter>(config, mode.target_version()).await?
             else {
@@ -295,7 +300,7 @@ impl UpdateArgs {
             && (!self.packages.is_empty()
                 || self.selection.latest
                 || self.selection.tag.is_some()
-                || self.selection.interactive
+                || self.selection.display.interactive
                 || self.selection.global)
         {
             return Err(PatchesWithSelectorError.into());
@@ -304,7 +309,7 @@ impl UpdateArgs {
     }
 
     fn check_interactive_peer_options(&self) -> miette::Result<()> {
-        if self.selection.interactive && self.dependency_options.peer {
+        if self.selection.display.interactive && self.dependency_options.peer {
             return Err(InteractivePeerUnsupportedError.into());
         }
         Ok(())

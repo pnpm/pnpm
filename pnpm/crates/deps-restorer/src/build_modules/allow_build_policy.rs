@@ -1,11 +1,16 @@
 //! Deciding which packages are allowed to run build scripts.
 
-use super::{
-    Config, Cow, HashMap, HashSet, PackageKey, PackageVersionPolicy, PolicyMatch,
-    VersionPolicyError, create_package_version_policy, expand_package_version_specs,
-    get_pkg_id_with_patch_hash, index_of_dep_path_suffix, parse_name_version_from_key,
-    remove_suffix,
+pub use pnpm_package_name::{
+    git_repo_allow_build_key_from_dep_path, is_git_hosted_dep_path, parse_dep_path_name_version,
+    short_package_label,
 };
+
+use super::{
+    Config, HashMap, HashSet, PackageKey, PackageVersionPolicy, PolicyMatch, VersionPolicyError,
+    create_package_version_policy, expand_package_version_specs, get_pkg_id_with_patch_hash,
+    parse_name_version_from_key, remove_suffix,
+};
+use pnpm_package_name::is_git_repo_dep_path;
 
 /// Build policy derived from `allowBuilds` and
 /// `dangerouslyAllowAllBuilds` in `pnpm-workspace.yaml`.
@@ -247,44 +252,8 @@ pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
     }
 }
 
-/// A short package label for prompts and listings, with the package's
-/// name for a registry package and the name plus its source for anything
-/// else: `(git)` for a git repository or a git host's tarball, `(tarball)`
-/// for another tarball, `(local)` for a `file:` / `link:` resolution.
-///
-/// The input is any dep path or build/permission key; peer and patch-hash
-/// suffixes are ignored. The approval key — a dep path for source
-/// packages — stays the key of every settings entry, so a label is only
-/// ever display text and cannot be fed back as a key.
-#[must_use]
-pub fn short_package_label(key: &str) -> String {
-    let pkg_id = if is_link_dep_path(key) { key } else { get_pkg_id_with_patch_hash(key) };
-    // A key with no name@version separator is a bare package name; with
-    // one, a version that parses as semver is a registry package and
-    // anything else a source. Git-host packages are tagged `(git)`
-    // however their dep path is built.
-    let (name, source) = match parse_dep_path_name_version(pkg_id) {
-        Some((name, version)) if node_semver::Version::parse(version).is_ok() => (name, None),
-        Some((name, version)) => (name, Some(source_tag(version))),
-        None => (pkg_id, None),
-    };
-    if is_git_hosted_dep_path(pkg_id) {
-        return format!("{name} (git)");
-    }
-    match source {
-        Some(tag) => format!("{name} ({tag})"),
-        None => name.to_string(),
-    }
-}
-
-/// The source tag of a version that is not a registry semver form and not
-/// git-hosted: `tarball` for a URL, including a local archive name; `local`
-/// for a directory a `file:` / `link:` spec resolves to.
-fn source_tag(version: &str) -> &'static str {
-    if super::skills_policy::is_local_directory_version(version) {
-        return "local";
-    }
-    "tarball"
+fn is_link_dep_path(dep_path: &str) -> bool {
+    parse_dep_path_name_version(dep_path).is_some_and(|(_, version)| version.starts_with("link:"))
 }
 
 /// The package an `--allow-build` value or an `approve-builds` argument
@@ -299,39 +268,6 @@ pub fn parse_allow_build_selector(selector: &str) -> (&str, bool) {
         Some(name) => (name, false),
         None => (selector, true),
     }
-}
-
-/// Split a peer-suffix-free depPath / pkgId into its `name` and `version`
-/// (with any `(patch_hash=…)` segment stripped) — the half of depPath
-/// parsing that [`allow_build_key_from_ignored_build`] consumes. Returns
-/// `None` when there is no `@` version separator past position 0, the prefix
-/// contains a URL scheme `:`, or the version is empty — the cases that yield a
-/// name-less result.
-#[must_use]
-pub fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
-    let sep = pnpm_deps_path::version_separator_index(pkg_id)?;
-    let name = &pkg_id[..sep];
-    if name.contains(':') {
-        return None;
-    }
-    let mut version = &pkg_id[sep + 1..];
-    if version.is_empty() {
-        return None;
-    }
-    if version.starts_with("link:") {
-        return Some((name, version));
-    }
-    let suffix = index_of_dep_path_suffix(version);
-    if let Some(idx) = suffix.patch_hash_index {
-        version = &version[..idx];
-    } else if let Some(idx) = suffix.peers_index {
-        version = &version[..idx];
-    }
-    Some((name, version))
-}
-
-fn is_link_dep_path(dep_path: &str) -> bool {
-    parse_dep_path_name_version(dep_path).is_some_and(|(_, version)| version.starts_with("link:"))
 }
 
 /// One side of `allowBuilds`, split by the shape of its keys.
@@ -354,107 +290,8 @@ impl<'c> BuildKeys<'c> {
     }
 }
 
-/// Whether `dep_path` is a package installed from a git repository, by
-/// clone or as a git host's tarball.
-#[must_use]
-pub fn is_git_hosted_dep_path(dep_path: &str) -> bool {
-    git_repo_allow_build_key_from_dep_path(dep_path).is_some()
-}
-
 pub(crate) fn is_git_repo_allow_build_key(spec: &str) -> bool {
     !spec.contains('#') && is_git_repo_dep_path(spec)
-}
-
-pub(crate) fn git_repo_allow_build_key_from_dep_path(dep_path: &str) -> Option<Cow<'_, str>> {
-    if is_git_repo_dep_path(dep_path) {
-        return Some(match dep_path.find('#') {
-            Some(ref_start) => Cow::Borrowed(&dep_path[..ref_start]),
-            None => Cow::Borrowed(dep_path),
-        });
-    }
-    // Packages installed from a git host as a downloaded tarball (e.g. the
-    // `github:` shortcut, which pnpm fetches from codeload.github.com rather
-    // than cloning) have a depPath built from the tarball URL, not a `git+`
-    // clone URL, so the check above misses them. Normalize the tarball URL back
-    // to the same `git+https://<host>/<repo>.git` repo key that a clone of the
-    // same repository would produce, so a single hashless `allowBuilds` entry
-    // approves the package however pnpm happened to fetch it.
-    git_hosted_tarball_repo_key(dep_path).map(Cow::Owned)
-}
-
-pub(crate) fn is_git_repo_dep_path(dep_path: &str) -> bool {
-    dep_path.starts_with("git+") || dep_path.contains("@git+")
-}
-
-/// Rebuilds the `<name>@git+https://<host>/<repo>.git` repo key for a git-host
-/// tarball depPath (mirrors the TypeScript `gitHostedTarballRepoKey`).
-pub(crate) fn git_hosted_tarball_repo_key(dep_path: &str) -> Option<String> {
-    let (name, version) = parse_dep_path_name_version(dep_path)?;
-    let repo_url = git_hosted_tarball_repo_url(version)?;
-    Some(format!("{name}@{repo_url}"))
-}
-
-/// The committish-free repository URL for a git host that pnpm downloads as a
-/// tarball instead of cloning. The patterns mirror the tarball templates in
-/// `@pnpm/git-resolver` (from hosted-git-info, except GitLab's override). Each
-/// known host is anchored so a look-alike download host (e.g.
-/// `codeload.github.com.example.com`) cannot be rewritten into an unrelated key.
-pub(crate) fn git_hosted_tarball_repo_url(tarball_url: &str) -> Option<String> {
-    // A URL on a claimed download host that does not match that host's tarball
-    // pattern is rejected outright — it must not fall through to the generic
-    // GitLab matcher and produce the host's trusted repo key.
-    //
-    // GitHub: `https://codeload.github.com/<owner>/<repo>/tar.gz/<committish>`
-    if let Some(rest) = tarball_url.strip_prefix("https://codeload.github.com/") {
-        let (owner, repo) = single_segment_owner_repo(rest, "/tar.gz/")?;
-        return Some(format!("git+https://github.com/{owner}/{repo}.git"));
-    }
-    // Bitbucket: `https://bitbucket.org/<owner>/<repo>/get/<committish>.tar.gz`
-    if let Some(rest) = tarball_url.strip_prefix("https://bitbucket.org/") {
-        let (owner, repo) = single_segment_owner_repo(rest, "/get/")?;
-        return Some(format!("git+https://bitbucket.org/{owner}/{repo}.git"));
-    }
-    gitlab_tarball_repo_url(tarball_url)
-}
-
-/// `owner` and `repo` are each a single path segment, matching the `[^/]+`
-/// anchors in the TypeScript matcher so both stacks normalize identically.
-/// `owner` cannot contain a slash (it is the first `split_once('/')` half),
-/// but `repo` can, so that is rejected here.
-fn single_segment_owner_repo<'a>(rest: &'a str, marker: &str) -> Option<(&'a str, &'a str)> {
-    let (owner, rest) = rest.split_once('/')?;
-    let (repo, _) = rest.split_once(marker)?;
-    if owner.is_empty() || repo.is_empty() || repo.contains('/') {
-        return None;
-    }
-    Some((owner, repo))
-}
-
-/// GitLab (incl. self-hosted): the project path may contain nested groups, so
-/// the match runs up to the `/-/archive/<ref>/` marker.
-/// `https://<host>/<group...>/<repo>/-/archive/<ref>/<repo>-<ref>.tar.gz`
-fn gitlab_tarball_repo_url(tarball_url: &str) -> Option<String> {
-    let rest = tarball_url.strip_prefix("https://")?;
-    let (host, path) = rest.split_once('/')?;
-    if host.is_empty() {
-        return None;
-    }
-    let project = gitlab_archive_project(path)?;
-    Some(format!("git+https://{host}/{project}.git"))
-}
-
-/// The shortest non-empty project whose marker is followed by a non-empty
-/// `<ref>/` segment, mirroring the lazy `(.+?)` project capture and the
-/// `[^/]+/` ref anchor of the TypeScript matcher.
-fn gitlab_archive_project(path: &str) -> Option<&str> {
-    const ARCHIVE_MARKER: &str = "/-/archive/";
-    path.match_indices(ARCHIVE_MARKER)
-        .find_map(|(marker_index, _)| {
-            let project = &path[..marker_index];
-            let after_marker = &path[marker_index + ARCHIVE_MARKER.len()..];
-            let (git_ref, _) = after_marker.split_once('/')?;
-            (!project.is_empty() && !git_ref.is_empty()).then_some(project)
-        })
 }
 
 pub(crate) fn is_dep_path_allow_build_key(spec: &str) -> bool {

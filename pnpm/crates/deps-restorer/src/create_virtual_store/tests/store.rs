@@ -319,6 +319,22 @@ async fn the_fetch_drives_its_concurrent_check_to_the_verdict() {
     );
     assert_eq!(output.snapshot_placement.materialized.len(), 4);
 }
+/// `select!` polls its branches in random order, so the race repeats
+/// until an unbiased order would have let the finished work win.
+#[tokio::test]
+async fn a_ready_check_is_polled_before_ready_work() {
+    for _ in 0..64 {
+        let mut check: Option<ConcurrentCheck<'_>> = Some(Box::pin(async { CheckVerdict::Abort }));
+
+        let outcome = super::super::run_checked(&mut check, async { Ok(()) }).await;
+
+        assert!(
+            matches!(outcome, Err(super::super::CreateVirtualStoreError::ConcurrentCheckAborted)),
+            "the ready check must decide before the ready work returns: {outcome:?}",
+        );
+        assert!(check.is_none(), "the check settles once it reaches its verdict");
+    }
+}
 /// A warm global-virtual-store slot is skipped without its store row's
 /// CAS blobs being checked: nothing imports them, and the row still
 /// feeds the build phase.

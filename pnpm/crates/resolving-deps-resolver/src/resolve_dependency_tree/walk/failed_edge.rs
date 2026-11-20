@@ -80,6 +80,7 @@ pub(super) fn is_droppable_resolve_error(err: &ResolveDependencyTreeError) -> bo
         err,
         ResolveDependencyTreeError::Resolve(_)
             | ResolveDependencyTreeError::NoMatchingVersion(_)
+            | ResolveDependencyTreeError::OverrideNoMatchingVersion(_)
             | ResolveDependencyTreeError::RegistryResponse(_)
             | ResolveDependencyTreeError::GitResolve(_)
             | ResolveDependencyTreeError::UnsupportedProtocol(_)
@@ -95,6 +96,10 @@ fn with_dependency_context(
     opts: &ResolveOptions,
     source: ResolveDependencyTreeError,
 ) -> ResolveDependencyTreeError {
+    // The override entry, not the dependency path, is what the user has to fix.
+    if matches!(source, ResolveDependencyTreeError::OverrideNoMatchingVersion(_)) {
+        return source;
+    }
     ResolveDependencyTreeError::DependencyContext(super::super::DependencyResolutionError {
         alias: wanted.alias.clone().unwrap_or_default(),
         specifier: wanted.bare_specifier.clone().unwrap_or_default(),

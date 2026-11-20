@@ -69,6 +69,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -150,6 +151,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -271,6 +273,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,

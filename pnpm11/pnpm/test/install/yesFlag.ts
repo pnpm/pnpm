@@ -25,11 +25,13 @@ describe('pnpm install --yes', () => {
     env: { CI: 'false' },
   }
 
-  test('prompts without --yes flag', () => {
-    expect(() => execPnpmSync(['install', '--config.optimistic-repeat-install=false'], execPnpmOpts)).toThrow('Aborted removal of modules directory due to no TTY')
+  test('auto-proceeds without --yes flag in non-interactive environment', () => {
+    const result = execPnpmSync(['install', '--config.optimistic-repeat-install=false'], execPnpmOpts)
+    expect(result.stdout.toString()).toContain('Non-interactive terminal detected. Automatically proceeding with modules directory purge')
   })
 
   test('skips prompt when --yes is passed', () => {
-    expect(() => execPnpmSync(['install', '--yes', '--config.optimistic-repeat-install=false'], execPnpmOpts)).not.toThrow()
+    const result = execPnpmSync(['install', '--yes', '--config.optimistic-repeat-install=false'], execPnpmOpts)
+    expect(result.stdout.toString()).not.toContain('Non-interactive terminal detected')
   })
 })

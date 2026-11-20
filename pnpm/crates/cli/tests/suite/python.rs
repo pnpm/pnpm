@@ -2090,6 +2090,7 @@ mod sdists;
 mod selection;
 mod shared;
 mod sources;
+mod update;
 mod validation;
 
 fn sdist_files(name: &str, version: &str, dependencies: &[&str]) -> Vec<(String, String)> {

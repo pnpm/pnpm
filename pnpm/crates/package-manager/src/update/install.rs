@@ -156,10 +156,12 @@ pub(super) fn update_install<'i>(
 ) -> Install<'i, Vec<DependencyGroup>> {
     let dependency_groups = update_dependency_groups(&update, &owned);
     Install {
-        lockfile_policy: update.lockfile_policy(),
+        lockfile_policy: update.lockfile_policy(owned.policy_excludes),
         execution: update_execution(&update),
         resolution: crate::ResolutionInputs {
             update_seed_policy: seed.policy,
+            local_filesystem_policy: pnpm_resolving_local_resolver::LocalFilesystemPolicy::default(
+            ),
             preferred_versions_override: Some(seed.preferred_versions_override.into()),
             auth_override: None,
             observer: owned.resolution_observer,
@@ -331,18 +333,21 @@ impl UpdateOptions<'_> {
         update_mutation(self.selection.packages, self.version.reaches_past_declared_range())
     }
 
-    fn lockfile_policy(self) -> crate::InstallLockfilePolicy {
+    fn lockfile_policy(
+        self,
+        policy_excludes: Option<PolicyExcludes>,
+    ) -> crate::InstallLockfilePolicy {
         crate::InstallLockfilePolicy {
             frozen: false,
             prefer_frozen: Some(false),
             ignore_manifest_check: false,
             trust: self.config.trust_lockfile,
             update_checksums: self.version.patches,
-            excludes: if self.version.save {
+            excludes: policy_excludes.unwrap_or(if self.version.save {
                 PolicyExcludes::Persist
             } else {
                 PolicyExcludes::Forbidden
-            },
+            }),
             disable_optimistic_repeat: false,
         }
     }

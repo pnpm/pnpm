@@ -1545,10 +1545,10 @@ test('peer dependency that is resolved by a dev dependency', async () => {
   const project = prepareEmpty()
   const manifest = {
     dependencies: {
-      '@typegoose/typegoose': '7.3.0',
+      '@pnpm.e2e/has-foo100-peer': '1.0.0',
     },
     devDependencies: {
-      '@types/mongoose': '5.7.32',
+      '@pnpm.e2e/foo': '100.0.0',
     },
   }
 
@@ -1557,6 +1557,11 @@ test('peer dependency that is resolved by a dev dependency', async () => {
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/has-foo100-peer@1.0.0(@pnpm.e2e/foo@100.0.0)'].dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '100.0.0',
+  })
 
   await mutateModulesInSingleProject({
     manifest,
@@ -1571,8 +1576,8 @@ test('peer dependency that is resolved by a dev dependency', async () => {
     },
   }))
 
-  project.has('@typegoose/typegoose')
-  project.hasNot('@types/mongoose')
+  project.has('@pnpm.e2e/has-foo100-peer')
+  project.hasNot('@pnpm.e2e/foo')
 })
 
 test('peer dependency is grouped with dependency when peer is resolved not from a top dependency 2', async () => {

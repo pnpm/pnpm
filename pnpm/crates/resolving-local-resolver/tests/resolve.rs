@@ -2,11 +2,11 @@
 //! `#[tokio::test]` per scenario.
 
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution, TarballResolution};
 use pnpm_resolving_local_resolver::{
-    LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, ResolveLocalError,
-    WantedLocalDependency, is_local_filesystem_specifier, local_spec_path, recorded_local_path,
-    resolve_from_local_path, resolve_from_local_scheme,
+    LocalCurrentPkg, LocalFilesystemPolicy, LocalResolverContext, LocalResolverOptions,
+    LocalResolverUpdate, ResolveLocalError, WantedLocalDependency, is_local_filesystem_specifier,
+    local_spec_path, recorded_local_path, resolve_from_local_path, resolve_from_local_scheme,
 };
 use pnpm_resolving_resolver_base::PkgResolutionId;
 use std::{
@@ -1016,4 +1016,75 @@ async fn resolve_missing_publish_directory_fails_as_missing() {
         matches!(error, ResolveLocalError::LinkedPkgDirNotFound { .. }),
         "unexpected error: {error:?}",
     );
+}
+
+#[tokio::test]
+async fn workspace_only_policy_refuses_file_link_and_escaping_workspace_specs() {
+    let tmp = TempDir::new().expect("tempdir");
+    let outside = tmp.path().join("server-secret");
+    fs::create_dir_all(&outside).expect("create outside dir");
+    fs::write(outside.join("package.json"), "{ invalid json that must never be read")
+        .expect("write outside manifest");
+    let workspace = tmp.path().join("workspace");
+    let lib = workspace.join("packages/lib");
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&lib).expect("create lib");
+    fs::create_dir_all(&app).expect("create app");
+    fs::write(lib.join("package.json"), r#"{"name":"@ws/lib","version":"1.0.0"}"#)
+        .expect("write lib manifest");
+
+    let ctx = LocalResolverContext {
+        filesystem_policy: LocalFilesystemPolicy::WorkspaceOnly,
+        ..Default::default()
+    };
+    let seeded_opts = LocalResolverOptions {
+        workspace_dir: Some(workspace.clone()),
+        lockfile_dir: Some(workspace.clone()),
+        current_pkg: Some(LocalCurrentPkg {
+            id: PkgResolutionId::from("file:../../../server-secret"),
+            manifest: None,
+            resolution: LockfileResolution::Directory(DirectoryResolution {
+                directory: "../../../server-secret".to_string(),
+            }),
+        }),
+        ..opts(&app)
+    };
+
+    for spec in [
+        format!("file:{}", outside.display()),
+        "file:../../../server-secret".to_string(),
+        "file:../lib".to_string(),
+        "file:./local.tgz".to_string(),
+        format!("link:{}", outside.display()),
+        "link:../lib".to_string(),
+        format!("workspace:{}", outside.display()),
+        "workspace:../../../server-secret".to_string(),
+    ] {
+        let wd = WantedLocalDependency { bare_specifier: spec.clone(), injected: false };
+        let error = resolve_from_local_scheme(&ctx, &wd, &seeded_opts).await
+            .expect_err("workspace-only policy must refuse local scheme spec");
+        assert!(
+            matches!(error, ResolveLocalError::LocalSpecNotAllowed { .. }),
+            "expected LocalSpecNotAllowed for {spec}, got {error:?}",
+        );
+    }
+
+    for bare in ["../../server-secret", "./local.tgz", outside.to_str().unwrap()] {
+        let wd = WantedLocalDependency { bare_specifier: bare.to_string(), injected: false };
+        let result = resolve_from_local_path(&ctx, &wd, &seeded_opts).await
+            .expect("workspace-only local path declines cleanly");
+        assert!(result.is_none(), "expected None for bare path {bare}");
+    }
+
+    let allowed =
+        WantedLocalDependency { bare_specifier: "workspace:../lib".to_string(), injected: false };
+    let clean_opts = LocalResolverOptions {
+        workspace_dir: Some(workspace.clone()),
+        lockfile_dir: Some(workspace),
+        ..opts(&app)
+    };
+    let resolved = resolve_from_local_scheme(&ctx, &allowed, &clean_opts).await
+        .expect("contained workspace path resolves")
+        .expect("claimed");
+    assert_eq!(resolved.manifest.expect("manifest")["name"], "@ws/lib");
 }

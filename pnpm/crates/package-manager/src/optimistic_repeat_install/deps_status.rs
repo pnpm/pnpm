@@ -14,8 +14,8 @@ use super::{
 /// run with the default dependency groups, and with the runtime the last
 /// install linked or skipped. A script runs the same from
 /// whichever store and virtual store `node_modules` was linked from, and
-/// whatever keys the lockfile records. Only an install has to act on a store
-/// location change or re-key the lockfile.
+/// whatever keys the lockfile records. Only an install acts on store location
+/// changes, re-keys the lockfile, or applies a change to lockfile verification.
 const RUN_IGNORED_SETTINGS: &[&str] = &[
     "dev",
     "optional",
@@ -24,6 +24,7 @@ const RUN_IGNORED_SETTINGS: &[&str] = &[
     "runtime",
     "runtimeOnFail",
     "storeDir",
+    "trustLockfile",
     "virtualStoreDir",
     "virtualStoreDirMaxLength",
     "globalVirtualStoreDir",

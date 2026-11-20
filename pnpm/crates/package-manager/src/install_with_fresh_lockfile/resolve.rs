@@ -20,11 +20,7 @@ use pnpm_resolving_deps_resolver::{
     DependencyOverrider, PeerDependentsDedupe, ResolveImporterError, ResolveImporterOptions,
 };
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
-use std::{
-    collections::{BTreeMap, HashMap},
-    path::Path,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 /// The [`ResolveOptions`] fields that are the same for every importer and
 /// for the fast-override pre-pass. Only the consuming project's directory
@@ -149,11 +145,8 @@ pub(super) struct WorkspaceWalk {
     /// [`WorkspaceResolveOptions::share_workspace_resolutions`](pnpm_resolving_deps_resolver::WorkspaceResolveOptions::share_workspace_resolutions).
     pub share_workspace_resolutions: bool,
     pub time_based: bool,
-    pub registries: HashMap<String, String>,
-    pub registries_by_prefix: HashMap<String, String>,
-    pub declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes,
-    /// See [`pnpm_lockfile::RegistryContext::locked_registries`].
-    pub locked_registries: Option<HashMap<String, String>>,
+    pub registry_context: pnpm_lockfile::RegistryContext,
+    pub parsed_overrides: Option<Arc<[pnpm_resolving_deps_resolver::OverrideEntry]>>,
 }
 
 /// What every importer's resolve reads, and the walk reads alongside.
@@ -244,13 +237,7 @@ impl WorkspaceWalk {
     ) -> pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
         let config = shared.config;
         pnpm_resolving_deps_resolver::WorkspaceResolveOptions {
-            registry_context: pnpm_lockfile::RegistryContext {
-                registries: self.registries,
-                registries_by_prefix: self.registries_by_prefix,
-                declared_prefixes: self.declared_prefixes,
-                registry_options_by_url: config.registry_options_by_url.clone(),
-                locked_registries: self.locked_registries,
-            },
+            registry_context: self.registry_context,
             share_workspace_resolutions: self.share_workspace_resolutions,
             allowed_deprecated_versions: config.allowed_deprecated_versions.clone(),
             peers: pnpm_resolving_deps_resolver::WorkspacePeerResolutionOptions {
@@ -281,6 +268,7 @@ impl WorkspaceWalk {
                 pick_lowest_direct: shared.versions.pick_lowest,
                 time_based: self.time_based,
             },
+            parsed_overrides: self.parsed_overrides,
         }
     }
 }

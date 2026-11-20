@@ -9,6 +9,9 @@ supports command line tab-completion for Bash, Fish, PowerShell, and Zsh.
 `pnpm completion <shell>` prints completion code to standard output. Supported
 shell names are `bash`, `fish`, `pwsh`, and `zsh`.
 
+Tab completion suggests project scripts after `pnpm run` and as shortcuts such
+as `pnpm build`.
+
 To setup autocompletion for Bash, run:
 
 ```sh

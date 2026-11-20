@@ -7,6 +7,7 @@ use super::{
     manifest_hooks::{apply_manifest_hooks, original_manifest_opts},
     render_specifier, wanted_key_admission,
 };
+use crate::resolve_dependency_tree::override_reframe::attribute_to_override;
 
 /// Convert a workspace directory resolution into the representation shared by
 /// every importer. A `link:` target is stored relative to the lockfile root;
@@ -229,12 +230,7 @@ where
         ));
     }
     let opts = original_manifest_opts(ctx, opts).await?;
-    let result = resolver.resolve(wanted, &opts).await.map_err(map_resolve_error)?;
-    let Some(result) = result else {
-        return Err(ResolveDependencyTreeError::SpecNotSupported {
-            specifier: render_specifier(wanted),
-        });
-    };
+    let result = run_resolver_chain(ctx, resolver, wanted, &opts).await?;
     if let Some(shared_workspace_key) = shared_workspace_key
         && let Some(canonical) = canonical_workspace_resolution(
             &result,
@@ -250,6 +246,27 @@ where
         ));
     }
     Ok(result)
+}
+
+/// Resolve `wanted` through the resolver chain. A missing version is
+/// attributed to the override that forced it.
+async fn run_resolver_chain<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Result<pnpm_resolving_resolver_base::ResolveResult, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    let overrides = ctx.workspace.policy.parsed_overrides.as_deref();
+    let result = resolver
+        .resolve(wanted, opts)
+        .await
+        .map_err(|err| attribute_to_override(map_resolve_error(err), wanted, overrides))?;
+    result.ok_or_else(|| ResolveDependencyTreeError::SpecNotSupported {
+        specifier: render_specifier(wanted),
+    })
 }
 
 /// Combine two per-package opts adjustments into one clone, or `None` when

@@ -101,6 +101,8 @@ In this case, we cannot dedupe `webpack` as `webpack` has `react` in its peer de
 
 ### dedupePeers
 
+Deprecated.
+
 Added in: v10.33.0
 
 * Default: **false**

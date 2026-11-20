@@ -14,7 +14,7 @@
 
 use criterion::Criterion;
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, GraphProject, create_projects_graph,
+    BaseProject, CreateProjectsGraphOptions, DependencyGroups, GraphProject, create_projects_graph,
 };
 use pnpm_workspace_task_scheduler::graph_sequencer;
 use std::{
@@ -56,6 +56,9 @@ impl BaseProject for SyntheticRef<'_> {
 impl GraphProject for SyntheticRef<'_> {
     fn manifest_version(&self) -> Option<&str> {
         Some("1.0.0")
+    }
+    fn dependency_groups(&self, _ignore_dev_deps: bool) -> DependencyGroups {
+        DependencyGroups { prod: self.0.dependencies.clone(), ..DependencyGroups::default() }
     }
 }
 

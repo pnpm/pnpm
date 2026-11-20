@@ -132,14 +132,14 @@ interface PackageMeta {
   time?: Record<string, string>
 }
 
-function formatNoMatchingVersion (err: Error, msg: { packageMeta?: PackageMeta }): ErrorInfo {
+function formatNoMatchingVersion (err: Error, msg: { packageMeta?: PackageMeta, hint?: string }): ErrorInfo {
   // Errors raised by the install/dlx/self-update layer after the resolver
   // surfaces violations may not carry the original packageMeta. In that
   // case the error message alone already names every offending entry,
   // so we just echo it through without the registry-metadata appendix.
   const meta = msg.packageMeta
   if (!meta) {
-    return { title: err.message }
+    return { title: err.message, body: msg.hint }
   }
   const latestVersion = meta['dist-tags'].latest
   let output = `The latest release of ${meta.name} is "${latestVersion}".`

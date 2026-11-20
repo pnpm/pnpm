@@ -222,16 +222,12 @@ function pickImmatureEntries (
   // immature versions belong to the same package. The pre-sort keeps the
   // cross-package order stable regardless of resolution order.
   const entries = mergePackageVersionSpecs(immature.map((violation) => `${violation.name}@${violation.version}`).sort())
-  // Strict-mode picks already passed through the approval prompt, so
-  // the log here only confirms what was persisted. Loose-mode picks
-  // haven't been announced anywhere else, so the same log doubles as
-  // the discovery notice.
-  const reason = promptRequired
-    ? '(approved at the prompt)'
-    : '(set minimumReleaseAgeStrict to true to gate these updates with a prompt)'
-  globalInfo(
-    `Added ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} to minimumReleaseAgeExclude in pnpm-workspace.yaml ` +
-    `${reason}:\n  ${entries.join('\n  ')}`
+  const added = `Added ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} to minimumReleaseAgeExclude in pnpm-workspace.yaml`
+  // Strict-mode picks were already listed by the approval prompt.
+  // Loose-mode picks were not announced anywhere else, so the log lists them.
+  globalInfo(promptRequired
+    ? `${added} (approved at the prompt)`
+    : `${added} (set minimumReleaseAgeStrict to true to gate these updates with a prompt):\n  ${entries.join('\n  ')}`
   )
   return entries
 }

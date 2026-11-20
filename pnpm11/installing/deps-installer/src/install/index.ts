@@ -3,7 +3,7 @@ import type { DependenciesField, ProjectManifest, ProjectRootDir } from '@pnpm/t
 
 import type { BeforeLifecycleScriptsResult, InstallOptions } from './extendInstallOptions.js'
 import { rootProjectRunsPreinstallEarly } from './installPredicates.js'
-import { installViaPnprServer } from './installViaPnprServer.js'
+import { assertPnprCompatibleWithStore, installViaPnprServer } from './installViaPnprServer.js'
 import { mutateModules } from './mutateModules.js'
 import type {
   InstallMutationOptions,
@@ -14,6 +14,7 @@ import type {
   SingleProjectInstallOptions,
 } from './mutationTypes.js'
 import { canUsePnprForInstall, pnpmfileHookPnprCannotRun } from './pnpr.js'
+import { findLocalSpecForPnpr } from './pnprLocalSpecs.js'
 
 export type { BeforeLifecycleScriptsResult }
 export { IgnoredBuildsError } from './ignoredBuilds.js'
@@ -44,7 +45,7 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow.
-  if (opts.pnprServer && canUsePnprForInstall(opts) && pnpmfileHookPnprCannotRun(opts.hooks) == null) {
+  if (shouldInstallViaPnprServer(manifest, rootDir, opts)) {
     return installViaPnprServer({
       manifest,
       rootDir,
@@ -79,6 +80,25 @@ export async function install (
     }
   )
   return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations, dryRunResult }
+}
+
+function shouldInstallViaPnprServer (
+  manifest: ProjectManifest,
+  rootDir: ProjectRootDir,
+  opts: SingleProjectInstallOptions
+): boolean {
+  if (!opts.pnprServer || !canUsePnprForInstall(opts) || pnpmfileHookPnprCannotRun(opts.hooks) != null) {
+    return false
+  }
+  if (findLocalSpecForPnpr({
+    lockfileDir: opts.lockfileDir ?? rootDir,
+    projects: [{ rootDir, manifest }],
+    opts,
+  }) != null) {
+    return false
+  }
+  assertPnprCompatibleWithStore(opts)
+  return true
 }
 
 export async function mutateModulesInSingleProject (

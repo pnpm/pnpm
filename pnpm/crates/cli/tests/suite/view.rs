@@ -168,6 +168,10 @@ fn prints_summary_for_a_package() {
     mock.assert();
     let stdout = stdout_of(&output);
     assert!(stdout.contains("is-negative"), "summary must mention the package: {stdout:?}");
+    assert!(
+        stdout.contains(&format!("registry: {}/", server.url())),
+        "summary must name the registry the metadata came from: {stdout:?}",
+    );
     drop((root, server));
 }
 
@@ -214,6 +218,10 @@ fn registry_flag_overrides_configured_registry() {
     configured_mock.assert();
     let stdout = stdout_of(&output);
     assert!(stdout.contains("is-negative"), "summary must mention the package: {stdout:?}");
+    assert!(
+        stdout.contains(&format!("registry: {}", overriding.url())),
+        "summary must name the overriding registry: {stdout:?}",
+    );
     drop((root, configured, overriding));
 }
 

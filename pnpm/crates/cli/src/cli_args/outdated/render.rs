@@ -3,10 +3,11 @@ pub(super) mod json;
 pub(super) use json::{render_json, render_recursive_json, report_keys};
 
 use super::{
-    DependencyGroup, OutdatedInWorkspace, OutdatedPackage, SortBy, Stream, Version, Write,
-    sanitize_inline,
+    DependencyGroup, OutdatedInWorkspace, OutdatedPackage, SortBy, Stream, TrustChange, Version,
+    Write, sanitize_inline,
 };
 use owo_colors::OwoColorize;
+use pnpm_resolving_npm_resolver::TrustEvidence;
 
 pub(super) fn write_output(output: &str) -> miette::Result<()> {
     let mut stdout = std::io::stdout();
@@ -258,6 +259,30 @@ pub(crate) fn colorize_target(pkg: &OutdatedPackage) -> String {
         return pkg.target_str().into_owned();
     }
     colorize_version(&pkg.target_str(), change)
+}
+
+/// The interactive update list's `Trust` cell: the target version's
+/// evidence, in yellow with the installed version's evidence beside it when
+/// the target's is weaker. The `trustPolicy` gate has already set aside
+/// such a target unless `trustPolicyExclude` exempts it.
+pub(crate) fn render_trust_change(change: TrustChange) -> String {
+    let target = trust_label(change.target);
+    if change.target < change.current {
+        return yellow(&format!("{target} (was {})", trust_label(change.current)));
+    }
+    match change.target {
+        Some(_) => green(target),
+        None => target.to_string(),
+    }
+}
+
+fn trust_label(evidence: Option<TrustEvidence>) -> &'static str {
+    match evidence {
+        Some(TrustEvidence::StagedPublish) => "staged publish",
+        Some(TrustEvidence::TrustedPublisher) => "trusted publisher",
+        Some(TrustEvidence::Provenance) => "provenance",
+        None => "none",
+    }
 }
 
 pub(super) fn render_latest(pkg: &OutdatedPackage) -> String {

@@ -2,9 +2,8 @@ pub(super) use accounts::active_account_name;
 pub(super) use credentials::token_credentials;
 pub(super) use package_access::{
     AuthorizationDecision, Ownership, allows_with_ownership, authorize,
-    authorize_against_packument, authorize_continuation, authorize_package,
-    authorize_package_write, authorize_with_ownership, authorize_without_owners,
-    needs_package_owners,
+    authorize_against_packument, authorize_package, authorize_package_write,
+    authorize_with_ownership, authorize_without_owners, needs_package_owners,
 };
 pub(super) use pnpr_policy::Action;
 

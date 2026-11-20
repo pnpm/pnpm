@@ -164,7 +164,7 @@ catalog:
   jest: 30.4.2
   jest-diff: 30.4.1
   human-id: ^4.2.2
-  js-yaml: npm:@zkochan/js-yaml@0.0.11
+  js-yaml: ^4.3.2
   json5: ^2.2.3
   keyv: 6.1.0
   lcov-result-merger: ^6.0.0
@@ -245,7 +245,7 @@ catalog:
   semver: ^7.8.6
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
-  shlex: ^3.0.0
+  shlex: ^3.0.1
   shx: ^0.4.0
   signal-exit: ^4.1.0
   socks: ^2.8.10

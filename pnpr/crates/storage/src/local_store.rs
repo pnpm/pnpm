@@ -35,8 +35,14 @@ impl Store {
     /// private `/~<name>/` route its own cache namespace so its documents
     /// and blobs never collide with the public mirror or another upstream.
     pub(super) fn namespaced(&self, prefix: &str) -> Store {
+        let mut root = self.root.clone();
+        root.extend(
+            prefix
+                .split('/')
+                .filter(|segment| !segment.is_empty()),
+        );
         Store {
-            root: self.root.join(prefix),
+            root,
             ecosystem: self.ecosystem,
             record_write_lock: Arc::clone(&self.record_write_lock),
         }

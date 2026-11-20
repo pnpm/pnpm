@@ -77,6 +77,7 @@ pub(super) fn inject_workspace_license(
 pub(super) fn unpacked_size<Sys: FsFileLen>(
     files_map: &indexmap::IndexMap<String, PathBuf>,
     manifest_json_len: u64,
+    injected_files: &[(String, Vec<u8>)],
 ) -> Result<u64, PackError> {
     let mut total = 0u64;
     for (name, source) in files_map {
@@ -89,6 +90,9 @@ pub(super) fn unpacked_size<Sys: FsFileLen>(
                     source: source_err,
                 })?
         };
+    }
+    for (_, bytes) in injected_files {
+        total += bytes.len() as u64;
     }
     Ok(total)
 }

@@ -29,6 +29,16 @@ pub(crate) enum Credentials {
     Skip,
 }
 
+/// Whether checking a revision seeds default grants for the registries it adds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DefaultGrants {
+    /// Seed them, so a newly added registry serves callers at once.
+    Seed,
+    /// Leave the grants alone, as restoring an earlier revision does so it
+    /// never gives back access that was taken away.
+    Skip,
+}
+
 /// An environment in which every variable has a stand-in value.
 struct StandInCredentials;
 
@@ -119,6 +129,7 @@ pub(crate) async fn check_revision(
     previous: &RegistryGraphDocument,
     next: &RegistryGraphDocument,
     credentials: Credentials,
+    grants: DefaultGrants,
 ) -> Result<CheckedRevision, RegistryError> {
     let routing = stored_routing(config, next, credentials).map_err(invalid_document)?;
     pnpr_route::validate_public_routes(&routing.route_policy)
@@ -127,10 +138,14 @@ pub(crate) async fn check_revision(
     check_upstream_hosts(config, &routing, previous, next)?;
     check_public_route_hosts(config, &routing, previous, next)?;
     let vacated = check_hosted_storage(storage, previous, next).await?;
+    let seeded = match grants {
+        DefaultGrants::Seed => default_grants(next, previous),
+        DefaultGrants::Skip => Vec::new(),
+    };
     let hosted = HostedChange {
         vacated,
         bound: bound_namespaces(next),
-        seeded: default_grants(next, previous),
+        seeded,
         removed: previous
             .registry_names()
             .filter(|name| next.registry_kind(name).is_none())

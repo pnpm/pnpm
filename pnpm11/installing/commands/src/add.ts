@@ -14,6 +14,7 @@ import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-re
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
+import { assertNotAddingToWorkspaceRoot } from './assertNotAddingToWorkspaceRoot.js'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
@@ -289,24 +290,6 @@ async function addConfigDependencies (opts: AddCommandOptions, params: string[])
     storeDir: store.dir,
     rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
-}
-
-function assertNotAddingToWorkspaceRoot (opts: AddCommandOptions): void {
-  if (
-    !opts.recursive &&
-    opts.workspaceDir === opts.dir &&
-    !opts.ignoreWorkspaceRootCheck &&
-    !opts.workspaceRoot &&
-    opts.workspacePackagePatterns &&
-    opts.workspacePackagePatterns.length > 1
-  ) {
-    throw new PnpmError('ADDING_TO_ROOT',
-      'Running this command will add the dependency to the workspace root, ' +
-      'which might not be what you want - if you really meant it, ' +
-      'make it explicit by running this command again with the -w flag (or --workspace-root). ' +
-      'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
-    )
-  }
 }
 
 export { parseAllowBuildSelector }
