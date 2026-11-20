@@ -232,6 +232,22 @@ test('install fails when a dependency is newer than minimumReleaseAge', async ()
   })).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
 })
 
+test('install fails on a minimumReleaseAge that is not a number', async () => {
+  prepareEmpty()
+
+  await writeJsonFile('package.json', {
+    dependencies: {
+      'is-odd': '0.1.1',
+    },
+  })
+
+  await expect(install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    minimumReleaseAge: NaN,
+  })).rejects.toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
 test('install skips the minimumReleaseAge check for packages in minimumReleaseAgeExclude', async () => {
   prepareEmpty()
 

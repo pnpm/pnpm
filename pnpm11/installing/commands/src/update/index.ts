@@ -2,6 +2,7 @@ import type { CommandHandlerMap, CompletionFunc } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readDepNameCompletions } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
+import { MINIMUM_RELEASE_AGE_OPTION_TYPES } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate, migrateLegacyGlobalPackages, selectsPnpmCli } from '@pnpm/global.commands'
 import { pick } from 'ramda'
@@ -60,8 +61,6 @@ const RC_OPTION_NAMES = [
   'shared-workspace-lockfile',
   'side-effects-cache-readonly',
   'side-effects-cache',
-  'minimum-release-age',
-  'minimum-release-age-exclude',
   'store-dir',
   'trust-lockfile',
   'trust-policy',
@@ -71,7 +70,10 @@ const RC_OPTION_NAMES = [
 ] as const
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return pick(RC_OPTION_NAMES, allTypes)
+  return {
+    ...pick(RC_OPTION_NAMES, allTypes),
+    ...MINIMUM_RELEASE_AGE_OPTION_TYPES,
+  }
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {

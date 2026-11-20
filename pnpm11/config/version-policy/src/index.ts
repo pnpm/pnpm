@@ -45,6 +45,18 @@ export interface PublishedByPolicy {
 }
 
 /**
+ * Option types of the `--minimum-release-age` and `--minimum-release-age-exclude`
+ * CLI flags. nopt silently drops a non-numeric value given to a plain `Number`
+ * option, which would leave the configured age in effect, so the age also
+ * accepts a string. The config reader converts that string to a number, which
+ * {@link validateMinimumReleaseAge} then rejects.
+ */
+export const MINIMUM_RELEASE_AGE_OPTION_TYPES = {
+  'minimum-release-age': [Number, String],
+  'minimum-release-age-exclude': [String, Array],
+}
+
+/**
  * Reject `NaN`, `Infinity`, and negative `minimumReleaseAge` values. All three
  * silently break the supply-chain maturity gate: `NaN` falsies out and disables
  * the check, `Infinity` produces an invalid `Date` whose `toISOString()` throws,

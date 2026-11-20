@@ -1,5 +1,6 @@
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
+import { MINIMUM_RELEASE_AGE_OPTION_TYPES } from '@pnpm/config.version-policy'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { calcDedupeCheckIssues, countDedupeCheckIssues } from '@pnpm/installing.dedupe.check'
@@ -66,8 +67,6 @@ const RC_OPTION_NAMES = [
   'side-effects-cache',
   'store-dir',
   'strict-peer-dependencies',
-  'minimum-release-age',
-  'minimum-release-age-exclude',
   'trust-lockfile',
   'trust-policy',
   'trust-policy-exclude',
@@ -83,7 +82,10 @@ const RC_OPTION_NAMES = [
 ] as const
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return pick(RC_OPTION_NAMES, allTypes)
+  return {
+    ...pick(RC_OPTION_NAMES, allTypes),
+    ...MINIMUM_RELEASE_AGE_OPTION_TYPES,
+  }
 }
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({

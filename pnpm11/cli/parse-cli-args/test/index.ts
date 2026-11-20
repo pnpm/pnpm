@@ -958,18 +958,12 @@ test('candidate command shorthands do not let later positional args hijack earli
   expect(result.params).toStrictEqual(['patch'])
 })
 
-test('--minimum-release-age is parsed as a number for the install command', async () => {
-  const { options, cmd } = await parseCliArgs({
+test('a non-numeric --minimum-release-age reaches the config as a string', async () => {
+  const { options } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    getTypesByCommandName: (commandName: string) => {
-      if (commandName === 'install') {
-        return { 'minimum-release-age': Number }
-      }
-      return {}
-    },
-  }, ['install', '--minimum-release-age', '1440'])
-  expect(cmd).toBe('install')
-  expect(options['minimum-release-age']).toBe(1440)
+    getTypesByCommandName: () => ({ 'minimum-release-age': [Number, String] }),
+  }, ['install', '--minimum-release-age', 'abc'])
+  expect(options['minimum-release-age']).toBe('abc')
 })
 
 test('--minimum-release-age-exclude is parsed as an array for the install command', async () => {
@@ -978,7 +972,7 @@ test('--minimum-release-age-exclude is parsed as an array for the install comman
     getTypesByCommandName: (commandName: string) => {
       if (commandName === 'install') {
         return {
-          'minimum-release-age': Number,
+          'minimum-release-age': [Number, String],
           'minimum-release-age-exclude': [String, Array],
         }
       }

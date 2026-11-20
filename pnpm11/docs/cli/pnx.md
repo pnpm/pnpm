@@ -77,6 +77,12 @@ Example:
 pnx --package cowsay --package lolcatjs -c 'echo "hi pnpm" | cowsay | lolcatjs'
 ```
 
+### --minimum-release-age &lt;minutes\>, --minimum-release-age-exclude &lt;package-spec\>
+
+Added in: v11.28.14
+
+Set [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) and [`minimumReleaseAgeExclude`](../settings/dependency-resolution.md#minimumreleaseageexclude) for this run, as they do for [`pnpm install`](./install.md).
+
 ### --silent, -s
 
 Only the output of the executed command is printed.
