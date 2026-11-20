@@ -43,19 +43,19 @@ fn reads_and_writes_the_preferred_manifest_of_the_root_project() {
     )
     .unwrap();
     command(&pacquet)
-        .args(["version", "patch", "--no-git-tag-version"])
+        .with_args(["version", "patch", "--no-git-tag-version"])
         .assert()
         .success();
     command(&pacquet)
-        .args(["pkg", "set", "custom.keep=true", "--json"])
+        .with_args(["pkg", "set", "custom.keep=true", "--json"])
         .assert()
         .success();
     command(&pacquet)
-        .args(["set-script", "other", "echo other"])
+        .with_args(["set-script", "other", "echo other"])
         .assert()
         .success();
     let output = command(&pacquet)
-        .args(["run", "probe"])
+        .with_args(["run", "probe"])
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");
@@ -83,7 +83,7 @@ fn add_and_remove_write_the_preferred_manifest() {
     let path = workspace.join("package.json5");
     fs::write(&path, "// real\n{ name: 'fixture', version: '1.0.0', }\n").unwrap();
     command(&pacquet)
-        .args(["add", "@pnpm.e2e/foo@1.0.0", "--lockfile-only"])
+        .with_args(["add", "@pnpm.e2e/foo@1.0.0", "--lockfile-only"])
         .assert()
         .success();
     assert_eq!(
@@ -93,7 +93,7 @@ fn add_and_remove_write_the_preferred_manifest() {
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
     assert!(lockfile.contains("'@pnpm.e2e/foo'"), "{lockfile}");
     command(&pacquet)
-        .args(["remove", "@pnpm.e2e/foo", "--lockfile-only"])
+        .with_args(["remove", "@pnpm.e2e/foo", "--lockfile-only"])
         .assert()
         .success();
     assert_eq!(
@@ -125,7 +125,7 @@ fn workspace_discovery_reads_the_preferred_manifest_of_each_project() {
     let path = project.join("package.yaml");
     fs::write(&path, "name: foo\nscripts:\n  probe: echo YAML-SELECTED\n").unwrap();
     let output = command(&pacquet)
-        .args(["-r", "run", "probe"])
+        .with_args(["-r", "run", "probe"])
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");
@@ -133,7 +133,7 @@ fn workspace_discovery_reads_the_preferred_manifest_of_each_project() {
     assert!(stdout.contains("YAML-SELECTED"), "{stdout}");
     assert!(!stdout.contains("JSON-WRONG"), "{stdout}");
     command(&pacquet)
-        .args(["--filter", "foo", "pkg", "set", "version=2.0.0"])
+        .with_args(["--filter", "foo", "pkg", "set", "version=2.0.0"])
         .assert()
         .success();
     assert_eq!(PackageManifest::from_path(path).unwrap().value()["version"], "2.0.0");
@@ -147,7 +147,7 @@ fn rejects_an_unknown_manifest_format() {
     append_to_workspace_yaml(&workspace, "preferredManifestFormat: jsonc\n");
     fs::write(workspace.join("package.json"), STUB_JSON).unwrap();
     let output = command(&pacquet)
-        .args(["pkg", "get", "name"])
+        .with_args(["pkg", "get", "name"])
         .output()
         .unwrap();
     assert!(!output.status.success(), "{output:?}");
@@ -177,12 +177,12 @@ fn repeat_install_applies_edits_to_the_preferred_manifest() {
     };
     fs::write(&path, manifest_with_foo("1.0.0")).unwrap();
     command(&pacquet)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     fs::write(&path, manifest_with_foo("2.0.0")).unwrap();
     command(&pacquet)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let installed: serde_json::Value = serde_json::from_slice(
@@ -214,7 +214,7 @@ fn install_runs_the_lifecycle_scripts_of_the_preferred_manifest() {
     )
     .unwrap();
     command(&pacquet)
-        .args(["install", "--offline"])
+        .with_args(["install", "--offline"])
         .assert()
         .success();
     assert!(workspace.join("real-preinstall-ran").exists());
@@ -247,13 +247,13 @@ fn deploy_installs_the_manifest_it_writes() {
     fs::write(workspace.join("lib/package.json"), r#"{"name": "lib", "version": "1.0.0"}"#)
         .unwrap();
     command(&pacquet)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let deploy_dir = root.path().join("deploy");
     command(&pacquet)
-        .args(["--filter=app", "deploy"])
-        .arg(&deploy_dir)
+        .with_args(["--filter=app", "deploy"])
+        .with_arg(&deploy_dir)
         .assert()
         .success();
     let deployed = PackageManifest::from_path(deploy_dir.join("package.json")).unwrap();

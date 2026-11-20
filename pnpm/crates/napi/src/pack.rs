@@ -100,6 +100,7 @@ fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
     pnpm_pack::PackOptions {
         dir: PathBuf::from(&options.dir),
         workspace_dir: options.workspace_dir.map(PathBuf::from),
+        manifest_format: pnpm_package_manifest::ManifestFormat::default(),
         scripts: pnpm_pack::PackScripts {
             ignore: options.ignore_scripts.unwrap_or(false),
             unsafe_perm: false,
@@ -119,7 +120,6 @@ fn pack_options(options: PackOptions) -> pnpm_pack::PackOptions {
             embed_readme: options.embed_readme.unwrap_or(false),
             node_linker: NodeLinker::default(),
             skip_obfuscation: false,
-            format: pnpm_package_manifest::ManifestFormat::default(),
             // Bit drives its own `readPackage` hook through the napi bridge and
             // loads no `beforePacking` pnpmfiles, so the hook loop is a no-op.
             before_packing_hooks: Vec::new(),

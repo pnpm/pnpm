@@ -240,13 +240,8 @@ impl PackArgs {
         PackOptions {
             dir,
             workspace_dir: config.workspace_dir.clone(),
-            scripts: pnpm_pack::PackScripts {
-                ignore: config.ignore_scripts,
-                unsafe_perm: config.unsafe_perm,
-                user_agent: config.user_agent.clone(),
-                extra_bin_paths: config.extra_bin_paths.clone(),
-                extra_env: config.extra_env.clone(),
-            },
+            manifest_format: config.preferred_manifest_format,
+            scripts: pack_scripts(config, config.ignore_scripts),
             manifest: pnpm_pack::PackManifestOptions {
                 catalogs: shared.catalogs,
                 catalogs_dir: config.workspace_dir.clone(),
@@ -257,7 +252,6 @@ impl PackArgs {
                     self.no_skip_manifest_obfuscation,
                     config.skip_manifest_obfuscation,
                 ),
-                format: config.preferred_manifest_format,
                 before_packing_hooks: shared.before_packing_hooks,
                 workspace_packages,
                 bumped_workspace_packages: None,
@@ -364,3 +358,15 @@ pub(crate) async fn set_injected_changelog(
 }
 
 mod recursive;
+
+/// The lifecycle-script options of a pack run with `config`, skipping the
+/// scripts when `ignore` is set.
+pub(crate) fn pack_scripts(config: &Config, ignore: bool) -> pnpm_pack::PackScripts {
+    pnpm_pack::PackScripts {
+        ignore,
+        unsafe_perm: config.unsafe_perm,
+        user_agent: config.user_agent.clone(),
+        extra_bin_paths: config.extra_bin_paths.clone(),
+        extra_env: config.extra_env.clone(),
+    }
+}

@@ -20,6 +20,8 @@ pub struct PackOptions {
     /// Workspace root, used to inject a root `LICENSE` into a
     /// sub-package tarball that lacks one.
     pub workspace_dir: Option<PathBuf>,
+    /// Which project manifest is packed when several coexist.
+    pub manifest_format: ManifestFormat,
     pub scripts: PackScripts,
     pub manifest: PackManifestOptions,
     pub output: PackOutputOptions,
@@ -54,8 +56,6 @@ pub struct PackManifestOptions {
     /// Keep `packageManager` and publish-lifecycle scripts in the packed
     /// manifest.
     pub skip_obfuscation: bool,
-    /// Which project manifest is packed when several coexist.
-    pub format: ManifestFormat,
     /// Loaded pnpmfiles whose `beforePacking` hook runs against the
     /// published manifest before the file list is computed, in
     /// application order (config-dependency plugin pnpmfiles first, then

@@ -97,13 +97,7 @@ impl PublishArgs {
     }
 
     fn pack_scripts(&self, config: &Config) -> pnpm_pack::PackScripts {
-        pnpm_pack::PackScripts {
-            ignore: self.should_ignore_scripts(config),
-            unsafe_perm: config.unsafe_perm,
-            user_agent: config.user_agent.clone(),
-            extra_bin_paths: config.extra_bin_paths.clone(),
-            extra_env: config.extra_env.clone(),
-        }
+        crate::cli_args::pack::pack_scripts(config, self.should_ignore_scripts(config))
     }
 
     /// Pack the project into `pack_destination` for publishing (never a dry
@@ -135,6 +129,7 @@ impl PublishArgs {
         let mut options = PackOptions {
             dir: dir.to_path_buf(),
             workspace_dir: config.workspace_dir.clone(),
+            manifest_format: config.preferred_manifest_format,
             scripts: self.pack_scripts(config),
             manifest,
             output: pnpm_pack::PackOutputOptions {

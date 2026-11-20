@@ -336,6 +336,15 @@ fn configured_publish_branch<'a>(flag: Option<&'a str>, config: &'a Config) -> O
     flag.or(config.publish_branch.as_deref())
 }
 
+/// The non-empty script `manifest` declares under `name`.
+fn declared_script<'manifest>(manifest: &'manifest Value, name: &str) -> Option<&'manifest str> {
+    manifest
+        .get("scripts")?
+        .get(name)?
+        .as_str()
+        .filter(|script| !script.is_empty())
+}
+
 /// Run the publish-lifecycle scripts the manifest declares, in order, with
 /// `unsafe_perm` (publish scripts are run explicitly and assumed trusted).
 fn run_publish_scripts<Reporter: self::Reporter>(
@@ -344,18 +353,9 @@ fn run_publish_scripts<Reporter: self::Reporter>(
     manifest: &Value,
     script_names: &[&str],
 ) -> miette::Result<()> {
-    let scripts = manifest.get("scripts");
-    let declares = |name: &str| {
-        scripts
-            .and_then(|scripts| scripts.get(name))
-            .and_then(Value::as_str)
-            .filter(|script| !script.is_empty())
-    };
     if !script_names
         .iter()
-        .copied()
-        .map(declares)
-        .any(|declares| declares.is_some())
+        .any(|name| declared_script(manifest, name).is_some())
     {
         return Ok(());
     }
@@ -383,7 +383,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
     let parent_env: HashMap<String, String> = std::env::vars().collect();
 
     for &name in script_names {
-        let Some(script) = declares(name) else { continue };
+        let Some(script) = declared_script(manifest, name) else { continue };
         run_lifecycle_hook::<Reporter>(name, script, &run_opts, manifest, &parent_env)
             .map_err(miette::Report::new)
             .wrap_err_with(|| format!("run the {name} script"))?;

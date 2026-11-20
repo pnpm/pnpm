@@ -55,6 +55,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
     let opts = PackOptions {
         dir: dir.path().to_path_buf(),
         workspace_dir: None,
+        manifest_format: ManifestFormat::default(),
         scripts: crate::PackScripts {
             ignore: true,
             unsafe_perm: true,
@@ -68,7 +69,6 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
-            format: ManifestFormat::default(),
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
             bumped_workspace_packages: None,
@@ -827,6 +827,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
     let opts = PackOptions {
         dir: pkg_dir.clone(),
         workspace_dir: Some(workspace.path().to_path_buf()),
+        manifest_format: ManifestFormat::default(),
         scripts: crate::PackScripts {
             ignore: true,
             unsafe_perm: true,
@@ -840,7 +841,6 @@ fn workspace_license_is_injected_into_a_sub_package() {
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
-            format: ManifestFormat::default(),
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
             bumped_workspace_packages: None,
@@ -892,6 +892,7 @@ fn symlinked_workspace_license_is_not_injected() {
     let opts = PackOptions {
         dir: pkg_dir.clone(),
         workspace_dir: Some(workspace.path().to_path_buf()),
+        manifest_format: ManifestFormat::default(),
         scripts: crate::PackScripts {
             ignore: true,
             unsafe_perm: true,
@@ -905,7 +906,6 @@ fn symlinked_workspace_license_is_not_injected() {
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
-            format: ManifestFormat::default(),
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
             bumped_workspace_packages: None,
@@ -947,6 +947,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
     let opts = PackOptions {
         dir: pkg_dir.clone(),
         workspace_dir: Some(workspace.path().to_path_buf()),
+        manifest_format: ManifestFormat::default(),
         scripts: crate::PackScripts {
             ignore: true,
             unsafe_perm: true,
@@ -960,7 +961,6 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
-            format: ManifestFormat::default(),
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
             bumped_workspace_packages: None,

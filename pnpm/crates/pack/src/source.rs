@@ -45,7 +45,7 @@ pub(super) async fn prepare_source<Reporter>(opts: &PackOptions) -> Result<PackS
 where
     Reporter: self::Reporter,
 {
-    let entry_manifest = read_manifest(&opts.dir, opts.manifest.format)?;
+    let entry_manifest = read_manifest(&opts.dir, opts.manifest_format)?;
     prevent_bundled_dependencies_with_pnp(opts.manifest.node_linker, &entry_manifest)?;
     let dir = resolve_publish_directory(&opts.dir, &entry_manifest)?;
 
@@ -54,13 +54,13 @@ where
             &opts.dir,
             &["prepack", "prepare"],
             &entry_manifest,
-            opts.manifest.format,
+            opts.manifest_format,
         )?;
     }
 
     // Re-read the manifest from `dir`: a `prepack` / `prepare` script
     // may have rewritten it.
-    let manifest = read_manifest(&dir, opts.manifest.format)?;
+    let manifest = read_manifest(&dir, opts.manifest_format)?;
     prevent_bundled_dependencies_with_pnp(opts.manifest.node_linker, &manifest)?;
 
     let name = packed_identity(&manifest)?;

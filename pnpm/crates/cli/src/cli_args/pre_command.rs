@@ -205,6 +205,19 @@ pub(crate) fn read_pin_lockfile(
     }
 }
 
+/// Where the pin is read from: `dir` itself for a global command, else the
+/// project `dir` belongs to.
+fn pin_roots(invocation: &Invocation, config: &Config, dir: &Path) -> PinRoots {
+    if !invocation.global {
+        return PinRoots::of(config, dir);
+    }
+    PinRoots {
+        manifest: dir.to_path_buf(),
+        env: dir.to_path_buf(),
+        manifest_format: config.preferred_manifest_format,
+    }
+}
+
 /// The settings are read in tiers, each only when the one before it calls
 /// for it: none when the manifest pins nothing these checks act on, the
 /// [`PIN_DECISION_SETTINGS`](pnpm_config::PIN_DECISION_SETTINGS) to decide,
@@ -228,15 +241,7 @@ fn pre_command_plan_with_state(
     }
     let config =
         load_pre_command_config(invocation, config_overrides, &dir, ConfigLoad::PIN_DECISION)?;
-    let roots = if invocation.global {
-        PinRoots {
-            manifest: dir.clone(),
-            env: dir.clone(),
-            manifest_format: config.preferred_manifest_format,
-        }
-    } else {
-        PinRoots::of(&config, &dir)
-    };
+    let roots = pin_roots(invocation, &config, &dir);
     let manifest = read_root_manifest(&roots.manifest, roots.manifest_format);
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
     let locked_env = read_pin_lockfile(

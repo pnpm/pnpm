@@ -281,6 +281,23 @@ where
     pack_source::<Reporter, Sys>(opts, source).await
 }
 
+/// Run the `postpack` script `entry_manifest` declares, unless scripts are
+/// ignored.
+fn run_postpack<Reporter: self::Reporter>(
+    opts: &PackOptions,
+    entry_manifest: &Value,
+) -> Result<(), PackError> {
+    if opts.scripts.ignore {
+        return Ok(());
+    }
+    opts.scripts.run_if_present::<Reporter>(
+        &opts.dir,
+        &["postpack"],
+        entry_manifest,
+        opts.manifest_format,
+    )
+}
+
 /// Pack `source`, prepared by [`prepare_source`], into an archive, then run
 /// `postpack`.
 async fn pack_source<Reporter, Sys>(
@@ -319,14 +336,7 @@ where
             manifest_json: &manifest_json,
         };
         archive = Some(write_tarball::<Sys>(&opts.output, &packed, &source.bins).await?);
-        if !opts.scripts.ignore {
-            opts.scripts.run_if_present::<Reporter>(
-                &opts.dir,
-                &["postpack"],
-                &source.entry_manifest,
-                opts.manifest.format,
-            )?;
-        }
+        run_postpack::<Reporter>(opts, &source.entry_manifest)?;
     }
 
     let tarball_path = packed_tarball_path(&opts.dir, &source.dir, &dest_dir, &tarball_name);
@@ -357,7 +367,7 @@ fn packed_files_map(
     files_map.retain(|name, _| !is_manifest_entry(name));
     files_map.insert(
         "package/package.json".to_string(),
-        project_manifest_path(&source.dir, opts.manifest.format),
+        project_manifest_path(&source.dir, opts.manifest_format),
     );
     inject_workspace_license(opts, &source.dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale

@@ -190,6 +190,29 @@ fn importer_peer_names(
         .unwrap_or_default())
 }
 
+/// The importer id and manifest of the workspace project `spec` links to,
+/// or `None` when it links to no importer of the lockfile.
+fn linked_workspace_manifest(
+    inputs: &ImporterComponents<'_>,
+    importer_id: &str,
+    spec: &pnpm_lockfile::ResolvedDependencySpec,
+) -> miette::Result<Option<(String, serde_json::Value)>> {
+    let Some(link_target) = spec.version.as_link_target() else {
+        return Ok(None);
+    };
+    let Some(target_id) = normalize_link_path(importer_id, link_target) else {
+        return Ok(None);
+    };
+    if !inputs.lockfile.importers.contains_key(target_id.as_str()) {
+        return Ok(None);
+    }
+    let Some(ws_dir) = confined_importer_dir(inputs.lockfile_dir, &target_id) else {
+        return Ok(None);
+    };
+    let manifest = safe_read_project_manifest_from_dir(&ws_dir, inputs.manifest_format)?;
+    Ok(manifest.map(|manifest| (target_id, manifest)))
+}
+
 /// Record a `link:` dependency that resolves to another workspace
 /// importer as a component of its own, and queue that importer so its
 /// dependencies hang off it. `false` when the dependency is not one.
@@ -202,19 +225,7 @@ fn collect_linked_workspace_component(
     dev_only: bool,
     walk: &mut ImporterWalk<'_>,
 ) -> miette::Result<bool> {
-    let Some(link_target) = spec.version.as_link_target() else {
-        return Ok(false);
-    };
-    let Some(target_id) = normalize_link_path(importer_id, link_target) else {
-        return Ok(false);
-    };
-    if !inputs.lockfile.importers.contains_key(target_id.as_str()) {
-        return Ok(false);
-    }
-    let Some(ws_dir) = confined_importer_dir(inputs.lockfile_dir, &target_id) else {
-        return Ok(false);
-    };
-    let Some(ws_manifest) = safe_read_project_manifest_from_dir(&ws_dir, inputs.manifest_format)?
+    let Some((target_id, ws_manifest)) = linked_workspace_manifest(inputs, importer_id, spec)?
     else {
         return Ok(false);
     };
