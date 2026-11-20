@@ -184,7 +184,10 @@ fn state_dir_accepts_an_explicit_empty_value_and_resets_from_config_override() {
 #[cfg(unix)]
 #[test]
 fn state_dir_accepts_non_utf8_os_paths() {
-    use std::{ffi::OsString, os::unix::ffi::OsStringExt as _};
+    use std::{
+        ffi::OsString,
+        os::unix::ffi::OsStringExt as _,
+    };
 
     let non_utf8 = OsString::from_vec(b"custom-\xff-state".to_vec());
     let raw = [
