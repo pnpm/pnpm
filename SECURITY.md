@@ -1,6 +1,6 @@
-# Security policy
+# Security Policy
 
-## Supported versions
+## Supported Versions
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -12,7 +12,7 @@
 Every release line the table marks as supported is in scope, pnpm 12 included.
 The language a line is written in does not change that.
 
-## Reporting a vulnerability
+## Reporting a Vulnerability
 
 Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
 
@@ -31,7 +31,7 @@ Report an issue in this repository's own automation through the advisory process
 too, not as a public issue. A public report publishes a working attack path
 against infrastructure that is still running.
 
-## Threat model and scope
+## Threat Model and Scope
 
 pnpm's security boundary is **filesystem permissions**. We assume that the store
 directory, the project directory, `node_modules`, the lockfile, and pnpm's
@@ -44,31 +44,30 @@ In particular:
 
 - **The content-addressable store is not a security boundary against a
   write-capable local adversary.** The integrity hashes recorded for each file
-  live inside the store itself (for example `<storeDir>/v3/files/index.db`), in the
-  same trust domain as the files they describe. Anyone who can modify a file in the
+  live inside the store itself (e.g. `<storeDir>/v3/files/index.db`), in the same
+  trust domain as the files they describe. Anyone who can modify a file in the
   store can also modify its recorded hash. Integrity verification therefore
-  exists to detect **accidental corruption**, such as interrupted writes, bit-rot
-  and partially fetched tarballs. It does not defend against tampering by someone
-  who can already write to the store. Optimizations such as the `mtime` fast path
-  do not weaken this guarantee, because the guarantee was never tampering
-  resistance.
+  exists to detect **accidental corruption** (interrupted writes, bit-rot,
+  partially fetched tarballs), not to defend against tampering by someone who can
+  already write to the store. Optimizations such as the `mtime` fast path do not
+  weaken this guarantee, because the guarantee was never tampering resistance.
 
 - **The store must not be shared among mutually-untrusting users.** A store
   writable by an untrusted party is equivalent to letting that party write
   arbitrary code into your `node_modules`. If you share a store across users or
-  CI jobs, restrict write access to trusted identities through filesystem
+  CI jobs, restrict write access to trusted identities via filesystem
   permissions.
 
 - **Running pnpm inside a repository means trusting that repository.** This is
   not limited to `pnpm run`, `pnpm exec`, and `pnpm dlx`, which execute whatever
   the repository specifies. A plain `pnpm install` also runs the project's own
-  `preinstall`, `install`, `postinstall`, and `prepare` scripts by default.
+  `preinstall`, `install`, `postinstall`, and `prepare` scripts by default;
   `--ignore-scripts` is what suppresses them. The build approval prompt
   (`onlyBuiltDependencies` / `allowBuilds`) gates **dependencies'** build
   scripts, not the scripts of the project you are installing.
 
   A report therefore does not describe a privilege escalation merely because an
-  untrusted repository can influence what pnpm executes. In that starting
+  untrusted repository can influence what pnpm executes — in that starting
   position, code execution is already available to the attacker by design.
 
 - **The workspace's extent is defined by `pnpm-workspace.yaml` and may reach
@@ -78,27 +77,28 @@ In particular:
   importers, and creates `node_modules` inside them. Those directories are part
   of the project trust domain **by declaration**. A hostile edit to
   `pnpm-workspace.yaml` that points the workspace outside the checkout is the
-  same starting position as the previous bullet. Whoever can change that file
+  same starting position as the previous bullet: whoever can change that file
   can already achieve code execution at install time through the configuration
   it carries, so this is not an escalation. The lockfile does not define the
-  workspace. An importer entry for a path that no declared pattern matches
+  workspace — an importer entry for a path that no declared pattern matches
   does not cause pnpm to install into that path.
 
 - **Some restrictions are hardening, not boundaries.** Environment variable
   expansion in repository-controlled configuration is suppressed for request
   destinations (`registry`, `proxy`, `pnprServer`) and for auth values. That
-  narrows silent credential exfiltration, which is the case that survives
+  narrows silent credential exfiltration — the case that survives
   `--ignore-scripts`, and the case where a one-line config diff draws less
   review than a new `postinstall` script would. It is deliberately not a
   general-purpose sandbox, and a setting outside its coverage is not a
   vulnerability on that basis alone. What matters is what the gap grants an
   attacker beyond what the repository could already do without it.
 
-  Static settings in a repository's `.npmrc` or `pnpm-workspace.yaml` are a case
-  of this. `strict-ssl=false`, `cafile`, `registry` and proxies configure network
-  transport or TLS verification. npm and Yarn support all of them, for legitimate
-  enterprise and intranet deployments. Ignoring or forbidding them would break
-  valid projects and diverge from upstream package managers.
+  In particular, static settings in repository `.npmrc` or `pnpm-workspace.yaml`
+  that configure network transport or TLS verification (such as `strict-ssl=false`,
+  `cafile`, `registry`, or proxies) reflect standard configuration supported by
+  npm and Yarn for legitimate enterprise and intranet deployments. Ignoring or
+  forbidding these settings would break valid projects and diverge from upstream
+  package managers.
 
 The following are examples of reports we consider **out of scope**:
 
@@ -111,8 +111,8 @@ The following are examples of reports we consider **out of scope**:
   or `pnpm dlx` executes, since those commands run repository-controlled code by
   definition.
 - Behavior that matches npm and Yarn and that we would have to diverge from the
-  ecosystem to change. Report it upstream first. If they treat it as a
-  vulnerability, we follow.
+  ecosystem to change. Report it upstream first; if they treat it as a
+  vulnerability, we will follow.
 - Repository-level configuration files (`.npmrc`, `pnpm-workspace.yaml`) setting
   static transport or TLS options, such as `strict-ssl=false` or custom registry
   URLs, without environment variable expansion.
