@@ -222,19 +222,22 @@ fn test_apply_resolutions_to_config_errors_on_unresolvable_version_reference() {
 }
 
 #[test]
-fn test_apply_resolutions_to_config_preserves_env_placeholders() {
+fn test_apply_resolutions_to_config_skips_env_placeholders() {
     let (_dir, manifest) = make_manifest(&json!({
         "name": "test",
         "version": "1.0.0",
         "resolutions": {
             "foo": "${PNPM_TEST_VERSION}",
+            "bar": "1.0.0",
         },
     }));
     let mut config = Config::new();
     let warnings = apply(&mut config, &manifest).unwrap();
     assert_eq!(warnings.len(), 1);
-    let overrides = config.overrides.unwrap();
-    assert_eq!(overrides.get("foo").unwrap(), "${PNPM_TEST_VERSION}");
+    assert!(warnings[0].contains("were skipped: foo\n"), "{}", warnings[0]);
+    let expected: IndexMap<String, String> =
+        std::iter::once(("bar".to_owned(), "1.0.0".to_owned())).collect();
+    assert_eq!(config.overrides.unwrap(), expected);
 }
 
 #[test]

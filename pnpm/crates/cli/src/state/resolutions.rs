@@ -36,18 +36,22 @@ pub fn promote_root_resolutions(dir: &Path, config: &mut Config) -> Option<Vec<S
     apply_resolutions_to_config(config, &manifest).ok()
 }
 
-/// The overrides promoted from the root project's resolutions, when they are
-/// what `config.overrides` holds. A command that saves overrides to
+/// The overrides promoted from the root project's resolutions that are still
+/// in effect in `config.overrides`. A command that saves overrides to
 /// `pnpm-workspace.yaml` has to save these too: once the file has overrides,
 /// the next config read ignores the resolutions.
-pub fn promoted_resolution_overrides(
-    dir: &Path,
-    config: &Config,
-) -> Option<IndexMap<String, String>> {
+pub fn promoted_resolution_overrides(dir: &Path, config: &Config) -> IndexMap<String, String> {
     let mut probe = config.clone();
     probe.overrides = None;
-    promote_root_resolutions(dir, &mut probe)?;
-    probe.overrides.filter(|promoted| config.overrides.as_ref() == Some(promoted))
+    let (Some(_), Some(promoted), Some(current)) =
+        (promote_root_resolutions(dir, &mut probe), probe.overrides, config.overrides.as_ref())
+    else {
+        return IndexMap::new();
+    };
+    promoted
+        .into_iter()
+        .filter(|(selector, spec)| current.get(selector) == Some(spec))
+        .collect()
 }
 
 pub fn emit_resolutions_warnings(emit: fn(&LogEvent), dir: &Path, warnings: Vec<String>) {
@@ -114,11 +118,15 @@ fn promote_resolutions(
     let mut entries = Vec::new();
     let mut skipped = Vec::new();
     for (yarn_selector, spec) in resolutions {
-        let Some(selector) = to_override_selector(yarn_selector) else {
+        let original = spec.as_str().unwrap_or_default();
+        // A `${NAME}` value is not a version spec, and an override reads it
+        // as a `$name` reference.
+        let Some(selector) =
+            to_override_selector(yarn_selector).filter(|_| !original.starts_with("${"))
+        else {
             skipped.push(sanitize_for_log(yarn_selector));
             continue;
         };
-        let original = spec.as_str().unwrap_or_default();
         let resolved = resolve_version_reference(original, root_manifest)?;
         entries.push(format_migrated_entry(&selector, original, &resolved));
         overrides.insert(selector, resolved);
@@ -230,7 +238,7 @@ fn resolve_version_reference(
     spec: &str,
     manifest: &serde_json::Value,
 ) -> Result<String, InitStateError> {
-    if !spec.starts_with('$') || spec.starts_with("${") {
+    if !spec.starts_with('$') {
         return Ok(spec.to_owned());
     }
     let dep_name = &spec[1..];

@@ -377,7 +377,7 @@ fn run_gate_accepts_promoted_resolutions_extended_by_update_config() {
 }
 
 #[test]
-fn link_keeps_promoted_resolutions_for_the_next_install() {
+fn link_keeps_promoted_resolutions_extended_by_update_config_for_the_next_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -392,6 +392,11 @@ fn link_keeps_promoted_resolutions_for_the_next_install() {
         .to_string(),
     )
     .expect("write package.json with resolutions");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.overrides = { ...config.overrides, '@pnpm.e2e/bar': '2.0.0' }; return config } } }",
+    )
+    .expect("write pnpmfile");
     let target_dir = root.path().join("link-target");
     fs::create_dir_all(&target_dir).expect("create link target");
     fs::write(

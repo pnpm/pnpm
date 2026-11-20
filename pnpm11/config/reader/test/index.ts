@@ -7557,7 +7557,7 @@ describe('resolutions in root package.json', () => {
 
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toContain('foo: $bar -> ^2.0.0')
-    expect(config.overrides).toStrictEqual({ foo: '^2.0.0', qar: '${VERSION}' })
+    expect(config.overrides).toStrictEqual({ foo: '^2.0.0' })
   })
 
   test('ignores the current directory resolutions in a global command', async () => {

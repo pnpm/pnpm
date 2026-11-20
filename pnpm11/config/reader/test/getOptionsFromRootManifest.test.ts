@@ -1096,13 +1096,14 @@ test.each([
   }))
 })
 
-test('applyRootResolutions() resolves $ references and keeps ${VAR} placeholders literal', () => {
+test('applyRootResolutions() resolves $ references and skips ${VAR} placeholders', () => {
   const warnings: string[] = []
   expect(applyRootResolutions({
     dependencies: { foo: '1.2.3' },
     resolutions: { bar: '$foo', qar: '${VERSION}' },
-  }, undefined, warnings)).toStrictEqual({ bar: '1.2.3', qar: '${VERSION}' })
-  expect(warnings[0]).toContain('  bar: $foo -> 1.2.3\n  qar: ${VERSION}\n')
+  }, undefined, warnings)).toStrictEqual({ bar: '1.2.3' })
+  expect(warnings[0]).toContain('  bar: $foo -> 1.2.3\n')
+  expect(warnings[0]).toContain('were skipped: qar\n')
 })
 
 test('applyRootResolutions() throws on an unresolvable $ reference', () => {

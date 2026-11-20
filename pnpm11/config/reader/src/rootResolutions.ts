@@ -39,13 +39,14 @@ function promoteResolutions (manifest: ProjectManifest, resolutions: Record<stri
   const replaceVersionReference = createVersionReferencesReplacer(manifest)
   const result: PromotedResolutions = { promoted: {}, entries: [], skipped: [] }
   for (const [yarnSelector, original] of Object.entries(resolutions)) {
-    const selector = toOverrideSelector(yarnSelector)
+    // A `${NAME}` value is not a version spec, and an override reads it as a
+    // `$name` reference.
+    const selector = original.startsWith('${') ? undefined : toOverrideSelector(yarnSelector)
     if (selector == null) {
       result.skipped.push(sanitizeForLog(yarnSelector))
       continue
     }
-    // `${NAME}` is not a `$name` reference. Resolutions keep it literal.
-    const resolved = original.startsWith('${') ? original : replaceVersionReference(original)
+    const resolved = replaceVersionReference(original)
     result.entries.push(formatMigratedEntry(selector, original, resolved))
     result.promoted[selector] = resolved
   }

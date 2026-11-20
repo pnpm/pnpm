@@ -100,7 +100,7 @@ impl LinkArgs {
 
         let root_dir = config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.clone());
 
-        let mut new_overrides = promoted_resolution_overrides(cli_dir, config).unwrap_or_default();
+        let mut new_overrides = promoted_resolution_overrides(cli_dir, config);
         for path_str in &self.package_paths {
             let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
 
