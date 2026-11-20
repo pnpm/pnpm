@@ -254,13 +254,7 @@ fn uses_value_at<'text>(
         .rfind('\n')
         .map(|line_break| line_break + 1)
         .unwrap_or(0);
-    if !is_inline_uses_target(
-        text,
-        key.location.byte_span.1,
-        start,
-        raw_scalar,
-        &before_start[line_start..],
-    ) {
+    if !is_inline_uses_target(text, key.location.byte_span.1, start, raw_scalar) {
         return Ok(None);
     }
     let Some(value) = text.get(start..end_info.end) else {
@@ -274,39 +268,56 @@ fn uses_value_at<'text>(
     }))
 }
 
-fn is_inline_uses_target(
-    text: &str,
-    key_end: usize,
-    start: usize,
-    raw_scalar: &str,
-    line_prefix: &str,
-) -> bool {
+fn is_inline_uses_target(text: &str, key_end: usize, start: usize, raw_scalar: &str) -> bool {
     if raw_scalar.contains('\n') || raw_scalar.starts_with(['|', '>']) {
         return false;
     }
     text.get(key_end..start)
         .is_some_and(is_inline_uses_separator)
-        || has_trailing_anchor(line_prefix)
+        || text
+            .get(..start)
+            .is_some_and(|before_start| {
+                ends_with_anchor_token(strip_trailing_yaml_trivia(before_start))
+            })
 }
 
 fn is_inline_uses_separator(separator: &str) -> bool {
     let Some(after_colon) = separator.strip_prefix(':') else {
         return false;
     };
-    after_colon.chars().all(char::is_whitespace)
-        || (after_colon.trim_start().starts_with('&') && has_trailing_anchor(after_colon))
+    let trimmed = strip_trailing_yaml_trivia(after_colon);
+    trimmed.is_empty() || (trimmed.trim_start().starts_with('&') && ends_with_anchor_token(trimmed))
 }
 
-fn has_trailing_anchor(prefix: &str) -> bool {
-    let Some((_, after_amp)) = prefix.rsplit_once('&') else {
+fn strip_trailing_yaml_trivia(mut prefix: &str) -> &str {
+    loop {
+        prefix = prefix.trim_end();
+        let line_start = prefix
+            .rfind('\n')
+            .map_or(0, |index| index + 1);
+        let Some((before_comment, _)) = prefix[line_start..].split_once('#') else {
+            return prefix;
+        };
+        if !before_comment.is_empty() && !before_comment.ends_with(char::is_whitespace) {
+            return prefix;
+        }
+        prefix = &prefix[..line_start + before_comment.len()];
+    }
+}
+
+fn ends_with_anchor_token(trimmed: &str) -> bool {
+    let Some((before_amp, anchor_name)) = trimmed.rsplit_once('&') else {
         return false;
     };
-    let anchor_len = after_amp
-        .find(|character: char| {
-            character.is_whitespace() || matches!(character, '[' | ']' | '{' | '}' | ',')
-        })
-        .unwrap_or(0);
-    anchor_len > 0 && after_amp[anchor_len..].chars().all(char::is_whitespace)
+    let valid_boundary = before_amp
+        .chars()
+        .next_back()
+        .is_none_or(|ch| ch.is_whitespace() || matches!(ch, ':' | '[' | '{' | ',' | '-' | '?'));
+    valid_boundary
+        && !anchor_name.is_empty()
+        && !anchor_name
+            .chars()
+            .any(|ch| ch.is_whitespace() || matches!(ch, '[' | ']' | '{' | '}' | ','))
 }
 
 struct UsesScalarEnd {

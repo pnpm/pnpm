@@ -238,6 +238,110 @@ jobs:
 `)
   })
 
+  test('ignores quoted and str-tagged << keys while honoring explicit !!merge tags and next-line anchors', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `inactive_root: &inactive_root
+  jobs:
+    unused:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/setup-python@${shaOld} # v4.1.0
+inactive_step: &inactive_step
+  uses: actions/cache@${shaOld} # v4.1.0
+pin: &pin
+  actions/checkout@${shaOld} # v4.1.0
+active_step: &active_step
+  uses: *pin
+active_jobs: &active_jobs
+  "bu\\u0069ld":
+    runs-on: ubuntu-latest
+    steps:
+      - "<<": *inactive_step
+        !!merge <<: *active_step
+      - '<<': *inactive_step
+        run: echo single-quoted
+      - !!str <<: *inactive_step
+        run: echo str-tagged
+  "li\\u006et":
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@${shaOld} # v4.1.0
+"<<": *inactive_root
+jobs:
+  '<<': *inactive_root
+  !!merge <<: *active_jobs
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@${shaOld} # v4.1.0
+`,
+    })
+    const updated = await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    expect(updated.map((action) => action.name).sort()).toEqual(['actions/checkout', 'actions/setup-node'])
+    const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
+    expect(content).toContain(`uses: actions/setup-python@${shaOld} # v4.1.0`)
+    expect(content).toContain(`uses: actions/cache@${shaOld} # v4.1.0`)
+    expect(content).toContain(`pin: &pin\n  actions/checkout@${shaNew} # v4.2.0`)
+    expect(content).toContain(`uses: actions/setup-node@${shaNew} # v4.2.0`)
+  })
+
+  test('stops fallback after merge depth cutoff while keeping direct overrides', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const lines = [
+      `s0: &s0 { uses: actions/checkout@${shaOld} }`,
+      `shadowed_step: &shadowed_step { uses: actions/setup-node@${shaOld} }`,
+      'j0: &j0',
+      '  ci:',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      `      - uses: actions/checkout@${shaOld}`,
+      'shadowed_jobs: &shadowed_jobs',
+      '  ci:',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      `      - uses: actions/setup-python@${shaOld}`,
+    ]
+    for (let depth = 1; depth <= 65; depth++) {
+      lines.push(`s${depth}: &s${depth} { <<: *s${depth - 1} }`)
+      lines.push(`j${depth}: &j${depth} { <<: *j${depth - 1} }`)
+    }
+    lines.push(
+      'jobs:',
+      '  <<: [*j65, *shadowed_jobs]',
+      '  direct:',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      '      - <<: [*s65, *shadowed_step]',
+      '        name: Deep cutoff step',
+      `      - uses: actions/cache@${shaOld}`,
+      '        <<: [*s65, *shadowed_step]'
+    )
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `${lines.join('\n')}\n`,
+    })
+    const updated = await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    expect(updated.map((action) => action.name)).toEqual(['actions/cache'])
+    const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
+    expect(content).toContain(`actions/setup-node@${shaOld}`)
+    expect(content).toContain(`actions/setup-python@${shaOld}`)
+    expect(content).toContain(`actions/cache@${shaNew} # v4.2.0`)
+  })
+
   test('finds actions in workflows and referenced local composite actions', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `jobs:

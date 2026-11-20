@@ -107,19 +107,36 @@ function createActionReference ({ file, node, parsed, source }: {
   }
 }
 
-const MAX_MERGE_DEPTH = 8
+const MAX_MERGE_DEPTH = 64
+const YAML_MERGE_TAG = 'tag:yaml.org,2002:merge'
+
+type LookupOutcome =
+  | { kind: 'found', value: Node | null }
+  | { kind: 'missing', lowlink: number | null }
+  | { kind: 'cutoff' }
+
+type CollectOutcome =
+  | { kind: 'complete', lowlink: number | null }
+  | { kind: 'cutoff' }
 
 interface MapLookupContext {
   document: Document
   key: string
-  visitedDepth: Map<YAMLMap, number>
+  confirmedMissing: Set<YAMLMap>
+  activeIndex: Map<YAMLMap, number>
 }
 
 interface MapEntriesContext {
   document: Document
   seenKeys: Set<string>
-  visitedDepth: Map<YAMLMap, number>
+  completed: Set<YAMLMap>
+  activeIndex: Map<YAMLMap, number>
   values: Array<Node | null>
+}
+
+interface DirectMapScan {
+  hasMerge: boolean
+  mergeNode: Node | null
 }
 
 function findUsesScalars (document: Document, root: Node | null | undefined): Array<Scalar<string>> {
@@ -152,55 +169,95 @@ function collectMapValues (document: Document, rootMap: YAMLMap): Array<Node | n
   const context: MapEntriesContext = {
     document,
     seenKeys: new Set<string>(),
-    visitedDepth: new Map<YAMLMap, number>(),
+    completed: new Set<YAMLMap>(),
+    activeIndex: new Map<YAMLMap, number>(),
     values: [],
   }
   visitMapEntries(context, rootMap, 0)
   return context.values
 }
 
-function visitMapEntries (context: MapEntriesContext, node: Node | null, depth: number): void {
-  if (!isMap(node)) return
-  const previousDepth = context.visitedDepth.get(node)
-  if (previousDepth !== undefined && previousDepth <= depth) return
-  context.visitedDepth.set(node, depth)
-
-  const mergeNode = collectDirectMapValues(context, node)
-  if (depth < MAX_MERGE_DEPTH && mergeNode != null) {
-    visitMergedMapEntries(context, mergeNode, depth + 1)
+function visitMapEntries (context: MapEntriesContext, node: Node | null, depth: number): CollectOutcome {
+  if (!isMap(node) || context.completed.has(node)) return { kind: 'complete', lowlink: null }
+  const ancestorPos = context.activeIndex.get(node)
+  if (ancestorPos !== undefined) return { kind: 'complete', lowlink: ancestorPos }
+  const scan = collectDirectMapValues(context, node)
+  if (!scan.hasMerge) {
+    context.completed.add(node)
+    return { kind: 'complete', lowlink: null }
   }
+  if (depth >= MAX_MERGE_DEPTH) return { kind: 'cutoff' }
+  return descendMapEntriesMerge(context, node, scan.mergeNode, depth + 1)
 }
 
-function collectDirectMapValues (context: MapEntriesContext, node: YAMLMap): Node | null {
+function descendMapEntriesMerge (
+  context: MapEntriesContext,
+  owner: YAMLMap,
+  mergeNode: Node | null,
+  depth: number
+): CollectOutcome {
+  if (mergeNode == null) {
+    context.completed.add(owner)
+    return { kind: 'complete', lowlink: null }
+  }
+  const myPos = context.activeIndex.size
+  context.activeIndex.set(owner, myPos)
+  const outcome = visitMergedMapEntries(context, mergeNode, depth)
+  context.activeIndex.delete(owner)
+  if (outcome.kind === 'complete' && (outcome.lowlink === null || outcome.lowlink >= myPos)) {
+    context.completed.add(owner)
+    return { kind: 'complete', lowlink: null }
+  }
+  return outcome
+}
+
+function collectDirectMapValues (context: MapEntriesContext, node: YAMLMap): DirectMapScan {
   let mergePairValue: unknown
   let hasMerge = false
   for (const pair of node.items) {
-    const key = pairKeyName(context.document, pair.key)
-    if (key === '<<') {
+    if (isMergeKey(context.document, pair.key)) {
       if (!hasMerge) {
         mergePairValue = pair.value
         hasMerge = true
       }
-    } else if (key != null && !context.seenKeys.has(key)) {
-      context.seenKeys.add(key)
-      context.values.push(derefNode(context.document, pair.value))
+      continue
     }
+    recordDirectPair(context, pair.key, pair.value)
   }
-  return hasMerge ? derefNode(context.document, mergePairValue) : null
+  return {
+    hasMerge,
+    mergeNode: hasMerge ? derefNode(context.document, mergePairValue) : null,
+  }
 }
 
-function visitMergedMapEntries (context: MapEntriesContext, merged: Node, depth: number): void {
-  if (isMap(merged)) {
-    visitMapEntries(context, merged, depth)
-    return
-  }
-  if (!isSeq(merged)) return
+function recordDirectPair (context: MapEntriesContext, rawKey: unknown, rawValue: unknown): void {
+  const key = stringKeyName(context.document, rawKey)
+  if (key == null || context.seenKeys.has(key)) return
+  context.seenKeys.add(key)
+  context.values.push(derefNode(context.document, rawValue))
+}
+
+function visitMergedMapEntries (context: MapEntriesContext, merged: Node, depth: number): CollectOutcome {
+  if (isMap(merged)) return visitMapEntries(context, merged, depth)
+  if (!isSeq(merged)) return { kind: 'complete', lowlink: null }
+  let minLowlink: number | null = null
   for (const entry of merged.items) {
-    visitMapEntries(context, derefNode(context.document, entry), depth)
+    const outcome = visitMapEntries(context, derefNode(context.document, entry), depth)
+    if (outcome.kind === 'cutoff') return outcome
+    minLowlink = mergeLowlink(minLowlink, outcome.lowlink)
   }
+  return { kind: 'complete', lowlink: minLowlink }
 }
 
-function pairKeyName (document: Document, key: unknown): string | null {
+function isMergeKey (document: Document, key: unknown): boolean {
+  const resolved = derefNode(document, key)
+  if (!isScalar(resolved)) return false
+  if (resolved.tag === YAML_MERGE_TAG) return true
+  return resolved.tag === undefined && resolved.type === 'PLAIN' && resolved.value === '<<'
+}
+
+function stringKeyName (document: Document, key: unknown): string | null {
+  if (isMergeKey(document, key)) return null
   const resolved = derefNode(document, key)
   return isScalar(resolved) && typeof resolved.value === 'string' ? resolved.value : null
 }
@@ -230,33 +287,73 @@ function findStringScalar (document: Document, node: Node, key: string): Scalar<
 }
 
 function findMapValue (document: Document, node: Node, key: string): Node | null {
-  return lookupMapValue({ document, key, visitedDepth: new Map<YAMLMap, number>() }, node, 0)
-}
-
-function lookupMapValue (context: MapLookupContext, node: Node, depth: number): Node | null {
-  if (!isMap(node)) return null
-  const previousDepth = context.visitedDepth.get(node)
-  if (previousDepth !== undefined && previousDepth <= depth) return null
-  context.visitedDepth.set(node, depth)
-  const directPair = node.items.find((pair) => pairKeyName(context.document, pair.key) === context.key)
-  if (directPair !== undefined) return derefNode(context.document, directPair.value)
-  if (depth >= MAX_MERGE_DEPTH) return null
-  return lookupMergedValue(context, node, depth + 1)
-}
-
-function lookupMergedValue (context: MapLookupContext, node: YAMLMap, depth: number): Node | null {
-  const merged = derefNode(
-    context.document,
-    node.items.find((pair) => pairKeyName(context.document, pair.key) === '<<')?.value
+  const outcome = lookupMapValue(
+    {
+      document,
+      key,
+      confirmedMissing: new Set<YAMLMap>(),
+      activeIndex: new Map<YAMLMap, number>(),
+    },
+    node,
+    0
   )
+  return outcome.kind === 'found' ? outcome.value : null
+}
+
+function lookupMapValue (context: MapLookupContext, node: Node, depth: number): LookupOutcome {
+  if (!isMap(node) || context.confirmedMissing.has(node)) {
+    return { kind: 'missing', lowlink: null }
+  }
+  const ancestorPos = context.activeIndex.get(node)
+  if (ancestorPos !== undefined) return { kind: 'missing', lowlink: ancestorPos }
+  const directPair = node.items.find((pair) => stringKeyName(context.document, pair.key) === context.key)
+  if (directPair !== undefined) {
+    return { kind: 'found', value: derefNode(context.document, directPair.value) }
+  }
+  const mergePair = node.items.find((pair) => isMergeKey(context.document, pair.key))
+  if (mergePair === undefined) {
+    context.confirmedMissing.add(node)
+    return { kind: 'missing', lowlink: null }
+  }
+  if (depth >= MAX_MERGE_DEPTH) return { kind: 'cutoff' }
+  return lookupMergedPair(context, node, mergePair.value, depth + 1)
+}
+
+function lookupMergedPair (
+  context: MapLookupContext,
+  owner: YAMLMap,
+  mergeValue: unknown,
+  depth: number
+): LookupOutcome {
+  const myPos = context.activeIndex.size
+  context.activeIndex.set(owner, myPos)
+  const outcome = lookupMergedTarget(context, derefNode(context.document, mergeValue), depth)
+  context.activeIndex.delete(owner)
+  if (outcome.kind === 'missing' && (outcome.lowlink === null || outcome.lowlink >= myPos)) {
+    context.confirmedMissing.add(owner)
+    return { kind: 'missing', lowlink: null }
+  }
+  return outcome
+}
+
+function lookupMergedTarget (context: MapLookupContext, merged: Node | null, depth: number): LookupOutcome {
   if (isMap(merged)) return lookupMapValue(context, merged, depth)
-  if (!isSeq(merged)) return null
+  if (!isSeq(merged)) return { kind: 'missing', lowlink: null }
+  let minLowlink: number | null = null
   for (const entry of merged.items) {
     const entryMap = derefNode(context.document, entry)
-    const found = entryMap != null ? lookupMapValue(context, entryMap, depth) : null
-    if (found != null) return found
+    if (entryMap == null) continue
+    const outcome = lookupMapValue(context, entryMap, depth)
+    if (outcome.kind !== 'missing') return outcome
+    minLowlink = mergeLowlink(minLowlink, outcome.lowlink)
   }
-  return null
+  return { kind: 'missing', lowlink: minLowlink }
+}
+
+function mergeLowlink (current: number | null, next: number | null): number | null {
+  if (current === null) return next
+  if (next === null) return current
+  return Math.min(current, next)
 }
 
 /**

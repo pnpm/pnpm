@@ -1,6 +1,6 @@
 use super::{
     Component, HashSet, QueryError, Route,
-    graph::{MAX_MERGE_DEPTH, NodeId, YamlGraph, YamlNode},
+    graph::{KeyKind, MAX_MERGE_DEPTH, NodeId, YamlGraph, YamlNode},
 };
 use std::collections::HashMap;
 
@@ -76,14 +76,30 @@ fn find_map_entry(
     prefix: &[Component<'static>],
     key: &'static str,
 ) -> Option<(NodeId, Vec<Component<'static>>)> {
-    let mut lookup = MapLookup { graph, key, visited_depth: HashMap::new() };
-    lookup.find(node_id, prefix, 0)
+    let mut lookup =
+        MapLookup { graph, key, confirmed_missing: HashSet::new(), active_index: HashMap::new() };
+    match lookup.find(node_id, prefix, 0) {
+        LookupOutcome::Found(value_id, path) => Some((value_id, path)),
+        LookupOutcome::Missing { .. } | LookupOutcome::Cutoff => None,
+    }
+}
+
+enum LookupOutcome {
+    Found(NodeId, Vec<Component<'static>>),
+    Missing { lowlink: Option<usize> },
+    Cutoff,
+}
+
+enum DirectScan {
+    Found(NodeId, Vec<Component<'static>>),
+    Merge(Option<(String, NodeId)>),
 }
 
 struct MapLookup<'graph> {
     graph: &'graph YamlGraph,
     key: &'static str,
-    visited_depth: HashMap<NodeId, usize>,
+    confirmed_missing: HashSet<NodeId>,
+    active_index: HashMap<NodeId, usize>,
 }
 
 impl MapLookup<'_> {
@@ -92,62 +108,115 @@ impl MapLookup<'_> {
         node_id: NodeId,
         prefix: &[Component<'static>],
         depth: usize,
-    ) -> Option<(NodeId, Vec<Component<'static>>)> {
-        let (resolved_id, YamlNode::Mapping(entries)) = self.graph.deref(node_id)? else {
-            return None;
+    ) -> LookupOutcome {
+        let Some((resolved_id, YamlNode::Mapping(entries))) = self.graph.deref(node_id) else {
+            return LookupOutcome::Missing { lowlink: None };
         };
-        if self.visited_depth
-            .get(&resolved_id)
-            .is_some_and(|&previous| previous <= depth)
-        {
-            return None;
+        if self.confirmed_missing.contains(&resolved_id) {
+            return LookupOutcome::Missing { lowlink: None };
         }
-        self.visited_depth.insert(resolved_id, depth);
-
-        let mut merge_target = None;
-        for &(key_id, value_id) in entries {
-            let Some(entry_key) = key_id.and_then(|id| self.graph.string_at(id)) else {
-                continue;
-            };
-            if entry_key == self.key {
-                let mut path = prefix.to_vec();
-                path.push(self.key.into());
-                return Some((value_id, path));
-            }
-            if entry_key == "<<" && merge_target.is_none() {
-                merge_target = Some(value_id);
-            }
+        if let Some(&ancestor_pos) = self.active_index.get(&resolved_id) {
+            return LookupOutcome::Missing { lowlink: Some(ancestor_pos) };
         }
+        let merge_entry = match self.scan_direct(entries, prefix) {
+            DirectScan::Found(value_id, path) => return LookupOutcome::Found(value_id, path),
+            DirectScan::Merge(merge_entry) => merge_entry,
+        };
+        let Some((merge_route_key, merge_id)) = merge_entry else {
+            self.confirmed_missing.insert(resolved_id);
+            return LookupOutcome::Missing { lowlink: None };
+        };
         if depth >= MAX_MERGE_DEPTH {
-            return None;
+            return LookupOutcome::Cutoff;
         }
-        self.find_merged(merge_target?, prefix, depth + 1)
+        self.descend_lookup_merge(resolved_id, merge_id, &merge_route_key, prefix, depth + 1)
+    }
+
+    fn descend_lookup_merge(
+        &mut self,
+        resolved_id: NodeId,
+        merge_id: NodeId,
+        merge_route_key: &str,
+        prefix: &[Component<'static>],
+        depth: usize,
+    ) -> LookupOutcome {
+        let my_pos = self.active_index.len();
+        self.active_index.insert(resolved_id, my_pos);
+        let outcome = self.find_merged(merge_id, merge_route_key, prefix, depth);
+        self.active_index.remove(&resolved_id);
+        match outcome {
+            LookupOutcome::Missing { lowlink } if lowlink.is_none_or(|pos| pos >= my_pos) => {
+                self.confirmed_missing.insert(resolved_id);
+                LookupOutcome::Missing { lowlink: None }
+            }
+            other => other,
+        }
+    }
+
+    fn scan_direct(
+        &self,
+        entries: &[(NodeId, NodeId)],
+        prefix: &[Component<'static>],
+    ) -> DirectScan {
+        let mut merge_entry = None;
+        for &(key_id, value_id) in entries {
+            match self.graph.key_at(key_id) {
+                Some(KeyKind::String { decoded, route_key }) if decoded == self.key => {
+                    let mut path = prefix.to_vec();
+                    path.push(route_key.to_owned().into());
+                    return DirectScan::Found(value_id, path);
+                }
+                Some(KeyKind::Merge { route_key }) if merge_entry.is_none() => {
+                    merge_entry = Some((route_key.to_owned(), value_id));
+                }
+                _ => {}
+            }
+        }
+        DirectScan::Merge(merge_entry)
     }
 
     fn find_merged(
         &mut self,
         merge_id: NodeId,
+        merge_route_key: &str,
         prefix: &[Component<'static>],
         depth: usize,
-    ) -> Option<(NodeId, Vec<Component<'static>>)> {
-        match self.graph.deref(merge_id)?.1 {
+    ) -> LookupOutcome {
+        let Some((_, merged_node)) = self.graph.deref(merge_id) else {
+            return LookupOutcome::Missing { lowlink: None };
+        };
+        match merged_node {
             YamlNode::Mapping(_) => {
                 let mut merge_prefix = prefix.to_vec();
-                merge_prefix.push("<<".into());
+                merge_prefix.push(merge_route_key.to_owned().into());
                 self.find(merge_id, &merge_prefix, depth)
             }
             YamlNode::Sequence(items) => {
-                for (index, &item_id) in items.iter().enumerate() {
-                    let mut item_prefix = prefix.to_vec();
-                    item_prefix.extend(["<<".into(), index.into()]);
-                    if let Some(found) = self.find(item_id, &item_prefix, depth) {
-                        return Some(found);
-                    }
-                }
-                None
+                self.find_merged_sequence(items, merge_route_key, prefix, depth)
             }
-            YamlNode::Scalar(_) | YamlNode::Alias(_) => None,
+            _ => LookupOutcome::Missing { lowlink: None },
         }
+    }
+
+    fn find_merged_sequence(
+        &mut self,
+        items: &[NodeId],
+        merge_route_key: &str,
+        prefix: &[Component<'static>],
+        depth: usize,
+    ) -> LookupOutcome {
+        let mut min_lowlink = None;
+        for (index, &item_id) in items.iter().enumerate() {
+            let mut item_prefix = prefix.to_vec();
+            item_prefix.extend([merge_route_key.to_owned().into(), index.into()]);
+            match self.find(item_id, &item_prefix, depth) {
+                outcome @ (LookupOutcome::Found(..) | LookupOutcome::Cutoff) => return outcome,
+                LookupOutcome::Missing { lowlink } => {
+                    min_lowlink = merge_lowlink(min_lowlink, lowlink);
+                }
+            }
+        }
+        LookupOutcome::Missing { lowlink: min_lowlink }
     }
 }
 
@@ -159,80 +228,149 @@ fn collect_map_entries(
     let mut collector = MapCollector {
         graph,
         seen_keys: HashSet::new(),
-        visited_depth: HashMap::new(),
+        completed: HashSet::new(),
+        active_index: HashMap::new(),
         entries: Vec::new(),
     };
-    collector.collect(node_id, prefix, 0);
+    let _ = collector.collect(node_id, prefix, 0);
     collector.entries
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CollectOutcome {
+    Complete { lowlink: Option<usize> },
+    Cutoff,
 }
 
 struct MapCollector<'graph> {
     graph: &'graph YamlGraph,
     seen_keys: HashSet<String>,
-    visited_depth: HashMap<NodeId, usize>,
+    completed: HashSet<NodeId>,
+    active_index: HashMap<NodeId, usize>,
     entries: Vec<(NodeId, Vec<Component<'static>>)>,
 }
 
 impl MapCollector<'_> {
-    fn collect(&mut self, node_id: NodeId, prefix: &[Component<'static>], depth: usize) {
+    fn collect(
+        &mut self,
+        node_id: NodeId,
+        prefix: &[Component<'static>],
+        depth: usize,
+    ) -> CollectOutcome {
         let Some((resolved_id, YamlNode::Mapping(entries))) = self.graph.deref(node_id) else {
-            return;
+            return CollectOutcome::Complete { lowlink: None };
         };
-        if self.visited_depth
-            .get(&resolved_id)
-            .is_some_and(|&previous| previous <= depth)
-        {
-            return;
+        if self.completed.contains(&resolved_id) {
+            return CollectOutcome::Complete { lowlink: None };
         }
-        self.visited_depth.insert(resolved_id, depth);
+        if let Some(&ancestor_pos) = self.active_index.get(&resolved_id) {
+            return CollectOutcome::Complete { lowlink: Some(ancestor_pos) };
+        }
+        let Some((merge_route_key, merge_id)) = self.collect_direct_entries(entries, prefix) else {
+            self.completed.insert(resolved_id);
+            return CollectOutcome::Complete { lowlink: None };
+        };
+        if depth >= MAX_MERGE_DEPTH {
+            return CollectOutcome::Cutoff;
+        }
+        self.descend_collect_merge(resolved_id, merge_id, &merge_route_key, prefix, depth + 1)
+    }
 
-        let merge_target = self.collect_direct_entries(entries, prefix);
-        if depth < MAX_MERGE_DEPTH
-            && let Some(merge_id) = merge_target
-        {
-            self.collect_merged(merge_id, prefix, depth + 1);
+    fn descend_collect_merge(
+        &mut self,
+        resolved_id: NodeId,
+        merge_id: NodeId,
+        merge_route_key: &str,
+        prefix: &[Component<'static>],
+        depth: usize,
+    ) -> CollectOutcome {
+        let my_pos = self.active_index.len();
+        self.active_index.insert(resolved_id, my_pos);
+        let outcome = self.collect_merged(merge_id, merge_route_key, prefix, depth);
+        self.active_index.remove(&resolved_id);
+        match outcome {
+            CollectOutcome::Complete { lowlink } if lowlink.is_none_or(|pos| pos >= my_pos) => {
+                self.completed.insert(resolved_id);
+                CollectOutcome::Complete { lowlink: None }
+            }
+            other => other,
         }
     }
 
     fn collect_direct_entries(
         &mut self,
-        entries: &[(Option<NodeId>, NodeId)],
+        entries: &[(NodeId, NodeId)],
         prefix: &[Component<'static>],
-    ) -> Option<NodeId> {
-        let mut merge_target = None;
+    ) -> Option<(String, NodeId)> {
+        let mut merge_entry = None;
         for &(key_id, value_id) in entries {
-            let Some(key_name) = key_id.and_then(|id| self.graph.string_at(id)) else {
-                continue;
-            };
-            if key_name == "<<" {
-                merge_target.get_or_insert(value_id);
-            } else if self.seen_keys.insert(key_name.to_owned()) {
-                let mut entry_prefix = prefix.to_vec();
-                entry_prefix.push(key_name.to_owned().into());
-                self.entries.push((value_id, entry_prefix));
+            match self.graph.key_at(key_id) {
+                Some(KeyKind::Merge { route_key }) if merge_entry.is_none() => {
+                    merge_entry = Some((route_key.to_owned(), value_id));
+                }
+                Some(KeyKind::String { decoded, route_key })
+                    if self.seen_keys.insert(decoded.to_owned()) =>
+                {
+                    let mut entry_prefix = prefix.to_vec();
+                    entry_prefix.push(route_key.to_owned().into());
+                    self.entries.push((value_id, entry_prefix));
+                }
+                _ => {}
             }
         }
-        merge_target
+        merge_entry
     }
 
-    fn collect_merged(&mut self, merge_id: NodeId, prefix: &[Component<'static>], depth: usize) {
+    fn collect_merged(
+        &mut self,
+        merge_id: NodeId,
+        merge_route_key: &str,
+        prefix: &[Component<'static>],
+        depth: usize,
+    ) -> CollectOutcome {
         let Some((_, merged_node)) = self.graph.deref(merge_id) else {
-            return;
+            return CollectOutcome::Complete { lowlink: None };
         };
         match merged_node {
             YamlNode::Mapping(_) => {
                 let mut merge_prefix = prefix.to_vec();
-                merge_prefix.push("<<".into());
-                self.collect(merge_id, &merge_prefix, depth);
+                merge_prefix.push(merge_route_key.to_owned().into());
+                self.collect(merge_id, &merge_prefix, depth)
             }
             YamlNode::Sequence(items) => {
-                for (index, &item_id) in items.iter().enumerate() {
-                    let mut item_prefix = prefix.to_vec();
-                    item_prefix.extend(["<<".into(), index.into()]);
-                    self.collect(item_id, &item_prefix, depth);
+                self.collect_merged_sequence(items, merge_route_key, prefix, depth)
+            }
+            _ => CollectOutcome::Complete { lowlink: None },
+        }
+    }
+
+    fn collect_merged_sequence(
+        &mut self,
+        items: &[NodeId],
+        merge_route_key: &str,
+        prefix: &[Component<'static>],
+        depth: usize,
+    ) -> CollectOutcome {
+        let mut min_lowlink = None;
+        for (index, &item_id) in items.iter().enumerate() {
+            let mut item_prefix = prefix.to_vec();
+            item_prefix.extend([merge_route_key.to_owned().into(), index.into()]);
+            match self.collect(item_id, &item_prefix, depth) {
+                CollectOutcome::Cutoff => return CollectOutcome::Cutoff,
+                CollectOutcome::Complete { lowlink } => {
+                    min_lowlink = merge_lowlink(min_lowlink, lowlink);
                 }
             }
-            YamlNode::Scalar(_) | YamlNode::Alias(_) => {}
         }
+        CollectOutcome::Complete { lowlink: min_lowlink }
+    }
+}
+
+fn merge_lowlink(current: Option<usize>, next: Option<usize>) -> Option<usize> {
+    match (current, next) {
+        (Some(left), Some(right)) => Some(left.min(right)),
+        (Some(left), None) => Some(left),
+        (None, Some(right)) => Some(right),
+        (None, None) => None,
     }
 }
