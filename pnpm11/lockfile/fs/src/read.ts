@@ -10,7 +10,6 @@ import { mergeLockfileChanges } from '@pnpm/lockfile.merger'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import type { ProjectId } from '@pnpm/types'
 import { comverToSemver } from 'comver-to-semver'
-import yaml from 'js-yaml'
 import semver from 'semver'
 import stripBom from 'strip-bom'
 
@@ -21,6 +20,7 @@ import { convertToLockfileFile, convertToLockfileObject } from './lockfileFormat
 import { selectWantedLockfile } from './lockfileName.js'
 import { lockfileLogger as logger } from './logger.js'
 import { extractMainDocument } from './yamlDocuments.js'
+import { loadLockfileYaml } from './yamlLoad.js'
 
 export async function readCurrentLockfile (
   pnpmInternalDir: string,
@@ -189,7 +189,7 @@ function parseLockfile (
   }
 ): ParsedLockfile {
   try {
-    const lockfileFile = yaml.load(lockfileRawContent) as LockfileFile
+    const lockfileFile = loadLockfileYaml(lockfileRawContent) as LockfileFile
     return { lockfileFile, lockfile: convertToLockfileObject(lockfileFile), hadConflicts: false }
   } catch (err: unknown) {
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {

@@ -133,7 +133,6 @@
     "@pnpm/testing.registry-mock": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
-    "@types/js-yaml": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/proxyquire": "catalog:",
     "@types/ramda": "catalog:",

@@ -283,10 +283,6 @@ snapshots:
 					"specifier": "^30.0.0",
 					"version": "30.0.0",
 				},
-				"@types/js-yaml": {
-					"specifier": "^4.0.9",
-					"version": "4.0.9",
-				},
 				"@types/libnpmpublish": {
 					"specifier": "^11.2.0",
 					"version": "11.2.0",
@@ -621,6 +617,10 @@ snapshots:
 				"isexe": "4.0.0",
 				"jest": "30.4.2",
 				"jest-diff": "30.4.1",
+				"js-yaml": {
+					"specifier": "^5.5.0",
+					"version": "5.5.0",
+				},
 				"json5": {
 					"specifier": "^2.2.3",
 					"version": "2.2.3",
@@ -1238,10 +1238,7 @@ snapshots:
 				"@pnpm/types": "workspace:*",
 				"is-windows": "catalog:",
 				"isexe": "catalog:",
-				"js-yaml": {
-					"specifier": "^4.3.2",
-					"version": "4.3.2",
-				},
+				"js-yaml": "catalog:",
 				"read-yaml-file": "catalog:",
 				"write-package": "catalog:",
 			},
@@ -1252,7 +1249,6 @@ snapshots:
 				},
 				"@types/is-windows": "catalog:",
 				"@types/isexe": "catalog:",
-				"@types/js-yaml": "catalog:",
 				"@types/node": "catalog:",
 			},
 		},
@@ -3824,10 +3820,7 @@ snapshots:
 				"ci-info": "catalog:",
 				"detect-libc": "catalog:",
 				"is-subdir": "catalog:",
-				"js-yaml": {
-					"specifier": "^4.3.2",
-					"version": "4.3.2",
-				},
+				"js-yaml": "catalog:",
 				"load-json-file": "catalog:",
 				"normalize-path": "catalog:",
 				"ramda": "catalog:",
@@ -3852,7 +3845,6 @@ snapshots:
 				"@pnpm/testing.mock-agent": "workspace:*",
 				"@pnpm/testing.registry-mock": "workspace:*",
 				"@pnpm/worker": "workspace:*",
-				"@types/js-yaml": "catalog:",
 				"@types/normalize-path": "catalog:",
 				"@types/proxyquire": "catalog:",
 				"@types/ramda": "catalog:",
@@ -4509,10 +4501,7 @@ snapshots:
 				"@pnpm/types": "workspace:*",
 				"@zkochan/rimraf": "catalog:",
 				"comver-to-semver": "catalog:",
-				"js-yaml": {
-					"specifier": "^4.3.2",
-					"version": "4.3.2",
-				},
+				"js-yaml": "catalog:",
 				"ramda": "catalog:",
 				"semver": "catalog:",
 				"signal-exit": "catalog:",
@@ -4526,7 +4515,6 @@ snapshots:
 					"version": "link:",
 				},
 				"@pnpm/logger": "workspace:*",
-				"@types/js-yaml": "catalog:",
 				"@types/ramda": "catalog:",
 				"@types/semver": "catalog:",
 				"@types/write-file-atomic": "catalog:",
@@ -11851,10 +11839,6 @@ snapshots:
 				"expect": "30.5.2",
 				"pretty-format": "30.5.1",
 			},
-		},
-
-		"@types/js-yaml@4.0.9": {
-			"integrity": "sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==",
 		},
 
 		"@types/json-schema@7.0.15": {

@@ -9,7 +9,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import type { Modules } from '@pnpm/installing.modules-yaml'
 import type { LockfileFile } from '@pnpm/lockfile.types'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
-import yaml from 'js-yaml'
+import { load } from 'js-yaml'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writePackageSync } from 'write-package'
 
@@ -164,7 +164,7 @@ function readLockfile (lockfilePath: string): Required<LockfileFile> {
       content = sep !== -1 ? raw.slice(sep + '\n---\n'.length) : ''
     }
     if (!content.trim()) return null!
-    return yaml.load(content) as Required<LockfileFile>
+    return load(content) as Required<LockfileFile>
   } catch (err: unknown) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null!
     throw err
