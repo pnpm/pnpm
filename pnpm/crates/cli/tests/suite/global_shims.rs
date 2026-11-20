@@ -482,11 +482,12 @@ fn project_runtime_reuses_an_exact_global_install() {
         .stdout("reused-global-node\n");
     let environments = root.path().join("state/pnpm/global-shim-runtimes");
     let workspace_manifest = environments.join("pnpm-workspace.yaml");
-    let entries = fs::read_dir(&environments).and_then(|entries| {
-        entries
-            .map(|entry| entry.map(|entry| entry.file_name()))
-            .collect::<std::io::Result<Vec<_>>>()
-    });
+    let entries = fs::read_dir(&environments)
+        .and_then(|entries| {
+            entries
+                .map(|entry| entry.map(|entry| entry.file_name()))
+                .collect::<std::io::Result<Vec<_>>>()
+        });
     assert!(
         workspace_manifest.is_file(),
         "expected {} (directory entries: {entries:?})",
