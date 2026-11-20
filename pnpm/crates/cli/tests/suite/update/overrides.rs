@@ -488,3 +488,36 @@ fn update_latest_warns_when_a_wildcard_override_excludes_the_latest() {
 
     drop((root, anchor));
 }
+
+/// A dependency-type override matches the declaration whatever its range, so
+/// it holds the declaration. The workspace manifest writer cannot edit such a
+/// key, so the update reports it instead of moving it.
+#[test]
+fn update_latest_warns_when_a_dependency_type_override_governs_the_dependency() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    let typed_key = format!("{DEP}:prod");
+    set_overrides(&workspace, &[(typed_key.as_str(), "100.0.0")]);
+    pacquet(&workspace, ["install"]).assert().success();
+    let before_manifest =
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json");
+    let before_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml");
+
+    let output =
+        pacquet(&workspace, ["update", "--latest", DEP]).output().expect("run update --latest");
+    assert!(output.status.success(), "update failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("is controlled by an override"), "warned: {stdout}");
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+        before_manifest,
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read yaml"),
+        before_yaml,
+    );
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}

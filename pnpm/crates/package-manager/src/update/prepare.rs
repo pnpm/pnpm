@@ -224,8 +224,12 @@ fn collect_overridden_direct(
 
 /// The override entry a targeted update may move for `name`, given the entry
 /// that governs it: one keyed by the package's own name, with no parent scope,
-/// no range scope on the target, and no convergence form. Anything else either
-/// governs only some edges or would stop matching once its value moved.
+/// no range scope on the target, and no convergence form. A parent-scoped
+/// entry does not govern this project's own edge, and a range-scoped one would
+/// stop matching once the declaration moved. A dependency-type key such as
+/// `foo:prod` qualifies: it matches every declaration of its group whatever
+/// the range, so it holds the declaration the way a bare key does, though the
+/// update can only report it.
 ///
 /// The value is the one written in `pnpm-workspace.yaml`. Config resolves a
 /// `$` reference to the specifier it points at, which the update must not
@@ -254,7 +258,11 @@ fn bare_override_entry(
                 .get(&governing.selector)
                 .cloned()
         })
-        .map(|value| BareOverrideEntry { key: governing.selector.clone(), value })
+        .map(|value| BareOverrideEntry {
+            key: governing.selector.clone(),
+            value,
+            writable: governing.target_pkg.dep_type.is_none(),
+        })
 }
 /// The direct dependencies of the groups the update covers, as
 /// `(name, group, specifier)`.

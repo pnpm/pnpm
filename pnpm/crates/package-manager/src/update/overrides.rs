@@ -28,11 +28,15 @@ pub(super) struct OverriddenDirect {
     pub(super) bare_override: Option<BareOverrideEntry>,
 }
 
-/// A `pnpm.overrides` entry keyed by the bare package name, as written in
+/// A `pnpm.overrides` entry keyed by the package name, as written in
 /// `pnpm-workspace.yaml`.
 pub(super) struct BareOverrideEntry {
     pub(super) key: String,
     pub(super) value: String,
+    /// Whether the workspace manifest writer can edit the entry. It cannot
+    /// address a dependency-type key such as `foo:prod`, so such an entry is
+    /// reported rather than moved.
+    pub(super) writable: bool,
 }
 
 /// Whether an override value fixes the dependency to a single version, so a
@@ -155,7 +159,7 @@ pub(super) async fn override_owned_latest_rewrite<Reporter: self::Reporter>(
     // A value that names a dependency of its own (an `npm:` alias, a
     // `workspace:` or `catalog:` reference, a `$` reference) has no version
     // the update can move, so moving it is the user's call.
-    if names_another_dependency(&entry.value) {
+    if !entry.writable || names_another_dependency(&entry.value) {
         warn_unmovable_override::<Reporter>(rewrite_ctx, name, &entry.value);
         return Ok(MatchedRewrite::Target(None));
     }
