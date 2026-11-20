@@ -1,7 +1,19 @@
-use super::{NODE_FILE_NAME, UnusableNode, check_node_on_path, find_node_entries};
+use super::{
+    NODE_FILE_NAME,
+    UnusableNode,
+    check_node_on_path,
+    check_script_shell,
+    find_node_entries,
+    shell_settings,
+};
 use crate::cli_args::doctor::CheckStatus;
+use pnpm_config::Config;
 use pretty_assertions::assert_eq;
-use std::{env, fs, path::Path};
+use std::{
+    env,
+    fs,
+    path::Path,
+};
 
 #[cfg(unix)]
 use super::shell_behind;
@@ -135,4 +147,35 @@ fn shell_behind_follows_a_linked_sh() {
 
     assert_eq!(behind, Some(fs::canonicalize(&real).expect("canonicalize shell")));
     assert_eq!(shell_behind(&fs::canonicalize(&real).expect("canonicalize shell")), None);
+}
+
+#[test]
+fn fails_when_the_script_shell_is_missing() {
+    let root = tempfile::tempdir().expect("create temp dir");
+    let missing = root.path().join("no-such-shell");
+    let config = Config { script_shell: Some(missing.display().to_string()), ..Config::default() };
+
+    let check = check_script_shell(&config);
+
+    dbg!(&check);
+    assert_eq!(check.status, CheckStatus::Fail);
+    assert_eq!(
+        check.detail.as_deref(),
+        Some(format!("{} was not found", missing.display()).as_str()),
+    );
+}
+
+#[test]
+fn the_probe_install_gets_the_configured_script_shell() {
+    assert_eq!(shell_settings(&Config::default()), Vec::<String>::new());
+    let config = Config {
+        script_shell: Some("/opt/shell".to_owned()),
+        shell_emulator: true,
+        ..Config::default()
+    };
+
+    assert_eq!(
+        shell_settings(&config),
+        ["--config.script-shell=/opt/shell", "--config.shell-emulator=true"],
+    );
 }

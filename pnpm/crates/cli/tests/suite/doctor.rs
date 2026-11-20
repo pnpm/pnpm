@@ -265,6 +265,33 @@ fn runs_a_package_executable_from_a_script_in_the_current_project() {
     );
 }
 
+/// `verifyDepsBeforeRun` set in the environment outranks the command line, so
+/// the probe has to override it there to keep from installing the project.
+#[test]
+fn the_project_probe_does_not_install_when_the_environment_asks_to() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let dep = workspace.join("dep");
+    fs::create_dir_all(&dep).expect("create dep dir");
+    fs::write(dep.join("package.json"), r#"{"name":"dep","version":"1.0.0"}"#)
+        .expect("write dep package.json");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"doctor-project","version":"1.0.0","dependencies":{"dep":"file:./dep"}}"#,
+    )
+    .expect("write package.json");
+
+    let report =
+        doctor(pacquet.with_env("PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", "install"), root.path());
+
+    let scripts = find_check(&report, "Lifecycle scripts");
+    dbg!(scripts);
+    assert_eq!(scripts["status"], "pass");
+    assert!(
+        !workspace.join("node_modules").exists(),
+        "the probe must not install into the project",
+    );
+}
+
 /// A `node` that `pnpm` sees but that cannot run a script is what a script
 /// fails on with exit status 127; the report has to carry the shim's trace.
 #[cfg(unix)]
@@ -284,7 +311,8 @@ fn a_failing_script_is_reported_with_the_shim_trace() {
 
     let node = find_check(&report, "Node.js on PATH");
     dbg!(node);
-    assert_eq!(node["detail"], fake_node.display().to_string());
+    let node_detail = node["detail"].as_str().expect("detail");
+    assert!(node_detail.starts_with(&fake_node.display().to_string()), "{node_detail}");
     let scripts = find_check(&report, "Lifecycle scripts");
     dbg!(scripts);
     assert_eq!(scripts["status"], "fail");

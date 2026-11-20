@@ -160,7 +160,7 @@ impl DoctorArgs {
         );
         checks.push(self.check_connectivity(config).await);
         checks.push(install_probe::check_install_smoke_test(self.benchmark));
-        checks.push(scripts::check_lifecycle_scripts(project_dir, self.benchmark));
+        checks.push(scripts::check_lifecycle_scripts(config, project_dir, self.benchmark));
 
         let outcome = if checks
             .iter()

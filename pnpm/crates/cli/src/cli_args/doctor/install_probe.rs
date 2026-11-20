@@ -5,7 +5,10 @@ use super::CheckResult;
 use crate::process::Command;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Instant,
 };
 

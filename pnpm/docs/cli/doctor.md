@@ -43,7 +43,7 @@ It also warns when the `pnpm` found on `PATH` is not the one in the global bin d
 
 Added in: v12.9.0
 
-Lists the `node` executables on `PATH` in lookup order. Lifecycle scripts run the first one. pnpm itself does not need Node.js, but the executables that packages put in `node_modules/.bin` do.
+Lists the `node` executables on the `PATH` pnpm runs with, in lookup order. Lifecycle scripts run the first one, unless a directory pnpm puts ahead of them, such as `node_modules/.bin`, has its own `node`. pnpm itself does not need Node.js, but the executables that packages put in `node_modules/.bin` do.
 
 Warns when there is no `node` on `PATH`, and when a `node` entry is skipped because it is a broken link, not executable, or not a file. A version manager that relinks `node` while scripts run can leave such an entry behind.
 
@@ -52,6 +52,8 @@ Warns when there is no `node` on `PATH`, and when a `node` entry is skipped beca
 Added in: v12.9.0
 
 Reports the shell that runs scripts: the [`scriptShell`](../settings/other.md#scriptshell), the built-in shell emulator, or `sh`. Outside Windows it also reports what `/bin/sh` is, because `/bin/sh` starts every executable in `node_modules/.bin`. On macOS that is the shell `/private/var/select/sh` links to.
+
+Fails when the shell that runs scripts is not found.
 
 ### Global bin directory
 
@@ -87,9 +89,9 @@ This check is always offline by construction, so `--offline` does not skip it.
 
 Added in: v12.9.0
 
-Installs a temporary project whose `postinstall` script calls a dependency's executable, then runs the same executable through `pnpm exec` in the current project, if there is one. Both go through the executable's `node_modules/.bin` shim, which has to find `node` on `PATH`. The check reports the `node` each run used.
+Installs a temporary project whose `postinstall` script calls a dependency's executable, using the configured script shell. It then runs the same executable through `pnpm exec` in the current project, if there is one. Both go through the executable's `node_modules/.bin` shim, which has to find `node` on `PATH`. The check reports the `node` each run used.
 
-If a run fails, the report includes the error and, outside Windows, the end of an `sh -x` trace of the shim. The trace shows the `PATH` the shim searched and which `node`, if any, it started. A shim that finds no `node` is the usual cause of a script failing with exit status 127.
+If a run fails, the report includes the error and, outside Windows, the end of an `sh -x` trace of the shim. The trace shows the `PATH` the shim searched and the command it ran. A shim that finds no `node` is the usual cause of a script failing with exit status 127.
 
 The run in the current project goes through `pnpm exec`, so the project's pnpmfile and `nodeOptions` apply to it as they do to `pnpm exec`. It does not install the project's dependencies. The whole check is skipped when there is no `node` on `PATH`.
 

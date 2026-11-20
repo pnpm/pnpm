@@ -5,17 +5,32 @@
 //! shell that resolves it differently, only shows up once a script runs, as an
 //! exit status of 127. These checks report what a script will see, and run one.
 
-use super::{CheckResult, install_probe::last_message};
-use crate::process::{Command, Output, Stdio};
+use super::{
+    CheckResult,
+    install_probe::last_message,
+};
+use crate::process::{
+    Command,
+    Output,
+    Stdio,
+};
 use pnpm_config::Config;
-use pnpm_executor::{current_pnpm_exe, select_shell, use_shell_emulator};
+use pnpm_executor::{
+    VERIFY_DEPS_BEFORE_RUN_ENV,
+    current_pnpm_exe,
+    select_shell,
+    use_shell_emulator,
+};
 use std::{
     collections::HashSet,
     env,
     ffi::OsStr,
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::Instant,
 };
 
@@ -28,9 +43,6 @@ const NODE_FIX: &str = "Scripts that run a package's executable need Node.js on 
 const PROBE_BIN: &str = "pnpm-doctor-probe";
 const PROBE_SCRIPT: &str =
     "#!/usr/bin/env node\nrequire('node:fs').writeFileSync(process.argv[2], process.execPath)\n";
-
-/// Keeps a `pnpm exec` probe from installing the project it runs in.
-const NO_VERIFY_DEPS: &str = "--config.verify-deps-before-run=false";
 
 /// The last lines of an `sh -x` trace worth reporting: the shim's lookup of
 /// `node` and the `exec` it ends with.
@@ -120,7 +132,7 @@ fn is_executable(metadata: &fs::Metadata) -> bool {
     metadata.permissions().mode() & 0o111 != 0
 }
 
-#[cfg(windows)]
+#[cfg(not(unix))]
 fn is_executable(_metadata: &fs::Metadata) -> bool {
     true
 }
@@ -133,12 +145,17 @@ pub(super) fn check_script_shell(config: &Config) -> CheckResult {
     let scripts = if use_shell_emulator(config.shell_emulator, script_shell) {
         "the built-in shell emulator".to_owned()
     } else {
-        match select_shell(script_shell, cfg!(windows)) {
-            Ok(shell) => describe_program(&shell.program),
-            Err(error) => {
+        let shell = select_shell(script_shell, cfg!(windows)).map_err(|error| error.to_string());
+        let resolved = shell.and_then(|shell| {
+            which::which(&shell.program)
+                .map_err(|_| format!("{} was not found", shell.program.display()))
+        });
+        match resolved {
+            Ok(resolved) => describe_resolved(&resolved),
+            Err(detail) => {
                 return CheckResult::fail(
                     title,
-                    error.to_string(),
+                    detail,
                     "Point scriptShell at a shell that can run scripts.",
                 );
             }
@@ -152,10 +169,14 @@ pub(super) fn check_script_shell(config: &Config) -> CheckResult {
 }
 
 fn describe_program(program: &Path) -> String {
-    let Ok(resolved) = which::which(program) else {
-        return format!("{} (not found)", program.display());
-    };
-    match shell_behind(&resolved) {
+    match which::which(program) {
+        Ok(resolved) => describe_resolved(&resolved),
+        Err(_) => format!("{} (not found)", program.display()),
+    }
+}
+
+fn describe_resolved(resolved: &Path) -> String {
+    match shell_behind(resolved) {
         Some(real) => format!("{} ({})", resolved.display(), real.display()),
         None => resolved.display().to_string(),
     }
@@ -176,23 +197,38 @@ fn shell_behind(sh: &Path) -> Option<PathBuf> {
 
 /// Install a project whose `postinstall` calls a dependency's executable, then
 /// call the same executable through `pnpm exec` in `project_dir` when that is a
-/// project. Both go through a generated shim that has to find `node`.
-pub(super) fn check_lifecycle_scripts(project_dir: &Path, benchmark: bool) -> CheckResult {
+/// project. Both go through a generated shim that has to find `node`. The
+/// install runs its script with the configured script shell.
+pub(super) fn check_lifecycle_scripts(
+    config: &Config,
+    project_dir: &Path,
+    benchmark: bool,
+) -> CheckResult {
     let title = "Lifecycle scripts";
-    if which::which("node").is_err() {
-        return CheckResult::pass(title, "skipped (no Node.js on PATH)");
-    }
     let started = Instant::now();
+    if which::which("node").is_err() {
+        return CheckResult::pass(title, "skipped (no Node.js on PATH)").timed(benchmark, started);
+    }
     let Ok(base) = tempfile::tempdir() else {
         return CheckResult::warn(
             title,
             "could not create a temporary directory",
             "Check that the system temp directory is writable.",
-        );
+        )
+        .timed(benchmark, started);
     };
     let probes = current_pnpm_exe()
         .map_err(|error| error.to_string())
-        .and_then(|pnpm| run_script_probes(&pnpm, base.path(), project_dir));
+        .and_then(|pnpm| {
+            let consumer = write_probe_fixture(base.path()).map_err(|error| error.to_string())?;
+            let probe = Probe {
+                pnpm: &pnpm,
+                base: base.path(),
+                shim: consumer.join("node_modules/.bin").join(PROBE_BIN),
+                shell_settings: shell_settings(config),
+            };
+            run_script_probes(&probe, &consumer, project_dir)
+        });
     match probes {
         Ok(detail) => CheckResult::pass(title, detail),
         Err(detail) => CheckResult::fail(title, detail, NODE_FIX),
@@ -200,12 +236,30 @@ pub(super) fn check_lifecycle_scripts(project_dir: &Path, benchmark: bool) -> Ch
     .timed(benchmark, started)
 }
 
-fn run_script_probes(pnpm: &Path, base: &Path, project_dir: &Path) -> Result<String, String> {
-    let consumer = write_probe_fixture(base).map_err(|error| error.to_string())?;
-    let probe = Probe { pnpm, base, shim: consumer.join("node_modules/.bin").join(PROBE_BIN) };
+/// The `--config` flags that give the probe install the configured script
+/// shell, which its temporary project would not otherwise read.
+fn shell_settings(config: &Config) -> Vec<String> {
+    let mut settings = Vec::new();
+    if let Some(shell) = config.script_shell
+        .as_deref()
+        .filter(|shell| !shell.is_empty())
+    {
+        settings.push(format!("--config.script-shell={shell}"));
+    }
+    if config.shell_emulator {
+        settings.push("--config.shell-emulator=true".to_owned());
+    }
+    settings
+}
+
+fn run_script_probes(
+    probe: &Probe<'_>,
+    consumer: &Path,
+    project_dir: &Path,
+) -> Result<String, String> {
     let node = probe
-        .install_script(&consumer)
-        .map_err(|failure| probe.describe(failure, &consumer))?;
+        .install_script(consumer)
+        .map_err(|failure| probe.describe(failure, consumer))?;
     let mut detail = format!("an install script ran {node}");
     if !project_dir.join("package.json").is_file() {
         return Ok(detail);
@@ -242,12 +296,13 @@ fn write_probe_fixture(base: &Path) -> std::io::Result<PathBuf> {
     Ok(consumer)
 }
 
-/// The pnpm under test, the temporary directory the probes write to, and the
-/// shim of the probe executable.
+/// The pnpm under test, the temporary directory the probes write to, the
+/// shim of the probe executable, and the script shell flags of the install.
 struct Probe<'a> {
     pnpm: &'a Path,
     base: &'a Path,
     shim: PathBuf,
+    shell_settings: Vec<String>,
 }
 
 impl Probe<'_> {
@@ -265,6 +320,7 @@ impl Probe<'_> {
             ])
             .arg(format!("--store-dir={}", self.base.join("store").display()))
             .arg(format!("--cache-dir={}", self.base.join("cache").display()))
+            .args(&self.shell_settings)
             .stdout(Stdio::null())
             .output();
         read_probe_result(output, &self.base.join("install-node"), "the install script")
@@ -272,9 +328,8 @@ impl Probe<'_> {
 
     fn project(&self, project_dir: &Path) -> Result<String, String> {
         let result = self.base.join("project-node");
-        let output = Command::new(self.pnpm)
-            .current_dir(project_dir)
-            .args([NO_VERIFY_DEPS, "exec"])
+        let output = self
+            .exec_in(project_dir)
             .arg(&self.shim)
             .arg(&result)
             .stdout(Stdio::null())
@@ -282,8 +337,21 @@ impl Probe<'_> {
         read_probe_result(output, &result, &format!("a script in {}", project_dir.display()))
     }
 
+    /// `pnpm exec` in `dir`, kept from installing the project. The variable
+    /// outranks every other source of `verifyDepsBeforeRun`, and the
+    /// uppercase spelling is removed so it cannot take precedence.
+    fn exec_in(&self, dir: &Path) -> Command {
+        let mut command = Command::new(self.pnpm);
+        command
+            .current_dir(dir)
+            .env_remove("PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN")
+            .env(VERIFY_DEPS_BEFORE_RUN_ENV, "false")
+            .arg("exec");
+        command
+    }
+
     /// `failure` followed by an `sh -x` trace of the shim run in `dir`, which
-    /// shows the `PATH` the shim searched and which `node` it started, if any.
+    /// shows the `PATH` the shim searched and the command it ran.
     fn describe(&self, failure: String, dir: &Path) -> String {
         let mut detail = failure;
         for line in trace_shim(self, dir) {
@@ -295,9 +363,9 @@ impl Probe<'_> {
 
 #[cfg(unix)]
 fn trace_shim(probe: &Probe<'_>, dir: &Path) -> Vec<String> {
-    let Ok(output) = Command::new(probe.pnpm)
-        .current_dir(dir)
-        .args([NO_VERIFY_DEPS, "exec", "/bin/sh", "-x"])
+    let Ok(output) = probe
+        .exec_in(dir)
+        .args(["/bin/sh", "-x"])
         .arg(&probe.shim)
         .arg(probe.base.join("trace-node"))
         .stdout(Stdio::null())
@@ -315,7 +383,7 @@ fn trace_shim(probe: &Probe<'_>, dir: &Path) -> Vec<String> {
 }
 
 /// Windows runs the `.cmd` shim, which has no trace to show.
-#[cfg(windows)]
+#[cfg(not(unix))]
 fn trace_shim(_probe: &Probe<'_>, _dir: &Path) -> Vec<String> {
     Vec::new()
 }
