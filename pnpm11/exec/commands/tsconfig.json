@@ -106,6 +106,9 @@
       "path": "../../workspace/projects-filter"
     },
     {
+      "path": "../../workspace/projects-graph"
+    },
+    {
       "path": "../../workspace/projects-reader"
     },
     {

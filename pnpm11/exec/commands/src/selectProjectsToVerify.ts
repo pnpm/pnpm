@@ -1,20 +1,26 @@
 import path from 'node:path'
 
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import type { ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
+import type { BaseManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 import {
   filterWorkspaceProjectsWithProdGraph,
   orderWorkspaceFilters,
   parseProjectSelector,
 } from '@pnpm/workspace.projects-filter'
+import { createOverridesApplier, getProjectsGraphOverrides } from '@pnpm/workspace.projects-graph'
+
+type ApplyOverrides = (manifest: BaseManifest, dir: string) => BaseManifest
 
 export type ProjectsToVerifyOptions = Partial<Pick<Config,
+| 'catalogs'
 | 'changedFilesIgnorePattern'
 | 'dir'
 | 'filter'
 | 'filterProd'
 | 'injectWorkspacePackages'
 | 'legacyDirFiltering'
+| 'lockfileDir'
+| 'overrides'
 | 'sharedWorkspaceLockfile'
 | 'testPattern'
 | 'workspaceDir'
@@ -50,13 +56,16 @@ export async function selectProjectsToVerify (opts: ProjectsToVerifyOptions): Pr
   // depends on it, which that project's own install covers; explicit `link:`
   // dependencies remain symlinks and still need their target project installed.
   const onlyLinked = Boolean(opts.sharedWorkspaceLockfile === false && opts.injectWorkspacePackages)
+  const applyOverrides = onlyLinked
+    ? createOverridesApplier(getProjectsGraphOverrides(opts, opts.workspaceDir ?? opts.dir ?? process.cwd()))
+    : undefined
   const prodOnlySelectedProjectDirs = new Set(opts.prodOnlySelectedProjectDirs)
   const selectedDirs = Object.keys(selectedProjectsGraph) as ProjectRootDir[]
   const prodAllProjectsGraph = opts.prodAllProjectsGraph
   const projects: ProjectsGraph = {
     ...selectedProjectsGraph,
-    ...walkDependencies(allProjectsGraph, selectedDirs.filter((dir) => prodAllProjectsGraph == null || !prodOnlySelectedProjectDirs.has(dir)), onlyLinked),
-    ...(prodAllProjectsGraph && walkDependencies(prodAllProjectsGraph, selectedDirs.filter((dir) => prodOnlySelectedProjectDirs.has(dir)), onlyLinked)),
+    ...walkDependencies(allProjectsGraph, selectedDirs.filter((dir) => prodAllProjectsGraph == null || !prodOnlySelectedProjectDirs.has(dir)), applyOverrides),
+    ...(prodAllProjectsGraph && walkDependencies(prodAllProjectsGraph, selectedDirs.filter((dir) => prodOnlySelectedProjectDirs.has(dir)), applyOverrides)),
   }
   if (!hasNegatedSelector(opts)) return projects
   const installedDirs = await selectInstalledProjectDirs({ ...opts, allProjectsGraph })
@@ -66,8 +75,10 @@ export async function selectProjectsToVerify (opts: ProjectsToVerifyOptions): Pr
 /**
  * `roots` and every project reachable from them along the edges of
  * `projectsGraph`, walking each project once however many roots reach it.
+ * Given `applyOverrides`, only the edges whose specifier is `link:` after it
+ * are walked.
  */
-function walkDependencies (projectsGraph: ProjectsGraph, roots: ProjectRootDir[], onlyLinked = false): ProjectsGraph {
+function walkDependencies (projectsGraph: ProjectsGraph, roots: ProjectRootDir[], applyOverrides?: ApplyOverrides): ProjectsGraph {
   const reached: ProjectsGraph = {}
   const stack = [...roots]
   while (stack.length > 0) {
@@ -76,8 +87,9 @@ function walkDependencies (projectsGraph: ProjectsGraph, roots: ProjectRootDir[]
     if (reached[dir] != null || node == null) continue
     reached[dir] = node
     let dependencies = node.dependencies
-    if (onlyLinked && dependencies.length > 0) {
-      const linkedTargets = linkedDependencyDirs(dir, node.package.manifest)
+    if (applyOverrides != null && dependencies.length > 0) {
+      const manifest = node.package.manifest
+      const linkedTargets = linkedDependencyDirs(dir, manifest && applyOverrides(manifest, dir))
       dependencies = dependencies.filter((depDir) => linkedTargets.has(path.resolve(depDir)))
     }
     stack.push(...dependencies)
@@ -85,7 +97,7 @@ function walkDependencies (projectsGraph: ProjectsGraph, roots: ProjectRootDir[]
   return reached
 }
 
-function linkedDependencyDirs (parentDir: ProjectRootDir, manifest: ProjectManifest | undefined): Set<string> {
+function linkedDependencyDirs (parentDir: ProjectRootDir, manifest: BaseManifest | undefined): Set<string> {
   const targets = new Set<string>()
   if (manifest == null) return targets
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const) {
