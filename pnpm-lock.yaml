@@ -1047,7 +1047,7 @@ snapshots:
 			"shell-quote@<1.8.4": ">=1.8.4",
 			"serve-static@<1.16.0": "^1.16.0",
 			"shell-quote": "1.8.4",
-			"socks@2": "^2.8.10",
+			"socks@2": "^2.8.11",
 			"tar@<=7.5.9": ">=7.5.10",
 			"tmp@<=0.2.3": ">=0.2.4",
 			"tough-cookie@<4.1.3": ">=4.1.3",
@@ -4897,8 +4897,8 @@ snapshots:
 				"@zkochan/retry": "catalog:",
 				"lru-cache": "catalog:",
 				"socks": {
-					"specifier": "^2.8.10",
-					"version": "2.8.10",
+					"specifier": "^2.8.11",
+					"version": "2.8.11",
 				},
 				"undici": "catalog:",
 			},
@@ -13278,8 +13278,8 @@ snapshots:
 			},
 		},
 
-		"bare-fs@4.8.4": {
-			"integrity": "sha512-MPC2eyrpbk3A873sK4y6rk+Iv4o2enxTjHZ8zH3HO0mjrpm5XjnguY2XmfidIsDV6vnjpbMBKUAJpV0ISD2SsQ==",
+		"bare-fs@4.8.5": {
+			"integrity": "sha512-5gborbd4IEFpnyqAiwD0tl6sH9fvPvIaK2hdM8DXU+xAMxSB7B3D3D04CD21k4T5C6u5Oxw3iajkBQhNLxINKg==",
 			"engines": {"bare": ">=1.28.0"},
 			"peerDependencies": {
 				"bare-buffer": {
@@ -13449,7 +13449,7 @@ snapshots:
 			"dependencies": {
 				"baseline-browser-mapping": "2.11.38",
 				"caniuse-lite": "1.0.30001826",
-				"electron-to-chromium": "1.5.489",
+				"electron-to-chromium": "1.5.491",
 				"node-releases": "2.0.65",
 				"update-browserslist-db": "1.4.0",
 			},
@@ -14134,7 +14134,7 @@ snapshots:
 				"@cspell/cspell-pipe": "9.8.0",
 				"@cspell/cspell-types": "9.8.0",
 				"cspell-trie-lib": "9.8.0",
-				"fast-equals": "6.2.2",
+				"fast-equals": "6.4.0",
 			},
 		},
 
@@ -14533,8 +14533,8 @@ snapshots:
 			"integrity": "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==",
 		},
 
-		"electron-to-chromium@1.5.489": {
-			"integrity": "sha512-1cF87WItryk9lj5wg5SLsNegUihdkcHuOfrANPpO02y/d2krm1Oc3GjA9KBwlT5o145FTa1bbjdLc7pZnvtnYQ==",
+		"electron-to-chromium@1.5.491": {
+			"integrity": "sha512-zMOQrvaTekJMwENqx1Rnyl3qieqGxIui5CRu9g6ktKzQ/T54fq0Qfr3V/SEhGrkStWI3eYMSzMN4rbyFwfQSzA==",
 		},
 
 		"emittery@0.13.1": {
@@ -15195,8 +15195,8 @@ snapshots:
 			"integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==",
 		},
 
-		"fast-equals@6.2.2": {
-			"integrity": "sha512-n+XqoarWCgcar0O3om3DeNYx6xTuLWGTUF1bRZ9iuO00tsPepzP1L4V7rqtxxZ4PEya34UCESReimFvxmEVwIA==",
+		"fast-equals@6.4.0": {
+			"integrity": "sha512-WueHOj7IYeH9WWwr5lZ0UaDUhG35cz7Dh2SkDMNjiinPy7Dc7CbKP+1aP5YPLjG+BQ7MA1LDxUk78exLMjDxig==",
 			"engines": {"node": ">=6.0.0"},
 		},
 
@@ -18939,8 +18939,8 @@ snapshots:
 			"engines": {"node": ">= 6"},
 		},
 
-		"object-inspect@1.13.4": {
-			"integrity": "sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==",
+		"object-inspect@1.14.0": {
+			"integrity": "sha512-IVgHNlp/jwQX271+Xzoq9LZNTWXxZK+cEOrGBOBxXNbn7fapnZ+Ts6TVMgNOuAezwG2wdtnMX97tTPK6VEnuOQ==",
 			"engines": {"node": ">= 0.4"},
 		},
 
@@ -20352,7 +20352,7 @@ snapshots:
 			"engines": {"node": ">= 0.4"},
 			"dependencies": {
 				"es-errors": "1.3.0",
-				"object-inspect": "1.13.4",
+				"object-inspect": "1.14.0",
 			},
 		},
 
@@ -20363,7 +20363,7 @@ snapshots:
 				"call-bound": "1.0.4",
 				"es-errors": "1.3.0",
 				"get-intrinsic": "1.3.0",
-				"object-inspect": "1.13.4",
+				"object-inspect": "1.14.0",
 			},
 		},
 
@@ -20374,7 +20374,7 @@ snapshots:
 				"call-bound": "1.0.4",
 				"es-errors": "1.3.0",
 				"get-intrinsic": "1.3.0",
-				"object-inspect": "1.13.4",
+				"object-inspect": "1.14.0",
 				"side-channel-map": "1.0.1",
 			},
 		},
@@ -20384,7 +20384,7 @@ snapshots:
 			"engines": {"node": ">= 0.4"},
 			"dependencies": {
 				"es-errors": "1.3.0",
-				"object-inspect": "1.13.4",
+				"object-inspect": "1.14.0",
 				"side-channel-list": "1.0.1",
 				"side-channel-map": "1.0.1",
 				"side-channel-weakmap": "1.0.2",
@@ -20486,7 +20486,7 @@ snapshots:
 			"dependencies": {
 				"agent-base": "9.0.0",
 				"debug": "4.4.3",
-				"socks": "2.8.10",
+				"socks": "2.8.11",
 			},
 		},
 
@@ -20502,12 +20502,12 @@ snapshots:
 			"dependencies": {
 				"agent-base": "7.1.4",
 				"debug": "4.4.3",
-				"socks": "2.8.10",
+				"socks": "2.8.11",
 			},
 		},
 
-		"socks@2.8.10": {
-			"integrity": "sha512-e0VyvkVTwVYViNovRkZ9aodhxVlyoMn7eJhVUPxZ+eK9P/7CBkxvvsBOHqFPEH416726W8tLXXXjKwqgTErrCQ==",
+		"socks@2.8.11": {
+			"integrity": "sha512-2H/uQ7+SNP0hK16RorTak0mWrFoqo4AnAVGSUl2dT07obgWdWt9grml+VDl1LklgUOPWM4Abo0u86Cvp8vFjYw==",
 			"engines": {"node": ">= 10.0.0", "npm": ">= 3.0.0"},
 			"dependencies": {
 				"ip-address": "10.7.6",
@@ -20915,7 +20915,7 @@ snapshots:
 			},
 			"dependencies": {
 				"b4a": "1.9.0",
-				"bare-fs": "4.8.4",
+				"bare-fs": "4.8.5",
 				"fast-fifo": "1.3.2",
 				"streamx": "2.28.1",
 			},
