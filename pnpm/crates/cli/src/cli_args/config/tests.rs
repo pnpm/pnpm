@@ -591,6 +591,30 @@ fn delete_clears_a_machine_level_key_from_the_project_manifest() {
     );
 }
 
+/// The write-side refusal of a per-invocation key must not stop a user from
+/// clearing one a hand-edited manifest already carries.
+#[test]
+fn delete_clears_a_per_invocation_key_from_the_project_manifest() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    std::fs::write(tmp.path().join("pnpm-workspace.yaml"), "otp: '123456'\nstoreDir: ~/store\n")
+        .unwrap();
+
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "otp",
+        None,
+    )
+    .unwrap();
+
+    assert_eq!(
+        read_yaml(&tmp.path().join("pnpm-workspace.yaml")),
+        Some(json!({ "storeDir": "~/store" })),
+    );
+}
+
 /// The reader refuses a machine-level key under any spelling, so a delete
 /// clears the kebab-case spelling a hand-edited manifest may carry too.
 #[test]

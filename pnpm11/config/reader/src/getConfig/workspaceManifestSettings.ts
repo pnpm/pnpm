@@ -48,7 +48,7 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
   const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
   const newSettings = { ...settingsFromManifest, ...configFromCliOpts }
   for (const [key, value] of Object.entries(newSettings)) {
-    if (!isAppliedSettingKey(key, { skipped })) continue
+    if (!isAppliedSettingKey(key, { configFromCliOpts, skipped })) continue
     applyWorkspaceSetting(pnpmConfig, { key, value, sideEffectsCacheFromManifest })
     pnpmConfig.explicitlySetKeys.add(key)
   }
@@ -66,15 +66,16 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
 
 /**
  * Whether a key of the merged manifest and command-line settings is applied to
- * the config. A per-invocation setting such as `otp` is never applied from it.
+ * the config. A per-invocation setting such as `otp` is applied only when the
+ * command line supplied it, never from the manifest.
  */
 function isAppliedSettingKey (
   key: string,
-  { skipped }: { skipped: ReadonlySet<string> | undefined }
+  { configFromCliOpts, skipped }: { configFromCliOpts: Record<string, unknown>, skipped: ReadonlySet<string> | undefined }
 ): boolean {
   if (!isCamelCase(key)) return false
   if (CONFIG_CONTEXT_KEY_SET.has(key)) return false
-  if (isNeverAFileSetting(kebabCase(key))) return false
+  if (isNeverAFileSetting(kebabCase(key)) && !Object.hasOwn(configFromCliOpts, key)) return false
   return !skipped?.has(key)
 }
 
