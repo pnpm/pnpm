@@ -20,7 +20,10 @@ use pnpm_reporter::{
     Reporter,
 };
 use std::{
-    ffi::OsStr,
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
     path::{
         Path,
@@ -194,23 +197,18 @@ impl SetupPathEntry {
         }
     }
 
-    /// Whether `shadowing`, found ahead of `global_bin` on the current
-    /// `PATH`, may still run first in a new shell.
-    pub(crate) fn keeps_shadowing(&self, shadowing: &ShadowingPnpm, global_bin: &Path) -> bool {
+    /// The `PATH` a new shell gets after setup, when another `pnpm` can still
+    /// come first on it. `None` when setup's shell configuration puts the
+    /// global bin directory first.
+    pub(crate) fn path_for_new_shells(&self) -> Option<OsString> {
         match self {
-            Self::PrependedInShellConfig => false,
+            Self::PrependedInShellConfig => None,
             Self::AddedToUserPath {
                 persisted_path: Some(persisted_path),
-            } => {
-                let position =
-                    |wanted: &Path| persisted_path.iter().position(|dir| same_dir(dir, wanted));
-                match (shadowing.executable.parent().and_then(position), position(global_bin)) {
-                    (Some(shadowing_dir), Some(bin_dir)) => shadowing_dir < bin_dir,
-                    (Some(_), None) => true,
-                    (None, _) => false,
-                }
+            } => std::env::join_paths(persisted_path).ok().or_else(|| std::env::var_os("PATH")),
+            Self::AddedToUserPath { persisted_path: None } | Self::LeftAlone => {
+                std::env::var_os("PATH")
             }
-            Self::AddedToUserPath { persisted_path: None } | Self::LeftAlone => true,
         }
     }
 }
@@ -273,8 +271,8 @@ pub(crate) fn warn_if_shadowed_after_setup<Logger: Reporter>(
     path_entry: &SetupPathEntry,
     prefix: &str,
 ) {
-    if let Some(shadowing) = find_shadowing_pnpm_on_path(global_bin)
-        && path_entry.keeps_shadowing(&shadowing, global_bin)
+    if let Some(path) = path_entry.path_for_new_shells()
+        && let Some(shadowing) = find_shadowing_pnpm_in(global_bin, Some(&path))
     {
         shadowing.emit_warning::<Logger>(global_bin, prefix);
     }
@@ -292,9 +290,13 @@ pub(crate) struct OwnDirs<'a> {
 /// The `pnpm` the current `PATH` finds ahead of the one in `global_bin`, if
 /// any.
 pub(crate) fn find_shadowing_pnpm_on_path(global_bin: &Path) -> Option<ShadowingPnpm> {
+    find_shadowing_pnpm_in(global_bin, std::env::var_os("PATH").as_deref())
+}
+
+fn find_shadowing_pnpm_in(global_bin: &Path, path_env: Option<&OsStr>) -> Option<ShadowingPnpm> {
     let pnpm_home = default_pnpm_home_dir::<Host>();
     let own = OwnDirs { global_bin, pnpm_home: pnpm_home.as_deref() };
-    find_shadowing_pnpm(own, std::env::var_os("PATH").as_deref())
+    find_shadowing_pnpm(own, path_env)
 }
 
 /// The `pnpm` that a lookup through `path_env` finds ahead of the one in

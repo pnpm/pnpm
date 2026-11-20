@@ -257,25 +257,31 @@ fn a_project_dependency_is_not_an_npm_global_install() {
 }
 
 #[test]
-fn setup_keeps_the_warning_unless_its_path_entry_comes_first() {
-    let shadowing = ShadowingPnpm {
-        executable: PathBuf::from("/npm/bin").join(PNPM),
-        origin: InstallOrigin::NpmGlobal,
-        global_bin_on_path: true,
+fn setup_looks_up_pnpm_on_the_path_new_shells_get() {
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("pnpm-home/bin");
+    write_executable(&global_bin, PNPM, "");
+    let saved_npm = root.path().join("npm");
+    let saved_executable = write_executable(&saved_npm, PNPM, "");
+    let saved = |dirs: &[&Path]| SetupPathEntry::AddedToUserPath {
+        persisted_path: Some(
+            dirs.iter()
+                .map(|dir| dir.to_path_buf())
+                .collect(),
+        ),
     };
-    let global_bin = Path::new("/pnpm-home/bin");
-    let saved = |dirs: &[&str]| SetupPathEntry::AddedToUserPath {
-        persisted_path: Some(dirs.iter().map(PathBuf::from).collect()),
+    let lookup = |entry: SetupPathEntry| {
+        let path = entry.path_for_new_shells();
+        find_shadowing_pnpm(own(&global_bin), path.as_deref())
     };
-    let keeps = |entry: SetupPathEntry| entry.keeps_shadowing(&shadowing, global_bin);
 
-    assert!(!keeps(SetupPathEntry::PrependedInShellConfig));
-    assert!(keeps(SetupPathEntry::LeftAlone));
-    assert!(keeps(SetupPathEntry::AddedToUserPath { persisted_path: None }));
-    assert!(keeps(saved(&["/npm/bin", "/pnpm-home/bin"])));
-    assert!(keeps(saved(&["/npm/bin"])));
-    assert!(!keeps(saved(&["/pnpm-home/bin", "/npm/bin"])));
-    assert!(!keeps(saved(&["/pnpm-home/bin"])));
+    assert_eq!(SetupPathEntry::PrependedInShellConfig.path_for_new_shells(), None);
+    assert_eq!(SetupPathEntry::LeftAlone.path_for_new_shells(), std::env::var_os("PATH"));
+    assert_eq!(
+        lookup(saved(&[&saved_npm, &global_bin])).map(|shadowing| shadowing.executable),
+        Some(saved_executable),
+    );
+    assert_eq!(lookup(saved(&[&global_bin, &saved_npm])), None);
 }
 
 #[test]
