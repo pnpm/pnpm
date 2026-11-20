@@ -223,7 +223,7 @@ fn process_version(
         return;
     };
     let dist = version.and_then(|version| version.dist.as_ref());
-    let resolved = dist.and_then(|dist| dist.tarball.clone());
+    let resolved = dist.and_then(|dist| dist.tarball.as_deref());
     let raw_signatures = dist.and_then(|dist| dist.signatures.as_ref());
 
     let Some(signatures) = parse_signatures(raw_signatures) else {
@@ -252,7 +252,7 @@ fn process_version(
         pkg,
         &signed,
         packument.time.get(&pkg.version).and_then(serde_json::Value::as_str),
-        resolved.as_deref(),
+        resolved,
         &signatures,
         keys,
     ) {
@@ -329,7 +329,7 @@ fn verify_package_signatures(
     Some(issue(
         pkg,
         Some(integrity.to_string()),
-        resolved.map(str::to_string),
+        resolved,
         Some(most_telling_failure(pkg, &failures)),
     ))
 }
@@ -351,7 +351,7 @@ fn most_telling_failure(pkg: &SignaturePackage, failures: &[String]) -> String {
 fn issue(
     pkg: &SignaturePackage,
     integrity: Option<String>,
-    resolved: Option<String>,
+    resolved: Option<&str>,
     reason: Option<String>,
 ) -> SignatureIssue {
     SignatureIssue {
@@ -360,7 +360,7 @@ fn issue(
         version: pkg.version.clone(),
         integrity,
         reason,
-        resolved,
+        resolved: resolved.map(redact_url_credentials),
     }
 }
 

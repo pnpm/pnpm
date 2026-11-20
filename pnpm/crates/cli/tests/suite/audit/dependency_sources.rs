@@ -37,6 +37,7 @@ fn audit_reports_vulnerabilities_after_installing_tarball_file_git_and_named_reg
     let commit = git_repo.commit("initial");
     let git_spec = git_repo.git_url_at(&commit);
 
+    append_workspace_yaml_key(&workspace, "fetchRetries", "0");
     append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{pnpr_url}' }}"));
     append_workspace_yaml_key(&workspace, "registry", format!("{}/", http_server.url()));
 
@@ -126,6 +127,7 @@ fn audit_fix_update_re_resolves_vulnerable_named_registry_dependency() {
     let pnpr_url = npmrc_info.mock_instance.url();
     let mut audit_registry = mockito::Server::new();
 
+    append_workspace_yaml_key(&workspace, "fetchRetries", "0");
     append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{pnpr_url}' }}"));
     append_workspace_yaml_key(&workspace, "registry", format!("{}/", audit_registry.url()));
 
@@ -248,6 +250,10 @@ fn audit_signatures_verifies_named_registry_packages_and_skips_non_registry_deps
         .mock("GET", "/ws-pkg")
         .expect(0)
         .create();
+    let skipped_dir_semver = default_registry
+        .mock("GET", "/dir-semver")
+        .expect(0)
+        .create();
 
     fs::write(workspace.join(".npmrc"), format!("registry={}/\n", default_registry.url()))
         .expect("write .npmrc");
@@ -284,6 +290,9 @@ importers:
       ws-pkg:
         specifier: workspace:*
         version: file:packages/ws-pkg
+      dir-semver:
+        specifier: workspace:*
+        version: 1.0.0
 
 packages:
   signed-default@1.0.0:
@@ -301,6 +310,8 @@ packages:
     version: 1.0.0
   ws-pkg@file:packages/ws-pkg:
     resolution: {{directory: packages/ws-pkg, type: directory}}
+  dir-semver@1.0.0:
+    resolution: {{directory: packages/dir-semver, type: directory}}
 
 snapshots:
   signed-default@1.0.0: {{}}
@@ -309,6 +320,7 @@ snapshots:
   file-pkg@file:./file-pkg-1.0.0.tgz: {{}}
   git-pkg@git+https://example.com/git-pkg.git#deadbeef: {{}}
   ws-pkg@file:packages/ws-pkg: {{}}
+  dir-semver@1.0.0: {{}}
 ",
         ),
     )
@@ -346,6 +358,7 @@ snapshots:
     skipped_file.assert();
     skipped_git.assert();
     skipped_ws.assert();
+    skipped_dir_semver.assert();
 }
 
 #[test]
@@ -395,15 +408,18 @@ fn audit_signatures_redacts_credentials_from_named_registry_urls_in_issues() {
     } = CommandTempCwd::init();
     let mut work_registry = mockito::Server::new();
     let work_key = signing_key();
+    let host_port = work_registry.host_with_port();
     let work_keys_mock = keys_mock(&mut work_registry, &public_key_b64(&work_key)).create();
+    let packument = format!(
+        r#"{{"name":"unsigned-work","versions":{{"1.0.0":{{"name":"unsigned-work","version":"1.0.0","dist":{{"integrity":"sha512-YWJj","tarball":"http://tarball-user:tarball-token@{host_port}/unsigned-work-1.0.0.tgz","signatures":[]}}}}}},"time":{{"1.0.0":"2020-01-01T00:00:00.000Z"}}}}"#,
+    );
     let work_packument = work_registry
         .mock("GET", "/unsigned-work")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(packument_body("unsigned-work", "1.0.0", "sha512-YWJj", "[]"))
+        .with_body(packument)
         .create();
 
-    let host_port = work_registry.host_with_port();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
         format!(
@@ -441,13 +457,90 @@ snapshots:
     let out = stdout(&output);
     let err = stderr(&output);
     assert_eq!(output.status.code(), Some(1), "stdout:\n{out}\nstderr:\n{err}");
-    assert!(!out.contains("build-user"));
-    assert!(!out.contains("build-token"));
-    assert!(!err.contains("build-user"));
-    assert!(!err.contains("build-token"));
+    for secret in ["build-user", "build-token", "tarball-user", "tarball-token"] {
+        assert!(!out.contains(secret), "{secret} leaked into stdout:\n{out}");
+        assert!(!err.contains(secret), "{secret} leaked into stderr:\n{err}");
+    }
 
     let result: serde_json::Value = serde_json::from_str(&out).expect("parse signatures JSON");
     assert_eq!(result["missing"][0]["registry"], format!("http://{host_port}/"));
+    assert_eq!(
+        result["missing"][0]["resolved"],
+        format!("http://{host_port}/unsigned-work-1.0.0.tgz"),
+    );
     work_keys_mock.assert();
     work_packument.assert();
+}
+
+#[test]
+fn audit_signatures_ties_tar_integrity_for_named_registry_packages() {
+    let CommandTempCwd { workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut work_registry = mockito::Server::new();
+    let work_key = signing_key();
+    let tgz =
+        gzipped_tarball(&[("package/package.json", r#"{"name":"tar-work","version":"1.0.0"}"#)]);
+    let mut digest = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    digest.input(&tgz);
+    let tgz_integrity = digest.result().to_string();
+    let work_sig = sign_b64(&work_key, &format!("tar-work@1.0.0:{tgz_integrity}"));
+    let tarball_url = format!("{}/tar-work/-/tar-work-1.0.0.tgz", work_registry.url());
+    let packument = format!(
+        r#"{{"name":"tar-work","dist-tags":{{"latest":"1.0.0"}},"versions":{{"1.0.0":{{"name":"tar-work","version":"1.0.0","dist":{{"integrity":"{tgz_integrity}","tarball":"{tarball_url}","signatures":{}}}}}}},"time":{{"1.0.0":"2020-01-01T00:00:00.000Z"}}}}"#,
+        signatures_json(&work_sig),
+    );
+
+    let keys = keys_mock(&mut work_registry, &public_key_b64(&work_key)).expect(2).create();
+    let packument_mock = work_registry
+        .mock("GET", "/tar-work")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument)
+        .expect(3)
+        .create();
+    let tarball_mock = work_registry
+        .mock("GET", "/tar-work/-/tar-work-1.0.0.tgz")
+        .with_status(200)
+        .with_header("content-type", "application/octet-stream")
+        .with_body(tgz)
+        .expect(2)
+        .create();
+
+    let store_dir = workspace.join("custom-store");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "fetchRetries: 0\nstoreDir: {}\nlockfile:\n  integrityTarget: tar\nnamedRegistries:\n  work: {}/\n",
+            store_dir.display(),
+            work_registry.url(),
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"tar-tie-app","version":"1.0.0","dependencies":{"tar-work":"work:1.0.0"}}"#,
+    )
+    .expect("write package.json");
+
+    pacquet_cmd(&workspace, ["install", "--lockfile-only"]).assert().success();
+    fs::remove_dir_all(&store_dir).expect("clear store dir to force download_tie first");
+
+    let cold = pacquet_cmd(&workspace, ["audit", "signatures", "--json"])
+        .output()
+        .expect("run cold audit signatures");
+    assert_success(&cold);
+    let cold_json: serde_json::Value = serde_json::from_str(&stdout(&cold)).expect("parse cold");
+    assert_eq!(cold_json["verified"], 1);
+
+    // Second run hits the store row `download_tie` wrote under `tar-work@work:1.0.0`
+    // without downloading the archive again.
+    let warm = pacquet_cmd(&workspace, ["audit", "signatures", "--json"])
+        .output()
+        .expect("run warm audit signatures");
+    assert_success(&warm);
+    let warm_json: serde_json::Value = serde_json::from_str(&stdout(&warm)).expect("parse warm");
+    assert_eq!(warm_json["verified"], 1);
+
+    keys.assert();
+    packument_mock.assert();
+    tarball_mock.assert();
 }

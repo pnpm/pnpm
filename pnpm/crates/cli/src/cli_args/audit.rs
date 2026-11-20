@@ -3,6 +3,7 @@ pub(crate) use fix::{
     filter_advisories_for_fix, fix_with_update, format_fix_with_update_output,
     ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
 };
+pub(crate) use importers::{LockedPackageRegistry, locked_package_registries};
 pub(crate) use paths::{
     AuditPathIndex, PathInfo, build_audit_path_index, package_semver, package_version,
 };
@@ -37,7 +38,7 @@ use clap::{Args, ValueEnum};
 use derive_more::{Display, Error};
 #[cfg(not(target_family = "wasm"))]
 use dialoguer::MultiSelect;
-use importers::{load_audited_lockfiles, locked_package_registries, signature_packages};
+use importers::{load_audited_lockfiles, signature_packages};
 use jiff::Timestamp;
 
 use miette::{Diagnostic, IntoDiagnostic};
@@ -240,22 +241,11 @@ impl AuditArgs {
         let settings_dir =
             state.config.workspace_dir.clone().unwrap_or_else(|| lockfile_dir.clone());
 
-        let Some((mut report, package_registries)) =
+        let Some((report, publish_infos)) =
             self.fetch_report(&state, include, audit_level, &lockfile_dir).await?
         else {
             return Ok(AuditOutcome::Clean);
         };
-        // The inferred patched range is syntactic: verify a published version
-        // actually satisfies it before the report and any fix flow can claim
-        // one. The fetched publish-time maps are reused by the fix flows for
-        // the age-gate exclusion check.
-        let publish_infos = correct_inferred_patched_versions(
-            &mut report,
-            &package_registries,
-            state.config,
-            state.http_client.as_ref(),
-        )
-        .await;
 
         if let Some(fix_method) = fix_method {
             return self.run_fix::<Reporter>(
@@ -339,7 +329,8 @@ impl AuditArgs {
         include: Include,
         audit_level: ConfigAuditLevel,
         lockfile_dir: &std::path::Path,
-    ) -> miette::Result<Option<(AuditReport, HashMap<String, String>)>> {
+    ) -> miette::Result<Option<(AuditReport, HashMap<String, Option<fix::PackumentPublishInfo>>)>>
+    {
         let Some((lockfile, env_lockfile)) = load_audited_lockfiles(state, lockfile_dir)? else {
             return Ok(None);
         };
@@ -353,14 +344,18 @@ impl AuditArgs {
         )
         .await
         {
-            Ok(report) => {
-                let registries = locked_package_registries(
+            Ok(mut report) => {
+                // Verify syntactic patched ranges against the registry before
+                // reporting or fixing, reusing publish times for age gates.
+                let publish_infos = correct_inferred_patched_versions(
+                    &mut report,
                     lockfile,
                     env_lockfile.as_ref(),
                     include,
-                    state.config,
-                );
-                Ok(Some((report, registries)))
+                    state,
+                )
+                .await;
+                Ok(Some((report, publish_infos)))
             }
             Err(err) if self.ignore_registry_errors => {
                 pnpm_diagnostics::eprintln!("{err}");

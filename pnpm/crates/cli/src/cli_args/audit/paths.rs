@@ -312,14 +312,18 @@ pub(crate) fn package_semver(
     if key.suffix.prefix() == pnpm_lockfile::Prefix::Runtime {
         return None;
     }
-    packages
-        .and_then(|packages| packages.get(&key.without_peer()))
-        .filter(|metadata| {
-            !matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
-        })
+    let metadata = packages.and_then(|packages| packages.get(&key.without_peer()));
+    if metadata.is_some_and(|metadata| {
+        matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+    }) {
+        return None;
+    }
+    if let Some(version) = key.suffix.registry_version() {
+        return Some(version.clone());
+    }
+    metadata
         .and_then(|metadata| metadata.version.as_deref())
         .and_then(|version| version.parse::<Version>().ok())
-        .or_else(|| key.suffix.registry_version().cloned())
 }
 
 pub(crate) fn package_version(

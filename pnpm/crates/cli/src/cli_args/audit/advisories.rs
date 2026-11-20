@@ -1,9 +1,10 @@
 use super::{
     AuditError, AuditGraph, AuditReport, AuditVulnerabilityCounts, BTreeMap, Config,
     ConfigAuditLevel, DepKind, Edge, EnvLockfile, GraphImporter, HashMap, HashSet, Include,
-    Lockfile, PackageKey, PackumentPublishInfo, PeerEdgeOptions, PeerSatisfactionEdges, Range,
-    RawBulkAdvisory, bulk_response_to_audit_report, empty_packages, empty_snapshots, env_roots,
-    fetch_publish_times, importer_roots, lockfile_to_audit_request, normalize_ghsa_id,
+    LockedPackageRegistry, Lockfile, PackageKey, PackumentPublishInfo, PeerEdgeOptions,
+    PeerSatisfactionEdges, Range, RawBulkAdvisory, State, bulk_response_to_audit_report,
+    empty_packages, empty_snapshots, env_roots, fetch_publish_times, importer_roots,
+    locked_package_registries, lockfile_to_audit_request, normalize_ghsa_id,
     pick_registry_for_package, sanitize_response_body, send_with_retry,
 };
 use pnpm_network::{normalize_registry_url, redact_url_credentials};
@@ -88,9 +89,10 @@ fn parse_bulk_advisories(
 /// the age-gate exclusion check instead of re-fetching each packument.
 pub(super) async fn correct_inferred_patched_versions(
     report: &mut AuditReport,
-    package_registries: &HashMap<String, String>,
-    config: &Config,
-    http_client: &pnpm_network::ThrottledClient,
+    lockfile: &Lockfile,
+    env_lockfile: Option<&EnvLockfile>,
+    include: Include,
+    state: &State,
 ) -> HashMap<String, Option<PackumentPublishInfo>> {
     let names: HashSet<&str> = report.advisories
         .values()
@@ -100,19 +102,25 @@ pub(super) async fn correct_inferred_patched_versions(
     if names.is_empty() {
         return HashMap::new();
     }
-    let registries: HashMap<String, String> = config
+    let package_registries =
+        locked_package_registries(lockfile, env_lockfile, include, state.config, &names);
+    let registries: HashMap<String, String> = state.config
         .resolved_registries()
         .into_iter()
         .collect();
     let fetches = names
         .into_iter()
         .map(|name| {
-            let registry = package_registries
-                .get(name)
-                .cloned()
-                .unwrap_or_else(|| pick_registry_for_package(&registries, name, None));
+            let registry = packument_registry_for(name, &package_registries, &registries);
             async move {
-                (name.to_string(), fetch_publish_times(name, &registry, config, http_client).await)
+                let info = match registry {
+                    Some(url) => {
+                        fetch_publish_times(name, &url, state.config, state.http_client.as_ref())
+                            .await
+                    }
+                    None => None,
+                };
+                (name.to_string(), info)
             }
         });
     let publish_infos: HashMap<String, Option<PackumentPublishInfo>> =
@@ -121,6 +129,18 @@ pub(super) async fn correct_inferred_patched_versions(
         apply_publish_info(advisory, &publish_infos);
     }
     publish_infos
+}
+
+fn packument_registry_for(
+    name: &str,
+    package_registries: &HashMap<String, LockedPackageRegistry>,
+    registries: &HashMap<String, String>,
+) -> Option<String> {
+    match package_registries.get(name) {
+        Some(LockedPackageRegistry::Single(registry)) => Some(registry.clone()),
+        Some(LockedPackageRegistry::Ambiguous) => None,
+        None => Some(pick_registry_for_package(registries, name, None)),
+    }
 }
 
 fn apply_publish_info(

@@ -1,6 +1,7 @@
 use super::{
-    BTreeMap, RawBulkAdvisory, all_dependencies, bulk_response_to_audit_report,
-    lockfile_to_audit_request, package_version, parse_lockfile, prod_without_optional,
+    BTreeMap, Config, HashSet, LockedPackageRegistry, RawBulkAdvisory, all_dependencies,
+    bulk_response_to_audit_report, locked_package_registries, lockfile_to_audit_request,
+    package_version, parse_lockfile, prod_without_optional,
 };
 
 #[test]
@@ -26,9 +27,17 @@ packages:
     resolution: {integrity: sha512-YWJj}
   '@scope/pkg@work:3.4.5':
     resolution: {integrity: sha512-YWJj}
+  tampered-reg@1.0.0:
+    resolution: {integrity: sha512-YWJj}
+    version: 99.0.0
+  tampered-named@work:1.0.0:
+    resolution: {integrity: sha512-YWJj}
+    version: 99.0.0
   ws-pkg@file:packages/ws-pkg:
     resolution: {directory: packages/ws-pkg, type: directory}
     version: 9.9.9
+  dir-semver@1.0.0:
+    resolution: {directory: packages/dir-semver, type: directory}
   unversioned@http://127.0.0.1:8080/unversioned.tgz:
     resolution: {tarball: http://127.0.0.1:8080/unversioned.tgz}
   bad-version@http://127.0.0.1:8080/bad-version.tgz:
@@ -54,7 +63,10 @@ packages:
     );
     assert_eq!(version_of("named-pkg@work:3.4.5"), Some("3.4.5".to_string()));
     assert_eq!(version_of("@scope/pkg@work:3.4.5(peer@1.0.0)"), Some("3.4.5".to_string()));
+    assert_eq!(version_of("tampered-reg@1.0.0"), Some("1.0.0".to_string()));
+    assert_eq!(version_of("tampered-named@work:1.0.0"), Some("1.0.0".to_string()));
     assert_eq!(version_of("ws-pkg@file:packages/ws-pkg"), None);
+    assert_eq!(version_of("dir-semver@1.0.0"), None);
     assert_eq!(version_of("node@runtime:24.0.0"), None);
     assert_eq!(version_of("unversioned@http://127.0.0.1:8080/unversioned.tgz"), None);
     assert_eq!(version_of("bad-version@http://127.0.0.1:8080/bad-version.tgz"), None);
@@ -191,4 +203,66 @@ snapshots:
     assert_eq!(report.advisories["1006"].findings[0].paths, vec![".>aliased-named"]);
     assert!(report.advisories["1006"].findings[0].dev);
     assert_eq!(report.advisories["1007"].findings[0].paths, vec![".>ws-lib>via-ws"]);
+}
+
+#[test]
+fn locked_package_registries_distinguishes_single_and_mixed_registry_origins() {
+    let lockfile = parse_lockfile(
+        "
+lockfileVersion: '9.0'
+
+importers:
+  .:
+    dependencies:
+      only-work:
+        specifier: work:1.0.0
+        version: work:1.0.0
+      mixed-default:
+        specifier: npm:mixed-pkg@1.0.0
+        version: mixed-pkg@1.0.0
+      mixed-work:
+        specifier: work:mixed-pkg@2.0.0
+        version: mixed-pkg@work:2.0.0
+      dir-semver:
+        specifier: workspace:*
+        version: 1.0.0
+      tarball-only:
+        specifier: https://example.com/tarball-only-1.0.0.tgz
+        version: https://example.com/tarball-only-1.0.0.tgz
+
+packages:
+  only-work@work:1.0.0:
+    resolution: {integrity: sha512-YWJj}
+  mixed-pkg@1.0.0:
+    resolution: {integrity: sha512-YWJj}
+  mixed-pkg@work:2.0.0:
+    resolution: {integrity: sha512-ZGVm}
+  dir-semver@1.0.0:
+    resolution: {directory: packages/dir-semver, type: directory}
+  tarball-only@https://example.com/tarball-only-1.0.0.tgz:
+    resolution: {tarball: https://example.com/tarball-only-1.0.0.tgz}
+    version: 1.0.0
+
+snapshots:
+  only-work@work:1.0.0: {}
+  mixed-pkg@1.0.0: {}
+  mixed-pkg@work:2.0.0: {}
+  dir-semver@1.0.0: {}
+  tarball-only@https://example.com/tarball-only-1.0.0.tgz: {}
+",
+    );
+    let mut config = Config::new();
+    config.registry = "https://default.example.com/".to_string();
+    config.registries_by_prefix.insert("work".to_string(), "https://work.example.com/".to_string());
+
+    let names = HashSet::from(["only-work", "mixed-pkg", "dir-semver", "tarball-only"]);
+    let resolved = locked_package_registries(&lockfile, None, all_dependencies(), &config, &names);
+
+    assert_eq!(
+        resolved.get("only-work"),
+        Some(&LockedPackageRegistry::Single("https://work.example.com/".to_string())),
+    );
+    assert_eq!(resolved.get("mixed-pkg"), Some(&LockedPackageRegistry::Ambiguous));
+    assert!(!resolved.contains_key("dir-semver"));
+    assert!(!resolved.contains_key("tarball-only"));
 }
