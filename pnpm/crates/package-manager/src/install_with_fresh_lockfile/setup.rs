@@ -208,6 +208,7 @@ pub(super) async fn build_fresh_resolver_chain<Reporter: self::Reporter + 'stati
             requester: install.projects.requester,
             supported_architectures: install.projects.supported_architectures,
             lockfile: install.lockfiles.wanted,
+            local_filesystem_policy: owned.resolution.local_filesystem_policy,
         },
         registry: crate::install_with_fresh_lockfile::resolution_inputs::ResolverRegistryContext {
             named: &registries.by_scope,

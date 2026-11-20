@@ -416,7 +416,7 @@ function createOptions (
 test.each([false, true])('pnpr materialization keeps configured modules and bin directories (mutation: %s)', async (mutation) => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
-  const manifest: ProjectManifest = { name: 'app', version: '1.0.0', dependencies: { tool: 'link:tool' } }
+  const manifest: ProjectManifest = { name: 'app', version: '1.0.0', dependencies: { tool: 'workspace:./tool' } }
   fs.mkdirSync(path.join(rootDir, 'tool'))
   fs.writeFileSync(path.join(rootDir, 'tool/package.json'), JSON.stringify({ name: 'tool', version: '1.0.0', bin: 'bin.js' }))
   fs.writeFileSync(path.join(rootDir, 'tool/bin.js'), '#!/usr/bin/env node\nconsole.log("tool")\n')
@@ -431,7 +431,7 @@ test.each([false, true])('pnpr materialization keeps configured modules and bin 
   resolveViaPnprServer.mockResolvedValueOnce({
     lockfile: {
       lockfileVersion: '9.0',
-      importers: { ['.' as ProjectId]: { specifiers: { tool: 'link:tool' }, dependencies: { tool: 'link:tool' } } },
+      importers: { ['.' as ProjectId]: { specifiers: { tool: 'workspace:./tool' }, dependencies: { tool: 'link:tool' } } },
       packages: {},
     },
     stats: { totalPackages: 0 },
@@ -475,4 +475,64 @@ test('pnpr forwards every registry alias with a canonical key prefix', async () 
   expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
     registries: expect.objectContaining({ 'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] } }),
   }))
+})
+
+test.each(['file:./local-lib', 'link:./local-lib', './local-lib'])('install falls back locally without calling pnpr when manifest declares %s', async (specifier) => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.mkdirSync(path.join(rootDir, 'local-lib'))
+  fs.writeFileSync(path.join(rootDir, 'local-lib/package.json'), JSON.stringify({ name: 'local-lib', version: '1.0.0' }))
+  const warnings: string[] = []
+  const options = createOptions(workspaceRoot, rootDir, {
+    lockfileOnly: false,
+    reporter: (logObj) => {
+      if (logObj.level === 'warn' && 'message' in logObj && typeof logObj.message === 'string') {
+        warnings.push(logObj.message)
+      }
+    },
+  })
+
+  await install({ name: 'app', version: '1.0.0', dependencies: { 'local-lib': specifier } }, options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(rootDir, 'node_modules/local-lib/package.json'))).toBe(true)
+  expect(warnings).toEqual([
+    expect.stringContaining(`cannot resolve local dependency "${specifier}"`),
+  ])
+})
+
+test('mutateModules falls back locally without calling pnpr when adding an aliasless file: dependency', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.mkdirSync(path.join(rootDir, 'local-lib'))
+  fs.writeFileSync(path.join(rootDir, 'local-lib/package.json'), JSON.stringify({ name: 'local-lib', version: '1.0.0' }))
+  const manifest: ProjectManifest = { name: 'app', version: '1.0.0' }
+  const options = createOptions(workspaceRoot, rootDir, {
+    lockfileOnly: false,
+    allProjects: [{ buildIndex: 0, manifest, rootDir }],
+  })
+
+  await mutateModules([{ mutation: 'installSome', rootDir, dependencySelectors: ['file:./local-lib'] }], options)
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(rootDir, 'node_modules/local-lib/package.json'))).toBe(true)
+})
+
+test('install with pnprServer and frozenStore falls back locally for file: dependencies instead of throwing store conflict', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.mkdirSync(path.join(rootDir, 'local-lib'))
+  fs.writeFileSync(path.join(rootDir, 'local-lib/package.json'), JSON.stringify({ name: 'local-lib', version: '1.0.0' }))
+  const manifest: ProjectManifest = { name: 'app', version: '1.0.0', dependencies: { 'local-lib': 'file:./local-lib' } }
+
+  // Populate the store first, then rerun with frozenStore + pnprServer.
+  await install(manifest, createOptions(workspaceRoot, rootDir, { pnprServer: undefined, lockfileOnly: false }))
+  await install(manifest, createOptions(workspaceRoot, rootDir, {
+    frozenLockfile: true,
+    frozenStore: true,
+    lockfileOnly: false,
+  }))
+
+  expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  expect(fs.existsSync(path.join(rootDir, 'node_modules/local-lib/package.json'))).toBe(true)
 })

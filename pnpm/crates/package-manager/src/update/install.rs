@@ -160,6 +160,8 @@ pub(super) fn update_install<'i>(
         execution: update_execution(&update),
         resolution: crate::ResolutionInputs {
             update_seed_policy: seed.policy,
+            local_filesystem_policy: pnpm_resolving_local_resolver::LocalFilesystemPolicy::default(
+            ),
             preferred_versions_override: Some(seed.preferred_versions_override.into()),
             auth_override: None,
             observer: owned.resolution_observer,

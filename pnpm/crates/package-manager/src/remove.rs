@@ -208,6 +208,8 @@ fn remove_install<'i>(
         execution: remove.install_execution(),
         resolution: crate::ResolutionInputs {
             update_seed_policy: UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: pnpm_resolving_local_resolver::LocalFilesystemPolicy::default(
+            ),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,

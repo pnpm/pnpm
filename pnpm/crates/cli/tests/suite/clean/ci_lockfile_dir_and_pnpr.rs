@@ -18,15 +18,21 @@ fn write_local_dep(workspace: &Path, name: &str) {
 fn ci_preserves_node_modules_when_pnpr_server_conflicts_with_frozen_store() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let store_dir = root.path().join("store");
-    write_local_dep(&workspace, "dep-a");
+    let dep_dir = workspace.join("packages/dep-a");
+    fs::create_dir_all(&dep_dir).expect("create workspace dep dir");
+    fs::write(dep_dir.join("package.json"), r#"{"name":"dep-a","version":"1.0.0"}"#)
+        .expect("write workspace dep manifest");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        format!("storeDir: {}\n", serde_json::to_string(&store_dir).expect("quote storeDir")),
+        format!(
+            "packages:\n  - packages/*\nstoreDir: {}\n",
+            serde_json::to_string(&store_dir).expect("quote storeDir"),
+        ),
     )
     .expect("write pnpm-workspace.yaml");
     fs::write(
         workspace.join("package.json"),
-        r#"{"name":"app","version":"1.0.0","dependencies":{"dep-a":"file:deps/dep-a"}}"#,
+        r#"{"name":"app","version":"1.0.0","dependencies":{"dep-a":"workspace:*"}}"#,
     )
     .expect("write package.json");
 
