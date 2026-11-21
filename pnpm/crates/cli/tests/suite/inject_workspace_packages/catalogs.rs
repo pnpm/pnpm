@@ -83,6 +83,52 @@ fn ordinary_file_dependencies_do_not_inherit_importer_catalogs() {
     }
 }
 
+#[test]
+fn file_dependencies_on_a_workspace_publish_directory_resolve_catalogs() {
+    let fixture = CommandTempCwd::init().add_mocked_registry();
+    let workspace = &fixture.workspace;
+    append_workspace_yaml_key(workspace, "packages", "[lib]");
+    append_workspace_yaml_key(workspace, "catalog", "{ '@pnpm.e2e/foo': 1.0.0 }");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "private": true,
+            "dependencies": { "lib": "file:lib/dist" },
+        })
+        .to_string(),
+    )
+    .expect("write app manifest");
+    let lib_manifest = serde_json::json!({
+        "name": "lib",
+        "version": "1.0.0",
+        "publishConfig": { "directory": "dist" },
+        "dependencies": { "@pnpm.e2e/foo": "catalog:" },
+    })
+    .to_string();
+    fs::create_dir_all(workspace.join("lib/dist")).expect("create the publish directory");
+    fs::write(workspace.join("lib/package.json"), &lib_manifest).expect("write lib manifest");
+    fs::write(workspace.join("lib/dist/package.json"), &lib_manifest)
+        .expect("write the published manifest");
+
+    pacquet_in(workspace)
+        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .assert()
+        .success();
+
+    let lockfile =
+        Lockfile::load_wanted_from_dir(workspace).expect("read lockfile").expect("lockfile exists");
+    let snapshot = lockfile.snapshots
+        .expect("lockfile has snapshots")
+        .into_iter()
+        .find(|(key, _)| key.to_string().starts_with("lib@file:"))
+        .expect("lockfile records the publish directory")
+        .1;
+    let dependencies = snapshot.dependencies.expect("lib has dependencies");
+    let foo: pnpm_lockfile::PkgName = "@pnpm.e2e/foo".parse().expect("parse package name");
+    assert_eq!(dependencies[&foo].to_string(), "1.0.0");
+}
+
 fn relative_catalog_fixture(
     relative_path: &str,
     catalog_specifier: &str,
