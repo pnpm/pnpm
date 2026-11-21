@@ -864,6 +864,18 @@ fn a_report_names_only_the_first_unrecognized_task_settings() {
 }
 
 #[test]
+fn rejects_a_task_entry_without_a_value_with_a_hint() {
+    for entry in ["build:", "build: null"] {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), format!("tasks:\n  {entry}\n"))
+            .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err().to_string();
+        assert!(error.contains("Write `{}` for a task with no settings"), "{entry}: {error}");
+    }
+}
+
+#[test]
 fn rejects_fractional_task_concurrency_as_an_invalid_setting() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(
