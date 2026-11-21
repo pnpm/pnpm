@@ -287,7 +287,7 @@ pub(super) const RESOLUTION_KEY: &[KeyPart] = &[
 pub(super) fn resolution_cache_key(request: &ResolveRequest) -> Option<String> {
     // Explicit metadata refreshes must not repeat an old registry selection
     // from the whole-resolution cache.
-    if request.update_patches || request.fix_lockfile {
+    if request.update_patches || request.update_checksums || request.fix_lockfile {
         return None;
     }
     let inputs = ConfigKeyInputs::for_request(request);
@@ -315,6 +315,7 @@ fn cache_key_projects(request: &ResolveRequest) -> Vec<serde_json::Value> {
                 "devDependencies": project.dev_dependencies,
                 "optionalDependencies": project.optional_dependencies,
                 "peerDependencies": project.peer_dependencies,
+                "dependenciesMeta": project.dependencies_meta,
             })
         })
         .collect()

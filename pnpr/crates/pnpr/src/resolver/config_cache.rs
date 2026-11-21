@@ -188,6 +188,11 @@ fn build_config(
     config.exclude_links_from_lockfile = resolver_settings.exclude_links_from_lockfile;
     config.add_missing_peer_types = resolver_settings.add_missing_peer_types;
     config.project_scoped_optional_peers = resolver_settings.project_scoped_optional_peers;
+    config.inject_workspace_packages = request.inject_workspace_packages;
+    if let Some(dedupe_injected_deps) = request.dedupe_injected_deps {
+        config.dedupe_injected_deps = dedupe_injected_deps;
+    }
+    config.ignored_optional_dependencies.clone_from(&request.ignored_optional_dependencies);
     config
 }
 
@@ -251,6 +256,18 @@ pub(super) const CONFIG_KEY: &[KeyPart] = &[
     KeyPart {
         fields: &["allowUnusedPatches"],
         value: |request, _| serde_json::json!(request.allow_unused_patches),
+    },
+    KeyPart {
+        fields: &["injectWorkspacePackages"],
+        value: |request, _| serde_json::json!(request.inject_workspace_packages),
+    },
+    KeyPart {
+        fields: &["dedupeInjectedDeps"],
+        value: |request, _| serde_json::json!(request.dedupe_injected_deps),
+    },
+    KeyPart {
+        fields: &["ignoredOptionalDependencies"],
+        value: |request, _| serde_json::json!(request.ignored_optional_dependencies),
     },
     KeyPart {
         fields: &["resolutionMode"],

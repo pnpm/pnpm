@@ -293,7 +293,7 @@ async fn write_importer_manifest(
 
 /// The manifest the server resolves the importer at `rel` from.
 fn importer_manifest_json(project: &ProjectDeps, rel: &str) -> serde_json::Value {
-    serde_json::json!({
+    let mut manifest = serde_json::json!({
         "name": project.name.clone().unwrap_or_else(|| importer_manifest_name(rel)),
         "version": project.version.as_deref().unwrap_or("0.0.0"),
         "publishConfig": project.publish_config,
@@ -301,7 +301,11 @@ fn importer_manifest_json(project: &ProjectDeps, rel: &str) -> serde_json::Value
         "devDependencies": project.dev_dependencies,
         "optionalDependencies": project.optional_dependencies,
         "peerDependencies": project.peer_dependencies,
-    })
+    });
+    if let Some(dependencies_meta) = &project.dependencies_meta {
+        manifest["dependenciesMeta"] = serde_json::Value::Object(dependencies_meta.clone());
+    }
+    manifest
 }
 
 /// Return the caller's frozen input lockfile when pacquet's freshness
@@ -309,6 +313,7 @@ fn importer_manifest_json(project: &ProjectDeps, rel: &str) -> serde_json::Value
 /// unchanged.
 pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) -> Option<Lockfile> {
     if request.update_patches
+        || request.update_checksums
         || request.fix_lockfile
         || !request.frozen_lockfile
         || !request.prefer_frozen_lockfile.unwrap_or(true)

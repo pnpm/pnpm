@@ -146,15 +146,18 @@ Resolve responses no longer carry a separate capability header.
 `overrides`, `lockfile`, `frozenLockfile`, `preferFrozenLockfile`,
 `ignoreManifestCheck`, `trustLockfile`, `minimumReleaseAge`,
 `minimumReleaseAgeExclude`, `minimumReleaseAgeIgnoreMissingTime`,
-`trustPolicy`, `trustPolicyExclude`, `trustPolicyIgnoreAfter`, and
-`fixLockfile`. A repair request regenerates broken
+`trustPolicy`, `trustPolicyExclude`, `trustPolicyIgnoreAfter`,
+`injectWorkspacePackages`, `dedupeInjectedDeps`, `ignoredOptionalDependencies`,
+`updateChecksums`, and `fixLockfile`. Each project in `projects` can carry its
+`dependenciesMeta`. A repair request regenerates broken
 lockfile metadata while retaining compatible locked versions, including for a
 filtered install.
 
 The server refuses a request that has a field it does not know. The `400`
 response carries the code `ERR_PNPR_UNSUPPORTED_REQUEST_FIELD`, because an
 ignored field could be a setting that changes the resolution. The same applies
-to fields inside `projects` and to Cargo and Python requests.
+to fields inside `projects` and to Cargo and Python requests. The server does
+not fetch exotic subdependencies, so it refuses `blockExoticSubdeps` too.
 
 `acceptedLockfileFormats` lists the lockfile formats the client reads. The
 server refuses a request that lists none it renders with

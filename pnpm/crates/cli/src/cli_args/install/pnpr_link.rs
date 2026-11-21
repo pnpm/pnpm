@@ -35,6 +35,9 @@ pub(crate) struct PnprLockfilePolicy {
     /// version. This disables the exchange-free satisfied-lockfile path and
     /// is forwarded to `/-/pnpr/v0/resolve`.
     pub(crate) update_patches: bool,
+    /// `--update-checksums`. Disables the exchange-free satisfied-lockfile
+    /// path and is forwarded to `/-/pnpr/v0/resolve`.
+    pub(crate) update_checksums: bool,
     /// Regenerate derived lockfile metadata while retaining compatible pins.
     pub(crate) fix: bool,
     /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server

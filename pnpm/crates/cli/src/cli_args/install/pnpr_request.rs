@@ -115,25 +115,35 @@ pub(super) fn resolve_projects_options(
             allow_unused_patches: state.config.allow_unused_patches,
             catalogs: session.catalogs.take(),
         },
-        resolution: pnpm_pnpr_client::ResolutionSettings {
-            auto_install_peers: Some(state.config.auto_install_peers),
-            dedupe_peers: Some(state.config.dedupe_peers),
-            exclude_links_from_lockfile: Some(state.config.exclude_links_from_lockfile),
-            add_missing_peer_types: Some(state.config.add_missing_peer_types),
-            project_scoped_optional_peers: Some(
-                state.config.project_scoped_optional_peers_take_effect(),
-            ),
-            resolution_mode: state.config.resolution_mode,
-        },
+        resolution: resolution_settings(state.config),
         reuse: pnpm_pnpr_client::LockfileReuseOptions {
             lockfile: session.previous_wanted.cloned(),
             frozen_lockfile: link.lockfile.frozen,
             prefer_frozen_lockfile: Some(link.lockfile.prefer_frozen),
             update_patches: link.lockfile.update_patches,
+            update_checksums: link.lockfile.update_checksums,
             ignore_manifest_check: link.lockfile.ignore_manifest_check,
             trust_lockfile: link.lockfile.trust,
         },
         verification: verification_policy(state.config),
+    }
+}
+
+/// The client's settings that shape the lockfile the server resolves.
+fn resolution_settings(config: &pnpm_config::Config) -> pnpm_pnpr_client::ResolutionSettings {
+    pnpm_pnpr_client::ResolutionSettings {
+        auto_install_peers: Some(config.auto_install_peers),
+        dedupe_peers: Some(config.dedupe_peers),
+        exclude_links_from_lockfile: Some(config.exclude_links_from_lockfile),
+        add_missing_peer_types: Some(config.add_missing_peer_types),
+        project_scoped_optional_peers: Some(config.project_scoped_optional_peers_take_effect()),
+        resolution_mode: config.resolution_mode,
+        dependency_graph: pnpm_pnpr_client::DependencyGraphSettings {
+            inject_workspace_packages: config.inject_workspace_packages,
+            dedupe_injected_deps: (!config.dedupe_injected_deps).then_some(false),
+            ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+            block_exotic_subdeps: config.block_exotic_subdeps,
+        },
     }
 }
 
@@ -233,6 +243,12 @@ fn resolve_project(
             .dependencies([DependencyGroup::Peer])
             .map(|(name, spec)| (name.to_string(), spec.to_string()))
             .collect(),
+        dependencies_meta: manifest
+            .value()
+            .get("dependenciesMeta")
+            .and_then(serde_json::Value::as_object)
+            .filter(|meta| !meta.is_empty())
+            .cloned(),
     }
 }
 

@@ -783,6 +783,7 @@ mod hosted;
 mod optional_peers;
 mod publish_retry;
 mod workspace;
+mod workspace_settings;
 
 mod revisions;
 

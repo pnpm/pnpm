@@ -93,6 +93,13 @@ pub struct ProjectPublishConfig {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "pnpr resolution request wire format is flat"
+    )
+)]
 pub struct ResolveRequestProject {
     /// The importer's directory relative to the lockfile dir, in POSIX
     /// form (`.` for the root, `packages/foo` for a workspace member).
@@ -114,6 +121,10 @@ pub struct ResolveRequestProject {
     /// enables `autoInstallPeers`.
     #[serde(default)]
     pub peer_dependencies: DepMap,
+    /// The project's `dependenciesMeta`. Its `injected` entries change how
+    /// workspace dependencies resolve, and the lockfile importer records it.
+    #[serde(default)]
+    pub dependencies_meta: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 fn root_dir() -> String {
@@ -212,6 +223,15 @@ pub struct ResolveRequest {
     pub add_missing_peer_types: Option<bool>,
     #[serde(default)]
     pub project_scoped_optional_peers: Option<bool>,
+    /// The client's `injectWorkspacePackages`.
+    #[serde(default)]
+    pub inject_workspace_packages: bool,
+    /// The client's `dedupeInjectedDeps`. `None` keeps the default.
+    #[serde(default)]
+    pub dedupe_injected_deps: Option<bool>,
+    /// The client's `ignoredOptionalDependencies`.
+    #[serde(default)]
+    pub ignored_optional_dependencies: Option<Vec<String>>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target (the server verifies it under the
     /// client's policy before resolving) and as the resolution-reuse
@@ -232,6 +252,10 @@ pub struct ResolveRequest {
     /// version. Omitted by older clients and false for ordinary resolves.
     #[serde(default)]
     pub update_patches: bool,
+    /// `--update-checksums`: refresh the integrity of every locked package
+    /// from the registry. Omitted by older clients.
+    #[serde(default)]
+    pub update_checksums: bool,
     /// Re-resolve every edge while preserving compatible locked versions and
     /// regenerating derived lockfile fields.
     #[serde(default)]
@@ -395,6 +419,13 @@ impl AppliedPolicies {
 
 /// One project's importer dir and its dependency maps, normalized
 /// across the legacy single-project body and the `projects` array.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "one field per field of the flat `ResolveRequestProject`"
+    )
+)]
 pub struct ProjectDeps {
     pub dir: String,
     pub name: Option<String>,
@@ -404,6 +435,7 @@ pub struct ProjectDeps {
     pub dev_dependencies: DepMap,
     pub optional_dependencies: DepMap,
     pub peer_dependencies: DepMap,
+    pub dependencies_meta: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl ResolveRequest {
@@ -427,6 +459,7 @@ impl ResolveRequest {
                     dev_dependencies: project.dev_dependencies.clone(),
                     optional_dependencies: project.optional_dependencies.clone(),
                     peer_dependencies: project.peer_dependencies.clone(),
+                    dependencies_meta: project.dependencies_meta.clone(),
                 })
                 .collect();
         }
@@ -439,6 +472,7 @@ impl ResolveRequest {
             dev_dependencies: self.dev_dependencies.clone().unwrap_or_default(),
             optional_dependencies: self.optional_dependencies.clone().unwrap_or_default(),
             peer_dependencies: self.peer_dependencies.clone().unwrap_or_default(),
+            dependencies_meta: None,
         }]
     }
 }

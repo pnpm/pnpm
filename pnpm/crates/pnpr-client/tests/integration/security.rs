@@ -48,6 +48,7 @@ async fn an_importer_outside_the_request_is_rejected() {
         dev_dependencies: BTreeMap::new(),
         optional_dependencies: BTreeMap::new(),
         peer_dependencies: BTreeMap::new(),
+        dependencies_meta: None,
     }];
 
     let error = match client.resolve_projects(opts).await {
