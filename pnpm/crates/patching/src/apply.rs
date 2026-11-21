@@ -129,7 +129,8 @@ pub(super) fn parse_file_patches<'a>(
     };
     PatchSet::parse(text, options)
         .map(move |file_patch_result| {
-            let file_patch = file_patch_result.map_err(|source| invalid(source.to_string()))?;
+            let file_patch =
+                file_patch_result.map_err(|source| source.to_string()).map_err(invalid)?;
             let unsupported_mode = [file_patch.old_mode(), file_patch.new_mode()]
                 .into_iter()
                 .flatten()

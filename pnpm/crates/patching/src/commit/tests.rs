@@ -343,7 +343,7 @@ fn patch_commit_diff_dirs_returns_empty_for_equal_dirs() {
 fn patch_commit_diff_dirs_keeps_the_missing_final_newline_of_the_last_file() {
     let before = tempdir().expect("before dir");
     let after = tempdir().expect("after dir");
-    fs::write(after.path().join("version.json"), "\"1.2.3\"").unwrap();
+    fs::write(after.path().join("version.json"), r#""1.2.3""#).unwrap();
 
     let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
 
