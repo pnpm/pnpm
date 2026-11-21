@@ -65,12 +65,15 @@ pub(super) struct ImporterSelection<'a> {
     pub(super) snapshots: &'a HashSet<&'a PkgNameVerPeer>,
 }
 
+/// A snapshot key and the aliases its peer suffix binds.
+type SnapshotPeers<'a> = (&'a PkgNameVerPeer, HashSet<String>);
+
 /// Peer indexes a scan builds on first use.
 #[derive(Default)]
 pub(super) struct PeerIndexes<'a> {
-    /// Built by [`is_peer_resolved`].
-    resolved_aliases: OnceCell<HashMap<PkgNameVerPeer, HashSet<String>>>,
-    /// Built by [`authorized_local_package_declares_peer`].
+    /// Built by [`has_unvouched_resolving_snapshot`].
+    resolved_aliases: OnceCell<HashMap<PkgNameVerPeer, Vec<SnapshotPeers<'a>>>>,
+    /// Built by [`importer_vouches_for_peer`].
     declarations: OnceCell<Vec<HashSet<(&'a str, &'a str)>>>,
 }
 
@@ -192,7 +195,7 @@ fn check_package_peer_specs(
         && scan.authorized_git_packages.contains(pkg_key);
     for (alias, spec) in peers {
         if is_unauthorized_peer_spec(scan, (pkg_key, meta), is_authorized_git, (alias, spec))
-            && is_peer_resolved(scan, pkg_key, alias)
+            && has_unvouched_resolving_snapshot(scan, pkg_key, (alias, spec))
         {
             violations.push(package_violation(
                 pkg_key,
@@ -220,25 +223,32 @@ fn is_unauthorized_peer_spec(
     !is_internal
         && is_non_local_filesystem_subdep_spec(spec, |_| false)
         && !policy_authorizes_peer_spec(scan.policy, scan.lockfile, (pkg_key, meta), alias, spec)
-        && !authorized_local_package_declares_peer(scan, pkg_key, (alias, spec))
 }
 
-/// Whether any snapshot of `pkg_key` resolves the peer `alias`. A peer left
-/// unresolved (for example under `autoInstallPeers: false`) creates no edge,
-/// so its declaration reaches nothing on disk.
-fn is_peer_resolved(scan: &PackageEntryScan<'_>, pkg_key: &PkgNameVerPeer, alias: &str) -> bool {
+/// Whether a snapshot of `pkg_key` resolves the peer `alias` while no importer
+/// that reaches it vouches for `spec`. A peer left unresolved (for example
+/// under `autoInstallPeers: false`) creates no edge, so its declaration
+/// reaches nothing on disk.
+fn has_unvouched_resolving_snapshot(
+    scan: &PackageEntryScan<'_>,
+    pkg_key: &PkgNameVerPeer,
+    (alias, spec): (&str, &str),
+) -> bool {
     let selected_snapshots = scan.selection.map(|selection| selection.snapshots);
     scan.peer_indexes.resolved_aliases
         .get_or_init(|| index_resolved_aliases(scan.lockfile, selected_snapshots))
         .get(pkg_key)
-        .is_some_and(|aliases| aliases.contains(alias))
+        .into_iter()
+        .flatten()
+        .filter(|(_, aliases)| aliases.contains(alias))
+        .any(|(snap_key, _)| !importer_vouches_for_peer(scan, snap_key, (alias, spec)))
 }
 
-fn index_resolved_aliases(
-    lockfile: &Lockfile,
+fn index_resolved_aliases<'a>(
+    lockfile: &'a Lockfile,
     selected_snapshots: Option<&HashSet<&PkgNameVerPeer>>,
-) -> HashMap<PkgNameVerPeer, HashSet<String>> {
-    let mut by_base: HashMap<PkgNameVerPeer, HashSet<String>> = HashMap::new();
+) -> HashMap<PkgNameVerPeer, Vec<SnapshotPeers<'a>>> {
+    let mut by_base: HashMap<PkgNameVerPeer, Vec<SnapshotPeers<'a>>> = HashMap::new();
     let snapshots = lockfile.snapshots
         .iter()
         .flatten()
@@ -252,11 +262,12 @@ fn index_resolved_aliases(
             .flatten()
             .flat_map(HashMap::keys)
             .map(ToString::to_string)
-            .filter(|name| peer_suffix_binds(peer_suffix, name));
+            .filter(|name| peer_suffix_binds(peer_suffix, name))
+            .collect();
         by_base
             .entry(snap_key.without_peer())
             .or_default()
-            .extend(names);
+            .push((snap_key, names));
     }
     by_base
 }
@@ -278,12 +289,12 @@ fn peer_suffix_binds(peer_suffix: &str, alias: &str) -> bool {
     }
 }
 
-/// Whether an authorized local package declares the same peer within an
-/// importer that reaches `pkg_key`. Resolution hoists that local peer for the
-/// importer's non-local packages too, never for another importer's.
-fn authorized_local_package_declares_peer(
+/// Whether an importer that reaches `snap_key` also reaches an authorized
+/// local package declaring the same peer. Resolution hoists that local peer
+/// for the importer's non-local packages too, never for another importer's.
+fn importer_vouches_for_peer(
     scan: &PackageEntryScan<'_>,
-    pkg_key: &PkgNameVerPeer,
+    snap_key: &PkgNameVerPeer,
     (alias, spec): (&str, &str),
 ) -> bool {
     scan.peer_indexes.declarations
@@ -291,7 +302,7 @@ fn authorized_local_package_declares_peer(
         .iter()
         .zip(scan.importers)
         .any(|(declared, importer)| {
-            importer.reachable_packages.contains(pkg_key) && declared.contains(&(alias, spec))
+            importer.reachable_snapshots.contains(snap_key) && declared.contains(&(alias, spec))
         })
 }
 
