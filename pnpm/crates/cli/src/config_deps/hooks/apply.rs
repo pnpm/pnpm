@@ -349,6 +349,9 @@ fn record_explicit_setting_changes(
         .map(|(key, _)| key)
     {
         if is_known_setting_key(key) {
+            if key == "nodeLinker" {
+                config.forget_node_linker_aliases();
+            }
             config.explicit_settings.remove(key);
         }
     }

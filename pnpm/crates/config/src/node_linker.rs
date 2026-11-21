@@ -182,6 +182,23 @@ impl NodeLinkerSetting {
     }
 }
 
+impl Config {
+    /// Drop the flat settings that mirror the recorded `nodeLinker` object
+    /// before that object is unset. A flat setting a source set to a
+    /// different value stays.
+    pub fn forget_node_linker_aliases(&mut self) {
+        let Some(linker) = self.explicit_settings.get("nodeLinker").cloned() else { return };
+        let Ok(linker) = serde_json::from_value::<NodeLinkerSetting>(linker) else { return };
+        let mut mirrored = serde_json::Map::new();
+        linker.mirror_flat_aliases(&mut mirrored);
+        for (key, value) in mirrored {
+            if self.explicit_settings.get(&key) == Some(&value) {
+                self.explicit_settings.remove(&key);
+            }
+        }
+    }
+}
+
 fn mirror_hoist(hoist: &HoistSetting, target: &mut serde_json::Map<String, serde_json::Value>) {
     let (private, public) = match hoist {
         HoistSetting::Enabled(false) => (Some(Vec::new()), Some(Vec::new())),
@@ -190,8 +207,15 @@ fn mirror_hoist(hoist: &HoistSetting, target: &mut serde_json::Map<String, serde
         }
         HoistSetting::Patterns(patterns) => (patterns.private.clone(), patterns.public.clone()),
     };
+    if matches!(hoist, HoistSetting::Enabled(false)) {
+        target.insert("hoist".to_string(), false.into());
+    } else if private
+        .as_ref()
+        .is_some_and(|private| !private.is_empty())
+    {
+        target.insert("hoist".to_string(), true.into());
+    }
     if let Some(private) = private {
-        target.insert("hoist".to_string(), (!private.is_empty()).into());
         target.insert("hoistPattern".to_string(), private.into());
     }
     if let Some(public) = public {
@@ -246,8 +270,12 @@ fn apply_isolated_hoist(config: &mut Config, hoist: Option<HoistSetting>) {
         }
         HoistSetting::Patterns(patterns) => {
             if let Some(patterns) = patterns.private {
-                config.hoist = !patterns.is_empty();
-                *private = config.hoist.then_some(patterns);
+                // An empty list hoists nothing without turning `hoist` off,
+                // so a higher-priority `hoistPattern` still applies.
+                if !patterns.is_empty() {
+                    config.hoist = true;
+                }
+                *private = Some(patterns);
             }
             if let Some(patterns) = patterns.public {
                 *public = Some(patterns);

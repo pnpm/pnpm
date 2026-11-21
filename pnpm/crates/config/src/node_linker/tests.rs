@@ -336,7 +336,7 @@ fn linker_options_are_recorded_under_their_flat_aliases() {
     );
     assert_eq!(config.explicit_settings["publicHoistPattern"], json!(["object"]));
     assert_eq!(config.explicit_settings["hoistPattern"], json!([]));
-    assert_eq!(config.explicit_settings["hoist"], json!(false));
+    assert!(!config.explicit_settings.contains_key("hoist"));
 }
 
 #[test]
@@ -358,15 +358,39 @@ fn resetting_a_flat_alias_keeps_the_linker_object_option() {
 }
 
 #[test]
-fn an_empty_private_list_turns_private_hoisting_off() {
+fn a_higher_priority_hoist_pattern_replaces_an_empty_private_list() {
     let mut config = Config::default();
     serde_saphyr::from_str::<WorkspaceSettings>(
         "nodeLinker:\n  type: isolated\n  hoist:\n    private: []\n",
     )
     .unwrap()
     .apply_to(&mut config, Path::new("."));
-    assert!(!config.hoist);
-    assert_eq!(config.hoist_pattern, None);
+    assert_eq!(config.hoist_pattern, Some(vec![]));
+    serde_saphyr::from_str::<WorkspaceSettings>("hoistPattern: ['eslint*']\n")
+        .unwrap()
+        .apply_to(&mut config, Path::new("."));
+    assert_eq!(config.hoist_pattern, Some(vec!["eslint*".to_string()]));
+}
+
+#[test]
+fn unsetting_the_linker_object_drops_its_mirrored_flat_settings() {
+    let defaults = Config::default();
+    let mut config = Config::default();
+    record_and_apply(&mut config, &json!({"hoistPattern": ["flat"]}));
+    record_and_apply(
+        &mut config,
+        &json!({"nodeLinker": {"type": "hoisted", "hoistingLimits": "workspaces"}}),
+    );
+    config.forget_node_linker_aliases();
+    config.explicit_settings.remove("nodeLinker");
+    WorkspaceSettings::reset_setting_to_default::<crate::Host>(
+        &mut config,
+        &defaults,
+        "nodeLinker",
+        Path::new("."),
+    );
+    assert_eq!(config.hoisting_limits, defaults.hoisting_limits);
+    assert_eq!(config.hoist_pattern, Some(vec!["flat".to_string()]));
 }
 
 #[test]
