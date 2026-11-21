@@ -121,10 +121,7 @@ fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<Pack
             build_dependency_graph,
         },
     };
-    let lockfile = Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
-        .into_diagnostic()
-        .wrap_err("Loading the installed lockfile")?
-        .ok_or_else(|| miette!("The installed lockfile is missing. Run pnpm install first"))?;
+    let lockfile = load_installed_lockfile(state)?;
     let mut node = TreeNodeId::Importer(importer_id_for(state.lockfile_dir(), state.project_dir()));
     let options = BuildGraphOptions {
         lockfile: &lockfile,
@@ -177,6 +174,13 @@ fn verify_package_dir_holds(dir: &Path, key: &PackageKey) -> miette::Result<()> 
         code = "ERR_PNPM_EDIT_PACKAGE_MISMATCH",
         "'{dir}' does not hold {key}, the installed package selected for rebuild",
     ))
+}
+
+fn load_installed_lockfile(state: &State) -> miette::Result<Lockfile> {
+    Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
+        .into_diagnostic()
+        .wrap_err("Loading the installed lockfile")?
+        .ok_or_else(|| miette!("The installed lockfile is missing. Run pnpm install first"))
 }
 
 fn missing_from_lockfile(part: &str) -> miette::Report {
