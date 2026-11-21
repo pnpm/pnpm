@@ -96,7 +96,7 @@ async fn remove_authorized_package(
             .await
             .map_err(IntoResponse::into_response)?
     else {
-        return missing_package_response(name, revision);
+        return Ok(Some(ok_created_response()));
     };
     if revision.is_some() {
         super::revisions::check(name, &hosted, revision).map_err(IntoResponse::into_response)?;
@@ -122,21 +122,10 @@ async fn remove_authorized_package(
             )
             .await
             .map_err(IntoResponse::into_response)?;
-            missing_package_response(name, revision)
+            Ok(Some(ok_created_response()))
         }
         PackageRemoval::Conflict => Ok(None),
     }
-}
-
-fn missing_package_response(
-    name: &CanonicalPackageName,
-    revision: Option<&str>,
-) -> Result<Option<Response>, Response> {
-    if revision.is_some() {
-        return Err(RegistryError::DocumentWriteConflict { package: name.as_str().to_owned() }
-            .into_response());
-    }
-    Ok(Some(ok_created_response()))
 }
 
 pub(crate) async fn delete_tarball(

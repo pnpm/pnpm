@@ -15,6 +15,12 @@ const ADD: DialectSql = DialectSql::with_mysql(
     "INSERT INTO npm_stars (namespace, name, user_id) VALUES (?1, ?2, ?3) ON DUPLICATE KEY UPDATE name = npm_stars.name",
 );
 
+#[derive(Clone, Copy)]
+pub enum StarAction {
+    Add,
+    Remove,
+}
+
 impl SqlDatabase {
     /// Set the caller's star on an existing hosted npm package.
     pub async fn set_package_star(
@@ -22,7 +28,7 @@ impl SqlDatabase {
         namespace: String,
         name: String,
         user_id: String,
-        starred: bool,
+        action: StarAction,
     ) -> Result<()> {
         self.write(move |connection| {
             let transaction = WriteTransaction::begin(connection)?;
@@ -33,13 +39,22 @@ impl SqlDatabase {
             if exists.is_none() {
                 return Err(RegistryError::NotFound);
             }
-            let sql = if starred {
-                ADD.get(transaction.dialect())
-            } else {
-                "DELETE FROM npm_stars WHERE namespace = ?1 AND name = ?2 AND user_id = ?3"
+            let sql = match action {
+                StarAction::Add => ADD.get(transaction.dialect()),
+                StarAction::Remove => {
+                    "DELETE FROM npm_stars WHERE namespace = ?1 AND name = ?2 AND user_id = ?3"
+                }
             };
             transaction.execute(sql, params![namespace, name, user_id])?;
             transaction.commit()
+        })
+        .await
+    }
+
+    pub async fn remove_account_stars(self: &Arc<Self>, user_id: &str) -> Result<()> {
+        let user_id = user_id.to_owned();
+        self.write(move |connection| {
+            connection.execute("DELETE FROM npm_stars WHERE user_id = ?1", params![user_id])
         })
         .await
     }

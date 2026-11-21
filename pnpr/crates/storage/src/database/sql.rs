@@ -48,6 +48,7 @@ pub(crate) use staged::{
     StagedEntry,
     StagedId,
 };
+pub use stars::StarAction;
 pub(crate) use store_binding::{
     StoreBinding,
     StoreClaim,

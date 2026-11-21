@@ -70,13 +70,8 @@ pub(super) struct TeamPath {
 
 #[derive(Deserialize)]
 struct ListQuery {
-    format: Option<String>,
-}
-
-impl ListQuery {
-    fn cli(&self) -> bool {
-        self.format.as_deref() == Some("cli")
-    }
+    #[serde(default)]
+    format: crate::server::organizations::TeamListFormat,
 }
 
 /// `GET {base}/-/org/{scope}/team`: the teams of the registry claiming
@@ -93,7 +88,7 @@ async fn get_teams(
         &identity,
         registry.as_deref(),
         &path.scope,
-        query.cli(),
+        query.format,
     ))
 }
 
@@ -145,7 +140,7 @@ async fn get_team_users(
             &identity,
             registry.as_deref(),
             (&path.scope, &path.team),
-            query.cli(),
+            query.format,
         )
         .await,
     )

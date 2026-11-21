@@ -294,6 +294,15 @@ pub(super) fn visible_teams(
     Ok(visible)
 }
 
+#[derive(Default, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum TeamListFormat {
+    Cli,
+    #[default]
+    #[serde(other)]
+    Detailed,
+}
+
 /// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`,
 /// list the teams the caller may see.
 pub(super) fn get_org_teams(
@@ -301,7 +310,7 @@ pub(super) fn get_org_teams(
     identity: &Identity,
     registry: Option<&str>,
     scope: &str,
-    cli: bool,
+    format: TeamListFormat,
 ) -> Response {
     let teams = match visible_teams(state, identity, registry, scope) {
         Ok(teams) => teams,
@@ -311,7 +320,7 @@ pub(super) fn get_org_teams(
         .list()
         .into_iter()
         .map(|(id, team)| {
-            if cli {
+            if matches!(format, TeamListFormat::Cli) {
                 json!(format!("{}:{}", scope.trim_start_matches('@'), team.name))
             } else {
                 json!({ "id": id, "name": team.name })
@@ -328,7 +337,7 @@ pub(super) async fn get_team_members(
     identity: &Identity,
     registry: Option<&str>,
     (scope, team): (&str, &str),
-    cli: bool,
+    format: TeamListFormat,
 ) -> Response {
     let teams = match visible_teams(state, identity, registry, scope) {
         Ok(teams) => teams,
@@ -344,7 +353,7 @@ pub(super) async fn get_team_members(
         Err(err) => return err.into_response(),
     };
     let mut members = build_team_member_list(&record.members, accounts);
-    if cli {
+    if matches!(format, TeamListFormat::Cli) {
         for member in &mut members {
             *member = member["name"].take();
         }

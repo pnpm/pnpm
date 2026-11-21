@@ -26,6 +26,7 @@ use axum::{
 };
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
+use pnpr_storage::database::StarAction;
 
 #[derive(Deserialize)]
 pub(super) struct StarPackage {
@@ -47,9 +48,10 @@ pub(super) async fn set(
     let id = account(&identity)?;
     let name = CanonicalPackageName::parse(&package.name, Ecosystem::Npm)?;
     let target = resolve_write_target(&state, &identity, registry.as_deref(), &name)?;
+    let action = if method == Method::PUT { StarAction::Add } else { StarAction::Remove };
     state.inner.storage
         .sql_database()
-        .set_package_star(target.namespace, name.as_str().to_owned(), id, method == Method::PUT)
+        .set_package_star(target.namespace, name.as_str().to_owned(), id, action)
         .await?;
     Ok(Json(serde_json::json!({"ok":true})))
 }

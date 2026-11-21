@@ -178,6 +178,7 @@ async fn delete_user(
             let _reload = state.inner.identity.managed.reload.lock().await;
             super::team_directory::remove_from_teams(&state, &path.id).await;
         }
+        state.inner.storage.sql_database().remove_account_stars(&path.id).await?;
         if removed == UserRemoval::NoSuchUser && revoked_total == 0 {
             return Err(RegistryError::NotFound);
         }

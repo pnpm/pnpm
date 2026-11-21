@@ -284,6 +284,7 @@ pub(in super::super) async fn delete_user(
     state.inner.identity.oidc.revoke_user_sessions(user_id);
     pending.disarm();
     remove_from_teams(state, user_id).await;
+    state.inner.storage.sql_database().remove_account_stars(user_id).await?;
     Ok(username)
 }
 

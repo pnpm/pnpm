@@ -235,18 +235,20 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
         .unwrap();
     let document = body_json(response.into_body()).await;
     let revision = document["_rev"].as_str().unwrap();
-    let request = Request::delete(format!("/npm/unpub-policy/-rev/{revision}"))
-        .header("Authorization", format!("Bearer {admin}"))
-        .body(Body::empty())
-        .unwrap();
-    assert_eq!(
-        app.clone()
-            .oneshot(request)
-            .await
-            .unwrap()
-            .status(),
-        StatusCode::CREATED,
-    );
+    for _ in 0..2 {
+        let request = Request::delete(format!("/npm/unpub-policy/-rev/{revision}"))
+            .header("Authorization", format!("Bearer {admin}"))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.clone()
+                .oneshot(request)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::CREATED,
+        );
+    }
     assert!(
         pnpr_fixtures::read_hosted_document(
             &storage,

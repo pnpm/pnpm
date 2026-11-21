@@ -116,19 +116,18 @@ impl OwnerEdit<'_> {
                 let id = maintainer_id(state, user, None, None).await
                     .map_err(IntoResponse::into_response)?;
                 let mut entries = current();
-                if let Some(entry) = entries
-                    .iter_mut()
-                    .find(|entry| entry["name"] == user)
-                {
-                    entry["userId"] = json!(id);
-                } else {
-                    entries.push(json!({"name": user, "userId": id}));
-                }
+                add_owner(state, &mut entries, user, &id).await
+                    .map_err(IntoResponse::into_response)?;
                 entries
             }
             Self::Remove(user) => {
                 let mut entries = current();
-                entries.retain(|entry| entry["name"] != user);
+                let id = state.inner.identity.auth.users
+                    .active_account_id(user)
+                    .await
+                    .map_err(IntoResponse::into_response)?;
+                let id = id.as_deref().unwrap_or(user);
+                entries.retain(|entry| entry["userId"] != id);
                 entries
             }
         };
@@ -138,6 +137,29 @@ impl OwnerEdit<'_> {
         }
         Ok(maintainers)
     }
+}
+
+async fn add_owner(
+    state: &AppState,
+    entries: &mut Vec<Value>,
+    user: &str,
+    id: &str,
+) -> Result<(), RegistryError> {
+    let mut present = false;
+    for entry in entries.iter_mut() {
+        if entry["userId"] == id {
+            entry["name"] = json!(user);
+            present = true;
+        } else if entry["name"] == user {
+            let old_id = entry["userId"].as_str().ok_or(RegistryError::NotFound)?;
+            let current_name = state.inner.identity.auth.users.active_account_name(old_id).await?;
+            entry["name"] = json!(current_name.unwrap_or_else(|| format!("deleted:{old_id}")));
+        }
+    }
+    if !present {
+        entries.push(json!({"name": user, "userId": id}));
+    }
+    Ok(())
 }
 
 fn extract_and_validate_maintainers(body: &Value) -> Result<Vec<Value>, Response> {

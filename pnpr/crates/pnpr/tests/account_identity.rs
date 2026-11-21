@@ -20,6 +20,8 @@ use tempfile::TempDir;
 use tower::ServiceExt as _;
 
 struct Fixture {
+    auth: AuthState,
+    storage: pnpr_storage::Storage,
     _directory: TempDir,
     app: axum::Router,
     operator: String,
@@ -41,8 +43,9 @@ impl Fixture {
         let path = directory.path().join("config.yaml");
         std::fs::write(&path, format!("{yaml}defaultRegistry: local\n")).unwrap();
         let config = pnpr_fixtures::load_seeded_config(&path, "127.0.0.1:0".parse().unwrap(), None);
-        let app = router_with_auth(config, auth);
-        Self { _directory: directory, app, operator, member, member_id }
+        let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+        let app = router_with_auth(config, auth.clone());
+        Self { auth, storage, _directory: directory, app, operator, member, member_id }
     }
 
     async fn replace_member(&self) -> (String, String) {
@@ -307,7 +310,7 @@ async fn an_admin_can_explicitly_assign_a_reused_name_to_its_new_account() {
 async fn package_stars_belong_to_the_reader_and_owners_change_individually() {
     let fixture = Fixture::new().await;
     let app = &fixture.app;
-    let (_, reader) = fixture.replace_member().await;
+    let (reader_id, reader) = fixture.replace_member().await;
     let package = "@example/library";
     let path = "/npm/@example%2flibrary";
     let document = crate::npm::publish_doc(package, "1.0.0", b"first");
@@ -355,4 +358,59 @@ async fn package_stars_belong_to_the_reader_and_owners_change_individually() {
         1,
     );
     assert_eq!(stored["maintainers"][0]["name"], "member");
+    assert_eq!(
+        send(app, "PUT", stars, &reader, Some(json!({"name":package}))).await.0,
+        StatusCode::OK,
+    );
+    let db = fixture.storage.sql_database();
+    assert_eq!(
+        db.account_stars(reader_id.clone()).await
+            .unwrap()
+            .len(),
+        1,
+    );
+    let user_path = format!("/-/pnpr/v0/admin/users/{reader_id}");
+    assert_eq!(
+        send(app, "DELETE", &user_path, &fixture.operator, None).await.0,
+        StatusCode::NO_CONTENT,
+    );
+    assert!(
+        db.account_stars(reader_id).await
+            .unwrap()
+            .is_empty(),
+    );
+}
+
+#[tokio::test]
+async fn individual_owner_edits_follow_the_account_across_renames() {
+    let fixture = Fixture::new().await;
+    let app = &fixture.app;
+    let path = "/npm/example-library";
+    let owners = "/npm/-/package/example-library/owners";
+    let document = crate::npm::publish_doc("example-library", "1.0.0", b"first");
+    assert_eq!(
+        send(app, "PUT", path, &fixture.member, Some(document)).await.0,
+        StatusCode::CREATED,
+    );
+    fixture.auth.users.rename_user(&fixture.member_id, "renamed").await.unwrap();
+    let (_, new_id) = fixture.auth.users.add_or_login("member", "new-password").await.unwrap();
+    assert_eq!(
+        send(app, "PUT", owners, &fixture.operator, Some(json!({"user":"member"})))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    let (_, stored) = send(app, "GET", path, "", None).await;
+    assert_eq!(stored["maintainers"][0]["userId"], fixture.member_id);
+    assert_eq!(stored["maintainers"][0]["name"], "renamed");
+    assert_eq!(stored["maintainers"][1]["userId"], new_id);
+    fixture.auth.users.rename_user(&fixture.member_id, "renamed-again").await.unwrap();
+    assert_eq!(
+        send(app, "DELETE", &format!("{owners}/renamed-again"), &fixture.operator, None)
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    let (_, stored) = send(app, "GET", path, "", None).await;
+    assert_eq!(stored["maintainers"], json!([{"name":"member","userId":new_id}]));
 }
