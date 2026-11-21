@@ -865,16 +865,18 @@ test('getOptionsFromPnpmSettings() passes a valid tasks section through', () => 
 })
 
 test('getOptionsFromPnpmSettings() accepts null task entry as empty object', () => {
+  const inputTasks = Object.freeze({
+    build: null,
+    test: { dependsOn: ['build'] },
+  })
   const options = getOptionsFromPnpmSettings(process.cwd(), {
-    tasks: {
-      build: null,
-      test: { dependsOn: ['build'] },
-    } as never,
+    tasks: inputTasks as never,
   })
   expect(options.tasks).toStrictEqual({
     build: {},
     test: { dependsOn: ['build'] },
   })
+  expect(inputTasks.build).toBeNull()
 })
 
 test('getOptionsFromPnpmSettings() rejects a tasks entry that is not an object', () => {

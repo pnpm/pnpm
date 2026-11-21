@@ -111,9 +111,7 @@ export function getOptionsFromPnpmSettings (
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
   translateVirtualStoreType(pnpmSettings, settings)
-  if (settings.tasks != null) {
-    assertValidTasks(settings.tasks)
-  }
+  normalizeTasks(settings)
 
   return settings
 }
@@ -187,11 +185,16 @@ function misspelledTaskSettingField (field: string): string | undefined {
 // misspelled `dependsOn` is the costly one: the entry still exists, so the task
 // takes the empty dependency list an entry without `dependsOn` declares, and
 // runs before what it meant to wait for.
-function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSettings['tasks']> {
-  assertObjectSetting(tasks, 'tasks')
-  for (const taskName of Object.keys(tasks as object)) {
-    assertValidTask(`tasks['${taskName}']`, (tasks as Record<string, unknown>)[taskName] ??= {})
+function normalizeTasks (settings: OptionsFromRootManifest): void {
+  if (settings.tasks == null) return
+  assertObjectSetting(settings.tasks, 'tasks')
+  const tasks: Record<string, unknown> = { ...settings.tasks }
+  for (const [taskName, rawTask] of Object.entries(tasks)) {
+    const task = rawTask ?? {}
+    assertValidTask(`tasks['${taskName}']`, task)
+    tasks[taskName] = task
   }
+  settings.tasks = tasks as NonNullable<PnpmSettings['tasks']>
 }
 
 function assertValidTask (taskPath: string, task: unknown): void {
