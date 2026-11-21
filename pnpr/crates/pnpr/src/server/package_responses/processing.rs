@@ -249,12 +249,12 @@ fn render_document(
     now: Timestamp,
 ) -> Result<RenderedPackument, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
+    if view.hosted && matches!(representation, Representation::Full | Representation::Write) {
+        doc["_rev"] = Value::String(super::super::package_mutation::revisions::revision(&doc));
+    }
     let osv_index = state.inner.osv_index.as_ref();
     if representation != Representation::Write {
         filter_osv_vulnerable_versions(&mut doc, name, osv_index);
-    }
-    if view.hosted && matches!(representation, Representation::Full | Representation::Write) {
-        doc["_rev"] = Value::String(super::super::package_mutation::revisions::revision(&doc));
     }
     match view.revision_registry {
         Some(source) => rewrite_upstream_tarball_urls(&mut doc, name, source, tarball_base),

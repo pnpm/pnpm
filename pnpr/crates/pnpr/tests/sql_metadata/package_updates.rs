@@ -147,7 +147,15 @@ async fn write_reads_preserve_advisory_filtered_versions_during_partial_unpublis
             StatusCode::CREATED,
         );
     }
-    assert!(packument(&app, &token).await.1["versions"].get("1.0.0").is_none());
+    let (_, mut filtered) = packument(&app, &token).await;
+    assert!(filtered["versions"].get("1.0.0").is_none());
+    filtered["versions"]["1.2.0"]["deprecated"] = json!("use a newer release");
+    assert_eq!(
+        send(&app, request("PUT", "/npm/sql-pkg", &token, Some(&filtered)))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
     let path = "/npm/sql-pkg?write=true";
     let anonymous = axum::http::Request::get(path)
         .body(axum::body::Body::empty())

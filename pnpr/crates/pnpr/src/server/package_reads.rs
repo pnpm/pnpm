@@ -59,10 +59,11 @@ pub(super) async fn serve_packument(
         url::form_urlencoded::parse(query.as_bytes())
             .any(|(key, value)| key == "write" && value == "true")
     });
+    let request =
+        if for_write { PackumentRequest::Write } else { PackumentRequest::Read(&headers) };
     let response =
-        serve_registry_packument(state, identity, (&headers, for_write), &target, raw_name, &base)
-            .await;
-    if for_write {
+        serve_registry_packument(state, identity, request, &target, raw_name, &base).await;
+    if matches!(request, PackumentRequest::Write) {
         return super::private_no_cache(response);
     }
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
@@ -191,7 +192,7 @@ pub(super) fn resolves_to_private_source(
 async fn serve_registry_packument(
     state: &AppState,
     identity: &Identity,
-    (headers, for_write): (&HeaderMap, bool),
+    request: PackumentRequest<'_>,
     registry: &str,
     raw_name: &str,
     tarball_base: &str,
@@ -219,6 +220,10 @@ async fn serve_registry_packument(
             {
                 return err.into_response();
             }
+            let headers = match request {
+                PackumentRequest::Read(headers) => headers,
+                PackumentRequest::Write => &HeaderMap::new(),
+            };
             serve_packument_via_upstream(
                 state,
                 identity,
@@ -234,8 +239,6 @@ async fn serve_registry_packument(
         // for a caller who reads nothing in the registry, a loud denial
         // otherwise, so clients can prompt for auth.
         RegistrySource::Hosted(source) => {
-            let request =
-                if for_write { PackumentRequest::Write } else { PackumentRequest::Read(headers) };
             serve_hosted_packument(state, identity, request, source, &name, tarball_base, view)
                 .await
         }
