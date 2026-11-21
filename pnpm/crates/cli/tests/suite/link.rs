@@ -1,8 +1,11 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{
-    AddMockedRegistry,
-    CommandTempCwd,
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    command_env::CommandTestExt,
 };
 use std::fs;
 
@@ -736,6 +739,166 @@ async fn link_sanitizes_control_characters_in_peer_deps_warning() {
         "output must not contain ANSI escape sequence:\n{combined}",
     );
     assert!(!combined.contains('\r'), "output must not contain carriage return:\n{combined}");
+
+    drop((root, mock_instance));
+}
+
+/// `--hard` saves the dependency and its override with the `file:` protocol,
+/// so the package is installed as a directory of hard-linked files instead of
+/// a symlink to the source.
+#[test]
+fn link_hard_uses_file_protocol() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("hard-target");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "hard-target", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write target package.json");
+
+    pacquet
+        .with_args(["link", "--hard", "../hard-target"])
+        .assert()
+        .success();
+
+    let manifest =
+        pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+            .expect("read manifest");
+    assert_eq!(manifest.value()["dependencies"]["hard-target"], "file:../hard-target");
+
+    let workspace_yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    assert!(
+        workspace_yaml.contains("hard-target: file:../hard-target"),
+        "override must record the file: spec: {workspace_yaml}",
+    );
+
+    let installed = workspace.join("node_modules/hard-target");
+    let metadata = fs::symlink_metadata(&installed).expect("hard-target is installed");
+    let resolved = fs::canonicalize(&installed).expect("resolve installed hard-target");
+    assert!(
+        resolved != fs::canonicalize(&target_dir).expect("resolve target dir"),
+        "hard-target must not resolve to the source directory: {metadata:?}",
+    );
+    assert!(resolved.join("package.json").is_file(), "the package files must be installed");
+
+    drop((root, mock_instance));
+}
+
+/// A hard-linked package resolves its peers from the project, so the warning
+/// about unresolved peers of a symlinked package does not apply.
+#[test]
+fn link_hard_does_not_warn_about_peer_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.path().join("hard-with-peer-deps");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({
+            "name": "hard-with-peer-deps",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "@pnpm.e2e/foo": "100.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write target package.json");
+
+    let output = pacquet
+        .with_args(["--reporter=ndjson", "link", "--hard", "../hard-with-peer-deps"])
+        .output()
+        .expect("spawn pacquet link");
+    assert!(output.status.success(), "link should succeed: {output:?}");
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
+    assert!(
+        !stderr.contains("which you have just pnpm linked"),
+        "--hard must not warn about peers of a symlinked package:\n{stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A `file:` specifier ending in `.tgz`, `.tar.gz`, or `.tar` names a
+/// tarball, so `--hard` refuses a directory with such a name before it
+/// writes anything.
+#[test]
+fn link_hard_rejects_directory_with_tarball_name() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest = serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string();
+    fs::write(workspace.join("package.json"), &manifest).expect("write package.json");
+    let workspace_yaml_before =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap_or_default();
+
+    let target_dir = root.path().join("archive-like.tgz");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "archive-like", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write target package.json");
+
+    // A trailing separator must not get past the check: the saved spec
+    // drops it.
+    for target in ["../archive-like.tgz", "../archive-like.tgz/"] {
+        let output = std::process::Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_args(["link", "--hard", target])
+            .output()
+            .expect("spawn pacquet link");
+        assert!(!output.status.success(), "link --hard {target} must fail");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains("ERR_PNPM_LINK_HARD_TARBALL_NAME"),
+            "stderr should name the error for {target}: {stderr}",
+        );
+    }
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("package.json")).expect("read package.json"),
+        manifest,
+        "package.json must be unchanged",
+    );
+    assert_eq!(
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap_or_default(),
+        workspace_yaml_before,
+        "pnpm-workspace.yaml must be unchanged",
+    );
 
     drop((root, mock_instance));
 }

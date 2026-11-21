@@ -25,6 +25,8 @@ Since v12.7.0, if `pnpm link <dir>` added a `link:` dependency to `package.json`
 and its lockfile entry. A `link:` dependency that points to another directory is
 kept.
 
+Since v12.23.0, `pnpm unlink` also removes `file:` overrides that point to a directory, which [`pnpm link --hard`](./link.md#--hard) writes. It keeps `file:` overrides to tarballs.
+
 ## Options
 
 ### --recursive, -r
