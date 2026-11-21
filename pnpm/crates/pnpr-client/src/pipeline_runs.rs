@@ -44,7 +44,7 @@ impl PnprClient {
         if let Some(authorization) = authorization {
             put = put.header("authorization", authorization);
         }
-        let response = put.send().await?;
+        let response = put.send().await.map_err(reqwest::Error::without_url)?;
         super::check_status(response, "/-/pnpr/v0/pipeline/runs").await?;
         Ok(())
     }

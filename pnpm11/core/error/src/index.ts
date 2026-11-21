@@ -195,6 +195,7 @@ export function redactUrlForDisplay (url: string): string {
   } catch {
     return '[hidden]'
   }
+  if (!display.host || display.protocol === 'file:') return '[hidden]'
   display.username = ''
   display.password = ''
   display.search = ''

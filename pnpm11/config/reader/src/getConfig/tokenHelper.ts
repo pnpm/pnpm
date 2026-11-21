@@ -1,5 +1,15 @@
 import { PnpmError } from '@pnpm/error'
 
+import { redactRegistryUrl } from '../registryUrlUserinfo.js'
+
+export class TokenHelperInProjectConfigError extends PnpmError {
+  constructor (key: string) {
+    super('TOKEN_HELPER_IN_PROJECT_CONFIG', 'tokenHelper must not be configured in project-level .npmrc', {
+      hint: `Set "${redactRegistryUrl(key)}" in ~/.npmrc or the global pnpm auth.ini.`,
+    })
+  }
+}
+
 /**
  * tokenHelper names an executable pnpm runs, so it must only come from trusted,
  * non-repo config sources (~/.npmrc and the global auth.ini). It must never come
@@ -14,9 +24,7 @@ export function assertTokenHelperComesFromTrustedConfig (
   for (const [key, value] of Object.entries(authConfig)) {
     if (!key.endsWith('tokenHelper') && key !== 'tokenHelper') continue
     if (!(key in trustedConfig) || trustedConfig[key] !== value) {
-      throw new PnpmError('TOKEN_HELPER_IN_PROJECT_CONFIG',
-        'tokenHelper must not be configured in project-level .npmrc',
-        { hint: `The key "${key}" was found in project config. Move it to ~/.npmrc or the global pnpm auth.ini.` })
+      throw new TokenHelperInProjectConfigError(key)
     }
   }
 }

@@ -239,7 +239,12 @@ fn a_failed_run_report_redacts_server_credentials() {
         .assert()
         .success();
     let result = pnpm_on_machine(&project, &machine, &runs)
-        .with_args(["pipeline", "--full", "--report-to", "http://example:password@127.0.0.1:9"])
+        .with_args([
+            "pipeline",
+            "--full",
+            "--report-to",
+            "http://example:password@127.0.0.1:9/?token=report-secret",
+        ])
         .assert()
         .success();
     let output = combined_output(result.get_output());
@@ -248,6 +253,7 @@ fn a_failed_run_report_redacts_server_credentials() {
         "{output}",
     );
     assert!(!output.contains("password"), "{output}");
+    assert!(!output.contains("report-secret"), "{output}");
 }
 
 /// A machine that publishes dependency builds has not agreed to share task

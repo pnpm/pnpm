@@ -91,23 +91,33 @@ fn set_cafile_global_writes_auth_ini() {
 }
 
 #[test]
-fn unscoped_token_helper_uses_the_auth_file_at_each_location() {
+fn token_helper_can_only_be_written_to_global_auth_config() {
     let tmp = TempDir::new().unwrap();
     let config_dir = tmp.path().join("global-config");
     let config = config_with_dir(&config_dir);
-    for (location, path) in [
-        (ConfigLocation::Global, config_dir.join("auth.ini")),
-        (ConfigLocation::Project, tmp.path().join(".npmrc")),
-    ] {
+    for key in ["tokenHelper", "//registry.example/:tokenHelper"] {
         config_set(
             &config,
             tmp.path(),
-            flags(false, Some(location), false),
-            "tokenHelper".to_owned(),
+            flags(true, None, false),
+            key.to_owned(),
             Some("helper".into()),
         )
         .unwrap();
-        assert_eq!(read_ini(&path).get("tokenHelper").map(String::as_str), Some("helper"));
+        assert_eq!(
+            read_ini(&config_dir.join("auth.ini")).get(key).map(String::as_str),
+            Some("helper"),
+        );
+        let error = config_set(
+            &config,
+            tmp.path(),
+            flags(false, Some(ConfigLocation::Project), false),
+            key.to_owned(),
+            Some("helper".into()),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("tokenHelper must not be configured"));
+        assert!(!tmp.path().join(".npmrc").exists());
     }
 }
 

@@ -138,6 +138,7 @@ test('redactUrlForDisplay strips URL secrets and control characters', () => {
     .toBe('https://host/pkg')
   expect(redactUrlForDisplay('https://host/pkg#secret')).toBe('https://host/pkg')
   expect(redactUrlForDisplay('https://host/pkg')).toBe('https://host/pkg')
+  expect(redactUrlForDisplay('user:pass@host:8080')).toBe('[hidden]')
   expect(redactUrlForDisplay('https://user:pa?ss@host/pkg')).toBe('[hidden]')
   expect(redactUrlForDisplay('https://user:pa#ss@host/pkg')).toBe('[hidden]')
 })

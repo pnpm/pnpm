@@ -123,6 +123,19 @@ describe.each(
   })
 })
 
+it.each(['tokenHelper', '//registry.example/:tokenHelper'])('refuses to write %s in project config', async key => {
+  const dir = tempDir()
+  const configDir = path.join(dir, 'global-config')
+  await expect(config.handler(createConfigCommandOpts({
+    dir,
+    configDir,
+    location: 'project',
+    cliOptions: {},
+    authConfig: {},
+  }), ['set', key, 'helper'])).rejects.toMatchObject({ code: 'ERR_PNPM_TOKEN_HELPER_IN_PROJECT_CONFIG' })
+  expect(readConfigFiles(configDir, dir).localRc).toBeUndefined()
+})
+
 describe.each(
   [
     '@foo:registry',
