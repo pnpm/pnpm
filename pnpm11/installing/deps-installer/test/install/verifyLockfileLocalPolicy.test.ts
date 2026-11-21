@@ -13,7 +13,7 @@ import {
   type LocalHookInputs,
   resolveLocalPolicyForInstall,
 } from '../../src/install/verifyLockfileLocalResolutions.js'
-import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
+import { verifyLockfileLocalResolutions, verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
 
 function buildPolicy (inputs: LocalHookInputs) {
   return createLocalResolutionPolicy(inputs)
@@ -467,9 +467,56 @@ test('an importer range linked to a lockfile importer absent from the run passes
       ...(withImporter ? { ['../shared' as ProjectId]: { specifiers: {} } } : {}),
     },
   })
-  const localPolicy = () => buildPolicy({ liveWorkspaceDirs: new Set(['.']) })
+  const localPolicy = () => buildPolicy({ liveWorkspaceDirs: new Set(['.']), workspaceDepthAboveLockfile: 1 })
   await expect(verifyLockfileResolutions(lockfile(true), [], { localPolicy: localPolicy() })).resolves.toBeUndefined()
   await expect(verifyLockfileResolutions(lockfile(false), [], { localPolicy: localPolicy() })).rejects.toMatchObject({
+    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+  })
+  const lockfileAtWorkspaceRoot = buildPolicy({ liveWorkspaceDirs: new Set(['.']) })
+  await expect(verifyLockfileResolutions(lockfile(true), [], { localPolicy: lockfileAtWorkspaceRoot })).rejects.toMatchObject({
+    code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
+  })
+})
+
+test('the local gate rejects a semver key backed by a directory', () => {
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { remote: '1.0.0' },
+        specifiers: { remote: '1.0.0' },
+      },
+    },
+    packages: {
+      ['remote@1.0.0' as DepPath]: {
+        resolution: { type: 'directory', directory: '../outside' },
+      },
+    },
+  }
+  expect(() => verifyLockfileLocalResolutions(lockfile)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
+  }))
+})
+
+test('an override target does not match a path that steps back through a segment', async () => {
+  const lockfile = (target: string): LockfileObject => ({
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: { 'remote-pkg': '1.0.0' },
+        specifiers: { 'remote-pkg': '1.0.0' },
+      },
+    },
+    packages: {
+      ['remote-pkg@1.0.0' as DepPath]: {
+        resolution: { integrity: 'sha512-deadbeef' },
+        dependencies: { helper: `link:${target}` },
+      },
+    },
+  })
+  const policy = () => buildPolicy({ overrides: { 'remote-pkg>helper': 'link:./shared' } })
+  await expect(verifyLockfileResolutions(lockfile('shared'), [], { localPolicy: policy() })).resolves.toBeUndefined()
+  await expect(verifyLockfileResolutions(lockfile('linked/../shared'), [], { localPolicy: policy() })).rejects.toMatchObject({
     code: 'ERR_PNPM_LOCAL_SUBDEP_NOT_ALLOWED',
   })
 })

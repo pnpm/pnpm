@@ -35,6 +35,7 @@ use pnpm_lockfile::{
 use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
 use roots::{
     AuthorizedLocalRoots,
+    has_inner_parent_segment,
     is_non_relative_target,
     normalize_rel_dir,
 };
@@ -71,16 +72,19 @@ pub fn verify_lockfile_local_resolutions(
     lockfile: &Lockfile,
     local_policy: Option<LocalResolutionPolicy>,
 ) -> Result<(), VerifyError> {
-    let effective = local_policy.unwrap_or_default();
-    let violations = collect_local_resolution_violations(lockfile, &effective);
-    if violations.is_empty() {
+    if !lockfile_has_any_local_surface(lockfile) {
         return Ok(());
     }
+    let effective = local_policy.unwrap_or_default();
+    let violations = collect_local_resolution_violations(lockfile, &effective);
     let shape_ctx = FileShapeContext {
         lockfile_dir: effective.scope.lockfile_dir.as_deref(),
         allow_deploy_file_url_keys: effective.allow_deploy_file_url_keys,
     };
     verify_lockfile_resolution_shapes_with_ctx(lockfile, shape_ctx)?;
+    if violations.is_empty() {
+        return Ok(());
+    }
     Err(build_verification_error(violations))
 }
 
@@ -88,9 +92,6 @@ fn collect_local_resolution_violations(
     lockfile: &Lockfile,
     policy: &LocalResolutionPolicy,
 ) -> Vec<ResolutionPolicyViolation> {
-    if !lockfile_has_any_local_surface(lockfile) {
-        return Vec::new();
-    }
     let roots = AuthorizedLocalRoots::collect(lockfile, policy);
     let mut raw_violations = Vec::new();
     let (reachable_packages, authorized_packages, authorized_git_packages) =
@@ -150,7 +151,9 @@ pub(super) fn escapes_above_depth(rel_path: &str, workspace_depth: usize) -> boo
 }
 
 pub(super) fn is_allowed_workspace_target(workspace_dirs: &HashSet<String>, target: &str) -> bool {
-    !is_non_relative_target(target) && workspace_dirs.contains(&normalize_rel_dir(target))
+    !is_non_relative_target(target)
+        && !has_inner_parent_segment(target)
+        && workspace_dirs.contains(&normalize_rel_dir(target))
 }
 
 pub(super) fn is_deploy_entry(

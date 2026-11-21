@@ -122,6 +122,22 @@ pub(in super::super) fn normalize_rel_dir(path: &str) -> String {
     }
 }
 
+/// Whether `path` steps up (`..`) after descending into a named segment, as
+/// in `linked/../shared`. Lexical normalization collapses such a path, but
+/// the filesystem resolves it through `linked`, which may be a symlink.
+pub(in super::super) fn has_inner_parent_segment(path: &str) -> bool {
+    let mut descended = false;
+    for segment in path.split(['/', '\\']) {
+        match segment {
+            "" | "." => {}
+            ".." if descended => return true,
+            ".." => {}
+            _ => descended = true,
+        }
+    }
+    false
+}
+
 pub(super) fn anchor_importer_link(importer_id: &str, target: &str) -> String {
     if importer_id == "." || is_non_relative_target(target) {
         normalize_rel_dir(target)

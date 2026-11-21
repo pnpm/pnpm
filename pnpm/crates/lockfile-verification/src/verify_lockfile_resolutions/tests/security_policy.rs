@@ -505,8 +505,12 @@ fn importer_range_link_may_target_a_lockfile_importer_absent_from_the_run() {
         "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      lib:\n        specifier: ^1.0.0\n        version: link:../shared\n  ../shared: {}\n",
     );
     let live_root = || LocalResolutionPolicy::default().with_live_workspace_dirs([".".to_string()]);
-    crate::verify_lockfile_local_resolutions(&with_importer, Some(live_root()))
-        .expect("a range linked to a lockfile importer must pass");
+    let nested_lockfile = live_root().with_workspace_scope(false, Some(1));
+    crate::verify_lockfile_local_resolutions(&with_importer, Some(nested_lockfile))
+        .expect("a range linked to a lockfile importer inside the workspace must pass");
+    let err = crate::verify_lockfile_local_resolutions(&with_importer, Some(live_root()))
+        .expect_err("an importer outside the workspace must not vouch for a link");
+    assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }));
 
     let without_importer = parse(
         "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      lib:\n        specifier: ^1.0.0\n        version: link:../shared\n",
@@ -534,6 +538,39 @@ fn non_local_peer_matching_a_reachable_local_package_peer_passes() {
     let err = crate::verify_lockfile_local_resolutions(&lockfile(""), None)
         .expect_err("a local peer only an unreachable local package declares must fail");
     assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }));
+}
+
+#[test]
+fn local_containment_rejects_a_semver_key_backed_by_a_directory() {
+    let lockfile = parse(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      remote:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  remote@1.0.0:\n    resolution: {type: directory, directory: ../outside}\nsnapshots:\n  remote@1.0.0: {}\n",
+    );
+    let err = crate::verify_lockfile_local_resolutions(&lockfile, None)
+        .expect_err("a semver key backed by a directory must fail the local gate");
+    assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "{err:?}");
+}
+
+#[test]
+fn override_target_does_not_match_a_path_that_steps_back_through_a_segment() {
+    let lockfile = |target: &str| {
+        parse(&format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      remote-pkg:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  remote-pkg@1.0.0:\n    resolution: {{integrity: sha512-deadbeef}}\nsnapshots:\n  remote-pkg@1.0.0:\n    dependencies:\n      helper: link:{target}\n",
+        ))
+    };
+    let policy = || {
+        LocalResolutionPolicy::from_scoped_inputs(
+            [("remote-pkg>helper", "link:./shared")],
+            [],
+            false,
+            None,
+        )
+    };
+    crate::verify_lockfile_local_resolutions(&lockfile("shared"), Some(policy()))
+        .expect("the overridden target must pass");
+    let err =
+        crate::verify_lockfile_local_resolutions(&lockfile("linked/../shared"), Some(policy()))
+            .expect_err("a target that steps back through `linked` must not match");
+    assert!(matches!(err, VerifyError::LocalSubdepNotAllowed { .. }), "{err:?}");
 }
 
 #[test]

@@ -25,6 +25,7 @@ use super::{
         },
         escapes_above_depth,
         roots::{
+            has_inner_parent_segment,
             is_non_relative_target,
             normalize_rel_dir,
         },
@@ -190,6 +191,9 @@ fn normalize_target_for_match(target: &str) -> String {
         return decoded;
     }
     let slash = target.replace('\\', "/");
+    if has_inner_parent_segment(&slash) {
+        return format!("\0{slash}");
+    }
     if slash.starts_with('/') || pnpm_lockfile::is_drive_letter_prefix(&slash) {
         canonical_slash_path(&slash)
     } else {

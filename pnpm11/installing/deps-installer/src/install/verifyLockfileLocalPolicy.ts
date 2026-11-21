@@ -278,7 +278,26 @@ export function computeWorkspaceDepth (
 function normalizeTargetForMatch (target: string): string {
   if (target.startsWith('//')) return decodeFileUrlOrSlashPath(target)
   const slash = target.replace(/\\/g, '/')
+  if (hasInnerParentSegment(slash)) return `\0${slash}`
   return slash.startsWith('/') || isDriveLetterPrefix(slash) ? canonicalSlashPath(slash) : normalizeRelDir(slash)
+}
+
+/**
+ * Whether `target` steps up (`..`) after descending into a named segment, as
+ * in `linked/../shared`. Lexical normalization collapses such a path, but the
+ * filesystem resolves it through `linked`, which may be a symlink.
+ */
+export function hasInnerParentSegment (target: string): boolean {
+  let descended = false
+  for (const segment of target.split(/[/\\]/)) {
+    if (segment === '' || segment === '.') continue
+    if (segment !== '..') {
+      descended = true
+    } else if (descended) {
+      return true
+    }
+  }
+  return false
 }
 
 function lookupPristineDeclaredSpec (

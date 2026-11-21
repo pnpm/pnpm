@@ -5,6 +5,7 @@ import type { Resolution, ResolutionPolicyViolation } from '@pnpm/resolving.reso
 import type { DepPath } from '@pnpm/types'
 
 import {
+  hasInnerParentSegment,
   isNonRelativeTarget,
   type LocalResolutionPolicy,
   normalizeRelDir,
@@ -205,7 +206,7 @@ function gitOrTarballEscapes (
 }
 
 export function isAllowedWorkspaceTarget (workspaceDirs: Set<string>, target: string): boolean {
-  return !isNonRelativeTarget(target) && workspaceDirs.has(normalizeRelDir(target))
+  return !isNonRelativeTarget(target) && !hasInnerParentSegment(target) && workspaceDirs.has(normalizeRelDir(target))
 }
 
 export function isDeploySnapshot (
