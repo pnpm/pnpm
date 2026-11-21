@@ -175,3 +175,26 @@ fn follows_the_rewrite_to_the_workspace_packages() {
         assert_rejected(export(&temp, &app("dependencies", spec), Some(&packages)));
     }
 }
+
+/// A private package without a `version` is still private, even though the
+/// rewrite cannot resolve `workspace:*` to it.
+#[test]
+fn rejects_a_private_workspace_package_without_a_version() {
+    let temp = TempDir::new().expect("tempdir");
+    let secret = json!({ "name": "secret", "private": true });
+    let installed = temp.path().join("app/node_modules/secret");
+    fs::create_dir_all(&installed).unwrap();
+    fs::write(installed.join("package.json"), secret.to_string()).unwrap();
+    assert_rejected(export(&temp, &app("dependencies", "workspace:^1.0.0"), None));
+
+    fs::remove_dir_all(temp.path().join("app/node_modules")).unwrap();
+    let packages = HashMap::from([(
+        "secret".to_string(),
+        WorkspacePackageManifest {
+            name: "secret".to_string(),
+            version: String::new(),
+            private: true,
+        },
+    )]);
+    assert_rejected(export(&temp, &app("dependencies", "workspace:^1.0.0"), Some(&packages)));
+}

@@ -189,9 +189,10 @@ pub fn replace_workspace_protocol_peer_dependency(
 }
 
 /// The manifest a `workspace:` specifier resolves to, read with the same
-/// precedence and fallbacks as [`replace_workspace_protocol`]. `None` when
-/// `dep_spec` is not a `workspace:` specifier or names no package the
-/// rewrite could resolve.
+/// precedence and fallbacks as [`replace_workspace_protocol`]. A target the
+/// rewrite cannot use, because its manifest lacks a `name` or `version`, is
+/// still returned as found. `None` when `dep_spec` is not a `workspace:`
+/// specifier or names no package at all.
 pub(crate) fn workspace_target_manifest(
     dep_name: &str,
     dep_spec: &str,
@@ -202,23 +203,26 @@ pub(crate) fn workspace_target_manifest(
     let Some(workspace_spec) = WorkspaceSpec::parse(dep_spec) else {
         return Ok(None);
     };
-    let resolved = match strip_workspace_relative_prefix(dep_spec) {
-        Some(relative) => read_and_check_manifest(
+    let (target_name, target_dir, lookup) = match strip_workspace_relative_prefix(dep_spec) {
+        Some(relative) => (
             dep_name,
-            dep_name,
-            &dir.join(relative),
+            dir.join(relative),
             WorkspacePackageLookup { prefer_workspace_for: None, ..lookup },
         ),
-        None => read_and_check_manifest(
-            dep_name,
+        None => (
             workspace_spec.alias.as_deref().unwrap_or(dep_name),
-            &installed_modules_dir(dir, modules_dir).join(dep_name),
+            installed_modules_dir(dir, modules_dir).join(dep_name),
             lookup,
         ),
     };
-    match resolved {
+    match read_and_check_manifest(dep_name, target_name, &target_dir, lookup) {
         Ok(manifest) => Ok(Some(manifest)),
-        Err(ReplaceWorkspaceProtocolError::CannotResolve(_)) => Ok(None),
+        Err(ReplaceWorkspaceProtocolError::CannotResolve(_)) => {
+            let workspace_manifest = lookup.packages
+                .and_then(|packages| packages.get(target_name))
+                .cloned();
+            Ok(read_manifest_fields(&target_dir)?.or(workspace_manifest))
+        }
         Err(error) => Err(error),
     }
 }
