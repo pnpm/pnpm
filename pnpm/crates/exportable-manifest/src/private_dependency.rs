@@ -6,6 +6,7 @@ use crate::{
     create::{
         CreateExportableManifestError,
         CreateExportableManifestOptions,
+        replace_catalog_protocol,
     },
     replace::{
         ReplaceWorkspaceProtocolError,
@@ -42,41 +43,63 @@ pub struct PrivateWorkspaceDependencyError {
     pub dep_name: String,
 }
 
-/// Fail when the publishable manifest `original` lists a private workspace
-/// package in `dependencies`. A private manifest is never published, and a
-/// bundled dependency ships inside the tarball, so neither is checked.
-pub(crate) fn check_private_workspace_dependencies(
+/// The names in `original`'s `dependencies` whose specifier, once a
+/// `catalog:` entry is resolved, is a `workspace:` specifier for a private
+/// workspace package. Pass them to [`reject_private_workspace_dependencies`]
+/// after the `beforePacking` hooks have settled the published manifest.
+pub fn private_workspace_dependencies(
     dir: &Path,
-    original: &Map<String, Value>,
+    original: &Value,
     opts: &CreateExportableManifestOptions<'_>,
-) -> Result<(), CreateExportableManifestError> {
-    if is_private(original) {
-        return Ok(());
-    }
+) -> Result<Vec<String>, CreateExportableManifestError> {
     let Some(dependencies) = original.get("dependencies").and_then(Value::as_object) else {
-        return Ok(());
+        return Ok(Vec::new());
     };
+    let mut private = Vec::new();
     for (dep_name, spec) in dependencies {
         let Some(spec) = spec.as_str() else {
             continue;
         };
-        if is_bundled(original, dep_name)
-            || !is_private_workspace_package(dep_name, spec, dir, opts)?
-        {
-            continue;
+        let spec = replace_catalog_protocol(dep_name, spec, dir, opts)?;
+        if is_private_workspace_package(dep_name, &spec, dir, opts)? {
+            private.push(dep_name.clone());
         }
-        let package_name = original
-            .get("name")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        return Err(CreateExportableManifestError::PrivateWorkspaceDependency(
-            PrivateWorkspaceDependencyError {
-                package_name: package_name.to_string(),
-                dep_name: dep_name.clone(),
-            },
-        ));
     }
-    Ok(())
+    Ok(private)
+}
+
+/// Fail when the publishable manifest `published` still lists one of the
+/// `private_dependencies` in `dependencies`. A private manifest is never
+/// published, and a bundled dependency ships inside the tarball, so neither
+/// is rejected.
+pub fn reject_private_workspace_dependencies(
+    published: &Value,
+    private_dependencies: &[String],
+) -> Result<(), PrivateWorkspaceDependencyError> {
+    let Some(published) = published.as_object() else {
+        return Ok(());
+    };
+    if is_private(published) {
+        return Ok(());
+    }
+    let Some(dependencies) = published.get("dependencies").and_then(Value::as_object) else {
+        return Ok(());
+    };
+    let rejected = private_dependencies
+        .iter()
+        .filter(|dep_name| dependencies.contains_key(*dep_name))
+        .find(|dep_name| !is_bundled(published, dep_name));
+    let Some(dep_name) = rejected else {
+        return Ok(());
+    };
+    let package_name = published
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Err(PrivateWorkspaceDependencyError {
+        package_name: package_name.to_string(),
+        dep_name: dep_name.clone(),
+    })
 }
 
 /// Whether `spec` is a `workspace:` specifier whose target package is private.

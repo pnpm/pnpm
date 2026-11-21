@@ -62,7 +62,10 @@ use pnpm_executor::{
 use pnpm_exportable_manifest::{
     CreateExportableManifestError,
     CreateExportableManifestOptions,
+    PrivateWorkspaceDependencyError,
     create_exportable_manifest,
+    private_workspace_dependencies,
+    reject_private_workspace_dependencies,
 };
 use pnpm_fs::{
     lexical_normalize,
@@ -226,6 +229,9 @@ pub enum PackError {
 
     #[diagnostic(transparent)]
     CreateManifest(#[error(source)] CreateExportableManifestError),
+
+    #[diagnostic(transparent)]
+    PrivateWorkspaceDependency(#[error(source)] PrivateWorkspaceDependencyError),
 
     #[diagnostic(transparent)]
     Packlist(#[error(source)] PacklistError),
@@ -471,20 +477,19 @@ impl PackManifestOptions {
         manifest: &Value,
     ) -> Result<Value, PackError> {
         let modules_dir = project_dir.join("node_modules");
-        let mut publish_manifest = create_exportable_manifest(
-            dir,
-            manifest,
-            &CreateExportableManifestOptions {
-                catalogs: &self.catalogs,
-                workspace_dir: self.catalogs_dir.as_deref(),
-                modules_dir: Some(&modules_dir),
-                skip_manifest_obfuscation: self.skip_obfuscation,
-                embed_readme: self.embed_readme,
-                workspace_packages: self.workspace_packages.as_deref(),
-                bumped_workspace_packages: self.bumped_workspace_packages.as_deref(),
-            },
-        )
-        .map_err(PackError::CreateManifest)?;
+        let options = CreateExportableManifestOptions {
+            catalogs: &self.catalogs,
+            workspace_dir: self.catalogs_dir.as_deref(),
+            modules_dir: Some(&modules_dir),
+            skip_manifest_obfuscation: self.skip_obfuscation,
+            embed_readme: self.embed_readme,
+            workspace_packages: self.workspace_packages.as_deref(),
+            bumped_workspace_packages: self.bumped_workspace_packages.as_deref(),
+        };
+        let private_dependencies = private_workspace_dependencies(dir, manifest, &options)
+            .map_err(PackError::CreateManifest)?;
+        let mut publish_manifest =
+            create_exportable_manifest(dir, manifest, &options).map_err(PackError::CreateManifest)?;
 
         // Run `beforePacking` hooks against the built manifest, before the
         // file list is computed, so a hook that rewrites `files` / `bin` /
@@ -498,6 +503,8 @@ impl PackManifestOptions {
             &self.before_packing_hooks,
         )
         .await?;
+        reject_private_workspace_dependencies(&publish_manifest, &private_dependencies)
+            .map_err(PackError::PrivateWorkspaceDependency)?;
 
         Ok(publish_manifest)
     }

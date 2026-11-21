@@ -1,11 +1,17 @@
-use super::PrivateWorkspaceDependencyError;
+use super::{
+    PrivateWorkspaceDependencyError,
+    private_workspace_dependencies,
+    reject_private_workspace_dependencies,
+};
 use crate::{
-    CreateExportableManifestError,
     CreateExportableManifestOptions,
     WorkspacePackageManifest,
     create_exportable_manifest,
 };
-use pnpm_catalogs_types::Catalogs;
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 use serde_json::{
     Value,
     json,
@@ -28,44 +34,59 @@ fn fixture(secret_private: bool) -> TempDir {
     temp
 }
 
+/// Find the private dependencies, build the published manifest, let
+/// `before_packing` change it the way a `beforePacking` hook would, and
+/// reject what is left.
+fn export_with(
+    temp: &TempDir,
+    manifest: &Value,
+    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
+    before_packing: impl FnOnce(&mut Value),
+) -> Result<Value, PrivateWorkspaceDependencyError> {
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        Catalog::from([("secret".to_string(), "workspace:*".to_string())]),
+    )]);
+    let dir = temp.path().join("app");
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: false,
+        workspace_packages,
+        bumped_workspace_packages: None,
+    };
+    let private = private_workspace_dependencies(&dir, manifest, &opts).expect("find private");
+    let mut published = create_exportable_manifest(&dir, manifest, &opts).expect("exportable");
+    before_packing(&mut published);
+    reject_private_workspace_dependencies(&published, &private)?;
+    Ok(published)
+}
+
 fn export(
     temp: &TempDir,
     manifest: &Value,
     workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
-) -> Result<Value, CreateExportableManifestError> {
-    let catalogs = Catalogs::default();
-    create_exportable_manifest(
-        &temp.path().join("app"),
-        manifest,
-        &CreateExportableManifestOptions {
-            catalogs: &catalogs,
-            workspace_dir: None,
-            modules_dir: None,
-            skip_manifest_obfuscation: false,
-            embed_readme: false,
-            workspace_packages,
-            bumped_workspace_packages: None,
-        },
-    )
+) -> Result<Value, PrivateWorkspaceDependencyError> {
+    export_with(temp, manifest, workspace_packages, |_| {})
 }
 
 fn app(field: &str, spec: &str) -> Value {
     json!({ "name": "app", "version": "1.0.0", field: { "secret": spec } })
 }
 
-fn assert_rejected(result: Result<Value, CreateExportableManifestError>) {
-    match result {
-        Err(CreateExportableManifestError::PrivateWorkspaceDependency(
-            PrivateWorkspaceDependencyError { package_name, dep_name },
-        )) => assert_eq!((package_name.as_str(), dep_name.as_str()), ("app", "secret")),
-        other => panic!("expected the private dependency error, got {other:?}"),
-    }
+fn assert_rejected(result: Result<Value, PrivateWorkspaceDependencyError>) {
+    let error = result.expect_err("the private dependency is rejected");
+    assert_eq!((error.package_name.as_str(), error.dep_name.as_str()), ("app", "secret"));
 }
 
 #[test]
 fn rejects_a_private_workspace_package_in_dependencies() {
     let temp = fixture(true);
-    for spec in ["workspace:*", "workspace:^1.0.0", "workspace:secret@*", "workspace:../secret"] {
+    for spec in
+        ["workspace:*", "workspace:^1.0.0", "workspace:secret@*", "workspace:../secret", "catalog:"]
+    {
         assert_rejected(export(&temp, &app("dependencies", spec), None));
     }
 }
@@ -114,4 +135,21 @@ fn allows_a_publishable_workspace_package() {
 fn ignores_a_registry_dependency_installed_from_elsewhere() {
     let temp = fixture(true);
     export(&temp, &app("dependencies", "^1.0.0"), None).expect("manifest is exportable");
+}
+
+#[test]
+fn allows_a_dependency_a_before_packing_hook_removes_or_bundles() {
+    let temp = fixture(true);
+    let manifest = app("dependencies", "workspace:*");
+    export_with(&temp, &manifest, None, |published| {
+        published["dependencies"]
+            .as_object_mut()
+            .unwrap()
+            .remove("secret");
+    })
+    .expect("the hook removed the dependency");
+    export_with(&temp, &manifest, None, |published| {
+        published["bundleDependencies"] = json!(["secret"]);
+    })
+    .expect("the hook bundled the dependency");
 }

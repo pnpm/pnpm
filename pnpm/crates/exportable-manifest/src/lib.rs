@@ -13,7 +13,11 @@ pub use create::{
     create_exportable_manifest,
     read_readme_file,
 };
-pub use private_dependency::PrivateWorkspaceDependencyError;
+pub use private_dependency::{
+    PrivateWorkspaceDependencyError,
+    private_workspace_dependencies,
+    reject_private_workspace_dependencies,
+};
 pub use replace::{
     CannotResolveReason,
     CannotResolveWorkspaceProtocolError,
