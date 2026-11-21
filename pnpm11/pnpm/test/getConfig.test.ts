@@ -79,9 +79,7 @@ test.each([undefined, '', 'dummy-token'])('emit trusted auth environment warning
 test('console a warning when a project-level .npmrc has an unresolved env variable in an expanded setting', async () => {
   prepare()
 
-  // `cafile` is still env-expanded (unlike registry/proxy URLs), so an
-  // unresolved placeholder surfaces the generic env-replace warning.
-  fs.writeFileSync('.npmrc', 'cafile=${ENV_VAR_123}', 'utf8')
+  fs.writeFileSync('.npmrc', 'no-proxy=${ENV_VAR_123}', 'utf8')
 
   await getConfig({
     json: false,
