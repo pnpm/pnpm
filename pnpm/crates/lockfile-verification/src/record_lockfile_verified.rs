@@ -61,35 +61,6 @@ pub fn record_lockfile_verified_with_stat(
     );
 }
 
-/// Persist a lockfile this process just saved to `saved_path`, keyed by that
-/// file's path and stat. The caller guarantees the file holds `lockfile`.
-///
-/// A content-only record is not enough here: a lockfile format that omits
-/// fields, such as v13 dropping `deprecated`, reads back with a different
-/// content hash than the in-memory lockfile. Falls back to the content hash
-/// when the file cannot be stat'ed.
-pub fn record_saved_lockfile_verified(
-    cache_dir: Option<&Path>,
-    saved_path: &Path,
-    lockfile: &Lockfile,
-    verifiers: &[Arc<dyn ResolutionVerifier>],
-    exotic_subdeps: &ExoticSubdepsPolicy,
-) {
-    match std::fs::metadata(saved_path) {
-        Ok(metadata) => record_lockfile_verified_with_stat(
-            cache_dir,
-            saved_path,
-            crate::stat_from_metadata(&metadata),
-            lockfile,
-            verifiers,
-            exotic_subdeps,
-        ),
-        Err(_) => {
-            record_lockfile_verified_by_content(cache_dir, lockfile, verifiers, exotic_subdeps);
-        }
-    }
-}
-
 /// Persist the post-resolution or in-memory lockfile as already-verified by
 /// content hash.
 ///

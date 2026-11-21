@@ -48,7 +48,6 @@ use pnpm_lockfile_verification::{
     lockfile_verification_is_cached_with_stat,
     record_lockfile_verified_by_content,
     record_lockfile_verified_with_stat,
-    record_saved_lockfile_verified,
     stat_from_metadata,
     verify_lockfile_resolutions,
 };
@@ -254,21 +253,16 @@ fn save_pnpr_lockfile(
     if !state.config.lockfile {
         return Ok(());
     }
-    lockfile
-        .save_to_path(lockfile_path, state.config.symlinked_lockfile())
+    let saved_metadata = lockfile
+        .save_to_path_with_metadata(lockfile_path, state.config.symlinked_lockfile())
         .map_err(|err| miette::miette!("{err}"))
         .wrap_err("writing the pnpr-resolved lockfile")?;
+    let saved = (lockfile_path, saved_metadata.as_ref());
     if link.lockfile.trust {
         return Ok(());
     }
     if let Some(verifiers) = merged_repair_verifiers {
-        record_saved_lockfile_verified(
-            Some(&state.config.cache_dir),
-            lockfile_path,
-            lockfile,
-            verifiers,
-            exotic_subdeps,
-        );
+        record_saved_pnpr_lockfile(state, saved, lockfile, (verifiers, exotic_subdeps));
         return Ok(());
     }
     if let Ok(verifiers) = build_resolution_verifiers(
@@ -280,15 +274,35 @@ fn save_pnpr_lockfile(
         None,
         None,
     ) {
-        record_saved_lockfile_verified(
-            Some(&state.config.cache_dir),
-            lockfile_path,
-            lockfile,
-            &verifiers,
-            exotic_subdeps,
-        );
+        record_saved_pnpr_lockfile(state, saved, lockfile, (&verifiers, exotic_subdeps));
     }
     Ok(())
+}
+
+/// Record against the saved file's path when the save read its metadata
+/// from the handle that wrote it: a lockfile format that omits fields reads
+/// back with a different content hash than `lockfile`.
+fn record_saved_pnpr_lockfile(
+    state: &State,
+    (path, metadata): (&std::path::Path, Option<&std::fs::Metadata>),
+    lockfile: &Lockfile,
+    (verifiers, exotic_subdeps): (
+        &[std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>],
+        &ExoticSubdepsPolicy,
+    ),
+) {
+    let cache_dir = Some(state.config.cache_dir.as_path());
+    match metadata {
+        Some(metadata) => record_lockfile_verified_with_stat(
+            cache_dir,
+            path,
+            stat_from_metadata(metadata),
+            lockfile,
+            verifiers,
+            exotic_subdeps,
+        ),
+        None => record_lockfile_verified_by_content(cache_dir, lockfile, verifiers, exotic_subdeps),
+    }
 }
 
 pub(super) fn pnpr_lockfile_dir<'a>(state: &'a State, link: &PnprLink<'a>) -> &'a std::path::Path {

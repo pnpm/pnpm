@@ -35,7 +35,6 @@ pub use hash_lockfile::hash_lockfile;
 pub use record_lockfile_verified::{
     record_lockfile_verified_by_content,
     record_lockfile_verified_with_stat,
-    record_saved_lockfile_verified,
 };
 pub use verify_lockfile_resolutions::{
     EXOTIC_SUBDEP_VIOLATION_CODE,

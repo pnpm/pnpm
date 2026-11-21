@@ -402,6 +402,43 @@ pub(crate) struct OwnedInputs {
 
 /// The install's handles on the wanted lockfile: the background verification
 /// of the one on disk, and where a check run sends the one it would write.
+/// How a verification of the wanted lockfile an install saved can be
+/// recorded for the next install to find.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SavedLockfileRecord {
+    /// The file on disk is not the typed lockfile: it was not written, or
+    /// an `afterAllResolved` hook result replaced it. Record nothing.
+    Unrecordable,
+    /// Saved, but the platform kept no handle to read the written file's
+    /// metadata from. Record by content hash.
+    ByContent,
+    /// Saved at `path`, with `stat` read from the handle that wrote it.
+    /// A lockfile format that omits fields, such as v13 dropping
+    /// `deprecated`, reads back with a different content hash, so only this
+    /// record lets the next install skip verification.
+    AtPath { path: std::path::PathBuf, stat: pnpm_lockfile_verification::LockfileStat },
+}
+
+impl SavedLockfileRecord {
+    pub(crate) fn of_saved_file(
+        path: &std::path::Path,
+        metadata: Option<std::fs::Metadata>,
+    ) -> Self {
+        match metadata {
+            Some(metadata) => SavedLockfileRecord::AtPath {
+                path: path.to_path_buf(),
+                stat: pnpm_lockfile_verification::stat_from_metadata(&metadata),
+            },
+            None => SavedLockfileRecord::ByContent,
+        }
+    }
+
+    #[must_use]
+    pub fn is_recordable(&self) -> bool {
+        !matches!(self, SavedLockfileRecord::Unrecordable)
+    }
+}
+
 pub(crate) struct WantedLockfileHandles {
     /// The pre-resolve verification of the existing lockfile, running in
     /// the background while this install resolves and materializes. See
@@ -478,12 +515,9 @@ pub struct InstallWithFreshLockfileResult {
     /// even when disk persistence of the wanted `pnpm-lock.yaml` is skipped
     /// (`config.lockfile=false` or `save_lockfile=false`).
     pub wanted_lockfile: Option<Lockfile>,
-    /// `true` when the wanted lockfile written to disk is the same
-    /// typed lockfile returned in [`Self::wanted_lockfile`]. A
-    /// non-null `afterAllResolved` hook result can mutate fields the
-    /// typed model tracks, so the caller must not record a verification
-    /// cache entry for that case.
-    pub can_record_lockfile_verification: bool,
+    /// How a verification of [`Self::wanted_lockfile`] can be recorded for
+    /// the next install to find.
+    pub saved_lockfile: SavedLockfileRecord,
     /// Sorted `name@version` keys whose build scripts were blocked by
     /// the `allowBuilds` policy. The caller raises
     /// `ERR_PNPM_IGNORED_BUILDS` from this list when `strictDepBuilds`

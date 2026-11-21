@@ -297,7 +297,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
 
             peer_issue_importer_ids: self.resolved.graph.peer_issue_importer_ids,
             wanted_lockfile: persisted.lockfile,
-            can_record_lockfile_verification: persisted.can_record_lockfile_verification,
+            saved_lockfile: persisted.saved_lockfile,
             ignored_builds: on_disk.ignored_builds,
             deferred_builds: on_disk.deferred_builds,
             skipped: on_disk.skipped,

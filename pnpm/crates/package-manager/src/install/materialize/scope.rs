@@ -15,6 +15,7 @@ use super::super::{
     Reporter,
     ResolutionVerifier,
     map_frozen_lockfile_error,
+    record_lockfile_verified_by_content,
     verify_lockfile_eagerly,
 };
 
@@ -105,21 +106,30 @@ pub(super) fn lockfile_specifier_manifests_by_id(
 // refreshes the per-path stat shortcut from its read-time `LockfileStat`.
 pub(super) fn record_fresh_lockfile_verified(
     result: &crate::InstallWithFreshLockfileResult,
-    (cache_dir, saved_lockfile_path): (&Path, &Path),
+    cache_dir: &Path,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
     exotic_subdeps: &ExoticSubdepsPolicy,
 ) {
-    if !result.can_record_lockfile_verification {
-        return;
-    }
     let Some(lockfile) = result.wanted_lockfile.as_ref() else { return };
-    pnpm_lockfile_verification::record_saved_lockfile_verified(
-        Some(cache_dir),
-        saved_lockfile_path,
-        lockfile,
-        resolution_verifiers,
-        exotic_subdeps,
-    );
+    match &result.saved_lockfile {
+        crate::SavedLockfileRecord::Unrecordable => {}
+        crate::SavedLockfileRecord::ByContent => record_lockfile_verified_by_content(
+            Some(cache_dir),
+            lockfile,
+            resolution_verifiers,
+            exotic_subdeps,
+        ),
+        crate::SavedLockfileRecord::AtPath { path, stat } => {
+            pnpm_lockfile_verification::record_lockfile_verified_with_stat(
+                Some(cache_dir),
+                path,
+                stat.clone(),
+                lockfile,
+                resolution_verifiers,
+                exotic_subdeps,
+            );
+        }
+    }
 }
 /// Only a lockfile saved as resolved, which no `afterAllResolved` hook
 /// rewrote, is the output the next deduplicating resolution reproduces.
@@ -127,7 +137,7 @@ pub(super) fn record_auto_dedupe_baseline(
     result: &crate::InstallWithFreshLockfileResult,
     baseline: Option<&super::super::auto_dedupe_baseline::AutoDedupeBaseline>,
 ) {
-    if result.can_record_lockfile_verification
+    if result.saved_lockfile.is_recordable()
         && let Some(baseline) = baseline
         && let Some(lockfile) = result.wanted_lockfile.as_ref()
     {
