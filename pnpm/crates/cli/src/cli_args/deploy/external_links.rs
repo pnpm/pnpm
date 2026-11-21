@@ -1,7 +1,6 @@
 use super::{
     DependencyGroup,
     HashMap,
-    HashSet,
     ImporterDepVersion,
     Lockfile,
     Path,
@@ -20,17 +19,15 @@ pub(super) fn has_external_link(
     groups: &[DependencyGroup],
 ) -> bool {
     let projects = std::cell::OnceCell::new();
-    let mut pending = vec![project_id];
-    let mut seen = HashSet::new();
+    let mut pending = indexmap::IndexSet::from([project_id]);
+    let mut index = 0;
     let runtime_groups: &[DependencyGroup] = if groups.contains(&DependencyGroup::Optional) {
         &[DependencyGroup::Prod, DependencyGroup::Optional]
     } else {
         &[DependencyGroup::Prod]
     };
-    while let Some(id) = pending.pop() {
-        if !seen.insert(id) {
-            continue;
-        }
+    while let Some(&id) = pending.get_index(index) {
+        index += 1;
         let root = lockfile_dir.join(id);
         let included = if id == project_id { groups } else { runtime_groups };
         for target in linked_directories(lockfile, id, included) {
@@ -39,7 +36,7 @@ pub(super) fn has_external_link(
             let Some(linked) = by_dir.get(&ProjectPathKey::new(&root.join(target))) else {
                 return true;
             };
-            pending.push(*linked);
+            pending.insert(*linked);
         }
     }
     false

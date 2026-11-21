@@ -269,7 +269,7 @@ fn link_expands_home_and_uses_directory_name_for_unnamed_package() {
         pnpm_package_manifest::PackageManifest::from_path(workspace.join("package.json")).unwrap();
     assert_eq!(
         manifest.value()["dependencies"]["target-project-no-name"],
-        "link:../target-project-no-name"
+        "link:../target-project-no-name",
     );
 
     drop((root, mock_instance));
