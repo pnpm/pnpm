@@ -87,7 +87,7 @@ fn pack_allows_a_private_workspace_package_in_dev_dependencies() {
 /// `bundleDependencies`, or from `bundledDependencies` only when the first is
 /// absent.
 #[test]
-fn pack_allows_a_bundled_private_workspace_package() {
+fn pack_exempts_only_a_bundled_private_workspace_package_it_ships() {
     let CommandTempCwd { root: _root, workspace, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let mut bundled = app_with("dependencies");
@@ -102,4 +102,17 @@ fn pack_allows_a_bundled_private_workspace_package() {
     let app_dir = workspace.join("packages/app");
     fs::write(app_dir.join("package.json"), shadowed.to_string()).expect("write package.json");
     assert_fails_with_the_private_dependency(&mut pnpm(&app_dir, &["pack"]));
+
+    // The file list leaves out a bundled dependency that is not installed.
+    bundled_without_install(&app_dir);
+    assert_fails_with_the_private_dependency(&mut pnpm(&app_dir, &["pack"]));
+}
+
+fn bundled_without_install(app_dir: &Path) {
+    let mut bundled = app_with("dependencies");
+    bundled["bundleDependencies"] = json!(["secret"]);
+    fs::write(app_dir.join("package.json"), bundled.to_string()).expect("write package.json");
+    fs::remove_file(app_dir.join("node_modules/secret"))
+        .or_else(|_| fs::remove_dir_all(app_dir.join("node_modules/secret")))
+        .expect("remove the installed secret");
 }

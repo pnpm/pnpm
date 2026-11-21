@@ -41,10 +41,11 @@ pub struct PrivateWorkspaceDependencyError {
     pub dep_name: String,
 }
 
-/// The names in `original`'s `dependencies` whose specifier, once a
-/// `catalog:` entry is resolved, is a `workspace:` specifier for a private
-/// workspace package. Pass them to [`reject_private_workspace_dependencies`]
-/// after the `beforePacking` hooks have settled the published manifest.
+/// The registry names of the private workspace packages that `original`'s
+/// `dependencies` point at through a `workspace:` specifier, once a
+/// `catalog:` entry is resolved. Pass them to
+/// [`reject_private_workspace_dependencies`] after the `beforePacking` hooks
+/// have settled the published manifest.
 pub fn private_workspace_dependencies(
     dir: &Path,
     original: &Value,
@@ -59,45 +60,41 @@ pub fn private_workspace_dependencies(
             continue;
         };
         let spec = replace_catalog_protocol(dep_name.clone(), spec, dir, opts)?;
-        if is_private_workspace_package(dep_name, &spec, dir, opts)? {
-            private.push(dep_name.clone());
+        if let Some(package) = private_workspace_package(dep_name, &spec, dir, opts)? {
+            private.push(package);
         }
     }
     Ok(private)
 }
 
-/// Fail when the publishable manifest `published` still lists one of the
-/// `private_dependencies` in `dependencies` for the registry package it named
-/// in `exported`, the manifest before the `beforePacking` hooks ran. A hook may
-/// drop such a dependency or point it at another package, but a new range for
-/// the same package is still rejected. A private manifest
-/// is never published, so it is not rejected. The caller leaves out the
-/// dependencies the tarball bundles.
+/// Fail when a `dependencies` entry of the publishable manifest `published`
+/// installs one of the `private_packages` from the registry, under any key.
+/// The entries named in `bundled` ship inside the tarball and are not
+/// checked, and a private manifest is never published.
 pub fn reject_private_workspace_dependencies(
-    exported: &Value,
     published: &Value,
-    private_dependencies: &[String],
+    private_packages: &[String],
+    bundled: &[String],
 ) -> Result<(), PrivateWorkspaceDependencyError> {
     let Some(published) = published.as_object() else {
         return Ok(());
     };
-    if is_private(published) {
+    if private_packages.is_empty() || is_private(published) {
         return Ok(());
     }
     let Some(dependencies) = published.get("dependencies").and_then(Value::as_object) else {
         return Ok(());
     };
-    let exported = exported.get("dependencies");
-    let rejected = private_dependencies
+    let rejected = dependencies
         .iter()
-        .find(|dep_name| {
-            let package = registry_package(dep_name, dependencies.get(dep_name.as_str()));
-            package.is_some()
-                && package
-                    == registry_package(
-                        dep_name,
-                        exported.and_then(|exported| exported.get(dep_name.as_str())),
-                    )
+        .filter(|(dep_name, _)| !bundled.contains(dep_name))
+        .filter_map(|(dep_name, spec)| Some((dep_name.as_str(), spec.as_str()?)))
+        .flat_map(|(dep_name, spec)| registry_packages(dep_name, spec))
+        .flatten()
+        .find(|package| {
+            private_packages
+                .iter()
+                .any(|private| private == package)
         });
     let Some(dep_name) = rejected else {
         return Ok(());
@@ -108,43 +105,53 @@ pub fn reject_private_workspace_dependencies(
         .unwrap_or_default();
     Err(PrivateWorkspaceDependencyError {
         package_name: package_name.to_string(),
-        dep_name: dep_name.clone(),
+        dep_name: dep_name.to_string(),
     })
 }
 
-/// Whether `spec` is a `workspace:` specifier whose target package, resolved
-/// the way the workspace-protocol rewrite resolves it, is private.
-fn is_private_workspace_package(
+/// The registry name of the private workspace package `spec` points at, when
+/// it is a `workspace:` specifier whose target, resolved the way the
+/// workspace-protocol rewrite resolves it, is private.
+fn private_workspace_package(
     dep_name: &str,
     spec: &str,
     dir: &Path,
     opts: &CreateExportableManifestOptions<'_>,
-) -> Result<bool, CreateExportableManifestError> {
+) -> Result<Option<String>, CreateExportableManifestError> {
     let lookup = WorkspacePackageLookup {
         packages: opts.workspace_packages,
         prefer_workspace_for: opts.bumped_workspace_packages,
     };
     let target = workspace_target_manifest(dep_name, spec, dir, opts.modules_dir, lookup)
         .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;
-    Ok(target.is_some_and(|manifest| manifest.private))
+    Ok(target
+        .filter(|manifest| manifest.private)
+        .map(
+            |manifest| {
+                if manifest.name.is_empty() { dep_name.to_string() } else { manifest.name }
+            },
+        ))
 }
 
-/// The registry package a published specifier installs: the `npm:` alias
-/// target, or `dep_name` for a plain range or tag. `None` for a specifier
-/// that does not install from the registry, such as a path, URL, or git
-/// specifier.
-fn registry_package<'a>(dep_name: &'a str, spec: Option<&'a Value>) -> Option<&'a str> {
-    let spec = spec?.as_str()?;
+/// The registry packages a published dependency may install, read
+/// conservatively so no form that reaches the private package slips by:
+/// - `npm:<name>@<range>` names `<name>`.
+/// - A bare `npm:<x>` is `<x>` at the default tag, or a range for `dep_name`,
+///   so it names both.
+/// - A local path names none.
+/// - Anything else, a range, a tag, or a union with another protocol in it,
+///   is read as `dep_name`.
+fn registry_packages<'a>(dep_name: &'a str, spec: &'a str) -> [Option<&'a str>; 2] {
     if is_local_filesystem_specifier(spec) {
-        return None;
+        return [None, None];
     }
-    if let Some(aliased) = spec.strip_prefix("npm:") {
-        return Some(match aliased.rfind('@') {
-            Some(index) if index > 0 => &aliased[..index],
-            _ => aliased,
-        });
+    match spec.strip_prefix("npm:") {
+        Some(aliased) => match aliased.rfind('@') {
+            Some(index) if index > 0 => [Some(&aliased[..index]), None],
+            _ => [Some(aliased), Some(dep_name)],
+        },
+        None => [Some(dep_name), None],
     }
-    (!spec.contains(':') && !spec.contains('/')).then_some(dep_name)
 }
 
 fn is_private(manifest: &Map<String, Value>) -> bool {

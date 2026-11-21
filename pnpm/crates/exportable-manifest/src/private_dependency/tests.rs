@@ -58,10 +58,9 @@ fn export_with(
         bumped_workspace_packages: None,
     };
     let private = private_workspace_dependencies(&dir, manifest, &opts).expect("find private");
-    let exported = create_exportable_manifest(&dir, manifest, &opts).expect("exportable");
-    let mut published = exported.clone();
+    let mut published = create_exportable_manifest(&dir, manifest, &opts).expect("exportable");
     before_packing(&mut published);
-    reject_private_workspace_dependencies(&exported, &published, &private)?;
+    reject_private_workspace_dependencies(&published, &private, &[])?;
     Ok(published)
 }
 
@@ -206,7 +205,7 @@ fn rejects_a_private_workspace_package_without_a_version() {
 #[test]
 fn rejects_a_private_workspace_package_a_hook_gives_a_new_range() {
     let temp = fixture(true);
-    for spec in ["^1.0.0", "npm:secret@^1.0.0"] {
+    for spec in ["^1.0.0", "npm:secret@^1.0.0", "npm:1.0.0", "^1.0.0 || workspace:^2.0.0"] {
         assert_rejected(export_with(
             &temp,
             &app("dependencies", "workspace:*"),
@@ -214,4 +213,35 @@ fn rejects_a_private_workspace_package_a_hook_gives_a_new_range() {
             |published| published["dependencies"]["secret"] = json!(spec),
         ));
     }
+}
+
+#[test]
+fn rejects_a_private_workspace_package_a_hook_moves_to_another_key() {
+    let temp = fixture(true);
+    assert_rejected(export_with(&temp, &app("dependencies", "workspace:*"), None, |published| {
+        let dependencies = published["dependencies"].as_object_mut().unwrap();
+        dependencies.remove("secret");
+        dependencies.insert("renamed".to_string(), json!("npm:secret@1.0.0"));
+    }));
+}
+
+#[test]
+fn skips_the_bundled_dependencies_it_is_given() {
+    let temp = fixture(true);
+    let dir = temp.path().join("app");
+    let catalogs = Catalogs::default();
+    let opts = CreateExportableManifestOptions {
+        catalogs: &catalogs,
+        workspace_dir: None,
+        modules_dir: None,
+        skip_manifest_obfuscation: false,
+        embed_readme: false,
+        workspace_packages: None,
+        bumped_workspace_packages: None,
+    };
+    let manifest = app("dependencies", "workspace:*");
+    let private = private_workspace_dependencies(&dir, &manifest, &opts).expect("find private");
+    let published = create_exportable_manifest(&dir, &manifest, &opts).expect("exportable");
+    reject_private_workspace_dependencies(&published, &private, &["secret".to_string()])
+        .expect("a bundled dependency ships in the tarball");
 }

@@ -487,7 +487,7 @@ impl PackManifestOptions {
             workspace_packages: self.workspace_packages.as_deref(),
             bumped_workspace_packages: self.bumped_workspace_packages.as_deref(),
         };
-        let mut private_dependencies = private_workspace_dependencies(dir, manifest, &options)
+        let private_packages = private_workspace_dependencies(dir, manifest, &options)
             .map_err(PackError::CreateManifest)?;
         let mut publish_manifest =
             create_exportable_manifest(dir, manifest, &options).map_err(PackError::CreateManifest)?;
@@ -497,7 +497,6 @@ impl PackManifestOptions {
         // dependency fields is honored. pnpm runs it inside
         // `createExportableManifest`; pacquet applies it here because
         // `create_exportable_manifest` is a pure, synchronous transform.
-        let exported = publish_manifest.clone();
         publish_manifest = apply_before_packing::<Reporter>(
             project_dir,
             dir,
@@ -505,9 +504,10 @@ impl PackManifestOptions {
             &self.before_packing_hooks,
         )
         .await?;
-        let bundled = root_bundle_dep_names(&publish_manifest);
-        private_dependencies.retain(|dep_name| !bundled.contains(dep_name));
-        reject_private_workspace_dependencies(&exported, &publish_manifest, &private_dependencies)
+        // Packlist leaves out a bundled dependency it cannot find installed.
+        let mut bundled = root_bundle_dep_names(&publish_manifest);
+        bundled.retain(|dep_name| modules_dir.join(dep_name).exists());
+        reject_private_workspace_dependencies(&publish_manifest, &private_packages, &bundled)
             .map_err(PackError::PrivateWorkspaceDependency)?;
 
         Ok(publish_manifest)
