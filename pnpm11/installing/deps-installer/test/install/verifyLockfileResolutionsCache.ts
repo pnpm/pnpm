@@ -24,7 +24,7 @@ afterEach(async () => {
   await fs.promises.rm(tmpDir, { recursive: true, force: true })
 })
 
-// Helpers — most tests use a stand-in for the npm minimumReleaseAge
+// Helpers. Most tests use a stand-in for the npm minimumReleaseAge
 // verifier. The cache layer is policy-neutral, so this could be any
 // verifier shape.
 function mraVerifier (current: number): VerifierCacheIdentity {
@@ -37,7 +37,7 @@ function mraVerifier (current: number): VerifierCacheIdentity {
   }
 }
 
-// The cache hashes the in-memory lockfile, not the file bytes — but for
+// The cache hashes the in-memory lockfile, not the file bytes. But for
 // unit tests we don't need a real lockfile object. A stable thunk is
 // enough; tests that simulate "different content" pass a different tag.
 const hashLockfileFor = (tag: string) => () => `hash:${tag}`
@@ -81,7 +81,7 @@ describe('tryLockfileVerificationCache', () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)], hashLockfile: hashLockfileFor('content-a') })
 
-    // Append bytes — file size changes, so byPath stat-match bails.
+    // Append bytes. The file size changes, so byPath stat-match bails.
     // The lookup falls through to the hash lookup. Today's content
     // produces a different hash, so byHash misses → overall miss.
     await fs.promises.appendFile(lockfilePath, 'extra: bytes\n')
@@ -212,11 +212,11 @@ describe('tryLockfileVerificationCache', () => {
     await fs.promises.writeFile(lockfilePath, 'aaaaaaaaaaaa')
     recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(60)], hashLockfile: hashLockfileFor('content-a') })
 
-    // Same byte length, different content — hash check is what rejects.
+    // Same byte length, different content. The hash check is what rejects.
     // Write the replacement to a sibling and rename it in so it gets a
     // fresh inode. Rewriting in place can reuse the freed inode, and on
     // filesystems with coarse mtime granularity (some CI runners) both
-    // writes land in the same mtime tick — which would let the stat
+    // writes land in the same mtime tick. That would let the stat
     // shortcut spuriously match on (size, mtime, inode) and skip the hash
     // check this test exercises.
     const sibling = path.join(tmpDir, 'pnpm-lock-2.yaml')
@@ -248,7 +248,7 @@ describe('tryLockfileVerificationCache', () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
     recordVerification(cacheDir, { lockfilePath, verifiers: [mraVerifier(1440)], hashLockfile: hashLockfileFor('lockfilePath') })
 
-    // Today's policy is weaker — the stricter cached run still covers it.
+    // Today's policy is weaker. The stricter cached run still covers it.
     const result = tryLockfileVerificationCache(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60)], hashLockfile: hashLockfileFor('lockfilePath'),
@@ -421,8 +421,8 @@ describe('recordVerification', () => {
 
   test('shared policy field is stored once, not duplicated', async () => {
     await fs.promises.writeFile(lockfilePath, 'lockfileVersion: \'9.0\'\n')
-    // Two verifiers both contribute minimumReleaseAge with the same value
-    // — the merged bag stores it once.
+    // Two verifiers both contribute minimumReleaseAge with the same value.
+    // The merged bag stores it once.
     recordVerification(cacheDir, {
       lockfilePath,
       verifiers: [mraVerifier(60), mraVerifier(60)], hashLockfile: hashLockfileFor('lockfilePath'),

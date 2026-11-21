@@ -42,9 +42,9 @@ export async function resolveFromTarball (
   }
 }
 
-// URL tarballs lock to the exact URL — no concept of "latest". Claim the dep
-// so the dispatcher stops; the caller still surfaces a ref-mismatch report
-// if the lockfile points at a different URL than before.
+// URL tarballs lock to the exact URL and have no concept of "latest". Claim
+// the dep so the dispatcher stops; the caller still surfaces a ref-mismatch
+// report if the lockfile points at a different URL than before.
 export async function resolveLatestFromTarball (query: LatestQuery): Promise<LatestInfo | undefined> {
   const bareSpecifier = query.wantedDependency.bareSpecifier
   if (!bareSpecifier?.startsWith('http:') && !bareSpecifier?.startsWith('https:')) return undefined

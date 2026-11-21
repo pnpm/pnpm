@@ -19,8 +19,8 @@ export const BumpLevels = {
 
 // The sponsors table is shared with the v12 release job, which cats this same
 // fragment onto its RELEASE.md. It is regenerated from pnpm.io's sponsors.json.
-// A missing fragment means someone moved it, not that there are no sponsors —
-// warn rather than throw, since the workflow falls back to a diagnostic
+// A missing fragment means someone moved it, not that there are no sponsors.
+// Warn rather than throw, since the workflow falls back to a diagnostic
 // description when this script fails, and no sponsors beats no release notes.
 const SPONSORS_FRAGMENT = '.github/release-sponsors.md'
 

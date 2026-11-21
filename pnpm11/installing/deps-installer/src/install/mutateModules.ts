@@ -323,8 +323,8 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
  * Lockfile verification is skipped when we already know pacquet will run the
  * install: pacquet applies the same resolver-policy gate (port of
  * `verifyLockfileResolutions`) whether it materializes a frozen lockfile or
- * re-resolves from the manifests, so re-running it would duplicate the work —
- * and for `minimumReleaseAge` in strict mode each lockfile entry is an HTTP
+ * re-resolves from the manifests, so re-running it would duplicate the work.
+ * For `minimumReleaseAge` in strict mode, each lockfile entry is an HTTP
  * probe.
  *
  * The predicate mirrors every short-circuit `tryFrozenInstall` checks
@@ -332,7 +332,7 @@ function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): 
  * return null, throw, or fall through to the JS path must keep
  * verification on. The optimistic `preferFrozenLockfile` path decides
  * whether to delegate later (based on `allProjectsAreUpToDate`), which
- * isn't known here — so verification still runs in that window, the
+ * isn't known here. Verification still runs in that window, so the
  * duplicate is bounded to it.
  */
 export function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmContext, installsOnly: boolean): boolean {
@@ -354,7 +354,7 @@ export function willDelegateToPacquet (opts: StrictInstallOptions, ctx: PnpmCont
         ctx.existsNonEmptyWantedLockfile &&
         (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)) ||
       // Resolving install: pacquet (>= 0.11.7) re-resolves from the
-      // manifests itself — applying the policy during fresh resolution —
+      // manifests itself (applying the policy during fresh resolution),
       // so the existing lockfile entries verified here would just be
       // discarded. If a policy handler is active, keep resolution in pnpm
       // so violations can be returned to the command layer.
@@ -442,7 +442,7 @@ async function finishMutation (run: MutationRun, result: InnerInstallResult): Pr
   // The branch lockfiles become disposable only once the merge has been
   // written for good. An install that never saves a lockfile did not merge
   // them, and a `--dry-run` / `lockfileCheck` run only reports what it would
-  // do — deleting them in either case drops resolutions no file is left
+  // do. Deleting them in either case drops resolutions no file is left
   // holding.
   if (
     opts.mergeGitBranchLockfiles && opts.useLockfile && opts.saveLockfile &&

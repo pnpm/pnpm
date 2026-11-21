@@ -18,8 +18,8 @@ async function removeOnWin (cmd: string): Promise<void> {
     rimraf(`${cmd}.ps1`),
     rimraf(`${cmd}${CMD_EXTENSION}`),
     // The `node` bin is linked as a real `<cmd>.exe` (see the node
-    // special-case in `@pnpm/bins.linker`), so it must be removed too —
-    // otherwise a stale `node.exe` survives on PATH after uninstall.
+    // special-case in `@pnpm/bins.linker`), so it must be removed too.
+    // Otherwise a stale `node.exe` survives on PATH after uninstall.
     rimraf(`${cmd}.exe`),
   ])
   const errors = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])

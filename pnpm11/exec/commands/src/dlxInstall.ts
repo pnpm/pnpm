@@ -188,7 +188,7 @@ async function removePartialDlxCache (cachedDir: string): Promise<void> {
  * `promptApproveGlobalBuilds` in @pnpm/global.commands.
  *
  * In non-interactive mode (no TTY, no commands map) this is a no-op and
- * the install is persisted to the dlx cache with builds skipped — same
+ * the install is persisted to the dlx cache with builds skipped, the same
  * behavior as `pnpm add -g` in CI. Users who need the skipped scripts
  * to run can re-invoke dlx with `--allow-build=<pkg>`, which produces a
  * different cache key and forces a fresh install.

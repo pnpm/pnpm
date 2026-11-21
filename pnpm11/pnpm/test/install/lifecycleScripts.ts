@@ -516,7 +516,7 @@ test('install --ignore-workspace does not overwrite allowBuilds in pnpm-workspac
   const { status, stdout, stderr } = execPnpmSync(['install', '--ignore-workspace'])
 
   // The build is ignored (--ignore-workspace skips the allowBuilds entry), so the
-  // install ends in ERR_PNPM_IGNORED_BUILDS — the same code path that would have
+  // install ends in ERR_PNPM_IGNORED_BUILDS, the same code path that would have
   // written the placeholder. The manifest must stay untouched regardless.
   expect(status).toBe(1)
   expect(`${stdout}${stderr}`).toContain('ERR_PNPM_IGNORED_BUILDS')
@@ -753,7 +753,7 @@ test('installing additional dependencies preserves ignoredBuilds of existing pac
 // command was pointed at, plus the workspace root, which the recursive
 // dispatch pushes in as a plain `mutation: 'install'` whenever the
 // selection leaves it out. A project runs its scripts when that list
-// covers only part of the workspace, or — when it covers all of it —
+// covers only part of the workspace, or (when it covers all of it)
 // when its own mutation is a full install.
 
 const DEP = '@pnpm.e2e/dep-of-pkg-with-1-dep' // published at 100.0.0, 100.1.0 and 101.0.0

@@ -186,8 +186,8 @@ function mergeResolvedPackageManagerDeps (
 
 /**
  * Rewrites registry tarball resolutions to integrity-only form, dropping
- * tarball URLs that a registry advertises on a host other than its own —
- * load-balanced proxies and Artifactory-style mirrors do this, see
+ * tarball URLs that a registry advertises on a host other than its own.
+ * Load-balanced proxies and Artifactory-style mirrors do this, see
  * https://github.com/pnpm/pnpm/issues/13619. The package-manager bootstrap
  * never fetches a URL recorded in the lockfile: the download URL is always
  * derived from the trusted bootstrap registries at install time, so a

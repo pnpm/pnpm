@@ -243,7 +243,7 @@ export async function fetchSignatures (
 
 /**
  * npm's signatures for `pkgName@version`, or `undefined` when npm cannot be
- * reached — from an air-gapped network, say — so the caller reports the
+ * reached (from an air-gapped network, say), so the caller reports the
  * package as unsigned rather than the failed request. No credentials are sent:
  * they belong to the registry the package is downloaded from.
  */
@@ -274,7 +274,7 @@ interface SignedPackument {
 
 /**
  * Streams `meta.dist.tarball` to `dest`, verifying the checksum the registry
- * published for it. A mismatch removes nothing — the caller discards the whole
+ * published for it. A mismatch removes nothing. The caller discards the whole
  * temporary directory.
  *
  * `registry` re-hosts a tarball URL that points at npm onto that registry, so a
@@ -336,8 +336,8 @@ export interface TarballOptions extends ScopedHeadersOptions {
  * Where to download `meta`'s tarball from.
  *
  * Registries that proxy npm hand back npm's own URL. Following it would leave
- * the mirror the metadata came from — for an air-gapped one, it would not
- * resolve at all — so the path is re-hosted onto `registry`. Matched by origin,
+ * the mirror the metadata came from (for an air-gapped one, it would not
+ * resolve at all), so the path is re-hosted onto `registry`. Matched by origin,
  * so a host that merely starts with npm's is left alone.
  */
 export function tarballUrl (meta: VersionMeta, registry?: string): URL {
@@ -360,7 +360,7 @@ function headersFor (url: URL, opts: ScopedHeadersOptions): RequestHeaders | und
  *
  * `integrity` is an SRI string, which may hold several space-separated entries;
  * the first is used. Only the digest that the registry signature covers is
- * accepted — `shasum` is SHA-1, and a package without `integrity` has already
+ * accepted. `shasum` is SHA-1, and a package without `integrity` has already
  * been refused before any download starts.
  */
 function checksum (meta: VersionMeta): [algorithm: string, expected: string] {
@@ -540,7 +540,7 @@ function isRetryableError (err: unknown, timeoutMs: number): boolean {
 
 /**
  * A 4xx means the request itself is wrong (a missing package, a bad
- * credential) — retrying would just ask the same wrong question again. The
+ * credential). Retrying would just ask the same wrong question again. The
  * exceptions are a request timeout and rate limiting, which say "not now"
  * rather than "no". A 5xx is the server's problem, and often a transient one.
  */
