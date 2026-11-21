@@ -2,6 +2,7 @@ use super::{
     DependencyGroup,
     HashMap,
     HashSet,
+    ImporterDepVersion,
     Lockfile,
     Path,
     ProjectPathKey,
@@ -21,23 +22,18 @@ pub(super) fn has_external_link(
     let projects = std::cell::OnceCell::new();
     let mut pending = vec![project_id];
     let mut seen = HashSet::new();
+    let runtime_groups: &[DependencyGroup] = if groups.contains(&DependencyGroup::Optional) {
+        &[DependencyGroup::Prod, DependencyGroup::Optional]
+    } else {
+        &[DependencyGroup::Prod]
+    };
     while let Some(id) = pending.pop() {
         if !seen.insert(id) {
             continue;
         }
-        let Some(snapshot) = lockfile.importers.get(id) else { continue };
         let root = lockfile_dir.join(id);
-        let included = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
-            .into_iter()
-            .filter(|group| {
-                if id == project_id {
-                    return groups.contains(group);
-                }
-                *group == DependencyGroup::Prod
-                    || (*group == DependencyGroup::Optional && groups.contains(group))
-            });
-        for (_, dependency) in snapshot.dependencies_by_groups(included) {
-            let super::ImporterDepVersion::Link(target) = &dependency.version else { continue };
+        let included = if id == project_id { groups } else { runtime_groups };
+        for target in linked_directories(lockfile, id, included) {
             let by_dir =
                 projects.get_or_init(|| importer_ids_by_dir(lockfile, selected, lockfile_dir));
             let Some(linked) = by_dir.get(&ProjectPathKey::new(&root.join(target))) else {
@@ -47,6 +43,21 @@ pub(super) fn has_external_link(
         }
     }
     false
+}
+
+fn linked_directories<'a>(
+    lockfile: &'a Lockfile,
+    id: &str,
+    groups: &'a [DependencyGroup],
+) -> impl Iterator<Item = &'a str> {
+    lockfile.importers
+        .get(id)
+        .into_iter()
+        .flat_map(move |snapshot| snapshot.dependencies_by_groups(groups.iter().copied()))
+        .filter_map(|(_, dependency)| match &dependency.version {
+            ImporterDepVersion::Link(target) => Some(target.as_str()),
+            _ => None,
+        })
 }
 
 fn importer_ids_by_dir<'a>(
