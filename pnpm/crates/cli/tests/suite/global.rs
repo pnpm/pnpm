@@ -338,6 +338,7 @@ fn global_add_prints_no_summary_when_a_group_fails_activation() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!output.status.success(), "add -g should fail: {stdout}");
     assert!(stderr.contains("ERR_PNPM_GLOBAL_BIN_CONFLICT"), "{stderr}");
+    assert!(!stdout.contains("+ alpha"), "{stdout}");
     assert!(!stdout.contains("+ beta"), "{stdout}");
 
     drop(npmrc_info);
