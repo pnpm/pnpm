@@ -47,6 +47,14 @@ fn catalog_workspace_link_is_materialized_when_excluded_from_lockfile() {
 }
 
 #[test]
+fn excluded_catalog_link_uses_the_workspace_directory_on_frozen_reinstall() {
+    assert_frozen_install_relinks_excluded_workspace_link(
+        "catalog:",
+        Some("{ workspace-dep: 'link:./packages/workspace-dep' }"),
+    );
+}
+
+#[test]
 fn catalog_workspace_protocol_links_survive_frozen_reinstall() {
     for (name, reference, alias, specifier) in [
         ("default", "catalog:", "workspace-dep", "workspace:*"),

@@ -187,6 +187,7 @@ impl SettingsComparison<'_> {
     fn lockfile_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
         let live = self.live;
+        return_drift_if!(self, "lockfile.format", recorded.lockfile_format != live.lockfile_format);
         return_drift_if!(
             self,
             "lockfile.includeResolutionSettings",
@@ -422,6 +423,9 @@ fn recorded_allow_builds(
 fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
     WorkspaceStateSettings {
         block_exotic_subdeps: Some(config.block_exotic_subdeps),
+        lockfile_format: (config.lockfile_format == pnpm_lockfile::LockfileFormat::V13).then(
+            || "v13".to_string(),
+        ),
         lockfile_include_resolution_settings: config
             .lockfile_records_resolution_settings()
             .then_some(true),

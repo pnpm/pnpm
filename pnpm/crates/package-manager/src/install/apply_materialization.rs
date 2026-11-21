@@ -127,12 +127,13 @@ async fn link_apply_projects<Reporter: self::Reporter + 'static>(
         },
         workspace_root: &inputs.projects.workspace_root,
         manifest_links: LinkMaterializedManifestLinks {
-            workspace_links: inputs.projects.workspace_packages
-                .as_deref()
-                .map(|packages| crate::WorkspaceLinks {
-                    packages,
-                    catalogs: &inputs.completion.catalogs,
-                }),
+            workspace_links: Some(crate::WorkspaceLinks {
+                packages: inputs.projects.workspace_packages.as_deref(),
+                workspace_dir: inputs.completion.config.workspace_dir
+                    .as_deref()
+                    .unwrap_or(&inputs.projects.workspace_root),
+                catalogs: &inputs.completion.catalogs,
+            }),
             included: inputs.projects.included,
             project_manifests: inputs.projects.importers.manifests,
         },

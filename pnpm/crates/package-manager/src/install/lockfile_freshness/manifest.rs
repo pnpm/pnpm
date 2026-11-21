@@ -205,15 +205,24 @@ fn retain_in_freshness_manifest(
     let Some(specifier) = specifier.as_str() else {
         return true;
     };
+    let Some(workspace_links) = workspace_links else {
+        return !specifier.starts_with("link:");
+    };
+    let Some(specifier) = workspace_links.resolve_specifier(
+        alias,
+        specifier,
+        pnpm_catalogs_resolver::CatalogAnchor::AsWritten,
+    ) else {
+        return true;
+    };
     if specifier.starts_with("link:") {
         return false;
     }
-    let Some(workspace_links) = workspace_links else {
-        return true;
-    };
     specifier.starts_with("workspace:")
         || importer.is_some_and(|snapshot| crate::snapshot_has_alias(snapshot, alias))
-        || crate::workspace_link_target(workspace_links, alias, specifier).is_none()
+        || workspace_links.packages
+            .and_then(|packages| crate::workspace_link_target(packages, alias, &specifier))
+            .is_none()
 }
 // Only overrides and excluded links require a clone; all other freshness checks borrow the manifest.
 pub(super) fn normalized_freshness_manifest<'a>(
@@ -242,8 +251,9 @@ pub(super) fn normalized_freshness_manifest<'a>(
         overrider.apply(&mut cloned, Some(project_dir));
     }
     if check.config.exclude_links_from_lockfile {
-        let workspace_links = check.workspace.packages.map(|packages| crate::WorkspaceLinks {
-            packages,
+        let workspace_links = Some(crate::WorkspaceLinks {
+            packages: check.workspace.packages,
+            workspace_dir: check.config.workspace_dir.as_deref().unwrap_or(check.lockfile_dir),
             catalogs: check.workspace.catalogs,
         });
         exclude_linked_dependencies(&mut cloned, workspace_links, Some(importer));

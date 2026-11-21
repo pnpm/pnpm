@@ -3,7 +3,6 @@ use super::{
     InstallScope,
     RunExecution,
 };
-use crate::ProjectMutation;
 use pnpm_package_manifest::PackageManifest;
 use std::path::PathBuf;
 
@@ -18,7 +17,7 @@ impl RunExecution<'_> {
         &self,
         scope: &InstallScope<'_>,
     ) -> bool {
-        self.install.execution.mutation != ProjectMutation::NoInstall
+        self.install.execution.mutation.uses_project_manifests()
             && scope.project_manifests
                 .iter()
                 .any(|(_, manifest)| manifest.validate_dependency_types().is_err())
@@ -28,7 +27,7 @@ impl RunExecution<'_> {
         &self,
         manifests: &[(PathBuf, &PackageManifest)],
     ) -> Result<(), InstallError> {
-        if self.install.execution.mutation == ProjectMutation::NoInstall {
+        if !self.install.execution.mutation.uses_project_manifests() {
             return Ok(());
         }
         for (_, manifest) in manifests {

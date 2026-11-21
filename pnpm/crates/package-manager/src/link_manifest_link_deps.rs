@@ -275,10 +275,21 @@ fn manifest_link_target(
     alias: &str,
     spec: &str,
 ) -> Option<PathBuf> {
-    if let Some(target) = spec.strip_prefix("link:") {
-        return Some(resolve_link_target(project_dir, target));
+    let resolved = match workspace_links {
+        Some(links) => links.resolve_specifier(
+            alias,
+            spec,
+            CatalogAnchor::Reanchor {
+                workspace_dir: links.workspace_dir,
+                consumer_dir: Some(project_dir),
+            },
+        )?,
+        None => Cow::Borrowed(spec),
+    };
+    if resolved.starts_with("link:") {
+        return Some(pnpm_resolving_local_resolver::local_spec_path(&resolved, project_dir));
     }
-    workspace_link_target(workspace_links?, alias, spec)
+    workspace_link_target(workspace_links?.packages?, alias, &resolved)
 }
 
 /// What a manifest dependency is matched against to find the workspace
@@ -286,19 +297,19 @@ fn manifest_link_target(
 /// lockfile.
 #[derive(Clone, Copy)]
 pub struct WorkspaceLinks<'a> {
-    pub packages: &'a WorkspacePackages,
+    pub packages: Option<&'a WorkspacePackages>,
+    pub workspace_dir: &'a Path,
     /// Dereferences a `catalog:` spec before matching, as resolution does.
     pub catalogs: &'a Catalogs,
 }
 
 pub(crate) fn workspace_link_target(
-    workspace_links: WorkspaceLinks<'_>,
+    packages: &WorkspacePackages,
     alias: &str,
     spec: &str,
 ) -> Option<PathBuf> {
-    let spec = dereference_catalog(workspace_links.catalogs, alias, spec)?;
     let parsed = pnpm_resolving_npm_resolver::parse_bare_specifier(
-        &spec,
+        spec,
         Some(alias),
         "latest",
         "https://registry.npmjs.org/",
@@ -306,7 +317,7 @@ pub(crate) fn workspace_link_target(
     if parsed.revision.is_some() {
         return None;
     }
-    let versions = workspace_links.packages.get(&parsed.name)?;
+    let versions = packages.get(&parsed.name)?;
     let version =
         pnpm_resolving_npm_resolver::pick_matching_local_version_or_null(versions, &parsed)?;
     versions
@@ -319,27 +330,31 @@ pub(crate) fn workspace_link_target(
         })
 }
 
-/// `None` for a `catalog:` spec whose catalog has no usable entry.
-#[cfg_attr(
-    dylint_lib = "perfectionist",
-    expect(
-        perfectionist::needless_borrowed_parameters,
-        reason = "the alias is copied only for a catalog: spec, and the caller borrows it"
-    )
-)]
-fn dereference_catalog<'spec>(
-    catalogs: &Catalogs,
-    alias: &str,
-    spec: &'spec str,
-) -> Option<Cow<'spec, str>> {
-    if !spec.starts_with("catalog:") {
-        return Some(Cow::Borrowed(spec));
-    }
-    let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
-    match resolve_from_catalog(catalogs, &wanted, CatalogAnchor::AsWritten) {
-        CatalogResolutionResult::Found(found) => Some(Cow::Owned(found.resolution.specifier)),
-        CatalogResolutionResult::Unused => Some(Cow::Borrowed(spec)),
-        CatalogResolutionResult::Misconfiguration(_) => None,
+impl WorkspaceLinks<'_> {
+    /// `None` for a `catalog:` spec whose catalog has no usable entry.
+    #[cfg_attr(
+        dylint_lib = "perfectionist",
+        expect(
+            perfectionist::needless_borrowed_parameters,
+            reason = "the alias is copied only for a catalog: spec, and the caller borrows it"
+        )
+    )]
+    pub(crate) fn resolve_specifier<'spec>(
+        self,
+        alias: &str,
+        spec: &'spec str,
+        anchor: CatalogAnchor<'_>,
+    ) -> Option<Cow<'spec, str>> {
+        if !spec.starts_with("catalog:") {
+            return Some(Cow::Borrowed(spec));
+        }
+        let wanted =
+            WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
+        match resolve_from_catalog(self.catalogs, &wanted, anchor) {
+            CatalogResolutionResult::Found(found) => Some(Cow::Owned(found.resolution.specifier)),
+            CatalogResolutionResult::Unused => Some(Cow::Borrowed(spec)),
+            CatalogResolutionResult::Misconfiguration(_) => None,
+        }
     }
 }
 
@@ -364,15 +379,6 @@ pub(crate) fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> boo
             deps.keys()
                 .any(|name| name.to_string() == alias)
         })
-}
-
-/// Resolve a `link:` payload against the project directory. An
-/// absolute payload is used as-is; a relative one (including the
-/// self-reference `link:.`) is anchored at the project dir, the same
-/// semantics pnpm applies to `link:` specifiers in a manifest.
-fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
-    let path = Path::new(target);
-    if path.is_absolute() { path.to_path_buf() } else { project_dir.join(path) }
 }
 
 /// Error type of the pass that links dependencies `excludeLinksFromLockfile` keeps out of the lockfile.

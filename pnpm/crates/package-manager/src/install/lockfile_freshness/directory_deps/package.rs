@@ -68,6 +68,11 @@ pub(super) fn check_single_directory_dep_freshness(
     if !visited.first_visit(pkg_key, &local_manifest, scope) {
         return Ok(());
     }
+    super::peers::check_unrecorded_peer_catalogs(
+        check,
+        (dep, scope),
+        (&local_manifest, snapshot, pkg_meta),
+    )?;
     if pkg_meta.specifiers.is_some() {
         return super::recorded::check_recorded_directory(
             check,

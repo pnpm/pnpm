@@ -35,6 +35,26 @@ fn all_dependencies() -> IncludedDependencies {
     IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
 }
 
+#[test]
+fn catalog_link_expands_the_home_directory() {
+    let workspace = tempdir().unwrap();
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        Catalog::from([("example".to_string(), "link:~/example".to_string())]),
+    )]);
+    let links =
+        WorkspaceLinks { packages: None, workspace_dir: workspace.path(), catalogs: &catalogs };
+    assert_eq!(
+        super::manifest_link_target(
+            &workspace.path().join("project"),
+            Some(links),
+            "example",
+            "catalog:",
+        ),
+        Some(home::home_dir().unwrap().join("example")),
+    );
+}
+
 /// `link:` specs from the in-memory manifests are materialized as
 /// symlinks under the project's `node_modules/`, absolute payloads
 /// as-is, relative payloads anchored at the project dir, and the
@@ -141,7 +161,11 @@ fn links_workspace_package_selected_by_plain_range() {
         &modules_dirs(dir.path(), "node_modules"),
         &[(project_dir.clone(), &manifest)],
         None,
-        Some(WorkspaceLinks { packages: &workspace_packages, catalogs: &catalogs }),
+        Some(WorkspaceLinks {
+            packages: Some(&workspace_packages),
+            workspace_dir: dir.path(),
+            catalogs: &catalogs,
+        }),
         all_dependencies(),
         &LinkBinsOptions::default(),
     )

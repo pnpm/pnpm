@@ -41,10 +41,10 @@ export async function resolveAndLinkProjects (
     ? clone(ctx.wantedLockfile)
     : null
 
-  const previousPackages = ctx.wantedLockfile.packages
+  const previous = { packages: ctx.wantedLockfile.packages, catalogs: ctx.wantedLockfile.catalogs }
   await prepareProjectsForResolution(projects, ctx, opts)
   const resolution = await resolveProjects(projects, ctx, opts)
-  resolution.newLockfile = await finalizeResolvedLockfile(resolution.newLockfile, { ctx, opts, previousPackages, projects })
+  resolution.newLockfile = await finalizeResolvedLockfile(resolution.newLockfile, { ctx, opts, previous, projects })
 
   const depsStateCache: DepsStateCache = {}
   const shouldWritePackageMap = opts.nodeExperimentalPackageMap && opts.enableModulesDir !== false && opts.nodeLinker === 'isolated' && !opts.virtualStoreOnly
@@ -83,14 +83,14 @@ export async function resolveAndLinkProjects (
 
 async function finalizeResolvedLockfile (
   newLockfile: LockfileObject,
-  { ctx, opts, previousPackages, projects }: {
+  { ctx, opts, previous, projects }: {
     ctx: PnpmContext
     opts: InstallInContextOptions
-    previousPackages: LockfileObject['packages']
+    previous: Pick<LockfileObject, 'packages' | 'catalogs'>
     projects: ImporterToUpdate[]
   }
 ): Promise<LockfileObject> {
-  const finalized = keepImportersOfProjectsMissingFromDisk(newLockfile, { projects, previousPackages })
+  const finalized = keepImportersOfProjectsMissingFromDisk(newLockfile, { projects, previous })
   if (!opts.trustLockfile && opts.blockExoticSubdeps) {
     const liveProjects = Object.values(ctx.projects)
     await verifyLockfileResolutions(finalized, [], {

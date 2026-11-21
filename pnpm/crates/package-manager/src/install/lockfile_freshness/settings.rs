@@ -53,6 +53,7 @@ pub(super) async fn check_settings(
         inputs.config,
         inputs.catalogs,
         CheckLockfileSettingsDriftOptions {
+            fetch_only: inputs.scope.fetch_only,
             parsed_overrides: parsed_overrides.as_deref(),
             pnpmfile_checksum: super::super::pnpmfile_checksum_check(
                 inputs,
@@ -125,6 +126,7 @@ fn parse_overrides(
 /// [`PnpmfileChecksumCheck::Skip`].
 #[derive(Clone, Copy)]
 pub(crate) struct CheckLockfileSettingsDriftOptions<'a> {
+    pub fetch_only: bool,
     pub parsed_overrides: Option<&'a [VersionOverride]>,
     pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
 }
@@ -135,17 +137,21 @@ pub(crate) fn check_lockfile_settings_drift(
     catalogs: &Catalogs,
     opts: CheckLockfileSettingsDriftOptions<'_>,
 ) -> Result<(), FreshnessCheckError> {
-    let CheckLockfileSettingsDriftOptions { parsed_overrides, pnpmfile_checksum } = opts;
-    let overrides_map: Option<std::collections::HashMap<String, String>> =
-        parsed_overrides.map(pnpm_config_parse_overrides::create_overrides_map_from_parsed);
-    let package_extensions_checksum =
-        crate::install_with_fresh_lockfile::compute_package_extensions_checksum(config);
-    // `calcPatchHashes(opts.patchedDependencies)`: reading the patch
-    // files here lets `check_lockfile_settings` catch an edited patch
-    // whose hash (and thus its `(patch_hash=...)` depPath suffix) drifted
-    // from what the lockfile recorded.
     let patched_dependency_hashes =
         config.patched_dependency_hashes().map_err(FreshnessCheckError::CalcPatchHashes)?;
+    if opts.fetch_only {
+        return pnpm_lockfile::check_fetch_settings(
+            lockfile,
+            patched_dependency_hashes.as_ref(),
+            config.lockfile_integrity_target,
+        )
+        .map_err(FreshnessCheckError::Stale);
+    }
+    let overrides_map: Option<std::collections::HashMap<String, String>> = opts
+        .parsed_overrides
+        .map(pnpm_config_parse_overrides::create_overrides_map_from_parsed);
+    let package_extensions_checksum =
+        crate::install_with_fresh_lockfile::compute_package_extensions_checksum(config);
     let resolution_settings = config
         .lockfile_records_resolution_settings()
         .then(|| crate::fast_update_settings::resolution_settings_from_config(config));
@@ -159,17 +165,29 @@ pub(crate) fn check_lockfile_settings_drift(
             ignored_optional_dependencies: config.ignored_optional_dependencies.as_deref(),
             patched_dependencies: patched_dependency_hashes.as_ref(),
             project_scoped_optional_peers: config.project_scoped_optional_peers_take_effect(),
-            resolution: pnpm_lockfile::ResolutionSettingsCheck {
-                auto_install_peers: config.auto_install_peers,
-                dedupe_peers: config.dedupe_peers,
-                exclude_links_from_lockfile: config.exclude_links_from_lockfile,
-                add_missing_peer_types: config.add_missing_peer_types,
-                inject_workspace_packages: config.inject_workspace_packages,
-                peers_suffix_max_length: config.peers_suffix_max_length,
-                pnpmfile_checksum,
-                resolution_settings: resolution_settings.as_ref(),
-            },
+            resolution: resolution_settings_check(
+                config,
+                opts.pnpmfile_checksum,
+                resolution_settings.as_ref(),
+            ),
         },
     )
     .map_err(FreshnessCheckError::Stale)
+}
+
+fn resolution_settings_check<'a>(
+    config: &Config,
+    pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
+    resolution_settings: Option<&'a pnpm_lockfile::ResolutionSettings>,
+) -> pnpm_lockfile::ResolutionSettingsCheck<'a> {
+    pnpm_lockfile::ResolutionSettingsCheck {
+        auto_install_peers: config.auto_install_peers,
+        dedupe_peers: config.dedupe_peers,
+        exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+        add_missing_peer_types: config.add_missing_peer_types,
+        inject_workspace_packages: config.inject_workspace_packages,
+        peers_suffix_max_length: config.peers_suffix_max_length,
+        pnpmfile_checksum,
+        resolution_settings,
+    }
 }

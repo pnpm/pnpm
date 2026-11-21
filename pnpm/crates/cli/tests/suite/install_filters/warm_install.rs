@@ -262,7 +262,9 @@ fn filtered_hoisted_no_optional_install_preserves_unselected_optional_dependenci
 fn filtered_install_succeeds_under_sparse_checkout_when_unselected_catalog_importer_is_missing_from_disk()
  {
     let fixture = WorkspaceFixture::new();
-    fixture.append_workspace_yaml(&format!("catalog:\n  '{CATALOG_FOO}': 1.0.0\n"));
+    fixture.append_workspace_yaml(&format!(
+        "catalog:\n  '{CATALOG_FOO}': 1.0.0\n  '{HELLO}': 1.0.0\n",
+    ));
     let selected = fixture.project(
         "selected",
         "selected",
@@ -273,9 +275,15 @@ fn filtered_install_succeeds_under_sparse_checkout_when_unselected_catalog_impor
         "missing",
         ManifestDeps { prod: &[(CATALOG_FOO, "catalog:")], ..Default::default() },
     );
+    let local = missing.join("local");
+    fs::create_dir(&local).unwrap();
+    fs::write(local.join("package.json"), serde_json::json!({"name": "local", "version": "1.0.0", "peerDependencies": {HELLO: "catalog:"}}).to_string()).unwrap();
+    set_dependency(&missing, "dependencies", "local", "file:./local");
+    set_dependency(&missing, "dependencies", HELLO, "1.0.0");
     fixture.run(["install", "--lockfile-only"]);
 
     fs::remove_dir_all(&missing).expect("simulate sparse checkout omitting packages/missing");
+    set_dependency(&selected, "dependencies", NO_DEPS, "1.0.0");
     fixture.run(["--filter", "selected", "install"]);
 
     assert!(has_link(&selected, HELLO), "selected project must be materialized");
@@ -285,13 +293,10 @@ fn filtered_install_succeeds_under_sparse_checkout_when_unselected_catalog_impor
         "1.0.0",
         "sparse-checkout missing project must remain preserved in wanted lockfile",
     );
-    assert!(
-        wanted.catalogs
-            .as_ref()
-            .and_then(|catalogs| catalogs.get("default"))
-            .is_some_and(|entries| entries.contains_key(CATALOG_FOO)),
-        "catalog entry referenced by sparse-checkout missing project must be preserved",
-    );
+    let catalog = &wanted.catalogs.expect("catalog snapshots")["default"];
+    for alias in [CATALOG_FOO, HELLO] {
+        assert_eq!(catalog[alias].specifier, "1.0.0", "catalog entry for {alias}");
+    }
 }
 
 #[test]

@@ -37,12 +37,20 @@ pub(crate) async fn try_fast_update_catalog_versions(
         return None;
     }
     let recorded = context.lockfile.catalogs.as_ref()?;
+    let peer_references =
+        crate::fast_update_catalogs::directory_peer_catalog_lookup(context.lockfile);
     let mut entries = Vec::new();
     let mut updated_catalogs = BTreeMap::new();
     for (catalog_name, recorded_entries) in recorded {
         let mut updated_entries = BTreeMap::new();
         for (alias, entry) in recorded_entries {
-            match catalog_version_update(context.lockfile, catalogs, catalog_name, alias, entry)? {
+            match catalog_version_update(
+                (context.lockfile, &peer_references),
+                catalogs,
+                catalog_name,
+                alias,
+                entry,
+            )? {
                 CatalogVersionUpdate::Unmoved(entry) => {
                     updated_entries.insert(alias.clone(), entry);
                 }
@@ -76,7 +84,7 @@ enum CatalogVersionUpdate {
 /// specifier is not an exact version, or something other than this catalog
 /// entry reaches the package.
 fn catalog_version_update(
-    lockfile: &Lockfile,
+    (lockfile, peer_references): (&Lockfile, &impl Fn(&str, &str) -> bool),
     catalogs: &Catalogs,
     catalog_name: &str,
     alias: &str,
@@ -85,6 +93,9 @@ fn catalog_version_update(
     let specifier = catalogs.get(catalog_name)?.get(alias)?;
     if specifier == &entry.specifier {
         return Some(CatalogVersionUpdate::Unmoved(entry.clone()));
+    }
+    if peer_references(catalog_name, alias) {
+        return None;
     }
     // Read after the unchanged case, which holds for an entry with no
     // version of its own, a `file:` / `link:` entry records its path

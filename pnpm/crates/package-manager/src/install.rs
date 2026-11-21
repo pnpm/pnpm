@@ -500,11 +500,18 @@ pub enum ProjectMutation {
     UninstallSome,
     /// A run that installs no project's manifest: the commands that
     /// only materialize what the lockfile already records
-    /// (`link`, `import`, `fetch`, `rebuild`).
+    /// (`link`, `import`, `rebuild`).
     NoInstall,
+    /// Populate the store from the lockfile without resolving project inputs.
+    Fetch,
 }
 
 impl ProjectMutation {
+    #[must_use]
+    pub(crate) fn uses_project_manifests(self) -> bool {
+        !matches!(self, Self::NoInstall | Self::Fetch)
+    }
+
     /// Whether this run is a full project install (pnpm's
     /// `mutation: 'install'`) rather than a partial one.
     #[must_use]

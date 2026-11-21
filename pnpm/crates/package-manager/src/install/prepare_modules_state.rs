@@ -168,8 +168,12 @@ fn prepare_modules_layout<Reporter: self::Reporter>(
         requested_importer_ids: inputs.lockfiles.importer_ids,
         manifest_links: purge::ManifestLinkProjects {
             manifests: inputs.projects.manifests,
-            workspace_links: inputs.projects.workspace_packages.map(|packages| {
-                crate::WorkspaceLinks { packages, catalogs: inputs.projects.catalogs }
+            workspace_links: Some(crate::WorkspaceLinks {
+                packages: inputs.projects.workspace_packages,
+                catalogs: inputs.projects.catalogs,
+                workspace_dir: inputs.tree.config.workspace_dir
+                    .as_deref()
+                    .unwrap_or(inputs.tree.workspace_root),
             }),
         },
     })?;

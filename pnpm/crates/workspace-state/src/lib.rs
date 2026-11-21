@@ -329,6 +329,9 @@ pub struct WorkspaceStateSettings {
     pub inject_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_workspace_packages: Option<serde_json::Value>,
+    /// The selected wanted lockfile format, recorded for a non-default format.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lockfile_format: Option<String>,
     /// Whether the lockfile records the resolution settings, which
     /// `lockfile.includeResolutionSettings` or `lockfile.format: v13` turns
     /// on. Recorded only while it does.

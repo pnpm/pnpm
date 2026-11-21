@@ -159,6 +159,7 @@ impl RunExecution<'_> {
             self.install.context.config,
             &self.workspace.catalogs,
             CheckLockfileSettingsDriftOptions {
+                fetch_only: self.install.execution.mutation == crate::ProjectMutation::Fetch,
                 parsed_overrides: parsed_overrides.as_deref(),
                 pnpmfile_checksum: if skip_checksum {
                     PnpmfileChecksumCheck::Skip

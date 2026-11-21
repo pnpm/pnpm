@@ -10,7 +10,7 @@ import type {
 } from '@pnpm/lockfile.types'
 import semver from 'semver'
 
-import { catalogReferencesHaveSnapshots, ownSpecifier } from './tryFastUpdateCatalogs.js'
+import { catalogReferencesHaveSnapshots, directoryPeerCatalogLookup, ownSpecifier } from './tryFastUpdateCatalogs.js'
 import {
   applyFastRewrite,
   type FastOverride,
@@ -78,12 +78,13 @@ function planCatalogMoves (
   lockfile: LockfileObject,
   opts: CatalogPlanOptions
 ): CatalogMovesPlan | null {
+  const inputs = { ...opts, peerReferences: directoryPeerCatalogLookup(lockfile) }
   const fastOverrides: FastOverride[] = []
   const catalogs: CatalogSnapshots = {}
   for (const [catalogName, catalog] of Object.entries(lockfileCatalogs)) {
     catalogs[catalogName] = {}
     for (const [alias, entry] of Object.entries(catalog)) {
-      const entryPlan = planCatalogEntry(lockfile, { catalogName, alias, entry }, opts)
+      const entryPlan = planCatalogEntry(lockfile, { catalogName, alias, entry }, inputs)
       if (entryPlan == null) return null
       catalogs[catalogName][alias] = entryPlan.entry
       if (entryPlan.move != null) fastOverrides.push(entryPlan.move)
@@ -95,11 +96,12 @@ function planCatalogMoves (
 function planCatalogEntry (
   lockfile: LockfileObject,
   { catalogName, alias, entry }: { catalogName: string, alias: string, entry: ResolvedCatalogEntry },
-  opts: CatalogPlanOptions
+  opts: CatalogPlanOptions & { peerReferences: (name: string, alias: string) => boolean }
 ): CatalogEntryPlan | null {
   const specifier = opts.catalogs[catalogName]?.[alias]
   if (specifier == null) return null
   if (specifier === entry.specifier) return { entry }
+  if (opts.peerReferences(catalogName, alias)) return null
   if (semver.valid(entry.version) == null) return null
   // A specifier the locked version still satisfies moves nothing but the
   // specifier, exactly as the range-only path would.

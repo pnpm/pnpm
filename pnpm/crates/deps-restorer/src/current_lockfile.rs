@@ -14,7 +14,10 @@
 //! those slots were already on disk and skip work that should
 //! actually run.
 
-pub use missing_projects::missing_project_importers;
+pub use missing_projects::{
+    directory_peer_catalog_references,
+    missing_project_importers,
+};
 pub use reachability::{
     GroupSelection,
     ReachableLockfileGraph,
@@ -154,6 +157,7 @@ pub fn merge_filtered_wanted_lockfile(
     let missing_project_importers = missing_projects::retain_importers(
         previous_wanted,
         real_importer_ids,
+        workspace_root,
         &mut freshly_resolved,
     );
     let can_reuse_unselected_importers = previous_wanted.is_some_and(|previous| {

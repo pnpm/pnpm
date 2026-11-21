@@ -373,7 +373,8 @@ pub(super) fn save_merged_wanted_lockfile(
         && save_lockfile
     {
         wanted_lockfile
-            .save_to_path(
+            .save_to_path_as(
+                config.lockfile_format,
                 &workspace_root.join(config.wanted_lockfile_name()),
                 config.symlinked_lockfile(),
             )
