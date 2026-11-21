@@ -25,11 +25,11 @@ export interface StageContext {
 }
 
 export async function createStageContext (opts: StageOptions, packageFilter?: string): Promise<StageContext> {
-  const manifest = await safeReadProjectManifestOnly(opts.dir)
+  const override = opts.cliOptions?.registry
+  const manifest = typeof override === 'string' ? undefined : await safeReadProjectManifestOnly(opts.dir)
   const localName = manifest ? publishedName(manifest) : undefined
   const packageName = packageFilter ?? localName
   const registries = getRegistries(opts)
-  const override = opts.cliOptions?.registry
   const publishRegistry = packageName === localName ? getPublishConfigRegistry(manifest?.publishConfig, packageName) : undefined
   const target = typeof override === 'string' ? override : publishRegistry ?? pickRegistryForPackage(registries, packageName ?? '')
   const registry = requireSupportedRegistryUrl(target).normalizedUrl

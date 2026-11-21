@@ -66,6 +66,8 @@ describe('stage command against the registry mock', () => {
       fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pkg', publishConfig: { registry: 'ftp://example.test/' } }))
       await expect(stage.handler(opts, ['view', STAGE_ID]))
         .rejects.toMatchObject({ code: 'ERR_PNPM_PUBLISH_UNSUPPORTED_REGISTRY_PROTOCOL' })
+      fs.writeFileSync(path.join(dir, 'package.json'), '{')
+      await stage.handler({ ...opts, cliOptions: { registry: registry.url } }, ['view', STAGE_ID])
     } finally {
       await registry.close()
     }

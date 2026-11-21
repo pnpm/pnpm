@@ -169,6 +169,7 @@ fn list_uses_package_scoped_auth_for_package_filters() {
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
     write_registry_config(dir.path(), &registry);
+    fs::write(dir.path().join("package.json"), "{").expect("write invalid manifest");
     let host = registry.strip_prefix("http://").unwrap_or(&registry);
     let auth_file = dir.path().join("auth-npmrc");
     fs::write(
@@ -190,7 +191,7 @@ fn list_uses_package_scoped_auth_for_package_filters() {
         .with_arg("--npmrc-auth-file")
         .with_arg(&auth_file)
         .with_arg("stage")
-        .with_args(["list", "@scope/example-package"])
+        .with_args(["list", "@scope/example-package", "--registry", &registry])
         .output()
         .expect("spawn pacquet stage");
 

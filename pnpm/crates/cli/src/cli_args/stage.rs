@@ -379,7 +379,11 @@ impl StageArgs {
         config: &Config,
         package_name: Option<&str>,
     ) -> miette::Result<StageContext> {
-        let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)?;
+        let manifest = if config.cli.registry.is_some() {
+            None
+        } else {
+            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)?
+        };
         let local_name = manifest
             .as_ref()
             .and_then(|manifest| {
