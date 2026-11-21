@@ -839,6 +839,7 @@ async fn fresh_lockfile_reports_overrides_that_matched_no_dependency() {
             ("@pnpm.e2e/missing-removal", "-"),
         ],
         None,
+        |_| {},
     )
     .await;
 
@@ -863,6 +864,38 @@ async fn fresh_lockfile_reports_overrides_that_matched_no_dependency() {
             )
         });
     assert!(unused_at < resolution_done_at, "unused overrides must precede resolution_done");
+}
+#[tokio::test]
+async fn fresh_lockfile_does_not_report_unused_overrides_when_the_warning_is_off() {
+    use pnpm_reporter::{
+        LogEvent,
+        Reporter,
+    };
+    use std::sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    };
+
+    static UNUSED_OVERRIDE_EVENTS: AtomicUsize = AtomicUsize::new(0);
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if matches!(event, LogEvent::UnusedOverride(_)) {
+                UNUSED_OVERRIDE_EVENTS.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+    }
+
+    fresh_lockfile_only_with_overrides_reporting::<RecordingReporter>(
+        &[("@pnpm.e2e/foo", "^100.0.0")],
+        &[("@pnpm.e2e/missing-pkg@^1.0.0", "1.0.0")],
+        None,
+        |config| config.warn_unused_overrides = false,
+    )
+    .await;
+
+    assert_eq!(UNUSED_OVERRIDE_EVENTS.load(Ordering::SeqCst), 0);
 }
 // The `afterAllResolved` hook receives the resolved
 // lockfile object and its return value is what gets written, so an arbitrary

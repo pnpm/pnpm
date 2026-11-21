@@ -453,6 +453,7 @@ async fn fresh_lockfile_only_with_overrides(
         dependencies,
         overrides,
         workspace_yaml,
+        |_| {},
     )
     .await
 }
@@ -461,6 +462,7 @@ async fn fresh_lockfile_only_with_overrides_reporting<ReporterT: Reporter + 'sta
     dependencies: &[(&str, &str)],
     overrides: &[(&str, &str)],
     workspace_yaml: Option<&str>,
+    configure: fn(&mut Config),
 ) -> (tempfile::TempDir, Lockfile) {
     let mock_instance = TestRegistry::start();
 
@@ -491,6 +493,7 @@ async fn fresh_lockfile_only_with_overrides_reporting<ReporterT: Reporter + 'sta
         }
         config.overrides = Some(map);
     }
+    configure(&mut config);
     let config = config.leak();
 
     Install {
