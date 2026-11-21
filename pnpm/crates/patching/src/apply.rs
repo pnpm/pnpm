@@ -122,12 +122,18 @@ pub(super) fn parse_file_patches<'a>(
     let has_git_headers = text
         .lines()
         .any(|line| line.starts_with("diff --git "));
-    let options = if has_git_headers { ParseOptions::gitdiff() } else { ParseOptions::unidiff() };
+    let (records, options) = if has_git_headers {
+        (vec![text], ParseOptions::gitdiff())
+    } else {
+        (tolerant::unidiff_records(text), ParseOptions::unidiff())
+    };
     let invalid = move |message: String| PatchApplyError::InvalidPatch {
         patch_file_path: patch_file_path.to_path_buf(),
         message,
     };
-    PatchSet::parse(text, options)
+    records
+        .into_iter()
+        .flat_map(move |record| PatchSet::parse(record, options.clone()))
         .map(move |file_patch_result| {
             let file_patch =
                 file_patch_result.map_err(|source| source.to_string()).map_err(invalid)?;

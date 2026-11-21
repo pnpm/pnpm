@@ -902,3 +902,31 @@ fn create_over_a_file_whose_bytes_differ_from_the_created_content_errors() {
     assert!(matches!(err, PatchApplyError::PatchFailed { .. }), "got: {err:?}");
     assert_eq!(fs::read(&target).unwrap(), b"\xff\n");
 }
+
+#[test]
+fn applies_adjacent_unified_diff_records_after_no_newline_markers() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("first.txt"), "old").unwrap();
+    fs::write(patched.path().join("second.txt"), "one\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = text_block_fnl! {
+        "--- a/first.txt"
+        "+++ b/first.txt"
+        "@@ -1 +1 @@"
+        "-old"
+        r"\ No newline at end of file"
+        "+new"
+        r"\ No newline at end of file"
+        "--- a/second.txt"
+        "+++ b/second.txt"
+        "@@ -1 +1,2 @@"
+        " one"
+        "+two"
+    };
+    let patch = write_patch(patch_dir.path(), patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(fs::read_to_string(patched.path().join("first.txt")).unwrap(), "new");
+    assert_eq!(fs::read_to_string(patched.path().join("second.txt")).unwrap(), "one\ntwo\n");
+}

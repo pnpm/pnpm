@@ -83,6 +83,38 @@ pub(super) fn mark_blank_crlf_context_lines(text: String) -> String {
     kept
 }
 
+/// Split a unified diff without `diff --git` lines into its file records,
+/// each starting at a `---` line that a `+++` line follows. The first record
+/// keeps any preamble.
+///
+/// [`diffy`] parses such records one after another, but rejects a `---`
+/// header that follows a deletion marked `\ No newline at end of file`,
+/// taking it for one more deleted line. pnpm 11's parser starts a new record
+/// at each `--- a/` line.
+pub(super) fn unidiff_records(text: &str) -> Vec<&str> {
+    let mut records = Vec::new();
+    let mut record_start = 0;
+    let mut seen_header = false;
+    let mut previous_line: Option<(usize, &str)> = None;
+    let mut offset = 0;
+    for line in text.split_inclusive('\n') {
+        if let Some((header_start, header)) = previous_line
+            && header.starts_with("--- ")
+            && line.starts_with("+++ ")
+        {
+            if seen_header {
+                records.push(&text[record_start..header_start]);
+                record_start = header_start;
+            }
+            seen_header = true;
+        }
+        previous_line = Some((offset, line));
+        offset += line.len();
+    }
+    records.push(&text[record_start..]);
+    records
+}
+
 /// The git extended headers whose value [`diffy`] matches exactly: the
 /// file modes, the rename and copy paths, and the `diff --git` line the
 /// path fallback reads. No hunk line can begin with one of these, so a
