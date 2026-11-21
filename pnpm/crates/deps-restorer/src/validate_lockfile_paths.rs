@@ -41,10 +41,8 @@ use pnpm_lockfile_verification::{
     verify_lockfile_local_resolutions,
 };
 use pnpm_network::ThrottledClient;
-use pnpm_package_extensions::{
-    DependencyManifestExtensions,
-    InvalidPackageExtensionSelector,
-};
+use pnpm_package_extensions::DependencyManifestExtensions;
+pub use pnpm_package_extensions::InvalidPackageExtensionSelector;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_store_dir::StoreIndex;
 use pristine_manifests::{
