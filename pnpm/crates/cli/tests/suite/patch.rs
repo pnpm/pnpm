@@ -947,4 +947,6 @@ mod application;
 
 mod commit;
 
+mod commit_lockfile;
+
 mod removal;
