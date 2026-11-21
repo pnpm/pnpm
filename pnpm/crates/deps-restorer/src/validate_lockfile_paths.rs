@@ -11,6 +11,8 @@
 //! valid. The check needs the install-time [`VirtualStoreLayout`], which
 //! is why it lives here rather than in the verifier crate.
 
+pub use pnpm_package_extensions::InvalidPackageExtensionSelector;
+
 use crate::VirtualStoreLayout;
 use derive_more::{
     Display,
@@ -42,7 +44,6 @@ use pnpm_lockfile_verification::{
 };
 use pnpm_network::ThrottledClient;
 use pnpm_package_extensions::DependencyManifestExtensions;
-pub use pnpm_package_extensions::InvalidPackageExtensionSelector;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_store_dir::StoreIndex;
 use pristine_manifests::{
