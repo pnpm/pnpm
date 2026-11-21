@@ -9,7 +9,7 @@ import { extractTarball } from './extractTarball.js'
 import { registryConfigFromEnv } from './npmConfig.js'
 import { isMusl, platformPackageName } from './platformPackageName.js'
 import { readProjectPin } from './projectPin.js'
-import { downloadTarball, fetchPackument, fetchSignatures, fetchVersionMeta, type RequestHeaders, useCertificateAuthorities, useProxyFromEnv } from './registry.js'
+import { DEFAULT_REGISTRY, downloadTarball, fetchPackument, fetchSignatures, fetchVersionMeta, normalizeRegistry, type RequestHeaders, useCertificateAuthorities, useProxyFromEnv } from './registry.js'
 import { majorVersion, resolveVersion } from './resolveVersion.js'
 import { findShadowingPnpm, pnpmHomeDir, renderShadowingPnpmWarning } from './shadowingPnpm.js'
 import { renderUndoHint } from './undoHint.js'
@@ -149,6 +149,8 @@ export async function installPnpm (
     headers?: RequestHeaders
     ca?: readonly string[]
     keys?: readonly SigningKey[]
+    /** Where npm's signatures are looked up when `registry` serves none. Defaults to npm's registry. */
+    npmRegistry?: string
   }
 ): Promise<number> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-install-'))
@@ -168,7 +170,7 @@ export async function installPnpm (
     process.once(signal, onSignal)
   }
   try {
-    const { version, binPath } = await downloadPnpm({ ...opts, dest: tmpDir })
+    const { version, binPath } = await downloadPnpmWithNpmRegistry({ ...opts, dest: tmpDir, npmRegistry: opts.npmRegistry ?? DEFAULT_REGISTRY })
     const modifyPath = opts.modifyPath ?? true
     const setupArgs = [...setupCommand(version), '--force']
     if (!modifyPath) {
@@ -254,11 +256,22 @@ export async function downloadPnpm (
     keys?: readonly SigningKey[]
   }
 ): Promise<{ version: string, binPath: string }> {
+  return downloadPnpmWithNpmRegistry({ ...opts, npmRegistry: DEFAULT_REGISTRY })
+}
+
+/**
+ * {@link downloadPnpm} with `npmRegistry` as the place npm's signatures are
+ * looked up when `registry` serves none. The package does not export it;
+ * tests use it to keep that lookup off the network.
+ */
+export async function downloadPnpmWithNpmRegistry (
+  opts: Parameters<typeof downloadPnpm>[0] & { npmRegistry: string }
+): Promise<{ version: string, binPath: string }> {
   const restoreProxy = useProxyFromEnv()
   try {
     const restoreCertificates = useCertificateAuthorities(opts.ca)
     try {
-      return await fetchPnpm(opts)
+      return await fetchPnpm({ ...opts, registry: normalizeRegistry(opts.registry) })
     } finally {
       restoreCertificates()
     }
@@ -275,6 +288,7 @@ async function fetchPnpm (
     authPath?: string
     headers?: RequestHeaders
     keys?: readonly SigningKey[]
+    npmRegistry: string
   }
 ): Promise<{ version: string, binPath: string }> {
   const packument = await fetchPackument(opts.registry, CLI_PKG_NAME, opts.headers, opts.authPath)
@@ -299,6 +313,7 @@ async function fetchPnpm (
       authPath: opts.authPath,
       headers: opts.headers,
       keys: opts.keys,
+      npmRegistry: opts.npmRegistry,
     })
 
     const { platformPkg, wrapperPkg } = await fetchPackages(fetchPackage, platformPkgName, major)
@@ -369,6 +384,7 @@ function verifiedPackageFetcher (
     authPath?: string
     headers?: RequestHeaders
     keys?: readonly SigningKey[]
+    npmRegistry: string
   }
 ): (pkgName: string) => Promise<{ dir: string }> {
   return async function fetchPackage (pkgName: string): Promise<{ dir: string }> {
@@ -386,6 +402,7 @@ function verifiedPackageFetcher (
         version: opts.version,
         headers: opts.headers,
         headersPath: opts.authPath,
+        npmRegistry: opts.npmRegistry,
       }),
       keys: opts.keys,
     })

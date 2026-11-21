@@ -5,6 +5,7 @@ import type { SigningKey } from './verifySignature.js'
 export interface CorepackDownloadOptions {
   registry: string
   headers?: RequestHeaders
+  authPath?: string
   ca?: string[]
   proxy: ProxyEnv
   keys?: SigningKey[]
@@ -49,7 +50,7 @@ export function corepackDownloadOptions (
 
 function registryAccess (
   opts: { cwd?: string, env: NodeJS.ProcessEnv, homeDir?: string, readProjectNpmrc: boolean }
-): Pick<CorepackDownloadOptions, 'registry' | 'headers' | 'ca'> {
+): Pick<CorepackDownloadOptions, 'registry' | 'headers' | 'authPath' | 'ca'> {
   const corepackRegistry = opts.env.COREPACK_NPM_REGISTRY
   if (corepackRegistry) {
     return withHeaders({ registry: corepackRegistry }, corepackHeaders(opts.env))

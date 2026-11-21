@@ -34,6 +34,7 @@ describe('pnpmRegistryConfig', () => {
     assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { TOKEN: 'user-token' } }), {
       registry: 'https://registry.example.test/npm/',
       headers: { authorization: 'Bearer user-token' },
+      authPath: '/npm/',
     })
   })
 
@@ -84,6 +85,149 @@ describe('pnpmRegistryConfig', () => {
     const config = pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: {} })
 
     assert.deepEqual(config.headers, { authorization: 'Bearer npm-token' })
+    assert.equal(config.authPath, '/npm/')
+  })
+
+  test('expands a ${NAME?} placeholder to the variable, or to nothing when it is unset', () => {
+    const { cwd, home } = layout({
+      user: ['registry=https://registry.example.test/org-a/npm/', '//registry.example.test/org-a/npm/:_authToken=${TOKEN?}'],
+    })
+
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { TOKEN: 'user-token' } }), {
+      registry: 'https://registry.example.test/org-a/npm/',
+      headers: { authorization: 'Bearer user-token' },
+      authPath: '/org-a/npm/',
+    })
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: {} }), {
+      registry: 'https://registry.example.test/org-a/npm/',
+    })
+  })
+
+  test('reads the registry and credentials of the global auth.ini over the user .npmrc', () => {
+    const { cwd, home } = layout({
+      user: ['registry=https://user.example.test/', '//auth-ini.example.test/:_authToken=user-token'],
+    })
+    const configHome = writeGlobalConfigFile(home, 'auth.ini', [
+      'registry=https://auth-ini.example.test/',
+      '//auth-ini.example.test/:_authToken=${TOKEN}',
+    ].join('\n'))
+
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { XDG_CONFIG_HOME: configHome, TOKEN: 'auth-ini-token' } }), {
+      registry: 'https://auth-ini.example.test/',
+      headers: { authorization: 'Bearer auth-ini-token' },
+      authPath: '/',
+    })
+  })
+
+  test('reads a key that pnpm login quoted because it holds =', () => {
+    const { cwd, home } = layout()
+    const configHome = writeGlobalConfigFile(home, 'auth.ini', [
+      'registry=https://registry.example.test/team=one/npm/',
+      '"//registry.example.test/team=one/npm/:_authToken"="login-token"',
+    ].join('\n'))
+
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { XDG_CONFIG_HOME: configHome } }), {
+      registry: 'https://registry.example.test/team=one/npm/',
+      headers: { authorization: 'Bearer login-token' },
+      authPath: '/team=one/npm/',
+    })
+  })
+
+  test('reads the project .npmrc over the global auth.ini', () => {
+    const { cwd, home, project } = layout({ project: ['registry=https://project.example.test/'] })
+    fs.writeFileSync(path.join(project, 'pnpm-workspace.yaml'), '')
+    const configHome = writeGlobalConfigFile(home, 'auth.ini', 'registry=https://auth-ini.example.test/\n')
+
+    const config = pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { XDG_CONFIG_HOME: configHome } })
+
+    assert.equal(config.registry, 'https://project.example.test/')
+  })
+
+  test('reads the credentials of _auth in the global config.yaml over those of the .npmrc files', () => {
+    const { cwd, home } = layout({
+      user: ['registry=https://registry.example.test/npm/', '//registry.example.test/npm/:_authToken=user-token'],
+    })
+    const configHome = writeGlobalConfig(home, [
+      '_auth:',
+      '  "https://registry.example.test/npm":',
+      '    "@":',
+      '      authToken: ${TOKEN}',
+    ].join('\n'))
+
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { XDG_CONFIG_HOME: configHome, TOKEN: 'yaml-token' } }), {
+      registry: 'https://registry.example.test/npm/',
+      headers: { authorization: 'Bearer yaml-token' },
+      authPath: '/npm/',
+    })
+  })
+
+  test('keeps a placeholder literal behind an odd number of backslashes', () => {
+    const { cwd, home } = layout()
+    const configHome = writeGlobalConfig(home, [
+      '_auth:',
+      '  "https://registry.example.test/":',
+      '    "@":',
+      '      authToken: \'\\${TOKEN}\'',
+    ].join('\n'))
+
+    const config = pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { XDG_CONFIG_HOME: configHome, TOKEN: 'secret' } })
+
+    assert.deepEqual(config.headers, { authorization: 'Bearer ${TOKEN}' })
+  })
+
+  test('skips an _auth entry with a field pnpm does not accept', () => {
+    const { cwd, home } = layout({
+      user: ['registry=https://registry.example.test/', '//registry.example.test/:_authToken=user-token'],
+    })
+    const configHome = writeGlobalConfig(home, [
+      '_auth:',
+      '  "https://registry.example.test/":',
+      '    "@pnpm":',
+      '      authToken: yaml-token',
+      '      username: legacy',
+    ].join('\n'))
+
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: { XDG_CONFIG_HOME: configHome } }), {
+      registry: 'https://registry.example.test/',
+      headers: { authorization: 'Bearer user-token' },
+      authPath: '/',
+    })
+  })
+
+  test('routes to the registries of _auth in the global config.yaml only where no .npmrc declares one', () => {
+    const { cwd, home } = layout()
+    const configHome = writeGlobalConfig(home, [
+      '_auth:',
+      '  "https://default.example.test/":',
+      '    "@":',
+      '      authToken: default-token',
+      '  "https://scope.example.test/pnpm/":',
+      '    "@pnpm":',
+      '      authToken: scope-token',
+    ].join('\n'))
+    const env = { XDG_CONFIG_HOME: configHome }
+
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env }), {
+      registry: 'https://scope.example.test/pnpm/',
+      headers: { authorization: 'Bearer scope-token' },
+      authPath: '/pnpm/',
+    })
+
+    fs.writeFileSync(path.join(home, '.npmrc'), '@pnpm:registry=https://user.example.test/\n')
+    assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env }), {
+      registry: 'https://user.example.test/',
+    })
+
+    fs.writeFileSync(path.join(configHome, 'pnpm', 'config.yaml'), [
+      '_auth:',
+      '  "https://default.example.test/":',
+      '    "@":',
+      '      authToken: default-token',
+    ].join('\n'))
+    fs.writeFileSync(path.join(home, '.npmrc'), '')
+    assert.equal(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env }).registry, 'https://default.example.test/')
+    fs.writeFileSync(path.join(home, '.npmrc'), 'registry=https://user.example.test/\n')
+    assert.equal(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env }).registry, 'https://user.example.test/')
   })
 
   test('turns _auth and username with _password into Basic credentials', () => {
@@ -131,6 +275,7 @@ describe('pnpmRegistryConfig', () => {
     assert.deepEqual(pnpmRegistryConfig({ readProjectNpmrc: true, cwd, homeDir: home, env: {} }), {
       registry: 'https://project.example.test/',
       headers: { authorization: 'Bearer project-token' },
+      authPath: '/',
     })
   })
 
@@ -317,7 +462,7 @@ describe('pnpmProxyConfig', () => {
   test('reads a global config.yaml of only blank lines and comments as no settings', () => {
     const { home } = layout()
 
-    for (const content of ['', '\n\n', '# no settings yet\n']) {
+    for (const content of ['', '\n\n', '# no settings yet\n', '# no settings yet\n...\n']) {
       const configHome = writeGlobalConfig(home, content)
       assert.deepEqual(pnpmProxyConfig({ homeDir: home, env: { XDG_CONFIG_HOME: configHome, HTTPS_PROXY: 'http://env.test/' } }), {
         HTTPS_PROXY: 'http://env.test/',
@@ -383,9 +528,14 @@ function layout (npmrcs: { user?: string[], project?: string[] } = {}): { root: 
 
 /** Writes the global config.yaml under `home`, returning the XDG_CONFIG_HOME that finds it. */
 function writeGlobalConfig (home: string, content: string): string {
+  return writeGlobalConfigFile(home, 'config.yaml', content)
+}
+
+/** Writes `name` into pnpm's global config directory under `home`, returning the XDG_CONFIG_HOME that finds it. */
+function writeGlobalConfigFile (home: string, name: string, content: string): string {
   const configHome = path.join(home, 'config')
   fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
-  fs.writeFileSync(path.join(configHome, 'pnpm', 'config.yaml'), content)
+  fs.writeFileSync(path.join(configHome, 'pnpm', name), content)
   return configHome
 }
 

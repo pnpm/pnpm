@@ -104,7 +104,10 @@ are read from there instead, and still have to cover the checksum the download
 is checked against.
 
 A registry that serves no version documents at all (Azure Artifacts answers 404
-for them) is handled too: the version is read from the package document.
+for them) is handled too: the version is read from the package document. When
+that registry carries no npm signatures anywhere, npm's are fetched from
+registry.npmjs.org, without the registry's credentials. They still have to cover
+the checksum the download is checked against.
 
 The download goes to the registry npm is configured with (`npm_config_registry`), not to GitHub — including the tarball itself, so a registry that proxies npm and hands back an npmjs.org URL does not send the download off the mirror.
 
@@ -180,11 +183,14 @@ await downloadPnpmExecutable({
 
 A program that Corepack runs, as the `pnpm` package's launcher is, takes all
 of its options from `corepackDownloadOptions`. It reads the registry,
-credentials, and CA certificates from `.npmrc` the way pnpm reads them for its
-own packages, then applies Corepack's settings: `COREPACK_NPM_REGISTRY` and its
-credentials, and `COREPACK_INTEGRITY_KEYS`. It reads the project `.npmrc` only
-while the signature is checked, and throws when `COREPACK_ENABLE_NETWORK` is
-`0`. The proxy comes from pnpm's config, as pnpm reads it to download itself:
+credentials, and CA certificates from `.npmrc`, the global `auth.ini`, and the
+`_auth` setting of the global `config.yaml`, the way pnpm reads them for its
+own packages. Credentials configured for a registry path, such as
+`//registry.example.com/org-a/npm/:_authToken`, are sent only to that path, and
+`authPath` passes the path on to `downloadPnpmExecutable`. It then applies
+Corepack's settings: `COREPACK_NPM_REGISTRY` and its credentials, and
+`COREPACK_INTEGRITY_KEYS`. It reads the project `.npmrc` only while the
+signature is checked, and throws when `COREPACK_ENABLE_NETWORK` is `0`. The proxy comes from pnpm's config, as pnpm reads it to download itself:
 `PNPM_CONFIG_HTTPS_PROXY` and its siblings, the global `config.yaml`, and the
 user `.npmrc`, then `HTTPS_PROXY`, `HTTP_PROXY`, and `NO_PROXY`.
 

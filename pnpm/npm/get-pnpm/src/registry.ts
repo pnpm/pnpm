@@ -245,11 +245,15 @@ export async function fetchSignatures (
  * npm's signatures for `pkgName@version`, or `undefined` when npm cannot be
  * reached (from an air-gapped network, say), so the caller reports the
  * package as unsigned rather than the failed request. No credentials are sent:
- * they belong to the registry the package is downloaded from.
+ * they belong to the registry the package is downloaded from. Only a failure
+ * npm answered, such as a 503, is retried: a network that drops requests to
+ * npm waits out one timeout, not three.
  */
 async function fetchNpmSignatures (npmRegistry: string, pkgName: string, version: string): Promise<PackageSignature[] | undefined> {
   try {
-    const meta = await fetchJson<VersionMeta>(new URL(`${pkgName}/${version}`, npmRegistry), 'application/json')
+    const meta = await fetchJson<VersionMeta>(new URL(`${pkgName}/${version}`, npmRegistry), 'application/json', {
+      shouldRetry: (err) => err.status != null,
+    })
     return meta.dist?.signatures
   } catch (err) {
     if (err instanceof RequestFailure) return undefined
@@ -375,15 +379,21 @@ function checksum (meta: VersionMeta): [algorithm: string, expected: string] {
   return [entry.slice(0, separator), entry.slice(separator + 1)]
 }
 
-async function fetchJson<Result> (url: URL, accept: string, opts: ScopedHeadersOptions = {}): Promise<Result> {
-  return withRetries(async () => {
-    const response = await request(url, accept, METADATA_TIMEOUT_MS, opts)
-    const chunks: Uint8Array[] = []
-    for await (const chunk of readBody(response, url, METADATA_TIMEOUT_MS)) chunks.push(chunk)
-    // Malformed JSON is what the server sent, and would be sent again, so a
-    // parse failure is not retried.
-    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as Result
-  })
+async function fetchJson<Result> (
+  url: URL,
+  accept: string,
+  opts: ScopedHeadersOptions & { shouldRetry?: (err: RequestFailure) => boolean } = {}
+): Promise<Result> {
+  return withRetries(async () => fetchJsonOnce<Result>(url, accept, opts), opts.shouldRetry)
+}
+
+async function fetchJsonOnce<Result> (url: URL, accept: string, opts: ScopedHeadersOptions = {}): Promise<Result> {
+  const response = await request(url, accept, METADATA_TIMEOUT_MS, opts)
+  const chunks: Uint8Array[] = []
+  for await (const chunk of readBody(response, url, METADATA_TIMEOUT_MS)) chunks.push(chunk)
+  // Malformed JSON is what the server sent, and would be sent again, so a
+  // parse failure is not retried.
+  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as Result
 }
 
 /** A request failure, marked so `withRetries` knows whether retrying it can help. */
@@ -399,13 +409,17 @@ class RequestFailure extends Error {
   }
 }
 
-async function withRetries<Result> (attempt: () => Promise<Result>): Promise<Result> {
+/** Retries an attempt that failed with a retryable {@link RequestFailure} that `shouldRetry` accepts. */
+async function withRetries<Result> (
+  attempt: () => Promise<Result>,
+  shouldRetry: (err: RequestFailure) => boolean = () => true
+): Promise<Result> {
   for (let attemptNo = 1; ; attemptNo++) {
     try {
       // eslint-disable-next-line no-await-in-loop -- each attempt waits for the previous one to fail
       return await attempt()
     } catch (err) {
-      if (attemptNo >= MAX_ATTEMPTS || !(err instanceof RequestFailure) || !err.retryable) throw err
+      if (attemptNo >= MAX_ATTEMPTS || !(err instanceof RequestFailure) || !err.retryable || !shouldRetry(err)) throw err
       // eslint-disable-next-line no-await-in-loop -- the delay is what spaces the attempts out
       await delay(RETRY_DELAY_MS * attemptNo)
     }
