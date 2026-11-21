@@ -111,7 +111,9 @@ export function getOptionsFromPnpmSettings (
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
   translateVirtualStoreType(pnpmSettings, settings)
-  normalizeTasks(settings)
+  if (settings.tasks != null) {
+    assertValidTasks(settings.tasks)
+  }
 
   return settings
 }
@@ -185,19 +187,19 @@ function misspelledTaskSettingField (field: string): string | undefined {
 // misspelled `dependsOn` is the costly one: the entry still exists, so the task
 // takes the empty dependency list an entry without `dependsOn` declares, and
 // runs before what it meant to wait for.
-function normalizeTasks (settings: OptionsFromRootManifest): void {
-  if (settings.tasks == null) return
-  assertObjectSetting(settings.tasks, 'tasks')
-  const tasks: Record<string, unknown> = { ...settings.tasks }
-  for (const [taskName, rawTask] of Object.entries(tasks)) {
-    const task = rawTask ?? {}
+function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSettings['tasks']> {
+  assertObjectSetting(tasks, 'tasks')
+  for (const [taskName, task] of Object.entries(tasks as Record<string, unknown>)) {
     assertValidTask(`tasks['${taskName}']`, task)
-    tasks[taskName] = task
   }
-  settings.tasks = tasks as NonNullable<PnpmSettings['tasks']>
 }
 
 function assertValidTask (taskPath: string, task: unknown): void {
+  if (task == null) {
+    throw new PnpmError('INVALID_SETTING', `The "${taskPath}" setting has no value.`, {
+      hint: 'Write {} for a task with no settings, or remove the entry to keep the default dependsOn: [\'^<task>\'].',
+    })
+  }
   assertObjectSetting(task, taskPath)
   assertNoMisspelledTaskFields(taskPath, task as Record<string, unknown>)
   const concurrency = (task as { concurrency?: unknown }).concurrency

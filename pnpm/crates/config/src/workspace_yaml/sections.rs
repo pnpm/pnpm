@@ -455,7 +455,9 @@ struct RawTaskSettings {
 
 impl<'de> Deserialize<'de> for TaskSettings {
     fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
-        let raw = Option::<RawTaskSettings>::deserialize(deserializer)?.unwrap_or_default();
+        use serde::de::Error as _;
+        let raw = Option::<RawTaskSettings>::deserialize(deserializer)?
+            .ok_or_else(|| De::Error::custom(EMPTY_TASK_ENTRY_ERROR))?;
         let concurrency = raw.concurrency.as_ref().and_then(serde_json::Value::as_i64);
         let invalid_concurrency = raw.concurrency.filter(|value| value.as_i64().is_none());
         let priority = raw.priority.as_ref().and_then(json_i32);
@@ -476,6 +478,10 @@ impl<'de> Deserialize<'de> for TaskSettings {
         })
     }
 }
+
+const EMPTY_TASK_ENTRY_ERROR: &str = "a `tasks` entry must be a mapping. \
+    Write `{}` for a task with no settings, or remove the entry to keep the default \
+    `dependsOn: ['^<task>']`";
 
 fn json_i32(value: &serde_json::Value) -> Option<i32> {
     value
