@@ -54,7 +54,7 @@ impl NpmResolutionVerifier {
             TimeProjection::Omit
         };
         let mut key = package_key(registry, &name.to_string());
-        if matches!(time_projection, TimeProjection::Omit) {
+        if !time_projection.include_time() {
             key.push_str("\0without-time");
         }
         let cell = {
@@ -84,14 +84,13 @@ impl NpmResolutionVerifier {
         {
             return Ok(project_abbreviated_meta(
                 &shared.meta,
-                matches!(time_projection, TimeProjection::Include)
-                    || matches!(shared.kind, SharedMetaKind::Full),
+                time_projection.include_time() || shared.kind.has_exact_times(),
             ));
         }
         self.fetch_abbreviated_meta_uncached(
             registry,
             &name.to_string(),
-            matches!(time_projection, TimeProjection::Include),
+            time_projection.include_time(),
         )
         .await
     }
@@ -413,4 +412,22 @@ enum TimeProjection {
 enum SharedMetaKind {
     Full,
     Abbreviated,
+}
+
+impl TimeProjection {
+    fn include_time(self) -> bool {
+        match self {
+            Self::Include => true,
+            Self::Omit => false,
+        }
+    }
+}
+
+impl SharedMetaKind {
+    fn has_exact_times(&self) -> bool {
+        match self {
+            Self::Full => true,
+            Self::Abbreviated => false,
+        }
+    }
 }
