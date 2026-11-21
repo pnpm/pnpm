@@ -134,7 +134,7 @@ fn installed_package_key(state: &State, parts: &[String]) -> miette::Result<Pack
         peer_edges: PeerEdgeOptions::default(),
         bound_peer_edges: BoundPeerEdges::Follow,
     };
-    let graph = build_dependency_graph(&[node.clone()], &options);
+    let graph = build_dependency_graph(vec![node.clone()], &options);
     for part in parts {
         node = graph.nodes
             .get(&node)
