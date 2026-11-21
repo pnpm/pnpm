@@ -2,11 +2,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { parseYAML } from 'confbox/yaml'
-
 import { certificateAuthorities, type ConfigSource, stripQuotes } from './npmConfig.js'
 import { findUp } from './projectPin.js'
 import { DEFAULT_REGISTRY, isUrlSecureForCredentials, normalizeRegistry, type ProxyEnv, type RequestHeaders } from './registry.js'
+import { parseYamlDocument } from './yaml.js'
 
 export interface PnpmRegistryConfigOptions {
   /**
@@ -19,12 +18,15 @@ export interface PnpmRegistryConfigOptions {
   cwd?: string
   env?: NodeJS.ProcessEnv
   homeDir?: string
+  platform?: NodeJS.Platform
 }
 
 export interface PnpmRegistryConfig {
   registry: string
   /** Credentials for `registry`, sent only over HTTPS or to the local machine. */
   headers?: RequestHeaders
+  /** The path the credentials are scoped to, such as `/org-a/npm/`. */
+  authPath?: string
   /** PEM certificates of the CAs the `.npmrc` names for `registry`. */
   ca?: string[]
 }
@@ -33,35 +35,57 @@ export interface PnpmRegistryConfig {
  * The registry to download pnpm from, with the credentials and CA certificates
  * for it, read the way pnpm reads them for an `@pnpm` package.
  *
- * - Sources, highest first: the project `.npmrc` (the workspace root's, or else
- *   the one in `cwd`), then the user `.npmrc`. Only top-level settings count.
+ * - Sources, highest first: the `_auth` of the global `config.yaml`, the
+ *   project `.npmrc` (the workspace root's, or else the one in `cwd`), the
+ *   global `auth.ini`, then the user `.npmrc`. Only top-level settings count.
  * - The registry is `@pnpm:registry`, then `registry` from the environment,
- *   then `registry`.
- * - `${VAR}` placeholders are expanded in the user `.npmrc` only. A project
- *   `.npmrc` entry that has one is dropped, as pnpm drops it: a repository
- *   must not route the user's environment to a registry.
+ *   then `registry`. The routes `_auth` implies (its `@pnpm` and `@` scopes)
+ *   apply only where no `.npmrc` or `auth.ini` declares that registry.
+ * - `${VAR}` placeholders are expanded in every source but the project
+ *   `.npmrc`. A project `.npmrc` entry that has one is dropped, as pnpm drops
+ *   it: a repository must not route the user's environment to a registry.
  * - Credentials are those of the `@pnpm` scope, then the registry-wide ones,
  *   for the longest `//host[:port]/path/` prefix of the registry, then the
- *   same without the port.
+ *   same without the port. They are scoped to that prefix's path.
+ *
+ * @throws if the global `config.yaml` cannot be read or parsed, as pnpm does.
  */
 export function pnpmRegistryConfig (opts: PnpmRegistryConfigOptions): PnpmRegistryConfig {
   const env = opts.env ?? process.env
-  const cwd = opts.cwd ?? process.cwd()
-  const sources = [
-    ...(opts.readProjectNpmrc ? [readNpmrc(path.join(projectDir(cwd), '.npmrc'), projectEntry)] : []),
-    readNpmrc(userNpmrcPath(env, opts.homeDir), (key, value) => [expandEnv(key, env), expandEnv(value, env)]),
-  ]
-  const settings = new Map([...sources].reverse().flatMap(({ entries }) => entries))
-  const registry = normalizeRegistry(
-    settings.get('@pnpm:registry') || settingFromEnv(env, 'registry') || settings.get('registry') || DEFAULT_REGISTRY
-  )
-  const headers = npmrcHeaders(settings, registry)
+  const configDir = pnpmConfigDir(opts, env)
+  const npmrcs = readNpmrcs(opts, env, configDir)
+  const jsonAuth = readJsonAuth(readGlobalConfig(configDir)._auth, env)
+  const sources = [{ dir: configDir, entries: jsonAuth.entries }, ...npmrcs]
+  const registry = pnpmRegistry(mergedSettings(npmrcs), jsonAuth.routes, env)
   const ca = certificateAuthorities(registry, sources)
   return {
     registry,
-    ...(headers == null ? {} : { headers }),
+    ...npmrcAuth(mergedSettings(sources), registry),
     ...(ca.length === 0 ? {} : { ca }),
   }
+}
+
+/** The `.npmrc`-shaped sources, highest first. */
+function readNpmrcs (opts: PnpmRegistryConfigOptions, env: NodeJS.ProcessEnv, configDir: string): ConfigSource[] {
+  const expandEntry: ParseEntry = (key, value) => [expandEnv(key, env), expandEnv(value, env)]
+  return [
+    ...(opts.readProjectNpmrc ? [readNpmrc(path.join(projectDir(opts.cwd ?? process.cwd()), '.npmrc'), projectEntry)] : []),
+    readNpmrc(path.join(configDir, 'auth.ini'), expandEntry),
+    readNpmrc(userNpmrcPath(env, opts.homeDir), expandEntry),
+  ]
+}
+
+/** The settings of `sources`, highest first, each taken from the highest source that has it. */
+function mergedSettings (sources: ConfigSource[]): Map<string, string> {
+  return new Map([...sources].reverse().flatMap(({ entries }) => entries))
+}
+
+/** A route of `_auth` applies only where no `.npmrc` declares that registry. */
+function pnpmRegistry (npmrc: Map<string, string>, routes: Map<string, string>, env: NodeJS.ProcessEnv): string {
+  const route = (key: string, scope: string): string | undefined => npmrc.has(key) ? npmrc.get(key) : routes.get(scope)
+  return normalizeRegistry(
+    route('@pnpm:registry', '@pnpm') || settingFromEnv(env, 'registry') || route('registry', '@') || DEFAULT_REGISTRY
+  )
 }
 
 export interface PnpmProxyConfigOptions {
@@ -155,20 +179,7 @@ function envValue (env: NodeJS.ProcessEnv, key: string): string | undefined {
 }
 
 function readGlobalConfigProxySettings (opts: PnpmProxyConfigOptions, env: NodeJS.ProcessEnv): ProxySettings {
-  const file = path.join(pnpmConfigDir(opts, env), 'config.yaml')
-  let settings: unknown
-  try {
-    const content = fs.readFileSync(file, 'utf8')
-    settings = holdsYamlDocument(content) ? parseYAML(content) : null
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
-    throw new Error(`Could not read ${file}: ${(err as Error).message}`, { cause: err })
-  }
-  if (settings == null) return {}
-  if (typeof settings !== 'object' || Array.isArray(settings)) {
-    throw new Error(`${file} does not hold a map of settings.`)
-  }
-  const { httpsProxy, httpProxy, noProxy, noproxy, proxy } = settings as ProxySettings
+  const { httpsProxy, httpProxy, noProxy, noproxy, proxy } = readGlobalConfig(pnpmConfigDir(opts, env)) as ProxySettings
   return {
     httpsProxy: expandEnvIn(httpsProxy, env),
     httpProxy: expandEnvIn(httpProxy, env),
@@ -178,9 +189,80 @@ function readGlobalConfigProxySettings (opts: PnpmProxyConfigOptions, env: NodeJ
   }
 }
 
-/** Whether `content` holds more than blank lines and comments, which `parseYAML` rejects as no document. */
-function holdsYamlDocument (content: string): boolean {
-  return content.split(/\r\n?|\n/).some((line) => line.trim() !== '' && !line.trimStart().startsWith('#'))
+/**
+ * The settings of the global `config.yaml` in `configDir`, none when there is
+ * no such file.
+ *
+ * @throws if the file cannot be read or parsed, or holds no map, as pnpm does.
+ */
+function readGlobalConfig (configDir: string): Record<string, unknown> {
+  const file = path.join(configDir, 'config.yaml')
+  let settings: unknown
+  try {
+    settings = parseYamlDocument(fs.readFileSync(file, 'utf8'))
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {}
+    throw new Error(`Could not read ${file}: ${(err as Error).message}`, { cause: err })
+  }
+  if (settings == null) return {}
+  if (typeof settings !== 'object' || Array.isArray(settings)) {
+    throw new Error(`${file} does not hold a map of settings.`)
+  }
+  return settings as Record<string, unknown>
+}
+
+interface JsonAuth {
+  /** `.npmrc`-shaped credential entries, such as `//host/path/:_authToken`. */
+  entries: Array<[string, string]>
+  /** The registry each scope (`@` for the default one) is routed to. */
+  routes: Map<string, string>
+}
+
+/**
+ * The credentials and routes of the `_auth` setting: a map from registry URL
+ * to a map from scope (`@` or `@org`) to `{ authToken }`. An entry pnpm would
+ * reject is skipped, so it adds no credentials.
+ */
+function readJsonAuth (value: unknown, env: NodeJS.ProcessEnv): JsonAuth {
+  const auth: JsonAuth = { entries: [], routes: new Map() }
+  if (!isRecord(value)) return auth
+  for (const [registryUrl, scopes] of Object.entries(value)) {
+    const registry = jsonAuthRegistry(registryUrl)
+    if (registry != null && isRecord(scopes)) addJsonAuthScopes(auth, registry, scopes, env)
+  }
+  return auth
+}
+
+function addJsonAuthScopes (
+  auth: JsonAuth,
+  registry: { href: string, nerfDart: string },
+  scopes: Record<string, unknown>,
+  env: NodeJS.ProcessEnv
+): void {
+  for (const [scope, creds] of Object.entries(scopes)) {
+    if (!isJsonAuthScope(scope) || !isRecord(creds) || typeof creds.authToken !== 'string') continue
+    auth.entries.push([`${registry.nerfDart}:${scope === '@' ? '' : `${scope}:`}_authToken`, expandEnv(creds.authToken, env)])
+    auth.routes.set(scope, registry.href)
+  }
+}
+
+function jsonAuthRegistry (registryUrl: string): { href: string, nerfDart: string } | undefined {
+  let url: URL
+  try {
+    url = new URL(normalizeRegistry(registryUrl))
+  } catch {
+    return undefined
+  }
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password || url.search || url.hash) return undefined
+  return { href: url.href, nerfDart: `//${url.host}${url.pathname}` }
+}
+
+function isJsonAuthScope (scope: string): boolean {
+  return scope === '@' || (scope.length > 1 && scope.startsWith('@') && !scope.includes('/') && !scope.includes(':'))
+}
+
+function isRecord (value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value != null && !Array.isArray(value)
 }
 
 /** A null value leaves the setting to a lower source, as pnpm reads the file. */
@@ -189,8 +271,8 @@ function expandEnvIn (value: unknown, env: NodeJS.ProcessEnv): unknown {
   return typeof value === 'string' ? expandEnv(value, env) : value
 }
 
-/** The directory pnpm keeps the global `config.yaml` in. */
-function pnpmConfigDir (opts: PnpmProxyConfigOptions, env: NodeJS.ProcessEnv): string {
+/** The directory pnpm keeps the global `config.yaml` and `auth.ini` in. */
+function pnpmConfigDir (opts: { homeDir?: string, platform?: NodeJS.Platform }, env: NodeJS.ProcessEnv): string {
   const platform = opts.platform ?? process.platform
   const dirFromEnv = (name: string): string | undefined => {
     const value = env[name]
@@ -293,14 +375,14 @@ function topLevelSettings (text: string): Array<[string, string]> {
 }
 
 /**
- * Replaces `${NAME}` with the variable, or with nothing when it is unset.
- * `${NAME-fallback}` falls back when the variable is unset, and
- * `${NAME:-fallback}` also when it is empty, as in pnpm.
+ * Replaces `${NAME}`, and npm's `${NAME?}`, with the variable, or with nothing
+ * when it is unset. `${NAME-fallback}` falls back when the variable is unset,
+ * and `${NAME:-fallback}` also when it is empty, as in pnpm.
  */
 function expandEnv (value: string, env: NodeJS.ProcessEnv): string {
   return value.replace(/\$\{([^${}]+)\}/g, (_match, expression: string) => {
     const dash = expression.indexOf('-')
-    if (dash === -1) return env[expression] ?? ''
+    if (dash === -1) return env[expression.endsWith('?') ? expression.slice(0, -1) : expression] ?? ''
     const fallbackOnEmpty = expression[dash - 1] === ':'
     const variable = env[expression.slice(0, fallbackOnEmpty ? dash - 1 : dash)]
     const fallback = expression.slice(dash + 1)
@@ -308,26 +390,26 @@ function expandEnv (value: string, env: NodeJS.ProcessEnv): string {
   })
 }
 
-function npmrcHeaders (settings: Map<string, string>, registry: string): RequestHeaders | undefined {
+function npmrcAuth (settings: Map<string, string>, registry: string): Pick<PnpmRegistryConfig, 'headers' | 'authPath'> {
   const url = new URL(registry)
-  if (!isUrlSecureForCredentials(url)) return undefined
+  if (!isUrlSecureForCredentials(url)) return {}
   const prefixes = registryPrefixes(url)
   for (const scope of [':@pnpm', '']) {
-    for (const prefix of prefixes) {
+    for (const { prefix, pathname } of prefixes) {
       const authorization = npmrcAuthorization(settings, `${prefix}${scope}`)
-      if (authorization != null) return { authorization }
+      if (authorization != null) return { headers: { authorization }, authPath: pathname }
     }
   }
-  return undefined
+  return {}
 }
 
 /** Each `//host[:port]/path/` prefix of `url`, longest first, then the same without the port. */
-function registryPrefixes (url: URL): string[] {
-  const prefixes: string[] = []
+function registryPrefixes (url: URL): Array<{ prefix: string, pathname: string }> {
+  const prefixes: Array<{ prefix: string, pathname: string }> = []
   for (const host of new Set([url.host, url.hostname])) {
     let pathname = url.pathname
     while (true) {
-      prefixes.push(`//${host}${pathname}`)
+      prefixes.push({ prefix: `//${host}${pathname}`, pathname })
       if (pathname === '/') break
       pathname = pathname.slice(0, pathname.lastIndexOf('/', pathname.length - 2) + 1)
     }

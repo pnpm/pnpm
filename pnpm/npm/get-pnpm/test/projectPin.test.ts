@@ -251,6 +251,25 @@ describe('readProjectPin', () => {
     })
   })
 
+  test('reads a pnpm-workspace.yaml of only blank lines, comments, and a document end marker as no settings', () => {
+    for (const content of ['', '\n', '# a workspace root\n', '# a workspace root\n...\n']) {
+      const dir = project({
+        'pnpm-workspace.yaml': content,
+        'package.json': manifest({ packageManager: 'pnpm@12.1.0' }),
+        'packages/member/package.json': manifest({ packageManager: 'pnpm@11.20.0' }),
+      })
+
+      assert.equal(pinOf(dir)?.spec, '12.1.0', JSON.stringify(content))
+      assert.equal(pinOf(path.join(dir, 'packages', 'member'))?.spec, '11.20.0', JSON.stringify(content))
+    }
+  })
+
+  test('reads a package.yaml of only comments as a manifest that pins nothing', () => {
+    const dir = project({ 'package.yaml': '# nothing yet\n' })
+
+    assert.equal(pinOf(dir), undefined)
+  })
+
   test('names the pnpm-workspace.yaml that is not valid YAML', () => {
     const dir = project({ 'pnpm-workspace.yaml': 'packages: [\n', 'package.json': manifest({}) })
 

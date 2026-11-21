@@ -24,6 +24,8 @@ export interface DownloadExecutableOptions {
   destPath: string
   /** Credentials for `registry`, withheld from any other origin. */
   headers?: RequestHeaders
+  /** The path `headers` are scoped to, such as `/org-a/npm/`: they are withheld from any other path too. */
+  authPath?: string
   /** PEM certificates of CAs to trust besides Node.js's own; see {@link useCertificateAuthorities}. */
   ca?: readonly string[]
   /** The proxy to download through; `process.env` names it when unset. See {@link useProxyFromEnv}. */
@@ -95,7 +97,7 @@ async function fetchExecutable (
   opts: DownloadExecutableOptions & { npmRegistry: string, packageName: string }
 ): Promise<{ packageName: string }> {
   const { version, destPath, registry, packageName } = opts
-  const meta = await fetchVersionMeta(registry, packageName, version, opts.headers)
+  const meta = await fetchVersionMeta(registry, packageName, version, opts.headers, opts.authPath)
   if (!meta.dist.integrity) {
     throw new Error(`The npm registry published no checksum for ${packageName}@${version}, so it cannot be verified.`)
   }
@@ -104,7 +106,7 @@ async function fetchExecutable (
       name: packageName,
       version,
       integrity: meta.dist.integrity,
-      signatures: await fetchSignatures(meta, { registry, pkgName: packageName, version, headers: opts.headers, npmRegistry: opts.npmRegistry }),
+      signatures: await fetchSignatures(meta, { registry, pkgName: packageName, version, headers: opts.headers, headersPath: opts.authPath, npmRegistry: opts.npmRegistry }),
       keys: opts.keys,
     })
   }
@@ -114,7 +116,7 @@ async function fetchExecutable (
   const staged = `${scratch}.tmp`
   fs.mkdirSync(path.dirname(destPath), { recursive: true })
   try {
-    await downloadTarball(meta, tarball, { registry, headers: opts.headers })
+    await downloadTarball(meta, tarball, { registry, headers: opts.headers, headersPath: opts.authPath })
     const member = `package/${executableName()}`
     if (!await extractTarballMember(tarball, member, staged, 0o755)) {
       throw new Error(`The ${packageName}@${version} tarball contains no ${member}.`)

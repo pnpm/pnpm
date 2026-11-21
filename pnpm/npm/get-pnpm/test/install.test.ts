@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, before, describe, test } from 'node:test'
 
-import { downloadPnpm, installPnpm } from '../lib/install.js'
+import { downloadPnpm, downloadPnpmWithNpmRegistry, installPnpm } from '../lib/install.js'
 import type { SigningKey } from '../lib/verifySignature.js'
 
 const VERSION = '99.0.0'
@@ -22,7 +22,7 @@ const KEYS: SigningKey[] = [{
 }]
 
 /** One thing broken per run, to drive each refusal separately. */
-type Mode = 'ok' | 'bad-tarball' | 'bad-signature' | 'unsigned' | 'root-signatures' | 'wrong-keyid' | 'no-integrity' | 'npm-tarball-url'
+type Mode = 'ok' | 'bad-tarball' | 'bad-signature' | 'unsigned' | 'root-signatures' | 'wrong-keyid' | 'no-integrity' | 'npm-tarball-url' | 'npm-signatures'
 
 let tmpDir: string
 let server: http.Server
@@ -30,6 +30,8 @@ let registry: string
 let mode: Mode = 'ok'
 let setupLog: string
 let authorizations: Array<string | undefined> = []
+/** The requests that reached the stand-in for npm's registry, served under `/npm/`. */
+let npmRequests: Array<{ path: string, authorization?: string }> = []
 let servedVersion = VERSION
 
 // The fake executable the mock serves is a `#!/bin/sh` script, so the flow that
@@ -64,7 +66,8 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  const install = async (): Promise<number> => installPnpm({ versionSpec: 'latest', registry, keys: KEYS })
+  const npmRegistry = (): string => `${registry}npm/`
+  const install = async (): Promise<number> => installPnpm({ versionSpec: 'latest', registry, keys: KEYS, npmRegistry: npmRegistry() })
 
   test('runs setup on an executable placed next to the dist it ships with', async () => {
     mode = 'ok'
@@ -158,6 +161,24 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
     await assert.rejects(install, /carries no npm registry signature/)
   })
 
+  test('takes npm\'s signatures when the registry serves none, without its credentials', async () => {
+    mode = 'npm-signatures'
+    npmRequests = []
+    const dest = path.join(tmpDir, 'npm-signatures')
+
+    await downloadPnpmWithNpmRegistry({
+      versionSpec: 'latest',
+      registry: registry.slice(0, -1),
+      dest,
+      headers: { authorization: 'Bearer a-token' },
+      keys: KEYS,
+      npmRegistry: npmRegistry(),
+    })
+
+    assert.ok(fs.existsSync(path.join(dest, 'pnpm')))
+    assert.deepEqual(npmRequests.map(({ authorization }) => authorization), [undefined, undefined])
+  })
+
   test('takes the signatures from the package document when the version document has none', async () => {
     mode = 'root-signatures'
     assert.equal(await install(), 0)
@@ -180,12 +201,17 @@ interface Tarballs {
 }
 
 function handleRequest (req: http.IncomingMessage, res: http.ServerResponse, tarballs: Tarballs): void {
-  authorizations.push(req.headers.authorization)
   const url = decodeURIComponent(req.url!)
   const json = (body: unknown): void => {
     res.writeHead(200, { 'content-type': 'application/json' })
     res.end(JSON.stringify(body))
   }
+  if (url.startsWith('/npm/')) {
+    npmRequests.push({ path: url, authorization: req.headers.authorization })
+    json(npmVersionMetaFor(url.slice('/npm/'.length, url.lastIndexOf('/')), tarballs))
+    return
+  }
+  authorizations.push(req.headers.authorization)
 
   if (url.endsWith(`/${servedVersion}`)) {
     const kind = url === `/pnpm/${servedVersion}` ? 'pnpm' : 'platform'
@@ -193,18 +219,28 @@ function handleRequest (req: http.IncomingMessage, res: http.ServerResponse, tar
     json(versionMetaFor(name, kind, tarballs))
     return
   }
-  if (url === '/pnpm.tgz' || url === '/platform.tgz') {
-    const bytes = fs.readFileSync(tarballs[url === '/pnpm.tgz' ? 'pnpm' : 'platform'])
-    res.writeHead(200, { 'content-type': 'application/octet-stream' })
-    res.end(mode === 'bad-tarball' ? Buffer.concat([bytes, Buffer.from('tampered')]) : bytes)
+  if (url.endsWith('.tgz')) {
+    serveTarball(url, res, tarballs)
     return
   }
-  if (url.endsWith('.tgz')) {
+  json(packumentFor(url.slice(1), tarballs))
+}
+
+function serveTarball (url: string, res: http.ServerResponse, tarballs: Tarballs): void {
+  if (url !== '/pnpm.tgz' && url !== '/platform.tgz') {
     res.writeHead(404)
     res.end()
     return
   }
-  json(packumentFor(url.slice(1), tarballs))
+  const bytes = fs.readFileSync(tarballs[url === '/pnpm.tgz' ? 'pnpm' : 'platform'])
+  res.writeHead(200, { 'content-type': 'application/octet-stream' })
+  res.end(mode === 'bad-tarball' ? Buffer.concat([bytes, Buffer.from('tampered')]) : bytes)
+}
+
+/** What npm's registry serves for `name`: the checksum the stand-in registry serves, signed. */
+function npmVersionMetaFor (name: string, tarballs: Tarballs): unknown {
+  const kind = name === 'pnpm' ? 'pnpm' : 'platform'
+  return { dist: { integrity: integrityOf(kind, tarballs), signatures: signaturesFor(name, kind, tarballs) } }
 }
 
 function packumentFor (name: string, tarballs: Tarballs): unknown {
@@ -227,8 +263,9 @@ function versionMetaFor (name: string, kind: keyof Tarballs, tarballs: Tarballs)
         ? `https://registry.npmjs.org/${kind}.tgz`
         : `${registry}${kind}.tgz`,
       ...(mode === 'no-integrity' ? {} : { integrity }),
-      // A proxy that strips the signatures here leaves them in the package document.
-      ...(mode === 'root-signatures' ? {} : { signatures: signaturesFor(name, kind, tarballs) }),
+      // A proxy that strips the signatures here leaves them in the package
+      // document. One that strips them everywhere leaves only npm's.
+      ...(mode === 'root-signatures' || mode === 'npm-signatures' ? {} : { signatures: signaturesFor(name, kind, tarballs) }),
     },
   }
 }

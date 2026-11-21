@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { parseJSON5 } from 'confbox/json5'
-import { parseYAML } from 'confbox/yaml'
 import picomatch from 'picomatch'
 import semver from 'semver'
+
+import { parseYamlDocument } from './yaml.js'
 
 /** The pnpm version a project pins, and where the pin was read from. */
 export interface ProjectPin {
@@ -117,7 +118,8 @@ function readManifest (dir: string | undefined): Manifest | undefined {
 }
 
 function parseManifest (file: string, content: string): unknown {
-  if (file.endsWith('.yaml')) return parseYaml(file, content)
+  // pnpm reads a `package.yaml` that holds no document as an empty manifest.
+  if (file.endsWith('.yaml')) return parseYaml(file, content) ?? {}
   try {
     // Windows tools write a byte order mark, which pnpm reads past.
     const text = content.replace(/^\uFEFF/, '')
@@ -129,7 +131,7 @@ function parseManifest (file: string, content: string): unknown {
 
 function parseYaml (file: string, content: string): unknown {
   try {
-    return parseYAML(content)
+    return parseYamlDocument(content)
   } catch (err) {
     throw new Error(`${file} is not valid YAML: ${(err as Error).message}`, { cause: err })
   }

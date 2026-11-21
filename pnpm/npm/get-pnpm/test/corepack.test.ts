@@ -42,6 +42,19 @@ describe('corepackDownloadOptions', () => {
     })
   })
 
+  test("scopes the credentials of pnpm's config to the path they are configured for", () => {
+    const { cwd, homeDir } = layout({
+      user: ['registry=https://registry.example.test/org-a/npm/', '//registry.example.test/org-a/npm/:_authToken=user-token'],
+    })
+
+    assert.deepEqual(corepackDownloadOptions({ cwd, homeDir, env: {} }), {
+      registry: 'https://registry.example.test/org-a/npm/',
+      headers: { authorization: 'Bearer user-token' },
+      authPath: '/org-a/npm/',
+      proxy: {},
+    })
+  })
+
   test("sends Corepack's username and password to Corepack's registry", () => {
     const { cwd, homeDir } = layout()
 

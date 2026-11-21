@@ -28,7 +28,7 @@ const KEYS: SigningKey[] = [{
 }]
 
 /** One thing broken per run, to drive each refusal separately. */
-type Mode = 'ok' | 'bad-tarball' | 'bad-signature' | 'unsigned' | 'root-signatures' | 'root-bad-signature' | 'no-version-document' | 'npm-signatures' | 'npm-bad-signature' | 'no-integrity' | 'no-executable' | 'npm-tarball-url' | 'truncated'
+type Mode = 'ok' | 'bad-tarball' | 'bad-signature' | 'unsigned' | 'root-signatures' | 'root-bad-signature' | 'no-version-document' | 'npm-signatures' | 'npm-bad-signature' | 'no-integrity' | 'no-executable' | 'npm-tarball-url' | 'same-origin-tarball' | 'truncated'
 
 let tmpDir: string
 let server: http.Server
@@ -154,6 +154,18 @@ describe('downloadPnpmExecutable', () => {
 
     assert.equal(requests[0]!.authorization, 'Bearer a-token')
     assert.equal(cdnRequests[0]!.authorization, undefined)
+  })
+
+  test('withholds credentials scoped to the registry path from a same-origin tarball outside it', async () => {
+    mode = 'same-origin-tarball'
+    const headers = { authorization: 'Bearer a-token' }
+
+    await downloadPnpmExecutable({ version: VERSION, registry: `${addressOf(server)}/npm/`, authPath: '/npm/', destPath: destIn('auth-path'), headers, keys: KEYS })
+
+    assert.deepEqual(requests, [
+      { path: `/npm/${packageNameFor()}/${VERSION}`, authorization: 'Bearer a-token' },
+      { path: `/${packageNameFor()}/-/tarball.tgz`, authorization: undefined },
+    ])
   })
 
   test('routes the download through the proxy the environment names', { skip: PROXY_UNSUPPORTED }, async () => {
@@ -602,6 +614,11 @@ function handleNpmRequest (req: http.IncomingMessage, res: http.ServerResponse):
   res.end(JSON.stringify({ dist: { integrity: integrityOf(bytesFor(mode)), signatures: signaturesFor(name) } }))
 }
 
+function tarballOrigin (): string {
+  if (mode === 'npm-tarball-url') return 'https://registry.npmjs.org'
+  return addressOf(mode === 'same-origin-tarball' ? server : cdn)
+}
+
 function npmRegistryUrl (): string {
   return `${addressOf(npm)}/`
 }
@@ -612,9 +629,7 @@ function versionMetaFor (name: string): unknown {
     dist: {
       // An npm URL is what a registry proxying npm hands back, and has to
       // be re-hosted onto the registry that answered.
-      tarball: mode === 'npm-tarball-url'
-        ? `https://registry.npmjs.org/${name}/-/tarball.tgz`
-        : `${addressOf(cdn)}/${name}/-/tarball.tgz`,
+      tarball: `${tarballOrigin()}/${name}/-/tarball.tgz`,
       ...(mode === 'no-integrity' ? {} : { integrity }),
       // A proxy that strips the signatures here leaves them in the package document.
       ...(mode === 'root-signatures' || mode === 'root-bad-signature' || STRIPS_ALL_SIGNATURES.has(mode) ? {} : { signatures: signaturesFor(name) }),
