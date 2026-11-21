@@ -304,7 +304,9 @@ async fn log_reads_follow_grants_within_the_hosted_claims() {
         let response = get(&app, uri, Some(&reader)).await;
         assert_eq!(response.status(), StatusCode::OK, "{uri}");
         assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
-        assert_eq!(get(&app, uri, Some(&admin)).await.status(), StatusCode::NOT_FOUND);
+        let denied = get(&app, uri, Some(&admin)).await;
+        assert_eq!(denied.status(), StatusCode::NOT_FOUND);
+        assert_eq!(denied.headers()[header::CACHE_CONTROL], "private, no-store");
     }
 }
 

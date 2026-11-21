@@ -88,7 +88,7 @@ pub(super) async fn get_log_resource(
     let readers = LogReaders::of(&state, &log, &identity);
     let anyone = LogReaders::of(&state, &log, &Identity::Anonymous);
     if !readers.may_read_some {
-        return not_found();
+        return private_no_cache(not_found());
     }
     let (response, public) = if resource == "checkpoint" {
         (serve_checkpoint(&state, &log).await, anyone.may_read_some)
