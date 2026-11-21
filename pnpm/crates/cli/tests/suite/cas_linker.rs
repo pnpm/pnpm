@@ -263,15 +263,16 @@ fn cas_workspace_preserves_workspace_and_alias_dependency_contexts() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    fs::create_dir_all(workspace.join("packages/child")).unwrap();
+    let child = workspace.join("packages/child#1");
+    fs::create_dir_all(&child).unwrap();
     fs::write(
         workspace.join("package.json"),
         r#"{"name":"root","dependencies":{"child":"workspace:*"}}"#,
     )
     .unwrap();
-    fs::write(workspace.join("packages/child/package.json"), r#"{"name":"child","version":"1.0.0","main":"index.cjs","bin":{"nested":"bin.cjs"},"scripts":{"test":"node index.cjs"},"dependencies":{"aliased":"npm:@pnpm.e2e/pkg-with-1-dep@100.0.0"}}"#).unwrap();
-    fs::write(workspace.join("packages/child/index.cjs"), "require('node:assert/strict').equal(require('aliased')().name, '@pnpm.e2e/dep-of-pkg-with-1-dep'); module.exports = 42;").unwrap();
-    fs::write(workspace.join("packages/child/bin.cjs"), r"const assert = require('node:assert/strict'); const options = process.env.NODE_OPTIONS; assert.equal(options.split(/\s+/).filter(option => option.includes('.store-loader.mjs')).length, 1); if (!process.env.NESTED_SHIM) require('node:child_process').execFileSync('nested', [], {env: {...process.env, NESTED_SHIM: 'true'}, stdio: 'inherit', shell: process.platform === 'win32'});").unwrap();
+    fs::write(child.join("package.json"), r#"{"name":"child","version":"1.0.0","main":"index.cjs","bin":{"nested":"bin.cjs"},"scripts":{"test":"node index.cjs"},"dependencies":{"aliased":"npm:@pnpm.e2e/pkg-with-1-dep@100.0.0"}}"#).unwrap();
+    fs::write(child.join("index.cjs"), "require('node:assert/strict').equal(require('aliased')().name, '@pnpm.e2e/dep-of-pkg-with-1-dep'); module.exports = 42;").unwrap();
+    fs::write(child.join("bin.cjs"), r"const assert = require('node:assert/strict'); const options = process.env.NODE_OPTIONS; assert.equal(options.split(/\s+/).filter(option => option.includes('.store-loader.mjs')).length, 1); if (!process.env.NESTED_SHIM) require('node:child_process').execFileSync('nested', [], {env: {...process.env, NESTED_SHIM: 'true'}, stdio: 'inherit', shell: process.platform === 'win32'});").unwrap();
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).unwrap();
     yaml.push_str("nodeLinker:\n  type: loaded\npackages:\n  - packages/*\n");
