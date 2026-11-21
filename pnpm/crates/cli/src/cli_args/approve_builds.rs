@@ -325,7 +325,7 @@ impl Partition {
     /// name cannot identify: a `file:`/`link:` path, a git URL, or a tarball
     /// URL. Only a default-registry semver is approvable by name; a named
     /// registry key (`name@alias:version`) lacks the registry-origin shape
-    /// that [`AllowBuildPolicy`] trusts, so it needs the exact selector too.
+    /// that `AllowBuildPolicy` trusts, so it needs the exact selector too.
     /// [`parse_dep_path_name_version`] strips peer and patch suffixes, so a
     /// patched default-registry entry stays approvable by name.
     fn require_exact_selectors(&self, pending: &[String]) -> miette::Result<()> {
