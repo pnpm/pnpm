@@ -155,16 +155,15 @@ async function probeSingleCandidate (
   // Fresh resolution rewrites in-archive `file:` dependencies before hooks
   // run, so the replay and its rewrite baseline do too.
   const prepared = pristine != null ? linkFileDepsInsidePackage(pristine as DependencyManifest) : undefined
-  const hookSettings = { hooks: activeHooks, lockfileDir: opts.lockfileDir }
-  const hooked = await runReadPackageProbe(hookSettings, { candidate, pristine: prepared, sentinel: PROBE_SENTINEL_SPEC })
+  const hooked = await runReadPackageProbe(activeHooks, { candidate, pristine: prepared, sentinel: PROBE_SENTINEL_SPEC })
   const altHooked = prepared == null
-    ? await runReadPackageProbe(hookSettings, { candidate, sentinel: PROBE_ALT_SENTINEL_SPEC })
+    ? await runReadPackageProbe(activeHooks, { candidate, sentinel: PROBE_ALT_SENTINEL_SPEC })
     : undefined
   if (hooked != null) recordHookedCandidateRewrites(candidate, { pristine: prepared, hooked, altHooked }, acc.rewrites)
 }
 
 async function runReadPackageProbe (
-  { hooks, lockfileDir }: { hooks: ReadPackageHook[], lockfileDir: string | undefined },
+  hooks: ReadPackageHook[],
   { candidate, pristine, sentinel }: { candidate: ProbeCandidate, pristine?: PackageManifest, sentinel: string }
 ): Promise<PackageManifest | undefined> {
   let pkg: PackageManifest = pristine != null
@@ -179,8 +178,9 @@ async function runReadPackageProbe (
     }
   try {
     for (const hook of hooks) {
+      // Fresh resolution passes no directory for a dependency's manifest.
       // eslint-disable-next-line no-await-in-loop -- hooks compose sequentially on the manifest
-      pkg = (await hook(pkg, lockfileDir)) ?? pkg
+      pkg = (await hook(pkg)) ?? pkg
     }
     return pkg
   } catch (err: unknown) {

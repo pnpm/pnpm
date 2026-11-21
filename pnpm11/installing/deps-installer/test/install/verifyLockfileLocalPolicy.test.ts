@@ -747,8 +747,10 @@ test('the hook replay sees in-archive file: dependencies as package-root links',
   }))
   const store = { fetchPackage } as unknown as StoreController
   const subSpecsSeenByHook: Array<string | undefined> = []
-  const rejectsRawFileSpecs: ReadPackageHook = (pkg) => {
+  const dirsSeenByHook: Array<string | undefined> = []
+  const rejectsRawFileSpecs: ReadPackageHook = (pkg, dir) => {
     subSpecsSeenByHook.push(pkg.dependencies?.sub)
+    dirsSeenByHook.push(dir)
     if (Object.values(pkg.dependencies ?? {}).some((spec) => spec.startsWith('file:'))) {
       throw new Error('raw file: specifier')
     }
@@ -776,9 +778,11 @@ test('the hook replay sees in-archive file: dependencies as package-root links',
   }
   await expect(resolveLocalPolicyForInstall(lockfile, {
     hooks: { readPackage: [rejectsRawFileSpecs] },
+    lockfileDir: '/work/app',
     storeController: store,
   })).resolves.toBeDefined()
   expect(subSpecsSeenByHook).toContain('link:<root>/sub')
+  expect(new Set(dirsSeenByHook)).toStrictEqual(new Set([undefined]))
 })
 
 test('a regular dependency named like a local peer is not a resolved peer', async () => {
